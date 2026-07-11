@@ -1,4 +1,4 @@
 import { render } from "solid-js/web";
 import { App } from "@rigged/app";
 
-render(() => <App />, document.getElementById("root")!);
+render(() => <App platform="web" />, document.getElementById("root")!);

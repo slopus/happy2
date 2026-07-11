@@ -1,1 +1,8 @@
 @import "tailwindcss" source(".");
+
+.app-rail {
+  background:
+    radial-gradient(circle at 7% -8%, rgb(229 75 133 / 88%) 0 10%, transparent 31%),
+    radial-gradient(circle at 104% -15%, rgb(56 134 159 / 72%) 0 12%, transparent 38%),
+    linear-gradient(145deg, #7e3078 0%, #5f256d 46%, #3b174c 100%);
+}
