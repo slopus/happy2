@@ -13,13 +13,134 @@ describe("App", () => {
     });
 
     it("switches features from the rail", () => {
-        const { getByRole, getByText } = render(() => <App />);
+        const { getByLabelText, getByRole } = render(() => <App />);
 
         const tasks = getByRole("button", { name: "Tasks" });
         fireEvent.click(tasks);
 
         expect(tasks.getAttribute("aria-pressed")).toBe("true");
-        expect(getByText("Feature · Tasks")).toBeTruthy();
+        expect(getByLabelText("Tasks sidebar")).toBeTruthy();
+        expect(getByLabelText("Tasks workspace")).toBeTruthy();
+    });
+
+    it("filters and advances work from the Tasks panel", () => {
+        const { getByLabelText, getByRole, queryByLabelText } = render(() => <App />);
+
+        fireEvent.click(getByRole("button", { name: "Tasks" }));
+        const tasksSidebar = getByLabelText("Tasks sidebar");
+        fireEvent.click(within(tasksSidebar).getByRole("button", { name: "Agent-owned" }));
+        expect(getByLabelText("Build the agent phase indicator task")).toBeTruthy();
+        expect(queryByLabelText("Write migration rollback notes task")).toBeNull();
+
+        fireEvent.click(within(tasksSidebar).getByRole("button", { name: "All work" }));
+        fireEvent.click(getByRole("button", { name: "Complete Remove the workspace naming step" }));
+        expect(
+            within(getByLabelText("Remove the workspace naming step task")).getByText("Reopen"),
+        ).toBeTruthy();
+    });
+
+    it("creates a task with an agent owner", () => {
+        const { getByLabelText, getByRole, getByText } = render(() => <App />);
+
+        fireEvent.click(getByRole("button", { name: "Tasks" }));
+        fireEvent.click(getByRole("button", { name: "+ Add task" }));
+        fireEvent.input(getByLabelText("Task outcome"), {
+            target: { value: "Verify recovery after an interrupted run" },
+        });
+        fireEvent.click(getByRole("button", { name: "Assign task to Patch" }));
+        fireEvent.click(getByRole("button", { name: "Add to planned" }));
+
+        expect(getByText("Verify recovery after an interrupted run")).toBeTruthy();
+        expect(getByLabelText("Verify recovery after an interrupted run task")).toBeTruthy();
+    });
+
+    it("gives Agents and Files their own functional sidebars", () => {
+        const { getByLabelText, getByRole, queryByLabelText } = render(() => <App />);
+
+        expect(getByLabelText("Rigged sidebar")).toBeTruthy();
+        fireEvent.click(getByRole("button", { name: "Agents" }));
+        const agentsSidebar = getByLabelText("Agents sidebar");
+        expect(queryByLabelText("Rigged sidebar")).toBeNull();
+        fireEvent.click(within(agentsSidebar).getByRole("button", { name: "Scout" }));
+        expect(getByLabelText("Scout agent lane")).toBeTruthy();
+        expect(queryByLabelText("Forge agent lane")).toBeNull();
+
+        fireEvent.click(getByRole("button", { name: "Files" }));
+        const filesSidebar = getByLabelText("Files sidebar");
+        expect(queryByLabelText("Agents sidebar")).toBeNull();
+        fireEvent.click(
+            within(filesSidebar).getByRole("button", { name: "Open WorkspaceHeader.tsx diff" }),
+        );
+        expect(getByLabelText("WorkspaceHeader.tsx unified diff")).toBeTruthy();
+        fireEvent.click(within(filesSidebar).getByRole("button", { name: "Verification" }));
+        expect(getByLabelText("Verification checks")).toBeTruthy();
+    });
+
+    it("opens the agent command center and controls a live run", () => {
+        const { getByLabelText, getByRole } = render(() => <App />);
+
+        fireEvent.click(getByRole("button", { name: "Agents" }));
+        expect(getByLabelText("Agents workspace")).toBeTruthy();
+        expect(getByLabelText("Workspace pulse")).toBeTruthy();
+
+        fireEvent.click(getByRole("button", { name: "Pause Agent phase indicator" }));
+        expect(getByRole("button", { name: "Resume Agent phase indicator" })).toBeTruthy();
+
+        fireEvent.click(getByRole("button", { name: "Mark Default workspace naming reviewed" }));
+        expect(
+            within(getByLabelText("Default workspace naming run")).getByText("Complete"),
+        ).toBeTruthy();
+    });
+
+    it("creates a queued delegation from the agent command center", () => {
+        const { getByLabelText, getByRole, getByText } = render(() => <App />);
+
+        fireEvent.click(getByRole("button", { name: "Agents" }));
+        fireEvent.click(getByRole("button", { name: "+ Delegate work" }));
+        expect(getByRole("dialog", { name: "Delegate work" })).toBeTruthy();
+
+        fireEvent.input(getByLabelText("Delegation goal"), {
+            target: { value: "Verify the workspace recovery flow" },
+        });
+        fireEvent.click(getByRole("button", { name: "Assign to Patch" }));
+        fireEvent.click(getByRole("button", { name: "Plan only" }));
+        fireEvent.click(getByRole("button", { name: "Start delegation" }));
+
+        expect(getByText("Verify the workspace recovery flow")).toBeTruthy();
+        expect(getByLabelText("Verify the workspace recovery flow run")).toBeTruthy();
+    });
+
+    it("opens a file change set and its verification evidence", () => {
+        const { getByLabelText, getByRole, getByText } = render(() => <App />);
+
+        fireEvent.click(getByRole("button", { name: "Files" }));
+        expect(getByLabelText("Change review workspace")).toBeTruthy();
+        expect(getByLabelText("WorkspaceCreator.tsx unified diff")).toBeTruthy();
+
+        fireEvent.click(getByRole("button", { name: "Open WorkspaceHeader.tsx diff" }));
+        expect(getByText("const [isRenaming, setIsRenaming] = createSignal(false);")).toBeTruthy();
+
+        fireEvent.click(getByRole("button", { name: /Checks/ }));
+        expect(getByLabelText("Verification checks")).toBeTruthy();
+        expect(getByText("Workspace migration")).toBeTruthy();
+    });
+
+    it("adds an inline review comment and approves the agent change set", () => {
+        const { getByLabelText, getByRole, getByText } = render(() => <App />);
+
+        fireEvent.click(getByRole("button", { name: "Files" }));
+        fireEvent.click(getByRole("button", { name: "Comment on WorkspaceCreator.tsx line 18" }));
+        fireEvent.input(getByLabelText("Review comment"), {
+            target: { value: "Keep this creation path safe for projects without a folder name." },
+        });
+        fireEvent.click(getByRole("button", { name: "Add comment" }));
+
+        expect(
+            getByText("Keep this creation path safe for projects without a folder name."),
+        ).toBeTruthy();
+        fireEvent.click(getByRole("button", { name: "Approve changes" }));
+        expect(getByText("Approved")).toBeTruthy();
+        expect(getByRole("button", { name: "Reopen review" })).toBeTruthy();
     });
 
     it("switches workspace items from the sidebar", () => {
@@ -143,5 +264,20 @@ describe("App", () => {
         const sentReceipt = receipts[receipts.length - 1]!;
         expect(within(sentReceipt).getByText("Plan only")).toBeTruthy();
         expect(within(sentReceipt).getByText("Read context")).toBeTruthy();
+    });
+
+    it("pauses an agent at an approval gate until a person allows the action", () => {
+        const { getByLabelText, getByRole, getByText } = render(() => <App />);
+        const request = getByLabelText("Approval request: Update shared onboarding manifest");
+
+        expect(within(request).getByText("Waiting for a person")).toBeTruthy();
+        fireEvent.click(getByRole("button", { name: "View approval details" }));
+        expect(within(request).getByText("edit config/releases/onboarding.json")).toBeTruthy();
+        expect(within(request).getByText("Shared config")).toBeTruthy();
+
+        fireEvent.click(getByRole("button", { name: "Allow Forge action once" }));
+        expect(within(request).getByText("Approved once")).toBeTruthy();
+        expect(within(request).getByText("Forge may perform this action once")).toBeTruthy();
+        expect(getByText("Undo")).toBeTruthy();
     });
 });

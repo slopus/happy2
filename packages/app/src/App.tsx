@@ -1,11 +1,17 @@
 import { createSignal } from "solid-js";
 import type { MentionableAgent } from "./components/AgentMentionPicker";
+import { AgentsSidebar, type AgentSidebarView } from "./components/AgentsSidebar";
+import { AgentsWorkspace } from "./components/AgentsWorkspace";
 import { ChatComposer } from "./components/ChatComposer";
 import { ChatMessages, type ChatMessage } from "./components/ChatMessages";
+import { ChangeReviewWorkspace, type ReviewTab } from "./components/ChangeReviewWorkspace";
 import type { ContextItem } from "./components/ContextPicker";
 import type { Delegation } from "./components/ExecutionScope";
+import { FilesSidebar } from "./components/FilesSidebar";
 import { Rail, type Feature } from "./components/Rail";
 import { Sidebar, type SidebarItem, type SidebarSection } from "./components/Sidebar";
+import { TasksSidebar, type TaskCounts, type TaskView } from "./components/TasksSidebar";
+import { TasksWorkspace } from "./components/TasksWorkspace";
 
 const features: Feature[] = [
     { id: "home", name: "Home", icon: "home" },
@@ -301,6 +307,27 @@ const initialMessages: ThreadMessage[] = [
         reactions: [{ emoji: "✅", count: 4 }],
     },
     {
+        id: "general-10",
+        conversationId: "general",
+        author: "Forge",
+        initials: "F",
+        avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
+        avatarType: "bot",
+        time: "10:15 AM",
+        body: "The implementation and verification are complete. Registering the migration for the next desktop release touches shared rollout configuration, which was outside the scope Theo granted. I’m paused here.",
+        approvalRequest: {
+            agent: "Forge",
+            initials: "F",
+            avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
+            title: "Update shared onboarding manifest",
+            typeLabel: "Scope expansion",
+            reason: "Add the default-name migration to the next desktop release without broadening access to any other release settings.",
+            action: "edit config/releases/onboarding.json",
+            impact: "One shared configuration file. Applies to the next internal desktop build and can be reverted before release.",
+            resources: ["Shared config", "1 file", "Internal build", "Reversible"],
+        },
+    },
+    {
         id: "product-1",
         conversationId: "product",
         author: "Lena Ortiz",
@@ -551,7 +578,18 @@ type AppProps = {
 
 export function App(props: AppProps) {
     const [activeFeatureId, setActiveFeatureId] = createSignal("home");
+    const [agentSidebarView, setAgentSidebarView] = createSignal<AgentSidebarView>("overview");
+    const [taskView, setTaskView] = createSignal<TaskView>("all");
+    const [taskCounts, setTaskCounts] = createSignal<TaskCounts>({
+        all: 8,
+        mine: 1,
+        agents: 6,
+        blocked: 1,
+        complete: 1,
+    });
     const [activeSidebarItemId, setActiveSidebarItemId] = createSignal("general");
+    const [activeReviewFileId, setActiveReviewFileId] = createSignal("workspace-creator");
+    const [activeReviewTab, setActiveReviewTab] = createSignal<ReviewTab>("changes");
     const [draft, setDraft] = createSignal("");
     const [attachedContext, setAttachedContext] = createSignal<ContextItem[]>([]);
     const [messages, setMessages] = createSignal<ThreadMessage[]>(initialMessages);
@@ -609,80 +647,123 @@ export function App(props: AppProps) {
             onQueryChange={setQuery}
             showWindowControls={props.platform === "desktop"}
             sidebar={
-                <Sidebar
-                    workspaceName="Rigged"
-                    sections={sidebarSections}
-                    activeItemId={activeSidebarItemId()}
-                    onItemChange={(itemId) => {
-                        setActiveSidebarItemId(itemId);
-                        setDraft("");
-                        setAttachedContext([]);
-                    }}
-                />
+                activeFeatureId() === "agents" ? (
+                    <AgentsSidebar
+                        activeView={agentSidebarView()}
+                        onViewChange={setAgentSidebarView}
+                    />
+                ) : activeFeatureId() === "tasks" ? (
+                    <TasksSidebar
+                        activeView={taskView()}
+                        counts={taskCounts()}
+                        onViewChange={setTaskView}
+                    />
+                ) : activeFeatureId() === "files" ? (
+                    <FilesSidebar
+                        activeFileId={activeReviewFileId()}
+                        activeTab={activeReviewTab()}
+                        onFileChange={setActiveReviewFileId}
+                        onTabChange={setActiveReviewTab}
+                    />
+                ) : (
+                    <Sidebar
+                        workspaceName="Rigged"
+                        sections={sidebarSections}
+                        activeItemId={activeSidebarItemId()}
+                        onItemChange={(itemId) => {
+                            setActiveSidebarItemId(itemId);
+                            setDraft("");
+                            setAttachedContext([]);
+                        }}
+                    />
+                )
             }
         >
-            <section
-                class="flex min-h-full min-w-0 flex-1 flex-col"
-                id="feature"
-                aria-labelledby="conversation-heading"
-                aria-label={`${activeSidebarItem().name} content`}
-            >
-                <header class="flex h-[58px] shrink-0 items-center border-b border-[#e5e0e5] px-5">
-                    <div class="min-w-0">
-                        <h1
-                            class="truncate text-[0.94rem] font-extrabold tracking-[-0.02em] text-[#302a2f]"
-                            id="conversation-heading"
+            {activeFeatureId() === "agents" ? (
+                <AgentsWorkspace
+                    query={query()}
+                    view={agentSidebarView()}
+                    onViewChange={setAgentSidebarView}
+                />
+            ) : activeFeatureId() === "tasks" ? (
+                <TasksWorkspace
+                    query={query()}
+                    view={taskView()}
+                    onCountsChange={setTaskCounts}
+                    onViewChange={setTaskView}
+                />
+            ) : activeFeatureId() === "files" ? (
+                <ChangeReviewWorkspace
+                    activeFileId={activeReviewFileId()}
+                    activeTab={activeReviewTab()}
+                    onFileChange={setActiveReviewFileId}
+                    onTabChange={setActiveReviewTab}
+                    query={query()}
+                />
+            ) : (
+                <section
+                    class="flex min-h-full min-w-0 flex-1 flex-col"
+                    id="feature"
+                    aria-labelledby="conversation-heading"
+                    aria-label={`${activeSidebarItem().name} content`}
+                >
+                    <header class="flex h-[58px] shrink-0 items-center border-b border-[#e5e0e5] px-5">
+                        <div class="min-w-0">
+                            <h1
+                                class="truncate text-[0.94rem] font-extrabold tracking-[-0.02em] text-[#302a2f]"
+                                id="conversation-heading"
+                            >
+                                {activeTitle()}
+                            </h1>
+                            <p class="mt-0.5 text-[0.65rem] font-medium text-[#958c94]">
+                                Feature · {activeFeature().name}
+                            </p>
+                        </div>
+                    </header>
+
+                    <div class="flex h-9 shrink-0 items-end gap-4 border-b border-[#e5e0e5] px-5">
+                        <button
+                            class="h-full border-0 border-b-2 border-[#6f3f76] bg-transparent px-0 text-[0.72rem] font-extrabold text-[#3f3540]"
+                            type="button"
                         >
-                            {activeTitle()}
-                        </h1>
-                        <p class="mt-0.5 text-[0.65rem] font-medium text-[#958c94]">
-                            Feature · {activeFeature().name}
-                        </p>
+                            Messages
+                        </button>
+                        <button
+                            class="h-full border-0 border-b-2 border-transparent bg-transparent px-0 text-[0.72rem] font-bold text-[#817980] hover:text-[#4c444a]"
+                            type="button"
+                        >
+                            Add canvas
+                        </button>
                     </div>
-                </header>
 
-                <div class="flex h-9 shrink-0 items-end gap-4 border-b border-[#e5e0e5] px-5">
-                    <button
-                        class="h-full border-0 border-b-2 border-[#6f3f76] bg-transparent px-0 text-[0.72rem] font-extrabold text-[#3f3540]"
-                        type="button"
-                    >
-                        Messages
-                    </button>
-                    <button
-                        class="h-full border-0 border-b-2 border-transparent bg-transparent px-0 text-[0.72rem] font-bold text-[#817980] hover:text-[#4c444a]"
-                        type="button"
-                    >
-                        Add canvas
-                    </button>
-                </div>
+                    <ChatMessages
+                        attachedContextIds={attachedContext().map((item) => item.id)}
+                        conversationName={activeSidebarItem().name}
+                        description={conversationDescription()}
+                        introTitle={conversationIntroTitle()}
+                        messages={activeMessages()}
+                        onUseContext={(context) =>
+                            setAttachedContext((current) =>
+                                current.some((item) => item.id === context.id)
+                                    ? current
+                                    : [...current, context],
+                            )
+                        }
+                        searchQuery={query()}
+                    />
 
-                <ChatMessages
-                    attachedContextIds={attachedContext().map((item) => item.id)}
-                    conversationName={activeSidebarItem().name}
-                    description={conversationDescription()}
-                    introTitle={conversationIntroTitle()}
-                    messages={activeMessages()}
-                    onUseContext={(context) =>
-                        setAttachedContext((current) =>
-                            current.some((item) => item.id === context.id)
-                                ? current
-                                : [...current, context],
-                        )
-                    }
-                    searchQuery={query()}
-                />
-
-                <ChatComposer
-                    agents={mentionableAgents}
-                    availableContext={availableContextItems}
-                    attachedContext={attachedContext()}
-                    conversationLabel={conversationLabel()}
-                    value={draft()}
-                    onContextChange={setAttachedContext}
-                    onValueChange={setDraft}
-                    onSend={sendMessage}
-                />
-            </section>
+                    <ChatComposer
+                        agents={mentionableAgents}
+                        availableContext={availableContextItems}
+                        attachedContext={attachedContext()}
+                        conversationLabel={conversationLabel()}
+                        value={draft()}
+                        onContextChange={setAttachedContext}
+                        onValueChange={setDraft}
+                        onSend={sendMessage}
+                    />
+                </section>
+            )}
         </Rail>
     );
 }

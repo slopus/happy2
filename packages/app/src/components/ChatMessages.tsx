@@ -1,5 +1,6 @@
 import { createEffect, For } from "solid-js";
 import { AgentRunCard, type AgentRun } from "./AgentRunCard";
+import { ApprovalRequestCard, type ApprovalRequest } from "./ApprovalRequestCard";
 import { Avatar, type AvatarType } from "./Avatar";
 import { ContextChips, type ContextItem } from "./ContextPicker";
 import { DecisionCard, type Decision } from "./DecisionCard";
@@ -15,6 +16,7 @@ export type ChatMessage = {
     avatarClass: string;
     avatarType?: AvatarType;
     agentRun?: AgentRun;
+    approvalRequest?: ApprovalRequest;
     body: string;
     context?: ContextItem[];
     decision?: Decision;
@@ -51,21 +53,19 @@ function renderMessageBody(body: string) {
 }
 
 export function ChatMessages(props: ChatMessagesProps) {
-    let log: HTMLDivElement | undefined;
+    let log!: HTMLDivElement;
 
     createEffect(() => {
-        void props.messages.length;
+        props.messages.length;
         queueMicrotask(() => {
-            if (log) log.scrollTop = log.scrollHeight;
+            log.scrollTop = log.scrollHeight;
         });
     });
 
     return (
         <div
             class="min-h-0 flex-1 overflow-y-auto bg-white"
-            ref={(element) => {
-                log = element;
-            }}
+            ref={log}
             role="log"
             aria-label={`${props.conversationName} messages`}
             aria-live="polite"
@@ -155,6 +155,10 @@ export function ChatMessages(props: ChatMessagesProps) {
                                     )}
 
                                     {message.agentRun && <AgentRunCard run={message.agentRun} />}
+
+                                    {message.approvalRequest && (
+                                        <ApprovalRequestCard request={message.approvalRequest} />
+                                    )}
 
                                     {(message.reactions || message.replyCount) && (
                                         <div class="mt-1.5 flex items-center gap-1.5">
