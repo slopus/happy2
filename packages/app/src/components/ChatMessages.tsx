@@ -1,5 +1,9 @@
-import { createEffect } from "solid-js";
+import { createEffect, For } from "solid-js";
+import { AgentRunCard, type AgentRun } from "./AgentRunCard";
 import { Avatar, type AvatarType } from "./Avatar";
+import { ContextChips, type ContextItem } from "./ContextPicker";
+import { DecisionCard, type Decision } from "./DecisionCard";
+import { DelegationReceipt, type Delegation } from "./ExecutionScope";
 
 export type MessageReaction = {
   count: number;
@@ -10,7 +14,11 @@ export type ChatMessage = {
   author: string;
   avatarClass: string;
   avatarType?: AvatarType;
+  agentRun?: AgentRun;
   body: string;
+  context?: ContextItem[];
+  decision?: Decision;
+  delegation?: Delegation;
   id: string;
   initials: string;
   reactions?: MessageReaction[];
@@ -23,6 +31,8 @@ type ChatMessagesProps = {
   description: string;
   introTitle: string;
   messages: ChatMessage[];
+  attachedContextIds: string[];
+  onUseContext: (context: ContextItem) => void;
   searchQuery: string;
 };
 
@@ -83,8 +93,9 @@ export function ChatMessages(props: ChatMessagesProps) {
             <p class="px-6 py-8 text-center text-[0.76rem] text-[#918991]">No messages here yet.</p>
           )}
 
-          {props.messages.map((message) => (
-            <article class="group flex gap-3 px-5 py-2.5 transition hover:bg-[#faf9fa]" aria-label={`${message.author} at ${message.time}`}>
+          <For each={props.messages}>
+            {(message) => (
+              <article class="group flex gap-3 px-5 py-2.5 transition hover:bg-[#faf9fa]" aria-label={`${message.author} at ${message.time}`}>
               <Avatar
                 backgroundClass={message.avatarClass}
                 initials={message.initials}
@@ -99,6 +110,24 @@ export function ChatMessages(props: ChatMessagesProps) {
                 <p class="mt-0.5 whitespace-pre-wrap text-[0.75rem] leading-[1.35rem] text-[#514a4f]">
                   {renderMessageBody(message.body)}
                 </p>
+
+                {message.context && message.context.length > 0 && (
+                  <div class="mt-2">
+                    <ContextChips items={message.context} label="Message context" />
+                  </div>
+                )}
+
+                {message.delegation && <DelegationReceipt delegation={message.delegation} />}
+
+                {message.decision && (
+                  <DecisionCard
+                    decision={message.decision}
+                    attached={props.attachedContextIds.includes(message.decision.context.id)}
+                    onAddContext={props.onUseContext}
+                  />
+                )}
+
+                {message.agentRun && <AgentRunCard run={message.agentRun} />}
 
                 {(message.reactions || message.replyCount) && (
                   <div class="mt-1.5 flex items-center gap-1.5">
@@ -123,8 +152,9 @@ export function ChatMessages(props: ChatMessagesProps) {
                   </div>
                 )}
               </div>
-            </article>
-          ))}
+              </article>
+            )}
+          </For>
         </div>
       </div>
     </div>

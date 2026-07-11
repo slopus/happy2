@@ -1,3 +1,14 @@
+import { AgentMentionPicker, type MentionableAgent } from "./AgentMentionPicker";
+import { ContextChips, ContextPicker, type ContextItem } from "./ContextPicker";
+import { createSignal } from "solid-js";
+import {
+  createDelegation,
+  DelegationBar,
+  type Delegation,
+  type ExecutionMode,
+  ExecutionScopePicker
+} from "./ExecutionScope";
+
 type ComposerTool =
   | "add"
   | "bold"
@@ -11,8 +22,12 @@ type ComposerTool =
   | "send";
 
 type ChatComposerProps = {
+  agents: MentionableAgent[];
+  attachedContext: ContextItem[];
+  availableContext: ContextItem[];
   conversationLabel: string;
-  onSend: () => void;
+  onContextChange: (items: ContextItem[]) => void;
+  onSend: (delegation?: Delegation) => void;
   onValueChange: (value: string) => void;
   value: string;
 };
@@ -41,12 +56,13 @@ function ComposerIcon(props: { name: ComposerTool }) {
   );
 }
 
-function ToolButton(props: { label: string; name: ComposerTool }) {
+function ToolButton(props: { label: string; name: ComposerTool; onClick?: () => void }) {
   return (
     <button
       class="grid h-7 w-7 place-items-center rounded-md border-0 bg-transparent p-0 text-[#716970] transition hover:bg-[#ece8ec] hover:text-[#322c31] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#6f4b92]"
       type="button"
       aria-label={props.label}
+      onClick={props.onClick}
     >
       <ComposerIcon name={props.name} />
     </button>
@@ -54,18 +70,77 @@ function ToolButton(props: { label: string; name: ComposerTool }) {
 }
 
 export function ChatComposer(props: ChatComposerProps) {
+  const [contextPickerOpen, setContextPickerOpen] = createSignal(false);
+  const [scopePickerOpen, setScopePickerOpen] = createSignal(false);
+  const [executionMode, setExecutionMode] = createSignal<ExecutionMode>("verify");
+  let textarea!: HTMLTextAreaElement;
+  const mentionMatch = () => props.value.match(/(?:^|\s)@([A-Za-z-]*)$/);
+  const mentionQuery = () => mentionMatch()?.[1] ?? "";
+  const matchingAgents = () =>
+    props.agents.filter((agent) => agent.name.toLowerCase().includes(mentionQuery().toLowerCase()));
+  const mentionMenuOpen = () => mentionMatch() !== null;
+  const mentionedAgent = () =>
+    props.agents.find((agent) => new RegExp(`@${agent.name}\\b`, "i").test(props.value));
+  const selectAgent = (agent: MentionableAgent) => {
+    const mentionStart = props.value.lastIndexOf("@");
+    const prefix = mentionStart >= 0 ? props.value.slice(0, mentionStart) : `${props.value}${props.value ? " " : ""}`;
+    props.onValueChange(`${prefix}@${agent.name} `);
+    setContextPickerOpen(false);
+    setScopePickerOpen(false);
+    queueMicrotask(() => textarea.focus());
+  };
+  const openMentionMenu = () => {
+    setContextPickerOpen(false);
+    setScopePickerOpen(false);
+    if (!mentionMenuOpen()) {
+      props.onValueChange(`${props.value}${props.value && !props.value.endsWith(" ") ? " " : ""}@`);
+    }
+    queueMicrotask(() => textarea.focus());
+  };
   const send = () => {
-    if (props.value.trim()) props.onSend();
+    if (!props.value.trim()) return;
+    const agent = mentionedAgent();
+    props.onSend(agent ? createDelegation(agent, executionMode()) : undefined);
+    setScopePickerOpen(false);
+    setExecutionMode("verify");
+  };
+  const toggleContext = (item: ContextItem) => {
+    const isAttached = props.attachedContext.some((attachedItem) => attachedItem.id === item.id);
+    props.onContextChange(
+      isAttached
+        ? props.attachedContext.filter((attachedItem) => attachedItem.id !== item.id)
+        : [...props.attachedContext, item]
+    );
   };
 
   return (
-    <form
-      class="mx-5 mb-4 shrink-0 overflow-hidden rounded-[10px] border border-[#cfc9cf] bg-white shadow-[0_2px_7px_rgb(40_27_38_/_7%)] focus-within:border-[#8c728f] focus-within:ring-2 focus-within:ring-[#8c728f]/10"
-      onSubmit={(event) => {
-        event.preventDefault();
-        send();
-      }}
-    >
+    <div class="relative mx-5 mb-4 shrink-0">
+      {mentionMenuOpen() && !contextPickerOpen() && !scopePickerOpen() && (
+        <AgentMentionPicker agents={props.agents} query={mentionQuery()} onSelect={selectAgent} />
+      )}
+      {contextPickerOpen() && (
+        <ContextPicker
+          items={props.availableContext}
+          selectedItems={props.attachedContext}
+          onToggle={toggleContext}
+          onDone={() => setContextPickerOpen(false)}
+        />
+      )}
+      {scopePickerOpen() && mentionedAgent() && (
+        <ExecutionScopePicker
+          selectedMode={executionMode()}
+          onSelect={setExecutionMode}
+          onDone={() => setScopePickerOpen(false)}
+        />
+      )}
+
+      <form
+        class="overflow-hidden rounded-[10px] border border-[#cfc9cf] bg-white shadow-[0_2px_7px_rgb(40_27_38_/_7%)] focus-within:border-[#8c728f] focus-within:ring-2 focus-within:ring-[#8c728f]/10"
+        onSubmit={(event) => {
+          event.preventDefault();
+          send();
+        }}
+      >
       <div class="flex h-9 items-center gap-0.5 border-b border-[#ece8ec] bg-[#faf9fa] px-2">
         <ToolButton label="Bold" name="bold" />
         <ToolButton label="Italic" name="italic" />
@@ -75,14 +150,49 @@ export function ChatComposer(props: ChatComposerProps) {
         <ToolButton label="Inline code" name="code" />
       </div>
 
+      {props.attachedContext.length > 0 && (
+        <div class="border-b border-[#ece8ec] bg-[#fcfbfc] px-3 py-2">
+          <ContextChips
+            items={props.attachedContext}
+            label="Attached context"
+            onRemove={(item) => props.onContextChange(props.attachedContext.filter((attachedItem) => attachedItem.id !== item.id))}
+          />
+        </div>
+      )}
+
+      {mentionedAgent() && (
+        <DelegationBar
+          agent={mentionedAgent()!}
+          mode={executionMode()}
+          onOpen={() => {
+            setContextPickerOpen(false);
+            setScopePickerOpen(true);
+          }}
+        />
+      )}
+
       <textarea
+        ref={textarea}
         class="block min-h-[58px] w-full resize-none border-0 bg-white px-3 py-2.5 text-[0.78rem] leading-5 text-[#342e33] outline-0 placeholder:text-[#938b91]"
         aria-label={`Message ${props.conversationLabel}`}
         placeholder={`Message ${props.conversationLabel}`}
         rows="2"
         value={props.value}
+        aria-controls={mentionMenuOpen() ? "agent-mention-picker" : undefined}
+        aria-expanded={mentionMenuOpen()}
         onInput={(event) => props.onValueChange(event.currentTarget.value)}
         onKeyDown={(event) => {
+          if (mentionMenuOpen() && event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            const firstAgent = matchingAgents()[0];
+            if (firstAgent) selectAgent(firstAgent);
+            return;
+          }
+          if (mentionMenuOpen() && event.key === "Escape") {
+            event.preventDefault();
+            props.onValueChange(props.value.slice(0, props.value.lastIndexOf("@")));
+            return;
+          }
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             send();
@@ -91,9 +201,16 @@ export function ChatComposer(props: ChatComposerProps) {
       />
 
       <div class="flex h-9 items-center gap-0.5 px-2">
-        <ToolButton label="Add attachment" name="add" />
+        <ToolButton
+          label="Add context"
+          name="add"
+          onClick={() => {
+            setScopePickerOpen(false);
+            setContextPickerOpen((current) => !current);
+          }}
+        />
         <ToolButton label="Add emoji" name="emoji" />
-        <ToolButton label="Mention someone" name="mention" />
+        <ToolButton label="Mention an agent" name="mention" onClick={openMentionMenu} />
         <ToolButton label="Record a clip" name="record" />
         <button
           class="ml-auto grid h-7 w-9 place-items-center rounded-md border-0 bg-[#6f3f76] p-0 text-white transition enabled:hover:bg-[#5d3164] disabled:bg-[#ded9df] disabled:text-[#a69fa4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6f4b92]"
@@ -104,6 +221,7 @@ export function ChatComposer(props: ChatComposerProps) {
           <ComposerIcon name="send" />
         </button>
       </div>
-    </form>
+      </form>
+    </div>
   );
 }

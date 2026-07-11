@@ -1,6 +1,9 @@
 import { createSignal } from "solid-js";
+import type { MentionableAgent } from "./components/AgentMentionPicker";
 import { ChatComposer } from "./components/ChatComposer";
 import { ChatMessages, type ChatMessage } from "./components/ChatMessages";
+import type { ContextItem } from "./components/ContextPicker";
+import type { Delegation } from "./components/ExecutionScope";
 import { Rail, type Feature } from "./components/Rail";
 import { Sidebar, type SidebarItem, type SidebarSection } from "./components/Sidebar";
 
@@ -10,6 +13,66 @@ const features: Feature[] = [
   { id: "tasks", name: "Tasks", icon: "tasks" },
   { id: "files", name: "Files", icon: "files" },
   { id: "more", name: "More", icon: "more" }
+];
+
+const mentionableAgents: MentionableAgent[] = [
+  {
+    id: "forge",
+    name: "Forge",
+    initials: "F",
+    avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
+    description: "Implements scoped product and engineering work",
+    status: "ready"
+  },
+  {
+    id: "scout",
+    name: "Scout",
+    initials: "S",
+    avatarClass: "bg-[linear-gradient(145deg,#3296a4,#4d67bd)]",
+    description: "Researches context and synthesizes findings",
+    status: "working"
+  },
+  {
+    id: "patch",
+    name: "Patch",
+    initials: "P",
+    avatarClass: "bg-[linear-gradient(145deg,#d37c3e,#cf496e)]",
+    description: "Tests changes and verifies acceptance criteria",
+    status: "ready"
+  }
+];
+
+const availableContextItems: ContextItem[] = [
+  {
+    id: "composer-file",
+    label: "ChatComposer.tsx",
+    kind: "file",
+    detail: "packages/app/src/components"
+  },
+  {
+    id: "messages-file",
+    label: "ChatMessages.tsx",
+    kind: "file",
+    detail: "packages/app/src/components"
+  },
+  {
+    id: "design-decision",
+    label: "#design-system decision",
+    kind: "thread",
+    detail: "6 messages · bottom-anchor requirements"
+  },
+  {
+    id: "chat-agent-run",
+    label: "Bottom-anchored chat run",
+    kind: "run",
+    detail: "Forge · reviewed · 3 changed files"
+  },
+  {
+    id: "workspace-naming-decision",
+    label: "Workspace naming decision",
+    kind: "thread",
+    detail: "Accepted by 4 · default naming requirements"
+  }
 ];
 
 const sidebarSections: SidebarSection[] = [
@@ -152,7 +215,22 @@ const initialMessages: ThreadMessage[] = [
     initials: "MC",
     avatarClass: "bg-[linear-gradient(145deg,#cf7548,#e9a752)]",
     time: "9:34 AM",
-    body: "That resolves both concerns. Let’s use the folder name, fall back to “Untitled workspace,” and keep inline rename in the header."
+    body: "That resolves both concerns. Let’s use the folder name, fall back to “Untitled workspace,” and keep inline rename in the header.",
+    decision: {
+      id: "workspace-naming",
+      title: "Default workspace names",
+      summary: "Skip the naming step, derive the initial title from the project folder, and keep rename available inline.",
+      rationale: "This removes an early setup decision without sacrificing the distinct names teams need once multiple workspaces exist.",
+      decidedBy: "Maya Chen",
+      acceptedBy: 4,
+      criteria: [
+        "Use the project folder name when one is available",
+        "Fall back to “Untitled workspace” safely",
+        "Preserve existing saved names",
+        "Allow inline rename from the workspace header"
+      ],
+      context: availableContextItems[4]!
+    }
   },
   {
     id: "general-6",
@@ -162,6 +240,15 @@ const initialMessages: ThreadMessage[] = [
     avatarClass: "bg-[linear-gradient(145deg,#4d74b8,#7453a8)]",
     time: "9:37 AM",
     body: "Agreed. @Forge, implement that flow in the workspace creator and header. Preserve existing saved names and add coverage for the fallback case.",
+    delegation: {
+      agentId: "forge",
+      agentName: "Forge",
+      initials: "F",
+      avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
+      mode: "verify",
+      modeLabel: "Implement & verify",
+      permissions: ["Read files", "Edit files", "Run tests"]
+    },
     reactions: [{ emoji: "👍", count: 3 }]
   },
   {
@@ -172,7 +259,23 @@ const initialMessages: ThreadMessage[] = [
     avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
     avatarType: "bot",
     time: "9:41 AM",
-    body: "I’ll update the creation path, migrate the header to inline editing, and add focused tests. I’ll post the diff here before changing any persisted data."
+    body: "I’ll update the creation path, migrate the header to inline editing, and add focused tests. I’ll post the diff here before changing any persisted data.",
+    agentRun: {
+      agent: "Forge",
+      initials: "F",
+      avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
+      title: "Default workspace naming",
+      branch: "agent/forge/workspace-naming",
+      status: "review",
+      progress: 100,
+      steps: [
+        { label: "Trace workspace creation and persistence", status: "done" },
+        { label: "Derive a safe default from the project folder", status: "done" },
+        { label: "Add inline rename in the header", status: "done" },
+        { label: "Cover saved names and fallback behavior", status: "done" }
+      ],
+      files: ["WorkspaceCreator.tsx", "WorkspaceHeader.tsx", "workspace.test.ts"]
+    }
   },
   {
     id: "general-8",
@@ -248,7 +351,23 @@ const initialMessages: ThreadMessage[] = [
     avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
     avatarType: "bot",
     time: "10:25 AM",
-    body: "Understood. I’ll map the current run states into those four labels, add the narrow-sidebar treatment, and keep the feature flag off by default."
+    body: "Understood. I’ll map the current run states into those four labels, add the narrow-sidebar treatment, and keep the feature flag off by default.",
+    agentRun: {
+      agent: "Forge",
+      initials: "F",
+      avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
+      title: "Agent phase indicator",
+      branch: "agent/forge/run-phase-status",
+      status: "working",
+      progress: 58,
+      steps: [
+        { label: "Audit current run-state transitions", status: "done" },
+        { label: "Map states to four human-readable phases", status: "done" },
+        { label: "Build narrow-sidebar treatment", status: "working" },
+        { label: "Add flag and interaction coverage", status: "pending" }
+      ],
+      files: ["AgentStatus.tsx", "runState.ts", "flags.ts"]
+    }
   },
   {
     id: "design-1",
@@ -284,7 +403,22 @@ const initialMessages: ThreadMessage[] = [
     initials: "NK",
     avatarClass: "bg-[linear-gradient(145deg,#b94b68,#e47d83)]",
     time: "10:29 AM",
-    body: "Right. The scroll container owns the timeline, the composer stays outside it, and sparse content uses bottom alignment. That gives us normal chronology and the Slack behavior."
+    body: "Right. The scroll container owns the timeline, the composer stays outside it, and sparse content uses bottom alignment. That gives us normal chronology and the Slack behavior.",
+    decision: {
+      id: "bottom-anchored-chat",
+      title: "Bottom-anchor sparse chat history",
+      summary: "Keep messages chronological while anchoring sparse histories directly above the pinned composer.",
+      rationale: "Separating the scrollable timeline from the composer preserves normal message order and keeps short conversations visually connected to their input.",
+      decidedBy: "Nora Kim",
+      acceptedBy: 4,
+      criteria: [
+        "Composer remains pinned outside the message scroller",
+        "Sparse histories align to the bottom",
+        "Long histories retain chronological scrolling",
+        "Newly sent messages scroll into view"
+      ],
+      context: availableContextItems[2]!
+    }
   },
   {
     id: "design-5",
@@ -294,6 +428,16 @@ const initialMessages: ThreadMessage[] = [
     avatarClass: "bg-[linear-gradient(145deg,#cf7548,#e9a752)]",
     time: "10:33 AM",
     body: "Decision made. @Forge, implement that structure as separate ChatMessages and ChatComposer components. Enter sends, Shift+Enter adds a line, and a sent message must scroll into view.",
+    delegation: {
+      agentId: "forge",
+      agentName: "Forge",
+      initials: "F",
+      avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
+      mode: "verify",
+      modeLabel: "Implement & verify",
+      permissions: ["Read files", "Edit files", "Run tests"]
+    },
+    context: [availableContextItems[2]!, availableContextItems[0]!],
     reactions: [{ emoji: "🎨", count: 4 }]
   },
   {
@@ -304,7 +448,23 @@ const initialMessages: ThreadMessage[] = [
     avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
     avatarType: "bot",
     time: "10:39 AM",
-    body: "Implemented the component split and bottom anchor. The composer owns draft submission; the message log owns scrolling and renders messages in chronological order."
+    body: "Implemented the component split and bottom anchor. The composer owns draft submission; the message log owns scrolling and renders messages in chronological order.",
+    agentRun: {
+      agent: "Forge",
+      initials: "F",
+      avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
+      title: "Bottom-anchored chat",
+      branch: "agent/forge/chat-components",
+      status: "review",
+      progress: 100,
+      steps: [
+        { label: "Split timeline and composer responsibilities", status: "done" },
+        { label: "Anchor sparse histories above the composer", status: "done" },
+        { label: "Submit on Enter and preserve Shift+Enter", status: "done" },
+        { label: "Scroll sent messages into view", status: "done" }
+      ],
+      files: ["ChatMessages.tsx", "ChatComposer.tsx", "App.test.tsx"]
+    }
   },
   {
     id: "design-7",
@@ -334,6 +494,22 @@ const initialMessages: ThreadMessage[] = [
     avatarType: "bot",
     time: "10:54 AM",
     body: "All four cases pass. The newest message stays above the composer, and long histories scroll without moving the composer.",
+    agentRun: {
+      agent: "Patch",
+      initials: "P",
+      avatarClass: "bg-[linear-gradient(145deg,#d37c3e,#cf496e)]",
+      title: "Chat interaction verification",
+      branch: "agent/patch/chat-verification",
+      status: "complete",
+      progress: 100,
+      steps: [
+        { label: "Verify Enter and Shift+Enter", status: "done" },
+        { label: "Verify automatic scroll after send", status: "done" },
+        { label: "Verify empty-thread bottom alignment", status: "done" },
+        { label: "Verify long-history composer position", status: "done" }
+      ],
+      files: ["chat-interactions.spec.ts"]
+    },
     reactions: [{ emoji: "✅", count: 3 }]
   },
   {
@@ -373,6 +549,7 @@ export function App(props: AppProps) {
   const [activeFeatureId, setActiveFeatureId] = createSignal("home");
   const [activeSidebarItemId, setActiveSidebarItemId] = createSignal("general");
   const [draft, setDraft] = createSignal("");
+  const [attachedContext, setAttachedContext] = createSignal<ContextItem[]>([]);
   const [messages, setMessages] = createSignal<ThreadMessage[]>(initialMessages);
   const [query, setQuery] = createSignal("");
   const activeFeature = () =>
@@ -393,7 +570,7 @@ export function App(props: AppProps) {
     activeSidebarItem().kind === "channel"
       ? `Everyone’s all here in #${activeSidebarItem().name}`
       : activeSidebarItem().name;
-  const sendMessage = () => {
+  const sendMessage = (delegation?: Delegation) => {
     const body = draft().trim();
     if (!body) return;
 
@@ -406,10 +583,13 @@ export function App(props: AppProps) {
         initials: "ST",
         avatarClass: "bg-[linear-gradient(145deg,#3ca8a4,#4b5fb0_52%,#d14c78)]",
         time: "Now",
-        body
+        body,
+        context: attachedContext(),
+        delegation
       }
     ]);
     setDraft("");
+    setAttachedContext([]);
   };
 
   return (
@@ -428,6 +608,7 @@ export function App(props: AppProps) {
           onItemChange={(itemId) => {
             setActiveSidebarItemId(itemId);
             setDraft("");
+            setAttachedContext([]);
           }}
         />
       }
@@ -457,16 +638,26 @@ export function App(props: AppProps) {
         </div>
 
         <ChatMessages
+          attachedContextIds={attachedContext().map((item) => item.id)}
           conversationName={activeSidebarItem().name}
           description={conversationDescription()}
           introTitle={conversationIntroTitle()}
           messages={activeMessages()}
+          onUseContext={(context) =>
+            setAttachedContext((current) =>
+              current.some((item) => item.id === context.id) ? current : [...current, context]
+            )
+          }
           searchQuery={query()}
         />
 
         <ChatComposer
+          agents={mentionableAgents}
+          availableContext={availableContextItems}
+          attachedContext={attachedContext()}
           conversationLabel={conversationLabel()}
           value={draft()}
+          onContextChange={setAttachedContext}
           onValueChange={setDraft}
           onSend={sendMessage}
         />
