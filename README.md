@@ -34,10 +34,12 @@ pnpm check              # Type-check, test, and build every package
 plus main process to `packages/desktop/dist`. Start the latter after building
 with `pnpm --filter @rigged/desktop start`.
 
-The server reads a TOML configuration. Copy
-`packages/server/rigged.example.toml` to `rigged.toml`, set the database and
-JWT key paths, then run `pnpm --filter @slopus/rigged dev -- --config rigged.toml`.
-See the server package README for the auth and Docker deployment configuration.
+Start a local server with `pnpm dev:server`. It uses the included development
+TOML configuration, creates its SQLite database under `packages/server`, and
+generates durable local keys in `packages/server/.env` on its first start. Copy
+`packages/server/rigged.example.toml` before production deployment and adjust
+the host, public URL, database, and key configuration. See the server package
+README for deployment and auth configuration.
 
 ## Working convention
 

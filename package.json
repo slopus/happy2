@@ -11,6 +11,7 @@
     "dev": "pnpm --filter @rigged/web dev",
     "dev:web": "pnpm --filter @rigged/web dev",
     "dev:desktop": "pnpm --filter @rigged/desktop dev",
+    "dev:server": "pnpm --dir packages/server dev -- --config rigged.example.toml",
     "build": "pnpm -r --if-present build",
     "test": "pnpm -r --if-present test",
     "test:watch": "pnpm -r --parallel --if-present test:watch",

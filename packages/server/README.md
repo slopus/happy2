@@ -8,9 +8,13 @@ versioned under `/v0`; `/` is only a small service-status response.
 ## Run
 
 ```sh
+# Development, with reload:
+pnpm dev:server
+
+# Production package:
 cp packages/server/rigged.example.toml rigged.toml
 pnpm --filter @slopus/rigged build
-pnpm --filter @slopus/rigged start -- --config rigged.toml
+pnpm --filter @slopus/rigged start -- --config ../../rigged.toml
 ```
 
 The server applies the bundled Drizzle SQLite migrations at startup. `file:`

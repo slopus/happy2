@@ -2,16 +2,16 @@
 # "all" serves auth and API validation; "auth" only issues tokens; "api" only
 # validates them against the shared database.
 role = "all"
-host = "0.0.0.0"
+host = "127.0.0.1"
 port = 3000
-public_url = "https://rigged.example.com"
+public_url = "http://127.0.0.1:3000"
 # Number of trusted reverse-proxy hops. Set 0 when directly exposed.
 trusted_proxy_hops = 1
 
 [database]
 # A local file works for one host. Use a shared libSQL endpoint when auth and
 # API are independently deployed, so every instance sees the same sessions.
-url = "file:/var/lib/rigged/rigged.db"
+url = "file:rigged.db"
 # auth_token_env = "RIGGED_DATABASE_AUTH_TOKEN"
 
 [jwt]
