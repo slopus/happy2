@@ -3,8 +3,8 @@ import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 
 export default defineConfig({
-  plugins: [tailwindcss(), solid()],
-  build: {
-    outDir: "dist/renderer"
-  }
+    plugins: [tailwindcss(), solid()],
+    build: {
+        outDir: "dist/renderer",
+    },
 });

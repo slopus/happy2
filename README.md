@@ -11,6 +11,7 @@ for mobile viewports.
 - `@rigged/web` imports `@rigged/app` and creates a browser build.
 - `@rigged/desktop` imports `@rigged/app` in an Electron renderer and builds its
   Electron main process with Vite.
+- `@slopus/rigged` is the publishable Fastify server and authentication service.
 
 ## Requirements
 
@@ -32,6 +33,11 @@ pnpm check              # Type-check, test, and build every package
 `pnpm build` emits browser files to `packages/web/dist` and an Electron renderer
 plus main process to `packages/desktop/dist`. Start the latter after building
 with `pnpm --filter @rigged/desktop start`.
+
+The server reads a TOML configuration. Copy
+`packages/server/rigged.example.toml` to `rigged.toml`, set the database and
+JWT key paths, then run `pnpm --filter @slopus/rigged dev -- --config rigged.toml`.
+See the server package README for the auth and Docker deployment configuration.
 
 ## Working convention
 

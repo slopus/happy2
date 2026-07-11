@@ -15,7 +15,14 @@
     "test": "pnpm -r --if-present test",
     "test:watch": "pnpm -r --parallel --if-present test:watch",
     "typecheck": "pnpm -r --if-present typecheck",
-    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "format": "pnpm -r --if-present format",
+    "format:check": "pnpm -r --if-present format:check",
+    "lint": "pnpm -r --if-present lint",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "clean": "pnpm -r --if-present clean"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.57.0",
+    "oxlint": "^1.73.0"
   }
 }
