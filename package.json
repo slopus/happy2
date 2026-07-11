@@ -1,0 +1,21 @@
+{
+  "name": "rigged",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.28.1",
+  "engines": {
+    "node": ">=22.16.0",
+    "pnpm": ">=10.28.1"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @rigged/web dev",
+    "dev:web": "pnpm --filter @rigged/web dev",
+    "dev:desktop": "pnpm --filter @rigged/desktop dev",
+    "build": "pnpm -r --if-present build",
+    "test": "pnpm -r --if-present test",
+    "test:watch": "pnpm -r --parallel --if-present test:watch",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "clean": "pnpm -r --if-present clean"
+  }
+}

@@ -1,0 +1,8 @@
+node_modules
+.context
+dist
+coverage
+.DS_Store
+.env
+.env.*
+!.env.example

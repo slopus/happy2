@@ -1,0 +1,6 @@
+packages:
+  - packages/*
+
+# Electron downloads its platform binary during installation.
+onlyBuiltDependencies:
+  - electron
