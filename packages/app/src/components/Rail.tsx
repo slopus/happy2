@@ -1,4 +1,5 @@
-import type { ParentProps } from "solid-js";
+import type { JSX, ParentProps } from "solid-js";
+import { Avatar } from "./Avatar";
 
 type FeatureIconName = "home" | "agents" | "tasks" | "files" | "more";
 
@@ -15,6 +16,7 @@ type RailProps = ParentProps<{
   onQueryChange: (query: string) => void;
   query: string;
   showWindowControls: boolean;
+  sidebar: JSX.Element;
 }>;
 
 function SearchIcon() {
@@ -85,9 +87,9 @@ function ArrowIcon(props: { direction: "back" | "forward" }) {
 
 export function Rail(props: RailProps) {
   return (
-    <main class="app-rail grid min-h-screen min-w-[1024px] grid-cols-[76px_minmax(0,1fr)] grid-rows-[38px_minmax(0,1fr)] overflow-hidden font-sans text-[#292426]">
+    <main class="app-rail grid h-screen min-h-[704px] min-w-[1024px] grid-cols-[76px_288px_minmax(0,1fr)] grid-rows-[38px_minmax(0,1fr)] overflow-hidden font-sans text-[#292426]">
       <header
-        class="col-span-2 col-start-1 row-start-1 grid h-[38px] min-w-0 grid-cols-[76px_88px_minmax(0,1fr)_88px] items-center"
+        class="col-span-3 col-start-1 row-start-1 grid h-[38px] min-w-0 grid-cols-[76px_88px_minmax(0,1fr)_88px] items-center"
         aria-label="Window navigation"
       >
         <div
@@ -182,16 +184,30 @@ export function Rail(props: RailProps) {
         </nav>
 
         <button
-          class="mt-auto grid h-10 w-10 place-items-center rounded-full border-2 border-white/65 bg-[radial-gradient(circle_at_68%_25%,#f7cf70_0_18%,transparent_19%),linear-gradient(145deg,#3ca8a4_0%,#3265a8_48%,#dc4d78_100%)] p-0 text-[0.65rem] font-black text-white shadow-[0_7px_17px_rgb(28_8_37_/_24%)] transition hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          class="mt-auto rounded-full border-0 bg-transparent p-0 shadow-[0_7px_17px_rgb(28_8_37_/_24%)] transition hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           type="button"
           aria-label="Open profile"
         >
-          ST
+          <Avatar
+            backgroundClass="bg-[radial-gradient(circle_at_68%_25%,#f7cf70_0_18%,transparent_19%),linear-gradient(145deg,#3ca8a4_0%,#3265a8_48%,#dc4d78_100%)]"
+            initials="ST"
+            size="md"
+            type="human"
+          />
         </button>
       </aside>
 
-      <div class="col-start-2 row-start-2 flex min-h-[620px] min-w-0 flex-col overflow-hidden rounded-tl-[10px] bg-white shadow-[-8px_-8px_24px_rgb(36_7_43_/_9%)]">
-        {props.children}
+      <div
+        class="col-span-2 col-start-2 row-start-2 m-2 grid min-h-[620px] min-w-0 grid-cols-[288px_minmax(0,1fr)] overflow-hidden rounded-[14px] border border-white/20 bg-white shadow-[0_12px_34px_rgb(30_7_38_/_18%)]"
+        data-testid="content-shell"
+      >
+        <div class="min-h-0 min-w-0 overflow-hidden">
+          {props.sidebar}
+        </div>
+
+        <div class="flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-[#ded7df] bg-white">
+          {props.children}
+        </div>
       </div>
     </main>
   );
