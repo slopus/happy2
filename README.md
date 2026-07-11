@@ -1,8 +1,9 @@
 # Rigged
 
-Rigged is a universal work and coding app that evolves by adopting itself. This
+Rigged is a desktop work and coding app that evolves by adopting itself. This
 pnpm monorepo delivers its shared Solid UI through a web app and an Electron
-desktop app.
+desktop app. Rigged is desktop-only; its UI must not assume mobile use or adapt
+for mobile viewports.
 
 ## Packages
 

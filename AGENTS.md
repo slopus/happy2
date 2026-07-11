@@ -2,7 +2,9 @@
 
 ## Project
 
-Rigged is a universal work and coding app that evolves by adopting itself.
+Rigged is a desktop work and coding app that evolves by adopting itself. It is
+desktop-only: do not assume mobile use, add mobile-specific behavior, or adapt
+layouts for mobile viewports.
 
 ## Sync to main
 
