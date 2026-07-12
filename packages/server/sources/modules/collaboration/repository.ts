@@ -2839,7 +2839,7 @@ export class CollaborationRepository {
             if (kind.startsWith("preferences.")) areas.add("preferences");
             else if (kind.startsWith("notification.")) areas.add("notifications");
             else if (kind.startsWith("threadPreferences.")) areas.add("threads");
-            else if (kind.startsWith("scheduled.")) areas.add("scheduledMessages");
+            else if (kind.startsWith("scheduled.")) areas.add("scheduled-messages");
             else if (kind.startsWith("automation.")) areas.add("automations");
             else if (kind.startsWith("bot.")) areas.add("bots");
             else if (kind.startsWith("integration.")) areas.add("integrations");

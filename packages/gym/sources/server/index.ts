@@ -1,4 +1,4 @@
-import { generateKeyPairSync } from "node:crypto";
+import { generateKeyPairSync, randomBytes } from "node:crypto";
 import { Readable, Writable } from "node:stream";
 import {
     createClient,
@@ -12,10 +12,12 @@ import {
 } from "@libsql/client";
 import {
     buildServer,
+    AesGcmSecretProtector,
     CollaborationRepository,
     Database,
     defaultConfig,
     FileStorage,
+    IntegrationRepository,
     TokenService,
     type FileStorageFileSystem,
     type ServerConfig,
@@ -53,36 +55,62 @@ export interface GymServer extends GymRequestClient, AsyncDisposable {
     readonly config: ServerConfig;
     createUser(input?: CreateGymUser): Promise<GymUser>;
     as(user: GymUser): GymRequestClient;
+    /** Binds this same in-process server to an ephemeral loopback port for streaming tests. */
+    listen(): Promise<string>;
+    /** Rebuilds every process-local service while preserving durable database and file state. */
+    restart(): Promise<void>;
     close(): Promise<void>;
+}
+
+export interface GymServerOptions {
+    configure?: (config: ServerConfig) => void;
 }
 
 /**
  * Creates a complete Rigged server backed only by memory. The returned object is
  * anonymous by default; call `as(user)` to make authenticated requests.
  */
-export async function createGymServer(): Promise<GymServer> {
+export async function createGymServer(options: GymServerOptions = {}): Promise<GymServer> {
     const client = singleConnectionClient(createClient({ url: ":memory:" }));
     const fileSystem = new MemoryFileSystem();
     const config = gymConfig();
+    options.configure?.(config);
     const database = new Database(client);
-    const collaboration = new CollaborationRepository(client);
+    const tokenKeys = generateKeys();
+    const integrationProtector = new AesGcmSecretProtector(randomBytes(32));
     let app: FastifyInstance | undefined;
+    let integrations: IntegrationRepository | undefined;
 
     try {
         await database.migrate();
-        const tokens = await TokenService.create(config, generateKeys());
+        const tokens = await TokenService.create(config, tokenKeys);
+        const collaboration = new CollaborationRepository(client);
+        integrations = new IntegrationRepository(client, {
+            secretProtector: integrationProtector,
+        });
         app = await buildServer(config, {
             database,
             tokens,
             collaboration,
+            integrations,
             fileStorage: new FileStorage(config, database, fileSystem),
             logger: false,
         });
-        return new GymServerInstance(app, config, database, tokens, client, fileSystem);
+        return new GymServerInstance(
+            app,
+            config,
+            database,
+            tokens,
+            client,
+            fileSystem,
+            tokenKeys,
+            integrationProtector,
+            integrations,
+        );
     } catch (error) {
         await app?.close();
+        integrations?.close();
         database.close();
-        collaboration.close();
         client.close();
         fileSystem.reset();
         throw error;
@@ -104,12 +132,15 @@ class GymServerInstance implements GymServer {
     private userSequence = 0;
 
     constructor(
-        private readonly app: FastifyInstance,
+        private app: FastifyInstance,
         readonly config: ServerConfig,
         private readonly database: Database,
-        private readonly tokens: TokenService,
+        private tokens: TokenService,
         private readonly client: Client,
         private readonly fileSystem: MemoryFileSystem,
+        private readonly tokenKeys: { privateKey: string; publicKey: string },
+        private readonly integrationProtector: AesGcmSecretProtector,
+        private integrations: IntegrationRepository,
     ) {}
 
     request(options: InjectOptions): Promise<LightMyRequestResponse> {
@@ -161,12 +192,37 @@ class GymServerInstance implements GymServer {
         return new AuthenticatedClient(this, user.token);
     }
 
+    async listen(): Promise<string> {
+        this.assertOpen();
+        return this.app.listen({ host: "127.0.0.1", port: 0 });
+    }
+
+    async restart(): Promise<void> {
+        this.assertOpen();
+        await this.app.close();
+        this.integrations.close();
+        this.tokens = await TokenService.create(this.config, this.tokenKeys);
+        const collaboration = new CollaborationRepository(this.client);
+        this.integrations = new IntegrationRepository(this.client, {
+            secretProtector: this.integrationProtector,
+        });
+        this.app = await buildServer(this.config, {
+            database: this.database,
+            tokens: this.tokens,
+            collaboration,
+            integrations: this.integrations,
+            fileStorage: new FileStorage(this.config, this.database, this.fileSystem),
+            logger: false,
+        });
+    }
+
     async close(): Promise<void> {
         if (this.closed) return;
         this.closed = true;
         try {
             await this.app.close();
         } finally {
+            this.integrations.close();
             this.database.close();
             this.client.close();
             this.fileSystem.reset();

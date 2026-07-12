@@ -5,8 +5,9 @@ role = "all"
 host = "127.0.0.1"
 port = 3000
 public_url = "http://127.0.0.1:3000"
-# Number of trusted reverse-proxy hops. Set 0 when directly exposed.
-trusted_proxy_hops = 1
+# Keep 0 unless every request passes through exactly this many trusted proxies.
+# A wrong nonzero value lets clients spoof rate-limit and access telemetry IPs.
+trusted_proxy_hops = 0
 
 [database]
 # A local file works for one host. Use a shared libSQL endpoint when auth and

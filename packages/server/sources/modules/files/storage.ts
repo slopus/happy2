@@ -9,6 +9,8 @@ import type { Database, StoredFile, User } from "../database.js";
 import { BuiltinMediaProcessor, type MediaAnalysis, type MediaProcessor } from "./media.js";
 import {
     LocalFileStorageProvider,
+    parseCompletion,
+    parseUpload,
     UploadIncompleteError,
     UploadLimitError,
     UploadNotFoundError,
@@ -95,10 +97,13 @@ export class FileStorage {
                       config.files.directory,
                       optionsOrFileSystem,
                   ),
-                  quota: new MemoryFileQuotaPolicy({
-                      perUserBytes: config.files.perUserQuotaBytes,
-                      serverBytes: config.files.serverQuotaBytes,
-                  }),
+                  quota: new MemoryFileQuotaPolicy(
+                      {
+                          perUserBytes: config.files.perUserQuotaBytes,
+                          serverBytes: config.files.serverQuotaBytes,
+                      },
+                      optionsOrFileSystem,
+                  ),
                   mediaProcessor: new FileSystemMediaProcessor(optionsOrFileSystem),
               }
             : optionsOrFileSystem;
@@ -618,7 +623,7 @@ class FileSystemStorageProvider implements FileStorageProvider {
     }
 
     async sizeOf(storageName: string): Promise<number | undefined> {
-        return this.sizes.get(this.objectPath(storageName));
+        return this.knownSize(this.objectPath(storageName));
     }
 
     async writeVariant(storageName: string, variant: MediaVariant, input: Buffer): Promise<void> {
@@ -633,7 +638,10 @@ class FileSystemStorageProvider implements FileStorageProvider {
     }
 
     async variantSize(storageName: string, variant: MediaVariant): Promise<number | undefined> {
-        return this.variants.get(`${storageName}:${variant}`);
+        return (
+            this.variants.get(`${storageName}:${variant}`) ??
+            (await this.knownSize(this.variantPath(storageName, variant)))
+        );
     }
 
     async delete(storageName: string): Promise<void> {
@@ -661,19 +669,30 @@ class FileSystemStorageProvider implements FileStorageProvider {
     async createResumable(
         input: Omit<ResumableUpload, "offset" | "createdAt" | "updatedAt">,
     ): Promise<ResumableUpload> {
-        if (this.uploads.has(input.id)) throw new Error("Upload already exists");
+        if (await this.resumableState(input.id)) throw new Error("Upload already exists");
         const now = new Date().toISOString();
         const upload = { ...input, offset: 0, createdAt: now, updatedAt: now };
         await this.fileSystem.mkdir(join(this.directory, ".uploads"));
         await this.fileSystem.writeFile(this.uploadPath(input.id), Buffer.alloc(0));
         this.sizes.set(this.uploadPath(input.id), 0);
+        await this.writeUploadManifest(upload);
         this.uploads.set(input.id, upload);
         return { ...upload };
     }
 
     async resumableState(uploadId: string): Promise<ResumableUpload | undefined> {
-        const upload = this.uploads.get(uploadId);
-        return upload ? { ...upload } : undefined;
+        const cached = this.uploads.get(uploadId);
+        if (cached) return { ...cached };
+        try {
+            const source = await this.fileSystem.imageSource(this.uploadManifestPath(uploadId));
+            const upload = parseUpload(Buffer.from(source).toString("utf8"));
+            this.uploads.set(uploadId, upload);
+            this.sizes.set(this.uploadPath(uploadId), upload.offset);
+            return { ...upload };
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+            throw error;
+        }
     }
 
     async appendResumable(
@@ -682,7 +701,7 @@ class FileSystemStorageProvider implements FileStorageProvider {
         input: Readable,
         maximumChunkBytes: number,
     ): Promise<ResumableUpload> {
-        const upload = this.uploads.get(uploadId);
+        const upload = await this.resumableState(uploadId);
         if (!upload) throw new UploadNotFoundError();
         if (upload.offset !== expectedOffset) throw new UploadOffsetError(upload.offset);
         const chunk = await readStream(input, maximumChunkBytes);
@@ -695,6 +714,8 @@ class FileSystemStorageProvider implements FileStorageProvider {
         await this.fileSystem.writeFile(path, contents);
         upload.offset = contents.length;
         upload.updatedAt = new Date().toISOString();
+        await this.writeUploadManifest(upload);
+        this.uploads.set(uploadId, upload);
         this.sizes.set(path, contents.length);
         return { ...upload };
     }
@@ -702,15 +723,22 @@ class FileSystemStorageProvider implements FileStorageProvider {
     async finishResumable(
         uploadId: string,
     ): Promise<{ upload: ResumableUpload; staged: StagedObject }> {
-        const upload = this.uploads.get(uploadId);
+        const upload = await this.resumableState(uploadId);
         if (!upload) throw new UploadNotFoundError();
         if (upload.offset !== upload.size)
             throw new UploadIncompleteError(upload.offset, upload.size);
         const inspectionPath = this.stagingPath(uploadId);
-        await this.fileSystem.rename(this.uploadPath(uploadId), inspectionPath);
+        try {
+            await this.fileSystem.rename(this.uploadPath(uploadId), inspectionPath);
+        } catch (error) {
+            if (
+                (error as NodeJS.ErrnoException).code !== "ENOENT" ||
+                (await this.knownSize(inspectionPath)) !== upload.size
+            )
+                throw error;
+        }
         this.sizes.delete(this.uploadPath(uploadId));
         this.sizes.set(inspectionPath, upload.size);
-        this.uploads.delete(uploadId);
         return {
             upload: { ...upload },
             staged: { id: uploadId, size: upload.size, inspectionPath },
@@ -718,17 +746,38 @@ class FileSystemStorageProvider implements FileStorageProvider {
     }
 
     async completedResumable(uploadId: string): Promise<CompletedResumableUpload | undefined> {
-        const completion = this.completions.get(uploadId);
-        return completion ? { ...completion } : undefined;
+        const cached = this.completions.get(uploadId);
+        if (cached) return { ...cached };
+        try {
+            const source = await this.fileSystem.imageSource(this.receiptPath(uploadId));
+            const completion = parseCompletion(Buffer.from(source).toString("utf8"));
+            this.completions.set(uploadId, completion);
+            return { ...completion };
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+            throw error;
+        }
     }
 
     async recordResumableCompletion(completion: CompletedResumableUpload): Promise<void> {
+        await this.fileSystem.mkdir(join(this.directory, ".receipts"));
+        await this.fileSystem.writeFile(
+            this.receiptPath(completion.uploadId),
+            Buffer.from(JSON.stringify(completion)),
+        );
+        await this.fileSystem.rm(this.uploadManifestPath(completion.uploadId));
+        this.uploads.delete(completion.uploadId);
         this.completions.set(completion.uploadId, { ...completion });
     }
 
     async cancelResumable(uploadId: string): Promise<boolean> {
-        if (!this.uploads.delete(uploadId)) return false;
-        await this.fileSystem.rm(this.uploadPath(uploadId));
+        if (!(await this.resumableState(uploadId))) return false;
+        this.uploads.delete(uploadId);
+        await Promise.all([
+            this.fileSystem.rm(this.uploadPath(uploadId)),
+            this.fileSystem.rm(this.uploadManifestPath(uploadId)),
+            this.fileSystem.rm(this.stagingPath(uploadId)),
+        ]);
         this.sizes.delete(this.uploadPath(uploadId));
         return true;
     }
@@ -771,6 +820,35 @@ class FileSystemStorageProvider implements FileStorageProvider {
         return join(this.directory, ".uploads", `${id}.part`);
     }
 
+    private uploadManifestPath(id: string): string {
+        return join(this.directory, ".uploads", `${id}.json`);
+    }
+
+    private receiptPath(id: string): string {
+        return join(this.directory, ".receipts", `${id}.json`);
+    }
+
+    private async writeUploadManifest(upload: ResumableUpload): Promise<void> {
+        await this.fileSystem.writeFile(
+            this.uploadManifestPath(upload.id),
+            Buffer.from(JSON.stringify(upload)),
+        );
+    }
+
+    private async knownSize(path: string): Promise<number | undefined> {
+        const cached = this.sizes.get(path);
+        if (cached !== undefined) return cached;
+        try {
+            const source = await this.fileSystem.imageSource(path);
+            const size = Buffer.byteLength(source);
+            this.sizes.set(path, size);
+            return size;
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+            throw error;
+        }
+    }
+
     private objectPath(storageName: string): string {
         return join(this.directory, storageName);
     }
@@ -780,13 +858,25 @@ class FileSystemStorageProvider implements FileStorageProvider {
     }
 }
 
+const compatibilityQuotaLedgers = new WeakMap<
+    FileStorageFileSystem,
+    Map<string, { ownerUserId: string; bytes: number; committed: boolean }>
+>();
+
 class MemoryFileQuotaPolicy implements FileQuotaPolicy {
-    private readonly entries = new Map<
+    private readonly entries: Map<
         string,
         { ownerUserId: string; bytes: number; committed: boolean }
-    >();
+    >;
 
-    constructor(private readonly limits: { perUserBytes: number; serverBytes: number }) {}
+    constructor(
+        private readonly limits: { perUserBytes: number; serverBytes: number },
+        fileSystem: FileStorageFileSystem,
+    ) {
+        const entries = compatibilityQuotaLedgers.get(fileSystem) ?? new Map();
+        compatibilityQuotaLedgers.set(fileSystem, entries);
+        this.entries = entries;
+    }
 
     async reserve(input: { id: string; ownerUserId: string; bytes: number }): Promise<void> {
         if (this.entries.has(input.id)) throw new Error("Quota reservation already exists");

@@ -530,7 +530,7 @@ async function fileSize(path: string): Promise<number | undefined> {
     }
 }
 
-function parseUpload(input: string): ResumableUpload {
+export function parseUpload(input: string): ResumableUpload {
     const value = JSON.parse(input) as Partial<ResumableUpload>;
     if (
         typeof value.id !== "string" ||
@@ -551,7 +551,7 @@ function parseUpload(input: string): ResumableUpload {
     return value as ResumableUpload;
 }
 
-function parseCompletion(input: string): CompletedResumableUpload {
+export function parseCompletion(input: string): CompletedResumableUpload {
     const value = JSON.parse(input) as Partial<CompletedResumableUpload>;
     if (
         typeof value.uploadId !== "string" ||

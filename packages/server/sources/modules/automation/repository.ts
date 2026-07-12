@@ -477,7 +477,7 @@ export class AutomationRepository {
             });
             return {
                 message: await this.getScheduledMessageWith(tx, input.actorUserId, id),
-                hint: areaHint(sequence, "scheduledMessages"),
+                hint: areaHint(sequence, "scheduled-messages"),
             };
         });
     }
@@ -518,7 +518,7 @@ export class AutomationRepository {
                 actorUserId,
                 targetUserId: actorUserId,
             });
-            return areaHint(sequence, "scheduledMessages");
+            return areaHint(sequence, "scheduled-messages");
         });
     }
 
@@ -577,7 +577,7 @@ export class AutomationRepository {
                         actorUserId,
                         kind: "scheduled.published",
                         entityId: id,
-                        area: "scheduledMessages",
+                        area: "scheduled-messages",
                         targetUserId: actorUserId,
                     }),
                 );
@@ -593,7 +593,7 @@ export class AutomationRepository {
                         actorUserId,
                         kind: "scheduled.failed",
                         entityId: id,
-                        area: "scheduledMessages",
+                        area: "scheduled-messages",
                         targetUserId: actorUserId,
                     }),
                 );

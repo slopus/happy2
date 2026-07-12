@@ -184,13 +184,14 @@ by a Redis adapter and is allowed to drop, duplicate, reorder, or coalesce event
 
 1. `GET /v0/sync/state` returns `{protocolVersion, generation, sequence}`. On a
    new installation this is a baseline, not the beginning of retained history.
-2. `POST /v0/sync/getDifference` takes `generation`, `fromSequence`, optional
-   fixed `untilSequence`, and `limit`. It returns changed chat summaries with
+2. `POST /v0/sync/getDifference` takes the last stored
+   `state: {generation, sequence}`, optional fixed `untilSequence`, and `limit`.
+   It returns changed chat summaries with
    their latest `pts`, removed private-chat IDs, changed global areas, an
    intermediate state, and the fixed target state. A slice is repeated with its
    intermediate cursor and the same target until complete.
 3. For every changed chat, `POST /v0/chats/:chatId/getDifference` takes the
-   cached `membershipEpoch` and `fromPts`. It returns ordered pointers plus
+   cached `state: {membershipEpoch, pts}`. It returns ordered pointers plus
    current message projections/tombstones. A changed membership epoch or pruned
    cursor returns a reset/too-long result; the client discards that cached chat
    and fetches current history.
