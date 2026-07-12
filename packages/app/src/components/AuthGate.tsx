@@ -1,5 +1,12 @@
-import { Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
-import { WindowDragRegion } from "rigged-ui";
+import { Match, Show, Switch, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import {
+    AuthScreen,
+    Banner,
+    Button,
+    TextField,
+    WindowDragRegion,
+    onboardingBackgroundUrl,
+} from "rigged-ui";
 import {
     createServerClient,
     ServerError,
@@ -121,138 +128,156 @@ export function AuthGate(props: AuthGateProps) {
             setPending(false);
         }
     }
+    const isPasswordSignIn = () => mode() === "sign-in" && methods()?.method === "password";
+    const headline = (): { kicker?: string; title: string; copy?: string } => {
+        switch (mode()) {
+            case "loading":
+                return { kicker: "Connecting to your workspace", title: "One moment." };
+            case "unavailable":
+                return {
+                    kicker: "Connection needed",
+                    title: "Server not found.",
+                    copy: "Start it with pnpm dev:server, or set VITE_RIGGED_SERVER_URL.",
+                };
+            case "onboarding":
+                return {
+                    kicker: "Profile required",
+                    title: "Make it yours.",
+                    copy: "A profile activates your account and unlocks the workspace.",
+                };
+            case "sign-in":
+                if (methods()?.method === "password")
+                    return {
+                        kicker: isRegistering() ? "Create your account" : "Welcome back",
+                        title: isRegistering() ? "Set up Rigged." : "Sign in to Rigged.",
+                        copy: isRegistering()
+                            ? "Your profile comes next."
+                            : "Use the account you already created.",
+                    };
+                return {
+                    kicker: "Authentication configured",
+                    title:
+                        methods()?.method === "magic_link"
+                            ? "Check your email."
+                            : "Continue in your browser.",
+                    copy: `This workspace currently uses ${
+                        methods()?.method?.replace("_", " ") ?? "no"
+                    } authentication. Password sign-in is unavailable.`,
+                };
+            default:
+                return { title: "One moment." };
+        }
+    };
+    const submitLabel = () =>
+        pending() ? "Working…" : isRegistering() ? "Create account" : "Sign in";
+
     const gate = (
-        <main class="auth-shell">
+        <>
             <Show when={props.showWindowDragRegion}>
                 <WindowDragRegion />
             </Show>
-            <div class="auth-mast">
-                <div class="auth-mark">R</div>
-                <span>Rigged</span>
-                <small>Private workspace</small>
-            </div>
-            <section class="auth-card" aria-live="polite">
-                <Show when={mode() === "loading"}>
-                    <p class="auth-kicker">Connecting to your workspace</p>
-                    <h1>One moment.</h1>
-                    <p class="auth-copy">{loadingMessage()}</p>
-                    <div class="auth-loader" aria-label="Loading workspace" role="status">
-                        <span />
-                        <span />
-                        <span />
-                    </div>
-                </Show>
-                <Show when={mode() === "unavailable"}>
-                    <p class="auth-kicker">Connection needed</p>
-                    <h1>Server not found.</h1>
-                    <p class="auth-copy">
-                        Start it with <code>pnpm dev:server</code>, or set{" "}
-                        <code>VITE_RIGGED_SERVER_URL</code>.
-                    </p>
-                    <button class="auth-button" type="button" onClick={() => location.reload()}>
-                        Try again
-                    </button>
-                </Show>
-                <Show when={mode() === "sign-in" && methods()?.method === "password"}>
-                    <p class="auth-kicker">
-                        {isRegistering() ? "Create your account" : "Welcome back"}
-                    </p>
-                    <h1>{isRegistering() ? "Set up Rigged." : "Sign in to Rigged."}</h1>
-                    <p class="auth-copy">
-                        {isRegistering()
-                            ? "Your profile comes next."
-                            : "Use the account you already created."}
-                    </p>
-                    <form class="auth-form" onSubmit={submitCredentials}>
-                        <label>
-                            Email
-                            <input
-                                required
-                                type="email"
-                                value={email()}
-                                onInput={(event) => setEmail(event.currentTarget.value)}
-                            />
-                        </label>
-                        <label>
-                            Password
-                            <input
-                                required
-                                minlength="12"
-                                type="password"
-                                value={password()}
-                                onInput={(event) => setPassword(event.currentTarget.value)}
-                            />
-                        </label>
-                        <Show when={error()}>
-                            <p class="auth-error">{error()}</p>
-                        </Show>
-                        <button class="auth-button" disabled={pending()} type="submit">
-                            {pending()
-                                ? "Working…"
-                                : isRegistering()
-                                  ? "Create account"
-                                  : "Sign in"}
-                        </button>
-                    </form>
-                    <Show when={methods()?.signupEnabled}>
-                        <button
-                            class="auth-text-button"
-                            type="button"
+            <AuthScreen
+                backgroundUrl={onboardingBackgroundUrl}
+                brand={{ name: "Rigged" }}
+                copy={headline().copy}
+                kicker={headline().kicker}
+                loadingLabel={loadingMessage()}
+                state={mode() === "loading" ? "loading" : "form"}
+                title={headline().title}
+                footer={
+                    <Show when={isPasswordSignIn() && methods()?.signupEnabled}>
+                        <Button
                             onClick={() => {
                                 setIsRegistering(!isRegistering());
                                 setError(undefined);
                             }}
+                            size="small"
+                            type="button"
+                            variant="ghost"
                         >
                             {isRegistering() ? "I already have an account" : "Create a new account"}
-                        </button>
+                        </Button>
                     </Show>
-                </Show>
-                <Show when={mode() === "sign-in" && methods()?.method !== "password"}>
-                    <p class="auth-kicker">Authentication configured</p>
-                    <h1>
-                        {methods()?.method === "magic_link"
-                            ? "Check your email."
-                            : "Continue in your browser."}
-                    </h1>
-                    <p class="auth-copy">
-                        This workspace currently uses {methods()?.method?.replace("_", " ") ?? "no"}{" "}
-                        authentication. Password sign-in is unavailable.
-                    </p>
-                </Show>
-                <Show when={mode() === "onboarding"}>
-                    <p class="auth-kicker">Profile required</p>
-                    <h1>Make it yours.</h1>
-                    <p class="auth-copy">
-                        A profile activates your account and unlocks the workspace.
-                    </p>
-                    <form class="auth-form" onSubmit={submitProfile}>
-                        <label>
-                            First name
-                            <input
+                }
+            >
+                <Switch>
+                    <Match when={mode() === "unavailable"}>
+                        <Show when={error()}>
+                            {(reason) => (
+                                <Banner tone="danger" title="Connection failed">
+                                    {reason()}
+                                </Banner>
+                            )}
+                        </Show>
+                        <Button onClick={() => location.reload()} type="button">
+                            Try again
+                        </Button>
+                    </Match>
+                    <Match when={isPasswordSignIn()}>
+                        <form onSubmit={submitCredentials}>
+                            <TextField
+                                autocomplete="email"
+                                fullWidth
+                                label="Email"
+                                onValueChange={setEmail}
+                                required
+                                type="email"
+                                value={email()}
+                            />
+                            <TextField
+                                autocomplete="current-password"
+                                fullWidth
+                                label="Password"
+                                onValueChange={setPassword}
+                                required
+                                type="password"
+                                value={password()}
+                            />
+                            <Show when={error()}>
+                                {(reason) => (
+                                    <Banner tone="danger" title="Sign-in failed">
+                                        {reason()}
+                                    </Banner>
+                                )}
+                            </Show>
+                            <Button disabled={pending()} fullWidth type="submit">
+                                {submitLabel()}
+                            </Button>
+                        </form>
+                    </Match>
+                    <Match when={mode() === "onboarding"}>
+                        <form onSubmit={submitProfile}>
+                            <TextField
+                                autocomplete="given-name"
+                                fullWidth
+                                label="First name"
+                                onValueChange={setFirstName}
                                 required
                                 value={firstName()}
-                                onInput={(event) => setFirstName(event.currentTarget.value)}
                             />
-                        </label>
-                        <label>
-                            Username
-                            <input
+                            <TextField
+                                autocomplete="username"
+                                fullWidth
+                                label="Username"
+                                onValueChange={setUsername}
                                 required
-                                pattern="[A-Za-z0-9_-]{3,32}"
                                 value={username()}
-                                onInput={(event) => setUsername(event.currentTarget.value)}
                             />
-                        </label>
-                        <Show when={error()}>
-                            <p class="auth-error">{error()}</p>
-                        </Show>
-                        <button class="auth-button" disabled={pending()} type="submit">
-                            {pending() ? "Activating…" : "Activate workspace"}
-                        </button>
-                    </form>
-                </Show>
-            </section>
-        </main>
+                            <Show when={error()}>
+                                {(reason) => (
+                                    <Banner tone="danger" title="Could not activate">
+                                        {reason()}
+                                    </Banner>
+                                )}
+                            </Show>
+                            <Button disabled={pending()} fullWidth type="submit">
+                                {pending() ? "Activating…" : "Activate workspace"}
+                            </Button>
+                        </form>
+                    </Match>
+                </Switch>
+            </AuthScreen>
+        </>
     );
     return (
         <Show

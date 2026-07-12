@@ -10,6 +10,14 @@ const sidebarItem = (container: HTMLElement, id: string) => {
     return item;
 };
 
+const railItem = (container: HTMLElement, id: string) => {
+    const item = container.querySelector<HTMLButtonElement>(
+        `[data-rigged-ui="rail-item"][data-item-id="${id}"]`,
+    );
+    if (!item) throw new Error(`rail item ${id} not found`);
+    return item;
+};
+
 describe("App", () => {
     it("renders the default channel header and messages", () => {
         const { container, getByText } = render(() => <App />);
@@ -101,6 +109,52 @@ describe("App", () => {
 
         expect(card?.getAttribute("data-resolution")).toBe("approved");
         expect(getByText("Approved — Forge can proceed")).toBeTruthy();
+    });
+
+    it("routes each rail id to its composed feature view", () => {
+        const { container } = render(() => <App />);
+
+        // Chat is the default rail area and owns the channel header.
+        expect(container.querySelector('[data-rigged-ui="channel-header"]')).toBeTruthy();
+
+        // Each rail id maps to a real FeatureView; assert a representative
+        // rigged-ui hook that only its composed screen renders.
+        const cases: [id: string, hook: string][] = [
+            ["home", "stat-tile"],
+            ["activity", "notification-list"],
+            ["files", "media-gallery"],
+            ["calls", "call-panel"],
+            ["admin", "tabs"],
+            ["you", "profile-card"],
+        ];
+        for (const [id, hook] of cases) {
+            fireEvent.click(railItem(container, id));
+            expect(container.querySelector(`[data-rigged-ui="${hook}"]`)).toBeTruthy();
+        }
+
+        // Returning to chat restores the live workspace.
+        fireEvent.click(railItem(container, "chat"));
+        expect(container.querySelector('[data-rigged-ui="channel-header"]')).toBeTruthy();
+    });
+
+    it("swaps a feature view for the search overlay while searching", () => {
+        const { container } = render(() => <App />);
+
+        fireEvent.click(railItem(container, "home"));
+        expect(container.querySelector('[data-rigged-ui="stat-tile"]')).toBeTruthy();
+
+        const search = container.querySelector<HTMLInputElement>(
+            '[data-rigged-ui="search-field-input"]',
+        );
+        if (!search) throw new Error("search field not found");
+
+        fireEvent.input(search, { target: { value: "launch" } });
+        expect(container.querySelector('[data-rigged-ui="search-results"]')).toBeTruthy();
+        expect(container.querySelector('[data-rigged-ui="stat-tile"]')).toBeNull();
+
+        fireEvent.input(search, { target: { value: "" } });
+        expect(container.querySelector('[data-rigged-ui="search-results"]')).toBeNull();
+        expect(container.querySelector('[data-rigged-ui="stat-tile"]')).toBeTruthy();
     });
 
     it("expands and collapses an agent run card", () => {
