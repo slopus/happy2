@@ -1,0 +1,356 @@
+export type ChatKind = "dm" | "public_channel" | "private_channel";
+export type ChatRole = "owner" | "admin" | "member";
+export type DirectMessageType = "direct" | "group";
+export type NotificationLevel = "all" | "mentions" | "none";
+export type ExpiryMode = "none" | "after_send" | "after_read";
+
+export interface SyncState {
+    readonly protocolVersion: 1;
+    readonly generation: string;
+    readonly sequence: string;
+}
+
+export interface ChatSummary {
+    readonly id: string;
+    readonly kind: ChatKind;
+    readonly name?: string;
+    readonly slug?: string;
+    readonly topic?: string;
+    readonly dmType?: DirectMessageType;
+    readonly ownerUserId?: string;
+    readonly photoFileId?: string;
+    readonly isListed: boolean;
+    readonly archivedAt?: string;
+    readonly retentionMode: "inherit" | "forever" | "duration";
+    readonly retentionSeconds?: number;
+    readonly defaultExpiryMode: ExpiryMode;
+    readonly defaultSelfDestructSeconds?: number;
+    readonly defaultAfterReadScope: "any_reader" | "all_readers";
+    readonly lifecycleVersion: string;
+    readonly createdByUserId: string;
+    readonly pts: string;
+    readonly lastMessageSequence: string;
+    readonly membershipEpoch: string;
+    readonly membershipRole?: ChatRole;
+    readonly starred: boolean;
+    readonly starOrder?: number;
+    readonly lastReadSequence: string;
+    readonly unreadCount: number;
+    readonly mentionCount: number;
+    readonly notificationLevel: NotificationLevel;
+    readonly mutedUntil?: string;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+export interface UserSummary {
+    readonly id: string;
+    readonly username: string;
+    readonly firstName: string;
+    readonly lastName?: string;
+    readonly title?: string;
+    readonly photoFileId?: string;
+    readonly role: "member" | "admin";
+}
+
+export interface FileSummary {
+    readonly id: string;
+    readonly kind: "file" | "photo" | "video" | "gif";
+    readonly originalName?: string;
+    readonly contentType: string;
+    readonly size: number;
+    readonly width?: number;
+    readonly height?: number;
+    readonly durationMs?: number;
+    readonly thumbhash?: string;
+    readonly uploadedByUserId: string;
+    readonly createdAt: string;
+}
+
+export interface ReactionSummary {
+    readonly key: string;
+    readonly emoji?: string;
+    readonly customEmojiId?: string;
+    readonly count: number;
+    readonly reacted: boolean;
+    readonly userIds: readonly string[];
+}
+
+export interface MessageSummary {
+    readonly id: string;
+    readonly chatId: string;
+    readonly sequence: string;
+    readonly changePts: string;
+    readonly sender?: UserSummary;
+    readonly senderBot?: {
+        readonly id: string;
+        readonly name: string;
+        readonly username: string;
+        readonly photoFileId?: string;
+    };
+    readonly kind: "user" | "automated";
+    readonly text: string;
+    readonly quotedMessage?: {
+        readonly id: string;
+        readonly senderUserId?: string;
+        readonly text: string;
+        readonly deleted: boolean;
+    };
+    readonly threadRootMessageId?: string;
+    readonly threadReplyCount: number;
+    readonly revision: number;
+    readonly mentions: readonly {
+        readonly kind: "user" | "channel" | "here" | "everyone";
+        readonly userId?: string;
+        readonly offset: number;
+        readonly length: number;
+        readonly rawText: string;
+    }[];
+    readonly forwardedFrom?: { readonly messageId: string; readonly chatId: string };
+    readonly attachments: readonly FileSummary[];
+    readonly reactions: readonly ReactionSummary[];
+    readonly receipts: readonly {
+        readonly userId: string;
+        readonly deliveredAt?: string;
+        readonly readAt?: string;
+    }[];
+    readonly expiresAt?: string;
+    readonly expiryMode: ExpiryMode;
+    readonly selfDestructSeconds?: number;
+    readonly firstReadAt?: string;
+    readonly editedAt?: string;
+    readonly deletedAt?: string;
+    readonly createdAt: string;
+}
+
+export interface PresenceSnapshot {
+    readonly userId: string;
+    readonly status: "online" | "offline";
+    readonly connectionCount: number;
+    readonly lastActiveAt?: number;
+}
+
+export interface PresenceSettingsSummary {
+    readonly userId: string;
+    readonly availability: "automatic" | "online" | "away" | "dnd";
+    readonly customStatusText?: string;
+    readonly customStatusEmoji?: string;
+    readonly statusExpiresAt?: string;
+    readonly dndUntil?: string;
+    readonly updatedAt: string;
+}
+
+export interface ThreadSummary {
+    readonly root: MessageSummary;
+    readonly replyCount: number;
+    readonly participantCount: number;
+    readonly lastReplyMessageId?: string;
+    readonly lastReplySequence?: string;
+    readonly subscribed: boolean;
+    readonly unreadCount: number;
+    readonly mentionCount: number;
+    readonly updatedAt: string;
+}
+
+export interface NotificationSummary {
+    readonly id: string;
+    readonly kind:
+        | "mention"
+        | "thread_reply"
+        | "direct_message"
+        | "reaction"
+        | "call"
+        | "system"
+        | "moderation"
+        | "automation";
+    readonly chatId?: string;
+    readonly messageId?: string;
+    readonly threadRootMessageId?: string;
+    readonly actorUserId?: string;
+    readonly readAt?: string;
+    readonly createdAt: string;
+}
+
+export interface CallSummary {
+    readonly id: string;
+    readonly chatId: string;
+    readonly createdByUserId?: string;
+    readonly kind: "audio" | "video";
+    readonly status: "ringing" | "active" | "ended" | "cancelled" | "failed";
+    readonly participants: readonly {
+        readonly userId: string;
+        readonly status:
+            | "invited"
+            | "ringing"
+            | "joined"
+            | "declined"
+            | "left"
+            | "missed"
+            | "removed";
+        readonly joinedAt?: string;
+        readonly leftAt?: string;
+    }[];
+    readonly startedAt?: string;
+    readonly endedAt?: string;
+    readonly endReason?: string;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+export interface ChatPinSummary {
+    readonly id: string;
+    readonly chatId: string;
+    readonly message: MessageSummary;
+    readonly pinnedByUserId?: string;
+    readonly createdAt: string;
+}
+
+export interface ChatBookmarkSummary {
+    readonly id: string;
+    readonly chatId: string;
+    readonly title: string;
+    readonly kind: "link" | "message" | "file";
+    readonly url?: string;
+    readonly messageId?: string;
+    readonly fileId?: string;
+    readonly emoji?: string;
+    readonly createdByUserId?: string;
+    readonly sortOrder: number;
+    readonly createdAt: string;
+}
+
+export type RealtimeEvent =
+    | {
+          readonly type: "sync";
+          readonly sequence: string;
+          readonly chats: readonly { readonly chatId: string; readonly pts: string }[];
+          readonly areas: readonly string[];
+      }
+    | {
+          readonly type: "typing";
+          readonly chatId: string;
+          readonly userId: string;
+          readonly active: boolean;
+          readonly occurredAt: number;
+          readonly expiresAt?: number;
+      }
+    | {
+          readonly type: "presence";
+          readonly change: "connected" | "activity" | "disconnected";
+          readonly snapshot: PresenceSnapshot;
+          readonly occurredAt: number;
+      }
+    | {
+          readonly type: "call.signal";
+          readonly callId: string;
+          readonly chatId: string;
+          readonly senderUserId: string;
+          readonly recipientUserId?: string;
+          readonly signal: Readonly<Record<string, unknown>>;
+          readonly occurredAt: number;
+      };
+
+export interface SendMessageInput {
+    readonly text?: string;
+    readonly attachmentFileIds?: readonly string[];
+    readonly quotedMessageId?: string;
+    readonly expiryMode?: ExpiryMode;
+    readonly selfDestructSeconds?: number;
+    readonly afterReadScope?: "any_reader" | "all_readers";
+    readonly clientMutationId?: string;
+}
+
+export interface CreateChannelInput {
+    readonly kind: "public_channel" | "private_channel";
+    readonly name: string;
+    readonly slug: string;
+    readonly topic?: string;
+}
+
+export interface ClientMessage {
+    readonly message: MessageSummary;
+    readonly delivery: "sending" | "sent" | "failed";
+    readonly clientMutationId?: string;
+    readonly error?: UserError;
+}
+
+export interface TypingState {
+    readonly chatId: string;
+    readonly userId: string;
+    readonly expiresAt: number;
+}
+
+export interface ClientStateSnapshot {
+    readonly revision: number;
+    readonly status: "idle" | "starting" | "ready" | "offline" | "stopped";
+    readonly sync?: SyncState;
+    readonly chats: readonly ChatSummary[];
+    readonly messagesByChat: Readonly<Record<string, readonly ClientMessage[]>>;
+    readonly typing: readonly TypingState[];
+    readonly presence: readonly PresenceSnapshot[];
+    /** Latest successful response for each named backend operation. */
+    readonly operationResults: Readonly<Record<string, unknown>>;
+}
+
+export class UserError extends Error {
+    constructor(
+        message: string,
+        readonly code?: string,
+        readonly cause?: unknown,
+    ) {
+        super(message, { cause });
+        this.name = "UserError";
+    }
+}
+
+export type ClientStateEvent =
+    | {
+          readonly type: "status";
+          readonly previous: ClientStateSnapshot["status"];
+          readonly current: ClientStateSnapshot["status"];
+      }
+    | {
+          readonly type: "chats";
+          readonly reason: "initial" | "sync" | "action";
+          readonly chatIds: readonly string[];
+          readonly removedChatIds: readonly string[];
+      }
+    | {
+          readonly type: "messages";
+          readonly reason: "initial" | "sync" | "optimistic" | "confirmed" | "failed";
+          readonly chatId: string;
+          readonly messageIds: readonly string[];
+      }
+    | {
+          readonly type: "typing";
+          readonly chatId: string;
+          readonly userId: string;
+          readonly active: boolean;
+      }
+    | {
+          readonly type: "presence";
+          readonly userId: string;
+          readonly status: PresenceSnapshot["status"];
+      }
+    | {
+          readonly type: "realtime";
+          readonly event: RealtimeEvent;
+      }
+    | {
+          readonly type: "background-error";
+          readonly action: "sendMessage" | "setTyping" | "sync";
+          readonly error: UserError;
+          readonly chatId?: string;
+          readonly clientMutationId?: string;
+      }
+    | {
+          readonly type: "operation";
+          readonly operation: string;
+          readonly input?: Readonly<Record<string, unknown>>;
+      };
+
+export type ClientStateEventType = ClientStateEvent["type"];
+export type ClientStateEventOf<T extends ClientStateEventType> = Extract<
+    ClientStateEvent,
+    { type: T }
+>;

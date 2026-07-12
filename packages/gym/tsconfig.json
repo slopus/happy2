@@ -6,7 +6,8 @@
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
         "paths": {
-            "@slopus/rigged": ["../server/sources/index.ts"]
+            "@slopus/rigged": ["../server/sources/index.ts"],
+            "rigged-state": ["../rigged-state/src/index.ts"]
         },
         "types": ["node", "vite/client", "vitest/globals"],
         "noEmit": true

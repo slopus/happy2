@@ -1,0 +1,298 @@
+import type { MessageSummary } from "./types.js";
+
+export interface ClientUser {
+    readonly id: string;
+    readonly firstName: string;
+    readonly lastName?: string;
+    readonly username: string;
+    readonly email?: string;
+    readonly phone?: string;
+    readonly photoFileId?: string;
+}
+
+export interface AutomationSummary {
+    readonly id: string;
+    readonly name: string;
+    readonly chatId?: string;
+    readonly botId?: string;
+    readonly triggerType: "schedule" | "event" | "webhook";
+    readonly triggerConfig: Readonly<Record<string, unknown>>;
+    readonly actionType: "send_message" | "call_webhook" | "moderate";
+    readonly actionConfig: Readonly<Record<string, unknown>>;
+    readonly timezone?: string;
+    readonly nextRunAt?: string;
+    readonly active: boolean;
+    readonly lastRunAt?: string;
+    readonly lastError?: string;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+export interface ScheduledMessageSummary {
+    readonly id: string;
+    readonly chatId: string;
+    readonly text: string;
+    readonly attachmentFileIds: readonly string[];
+    readonly scheduledFor: string;
+    readonly timezone?: string;
+    readonly status: "scheduled" | "publishing" | "published" | "cancelled" | "failed";
+    readonly publishedMessageId?: string;
+    readonly lastError?: string;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+export type IntegrationKind =
+    | "app"
+    | "incoming_webhook"
+    | "outgoing_webhook"
+    | "slash_command"
+    | "service_account";
+export type IntegrationScope =
+    | "channels:read"
+    | "commands:receive"
+    | "events:read"
+    | "files:read"
+    | "files:write"
+    | "messages:read"
+    | "messages:write"
+    | "users:read";
+
+export interface BotSummary {
+    readonly id: string;
+    readonly name: string;
+    readonly username: string;
+    readonly description?: string;
+    readonly photoFileId?: string;
+    readonly ownerUserId?: string;
+    readonly active: boolean;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+export interface IntegrationSummary {
+    readonly id: string;
+    readonly kind: IntegrationKind;
+    readonly name: string;
+    readonly description?: string;
+    readonly botId?: string;
+    readonly scopes: readonly IntegrationScope[];
+    readonly active: boolean;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+export interface ApiCredentialSummary {
+    readonly id: string;
+    readonly integrationId: string;
+    readonly name: string;
+    readonly tokenPrefix: string;
+    readonly scopes: readonly IntegrationScope[];
+    readonly expiresAt?: string;
+    readonly lastUsedAt?: string;
+    readonly revokedAt?: string;
+    readonly createdAt: string;
+}
+
+export interface WebhookSubscriptionSummary {
+    readonly id: string;
+    readonly integrationId: string;
+    readonly direction: "incoming" | "outgoing";
+    readonly chatId?: string;
+    readonly url?: string;
+    readonly eventTypes: readonly string[];
+    readonly active: boolean;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+export interface SlashCommandSummary {
+    readonly id: string;
+    readonly integrationId: string;
+    readonly command: string;
+    readonly description?: string;
+    readonly usageHint?: string;
+    readonly active: boolean;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+export interface WebhookDeliverySummary {
+    readonly id: string;
+    readonly subscriptionId: string;
+    readonly eventId: string;
+    readonly eventType: string;
+    readonly status: "pending" | "delivering" | "delivered" | "failed" | "cancelled";
+    readonly attempts: number;
+    readonly nextAttemptAt: string;
+    readonly createdAt: string;
+}
+
+export interface AuditLogEntry {
+    readonly id: string;
+    readonly actorUserId?: string;
+    readonly actorIntegrationId?: string;
+    readonly action: string;
+    readonly targetType: string;
+    readonly targetId?: string;
+    readonly chatId?: string;
+    readonly before?: unknown;
+    readonly after?: unknown;
+    readonly metadata?: unknown;
+    readonly clientIp?: string;
+    readonly device?: string;
+    readonly appVersion?: string;
+    readonly userAgent?: string;
+    readonly createdAt: string;
+}
+
+export interface AccountBan {
+    readonly id: string;
+    readonly accountId: string;
+    readonly userId?: string;
+    readonly username?: string;
+    readonly bannedByUserId?: string;
+    readonly reason?: string;
+    readonly bannedAt: string;
+    readonly expiresAt?: string;
+    readonly revokedAt?: string;
+    readonly revokedByUserId?: string;
+    readonly revokeReason?: string;
+    readonly status: "active" | "expired" | "revoked";
+}
+
+export interface ModerationReport {
+    readonly id: string;
+    readonly reportedByUserId?: string;
+    readonly targetUserId?: string;
+    readonly chatId?: string;
+    readonly messageId?: string;
+    readonly fileId?: string;
+    readonly reason: string;
+    readonly details?: string;
+    readonly status: "open" | "reviewing" | "resolved" | "dismissed";
+    readonly assignedToUserId?: string;
+    readonly resolution?: string;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+    readonly resolvedAt?: string;
+}
+
+export interface ModerationAction {
+    readonly id: string;
+    readonly reportId?: string;
+    readonly actorUserId?: string;
+    readonly targetUserId?: string;
+    readonly chatId?: string;
+    readonly messageId?: string;
+    readonly fileId?: string;
+    readonly action:
+        | "warn"
+        | "restrict"
+        | "remove_message"
+        | "remove_file"
+        | "ban"
+        | "unban"
+        | "delete_user";
+    readonly reason?: string;
+    readonly metadata?: unknown;
+    readonly expiresAt?: string;
+    readonly revokedAt?: string;
+    readonly createdAt: string;
+}
+
+export interface DataExportJob {
+    readonly id: string;
+    readonly requestedByUserId?: string;
+    readonly kind: "user_data" | "server_data" | "audit_log" | "chat_history";
+    readonly targetId?: string;
+    readonly status: "pending" | "running" | "complete" | "failed" | "cancelled" | "expired";
+    readonly outputFileId?: string;
+    readonly options?: unknown;
+    readonly lastError?: string;
+    readonly expiresAt?: string;
+    readonly createdAt: string;
+    readonly startedAt?: string;
+    readonly completedAt?: string;
+}
+
+export interface BackupRecord {
+    readonly id: string;
+    readonly storageProvider: string;
+    readonly storageKey: string;
+    readonly checksumSha256?: string;
+    readonly size?: number;
+    readonly status: "pending" | "running" | "complete" | "failed" | "deleted";
+    readonly createdByUserId?: string;
+    readonly metadata?: unknown;
+    readonly lastError?: string;
+    readonly createdAt: string;
+    readonly completedAt?: string;
+    readonly retentionUntil?: string;
+}
+
+export interface RetentionRun {
+    readonly id: string;
+    readonly scope: "messages" | "files" | "sync" | "idempotency" | "audit" | "backups";
+    readonly status: "running" | "complete" | "failed";
+    readonly itemsExamined: number;
+    readonly itemsDeleted: number;
+    readonly details?: unknown;
+    readonly lastError?: string;
+    readonly startedAt: string;
+    readonly completedAt?: string;
+}
+
+export interface UserAccessTelemetry {
+    readonly userId: string;
+    readonly username: string;
+    readonly email: string;
+    readonly role: "member" | "admin";
+    readonly lastAccessAt?: string;
+    readonly lastSessionAccessAt?: string;
+    readonly activeSessionCount: number;
+    readonly bannedAt?: string;
+    readonly banExpiresAt?: string;
+    readonly deletedAt?: string;
+    readonly lastClientIp?: string;
+    readonly lastDevice?: string;
+    readonly lastAppVersion?: string;
+    readonly lastUserAgent?: string;
+}
+
+export interface ResumableUploadSummary {
+    readonly id: string;
+    readonly filename?: string;
+    readonly contentType?: string;
+    readonly offset: number;
+    readonly size: number;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+export interface UploadedFile {
+    readonly id: string;
+    readonly kind: "file" | "photo" | "video" | "gif";
+    readonly isPublic: boolean;
+    readonly originalName?: string;
+    readonly contentType: string;
+    readonly size: number;
+    readonly width?: number;
+    readonly height?: number;
+    readonly durationMs?: number;
+    readonly thumbhash?: string;
+    readonly previewUrl?: string;
+    readonly thumbnailUrl?: string;
+}
+
+export interface MessageRevision {
+    readonly revision: number;
+    readonly text: string;
+    readonly editedByUserId?: string;
+    readonly editReason?: string;
+    readonly createdAt: string;
+}
+
+export interface ForwardedMessagesResult {
+    readonly messages: readonly MessageSummary[];
+}

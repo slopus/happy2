@@ -5,7 +5,8 @@
     "type": "module",
     "exports": {
         ".": "./sources/index.ts",
-        "./playwright": "./sources/playwright/index.ts"
+        "./playwright": "./sources/playwright/index.ts",
+        "./state": "./sources/state/index.ts"
     },
     "scripts": {
         "test": "pnpm test:server && pnpm test:playwright",
@@ -21,7 +22,8 @@
     "dependencies": {
         "@libsql/client": "^0.17.4",
         "@slopus/rigged": "workspace:*",
-        "fastify": "^5.8.2"
+        "fastify": "^5.8.2",
+        "rigged-state": "workspace:*"
     },
     "devDependencies": {
         "@fontsource-variable/jetbrains-mono": "^5.2.8",

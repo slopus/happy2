@@ -64,3 +64,23 @@ full naming, organization, harness, and lifecycle instructions.
 - Server APIs use only GET and POST. POST paths name explicit actions rather
   than CRUD semantics: use `updateProfile`, for example, rather than PATCHing
   a profile object.
+
+## Client state principles
+
+`rigged-state` is the in-memory product-state boundary between application code
+and the server. Keep authentication, UI framework bindings, persistence, and the
+decision to create a process-global instance outside this package.
+
+- The package receives an already authenticated low-level HTTP/realtime
+  transport. Its public actions must not expose URLs, tokens, or wire response
+  shapes to application code.
+- Realtime events are delivery hints. Reconcile durable state through the sync
+  difference APIs; never treat receipt of a realtime event as durable state.
+- Every retried mutation must reuse one idempotency key across all attempts.
+  Promise actions reject with a displayable `UserError`; optimistic background
+  actions return immediately and surface terminal failure through state events.
+- State remains memory-only and framework-independent: immutable `get()`
+  snapshots plus typed subscriptions are the UI integration contract.
+- Cover deterministic races and failures with the programmable fake server in
+  `rigged-state/testing`, and cover the same boundary against the real in-memory
+  server through `gym/state`.
