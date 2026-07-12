@@ -5,6 +5,7 @@ import {
     Avatar,
     Box,
     Button,
+    ContextIcon,
     type AvatarSize,
     type ButtonSize,
     type ButtonVariant,
@@ -12,9 +13,10 @@ import {
 } from "../src";
 import "./workbench.css";
 
-type ComponentId = "agent-mention-picker" | "avatar" | "box" | "button";
+type ComponentId = "agent-mention-picker" | "avatar" | "box" | "button" | "context-icon";
 
 const components: Array<{ id: ComponentId; label: string; number: string }> = [
+    { id: "context-icon", label: "Context icon", number: "C-005" },
     { id: "agent-mention-picker", label: "Agent mention picker", number: "C-004" },
     { id: "avatar", label: "Avatar", number: "C-003" },
     { id: "button", label: "Button", number: "C-002" },
@@ -223,6 +225,31 @@ function AgentMentionPickerPage() {
     );
 }
 
+function ContextIconPage() {
+    const kinds = ["file", "run", "thread"] as const;
+
+    return (
+        <ComponentPage
+            number="C-005"
+            title="Context icon"
+            summary="A measured source-kind mark whose visible pixels share one optical center."
+        >
+            <section class="icon-plans" aria-label="Context icon specimens">
+                <For each={kinds}>
+                    {(kind, index) => (
+                        <Specimen number={`05.${index() + 1}`} label={kind} detail="14 × 14">
+                            <div class="dimensioned-icon">
+                                <DimensionRule label="14px" />
+                                <ContextIcon kind={kind} size={14} color="#44384a" />
+                            </div>
+                        </Specimen>
+                    )}
+                </For>
+            </section>
+        </ComponentPage>
+    );
+}
+
 function BoxPage() {
     return (
         <ComponentPage
@@ -342,6 +369,9 @@ function Workbench() {
             </header>
             <div class="blueprint-field">
                 <Switch fallback={<BoxPage />}>
+                    <Match when={active() === "context-icon"}>
+                        <ContextIconPage />
+                    </Match>
                     <Match when={active() === "agent-mention-picker"}>
                         <AgentMentionPickerPage />
                     </Match>

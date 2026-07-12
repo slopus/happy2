@@ -1,9 +1,6 @@
-export type ContextItem = {
-    detail: string;
-    id: string;
-    kind: "file" | "run" | "thread";
-    label: string;
-};
+import { ContextIcon, type ContextItem } from "rigged-ui";
+
+export type { ContextItem } from "rigged-ui";
 
 type ContextPickerProps = {
     items: ContextItem[];
@@ -17,21 +14,6 @@ type ContextChipsProps = {
     label: string;
     onRemove?: (item: ContextItem) => void;
 };
-
-function ContextIcon(props: { kind: ContextItem["kind"] }) {
-    const iconClass = "h-3.5 w-3.5 fill-none stroke-current stroke-[1.8]";
-    const paths = {
-        file: "M6 3.5h8l4 4V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1ZM14 3.5V8h4",
-        run: "m8 5 10 7-10 7V5ZM4 5v14",
-        thread: "M5 5h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7l-5 3v-3H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z",
-    };
-
-    return (
-        <svg class={iconClass} viewBox="0 0 24 24" aria-hidden="true">
-            <path d={paths[props.kind]} stroke-linejoin="round" />
-        </svg>
-    );
-}
 
 export function ContextChips(props: ContextChipsProps) {
     return (

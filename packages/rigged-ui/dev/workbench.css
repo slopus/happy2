@@ -506,6 +506,26 @@ select {
     min-height: 270px;
 }
 
+.icon-plans {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    margin-top: 30px;
+}
+
+.dimensioned-icon {
+    position: relative;
+    display: grid;
+    min-width: 92px;
+    place-items: center;
+    padding-top: 24px;
+}
+
+.dimensioned-icon > .dimension-rule {
+    position: absolute;
+    top: 5px;
+}
+
 .box-plans {
     display: grid;
     grid-template-columns: 1fr 1fr;
