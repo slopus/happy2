@@ -1,0 +1,33 @@
+{
+    "name": "gym",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "exports": {
+        ".": "./sources/index.ts"
+    },
+    "scripts": {
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "typecheck": "tsc --project tsconfig.json",
+        "format": "oxfmt --write .",
+        "format:check": "oxfmt --check .",
+        "lint": "oxlint .",
+        "clean": "rm -rf coverage"
+    },
+    "dependencies": {
+        "@libsql/client": "^0.17.4",
+        "@slopus/rigged": "workspace:*",
+        "fastify": "^5.8.2"
+    },
+    "devDependencies": {
+        "@types/node": "^26.1.1",
+        "oxfmt": "^0.57.0",
+        "oxlint": "^1.73.0",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.10"
+    },
+    "engines": {
+        "node": ">=22.16.0"
+    }
+}

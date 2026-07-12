@@ -110,10 +110,13 @@ const FILE_COLUMNS =
 export class Database {
     private readonly client: Client;
     private readonly db: LibSQLDatabase;
+    private readonly ownsClient: boolean;
     private readonly accessTouches = new Map<string, number>();
 
-    constructor(url: string, authToken?: string) {
-        this.client = createClient({ url, authToken });
+    constructor(source: string | Client, authToken?: string) {
+        this.ownsClient = typeof source === "string";
+        this.client =
+            typeof source === "string" ? createClient({ url: source, authToken }) : source;
         this.db = drizzle(this.client);
     }
     async migrate(): Promise<void> {
@@ -126,7 +129,7 @@ export class Database {
     }
     close(): void {
         this.accessTouches.clear();
-        this.client.close();
+        if (this.ownsClient) this.client.close();
     }
 
     async createPasswordAccount(email: string, passwordHash: string): Promise<Account> {

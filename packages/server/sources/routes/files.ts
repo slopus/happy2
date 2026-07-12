@@ -1,4 +1,3 @@
-import { createReadStream } from "node:fs";
 import type { FastifyInstance } from "fastify";
 import type { AuthService } from "../modules/auth/service.js";
 import type { TokenService } from "../modules/auth/tokens.js";
@@ -140,11 +139,11 @@ export function registerFileRoutes(
                 .code(206)
                 .header("content-range", `bytes ${range.start}-${range.end}/${file.size}`)
                 .header("content-length", String(range.end - range.start + 1));
-            return response.send(createReadStream(files.pathFor(file), range));
+            return response.send(files.createReadStream(file, range));
         }
         return response
             .header("content-length", String(file.size))
-            .send(createReadStream(files.pathFor(file)));
+            .send(files.createReadStream(file));
     });
 }
 

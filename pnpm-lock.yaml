@@ -86,6 +86,34 @@ importers:
         specifier: ^9.0.10
         version: 9.0.10
 
+  packages/gym:
+    dependencies:
+      '@libsql/client':
+        specifier: ^0.17.4
+        version: 0.17.4
+      '@slopus/rigged':
+        specifier: workspace:*
+        version: link:../server
+      fastify:
+        specifier: ^5.8.2
+        version: 5.10.0
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.1
+        version: 26.1.1
+      oxfmt:
+        specifier: ^0.57.0
+        version: 0.57.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@26.1.1)(@vitest/browser-playwright@4.1.10)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0))
+
   packages/rigged-ui:
     dependencies:
       '@fontsource-variable/manrope':

@@ -6,6 +6,10 @@ export interface SessionClaims {
     sessionId: string;
     accountId: string;
 }
+export interface TokenKeyPair {
+    privateKey?: string;
+    publicKey: string;
+}
 type SigningKey = Awaited<ReturnType<typeof importSPKI>>;
 
 export class TokenService {
@@ -15,13 +19,17 @@ export class TokenService {
         private readonly privateKey?: SigningKey,
     ) {}
 
-    static async create(config: ServerConfig): Promise<TokenService> {
-        const privatePem = config.jwt.privateKeyPath
-            ? await readFile(config.jwt.privateKeyPath, "utf8")
-            : environmentPem("RIGGED_JWT_PRIVATE_KEY");
-        const publicPem = config.jwt.publicKeyPath
-            ? await readFile(config.jwt.publicKeyPath, "utf8")
-            : environmentPem("RIGGED_JWT_PUBLIC_KEY");
+    static async create(config: ServerConfig, keys?: TokenKeyPair): Promise<TokenService> {
+        const privatePem =
+            keys?.privateKey ??
+            (config.jwt.privateKeyPath
+                ? await readFile(config.jwt.privateKeyPath, "utf8")
+                : environmentPem("RIGGED_JWT_PRIVATE_KEY"));
+        const publicPem =
+            keys?.publicKey ??
+            (config.jwt.publicKeyPath
+                ? await readFile(config.jwt.publicKeyPath, "utf8")
+                : environmentPem("RIGGED_JWT_PUBLIC_KEY"));
         if (!publicPem)
             throw new Error(
                 "A JWT public key is required (jwt.public_key_path or RIGGED_JWT_PUBLIC_KEY_B64)",

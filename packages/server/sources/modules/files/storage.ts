@@ -1,7 +1,7 @@
-import { createWriteStream } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
 import { mkdir, open, rename, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { Transform, type Readable } from "node:stream";
+import { Transform, type Readable, type Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createId } from "@paralleldrive/cuid2";
 import sharp from "sharp";
@@ -13,6 +13,37 @@ const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
 const MAX_AVATAR_SIDE = 2048;
 type SharpInstance = ReturnType<typeof sharp>;
 type SharpMetadata = Awaited<ReturnType<SharpInstance["metadata"]>>;
+
+export interface FileStorageFileSystem {
+    mkdir(path: string): Promise<unknown>;
+    readHeader(path: string, maximumBytes: number): Promise<Buffer>;
+    imageSource(path: string): Promise<string | Buffer>;
+    rename(from: string, to: string): Promise<unknown>;
+    rm(path: string): Promise<unknown>;
+    writeFile(path: string, contents: Buffer): Promise<unknown>;
+    createReadStream(path: string, range?: { start: number; end: number }): Readable;
+    createWriteStream(path: string): Writable;
+}
+
+const nodeFileSystem: FileStorageFileSystem = {
+    mkdir: (path) => mkdir(path, { recursive: true }),
+    readHeader: async (path, maximumBytes) => {
+        const handle = await open(path, "r");
+        const header = Buffer.alloc(maximumBytes);
+        try {
+            const { bytesRead } = await handle.read(header, 0, header.length, 0);
+            return header.subarray(0, bytesRead);
+        } finally {
+            await handle.close();
+        }
+    },
+    imageSource: async (path) => path,
+    rename,
+    rm: (path) => rm(path, { force: true }),
+    writeFile: (path, contents) => writeFile(path, contents, { mode: 0o600 }),
+    createReadStream: (path, range) => createReadStream(path, range),
+    createWriteStream: (path) => createWriteStream(path, { mode: 0o600 }),
+};
 
 export class InvalidUploadError extends Error {
     constructor(message: string, options?: ErrorOptions) {
@@ -27,6 +58,7 @@ export class FileStorage {
     constructor(
         private readonly config: ServerConfig,
         private readonly database: Database,
+        private readonly fileSystem: FileStorageFileSystem = nodeFileSystem,
     ) {
         this.directory = config.files.directory;
     }
@@ -73,17 +105,17 @@ export class FileStorage {
             kind: "photo",
             originalName: "avatar.jpg",
         };
-        await mkdir(this.directory, { recursive: true });
+        await this.fileSystem.mkdir(this.directory);
         const destination = join(this.directory, file.storageName);
         const temporary = join(this.directory, `.${id}.${createId()}.tmp`);
-        await writeFile(temporary, encoded.data, { mode: 0o600 });
+        await this.fileSystem.writeFile(temporary, encoded.data);
         try {
-            await rename(temporary, destination);
+            await this.fileSystem.rename(temporary, destination);
             await this.database.createFile(file);
             return file;
         } catch (error) {
-            await rm(temporary, { force: true });
-            await rm(destination, { force: true });
+            await this.fileSystem.rm(temporary);
+            await this.fileSystem.rm(destination);
             throw error;
         }
     }
@@ -96,7 +128,7 @@ export class FileStorage {
         const id = createId();
         const storageName = `${id}.blob`;
         const originalName = normalizedFilename(upload.filename);
-        await mkdir(this.directory, { recursive: true });
+        await this.fileSystem.mkdir(this.directory);
         const destination = join(this.directory, storageName);
         const temporary = join(this.directory, `.${id}.${createId()}.tmp`);
         let size = 0;
@@ -113,7 +145,7 @@ export class FileStorage {
         });
         try {
             try {
-                await pipeline(input, limiter, createWriteStream(temporary, { mode: 0o600 }));
+                await pipeline(input, limiter, this.fileSystem.createWriteStream(temporary));
             } catch (error) {
                 if (
                     error instanceof InvalidUploadError ||
@@ -127,8 +159,8 @@ export class FileStorage {
             if ((input as Readable & { truncated?: boolean }).truncated)
                 throw new InvalidUploadError("Attachment exceeds the configured upload limit");
             if (size === 0) throw new InvalidUploadError("Attachment must not be empty");
-            await rename(temporary, destination);
-            const detected = await detectMedia(destination, upload.contentType);
+            await this.fileSystem.rename(temporary, destination);
+            const detected = await detectMedia(destination, this.fileSystem, upload.contentType);
             const file: StoredFile = {
                 id,
                 userId: user.id,
@@ -146,14 +178,18 @@ export class FileStorage {
             await this.database.createFile(file);
             return file;
         } catch (error) {
-            await rm(temporary, { force: true });
-            await rm(destination, { force: true });
+            await this.fileSystem.rm(temporary);
+            await this.fileSystem.rm(destination);
             throw error;
         }
     }
 
     pathFor(file: StoredFile): string {
         return join(this.directory, file.storageName);
+    }
+
+    createReadStream(file: StoredFile, range?: { start: number; end: number }): Readable {
+        return this.fileSystem.createReadStream(this.pathFor(file), range);
     }
 }
 
@@ -166,6 +202,7 @@ function normalizedFilename(filename: string | undefined): string {
 
 async function detectMedia(
     path: string,
+    fileSystem: FileStorageFileSystem,
     suppliedContentType: string | undefined,
 ): Promise<{
     kind: "file" | "photo" | "video" | "gif";
@@ -174,20 +211,16 @@ async function detectMedia(
     height: number;
     thumbhash: string;
 }> {
-    const handle = await open(path, "r");
-    const header = Buffer.alloc(32);
-    try {
-        await handle.read(header, 0, header.length, 0);
-    } finally {
-        await handle.close();
-    }
+    const header = await fileSystem.readHeader(path, 32);
     const signature = mediaSignature(header);
     const contentType = signature?.contentType ?? safeContentType(suppliedContentType);
     const kind = signature?.kind ?? (contentType.startsWith("video/") ? "video" : "file");
     if (kind !== "photo" && kind !== "gif")
         return { kind, contentType, width: 0, height: 0, thumbhash: "" };
     try {
-        const image = sharp(path, { limitInputPixels: 100_000_000 });
+        const image = sharp(await fileSystem.imageSource(path), {
+            limitInputPixels: 100_000_000,
+        });
         const metadata = await image.metadata();
         const thumbnail = await image
             .clone()

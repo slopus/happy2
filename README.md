@@ -12,6 +12,9 @@ for mobile viewports.
 - `@rigged/desktop` imports `@rigged/app` in an Electron renderer and builds its
   Electron main process with Vite.
 - `@slopus/rigged` is the publishable Fastify server and authentication service.
+- `gym` is the isolated end-to-end testing environment. Its server harness runs
+  black-box HTTP tests against disposable in-memory server instances; see
+  [`packages/gym/README.md`](packages/gym/README.md) for usage.
 
 ## Requirements
 
@@ -27,6 +30,7 @@ pnpm install
 pnpm dev                # Web app at http://127.0.0.1:5173
 pnpm dev --port 4321    # Web app on a chosen port
 pnpm dev:desktop        # Electron app; set PORT=xxxx to choose its Vite port
+pnpm --dir packages/gym test # Server end-to-end tests
 pnpm check              # Type-check, test, and build every package
 ```
 

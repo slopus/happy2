@@ -20,13 +20,17 @@ interface Services {
     collaboration?: CollaborationRepository;
     pubsub?: PubSub;
     fileStorage?: FileStorage;
+    logger?: boolean;
 }
 
 export async function buildServer(
     config: ServerConfig,
     supplied?: Services,
 ): Promise<FastifyInstance> {
-    const app = Fastify({ logger: true, trustProxy: config.server.trustedProxyHops });
+    const app = Fastify({
+        logger: supplied?.logger ?? true,
+        trustProxy: config.server.trustedProxyHops,
+    });
     const services = supplied ?? {
         database: new Database(
             config.database.url,

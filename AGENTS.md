@@ -27,6 +27,15 @@ and retry until the push succeeds. Never force-push `main`.
 server or as a separately deployed authentication service. Its behavior is
 configured from a TOML file; do not add deployment-specific switches to code.
 
+Server behavior must be tested end to end in `gym`, the repository's isolated
+black-box testing environment. Add or update coverage under
+`packages/gym/tests/server` whenever changing server HTTP behavior; unit tests
+do not replace this end-to-end coverage. Name each test file after the observable
+behavior it proves so the directory reads like an index of supported workflows;
+do not use generic names such as `server.test.ts`, `integration.test.ts`, or
+issue numbers. Read `packages/gym/README.md` before writing gym tests for the
+full naming, organization, harness, and lifecycle instructions.
+
 - Keep `/` deliberately minimal. Versioned, useful HTTP APIs live under `/v0`.
 - Exactly one authentication mechanism is enabled in TOML at a time: OIDC,
   password, or email magic links. SMTP credentials always come from environment

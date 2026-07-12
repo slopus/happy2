@@ -55,9 +55,12 @@ const FILE_SELECT = `
 
 export class CollaborationRepository {
     private readonly client: Client;
+    private readonly ownsClient: boolean;
 
-    constructor(url: string, authToken?: string) {
-        this.client = createClient({ url, authToken });
+    constructor(source: string | Client, authToken?: string) {
+        this.ownsClient = typeof source === "string";
+        this.client =
+            typeof source === "string" ? createClient({ url: source, authToken }) : source;
     }
 
     async initialize(): Promise<void> {
@@ -69,7 +72,7 @@ export class CollaborationRepository {
     }
 
     close(): void {
-        this.client.close();
+        if (this.ownsClient) this.client.close();
     }
 
     async getState(): Promise<SyncState> {
