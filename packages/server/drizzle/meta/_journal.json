@@ -22,6 +22,13 @@
             "when": 1783820000000,
             "tag": "0002_file_visibility_and_uploader",
             "breakpoints": true
+        },
+        {
+            "idx": 3,
+            "version": "6",
+            "when": 1783851113088,
+            "tag": "0003_collaboration",
+            "breakpoints": true
         }
     ]
 }

@@ -92,3 +92,106 @@ Sessions are signed JWTs with a 30-day default lifetime and a stable `sid`.
 `POST /v0/auth/refresh` re-signs the same session ID and advances the database
 expiry. All authenticated requests check the shared SQLite session row, so a
 missing, expired, or revoked row is rejected regardless of JWT validity.
+
+## Collaboration API
+
+The API is HTTP-only. Durable reads and actions use JSON GET/POST endpoints;
+live hints, typing, presence, and WebRTC signaling use Server-Sent Events. All
+product routes require an active User profile. An `auth`-role server does not
+serve collaboration routes; `all` and `api` roles do.
+
+The main route groups are:
+
+| Area                | Routes                                                                                                                                                                                                           |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chats               | `GET /v0/chats`, `GET /v0/chats/:chatId`, `POST /v0/chats/createDirectMessage`, `POST /v0/chats/createChannel`                                                                                                   |
+| Membership          | `POST /v0/chats/:chatId/join`, `leave`, `addMember`, and `removeMember`                                                                                                                                          |
+| Messages            | `GET /v0/chats/:chatId/messages`, `POST /v0/chats/:chatId/sendMessage`, `POST /v0/messages/:messageId/deleteMessage` and `forwardMessage`                                                                        |
+| Replies and threads | `quotedMessageId` on a normal send creates an explicit quoted reply in the main chat; `POST /v0/messages/:messageId/sendThreadMessage` and `GET /v0/messages/:messageId/thread` use the separate thread timeline |
+| Reactions and emoji | `POST /v0/messages/:messageId/addReaction` / `removeReaction`; `GET /v0/customEmoji`, `POST /v0/customEmoji/createCustomEmoji`, and `deleteCustomEmoji`                                                          |
+| Discovery           | `GET /v0/contacts`, `/v0/directory`, `/v0/directory/users`, `/v0/directory/channels`, and `/v0/search?q=...`                                                                                                     |
+| Preferences         | `POST /v0/chats/:chatId/setStar` and `POST /v0/chats/reorderStarred`                                                                                                                                             |
+| Files               | `POST /v0/files/upload`, `GET /v0/files`, `GET /v0/files/:fileId`, and `POST /v0/files/:fileId/createSignedUrl`                                                                                                  |
+| Admin               | `GET /v0/admin/users`, user ban/unban/delete/update actions, `POST /v0/admin/updateServer`, and `POST /v0/admin/sendAutomatedMessage`                                                                            |
+| Realtime            | `GET /v0/sync/events`, typing/presence POSTs, and `POST /v0/calls/:callId/sendSignal`                                                                                                                            |
+
+Channels are `public_channel` or `private_channel`; DMs have exactly two fixed
+members. Public channels can be discovered and read by every active server
+member, but posting requires joining. Private channels and DMs require current
+membership. The first active profile is a server administrator. Administrators
+can change the server profile and user titles/roles, inspect durable last-access
+times, revoke all sessions by banning a user, soft-delete and anonymize users,
+and send audited automated messages.
+
+`POST /v0/files/upload` streams one file to storage and returns a stable CUID2
+file ID. JPEG, PNG, WebP, GIF, MP4, and WebM signatures are recognized; other
+uploads are safe opaque files. Image dimensions and ThumbHash are recorded when
+available. File downloads support byte ranges for video playback. A file is
+visible to its uploader, as a public profile image, or through at least one live
+message the requester can currently read. Forwarding creates another attachment
+reference in the destination chat, so it grants destination members access
+without changing the file to globally public. Deleting/expiring the last visible
+message reference removes that derived access. The files directory uses the same
+query and therefore cannot leak private-channel or DM attachments.
+
+Message sends accept an optional `clientMutationId`; retries by the same user in
+the same chat return the originally committed message. A send may contain text,
+attachment file IDs, `quotedMessageId`, `threadRootMessageId`, and a bounded
+self-destruction duration. Deletion and expiry leave syncable tombstones rather
+than hard-deleting message identity.
+
+## Sync protocol
+
+The protocol adapts Telegram's independent update sequences, state snapshots,
+and paginated differences, as described in its official
+[Working with Updates](https://core.telegram.org/api/updates),
+[`updates.getState`](https://core.telegram.org/method/updates.getState), and
+[`updates.getDifference`](https://core.telegram.org/method/updates.getDifference)
+documentation.
+
+Rigged has two durable cursor levels:
+
+- A database-generation ID and server-wide `sequence` identify durable objects
+  that changed for reconnect discovery.
+- Every chat has an independent `pts`. Messages, reactions, tombstones, thread
+  activity, topics, and membership-visible changes advance that chat's `pts`.
+
+Cursors are decimal strings in JSON, never JSON numbers; the current server
+rejects cursor values outside its safe-integer operating range. Every mutation
+allocates the common sequence, changes domain rows, advances affected chat
+cursors, and appends update pointers in one database transaction. Pubsub happens
+only after commit. The local pubsub implementation is intentionally replaceable
+by a Redis adapter and is allowed to drop, duplicate, reorder, or coalesce events.
+
+1. `GET /v0/sync/state` returns `{protocolVersion, generation, sequence}`. On a
+   new installation this is a baseline, not the beginning of retained history.
+2. `POST /v0/sync/getDifference` takes `generation`, `fromSequence`, optional
+   fixed `untilSequence`, and `limit`. It returns changed chat summaries with
+   their latest `pts`, removed private-chat IDs, changed global areas, an
+   intermediate state, and the fixed target state. A slice is repeated with its
+   intermediate cursor and the same target until complete.
+3. For every changed chat, `POST /v0/chats/:chatId/getDifference` takes the
+   cached `membershipEpoch` and `fromPts`. It returns ordered pointers plus
+   current message projections/tombstones. A changed membership epoch or pruned
+   cursor returns a reset/too-long result; the client discards that cached chat
+   and fetches current history.
+4. The client advances its common cursor in the same local transaction that
+   stores pending target `pts` values. It advances a chat cursor only with the
+   corresponding projections/tombstones. Duplicate projections are safe.
+
+For a chat update with `ptsCount`, clients use the Telegram rule:
+
+```text
+localPts + ptsCount == update.pts  apply it
+localPts + ptsCount >  update.pts  ignore the duplicate
+localPts + ptsCount <  update.pts  stop and fetch the difference
+```
+
+`GET /v0/sync/events` is a deliberately lossy SSE stream. It first subscribes,
+then emits `ready` with current durable state. `sync` events only hint at a newer
+server sequence/chat `pts`; clients never advance a durable cursor from SSE.
+`typing`, `presence`, and `call.signal` are ephemeral and never enter a
+difference. Heartbeats include a fresh database state and revalidate the session,
+so another local instance's commit, a missed publish, ban, or logout is detected.
+Every reconnect runs the HTTP difference flow; `Last-Event-ID` is not a sync
+cursor.

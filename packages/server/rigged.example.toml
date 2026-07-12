@@ -18,6 +18,8 @@ url = "file:rigged.db"
 # Keep this outside the published package/image in production.
 directory = "files"
 signed_url_expiry_seconds = 300
+# Generic chat attachments are streamed to disk. Keep this aligned with proxy limits.
+max_upload_bytes = 536870912
 
 [jwt]
 issuer = "https://rigged.example.com"

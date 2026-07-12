@@ -52,6 +52,13 @@ export function parseConfig(input: string): ServerConfig {
     );
     if (signedUrlExpirySeconds < 1 || signedUrlExpirySeconds > 3600)
         throw new Error("files.signed_url_expiry_seconds must be between 1 and 3600");
+    const maxUploadBytes = integer(
+        files.max_upload_bytes,
+        "files.max_upload_bytes",
+        512 * 1024 * 1024,
+    );
+    if (maxUploadBytes < 1024 || maxUploadBytes > 2 * 1024 * 1024 * 1024)
+        throw new Error("files.max_upload_bytes must be between 1 KiB and 2 GiB");
     const jwt = table(root.jwt, "jwt");
     const expiryDays = integer(jwt.expiry_days, "jwt.expiry_days", 30);
     if (expiryDays < 1 || expiryDays > 90)
@@ -116,6 +123,7 @@ export function parseConfig(input: string): ServerConfig {
         files: {
             directory: string(files.directory, "files.directory", true) ?? "files",
             signedUrlExpirySeconds,
+            maxUploadBytes,
         },
         jwt: {
             issuer: string(jwt.issuer, "jwt.issuer")!,

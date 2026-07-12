@@ -5,4 +5,7 @@ export { defaultConfig } from "./modules/config/defaults.js";
 export { loadConfig, parseConfig } from "./modules/config/loader.js";
 export type { ServerConfig } from "./modules/config/type.js";
 export { Database, type RequestMetadata } from "./modules/database.js";
+export { CollaborationRepository } from "./modules/collaboration/repository.js";
+export * from "./modules/collaboration/types.js";
+export * from "./modules/realtime/index.js";
 export { buildServer } from "./server.js";

@@ -57,7 +57,9 @@ export class AuthService {
         const account = await this.authenticateAccount(request);
         if (!account) return undefined;
         const user = await this.database.findActiveUserByAccount(account.accountId);
-        return user ? { ...account, user } : undefined;
+        if (!user) return undefined;
+        await this.database.touchAccess(account.session.id, user.id);
+        return { ...account, user };
     }
 
     async registerPassword(body: unknown, request: FastifyRequest): Promise<AuthToken | "invalid"> {
@@ -77,6 +79,8 @@ export class AuthService {
         const account = await this.database.findPasswordAccount(accountEmail);
         if (
             !account?.passwordHash ||
+            account.bannedAt ||
+            account.deletedAt ||
             !(await verifyPassword(accountPassword, account.passwordHash, this.passwordPepper!))
         )
             return undefined;
@@ -120,7 +124,9 @@ export class AuthService {
         const token = value(body, "token");
         if (!token) return undefined;
         const account = await this.database.consumeMagicLink(token);
-        return account ? this.issue(account.id, request) : undefined;
+        return account && !account.bannedAt && !account.deletedAt
+            ? this.issue(account.id, request)
+            : undefined;
     }
 
     async startOidc(providerName: string): Promise<string | undefined> {
@@ -154,6 +160,7 @@ export class AuthService {
             identity.subject,
             identity.email,
         );
+        if (account.bannedAt || account.deletedAt) return "authorization_failed";
         return this.issue(account.id, request);
     }
     async refresh(request: FastifyRequest): Promise<AuthToken | undefined> {
