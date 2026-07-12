@@ -1,7 +1,14 @@
 import { createEffect, For } from "solid-js";
 import { AgentRunCard, type AgentRun } from "rigged-ui";
-import { ApprovalRequestCard, type ApprovalRequest } from "./ApprovalRequestCard";
-import { Avatar, ContextChips, type AvatarType, type ContextItem } from "rigged-ui";
+import {
+    ApprovalRequestCard,
+    Avatar,
+    ContextChips,
+    type ApprovalRequest,
+    type ApprovalResolution,
+    type AvatarType,
+    type ContextItem,
+} from "rigged-ui";
 import { DecisionCard, type Decision } from "./DecisionCard";
 import { DelegationReceipt, type Delegation } from "./ExecutionScope";
 
@@ -28,7 +35,9 @@ export type ChatMessage = {
 };
 
 type ChatMessagesProps = {
+    approvalRequestResolutions: Record<string, ApprovalResolution>;
     expandedAgentRunIds: string[];
+    expandedApprovalRequestIds: string[];
     reviewedAgentRunIds: string[];
     conversationName: string;
     description: string;
@@ -38,6 +47,8 @@ type ChatMessagesProps = {
     onUseContext: (context: ContextItem) => void;
     onAgentRunExpandedChange: (messageId: string, expanded: boolean) => void;
     onAgentRunReviewedChange: (messageId: string, reviewed: boolean) => void;
+    onApprovalRequestExpandedChange: (messageId: string, expanded: boolean) => void;
+    onApprovalRequestResolutionChange: (messageId: string, resolution: ApprovalResolution) => void;
     searchQuery: string;
 };
 
@@ -178,7 +189,28 @@ export function ChatMessages(props: ChatMessagesProps) {
                                     )}
 
                                     {message.approvalRequest && (
-                                        <ApprovalRequestCard request={message.approvalRequest} />
+                                        <ApprovalRequestCard
+                                            expanded={props.expandedApprovalRequestIds.includes(
+                                                message.id,
+                                            )}
+                                            request={message.approvalRequest}
+                                            resolution={
+                                                props.approvalRequestResolutions[message.id] ??
+                                                "pending"
+                                            }
+                                            onExpandedChange={(expanded) =>
+                                                props.onApprovalRequestExpandedChange(
+                                                    message.id,
+                                                    expanded,
+                                                )
+                                            }
+                                            onResolutionChange={(resolution) =>
+                                                props.onApprovalRequestResolutionChange(
+                                                    message.id,
+                                                    resolution,
+                                                )
+                                            }
+                                        />
                                     )}
 
                                     {(message.reactions || message.replyCount) && (

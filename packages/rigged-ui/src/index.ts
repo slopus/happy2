@@ -11,6 +11,12 @@ export {
     type AgentRunCardProps,
     type AgentRunStep,
 } from "./AgentRunCard";
+export {
+    ApprovalRequestCard,
+    type ApprovalRequest,
+    type ApprovalRequestCardProps,
+    type ApprovalResolution,
+} from "./ApprovalRequestCard";
 export { Avatar, type AvatarProps, type AvatarSize, type AvatarType } from "./Avatar";
 export { Box, type BoxProps } from "./Box";
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./Button";

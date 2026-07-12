@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import type { MentionableAgent } from "rigged-ui";
+import type { ApprovalResolution, MentionableAgent } from "rigged-ui";
 import { AgentsSidebar, type AgentSidebarView } from "./components/AgentsSidebar";
 import { AgentsWorkspace } from "./components/AgentsWorkspace";
 import { ChatComposer } from "./components/ChatComposer";
@@ -598,6 +598,10 @@ function Workspace(props: AppProps & { user?: User }) {
     const [messages, setMessages] = createSignal<ThreadMessage[]>(initialMessages);
     const [expandedAgentRunIds, setExpandedAgentRunIds] = createSignal<string[]>([]);
     const [reviewedAgentRunIds, setReviewedAgentRunIds] = createSignal<string[]>([]);
+    const [expandedApprovalRequestIds, setExpandedApprovalRequestIds] = createSignal<string[]>([]);
+    const [approvalRequestResolutions, setApprovalRequestResolutions] = createSignal<
+        Record<string, ApprovalResolution>
+    >({});
     const [query, setQuery] = createSignal("");
     const activeFeature = () =>
         features.find((feature) => feature.id === activeFeatureId()) ?? features[0]!;
@@ -744,10 +748,12 @@ function Workspace(props: AppProps & { user?: User }) {
                     </div>
 
                     <ChatMessages
+                        approvalRequestResolutions={approvalRequestResolutions()}
                         attachedContextIds={attachedContext().map((item) => item.id)}
                         conversationName={activeSidebarItem().name}
                         description={conversationDescription()}
                         expandedAgentRunIds={expandedAgentRunIds()}
+                        expandedApprovalRequestIds={expandedApprovalRequestIds()}
                         introTitle={conversationIntroTitle()}
                         messages={activeMessages()}
                         reviewedAgentRunIds={reviewedAgentRunIds()}
@@ -764,6 +770,19 @@ function Workspace(props: AppProps & { user?: User }) {
                                     ? [...new Set([...current, messageId])]
                                     : current.filter((id) => id !== messageId),
                             )
+                        }
+                        onApprovalRequestExpandedChange={(messageId, expanded) =>
+                            setExpandedApprovalRequestIds((current) =>
+                                expanded
+                                    ? [...new Set([...current, messageId])]
+                                    : current.filter((id) => id !== messageId),
+                            )
+                        }
+                        onApprovalRequestResolutionChange={(messageId, resolution) =>
+                            setApprovalRequestResolutions((current) => ({
+                                ...current,
+                                [messageId]: resolution,
+                            }))
                         }
                         onUseContext={(context) =>
                             setAttachedContext((current) =>

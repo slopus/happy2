@@ -94,6 +94,16 @@
     transform: translate(-0.5px, 0.5px);
 }
 
+.rigged-approval-lock-artwork {
+    transform: translateY(0.5px);
+}
+
+@supports (font: -apple-system-body) {
+    .rigged-approval-lock-artwork {
+        transform: none;
+    }
+}
+
 @-moz-document url-prefix() {
     .rigged-agent-run-step-glyph-mark[data-status="done"] {
         transform: translate(-0.5px, 0);

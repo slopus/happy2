@@ -3,6 +3,7 @@ import { render } from "solid-js/web";
 import {
     AgentMentionPicker,
     AgentRunCard,
+    ApprovalRequestCard,
     Avatar,
     Box,
     Button,
@@ -10,6 +11,7 @@ import {
     ContextIcon,
     type AvatarSize,
     type AgentRun,
+    type ApprovalRequest,
     type ButtonSize,
     type ButtonVariant,
     type MentionableAgent,
@@ -19,6 +21,7 @@ import "./workbench.css";
 type ComponentId =
     | "agent-mention-picker"
     | "agent-run-card"
+    | "approval-request-card"
     | "avatar"
     | "box"
     | "button"
@@ -26,6 +29,7 @@ type ComponentId =
     | "context-icon";
 
 const components: Array<{ id: ComponentId; label: string; number: string }> = [
+    { id: "approval-request-card", label: "Approval request card", number: "C-008" },
     { id: "context-chips", label: "Context chips", number: "C-007" },
     { id: "agent-run-card", label: "Agent run card", number: "C-006" },
     { id: "context-icon", label: "Context icon", number: "C-005" },
@@ -344,6 +348,49 @@ function ContextChipsPage() {
     );
 }
 
+function ApprovalRequestCardPage() {
+    const request: ApprovalRequest = {
+        action: "edit config/releases/onboarding.json",
+        agent: "Forge",
+        avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
+        impact: "One shared configuration file for the next internal desktop build.",
+        initials: "F",
+        reason: "Register the migration without broadening access to release settings.",
+        resources: ["Shared config", "1 file", "Reversible"],
+        title: "Update shared onboarding manifest",
+        typeLabel: "Scope expansion",
+    };
+
+    return (
+        <ComponentPage
+            number="C-008"
+            title="Approval request card"
+            summary="A controlled approval gate whose pending and resolved states are supplied by props."
+        >
+            <section class="approval-plans" aria-label="Approval request card specimens">
+                <Specimen number="08.1" label="pending / collapsed" detail="680 px max">
+                    <ApprovalRequestCard
+                        expanded={false}
+                        request={request}
+                        resolution="pending"
+                        onExpandedChange={() => undefined}
+                        onResolutionChange={() => undefined}
+                    />
+                </Specimen>
+                <Specimen number="08.2" label="approved / expanded" detail="680 px max">
+                    <ApprovalRequestCard
+                        expanded
+                        request={request}
+                        resolution="approved"
+                        onExpandedChange={() => undefined}
+                        onResolutionChange={() => undefined}
+                    />
+                </Specimen>
+            </section>
+        </ComponentPage>
+    );
+}
+
 function BoxPage() {
     return (
         <ComponentPage
@@ -463,6 +510,9 @@ function Workbench() {
             </header>
             <div class="blueprint-field">
                 <Switch fallback={<BoxPage />}>
+                    <Match when={active() === "approval-request-card"}>
+                        <ApprovalRequestCardPage />
+                    </Match>
                     <Match when={active() === "context-chips"}>
                         <ContextChipsPage />
                     </Match>
