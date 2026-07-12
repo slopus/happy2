@@ -542,6 +542,18 @@ select {
     margin-top: 0;
 }
 
+.context-chip-plans {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-top: 30px;
+}
+
+.context-chip-plans .specimen-stage {
+    min-height: 230px;
+    padding: 40px;
+}
+
 .box-plans {
     display: grid;
     grid-template-columns: 1fr 1fr;

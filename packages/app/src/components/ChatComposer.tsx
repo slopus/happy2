@@ -1,5 +1,5 @@
-import { AgentMentionPicker, type MentionableAgent } from "rigged-ui";
-import { ContextChips, ContextPicker, type ContextItem } from "./ContextPicker";
+import { AgentMentionPicker, ContextChips, type MentionableAgent } from "rigged-ui";
+import { ContextPicker, type ContextItem } from "./ContextPicker";
 import { createSignal } from "solid-js";
 import {
     createDelegation,

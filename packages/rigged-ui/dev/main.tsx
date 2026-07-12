@@ -6,6 +6,7 @@ import {
     Avatar,
     Box,
     Button,
+    ContextChips,
     ContextIcon,
     type AvatarSize,
     type AgentRun,
@@ -21,9 +22,11 @@ type ComponentId =
     | "avatar"
     | "box"
     | "button"
+    | "context-chips"
     | "context-icon";
 
 const components: Array<{ id: ComponentId; label: string; number: string }> = [
+    { id: "context-chips", label: "Context chips", number: "C-007" },
     { id: "agent-run-card", label: "Agent run card", number: "C-006" },
     { id: "context-icon", label: "Context icon", number: "C-005" },
     { id: "agent-mention-picker", label: "Agent mention picker", number: "C-004" },
@@ -306,6 +309,41 @@ function AgentRunCardPage() {
     );
 }
 
+function ContextChipsPage() {
+    const items = [
+        { detail: "src/main.tsx", id: "file", kind: "file", label: "main.tsx" },
+        { detail: "Agent run", id: "run", kind: "run", label: "Forge" },
+        { detail: "Design thread", id: "thread", kind: "thread", label: "UI review" },
+    ] as const;
+
+    return (
+        <ComponentPage
+            number="C-007"
+            title="Context chips"
+            summary="A fixed-height source list with controlled removal and measured source icons."
+        >
+            <section class="context-chip-plans" aria-label="Context chip specimens">
+                <Specimen number="07.1" label="removable" detail="112 × 28 each">
+                    <ContextChips
+                        chipWidth={112}
+                        items={[...items]}
+                        label="Attached context"
+                        onRemove={() => undefined}
+                    />
+                </Specimen>
+                <Specimen number="07.2" label="read only" detail="112 × 28 each">
+                    <ContextChips
+                        chipWidth={112}
+                        items={[...items]}
+                        label="Message context"
+                        readOnly
+                    />
+                </Specimen>
+            </section>
+        </ComponentPage>
+    );
+}
+
 function BoxPage() {
     return (
         <ComponentPage
@@ -425,6 +463,9 @@ function Workbench() {
             </header>
             <div class="blueprint-field">
                 <Switch fallback={<BoxPage />}>
+                    <Match when={active() === "context-chips"}>
+                        <ContextChipsPage />
+                    </Match>
                     <Match when={active() === "agent-run-card"}>
                         <AgentRunCardPage />
                     </Match>

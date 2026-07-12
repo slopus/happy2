@@ -20,4 +20,5 @@ export {
     type ContextItem,
     type ContextKind,
 } from "./ContextIcon";
+export { ContextChips, type ContextChipsProps } from "./ContextChips";
 export type { Dimension } from "./dimensions";

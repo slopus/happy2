@@ -9,35 +9,6 @@ type ContextPickerProps = {
     selectedItems: ContextItem[];
 };
 
-type ContextChipsProps = {
-    items: ContextItem[];
-    label: string;
-    onRemove?: (item: ContextItem) => void;
-};
-
-export function ContextChips(props: ContextChipsProps) {
-    return (
-        <div class="flex flex-wrap gap-1.5" aria-label={props.label}>
-            {props.items.map((item) => (
-                <span class="flex h-7 max-w-[260px] items-center gap-1.5 rounded-[7px] border border-[#d9d2dd] bg-[#f7f4f9] px-2 text-[0.59rem] font-bold text-[#605365]">
-                    <ContextIcon kind={item.kind} />
-                    <span class="truncate">{item.label}</span>
-                    {props.onRemove && (
-                        <button
-                            class="ml-0.5 grid h-4 w-4 place-items-center rounded border-0 bg-transparent p-0 text-[0.65rem] text-[#8a7e89] hover:bg-[#e7e0ea] hover:text-[#443a44] focus-visible:outline-2 focus-visible:outline-[#6f4b92]"
-                            type="button"
-                            aria-label={`Remove ${item.label}`}
-                            onClick={() => props.onRemove?.(item)}
-                        >
-                            ×
-                        </button>
-                    )}
-                </span>
-            ))}
-        </div>
-    );
-}
-
 export function ContextPicker(props: ContextPickerProps) {
     const isSelected = (item: ContextItem) =>
         props.selectedItems.some((selectedItem) => selectedItem.id === item.id);
