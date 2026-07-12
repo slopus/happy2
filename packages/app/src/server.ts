@@ -20,12 +20,26 @@ export type AuthToken = { token: string; expiresAt: string };
 
 export type ChatKind = "dm" | "public_channel" | "private_channel";
 export type ChatRole = "owner" | "admin" | "member";
+export type DirectMessageType = "direct" | "group";
+export type ExpiryMode = "none" | "after_send" | "after_read";
+export type NotificationLevel = "all" | "mentions" | "none";
 export type ChatSummary = {
     id: string;
     kind: ChatKind;
     name?: string;
     slug?: string;
     topic?: string;
+    dmType?: DirectMessageType;
+    ownerUserId?: string;
+    photoFileId?: string;
+    isListed: boolean;
+    archivedAt?: string;
+    retentionMode: "inherit" | "forever" | "duration";
+    retentionSeconds?: number;
+    defaultExpiryMode: ExpiryMode;
+    defaultSelfDestructSeconds?: number;
+    defaultAfterReadScope: "any_reader" | "all_readers";
+    lifecycleVersion: string;
     createdByUserId: string;
     pts: string;
     lastMessageSequence: string;
@@ -33,6 +47,11 @@ export type ChatSummary = {
     membershipRole?: ChatRole;
     starred: boolean;
     starOrder?: number;
+    lastReadSequence: string;
+    unreadCount: number;
+    mentionCount: number;
+    notificationLevel: NotificationLevel;
+    mutedUntil?: string;
     createdAt: string;
     updatedAt: string;
 };
@@ -44,7 +63,6 @@ export type UserSummary = {
     title?: string;
     photoFileId?: string;
     role: "member" | "admin";
-    lastAccessAt?: string;
 };
 export type FileKind = "file" | "photo" | "video" | "gif";
 export type FileSummary = {
@@ -62,6 +80,8 @@ export type FileSummary = {
 };
 export type UploadedFile = Omit<FileSummary, "uploadedByUserId" | "createdAt"> & {
     isPublic: boolean;
+    previewUrl?: string;
+    thumbnailUrl?: string;
 };
 export type ReactionSummary = {
     key: string;
@@ -87,10 +107,22 @@ export type MessageSummary = {
     };
     threadRootMessageId?: string;
     threadReplyCount: number;
+    revision: number;
+    mentions: Array<{
+        kind: "user" | "channel" | "here" | "everyone";
+        userId?: string;
+        offset: number;
+        length: number;
+        rawText: string;
+    }>;
     forwardedFrom?: { messageId: string; chatId: string };
     attachments: FileSummary[];
     reactions: ReactionSummary[];
+    receipts: Array<{ userId: string; deliveredAt?: string; readAt?: string }>;
     expiresAt?: string;
+    expiryMode: ExpiryMode;
+    selfDestructSeconds?: number;
+    firstReadAt?: string;
     editedAt?: string;
     deletedAt?: string;
     createdAt: string;
@@ -100,6 +132,15 @@ export type PresenceSnapshot = {
     status: "online" | "offline";
     connectionCount: number;
     lastActiveAt?: number;
+};
+export type PresenceSettingsSummary = {
+    userId: string;
+    availability: "automatic" | "online" | "away" | "dnd";
+    customStatusText?: string;
+    customStatusEmoji?: string;
+    statusExpiresAt?: string;
+    dndUntil?: string;
+    updatedAt: string;
 };
 export type RealtimeEvent =
     | {
@@ -301,11 +342,11 @@ export function createServerClient(baseUrl: string) {
                 token,
             ),
         contacts: (token: string) =>
-            request<{ users: UserSummary[]; presence: PresenceSnapshot[] }>(
-                "/v0/contacts",
-                {},
-                token,
-            ),
+            request<{
+                users: UserSummary[];
+                presence: PresenceSnapshot[];
+                statuses: PresenceSettingsSummary[];
+            }>("/v0/contacts", {}, token),
         files: (
             token: string,
             options: { kind?: FileKind; before?: string; limit?: number } = {},

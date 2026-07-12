@@ -227,28 +227,32 @@ export async function buildServer(
             if (compact) lastCompactionAt = Date.now();
             const maintainFiles = Date.now() - lastFileMaintenanceAt >= 60 * 60_000;
             if (maintainFiles) lastFileMaintenanceAt = Date.now();
-            pendingSweep = Promise.all([
-                collaboration.expireDueMessages(),
-                automation?.publishDueScheduledMessages() ?? [],
-                automation?.runDueAutomations() ?? [],
-                automation?.runPendingEventAutomations() ?? [],
-                compact ? collaboration.compactSync() : undefined,
-                operations?.expireDueBans() ?? 0,
-                integrations && webhookTransport
-                    ? integrations
-                          .enqueuePendingSyncEvents()
-                          .then(() => integrations!.dispatchDueWebhooks(webhookTransport!))
-                    : undefined,
-                maintainFiles && fileStorage
-                    ? services.database
-                          .listStoredFiles()
-                          .then((referencedFiles) =>
-                              fileStorage!.runMaintenance({ referencedFiles }),
-                          )
-                    : undefined,
-            ])
+            // Every repository shares one libSQL client. Run write-capable maintenance in
+            // sequence so the local SQLite adapter never opens competing write transactions.
+            pendingSweep = (async () => {
+                const expiryHint = await collaboration!.expireDueMessages();
+                const scheduledHints = (await automation?.publishDueScheduledMessages()) ?? [];
+                const automationHints = (await automation?.runDueAutomations()) ?? [];
+                const eventAutomationHints = (await automation?.runPendingEventAutomations()) ?? [];
+                if (compact) await collaboration!.compactSync();
+                await operations?.expireDueBans();
+                if (integrations && webhookTransport) {
+                    await integrations.enqueuePendingSyncEvents();
+                    await integrations.dispatchDueWebhooks(webhookTransport);
+                }
+                if (maintainFiles && fileStorage) {
+                    const referencedFiles = await services.database.listStoredFiles();
+                    await fileStorage.runMaintenance({ referencedFiles });
+                }
+                return { expiryHint, scheduledHints, automationHints, eventAutomationHints };
+            })()
                 .then(
-                    async ([expiryHint, scheduledHints, automationHints, eventAutomationHints]) => {
+                    async ({
+                        expiryHint,
+                        scheduledHints,
+                        automationHints,
+                        eventAutomationHints,
+                    }) => {
                         if (!pubsub) return;
                         const hints = [
                             ...(expiryHint ? [expiryHint] : []),
