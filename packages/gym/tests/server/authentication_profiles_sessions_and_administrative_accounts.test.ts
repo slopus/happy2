@@ -170,7 +170,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
         );
     });
 
-    it("should report duplicate password registration as a conflict", async () => {
+    it("reports duplicate password registration as a conflict", async () => {
         await withEnvironment({ RIGGED_PASSWORD_PEPPER: "gym-auth-duplicate-pepper" }, async () => {
             await using server = await createGymServer({
                 configure(config) {
@@ -184,8 +184,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
             };
             expect((await server.post("/v0/auth/password/register", payload)).statusCode).toBe(201);
 
-            // Expected: a known account is a clear conflict, without leaking server internals.
-            // Actual at the time of writing: 500 internal_server_error.
+            // A known account is a clear conflict, without leaking server internals.
             const duplicate = await server.post("/v0/auth/password/register", payload);
             expect(duplicate.statusCode).toBe(409);
             expect(duplicate.json()).toEqual({ error: "account_exists" });
@@ -415,7 +414,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
         expect((await asAdmin.post(`/v0/admin/users/${admin.id}/deleteUser`)).statusCode).toBe(400);
     });
 
-    it("should report repeated profile creation as a conflict", async () => {
+    it("reports repeated profile creation as a conflict", async () => {
         await withEnvironment(
             { RIGGED_PASSWORD_PEPPER: "gym-auth-profile-conflict-pepper" },
             async () => {
@@ -437,8 +436,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
                 };
                 expect((await bearer.post("/v0/me/createProfile", payload)).statusCode).toBe(201);
 
-                // Expected: a profile already attached to this account is a clear conflict.
-                // Actual at the time of writing: 500 internal_server_error.
+                // A profile already attached to this account is a clear conflict.
                 const duplicate = await bearer.post("/v0/me/createProfile", payload);
                 expect(duplicate.statusCode).toBe(409);
                 expect(duplicate.json()).toEqual({ error: "profile_exists_or_username_taken" });
@@ -446,7 +444,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
         );
     });
 
-    it("should report a duplicate profile username as a conflict", async () => {
+    it("reports a duplicate profile username as a conflict", async () => {
         await using server = await createGymServer();
         const owner = await server.createUser({ username: "username_collision_owner" });
         const contender = await server.createUser({ username: "username_collision_contender" });
@@ -458,8 +456,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
             phone: contender.phone,
         });
 
-        // Expected: the documented username conflict response.
-        // Actual at the time of writing: 500 internal_server_error.
+        // The documented username conflict response is stable across profile mutations.
         expect(duplicate.statusCode).toBe(409);
         expect(duplicate.json()).toEqual({ error: "username_taken" });
     });

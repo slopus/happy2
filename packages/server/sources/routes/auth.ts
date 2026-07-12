@@ -30,7 +30,7 @@ export function registerAuthRoutes(
                     ? reply.code(400).send({ error: "invalid_credentials" })
                     : reply.code(201).send(result);
             } catch (error: unknown) {
-                if ((error as { code?: string }).code === "SQLITE_CONSTRAINT_UNIQUE")
+                if (isUniqueConstraint(error))
                     return reply.code(409).send({ error: "account_exists" });
                 throw error;
             }
@@ -48,7 +48,7 @@ export function registerAuthRoutes(
             if (result === "invalid") return reply.code(400).send({ error: "invalid_profile" });
             return reply.code(201).send({ user: result });
         } catch (error: unknown) {
-            if ((error as { code?: string }).code === "SQLITE_CONSTRAINT_UNIQUE")
+            if (isUniqueConstraint(error))
                 return reply.code(409).send({ error: "profile_exists_or_username_taken" });
             throw error;
         }
@@ -60,8 +60,7 @@ export function registerAuthRoutes(
             if (result === "invalid") return reply.code(400).send({ error: "invalid_profile" });
             return { user: result };
         } catch (error: unknown) {
-            if ((error as { code?: string }).code === "SQLITE_CONSTRAINT_UNIQUE")
-                return reply.code(409).send({ error: "username_taken" });
+            if (isUniqueConstraint(error)) return reply.code(409).send({ error: "username_taken" });
             throw error;
         }
     });
@@ -105,4 +104,34 @@ export function registerAuthRoutes(
             ? reply.code(204).send()
             : reply.code(401).send({ error: "unauthorized" });
     });
+}
+
+/** Drizzle wraps libSQL errors, so inspect the bounded cause chain as well. */
+function isUniqueConstraint(error: unknown): boolean {
+    const visited = new Set<object>();
+    let current = error;
+    for (
+        let depth = 0;
+        depth < 8 && current && typeof current === "object" && !visited.has(current);
+        depth += 1
+    ) {
+        visited.add(current);
+        const details = current as {
+            code?: unknown;
+            extendedCode?: unknown;
+            message?: unknown;
+            cause?: unknown;
+        };
+        const code = String(details.code ?? "");
+        const extendedCode = String(details.extendedCode ?? "");
+        const message = String(details.message ?? "");
+        if (
+            code === "SQLITE_CONSTRAINT_UNIQUE" ||
+            extendedCode === "SQLITE_CONSTRAINT_UNIQUE" ||
+            (code === "SQLITE_CONSTRAINT" && /\bUNIQUE constraint failed\b/i.test(message))
+        )
+            return true;
+        current = details.cause;
+    }
+    return false;
 }
