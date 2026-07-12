@@ -244,7 +244,7 @@ it("holds StatusPicker card, availability dots, segmented layout, and status fie
         "pill style",
     ).toEqual({
         "background-color": "rgb(36, 34, 43)",
-        "border-radius": "4px",
+        "border-radius": "1px",
         "border-top-color": "rgba(255, 255, 255, 0.13)",
         position: "absolute",
     });

@@ -1,9 +1,10 @@
 /*
  * C-009 Sidebar — 288px navigation column on the chrome surface.
  *
- * Contract: 288px wide (border included), fills height, --rg-bg-chrome with a
- * right hairline. 52px header, scrollable 8px-padded body on a 32px row grid,
- * optional 52px footer behind a top hairline.
+ * Contract: 288px wide, fills height, transparent over the window chrome with
+ * no right hairline (seamless with the rail/title-bar frame). 52px header,
+ * scrollable 8px-padded body on a 32px row grid, optional 52px footer behind a
+ * top hairline.
  */
 
 .rigged-sidebar,
@@ -17,8 +18,7 @@
     flex-direction: column;
     width: 288px;
     height: 100%;
-    background: var(--rg-bg-chrome);
-    border-right: 1px solid var(--rg-border);
+    background: transparent;
     color: var(--rg-text);
     font-family: var(--rg-font-ui);
     font-synthesis: none;

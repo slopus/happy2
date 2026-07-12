@@ -30,12 +30,19 @@ const DEFAULT_COLUMNS = 8;
 /* Card border-box = grid (columns × CELL) + 2×8 padding + 2×1 hairline. */
 const CHROME = 18;
 
-function EmojiCell(props: { item: EmojiItem; onSelect?: (id: string) => void }) {
+function EmojiCell(props: {
+    bottomLeft?: boolean;
+    bottomRight?: boolean;
+    item: EmojiItem;
+    onSelect?: (id: string) => void;
+}) {
     return (
         <button
             aria-label={props.item.name}
             class="rigged-emoji-picker__cell"
             data-emoji-id={props.item.id}
+            data-picker-bottom-left={props.bottomLeft ? "" : undefined}
+            data-picker-bottom-right={props.bottomRight ? "" : undefined}
             data-rigged-ui="emoji-picker-cell"
             onClick={() => props.onSelect?.(props.item.id)}
             title={props.item.name}
@@ -104,6 +111,11 @@ export function EmojiPicker(props: EmojiPickerProps) {
     };
     const hasRecent = () => recentItems().length > 0;
     const gridColumns = () => `repeat(${columns()}, ${CELL}px)`;
+    const lastRowStart = () =>
+        local.emoji.length === 0
+            ? -1
+            : Math.floor((local.emoji.length - 1) / columns()) * columns();
+    const lastRowFillsGrid = () => local.emoji.length > 0 && local.emoji.length % columns() === 0;
 
     return (
         <div
@@ -167,7 +179,16 @@ export function EmojiPicker(props: EmojiPickerProps) {
                         style={{ "grid-template-columns": gridColumns() }}
                     >
                         <For each={local.emoji}>
-                            {(item) => <EmojiCell item={item} onSelect={local.onSelect} />}
+                            {(item, index) => (
+                                <EmojiCell
+                                    bottomLeft={index() === lastRowStart()}
+                                    bottomRight={
+                                        lastRowFillsGrid() && index() === local.emoji.length - 1
+                                    }
+                                    item={item}
+                                    onSelect={local.onSelect}
+                                />
+                            )}
                         </For>
                     </div>
                 </Show>

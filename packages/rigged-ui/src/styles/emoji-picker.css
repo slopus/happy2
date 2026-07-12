@@ -35,6 +35,13 @@
     display: block;
 }
 
+/* The search control is 9px inside the card's top edge (1px border + 8px
+ * padding), so its top curve is the remaining 1px of the 10px card curve. */
+.rigged-emoji-picker__search .rigged-text-field__control {
+    border-top-left-radius: 1px;
+    border-top-right-radius: 1px;
+}
+
 /* ---- Sections + labels ------------------------------------------------ */
 
 .rigged-emoji-picker__section {
@@ -87,6 +94,14 @@
     -webkit-appearance: none;
     cursor: pointer;
     transition: background-color 120ms ease;
+}
+
+[data-rigged-ui="emoji-picker-all-section"] .rigged-emoji-picker__cell[data-picker-bottom-left] {
+    border-bottom-left-radius: 1px;
+}
+
+[data-rigged-ui="emoji-picker-all-section"] .rigged-emoji-picker__cell[data-picker-bottom-right] {
+    border-bottom-right-radius: 1px;
 }
 
 .rigged-emoji-picker__cell:hover {

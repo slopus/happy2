@@ -82,7 +82,7 @@
     display: flex;
     align-items: center;
     height: 40px;
-    padding: 0 8px;
+    padding: 0 6px;
 }
 
 .rigged-composer__actions {
@@ -91,11 +91,21 @@
     gap: 2px;
 }
 
+/* The edge actions enter the composer's 10px bottom-corner field. The 7px
+ * border-box inset (1px border + 6px toolbar pad) leaves a parallel 3px arc. */
+.rigged-composer__actions > .rigged-button:first-child {
+    border-bottom-left-radius: 3px;
+}
+
 .rigged-composer__trailing {
     display: flex;
     align-items: center;
     gap: 10px;
     margin-left: auto;
+}
+
+.rigged-composer__send {
+    border-bottom-right-radius: 3px;
 }
 
 /*
@@ -263,6 +273,11 @@
     font-synthesis: none;
     appearance: none;
     transition: background-color 120ms ease;
+}
+
+.rigged-mention-picker__row:last-child {
+    border-bottom-right-radius: 3px;
+    border-bottom-left-radius: 3px;
 }
 
 .rigged-mention-picker__row:hover {

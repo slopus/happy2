@@ -361,7 +361,7 @@ it("holds Composer geometry, colors, and typography", async () => {
     ]);
     actionButtons.forEach((button, index) => {
         const rect = button.getBoundingClientRect();
-        expect(rect.x - rootRect.x).toBeCloseTo(9 + index * 30, 1);
+        expect(rect.x - rootRect.x).toBeCloseTo(7 + index * 30, 1);
         expect(rect.y - rootRect.y).toBeCloseTo(45, 1);
         expect(rect.width).toBeCloseTo(28, 1);
         expect(rect.height).toBeCloseTo(28, 1);
@@ -376,12 +376,21 @@ it("holds Composer geometry, colors, and typography", async () => {
         expect(Math.abs(drift.dy), `${label} dy`).toBeLessThanOrEqual(0.4);
     }
 
-    // Send: primary 28px square, right-inset 8px, disabled while empty.
+    // Send: primary 28px square, symmetric 7px border-box inset at the
+    // composer's bottom-right curve, disabled while empty.
     const send = view.$('[data-testid="composer-default"] .rigged-composer__send');
-    expect(send.bounds()).toEqual({ x: 543, y: 65, width: 28, height: 28 });
-    expect(send.computedStyles(["background-color", "border-radius", "opacity"])).toEqual({
+    expect(send.bounds()).toEqual({ x: 545, y: 65, width: 28, height: 28 });
+    expect(
+        send.computedStyles([
+            "background-color",
+            "border-bottom-right-radius",
+            "border-top-right-radius",
+            "opacity",
+        ]),
+    ).toEqual({
         "background-color": "rgb(139, 124, 247)",
-        "border-radius": "6px",
+        "border-bottom-right-radius": "3px",
+        "border-top-right-radius": "6px",
         opacity: "0.48",
     });
     expect((send.element as HTMLButtonElement).disabled).toBe(true);

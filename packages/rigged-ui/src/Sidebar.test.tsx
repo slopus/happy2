@@ -159,7 +159,6 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     expect(
         root.computedStyles([
             "background-color",
-            "border-right-color",
             "border-right-width",
             "box-sizing",
             "display",
@@ -168,9 +167,8 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
             "width",
         ]),
     ).toEqual({
-        "background-color": "rgb(19, 18, 23)",
-        "border-right-color": "rgba(255, 255, 255, 0.07)",
-        "border-right-width": "1px",
+        "background-color": "rgba(0, 0, 0, 0)",
+        "border-right-width": "0px",
         "box-sizing": "border-box",
         display: "flex",
         "flex-direction": "column",
@@ -181,7 +179,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     /* ---- Header --------------------------------------------------------- */
 
     const header = view.$('[data-testid="full"] [data-rigged-ui="sidebar-header"]');
-    expect(header.bounds()).toEqual({ x: 0, y: 0, width: 287, height: 52 });
+    expect(header.bounds()).toEqual({ x: 0, y: 0, width: 288, height: 52 });
     expect(header.computedStyles(["padding-left", "padding-right"])).toEqual({
         "padding-left": "16px",
         "padding-right": "16px",
@@ -256,7 +254,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
 
     const row = (id: string) => view.$(`[data-testid="full"] [data-item-id="${id}"]`);
     /* 32px rows on the grid: gaps 2, sections 12 apart, heads 24. */
-    expect(row("inbox").bounds()).toEqual({ x: 8, y: 60, width: 271, height: 32 });
+    expect(row("inbox").bounds()).toEqual({ x: 8, y: 60, width: 272, height: 32 });
     expect(row("my-issues").bounds().y).toBe(94);
     expect(row("agent-runs").bounds().y).toBe(128);
     expect(row("launch-week").bounds().y).toBe(198);

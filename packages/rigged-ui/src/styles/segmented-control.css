@@ -13,6 +13,7 @@
 
 .rigged-segmented-control {
     --rigged-segmented-pad: 4px;
+    --rigged-segmented-inner-radius: calc(var(--rg-radius-sm) - var(--rigged-segmented-pad) - 1px);
     --rigged-segmented-count: 1;
     --rigged-segmented-index: 0;
 
@@ -60,7 +61,7 @@
     box-sizing: border-box;
     width: calc((100% - 2 * var(--rigged-segmented-pad)) / var(--rigged-segmented-count));
     border: 1px solid var(--rg-border-strong);
-    border-radius: calc(var(--rg-radius-sm) - 2px);
+    border-radius: var(--rigged-segmented-inner-radius);
     background: var(--rg-bg-raised);
     transform: translateX(calc(var(--rigged-segmented-index) * 100%));
     transition: transform 160ms ease;
@@ -79,7 +80,7 @@
     margin: 0;
     padding: 0 12px;
     border: 0;
-    border-radius: calc(var(--rg-radius-sm) - 2px);
+    border-radius: var(--rigged-segmented-inner-radius);
     background: transparent;
     color: var(--rg-text-secondary);
     font-family: var(--rg-font-ui);

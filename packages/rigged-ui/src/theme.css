@@ -34,6 +34,10 @@
     --rg-bg-inset: rgb(255 255 255 / 0.05); /* inputs, search wells */
     --rg-bg-hover: rgb(255 255 255 / 0.04);
     --rg-bg-code: #141319; /* diff and code blocks */
+    /* Window backdrop: a slight top-center lift over the chrome base so the
+       seamless rail+title-bar frame reads with depth. background-color stays
+       --rg-bg-chrome; this is layered as background-image. */
+    --rg-bg-window: radial-gradient(130% 92% at 50% 0%, #15141b 0%, #131217 55%);
 
     /* Hairlines */
     --rg-border: rgb(255 255 255 / 0.07);

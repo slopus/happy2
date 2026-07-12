@@ -74,7 +74,6 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
     expect(
         root.computedStyles([
             "background-color",
-            "border-bottom-color",
             "border-bottom-width",
             "border-top-width",
             "box-sizing",
@@ -90,9 +89,10 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
             "padding-top",
         ]),
     ).toEqual({
-        "background-color": "rgb(19, 18, 23)",
-        "border-bottom-color": "rgba(255, 255, 255, 0.07)",
-        "border-bottom-width": "1px",
+        // Transparent chrome over the window backdrop; no bottom hairline —
+        // the title bar reads as one frame with the rail.
+        "background-color": "rgba(0, 0, 0, 0)",
+        "border-bottom-width": "0px",
         "border-top-width": "0px",
         "box-sizing": "border-box",
         "column-gap": "12px",
@@ -105,7 +105,7 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
         "grid-template-columns": "446px 420px 446px",
         height: "38px",
         "line-height": "16px",
-        "padding-bottom": "1px",
+        "padding-bottom": "0px",
         "padding-left": "12px",
         "padding-right": "12px",
         "padding-top": "0px",
@@ -118,12 +118,12 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
     const trailing = view.$(
         '[data-rigged-ui="title-bar"]:not([data-window-controls]) [data-rigged-ui="title-bar-trailing"]',
     );
-    expect(leading.bounds()).toEqual({ x: 12, y: 0, width: 446, height: 36 });
-    expect(trailing.bounds()).toEqual({ x: 902, y: 0, width: 446, height: 36 });
+    expect(leading.bounds()).toEqual({ x: 12, y: 0, width: 446, height: 38 });
+    expect(trailing.bounds()).toEqual({ x: 902, y: 0, width: 446, height: 38 });
 
     /* Bare slotted crumb text: the pinned 13px/16px line makes its box
        deterministic, and the lane centers that box exactly — 16px line in the
-       36px lane → y 10. "Acme Studio" is a word label (asymmetric ink), so
+       38px lane → y 11. "Acme Studio" is a word label (asymmetric ink), so
        line-box symmetry is asserted exactly and the ink centroid only at the
        0.75px audit ceiling. Raw true-2x dy: cr +0.17, ff +0.67, wk +0.62 —
        Gecko/WebKit snap the baseline ~0.5px below Blink inside the pinned
@@ -133,19 +133,19 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
        in Gecko). */
     const crumb = view.$('[data-testid="crumb"]');
     expect(crumb.bounds().height).toBe(16);
-    expect(crumb.bounds().y).toBe(10);
-    expect(crumb.offsets().top + crumb.bounds().height / 2).toBe(18); // lane center
+    expect(crumb.bounds().y).toBe(11);
+    expect(crumb.offsets().top + crumb.bounds().height / 2).toBe(19); // lane center
     const crumbInk = await crumb.visibleMetrics();
     expect(crumbInk.pixelCount).toBeGreaterThan(0);
     expect(
-        Math.abs(crumbInk.center.y + crumb.bounds().y - 18),
+        Math.abs(crumbInk.center.y + crumb.bounds().y - 19),
         "crumb ink optical y",
     ).toBeLessThanOrEqual(0.75);
 
     /* Trailing content right-aligns against the 12px edge padding. */
     const trailButton = view.$('[data-testid="trail-btn"]');
     expect(trailButton.bounds().x + trailButton.bounds().width).toBe(1348);
-    expect(trailButton.bounds().y).toBe(4); // (36 - 28) / 2 centered in the lane
+    expect(trailButton.bounds().y).toBe(5); // (38 - 28) / 2 centered in the lane
     expect((await trailButton.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     /* ---- Centered SearchField ----------------------------------------- */
@@ -153,7 +153,7 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
     const field = view.$(
         '[data-rigged-ui="title-bar"]:not([data-window-controls]) [data-rigged-ui="search-field"]',
     );
-    expect(field.bounds()).toEqual({ x: 470, y: 5, width: 420, height: 26 });
+    expect(field.bounds()).toEqual({ x: 470, y: 6, width: 420, height: 26 });
     const input = view.$(
         '[data-rigged-ui="title-bar"]:not([data-window-controls]) [data-rigged-ui="search-field-input"]',
     );
@@ -177,7 +177,7 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
     expect(insetRoot.computedStyle("grid-template-columns")).toBe("92px 420px 92px");
 
     const controls = view.$('[data-rigged-ui="title-bar-controls"]');
-    expect(controls.bounds()).toEqual({ x: 0, y: 0, width: 78, height: 36 });
+    expect(controls.bounds()).toEqual({ x: 0, y: 0, width: 78, height: 38 });
     expect(controls.element.getAttribute("aria-hidden")).toBe("true");
     if (server.browser === "chromium") {
         /* The reserved traffic-light strip must stay draggable. */
@@ -187,7 +187,7 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
     const insetField = view.$(
         '[data-rigged-ui="title-bar"][data-window-controls] [data-rigged-ui="search-field"]',
     );
-    expect(insetField.bounds()).toEqual({ x: 104, y: 5, width: 420, height: 26 });
+    expect(insetField.bounds()).toEqual({ x: 104, y: 6, width: 420, height: 26 });
 
     /* Bare slotted text centers in the inset trailing lane the same way.
        "SK" is all-caps ink (baseline to cap height), so its centroid rides
@@ -195,11 +195,11 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
        wk -0.19 — inside the audit ceiling in every engine. */
     const trailMark = view.$('[data-testid="trail-mark"]');
     expect(trailMark.bounds().height).toBe(16);
-    expect(trailMark.offsets().top + trailMark.bounds().height / 2).toBe(18);
+    expect(trailMark.offsets().top + trailMark.bounds().height / 2).toBe(19);
     const trailInk = await trailMark.visibleMetrics();
     expect(trailInk.pixelCount).toBeGreaterThan(0);
     expect(
-        Math.abs(trailInk.center.y + trailMark.bounds().y - 18),
+        Math.abs(trailInk.center.y + trailMark.bounds().y - 19),
         "trail mark ink optical y",
     ).toBeLessThanOrEqual(0.75);
 
@@ -381,7 +381,7 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
         display: "flex",
         height: "26px",
         "padding-left": "8px",
-        "padding-right": "4px",
+        "padding-right": "3px",
     });
 
     /* Leading 14px search icon: 9px in, optically on the 13px center line
@@ -457,7 +457,7 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
        contract is the 5px inset, so round the measurement. */
     expect(
         Math.round(field.bounds().x + field.bounds().width - (cap.bounds().x + cap.bounds().width)),
-    ).toBe(5);
+    ).toBe(4);
     expect(cap.element.getAttribute("aria-label")).toBe("⌘K");
     /* Cap glyph ink. Intra-cap glyph centering is owned and tuned by
        Badge.test.tsx (KeyCap's own optical corrections live in badge.css),
@@ -661,7 +661,7 @@ it("holds SearchField focus treatment and long-content truncation", async () => 
                 longField.bounds().width -
                 (longCap.bounds().x + longCap.bounds().width),
         ),
-    ).toBe(5);
+    ).toBe(4);
     expect((await longInput.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     /* ---- Long placeholder stays inside the same envelope ------------------ */

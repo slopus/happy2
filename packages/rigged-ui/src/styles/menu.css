@@ -61,6 +61,18 @@
         color 120ms ease;
 }
 
+/* Edge rows occupy the card's corner field: 10px outer radius minus the 7px
+ * border-box inset (1px border + 6px list padding) leaves a 3px inner arc. */
+.rigged-menu__item:first-child {
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+}
+
+.rigged-menu__item:last-child {
+    border-bottom-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+}
+
 .rigged-menu__item:hover {
     background: var(--rg-bg-hover);
 }

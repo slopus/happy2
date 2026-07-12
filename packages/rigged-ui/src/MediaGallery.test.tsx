@@ -247,9 +247,16 @@ it("holds MediaGallery grid geometry, tile anatomy, overlays, and footer typogra
     expect(thumbV.bounds().y + 120 - (db.y + db.height), "duration bottom inset").toBe(8);
     expect(duration.element.textContent, "duration text").toBe("1:24");
     expect(
-        duration.computedStyles(["background-color", "color", "font-size", "font-weight"]),
+        duration.computedStyles([
+            "background-color",
+            "border-radius",
+            "color",
+            "font-size",
+            "font-weight",
+        ]),
     ).toEqual({
         "background-color": "rgb(19, 18, 23)",
+        "border-radius": "2px",
         color: "rgb(237, 234, 242)",
         "font-size": "11px",
         "font-weight": "600",

@@ -98,6 +98,34 @@ padding, content, and `box-sizing` must resolve to that size. Test fixed,
 content-sized, percentage, full-width, nested, and constrained-container cases
 as applicable.
 
+## Nested rounded corners
+
+Nested rounded corners must be true parallel curves. When a descendant edge
+occupies a rounded corner of an ancestor, use the same inset on the horizontal
+and vertical axes and calculate each inner radius from the rendered geometry:
+
+`inner radius = max(0, outer radius - inset)`
+
+Here, `inset` is the actual distance between the two border-box edges, not only
+the numeric value of a CSS `padding` declaration. It therefore includes the
+ancestor border and any padding, gap, or positioning between the boxes. For
+example, a 14 px outer radius with a 4 px border-box inset requires a 10 px
+inner radius. If the horizontal and vertical insets differ, a circular outer
+corner cannot have a circular parallel inner corner; change the layout so the
+insets match rather than choosing a compromise radius. Apply the formula per
+corner when radii or insets differ by corner.
+
+Normalize pills, circles, percentage radii, and oversized radii to the curve
+the browser actually renders before applying the formula. A descendant whose
+corner is outside the ancestor's corner field is an independent rounded shape
+and does not inherit this relationship.
+
+The shared `rigged-ui` renderer audits this contract after every test render in
+Chromium, Firefox, and WebKit. Component fixtures must expose rounded visual
+parts with `data-rigged-ui` so nested geometry is included automatically. A
+test must fail when a nested curve uses an independently selected radius or
+asymmetric horizontal and vertical insets, even if a screenshot looks close.
+
 ## Blueprint coverage
 
 Every component has its own blueprint page selected from the thin workbench

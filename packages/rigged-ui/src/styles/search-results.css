@@ -98,6 +98,11 @@
     transition: background-color 120ms ease;
 }
 
+.rigged-search-results__group:last-child .rigged-search-results__row:last-child {
+    border-bottom-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+}
+
 .rigged-search-results__row:hover {
     background: var(--rg-bg-hover);
 }

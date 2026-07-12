@@ -21,8 +21,10 @@
     width: 76px;
     height: 100%;
     padding: 10px 0;
-    background: var(--rg-bg-chrome);
-    border-right: 1px solid var(--rg-border);
+    /* Seamless chrome: transparent over the window backdrop, no right hairline —
+       the rail and title bar read as one frame. The full 76px lane centers its
+       60px items on integer coordinates. */
+    background: transparent;
     font-family: var(--rg-font-ui);
     font-synthesis: none;
 }
@@ -135,9 +137,13 @@
 
 .rigged-rail__item-badge {
     position: absolute;
-    top: -7px;
+    top: -6px;
     left: 13px;
     display: block;
+}
+
+.rigged-rail__item-badge > .rigged-count-badge {
+    border-radius: 6px;
 }
 
 .rigged-rail__item-label {

@@ -121,7 +121,8 @@ it("holds Menu popover geometry, item rows, icon centroids, danger, and shortcut
         ).toEqual({
             "align-items": "center",
             "background-color": "rgba(0, 0, 0, 0)",
-            "border-radius": "6px",
+            "border-radius":
+                id === "copy" ? "3px 3px 6px 6px" : id === "delete" ? "6px 6px 3px 3px" : "6px",
             cursor: "pointer",
             display: "flex",
             padding: "0px 10px",

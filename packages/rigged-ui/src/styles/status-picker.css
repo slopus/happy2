@@ -58,6 +58,7 @@
 
 .rigged-status-picker__segmented {
     --rigged-sp-pad: 4px;
+    --rigged-sp-inner-radius: calc(var(--rg-radius-sm) - var(--rigged-sp-pad) - 1px);
     --rigged-sp-count: 4;
     --rigged-sp-index: 0;
 
@@ -89,7 +90,7 @@
     box-sizing: border-box;
     width: calc((100% - 2 * var(--rigged-sp-pad)) / var(--rigged-sp-count));
     border: 1px solid var(--rg-border-strong);
-    border-radius: calc(var(--rg-radius-sm) - 2px);
+    border-radius: var(--rigged-sp-inner-radius);
     background: var(--rg-bg-raised);
     transform: translateX(calc(var(--rigged-sp-index) * 100%));
     transition: transform 160ms ease;
@@ -108,7 +109,7 @@
     margin: 0;
     padding: 0 8px;
     border: 0;
-    border-radius: calc(var(--rg-radius-sm) - 2px);
+    border-radius: var(--rigged-sp-inner-radius);
     background: transparent;
     color: var(--rg-text-secondary);
     font-family: var(--rg-font-ui);

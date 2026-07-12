@@ -107,10 +107,11 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     const onItemSelect = vi.fn();
     const view = createRenderer();
 
-    /* Each surface pairs the contract fixture with a duplicate behind a 0.5px
-     * shim: the rail centers children on .5px positions inside its 75px
-     * content lane, and the shim moves them onto integer CSS pixels where the
-     * anchored captures are exact. */
+    /* Each surface pairs the contract fixture with a duplicate used for the
+     * anchored optical captures. With no right hairline the rail centers its
+     * children on integer positions inside the full 76px lane, so both rails
+     * already land on integer CSS pixels (no shim needed) and the captures are
+     * exact. */
     view.render(
         () => (
             <div style={{ display: "flex", gap: "20px", height: "100%" }}>
@@ -121,7 +122,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
                     items={items}
                     onItemSelect={onItemSelect}
                 />
-                <div style={{ "padding-left": "0.5px", height: "100%" }}>
+                <div style={{ "padding-left": "0px", height: "100%" }}>
                     <Rail
                         activeItemId="agents"
                         data-testid="rail-m"
@@ -155,7 +156,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
                     items={items.slice(0, 2)}
                     onItemSelect={() => {}}
                 />
-                <div style={{ "padding-left": "0.5px", height: "100%" }}>
+                <div style={{ "padding-left": "0px", height: "100%" }}>
                     <Rail
                         activeItemId="inbox"
                         data-testid="rail-brand"
@@ -169,7 +170,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     );
     view.render(
         () => (
-            <div style={{ "padding-left": "0.5px", height: "100%" }}>
+            <div style={{ "padding-left": "0px", height: "100%" }}>
                 <Rail
                     activeItemId="files"
                     data-testid="rail-badges"
@@ -190,7 +191,6 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     expect(
         rail.computedStyles([
             "background-color",
-            "border-right-color",
             "border-right-width",
             "box-sizing",
             "display",
@@ -203,9 +203,10 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
             "padding-top",
         ]),
     ).toEqual({
-        "background-color": "rgb(19, 18, 23)",
-        "border-right-color": "rgba(255, 255, 255, 0.07)",
-        "border-right-width": "1px",
+        // Transparent over the window backdrop; no right hairline — seamless
+        // with the title bar and (in chat) the sidebar.
+        "background-color": "rgba(0, 0, 0, 0)",
+        "border-right-width": "0px",
         "box-sizing": "border-box",
         display: "flex",
         "flex-direction": "column",
@@ -228,8 +229,8 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     /* ---- Brand mark ------------------------------------------------------ */
 
     const mark = view.$('[data-testid="rail-main"] [data-rigged-ui="rail-brand-mark"]');
-    /* Centered in the 75px content lane (76 minus the right hairline). */
-    expect(mark.bounds()).toEqual({ x: 20.5, y: 10, width: 34, height: 34 });
+    /* Centered in the full 76px lane (no right hairline). */
+    expect(mark.bounds()).toEqual({ x: 21, y: 10, width: 34, height: 34 });
     expect(mark.computedStyles(["border-radius", "display"])).toEqual({
         "border-radius": "10px",
         display: "grid",
@@ -279,8 +280,8 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
 
     expect(inbox.element.tagName).toBe("BUTTON");
     /* brand 10+34 + 12 margin → items start at y 56; 52 tall, 4px gap. */
-    expect(inbox.bounds()).toEqual({ x: 7.5, y: 56, width: 60, height: 52 });
-    expect(chat.bounds()).toEqual({ x: 7.5, y: 112, width: 60, height: 52 });
+    expect(inbox.bounds()).toEqual({ x: 8, y: 56, width: 60, height: 52 });
+    expect(chat.bounds()).toEqual({ x: 8, y: 112, width: 60, height: 52 });
     expect(
         inbox.computedStyles([
             "background-color",
@@ -429,7 +430,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
             `[data-testid="rail-badges"] [data-item-id="${itemId}"] [data-rigged-ui="rail-item-icon"]`,
         );
         expect(badge.bounds().x - iconBox.bounds().x, `${text} badge x offset`).toBe(13);
-        expect(badge.bounds().y - iconBox.bounds().y, `${text} badge y offset`).toBe(-7);
+        expect(badge.bounds().y - iconBox.bounds().y, `${text} badge y offset`).toBe(-6);
         const count = view.$(
             `[data-testid="rail-badges"] [data-item-id="${itemId}"] [data-rigged-ui="count-badge"]`,
         );
@@ -448,8 +449,9 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
         '[data-testid="rail-main"] [data-item-id="inbox"] [data-rigged-ui="count-badge"]',
     );
     expect(count12.element.textContent).toBe("12");
-    expect(count12.computedStyles(["background-color", "color"])).toEqual({
+    expect(count12.computedStyles(["background-color", "border-radius", "color"])).toEqual({
         "background-color": "rgb(139, 124, 247)",
+        "border-radius": "6px",
         color: "rgb(255, 255, 255)",
     });
     expect(
@@ -465,8 +467,8 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     expect(footerBounds.y + footerBounds.height).toBe(420 - 10);
     const footerAvatar = view.$('[data-testid="rail-main"] [data-rigged-ui="avatar"]');
     expect(footerAvatar.bounds().width).toBe(28);
-    /* Centered in the 75px content lane. */
-    expect(footerAvatar.bounds().x).toBe(23.5);
+    /* Centered in the full 76px lane. */
+    expect(footerAvatar.bounds().x).toBe(24);
     const footerVisible = await footerAvatar.visibleMetrics();
     expect(footerVisible.pixelCount).toBeGreaterThan(0);
     expect(

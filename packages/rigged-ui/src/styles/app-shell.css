@@ -17,7 +17,8 @@
     min-width: 1024px;
     min-height: 704px;
     overflow: hidden;
-    background: var(--rg-bg-chrome);
+    background-color: var(--rg-bg-chrome);
+    background-image: var(--rg-bg-window);
     color: var(--rg-text);
     font-family: var(--rg-font-ui);
     font-synthesis: none;
