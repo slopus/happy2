@@ -302,6 +302,61 @@ button, rail item, field, or other container that uses it. Generated icons in
 particular often contain uneven transparent margins and must be normalized
 before component integration.
 
+## Generated background images
+
+Use Codex image generation for decorative raster backgrounds instead of trying
+to approximate them with CSS gradients, downloaded stock art, or hand-built
+placeholder images. Generate the image in a separate Codex terminal session so
+the implementation session can stay focused on component code and can review
+the resulting asset deliberately. Start Codex from the repository root, ask it
+to generate the image, give it the intended output location and aspect ratio,
+and then inspect the generated file before integrating it.
+
+Every request must describe the actual scene and composition in detail. Include
+the image's role, subject, camera or perspective, placement of focal elements,
+areas that must remain quiet enough for UI, palette, lighting, texture, aspect
+ratio, and exclusions. Use this treatment phrase when the background should
+match Rigged's retro visual direction: **“generate retro dithered technicolor
+gamma image, 20% muted.”** The phrase is a treatment, not a sufficient prompt
+by itself.
+
+For example, open a separate terminal at the repository root, start Codex, and
+ask:
+
+> Generate a background image and save the final asset at
+> `packages/rigged-ui/src/assets/backgrounds/agent-workspace.png`. Generate
+> retro dithered technicolor gamma image, 20% muted. Show a late-1970s computer
+> operations room at night from a slightly elevated three-quarter perspective:
+> violet-black walls, low amber and magenta monitor glow, modular terminals,
+> coiled cables, and one small green status light. Keep the center-left 45% calm
+> and low-contrast so white interface text remains legible. Put the detailed
+> equipment along the right and lower edges, with no people, logos, lettering,
+> UI mockups, watermarks, bloom, or photorealistic lens effects. Use restrained
+> ordered dithering, crisp silhouettes, a limited violet/rose/amber/cyan
+> Technicolor palette, and a desktop-wide 16:9 composition. Produce a clean
+> lossless PNG at 2560 × 1440.
+
+For a quieter abstract surface, ask:
+
+> Generate a seamless desktop application background and save it at
+> `packages/rigged-ui/src/assets/backgrounds/relay-field.png`. Generate retro
+> dithered technicolor gamma image, 20% muted. Create an abstract field of broad
+> violet-black bands, faint rose and cyan signal arcs, and sparse amber relay
+> points, viewed as a flat graphic rather than a physical scene. Preserve a
+> large low-detail region through the middle for panels and text. Keep contrast
+> subdued, edges crisp, dithering fine and intentional, and the palette limited.
+> No words, icons, logos, borders, gradients that resemble modern glossy UI,
+> noise haze, watermark, or central focal object. Output a seamless 2048 × 2048
+> lossless PNG.
+
+Treat generated backgrounds as source assets, not unreviewed final UI. Confirm
+that they contain no accidental text, logos, seams, compression artifacts, or
+unwanted focal points. Check the crop at every supported desktop window size,
+verify text contrast with the real overlay, and keep the original
+high-resolution asset so derivatives can be reproduced. Background images are
+decorative and must not contain information required to understand or operate
+the product.
+
 ## Generated icon assets
 
 Generate raster icons on a square canvas at a decent working resolution: use
