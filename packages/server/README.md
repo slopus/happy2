@@ -27,6 +27,27 @@ The response includes the server role and one `method` value: `password`,
 `magic_link`, `oidc`, or `null` in validation-only API mode. Password responses
 also report `signupEnabled`; OIDC responses report `oidcProvider`.
 
+## Profiles and avatar files
+
+Authentication creates an inactive account. `POST /v0/me/createProfile` (with the
+temporary bearer token) creates the product-level User profile—first name,
+optional last name, username, optional email, and optional phone—and activates
+the account. `GET /v0/me` reads the active profile and
+`POST /v0/me/updateProfile` replaces its editable state. Product routes reject
+accounts that do not yet have an active profile.
+
+`POST /v0/me/uploadAvatarFile` accepts one multipart image after profile
+creation. Its required `visibility` field is `public` or `private`. Images over
+2048px on either side or 10 MB are rejected. The server records the uploader,
+stores an unguessable CUID2-backed file record plus a JPEG file, converts the
+image to a 1024×1024 JPEG, and records a ThumbHash.
+
+`POST /v0/me/updateAvatar` takes a `fileId` and accepts only a public file the
+current user uploaded. Public files are fetched directly with
+`GET /v0/files/:fileId` plus the normal bearer header; they do not use signed
+URLs. Private files are fetched using a five-minute signed URL produced by
+`POST /v0/files/:fileId/createSignedUrl`.
+
 The server applies the bundled Drizzle SQLite migrations at startup. `file:`
 database URLs are suitable when all replicas share one local filesystem with
 SQLite locking. For independently deployed auth and API services, configure a

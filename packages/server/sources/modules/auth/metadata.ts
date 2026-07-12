@@ -27,6 +27,7 @@ export function requestMetadata(request: FastifyRequest): RequestMetadata {
 }
 
 export function bearerToken(request: FastifyRequest): string | undefined {
-    const value = header(request, "authorization");
+    const value = request.headers.authorization;
+    if (typeof value !== "string") return undefined;
     return value?.match(/^Bearer +(.+)$/i)?.[1];
 }

@@ -8,6 +8,20 @@
             "when": 1783770000000,
             "tag": "0000_initial",
             "breakpoints": true
+        },
+        {
+            "idx": 1,
+            "version": "6",
+            "when": 1783810000000,
+            "tag": "0001_accounts_profiles_files",
+            "breakpoints": true
+        },
+        {
+            "idx": 2,
+            "version": "6",
+            "when": 1783820000000,
+            "tag": "0002_file_visibility_and_uploader",
+            "breakpoints": true
         }
     ]
 }

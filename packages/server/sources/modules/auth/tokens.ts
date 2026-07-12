@@ -4,7 +4,7 @@ import type { ServerConfig } from "../config/type.js";
 
 export interface SessionClaims {
     sessionId: string;
-    userId: string;
+    accountId: string;
 }
 type SigningKey = Awaited<ReturnType<typeof importSPKI>>;
 
@@ -31,13 +31,13 @@ export class TokenService {
         return new TokenService(config, publicKey, privateKey);
     }
 
-    async issue(sessionId: string, userId: string): Promise<string> {
+    async issue(sessionId: string, accountId: string): Promise<string> {
         if (!this.privateKey) throw new Error("This server has no JWT signing key");
         return new SignJWT({ sid: sessionId })
             .setProtectedHeader({ alg: "RS256", kid: this.config.jwt.keyId, typ: "JWT" })
             .setIssuer(this.config.jwt.issuer)
             .setAudience(this.config.jwt.audience)
-            .setSubject(userId)
+            .setSubject(accountId)
             .setIssuedAt()
             .setExpirationTime(`${this.config.jwt.expiryDays}d`)
             .sign(this.privateKey);
@@ -51,7 +51,29 @@ export class TokenService {
         });
         if (typeof payload.sid !== "string" || typeof payload.sub !== "string")
             throw new Error("JWT has invalid session claims");
-        return { sessionId: payload.sid, userId: payload.sub };
+        return { sessionId: payload.sid, accountId: payload.sub };
+    }
+
+    async issueFileUrlToken(fileId: string, expiresInSeconds: number): Promise<string> {
+        if (!this.privateKey) throw new Error("This server has no JWT signing key");
+        return new SignJWT()
+            .setProtectedHeader({ alg: "RS256", kid: this.config.jwt.keyId, typ: "rigged-file" })
+            .setIssuer(this.config.jwt.issuer)
+            .setAudience(`${this.config.jwt.audience}/file`)
+            .setSubject(fileId)
+            .setIssuedAt()
+            .setExpirationTime(`${expiresInSeconds}s`)
+            .sign(this.privateKey);
+    }
+
+    async verifyFileUrlToken(token: string): Promise<string> {
+        const { payload } = await jwtVerify(token, this.publicKey, {
+            issuer: this.config.jwt.issuer,
+            audience: `${this.config.jwt.audience}/file`,
+            algorithms: ["RS256"],
+        });
+        if (typeof payload.sub !== "string") throw new Error("JWT has invalid file claims");
+        return payload.sub;
     }
 }
 

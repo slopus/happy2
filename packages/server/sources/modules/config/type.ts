@@ -18,6 +18,7 @@ export interface ServerConfig {
         trustedProxyHops: number;
     };
     database: { url: string; authTokenEnv?: string };
+    files: { directory: string; signedUrlExpirySeconds: number };
     jwt: {
         issuer: string;
         audience: string;

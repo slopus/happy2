@@ -13,7 +13,7 @@ export function registerAuthRoutes(
         const current = await auth.authenticate(request);
         if (!current) return reply.code(401).send({ error: "unauthorized" });
         return {
-            userId: current.userId,
+            user: current.user,
             sessionId: current.session.id,
             expiresAt: current.session.expiresAt.toISOString(),
         };
@@ -40,6 +40,31 @@ export function registerAuthRoutes(
             return result ? result : reply.code(401).send({ error: "invalid_credentials" });
         });
     }
+
+    app.post("/v0/me/createProfile", async (request, reply) => {
+        try {
+            const result = await auth.createProfile(request.body, request);
+            if (result === "unauthorized") return reply.code(401).send({ error: "unauthorized" });
+            if (result === "invalid") return reply.code(400).send({ error: "invalid_profile" });
+            return reply.code(201).send({ user: result });
+        } catch (error: unknown) {
+            if ((error as { code?: string }).code === "SQLITE_CONSTRAINT_UNIQUE")
+                return reply.code(409).send({ error: "profile_exists_or_username_taken" });
+            throw error;
+        }
+    });
+    app.post("/v0/me/updateProfile", async (request, reply) => {
+        try {
+            const result = await auth.updateProfile(request.body, request);
+            if (result === "unauthorized") return reply.code(401).send({ error: "unauthorized" });
+            if (result === "invalid") return reply.code(400).send({ error: "invalid_profile" });
+            return { user: result };
+        } catch (error: unknown) {
+            if ((error as { code?: string }).code === "SQLITE_CONSTRAINT_UNIQUE")
+                return reply.code(409).send({ error: "username_taken" });
+            throw error;
+        }
+    });
 
     if (config.auth.magicLink.enabled) {
         app.post("/v0/auth/magic-link/request", async (request, reply) => {

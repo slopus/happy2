@@ -36,3 +36,14 @@ configured from a TOML file; do not add deployment-specific switches to code.
 - Password hashes retain a unique random salt per user and use a server-wide
   pepper. The pepper and JWT key pair may come from the environment; otherwise
   they are generated once and persisted to the `.env` beside the TOML file.
+- Prefer CUID2 for every newly generated identifier, including accounts, users,
+  sessions, files, and other persisted records.
+- Profiles are the product-level `User` model. Authentication `accounts` exist
+  only for credentials, activation, and session management; an account without
+  an active profile must not be usable by product routes.
+- Server URL paths must not use `me` (or other identity placeholders) as a
+  nested path segment. For the current authenticated user, use `/v0/me` and
+  its action routes directly.
+- Server APIs use only GET and POST. POST paths name explicit actions rather
+  than CRUD semantics: use `updateProfile`, for example, rather than PATCHing
+  a profile object.

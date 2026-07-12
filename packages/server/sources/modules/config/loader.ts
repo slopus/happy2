@@ -44,6 +44,14 @@ export function parseConfig(input: string): ServerConfig {
     if (trustedProxyHops < 0) throw new Error("server.trusted_proxy_hops cannot be negative");
 
     const database = table(root.database, "database");
+    const files = table(root.files ?? {}, "files");
+    const signedUrlExpirySeconds = integer(
+        files.signed_url_expiry_seconds,
+        "files.signed_url_expiry_seconds",
+        300,
+    );
+    if (signedUrlExpirySeconds < 1 || signedUrlExpirySeconds > 3600)
+        throw new Error("files.signed_url_expiry_seconds must be between 1 and 3600");
     const jwt = table(root.jwt, "jwt");
     const expiryDays = integer(jwt.expiry_days, "jwt.expiry_days", 30);
     if (expiryDays < 1 || expiryDays > 90)
@@ -104,6 +112,10 @@ export function parseConfig(input: string): ServerConfig {
         database: {
             url: string(database.url, "database.url")!,
             authTokenEnv: string(database.auth_token_env, "database.auth_token_env", true),
+        },
+        files: {
+            directory: string(files.directory, "files.directory", true) ?? "files",
+            signedUrlExpirySeconds,
         },
         jwt: {
             issuer: string(jwt.issuer, "jwt.issuer")!,

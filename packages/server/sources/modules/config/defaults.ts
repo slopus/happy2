@@ -15,6 +15,7 @@ export function defaultConfig(): ServerConfig {
             trustedProxyHops: 0,
         },
         database: { url: "file:rigged.db" },
+        files: { directory: "files", signedUrlExpirySeconds: 300 },
         jwt: {
             issuer: "http://127.0.0.1:3000",
             audience: "rigged-desktop",
