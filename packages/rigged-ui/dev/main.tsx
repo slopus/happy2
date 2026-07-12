@@ -9,12 +9,14 @@ import {
     Button,
     ContextChips,
     ContextIcon,
+    Rail,
     type AvatarSize,
     type AgentRun,
     type ApprovalRequest,
     type ButtonSize,
     type ButtonVariant,
     type MentionableAgent,
+    type Feature,
 } from "../src";
 import "./workbench.css";
 
@@ -26,9 +28,11 @@ type ComponentId =
     | "box"
     | "button"
     | "context-chips"
-    | "context-icon";
+    | "context-icon"
+    | "rail";
 
 const components: Array<{ id: ComponentId; label: string; number: string }> = [
+    { id: "rail", label: "Rail", number: "C-009" },
     { id: "approval-request-card", label: "Approval request card", number: "C-008" },
     { id: "context-chips", label: "Context chips", number: "C-007" },
     { id: "agent-run-card", label: "Agent run card", number: "C-006" },
@@ -391,6 +395,51 @@ function ApprovalRequestCardPage() {
     );
 }
 
+function RailPage() {
+    const features: Feature[] = [
+        { id: "home", icon: "home", name: "Home" },
+        { id: "agents", icon: "agents", name: "Agents" },
+        { id: "tasks", icon: "tasks", name: "Tasks" },
+        { id: "files", icon: "files", name: "Files" },
+        { id: "more", icon: "more", name: "More" },
+    ];
+
+    return (
+        <ComponentPage
+            number="C-009"
+            title="Rail"
+            summary="The full desktop shell rendered as a controlled, reusable large component card."
+        >
+            <section class="rail-plan" aria-label="Rail specimen">
+                <Specimen number="09.1" label="minimum desktop shell" detail="1024 × 704 · 100%">
+                    <div class="rail-blueprint-viewport">
+                        <Rail
+                            activeFeatureId="agents"
+                            features={features}
+                            onFeatureChange={() => undefined}
+                            onQueryChange={() => undefined}
+                            profileInitials="ST"
+                            query=""
+                            showWindowControls
+                            sidebar={
+                                <div class="rail-blueprint-sidebar">
+                                    <strong>Agents</strong>
+                                    <span>288 px sidebar slot</span>
+                                </div>
+                            }
+                        >
+                            <div class="rail-blueprint-main">
+                                <span>Primary workspace</span>
+                                <strong>660 px at minimum window</strong>
+                            </div>
+                        </Rail>
+                    </div>
+                </Specimen>
+            </section>
+        </ComponentPage>
+    );
+}
+
 function BoxPage() {
     return (
         <ComponentPage
@@ -510,6 +559,9 @@ function Workbench() {
             </header>
             <div class="blueprint-field">
                 <Switch fallback={<BoxPage />}>
+                    <Match when={active() === "rail"}>
+                        <RailPage />
+                    </Match>
                     <Match when={active() === "approval-request-card"}>
                         <ApprovalRequestCardPage />
                     </Match>

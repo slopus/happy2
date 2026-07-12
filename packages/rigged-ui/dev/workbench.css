@@ -570,6 +570,54 @@ select {
     margin-top: 0;
 }
 
+.rail-plan {
+    margin-top: 30px;
+}
+
+.rail-plan .specimen-stage {
+    min-height: 752px;
+    place-items: start center;
+    padding-top: 24px;
+}
+
+.rail-blueprint-viewport {
+    width: 1024px;
+    height: 704px;
+}
+
+.rail-blueprint-sidebar {
+    display: grid;
+    height: 100%;
+    align-content: start;
+    gap: 8px;
+    padding: 32px 24px;
+    background: #f3eef5;
+    color: #514558;
+    font-size: 14px;
+}
+
+.rail-blueprint-sidebar span {
+    color: #877b8c;
+    font-size: 11px;
+}
+
+.rail-blueprint-main {
+    display: grid;
+    height: 100%;
+    place-content: center;
+    justify-items: center;
+    gap: 8px;
+    color: #6f6570;
+    font-size: 13px;
+}
+
+.rail-blueprint-main strong {
+    color: #352e35;
+    font-family: Georgia, serif;
+    font-size: 24px;
+    font-weight: 400;
+}
+
 .box-plans {
     display: grid;
     grid-template-columns: 1fr 1fr;

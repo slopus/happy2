@@ -28,3 +28,4 @@ export {
 } from "./ContextIcon";
 export { ContextChips, type ContextChipsProps } from "./ContextChips";
 export type { Dimension } from "./dimensions";
+export { Rail, type Feature, type FeatureIconName, type RailProps } from "./Rail";

@@ -104,6 +104,16 @@
     }
 }
 
+.rigged-rail-feature-icon-artwork[data-icon="agents"] {
+    transform: translate(-0.5px, -1.5px);
+}
+
+@supports (font: -apple-system-body) {
+    .rigged-rail-feature-icon-artwork[data-icon="agents"] {
+        transform: translateY(-1px);
+    }
+}
+
 @-moz-document url-prefix() {
     .rigged-agent-run-step-glyph-mark[data-status="done"] {
         transform: translate(-0.5px, 0);

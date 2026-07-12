@@ -84,8 +84,10 @@ Large components follow the same rule. A rail or sidebar is not exempt because
 it occupies most of the application. Add it to the blueprint and render it as a
 large card with enough representative desktop canvas to show its real geometry.
 Full-screen shells should appear as large cards rather than taking over the
-workbench itself. Preserve their aspect ratio and state the real target viewport
-and scale whenever the specimen is scaled down.
+workbench itself. Blueprint previews must always render at 100% scale: never
+scale, zoom, crop, or otherwise shrink a component to fit the workbench. Expand
+the card or allow the workbench to scroll around the actual target viewport
+instead.
 
 The blueprint must stay deterministic and screenshot-safe. Avoid entrance
 animations, backdrop-filter compositing, time-dependent content, network-loaded

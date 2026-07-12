@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import type { ApprovalResolution, MentionableAgent } from "rigged-ui";
+import { Rail, type ApprovalResolution, type Feature, type MentionableAgent } from "rigged-ui";
 import { AgentsSidebar, type AgentSidebarView } from "./components/AgentsSidebar";
 import { AgentsWorkspace } from "./components/AgentsWorkspace";
 import { ChatComposer } from "./components/ChatComposer";
@@ -8,7 +8,6 @@ import { ChangeReviewWorkspace, type ReviewTab } from "./components/ChangeReview
 import type { ContextItem } from "./components/ContextPicker";
 import type { Delegation } from "./components/ExecutionScope";
 import { FilesSidebar } from "./components/FilesSidebar";
-import { Rail, type Feature } from "./components/Rail";
 import { Sidebar, type SidebarItem, type SidebarSection } from "./components/Sidebar";
 import { TasksSidebar, type TaskCounts, type TaskView } from "./components/TasksSidebar";
 import { TasksWorkspace } from "./components/TasksWorkspace";
