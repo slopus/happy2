@@ -21,7 +21,6 @@ body {
     min-height: 100vh;
 }
 
-button,
 select {
     font: inherit;
 }
@@ -524,6 +523,23 @@ select {
 .dimensioned-icon > .dimension-rule {
     position: absolute;
     top: 5px;
+}
+
+.agent-run-plans {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-top: 30px;
+}
+
+.agent-run-plans .specimen-stage {
+    min-height: 310px;
+    padding: 24px;
+}
+
+.agent-run-plans [data-rigged-ui="agent-run-card"] {
+    width: 100%;
+    margin-top: 0;
 }
 
 .box-plans {

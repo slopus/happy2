@@ -2,20 +2,29 @@ import { createSignal, For, Match, onCleanup, onMount, Switch, type JSX } from "
 import { render } from "solid-js/web";
 import {
     AgentMentionPicker,
+    AgentRunCard,
     Avatar,
     Box,
     Button,
     ContextIcon,
     type AvatarSize,
+    type AgentRun,
     type ButtonSize,
     type ButtonVariant,
     type MentionableAgent,
 } from "../src";
 import "./workbench.css";
 
-type ComponentId = "agent-mention-picker" | "avatar" | "box" | "button" | "context-icon";
+type ComponentId =
+    | "agent-mention-picker"
+    | "agent-run-card"
+    | "avatar"
+    | "box"
+    | "button"
+    | "context-icon";
 
 const components: Array<{ id: ComponentId; label: string; number: string }> = [
+    { id: "agent-run-card", label: "Agent run card", number: "C-006" },
     { id: "context-icon", label: "Context icon", number: "C-005" },
     { id: "agent-mention-picker", label: "Agent mention picker", number: "C-004" },
     { id: "avatar", label: "Avatar", number: "C-003" },
@@ -250,6 +259,53 @@ function ContextIconPage() {
     );
 }
 
+function AgentRunCardPage() {
+    const run: AgentRun = {
+        agent: "Forge",
+        avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
+        branch: "agent/forge/workspace-naming",
+        files: ["WorkspaceCreator.tsx", "WorkspaceHeader.tsx"],
+        initials: "F",
+        progress: 100,
+        status: "review",
+        steps: [
+            { label: "Trace workspace creation and persistence", status: "done" },
+            { label: "Derive a safe default from the project folder", status: "done" },
+            { label: "Add inline rename in the header", status: "done" },
+        ],
+        title: "Default workspace naming",
+    };
+
+    return (
+        <ComponentPage
+            number="C-006"
+            title="Agent run card"
+            summary="A controlled progress and review surface with no internal application state."
+        >
+            <section class="agent-run-plans" aria-label="Agent run card specimens">
+                <Specimen number="06.1" label="collapsed / review" detail="container width">
+                    <AgentRunCard
+                        expanded={false}
+                        reviewed={false}
+                        run={run}
+                        onExpandedChange={() => undefined}
+                        onReviewedChange={() => undefined}
+                    />
+                </Specimen>
+                <Specimen number="06.2" label="expanded / reviewed" detail="container width">
+                    <AgentRunCard
+                        expanded
+                        reviewed
+                        run={run}
+                        onExpandedChange={() => undefined}
+                        onReviewedChange={() => undefined}
+                    />
+                </Specimen>
+            </section>
+        </ComponentPage>
+    );
+}
+
 function BoxPage() {
     return (
         <ComponentPage
@@ -369,6 +425,9 @@ function Workbench() {
             </header>
             <div class="blueprint-field">
                 <Switch fallback={<BoxPage />}>
+                    <Match when={active() === "agent-run-card"}>
+                        <AgentRunCardPage />
+                    </Match>
                     <Match when={active() === "context-icon"}>
                         <ContextIconPage />
                     </Match>

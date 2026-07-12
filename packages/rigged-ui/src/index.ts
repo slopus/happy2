@@ -5,6 +5,12 @@ export {
     type AgentMentionPickerProps,
     type MentionableAgent,
 } from "./AgentMentionPicker";
+export {
+    AgentRunCard,
+    type AgentRun,
+    type AgentRunCardProps,
+    type AgentRunStep,
+} from "./AgentRunCard";
 export { Avatar, type AvatarProps, type AvatarSize, type AvatarType } from "./Avatar";
 export { Box, type BoxProps } from "./Box";
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./Button";

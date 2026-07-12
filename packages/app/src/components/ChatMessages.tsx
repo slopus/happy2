@@ -1,5 +1,5 @@
 import { createEffect, For } from "solid-js";
-import { AgentRunCard, type AgentRun } from "./AgentRunCard";
+import { AgentRunCard, type AgentRun } from "rigged-ui";
 import { ApprovalRequestCard, type ApprovalRequest } from "./ApprovalRequestCard";
 import { Avatar, type AvatarType } from "rigged-ui";
 import { ContextChips, type ContextItem } from "./ContextPicker";
@@ -29,12 +29,16 @@ export type ChatMessage = {
 };
 
 type ChatMessagesProps = {
+    expandedAgentRunIds: string[];
+    reviewedAgentRunIds: string[];
     conversationName: string;
     description: string;
     introTitle: string;
     messages: ChatMessage[];
     attachedContextIds: string[];
     onUseContext: (context: ContextItem) => void;
+    onAgentRunExpandedChange: (messageId: string, expanded: boolean) => void;
+    onAgentRunReviewedChange: (messageId: string, reviewed: boolean) => void;
     searchQuery: string;
 };
 
@@ -156,7 +160,23 @@ export function ChatMessages(props: ChatMessagesProps) {
                                         />
                                     )}
 
-                                    {message.agentRun && <AgentRunCard run={message.agentRun} />}
+                                    {message.agentRun && (
+                                        <AgentRunCard
+                                            expanded={props.expandedAgentRunIds.includes(
+                                                message.id,
+                                            )}
+                                            reviewed={props.reviewedAgentRunIds.includes(
+                                                message.id,
+                                            )}
+                                            run={message.agentRun}
+                                            onExpandedChange={(expanded) =>
+                                                props.onAgentRunExpandedChange(message.id, expanded)
+                                            }
+                                            onReviewedChange={(reviewed) =>
+                                                props.onAgentRunReviewedChange(message.id, reviewed)
+                                            }
+                                        />
+                                    )}
 
                                     {message.approvalRequest && (
                                         <ApprovalRequestCard request={message.approvalRequest} />

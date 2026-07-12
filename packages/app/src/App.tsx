@@ -596,6 +596,8 @@ function Workspace(props: AppProps & { user?: User }) {
     const [draft, setDraft] = createSignal("");
     const [attachedContext, setAttachedContext] = createSignal<ContextItem[]>([]);
     const [messages, setMessages] = createSignal<ThreadMessage[]>(initialMessages);
+    const [expandedAgentRunIds, setExpandedAgentRunIds] = createSignal<string[]>([]);
+    const [reviewedAgentRunIds, setReviewedAgentRunIds] = createSignal<string[]>([]);
     const [query, setQuery] = createSignal("");
     const activeFeature = () =>
         features.find((feature) => feature.id === activeFeatureId()) ?? features[0]!;
@@ -745,8 +747,24 @@ function Workspace(props: AppProps & { user?: User }) {
                         attachedContextIds={attachedContext().map((item) => item.id)}
                         conversationName={activeSidebarItem().name}
                         description={conversationDescription()}
+                        expandedAgentRunIds={expandedAgentRunIds()}
                         introTitle={conversationIntroTitle()}
                         messages={activeMessages()}
+                        reviewedAgentRunIds={reviewedAgentRunIds()}
+                        onAgentRunExpandedChange={(messageId, expanded) =>
+                            setExpandedAgentRunIds((current) =>
+                                expanded
+                                    ? [...new Set([...current, messageId])]
+                                    : current.filter((id) => id !== messageId),
+                            )
+                        }
+                        onAgentRunReviewedChange={(messageId, reviewed) =>
+                            setReviewedAgentRunIds((current) =>
+                                reviewed
+                                    ? [...new Set([...current, messageId])]
+                                    : current.filter((id) => id !== messageId),
+                            )
+                        }
                         onUseContext={(context) =>
                             setAttachedContext((current) =>
                                 current.some((item) => item.id === context.id)
