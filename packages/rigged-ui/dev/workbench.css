@@ -495,6 +495,17 @@ select {
     font-size: 8px;
 }
 
+.picker-plans {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-top: 30px;
+}
+
+.picker-plans .specimen-stage {
+    min-height: 270px;
+}
+
 .box-plans {
     display: grid;
     grid-template-columns: 1fr 1fr;

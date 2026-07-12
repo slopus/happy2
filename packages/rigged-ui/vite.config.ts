@@ -1,10 +1,11 @@
 import { resolve } from "node:path";
+import tailwindcss from "@tailwindcss/vite";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 import solid from "vite-plugin-solid";
 
 export default defineConfig({
-    plugins: [solid()],
+    plugins: [tailwindcss(), solid()],
     build: {
         lib: {
             entry: resolve(import.meta.dirname, "src/index.ts"),

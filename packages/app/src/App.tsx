@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import type { MentionableAgent } from "./components/AgentMentionPicker";
+import type { MentionableAgent } from "rigged-ui";
 import { AgentsSidebar, type AgentSidebarView } from "./components/AgentsSidebar";
 import { AgentsWorkspace } from "./components/AgentsWorkspace";
 import { ChatComposer } from "./components/ChatComposer";

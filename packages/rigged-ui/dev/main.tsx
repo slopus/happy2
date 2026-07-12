@@ -1,11 +1,21 @@
-import { createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
+import { createSignal, For, Match, onCleanup, onMount, Switch, type JSX } from "solid-js";
 import { render } from "solid-js/web";
-import { Avatar, Box, Button, type AvatarSize, type ButtonSize, type ButtonVariant } from "../src";
+import {
+    AgentMentionPicker,
+    Avatar,
+    Box,
+    Button,
+    type AvatarSize,
+    type ButtonSize,
+    type ButtonVariant,
+    type MentionableAgent,
+} from "../src";
 import "./workbench.css";
 
-type ComponentId = "avatar" | "box" | "button";
+type ComponentId = "agent-mention-picker" | "avatar" | "box" | "button";
 
 const components: Array<{ id: ComponentId; label: string; number: string }> = [
+    { id: "agent-mention-picker", label: "Agent mention picker", number: "C-004" },
     { id: "avatar", label: "Avatar", number: "C-003" },
     { id: "button", label: "Button", number: "C-002" },
     { id: "box", label: "Box", number: "C-001" },
@@ -171,6 +181,48 @@ function AvatarPage() {
     );
 }
 
+function AgentMentionPickerPage() {
+    const agents: MentionableAgent[] = [
+        {
+            id: "forge",
+            name: "Forge",
+            initials: "F",
+            avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
+            description: "Implements scoped product and engineering work",
+            status: "ready",
+        },
+        {
+            id: "scout",
+            name: "Scout",
+            initials: "S",
+            avatarClass: "bg-[linear-gradient(145deg,#3296a4,#4d67bd)]",
+            description: "Researches context and synthesizes findings",
+            status: "working",
+        },
+    ];
+
+    return (
+        <ComponentPage
+            number="C-004"
+            title="Agent mention picker"
+            summary="An isolated agent-selection surface driven by a list, query, and callback."
+        >
+            <section class="picker-plans" aria-label="Agent mention picker specimens">
+                <Specimen number="04.1" label="agent results" detail="320 px wide">
+                    <AgentMentionPicker agents={agents} query="" onSelect={() => undefined} />
+                </Specimen>
+                <Specimen number="04.2" label="filtered empty" detail="320 px wide">
+                    <AgentMentionPicker
+                        agents={agents}
+                        query="missing"
+                        onSelect={() => undefined}
+                    />
+                </Specimen>
+            </section>
+        </ComponentPage>
+    );
+}
+
 function BoxPage() {
     return (
         <ComponentPage
@@ -289,16 +341,17 @@ function Workbench() {
                 </label>
             </header>
             <div class="blueprint-field">
-                <Show
-                    when={active() === "avatar"}
-                    fallback={
-                        <Show when={active() === "button"} fallback={<BoxPage />}>
-                            <ButtonPage />
-                        </Show>
-                    }
-                >
-                    <AvatarPage />
-                </Show>
+                <Switch fallback={<BoxPage />}>
+                    <Match when={active() === "agent-mention-picker"}>
+                        <AgentMentionPickerPage />
+                    </Match>
+                    <Match when={active() === "avatar"}>
+                        <AvatarPage />
+                    </Match>
+                    <Match when={active() === "button"}>
+                        <ButtonPage />
+                    </Match>
+                </Switch>
             </div>
         </div>
     );

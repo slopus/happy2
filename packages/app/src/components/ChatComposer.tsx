@@ -1,4 +1,4 @@
-import { AgentMentionPicker, type MentionableAgent } from "./AgentMentionPicker";
+import { AgentMentionPicker, type MentionableAgent } from "rigged-ui";
 import { ContextChips, ContextPicker, type ContextItem } from "./ContextPicker";
 import { createSignal } from "solid-js";
 import {
@@ -128,6 +128,7 @@ export function ChatComposer(props: ChatComposerProps) {
         <div class="relative mx-5 mb-4 shrink-0">
             {mentionMenuOpen() && !contextPickerOpen() && !scopePickerOpen() && (
                 <AgentMentionPicker
+                    class="absolute bottom-[calc(100%+8px)] left-0 z-20"
                     agents={props.agents}
                     query={mentionQuery()}
                     onSelect={selectAgent}

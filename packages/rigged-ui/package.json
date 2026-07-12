@@ -24,8 +24,10 @@
         "solid-js": "^1.9.14"
     },
     "devDependencies": {
+        "@tailwindcss/vite": "^4.3.2",
         "@vitest/browser-playwright": "^4.1.10",
         "playwright": "^1.61.1",
+        "tailwindcss": "^4.3.2",
         "typescript": "^7.0.2",
         "vite": "^8.1.4",
         "vite-plugin-solid": "^2.11.12",

@@ -1,3 +1,5 @@
+@import "tailwindcss" source(".");
+
 @font-face {
     font-family: "Rigged Manrope";
     font-style: normal;
