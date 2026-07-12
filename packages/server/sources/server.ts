@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { AuthService } from "./modules/auth/service.js";
 import { TokenService } from "./modules/auth/tokens.js";
@@ -26,6 +27,7 @@ export async function buildServer(
         ),
         tokens: await TokenService.create(config),
     };
+    await app.register(cors, { origin: true, credentials: false });
     await app.register(multipart, { limits: { files: 1, fileSize: 10 * 1024 * 1024 } });
 
     app.setErrorHandler((error, request, reply) => {

@@ -4,6 +4,7 @@ type AvatarSize = "md" | "sm" | "xs";
 
 type AvatarProps = {
     backgroundClass: string;
+    imageUrl?: string;
     initials: string;
     online?: boolean;
     size?: AvatarSize;
@@ -26,7 +27,15 @@ export function Avatar(props: AvatarProps) {
             data-avatar-type={type()}
             aria-hidden="true"
         >
-            {props.initials}
+            {props.imageUrl ? (
+                <img
+                    class="h-full w-full rounded-[inherit] object-cover"
+                    src={props.imageUrl}
+                    alt=""
+                />
+            ) : (
+                props.initials
+            )}
             {props.online && (
                 <span class="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-white bg-[#36ae5f]" />
             )}

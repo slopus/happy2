@@ -53,19 +53,21 @@ function renderMessageBody(body: string) {
 }
 
 export function ChatMessages(props: ChatMessagesProps) {
-    let log!: HTMLDivElement;
+    let log: HTMLDivElement | undefined;
 
     createEffect(() => {
-        props.messages.length;
+        void props.messages.length;
         queueMicrotask(() => {
-            log.scrollTop = log.scrollHeight;
+            if (log) log.scrollTop = log.scrollHeight;
         });
     });
 
     return (
         <div
             class="min-h-0 flex-1 overflow-y-auto bg-white"
-            ref={log}
+            ref={(element) => {
+                log = element;
+            }}
             role="log"
             aria-label={`${props.conversationName} messages`}
             aria-live="polite"

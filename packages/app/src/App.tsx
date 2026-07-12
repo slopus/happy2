@@ -12,6 +12,8 @@ import { Rail, type Feature } from "./components/Rail";
 import { Sidebar, type SidebarItem, type SidebarSection } from "./components/Sidebar";
 import { TasksSidebar, type TaskCounts, type TaskView } from "./components/TasksSidebar";
 import { TasksWorkspace } from "./components/TasksWorkspace";
+import { AuthGate } from "./components/AuthGate";
+import type { User } from "./server";
 
 const features: Feature[] = [
     { id: "home", name: "Home", icon: "home" },
@@ -574,9 +576,10 @@ const initialMessages: ThreadMessage[] = [
 
 type AppProps = {
     platform?: "desktop" | "web";
+    serverUrl?: string;
 };
 
-export function App(props: AppProps) {
+function Workspace(props: AppProps & { user?: User }) {
     const [activeFeatureId, setActiveFeatureId] = createSignal("home");
     const [agentSidebarView, setAgentSidebarView] = createSignal<AgentSidebarView>("overview");
     const [taskView, setTaskView] = createSignal<TaskView>("all");
@@ -643,6 +646,8 @@ export function App(props: AppProps) {
             features={features}
             activeFeatureId={activeFeatureId()}
             query={query()}
+            profileAvatarUrl={props.user?.avatarUrl}
+            profileInitials={props.user?.firstName.slice(0, 2).toUpperCase()}
             onFeatureChange={setActiveFeatureId}
             onQueryChange={setQuery}
             showWindowControls={props.platform === "desktop"}
@@ -667,7 +672,7 @@ export function App(props: AppProps) {
                     />
                 ) : (
                     <Sidebar
-                        workspaceName="Rigged"
+                        workspaceName={props.user ? `${props.user.firstName}'s Rigged` : "Rigged"}
                         sections={sidebarSections}
                         activeItemId={activeSidebarItemId()}
                         onItemChange={(itemId) => {
@@ -765,5 +770,15 @@ export function App(props: AppProps) {
                 </section>
             )}
         </Rail>
+    );
+}
+
+export function App(props: AppProps) {
+    return props.serverUrl ? (
+        <AuthGate serverUrl={props.serverUrl}>
+            {(user) => <Workspace {...props} user={user} />}
+        </AuthGate>
+    ) : (
+        <Workspace {...props} />
     );
 }

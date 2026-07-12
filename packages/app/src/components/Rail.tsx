@@ -14,6 +14,8 @@ type RailProps = ParentProps<{
     features: Feature[];
     onFeatureChange: (featureId: string) => void;
     onQueryChange: (query: string) => void;
+    profileAvatarUrl?: string;
+    profileInitials?: string;
     query: string;
     showWindowControls: boolean;
     sidebar: JSX.Element;
@@ -194,7 +196,8 @@ export function Rail(props: RailProps) {
                 >
                     <Avatar
                         backgroundClass="bg-[radial-gradient(circle_at_68%_25%,#f7cf70_0_18%,transparent_19%),linear-gradient(145deg,#3ca8a4_0%,#3265a8_48%,#dc4d78_100%)]"
-                        initials="ST"
+                        imageUrl={props.profileAvatarUrl}
+                        initials={props.profileInitials ?? "ST"}
                         size="md"
                         type="human"
                     />
