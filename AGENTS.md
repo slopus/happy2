@@ -6,6 +6,14 @@ Rigged is a desktop work and coding app that evolves by adopting itself. It is
 desktop-only: do not assume mobile use, add mobile-specific behavior, or adapt
 layouts for mobile viewports.
 
+## Design system
+
+Before creating or changing any user interface, read and follow `DESIGN.md`.
+It is the authoritative contract for component ownership, blueprint coverage,
+layout dimensions, icon preparation, optical alignment, and cross-browser
+rendering tests. Reusable visual components belong in `rigged-ui`; application
+packages may only compose them and supply product state and event handlers.
+
 ## Sync to main
 
 When asked to “sync to main,” commit the current work, fetch and rebase it onto
