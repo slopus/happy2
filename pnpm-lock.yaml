@@ -8,12 +8,18 @@ importers:
 
   .:
     devDependencies:
+      concurrently:
+        specifier: ^10.0.3
+        version: 10.0.3
       oxfmt:
         specifier: ^0.57.0
         version: 0.57.0
       oxlint:
         specifier: ^1.73.0
         version: 1.73.0
+      portless:
+        specifier: ^0.15.1
+        version: 0.15.1
 
   packages/app:
     dependencies:
@@ -2190,6 +2196,12 @@ packages:
     resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
     engines: {node: '>=14.19.0'}
 
+  portless@0.15.1:
+    resolution: {integrity: sha512-MQTt405HrcIa3m9OSKpH6WjJDbfNP4oFMNg0VzAoUO4B19l1eFJBFcSWfQY8KYMhzZVfa+Gea2OUrlDm8+/M4A==}
+    engines: {node: '>=24'}
+    os: [darwin, linux, win32]
+    hasBin: true
+
   postcss@8.5.16:
     resolution: {integrity: sha512-vuwillviilfKZsg0VGj5R/YwwcHx4SLsIOI/7K6mQkWx+l5cUHTjj5g0AasTBcyXsbfTgrwsUNmVUb5xVwyPwg==}
     engines: {node: ^10 || ^12 || >=14}
@@ -4220,6 +4232,8 @@ snapshots:
       fsevents: 2.3.2
 
   pngjs@7.0.0: {}
+
+  portless@0.15.1: {}
 
   postcss@8.5.16:
     dependencies:

@@ -482,6 +482,36 @@ it("holds Composer geometry, colors, and typography", async () => {
     await view.screenshot("Composer.test");
 });
 
+it("forwards the existing attachment action and permits attachment-only sends", async () => {
+    let attachments = 0;
+    let sends = 0;
+    const view = createRenderer().render(
+        () => (
+            <Composer
+                data-testid="composer-attachment"
+                onAttachFile={() => (attachments += 1)}
+                onSend={() => (sends += 1)}
+                onValueChange={() => {}}
+                sendEnabled
+                value=""
+            />
+        ),
+        { width: 600, height: 140, padding: 20 },
+    );
+
+    const attach = view.container.querySelector<HTMLButtonElement>(
+        '[data-testid="composer-attachment"] [aria-label="Attach file"]',
+    )!;
+    const send = view.container.querySelector<HTMLButtonElement>(
+        '[data-testid="composer-attachment"] [aria-label="Send message"]',
+    )!;
+    expect(send.disabled).toBe(false);
+    await userEvent.click(attach);
+    await userEvent.click(send);
+    expect(attachments).toBe(1);
+    expect(sends).toBe(1);
+});
+
 it("holds ContextChips and MentionPicker geometry and colors", async () => {
     const removed: string[] = [];
     const picked: string[] = [];

@@ -4,10 +4,10 @@
 setup = "pnpm install --frozen-lockfile"
 run_mode = "concurrent"
 
-[scripts.run.web]
-command = "pnpm dev --port $CONDUCTOR_PORT"
+[scripts.run.dev]
+command = "pnpm dev"
 default = true
-icon = "globe"
+icon = "play"
 
 [scripts.run.desktop]
 command = "PORT=$CONDUCTOR_PORT pnpm dev:desktop"

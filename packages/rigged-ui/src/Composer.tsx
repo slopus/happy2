@@ -207,12 +207,16 @@ export type ComposerProps = {
     disabled?: boolean;
     /** e.g. "Enter to send · @ to hand off to an agent" */
     hint?: string;
+    /** Called by the existing attachment toolbar action. */
+    onAttachFile?: () => void;
     onContextRemove?: (id: string) => void;
     /** Called when a mention is inserted from the picker. */
     onMentionSelect?: (agent: MentionableAgent) => void;
     onSend: () => void;
     onValueChange: (value: string) => void;
     placeholder?: string;
+    /** Overrides the text-only send check when attached context is sendable. */
+    sendEnabled?: boolean;
     style?: JSX.CSSProperties;
     value: string;
 };
@@ -239,7 +243,7 @@ export function Composer(props: ComposerProps) {
         if (list.length === 0) return undefined;
         return list[Math.min(activeIndex(), list.length - 1)];
     };
-    const canSend = () => !props.disabled && props.value.trim().length > 0;
+    const canSend = () => !props.disabled && (props.sendEnabled ?? props.value.trim().length > 0);
 
     /* Auto-grow: collapse to one line, then track content up to 8 lines. */
     createEffect(() => {
@@ -407,6 +411,7 @@ export function Composer(props: ComposerProps) {
                         disabled={props.disabled}
                         icon="paperclip"
                         iconOnly
+                        onClick={() => props.onAttachFile?.()}
                         size="small"
                         variant="ghost"
                     />

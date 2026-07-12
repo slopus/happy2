@@ -4,11 +4,11 @@
   "private": true,
   "packageManager": "pnpm@10.28.1",
   "engines": {
-    "node": ">=22.16.0",
+    "node": ">=24.0.0",
     "pnpm": ">=10.28.1"
   },
   "scripts": {
-    "dev": "pnpm --filter @rigged/web dev",
+    "dev": "node scripts/dev.mjs",
     "dev:web": "pnpm --filter @rigged/web dev",
     "dev:desktop": "pnpm --filter @rigged/desktop dev",
     "dev:server": "pnpm --dir packages/server dev",
@@ -23,7 +23,9 @@
     "clean": "pnpm -r --if-present clean"
   },
   "devDependencies": {
+    "concurrently": "^10.0.3",
     "oxfmt": "^0.57.0",
-    "oxlint": "^1.73.0"
+    "oxlint": "^1.73.0",
+    "portless": "^0.15.1"
   }
 }

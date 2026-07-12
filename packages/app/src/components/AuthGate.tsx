@@ -1,7 +1,14 @@
 import { Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
-import { createServerClient, ServerError, type AuthMethods, type User } from "../server";
+import {
+    createServerClient,
+    ServerError,
+    type AuthMethods,
+    type ServerClient,
+    type User,
+} from "../server";
 
-type AuthGateProps = { serverUrl: string; children: (user: User) => JSX.Element };
+export type AuthSession = { client: ServerClient; token: string; user: User };
+type AuthGateProps = { serverUrl: string; children: (session: AuthSession) => JSX.Element };
 type Mode = "loading" | "sign-in" | "onboarding" | "ready" | "unavailable";
 const tokenKey = "rigged.session-token";
 
@@ -240,8 +247,15 @@ export function AuthGate(props: AuthGateProps) {
         </main>
     );
     return (
-        <Show when={mode() === "ready" ? user() : undefined} fallback={gate}>
-            {(currentUser) => props.children(currentUser())}
+        <Show
+            when={
+                mode() === "ready" && user() && token()
+                    ? { client, token: token()!, user: user()! }
+                    : undefined
+            }
+            fallback={gate}
+        >
+            {(session) => props.children(session())}
         </Show>
     );
 }

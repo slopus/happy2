@@ -10,7 +10,12 @@ import { createRenderer } from "./testing";
 it("captures elements at exact 2x scale", async () => {
     const view = createRenderer();
     view.render(
-        () => <div data-testid="square" style={{ width: "100px", height: "100px", background: "#8b7cf7" }} />,
+        () => (
+            <div
+                data-testid="square"
+                style={{ width: "100px", height: "100px", background: "#8b7cf7" }}
+            />
+        ),
         { width: 140, height: 140, padding: 20 },
     );
     await view.ready();
