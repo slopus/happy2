@@ -1,4 +1,5 @@
 import { Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import { WindowDragRegion } from "rigged-ui";
 import {
     createServerClient,
     ServerError,
@@ -8,7 +9,11 @@ import {
 } from "../server";
 
 export type AuthSession = { client: ServerClient; token: string; user: User };
-type AuthGateProps = { serverUrl: string; children: (session: AuthSession) => JSX.Element };
+type AuthGateProps = {
+    serverUrl: string;
+    children: (session: AuthSession) => JSX.Element;
+    showWindowDragRegion?: boolean;
+};
 type Mode = "loading" | "sign-in" | "onboarding" | "ready" | "unavailable";
 const tokenKey = "rigged.session-token";
 
@@ -118,6 +123,9 @@ export function AuthGate(props: AuthGateProps) {
     }
     const gate = (
         <main class="auth-shell">
+            <Show when={props.showWindowDragRegion}>
+                <WindowDragRegion />
+            </Show>
             <div class="auth-mast">
                 <div class="auth-mark">R</div>
                 <span>Rigged</span>

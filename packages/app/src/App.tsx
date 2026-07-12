@@ -938,7 +938,7 @@ function errorMessage(reason: unknown): string {
 
 export function App(props: AppProps) {
     return props.serverUrl ? (
-        <AuthGate serverUrl={props.serverUrl}>
+        <AuthGate serverUrl={props.serverUrl} showWindowDragRegion={props.platform === "desktop"}>
             {(session) => <Workspace {...props} session={session} />}
         </AuthGate>
     ) : (

@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "dev:web": "pnpm --filter @rigged/web dev",
-    "dev:desktop": "pnpm --filter @rigged/desktop dev",
+    "dev:desktop": "node scripts/dev-desktop.mjs",
     "dev:server": "pnpm --dir packages/server dev",
     "build": "pnpm -r --if-present build",
     "test": "pnpm -r --if-present test",

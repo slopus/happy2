@@ -1,5 +1,5 @@
 import { fireEvent, render } from "@solidjs/testing-library";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
 const sidebarItem = (container: HTMLElement, id: string) => {
@@ -34,6 +34,26 @@ describe("App", () => {
         expect(
             desktop.container.querySelector('[data-rigged-ui="title-bar-controls"]'),
         ).toBeTruthy();
+    });
+
+    it("only overlays the authentication surface with a desktop drag region", () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(() => new Promise<Response>(() => {})),
+        );
+        try {
+            const web = render(() => <App platform="web" serverUrl="http://server" />);
+            expect(web.container.querySelector('[data-rigged-ui="window-drag-region"]')).toBeNull();
+            web.unmount();
+
+            const desktop = render(() => <App platform="desktop" serverUrl="http://server" />);
+            expect(
+                desktop.container.querySelector('[data-rigged-ui="window-drag-region"]'),
+            ).toBeTruthy();
+            desktop.unmount();
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 
     it("switches the conversation from the sidebar", () => {

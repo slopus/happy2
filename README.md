@@ -28,7 +28,7 @@ TypeScript is on the v7 release line throughout the workspace.
 ```sh
 pnpm install
 pnpm dev                # Server + web app on stable Portless URLs
-pnpm dev:desktop        # Electron app; set PORT=xxxx to choose its Vite port
+pnpm dev:desktop        # Electron app connected to the server from pnpm dev
 pnpm --dir packages/gym test # Server end-to-end tests
 pnpm check              # Type-check, test, and build every package
 ```
@@ -42,6 +42,11 @@ The main checkout uses `https://rigged.localhost` and
 `https://rigged-api.localhost`; linked worktrees automatically receive unique
 branch-prefixed hostnames. The generated development TOML, database, files,
 keys, and password pepper stay under `.context/dev` in each workspace.
+
+With `pnpm dev` running, start `pnpm dev:desktop` in another terminal. It resolves
+the same workspace-specific `rigged-api` URL and passes it to the Electron
+renderer. Portless assigns the renderer an available workspace-specific port;
+set `PORT=xxxx` only when you need to choose it explicitly.
 
 Start only a local server with `pnpm dev:server`. Without a TOML file it enables
 self-service password registration and login, creates its SQLite database under
