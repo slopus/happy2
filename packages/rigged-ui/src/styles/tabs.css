@@ -1,0 +1,101 @@
+/*
+ * C-025 Tabs — horizontal tab bar with an active accent underline.
+ *
+ * The bar is a flex row that owns the bottom hairline; each tab is a borderless
+ * button on the 4px grid (32/40/48 high) that shrinks to its content. The active
+ * tab's underline is a 2px accent bar positioned 1px below the tab box so it
+ * overlaps and visually replaces the container hairline beneath it. Tokens only.
+ */
+
+.rigged-tabs {
+    box-sizing: border-box;
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--rg-border);
+    font-family: var(--rg-font-ui);
+}
+
+.rigged-tabs__tab {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    box-sizing: border-box;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    appearance: none;
+    color: var(--rg-text-secondary);
+    font-family: inherit;
+    font-weight: 600;
+    font-synthesis: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 120ms ease;
+}
+
+.rigged-tabs__tab:hover:not([data-active]) {
+    color: var(--rg-text);
+}
+
+.rigged-tabs__tab[data-active] {
+    color: var(--rg-text);
+}
+
+.rigged-tabs__tab:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: -2px;
+}
+
+/* Per-size geometry — height, label typography, padding, and inter-slot gap. */
+.rigged-tabs[data-size="small"] .rigged-tabs__tab {
+    height: 32px;
+    padding: 0 12px;
+    gap: 6px;
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.rigged-tabs[data-size="medium"] .rigged-tabs__tab {
+    height: 40px;
+    padding: 0 14px;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 18px;
+}
+
+.rigged-tabs[data-size="large"] .rigged-tabs__tab {
+    height: 48px;
+    padding: 0 16px;
+    gap: 8px;
+    font-size: 14px;
+    line-height: 20px;
+}
+
+.rigged-tabs__tab-icon {
+    display: flex;
+    flex: none;
+}
+
+.rigged-tabs__tab-label {
+    display: block;
+    flex: none;
+}
+
+.rigged-tabs__tab-badge {
+    flex: none;
+}
+
+/*
+ * Active underline. left/right:0 span the full tab (padding box included);
+ * bottom:-1px drops the 2px bar over the container's 1px hairline so the accent
+ * replaces the hairline directly beneath the active tab.
+ */
+.rigged-tabs__tab-underline {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    background: var(--rg-accent);
+}

@@ -1,0 +1,138 @@
+/*
+ * C-020 Switch — Relay toggle. Track and thumb are integer boxes on the 4px
+ * grid: medium is a 36×20 track with a 16px thumb (16px travel), small is a
+ * 28×16 track with a 12px thumb (12px travel). Off tracks are an inset well
+ * with a hairline ring; on tracks fill with the violet accent. Tokens only.
+ */
+
+.rigged-switch {
+    display: inline-flex;
+    align-items: flex-start;
+    box-sizing: border-box;
+    margin: 0;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+    text-align: left;
+    cursor: pointer;
+}
+
+.rigged-switch[data-size="medium"] {
+    gap: 10px;
+}
+
+.rigged-switch[data-size="small"] {
+    gap: 8px;
+}
+
+.rigged-switch[data-disabled] {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
+.rigged-switch:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--rg-radius-sm);
+}
+
+/* Track — the pill that carries the thumb and the on/off fill. */
+.rigged-switch__track {
+    position: relative;
+    flex: none;
+    box-sizing: border-box;
+    border-radius: var(--rg-radius-pill);
+    background: var(--rg-bg-inset);
+    box-shadow: inset 0 0 0 1px var(--rg-border-strong);
+    transition: background-color 140ms ease;
+}
+
+.rigged-switch[data-checked] .rigged-switch__track {
+    background: var(--rg-accent);
+    box-shadow: none;
+}
+
+.rigged-switch[data-size="medium"] .rigged-switch__track {
+    width: 36px;
+    height: 20px;
+}
+
+.rigged-switch[data-size="small"] .rigged-switch__track {
+    width: 28px;
+    height: 16px;
+}
+
+/*
+ * Thumb — a solid circle inset 2px from the track on every edge for both
+ * sizes ((20-16)/2 and (16-12)/2 are both 2). It travels by the exact free
+ * space (track − 2×inset − thumb) so its center lands on an integer.
+ */
+.rigged-switch__thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    box-sizing: border-box;
+    border-radius: var(--rg-radius-pill);
+    background: var(--rg-text-on-accent);
+    transition: transform 140ms ease;
+}
+
+.rigged-switch[data-size="medium"] .rigged-switch__thumb {
+    width: 16px;
+    height: 16px;
+}
+
+.rigged-switch[data-size="small"] .rigged-switch__thumb {
+    width: 12px;
+    height: 12px;
+}
+
+.rigged-switch[data-size="medium"][data-checked] .rigged-switch__thumb {
+    transform: translateX(16px);
+}
+
+.rigged-switch[data-size="small"][data-checked] .rigged-switch__thumb {
+    transform: translateX(12px);
+}
+
+/* Text column — label over an optional muted description. */
+.rigged-switch__text {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.rigged-switch__label {
+    display: block;
+    color: var(--rg-text);
+    font-weight: 500;
+}
+
+.rigged-switch__description {
+    display: block;
+    color: var(--rg-text-muted);
+    font-weight: 400;
+}
+
+.rigged-switch[data-size="medium"] .rigged-switch__label {
+    font-size: 13px;
+    line-height: 20px;
+}
+
+.rigged-switch[data-size="medium"] .rigged-switch__description {
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.rigged-switch[data-size="small"] .rigged-switch__label {
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.rigged-switch[data-size="small"] .rigged-switch__description {
+    font-size: 11px;
+    line-height: 16px;
+}

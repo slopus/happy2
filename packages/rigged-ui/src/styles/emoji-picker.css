@@ -1,0 +1,171 @@
+/*
+ * C-043 EmojiPicker — reaction-picker popover on the raised surface.
+ *
+ * Contract: a raised card (--rg-bg-raised) with a 1px strong hairline, 10px
+ * card radius, and a soft drop shadow. 8px padding wraps a search field over
+ * an emoji grid of fixed, equal 36px slots (grid-template-columns is set inline
+ * from the `columns` prop). Every emoji — unicode char or custom image — sits
+ * in the same explicitly sized 24px art slot centered in its cell, so the grid
+ * stays regular no matter the artwork. Optional mono section labels separate a
+ * recent row from the full grid. All geometry is integer on the 4px grid.
+ */
+
+.rigged-emoji-picker,
+.rigged-emoji-picker * {
+    box-sizing: border-box;
+}
+
+.rigged-emoji-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    background: var(--rg-bg-raised);
+    border: 1px solid var(--rg-border-strong);
+    border-radius: var(--rg-radius-md);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+    color: var(--rg-text);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Search ----------------------------------------------------------- */
+
+.rigged-emoji-picker__search {
+    display: block;
+}
+
+/* ---- Sections + labels ------------------------------------------------ */
+
+.rigged-emoji-picker__section {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rigged-emoji-picker__label {
+    display: block;
+    flex: none;
+    height: 20px;
+    /* Aligns the label to the emoji artwork, inset 6px inside the 36px cell. */
+    padding: 0 6px;
+    overflow: hidden;
+    color: var(--rg-text-faint);
+    font-family: var(--rg-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/* ---- Grid of fixed equal slots ---------------------------------------- */
+
+.rigged-emoji-picker__grid {
+    display: grid;
+    /* grid-template-columns comes inline: repeat(columns, 36px). */
+    justify-content: start;
+}
+
+.rigged-emoji-picker__cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 36px;
+    height: 36px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: var(--rg-radius-sm);
+    color: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    transition: background-color 120ms ease;
+}
+
+.rigged-emoji-picker__cell:hover {
+    background: var(--rg-bg-hover);
+}
+
+.rigged-emoji-picker__cell:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: -2px;
+}
+
+/* Fixed 24px art slot, shared by unicode glyphs and custom images so both
+ * emoji kinds occupy identical geometry (only the artwork inside differs). */
+.rigged-emoji-picker__art {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 24px;
+    height: 24px;
+    font-family: var(--rg-font-emoji);
+    font-size: 18px;
+    line-height: 24px;
+}
+
+.rigged-emoji-picker__glyph {
+    display: block;
+    line-height: 24px;
+    transform: translate(var(--rg-emoji-x, 0px), var(--rg-emoji-y, 0px));
+}
+
+.rigged-emoji-picker__image {
+    display: block;
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
+
+/*
+ * Optical corrections for font-fallback color emoji. Apple Color Emoji carries
+ * a consistent left side-bearing, so the advance-centered glyph lands off the
+ * 24px slot center by a per-engine amount measured at true 2× (visible-bounds
+ * centroid on zeroed vars, EmojiPicker.test.tsx). The offset is uniform across
+ * artwork because visible bounds quantize to the device-pixel grid, so one
+ * translate per engine recenters the whole set. Custom images are already
+ * box-centered and get no shift. Values are the Chromium base; Gecko/WebKit
+ * override below. Re-measure after any change — the raster response is
+ * non-linear (see the ReactionChip treatment this mirrors).
+ */
+.rigged-emoji-picker {
+    --rg-emoji-x: 1.5px;
+    --rg-emoji-y: 0px;
+}
+
+/* Firefox — Gecko is the only engine that parses -moz-appearance. */
+@supports (-moz-appearance: none) {
+    .rigged-emoji-picker {
+        --rg-emoji-x: 2px;
+        --rg-emoji-y: 1px;
+    }
+}
+
+/* WebKit — Blink and Gecko do not parse -webkit-named-image(). */
+@supports (background: -webkit-named-image(i)) {
+    .rigged-emoji-picker {
+        --rg-emoji-x: 0px;
+        --rg-emoji-y: -0.5px;
+    }
+}
+
+/* ---- Empty ------------------------------------------------------------ */
+
+.rigged-emoji-picker__empty {
+    display: flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 6px;
+    color: var(--rg-text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 20px;
+}

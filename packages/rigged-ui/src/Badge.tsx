@@ -121,7 +121,7 @@ function ShortcutSymbol(props: { symbol: string }) {
                 <path d="M2.85 3.2h5l9 18h4M13.85 3.2h7M2.85 21.2h7" />
             </Show>
             <Show when={props.symbol === "⌃"}>
-                <path d="m3 20.1 9-17 9 17" />
+                <path d="M3 21.2 12 2.3 21 21.2" />
             </Show>
         </svg>
     );

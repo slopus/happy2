@@ -284,8 +284,15 @@
 }
 
 .rigged-key-cap {
+    /*
+     * KeyCap vertical is calibrated on '0' (bilaterally symmetric figure band)
+     * at the integer fixture position used by Badge.test.tsx. The raster snaps
+     * the '0' centroid onto the 10px slot center with no text shift; the
+     * modifier symbols rise 0.5px to sit on that same axis. Chromium and Gecko
+     * rasterize this identically, so only WebKit overrides the symbol shift.
+     */
     --rg-keycap-symbol-y: -0.5px;
-    --rg-keycap-text-y: 0.25px;
+    --rg-keycap-text-y: 0px;
 }
 
 /*
@@ -303,11 +310,7 @@
         --rg-chip-emoji-x: 1.5px;
         --rg-chip-emoji-y: 0.9px;
     }
-
-    .rigged-key-cap {
-        --rg-keycap-symbol-y: -0.5px;
-        --rg-keycap-text-y: 0.25px;
-    }
+    /* KeyCap: Gecko rasterizes identically to the Chromium base here. */
 }
 
 /* WebKit — Blink and Gecko do not parse -webkit-named-image(). */
@@ -323,6 +326,6 @@
 
     .rigged-key-cap {
         --rg-keycap-symbol-y: 0px;
-        --rg-keycap-text-y: 0.25px;
+        --rg-keycap-text-y: 0px;
     }
 }

@@ -4,7 +4,7 @@ import { page, server } from "vitest/browser";
 import { KeyCap } from "./Badge";
 import { Button } from "./Button";
 import { createRenderer } from "./testing";
-import { SearchField, TitleBar } from "./TitleBar";
+import { SearchField, TitleBar, WindowDragRegion } from "./TitleBar";
 
 /*
  * The title bar is desktop window chrome, so this suite verifies it at the
@@ -19,6 +19,11 @@ async function pinViewport() {
 function appRegion(style: (property: string) => string) {
     const unprefixed = style("app-region");
     return unprefixed === "" ? style("-webkit-app-region") : unprefixed;
+}
+
+function userSelect(style: (property: string) => string) {
+    const unprefixed = style("user-select");
+    return unprefixed === "" ? style("-webkit-user-select") : unprefixed;
 }
 
 it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () => {
@@ -199,6 +204,62 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
     ).toBeLessThanOrEqual(0.75);
 
     await view.screenshot("TitleBar.test");
+});
+
+it("holds a transparent 38px drag overlay for full-window authentication states", async () => {
+    await pinViewport();
+    const view = createRenderer();
+
+    view.render(
+        () => (
+            <div
+                data-testid="auth-surface"
+                style={{
+                    background: "#17161c",
+                    height: "120px",
+                    position: "relative",
+                    width: "720px",
+                }}
+            >
+                <WindowDragRegion data-testid="auth-drag" />
+            </div>
+        ),
+        { width: 720, height: 120 },
+    );
+    await view.ready();
+
+    const surface = view.$('[data-testid="auth-surface"]');
+    const drag = view.$('[data-testid="auth-drag"]');
+    expect(surface.bounds()).toEqual({ x: 0, y: 0, width: 720, height: 120 });
+    expect(drag.bounds()).toEqual({ x: 0, y: 0, width: 720, height: 38 });
+    expect(drag.element.getAttribute("aria-hidden")).toBe("true");
+    expect(
+        drag.computedStyles([
+            "background-color",
+            "box-sizing",
+            "height",
+            "left",
+            "position",
+            "top",
+            "width",
+            "z-index",
+        ]),
+    ).toEqual({
+        "background-color": "rgba(0, 0, 0, 0)",
+        "box-sizing": "border-box",
+        height: "38px",
+        left: "0px",
+        position: "absolute",
+        top: "0px",
+        width: "720px",
+        "z-index": "1",
+    });
+    expect(userSelect((property) => drag.computedStyle(property))).toBe("none");
+    if (server.browser === "chromium") {
+        expect(appRegion((property) => drag.computedStyle(property))).toBe("drag");
+    }
+
+    await view.screenshot("WindowDragRegion.test");
 });
 
 it("holds SearchField geometry, colors, and optical centering", async () => {

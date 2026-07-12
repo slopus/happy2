@@ -10,9 +10,26 @@
 
 .rigged-title-bar,
 .rigged-title-bar *,
+.rigged-window-drag-region,
 .rigged-search-field,
 .rigged-search-field * {
     box-sizing: border-box;
+}
+
+/* Transparent drag target for loading, authentication, and other full-window
+   states that temporarily replace TitleBar. Its containing surface owns the
+   positioning context. */
+.rigged-window-drag-region {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-app-region: drag;
+    app-region: drag;
 }
 
 /* ---- TitleBar --------------------------------------------------------- */
@@ -49,7 +66,9 @@
     app-region: drag;
 }
 
-/* Traffic-light inset: the 78px reservation starts at the window edge. */
+/* Traffic-light inset: the 78px reservation starts at the window edge. The
+   Electron host positions the native 14px controls at x=14, y=12 so their
+   visual center lands on this panel's 19px vertical center. */
 .rigged-title-bar[data-window-controls] {
     padding-left: 0;
 }

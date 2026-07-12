@@ -1,0 +1,205 @@
+/*
+ * C-045 ModerationReportCard — moderation-queue item.
+ *
+ * Surface card, radius 10 (card contract), 1px hairline, 16px padding, and a
+ * flex column with a 12px rhythm: a 36px header (kind chip + target descriptor
+ * + status badge), a 34px inset reason well, an optional details paragraph, a
+ * 20px meta row (reporter/assignee avatars + timestamp), and an optional
+ * bordered actions footer. Colours are tokens only; the status badge, avatars,
+ * and buttons carry their own already-tuned optical treatments.
+ */
+
+.rigged-moderation-report-card,
+.rigged-moderation-report-card * {
+    box-sizing: border-box;
+}
+
+.rigged-moderation-report-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 520px;
+    margin: 0;
+    padding: 16px;
+    background: var(--rg-bg-surface);
+    border: 1px solid var(--rg-border);
+    border-radius: var(--rg-radius-md);
+    color: var(--rg-text);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Header: kind chip + target descriptor + status badge ------------- */
+
+.rigged-moderation-report-card__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+    min-height: 36px;
+    min-width: 0;
+}
+
+.rigged-moderation-report-card__kind {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    background: var(--rg-bg-inset);
+    border-radius: var(--rg-radius-sm);
+    color: var(--rg-text-secondary);
+}
+
+.rigged-moderation-report-card__target {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 0;
+    min-width: 0;
+}
+
+.rigged-moderation-report-card__target-label {
+    display: block;
+    overflow: hidden;
+    color: var(--rg-text);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.rigged-moderation-report-card__target-sub {
+    display: block;
+    overflow: hidden;
+    color: var(--rg-text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.rigged-moderation-report-card__status {
+    display: flex;
+    flex: none;
+    align-items: center;
+}
+
+/* ---- Reason well ------------------------------------------------------- */
+
+.rigged-moderation-report-card__reason {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 8px 12px;
+    background: var(--rg-bg-inset);
+    border-radius: var(--rg-radius-sm);
+}
+
+.rigged-moderation-report-card__reason-icon {
+    flex: none;
+    color: var(--rg-text-secondary);
+}
+
+.rigged-moderation-report-card__reason-text {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--rg-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 18px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* ---- Details ----------------------------------------------------------- */
+
+.rigged-moderation-report-card__details {
+    flex: none;
+    margin: 0;
+    color: var(--rg-text-secondary);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 18px;
+}
+
+/* ---- Meta: reporter / assignee avatars + timestamp -------------------- */
+
+.rigged-moderation-report-card__meta {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 16px;
+    min-height: 20px;
+    min-width: 0;
+}
+
+.rigged-moderation-report-card__party {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.rigged-moderation-report-card__party-caption {
+    display: block;
+    color: var(--rg-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+}
+
+.rigged-moderation-report-card__party-name {
+    display: block;
+    overflow: hidden;
+    color: var(--rg-text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.rigged-moderation-report-card__time {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    color: var(--rg-text-muted);
+}
+
+.rigged-moderation-report-card__time-icon {
+    flex: none;
+    color: var(--rg-text-muted);
+}
+
+.rigged-moderation-report-card__time-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+    font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* ---- Actions footer ---------------------------------------------------- */
+
+.rigged-moderation-report-card__actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rg-border);
+}

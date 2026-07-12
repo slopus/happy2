@@ -1,7 +1,7 @@
 import { createSignal, type JSX } from "solid-js";
 import { Button } from "../../src/Button";
 import { Icon } from "../../src/Icon";
-import { SearchField, TitleBar } from "../../src/TitleBar";
+import { SearchField, TitleBar, WindowDragRegion } from "../../src/TitleBar";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
 
 const column: Record<string, string> = {
@@ -42,18 +42,18 @@ function TrafficLights() {
     const dot = (background: string): JSX.CSSProperties => ({
         background,
         "border-radius": "50%",
-        height: "12px",
-        width: "12px",
+        height: "14px",
+        width: "14px",
     });
     return (
         <span
             aria-hidden="true"
             style={{
                 display: "flex",
-                gap: "8px",
+                gap: "9px",
                 left: "14px",
                 position: "absolute",
-                top: "13px",
+                top: "12px",
             }}
         >
             <i style={dot("#ff5f57")} />
@@ -93,7 +93,7 @@ export function TitleBarPage() {
             </Specimen>
 
             <Specimen
-                detail="showWindowControls reserves 78px at the window edge for the macOS traffic lights"
+                detail="78px native-control reservation · 14px traffic lights at x 14 / y 12 · centered on the 38px panel"
                 label="TitleBar — traffic-light inset"
                 number="02"
                 stage="chrome"
@@ -115,14 +115,33 @@ export function TitleBarPage() {
                         />
                         <TrafficLights />
                     </div>
-                    <DimensionRule label="78 px reserved · lights are native, drawn here for scale" />
+                    <DimensionRule label="78 px reserved · 14 px lights · 12 px top/bottom" />
+                </div>
+            </Specimen>
+
+            <Specimen
+                detail="Transparent 38px overlay for full-window states that temporarily replace TitleBar"
+                label="WindowDragRegion — authentication"
+                number="03"
+                stage="chrome"
+            >
+                <div
+                    style={{
+                        background: "var(--rg-bg-app)",
+                        height: "120px",
+                        position: "relative",
+                        width: "720px",
+                    }}
+                >
+                    <WindowDragRegion />
+                    <DimensionRule label="720 × 38 px · transparent drag target" />
                 </div>
             </Specimen>
 
             <Specimen
                 detail="Narrow windows: side lanes give way first, the field cedes below 420"
                 label="TitleBar — 720px window"
-                number="03"
+                number="04"
                 stage="chrome"
             >
                 <div style={{ border: "1px solid var(--rg-border)", width: "720px" }}>
@@ -146,7 +165,7 @@ export function TitleBarPage() {
             <Specimen
                 detail="26px well · radius 6 · inset bg + hairline · 14px icon · 12px text · KeyCap hint"
                 label="SearchField — fixed 420"
-                number="04"
+                number="05"
                 stage="chrome"
             >
                 <div style={column}>
@@ -168,7 +187,7 @@ export function TitleBarPage() {
             <Specimen
                 detail="Fills its container by default; custom shortcutHint"
                 label="SearchField — fluid + custom hint"
-                number="05"
+                number="06"
                 stage="chrome"
             >
                 <div style={{ ...column, width: "280px" }}>
@@ -185,7 +204,7 @@ export function TitleBarPage() {
             <Specimen
                 detail="Focus swaps the hairline for border-strong plus the accent focus ring — click to try"
                 label="SearchField — focus"
-                number="06"
+                number="07"
                 stage="chrome"
             >
                 <SearchField
@@ -199,7 +218,7 @@ export function TitleBarPage() {
             <Specimen
                 detail="200px field: long values and placeholders clip inside the well; the KeyCap keeps its 5px inset"
                 label="SearchField — long-content truncation"
-                number="07"
+                number="08"
                 stage="chrome"
             >
                 <div style={column}>

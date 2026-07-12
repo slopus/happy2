@@ -1,0 +1,226 @@
+/*
+ * C-018 TextField — labeled text input / textarea on the Relay inset well.
+ *
+ * Contract: three control heights (28/36/44, box-sizing border-box, 1px
+ * hairline border included), 6px radius, inset background, muted leading
+ * icon, 500-weight text, muted placeholder. The single-line input fills the
+ * full inner lane (control height − 2px border) and uses a line box equal to
+ * that lane, so the text centers vertically without any per-engine nudge
+ * (same mechanism proven by SearchField). Label sits above the control,
+ * hint/error below. All geometry is integer on the 4px grid.
+ */
+
+.rigged-text-field {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 6px;
+    box-sizing: border-box;
+    /* Standard single-field width; `fullWidth` stretches to the container. */
+    width: 240px;
+    margin: 0;
+    color: var(--rg-text);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+}
+
+.rigged-text-field * {
+    box-sizing: border-box;
+}
+
+.rigged-text-field[data-full-width] {
+    display: flex;
+    width: 100%;
+}
+
+.rigged-text-field[data-disabled] {
+    opacity: 0.5;
+}
+
+/* ---- Label ------------------------------------------------------------- */
+
+.rigged-text-field__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    color: var(--rg-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: 0;
+}
+
+.rigged-text-field__required {
+    color: var(--rg-danger);
+}
+
+/* ---- Control box ------------------------------------------------------- */
+
+.rigged-text-field__control {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin: 0;
+    background: var(--rg-bg-inset);
+    border: 1px solid var(--rg-border);
+    border-radius: var(--rg-radius-sm);
+    transition: border-color 120ms ease;
+}
+
+.rigged-text-field__control[data-size="small"] {
+    height: 28px;
+    padding: 0 10px;
+    column-gap: 8px;
+}
+
+.rigged-text-field__control[data-size="medium"] {
+    height: 36px;
+    padding: 0 12px;
+    column-gap: 8px;
+}
+
+.rigged-text-field__control[data-size="large"] {
+    height: 44px;
+    padding: 0 14px;
+    column-gap: 8px;
+}
+
+/* Multiline: the box grows with the textarea, icon/text align to the top. */
+.rigged-text-field__control[data-multiline] {
+    height: auto;
+    align-items: flex-start;
+}
+
+.rigged-text-field__control[data-multiline][data-size="small"] {
+    padding: 8px 10px;
+}
+
+.rigged-text-field__control[data-multiline][data-size="medium"] {
+    padding: 8px 12px;
+}
+
+.rigged-text-field__control[data-multiline][data-size="large"] {
+    padding: 8px 14px;
+}
+
+.rigged-text-field__control:focus-within {
+    border-color: var(--rg-border-strong);
+    outline: var(--rg-focus-ring);
+    outline-offset: 1px;
+}
+
+.rigged-text-field__control[data-invalid] {
+    border-color: var(--rg-danger);
+}
+
+/* Invalid + focused keeps the danger identity in the ring. */
+.rigged-text-field__control[data-invalid]:focus-within {
+    outline-color: var(--rg-danger);
+}
+
+.rigged-text-field[data-disabled] .rigged-text-field__control {
+    cursor: not-allowed;
+}
+
+/* ---- Leading icon ------------------------------------------------------ */
+
+.rigged-text-field__icon {
+    display: flex;
+    flex: none;
+    color: var(--rg-text-muted);
+}
+
+/* ---- Input / textarea -------------------------------------------------- */
+
+.rigged-text-field__input {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    color: var(--rg-text);
+    font-family: var(--rg-font-ui);
+    font-weight: 500;
+    letter-spacing: 0;
+    font-synthesis: none;
+    caret-color: var(--rg-accent);
+}
+
+.rigged-text-field__input::placeholder {
+    color: var(--rg-text-muted);
+    opacity: 1;
+}
+
+/* Strip the native search decorations so geometry stays engine-agnostic. */
+.rigged-text-field__input::-webkit-search-decoration,
+.rigged-text-field__input::-webkit-search-cancel-button {
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.rigged-text-field[data-disabled] .rigged-text-field__input {
+    cursor: not-allowed;
+}
+
+/*
+ * Single-line lanes fill the inner box (height − 2px border) and set an equal
+ * line box, so the text/caret centers on the control's optical midline.
+ */
+.rigged-text-field__control[data-size="small"] input.rigged-text-field__input {
+    height: 26px;
+    font-size: 12px;
+    line-height: 26px;
+}
+
+.rigged-text-field__control[data-size="medium"] input.rigged-text-field__input {
+    height: 34px;
+    font-size: 13px;
+    line-height: 34px;
+}
+
+.rigged-text-field__control[data-size="large"] input.rigged-text-field__input {
+    height: 42px;
+    font-size: 14px;
+    line-height: 42px;
+}
+
+/* Multiline uses a real 20px reading line box; height is set inline from rows. */
+textarea.rigged-text-field__input {
+    display: block;
+    width: 100%;
+    line-height: 20px;
+    resize: none;
+    overflow-y: auto;
+}
+
+.rigged-text-field__control[data-size="small"] textarea.rigged-text-field__input {
+    font-size: 12px;
+}
+
+.rigged-text-field__control[data-size="medium"] textarea.rigged-text-field__input {
+    font-size: 13px;
+}
+
+.rigged-text-field__control[data-size="large"] textarea.rigged-text-field__input {
+    font-size: 14px;
+}
+
+/* ---- Hint / error message ---------------------------------------------- */
+
+.rigged-text-field__message {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    letter-spacing: 0;
+}
+
+.rigged-text-field__message[data-tone="hint"] {
+    color: var(--rg-text-muted);
+}
+
+.rigged-text-field__message[data-tone="error"] {
+    color: var(--rg-danger);
+}

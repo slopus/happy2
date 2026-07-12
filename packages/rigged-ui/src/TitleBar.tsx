@@ -1,4 +1,4 @@
-import { Show, type JSX } from "solid-js";
+import { Show, splitProps, type JSX } from "solid-js";
 import { KeyCap } from "./Badge";
 import type { Dimension } from "./dimensions";
 import { toCssDimension } from "./dimensions";
@@ -12,6 +12,28 @@ export type SearchFieldProps = {
     value: string;
     width?: Dimension;
 };
+
+export type WindowDragRegionProps = Omit<
+    JSX.HTMLAttributes<HTMLDivElement>,
+    "children" | "style"
+> & {
+    height?: Dimension;
+    style?: JSX.CSSProperties;
+};
+
+/** Transparent window-drag overlay for full-window states without a TitleBar. */
+export function WindowDragRegion(props: WindowDragRegionProps) {
+    const [local, rest] = splitProps(props, ["class", "height", "style"]);
+    return (
+        <div
+            {...rest}
+            aria-hidden="true"
+            class={["rigged-window-drag-region", local.class].filter(Boolean).join(" ")}
+            data-rigged-ui="window-drag-region"
+            style={{ height: toCssDimension(local.height ?? 38), ...local.style }}
+        />
+    );
+}
 
 /**
  * Global search well: 26px inset field with a leading search icon and a
@@ -54,15 +76,16 @@ export type TitleBarProps = {
     onSearchChange: (value: string) => void;
     searchPlaceholder?: string;
     searchValue: string;
-    /** Reserve 78px at the left edge for the macOS traffic lights. */
+    /** Reserve 78px at the left edge for native macOS traffic lights. */
     showWindowControls?: boolean;
     /** Right slot for actions. */
     trailing?: JSX.Element;
 };
 
 /**
- * 38px window title bar: draggable chrome strip with a centered 420px-max
- * SearchField between two 1fr slots.
+ * 38px window title bar: draggable app-owned chrome under the transparent
+ * native title bar, with a centered 420px-max SearchField between two 1fr
+ * slots.
  */
 export function TitleBar(props: TitleBarProps) {
     return (

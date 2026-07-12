@@ -1,0 +1,165 @@
+/*
+ * C-031 StatTile — metric card: label / value / delta(trend) / icon / tone.
+ *
+ * Card: surface fill, hairline border, radius 10 (card contract). A flex
+ * column with an 8px rhythm: a 28px header (muted label + a 28px tone icon
+ * chip, so a row of tiles shares one value baseline whether or not each has an
+ * icon), a 28px tabular value on a 32px line, and an optional footer carrying
+ * the trend delta and a muted hint. Colours are tokens only: `tone` tints the
+ * chip, `delta.trend` tints the delta (success / danger / muted).
+ */
+
+.rigged-stat-tile,
+.rigged-stat-tile * {
+    box-sizing: border-box;
+}
+
+.rigged-stat-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    padding: 16px;
+    background: var(--rg-bg-surface);
+    border: 1px solid var(--rg-border);
+    border-radius: var(--rg-radius-md);
+    color: var(--rg-text);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Header: label + tone icon chip ---------------------------------- */
+
+.rigged-stat-tile__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 28px;
+    min-width: 0;
+}
+
+.rigged-stat-tile__label {
+    display: block;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--rg-text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.rigged-stat-tile__icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--rg-radius-sm);
+}
+
+.rigged-stat-tile[data-tone="neutral"] .rigged-stat-tile__icon {
+    background: var(--rg-bg-inset);
+    color: var(--rg-text-secondary);
+}
+
+.rigged-stat-tile[data-tone="accent"] .rigged-stat-tile__icon {
+    background: var(--rg-accent-soft);
+    color: var(--rg-accent-strong);
+}
+
+.rigged-stat-tile[data-tone="success"] .rigged-stat-tile__icon {
+    background: var(--rg-success-soft);
+    color: var(--rg-success-strong);
+}
+
+.rigged-stat-tile[data-tone="warning"] .rigged-stat-tile__icon {
+    background: var(--rg-warning-soft);
+    color: var(--rg-warning-strong);
+}
+
+.rigged-stat-tile[data-tone="danger"] .rigged-stat-tile__icon {
+    background: var(--rg-danger-soft);
+    color: var(--rg-danger-strong);
+}
+
+/* ---- Value ----------------------------------------------------------- */
+
+.rigged-stat-tile__value {
+    display: block;
+    flex: none;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--rg-text);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 32px;
+    font-variant-numeric: lining-nums tabular-nums;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* ---- Footer: trend delta + hint -------------------------------------- */
+
+.rigged-stat-tile__footer {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    min-height: 16px;
+    min-width: 0;
+}
+
+.rigged-stat-tile__delta {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+}
+
+.rigged-stat-tile__delta[data-trend="up"] {
+    color: var(--rg-success);
+}
+
+.rigged-stat-tile__delta[data-trend="down"] {
+    color: var(--rg-danger);
+}
+
+.rigged-stat-tile__delta[data-trend="flat"] {
+    color: var(--rg-text-muted);
+}
+
+.rigged-stat-tile__delta-arrow {
+    display: block;
+    flex: none;
+    width: 12px;
+    height: 12px;
+    fill: currentColor;
+}
+
+.rigged-stat-tile__delta-value {
+    display: block;
+    color: currentColor;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 16px;
+    font-variant-numeric: lining-nums tabular-nums;
+    white-space: nowrap;
+}
+
+.rigged-stat-tile__hint {
+    display: block;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--rg-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}

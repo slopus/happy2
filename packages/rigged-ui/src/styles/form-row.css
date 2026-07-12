@@ -1,0 +1,71 @@
+/*
+ * C-029 FormRow — settings row: label + description + trailing control slot.
+ *
+ * Geometry is on the 4px grid: 16px vertical padding, a 4px label→description
+ * gap, a 24px text→control gutter inline and a 12px stack gap. A single 1px
+ * hairline bottom divider lets rows tile into a settings list. Colors and type
+ * come only from --rg-* tokens.
+ */
+
+.rigged-form-row {
+    box-sizing: border-box;
+    display: flex;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--rg-border);
+    color: var(--rg-text);
+    font-family: var(--rg-font-ui);
+}
+
+.rigged-form-row[data-layout="inline"] {
+    flex-direction: row;
+    gap: 24px;
+}
+
+.rigged-form-row[data-layout="stacked"] {
+    flex-direction: column;
+    gap: 12px;
+}
+
+.rigged-form-row[data-align="center"] {
+    align-items: center;
+}
+
+.rigged-form-row[data-align="start"] {
+    align-items: flex-start;
+}
+
+.rigged-form-row__text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.rigged-form-row__label {
+    display: block;
+    margin: 0;
+    color: var(--rg-text);
+    font-family: var(--rg-font-ui);
+    font-size: 13px;
+    font-synthesis: none;
+    font-weight: 600;
+    line-height: 20px;
+}
+
+.rigged-form-row__description {
+    display: block;
+    margin: 0;
+    color: var(--rg-text-muted);
+    font-family: var(--rg-font-ui);
+    font-size: 12px;
+    font-synthesis: none;
+    font-weight: 400;
+    line-height: 16px;
+}
+
+.rigged-form-row__control {
+    display: flex;
+    flex: none;
+    align-items: center;
+}

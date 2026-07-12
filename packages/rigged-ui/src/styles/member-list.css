@@ -1,0 +1,109 @@
+/*
+ * C-039 MemberList — chat roster rows.
+ *
+ * Contract: a chrome-less vertical list that fills its container. Each row is
+ * 56px tall on the 4px grid with 12px side padding and a 12px flex gutter:
+ * [36px avatar] [name/title identity, flex] [role Badge] [trailing control].
+ * Rows are divided by a 1px hairline drawn as a pseudo-element so it never
+ * perturbs the row box, keeping the avatar and text lanes on exact integers.
+ * All composed marks (Avatar, Badge, Button) are already optically tuned; this
+ * sheet only lays them out, so it carries no per-glyph corrections of its own.
+ */
+
+.rigged-member-list,
+.rigged-member-list * {
+    box-sizing: border-box;
+}
+
+.rigged-member-list {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    background: transparent;
+    color: var(--rg-text);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Rows -------------------------------------------------------------- */
+
+.rigged-member-list__row {
+    position: relative;
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+    height: 56px;
+    padding: 0 12px;
+    transition: background-color 120ms ease;
+}
+
+.rigged-member-list__row:hover {
+    background: var(--rg-bg-hover);
+}
+
+/* Hairline between adjacent rows, painted in the row's own box so layout
+ * stays untouched (the avatar/text lanes keep whole-pixel positions). */
+.rigged-member-list__row + .rigged-member-list__row::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--rg-border);
+}
+
+.rigged-member-list__avatar {
+    flex: none;
+}
+
+/* ---- Identity ---------------------------------------------------------- */
+
+.rigged-member-list__identity {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+}
+
+.rigged-member-list__name {
+    display: block;
+    overflow: hidden;
+    color: var(--rg-text);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rigged-member-list__subtitle {
+    display: block;
+    overflow: hidden;
+    color: var(--rg-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- Trailing lane ----------------------------------------------------- */
+
+.rigged-member-list__role {
+    flex: none;
+}
+
+.rigged-member-list__trailing {
+    display: flex;
+    flex: none;
+    align-items: center;
+}

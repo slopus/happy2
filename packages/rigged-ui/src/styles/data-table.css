@@ -1,0 +1,205 @@
+/*
+ * C-030 DataTable — Relay admin table. Columns + rows, alignment, selection,
+ * row actions, dense mode, and an empty slot. Tokens only.
+ *
+ * Row hairlines are painted with an inset box-shadow rather than a border so
+ * they never enter the box model: cell heights stay exact integers (40/48/36)
+ * on the 4px grid in every engine, which the rendering test asserts to the
+ * pixel. Selection is the tuned `check` Icon glyph inside a fixed 18px box.
+ */
+
+.rigged-data-table {
+    box-sizing: border-box;
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--rg-border);
+    border-radius: var(--rg-radius-md);
+    background: var(--rg-bg-surface);
+    color: var(--rg-text);
+    font-family: var(--rg-font-ui);
+}
+
+.rigged-data-table__table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+}
+
+/* Header ---------------------------------------------------------------- */
+
+.rigged-data-table__th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    box-sizing: border-box;
+    height: 40px;
+    padding: 0 16px;
+    background: var(--rg-bg-surface);
+    box-shadow: inset 0 -1px 0 var(--rg-border-strong);
+    color: var(--rg-text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+.rigged-data-table[data-dense] .rigged-data-table__th {
+    height: 36px;
+}
+
+.rigged-data-table__head-label {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+/* Body ------------------------------------------------------------------ */
+
+.rigged-data-table__td {
+    box-sizing: border-box;
+    height: 48px;
+    padding: 0 16px;
+    background: transparent;
+    box-shadow: inset 0 -1px 0 var(--rg-border);
+    color: var(--rg-text);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+    vertical-align: middle;
+}
+
+.rigged-data-table[data-dense] .rigged-data-table__td {
+    height: 36px;
+}
+
+.rigged-data-table__body tr:last-child .rigged-data-table__td {
+    box-shadow: none;
+}
+
+.rigged-data-table__cell {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+/* Alignment ------------------------------------------------------------- */
+
+.rigged-data-table [data-align="start"] {
+    text-align: left;
+}
+
+.rigged-data-table [data-align="center"] {
+    text-align: center;
+}
+
+.rigged-data-table [data-align="end"] {
+    text-align: right;
+}
+
+/* Row states ------------------------------------------------------------ */
+
+.rigged-data-table__row[data-clickable] {
+    cursor: pointer;
+}
+
+.rigged-data-table__row:hover .rigged-data-table__td {
+    background: var(--rg-bg-hover);
+}
+
+.rigged-data-table__row[data-selected] .rigged-data-table__td {
+    background: var(--rg-accent-soft);
+}
+
+/* Row actions ----------------------------------------------------------- */
+
+.rigged-data-table__actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    vertical-align: middle;
+}
+
+.rigged-data-table__sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Selection checkbox ---------------------------------------------------- */
+
+.rigged-data-table__th--select,
+.rigged-data-table__td--select {
+    padding: 0;
+    text-align: center;
+}
+
+.rigged-data-table__check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    border: none;
+    border-radius: var(--rg-radius-sm);
+    background: none;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.rigged-data-table__check-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--rg-border-strong);
+    border-radius: var(--rg-radius-sm);
+    background: var(--rg-bg-inset);
+    color: var(--rg-text-on-accent);
+}
+
+.rigged-data-table__check[data-checked] .rigged-data-table__check-box,
+.rigged-data-table__check[data-indeterminate] .rigged-data-table__check-box {
+    border-color: transparent;
+    background: var(--rg-accent);
+}
+
+.rigged-data-table__check-bar {
+    width: 8px;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+}
+
+.rigged-data-table__check:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: 2px;
+}
+
+/* Empty slot ------------------------------------------------------------ */
+
+.rigged-data-table__empty-cell {
+    box-sizing: border-box;
+    padding: 32px 16px;
+    text-align: center;
+    vertical-align: middle;
+    color: var(--rg-text-muted);
+}
