@@ -36,6 +36,31 @@ Keep product decisions out of the component. For example, a rail may accept
 items, the selected item ID, optional slots, and an `onItemSelect` callback. It
 must not read the app's feature store or navigate by itself.
 
+## Theme
+
+Rigged uses the "Relay" dark theme: violet-tinted near-black surfaces, solid
+light text, hairline borders, and a violet accent with a violet→pink brand
+gradient. The tokens live in `packages/rigged-ui/src/theme.css` and are the
+only source of color and typography in the system. Components must consume
+`var(--rg-*)` custom properties; a raw hex value in component CSS is a defect.
+
+Core values (see `theme.css` for the full set):
+
+| Token group  | Values                                                     |
+| ------------ | ---------------------------------------------------------- |
+| Surfaces     | chrome `#131217`, app `#17161c`, surface `#1c1b22`, raised `#24222b`, code `#141319` |
+| Hairlines    | `rgb(255 255 255 / 0.07)`, strong `rgb(255 255 255 / 0.13)` |
+| Text         | `#edeaf2`, secondary `#a5a0b0`, muted `#757085`, faint `#55515f` |
+| Accent       | violet `#8b7cf7`, strong `#a89bff`, brand gradient violet→pink `#f472b6` |
+| Semantics    | success mint `#34d399`, warning amber `#fbbf24`, danger `#f87171`, info `#60a5fa` |
+| Type         | UI "Rigged Figtree" (Figtree variable), code "Rigged Mono" (JetBrains Mono variable) |
+| Radii        | controls 6 px, cards 10 px, content shell 14 px, pills 999  |
+
+Text colors are solid (not alpha) so rendering tests can assert exact `rgb()`
+values in every engine. Identity colors for avatars come from the named
+`--rg-tone-*` gradient presets; product code selects a tone name and never
+passes raw CSS colors or utility classes for identity.
+
 ## Grid and dimensions
 
 Use a 4 px foundational grid. Prefer 8 px increments for spacing and 16 px

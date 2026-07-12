@@ -1,0 +1,205 @@
+/* C-003 Button — Relay control. 28/36/44 contract heights, five variants. */
+
+.rigged-button {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    border-radius: var(--rg-radius-sm);
+    margin: 0;
+    background: transparent;
+    font-family: var(--rg-font-ui);
+    font-size: 13px;
+    font-synthesis: none;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        border-color 120ms ease,
+        color 120ms ease;
+}
+
+/*
+ * Line boxes are taller than the font size (≥1.2em) so every ascender and
+ * descender paints inside the label's own box: element captures clip to the
+ * box, and the optical measurements in Button.test.tsx must see all the ink.
+ */
+.rigged-button[data-size="small"] {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.rigged-button[data-size="medium"] {
+    height: 36px;
+    padding: 0 14px;
+    line-height: 18px;
+}
+
+.rigged-button[data-size="large"] {
+    height: 44px;
+    padding: 0 18px;
+    font-size: 14px;
+    line-height: 20px;
+}
+
+.rigged-button[data-icon-only][data-size="small"] {
+    width: 28px;
+    padding: 0;
+}
+
+.rigged-button[data-icon-only][data-size="medium"] {
+    width: 36px;
+    padding: 0;
+}
+
+.rigged-button[data-icon-only][data-size="large"] {
+    width: 44px;
+    padding: 0;
+}
+
+.rigged-button[data-variant="primary"] {
+    background: var(--rg-accent);
+    color: var(--rg-text-on-accent);
+}
+
+.rigged-button[data-variant="primary"]:hover:not(:disabled) {
+    background: var(--rg-accent-strong);
+}
+
+.rigged-button[data-variant="secondary"] {
+    border-color: var(--rg-border-strong);
+    background-color: var(--rg-bg-raised);
+    color: var(--rg-text);
+}
+
+.rigged-button[data-variant="secondary"]:hover:not(:disabled) {
+    background-image: linear-gradient(var(--rg-bg-hover), var(--rg-bg-hover));
+}
+
+.rigged-button[data-variant="ghost"] {
+    background: transparent;
+    color: var(--rg-text-secondary);
+}
+
+.rigged-button[data-variant="ghost"]:hover:not(:disabled) {
+    background: var(--rg-bg-hover);
+    color: var(--rg-text);
+}
+
+.rigged-button[data-variant="danger"] {
+    background-color: var(--rg-danger-soft);
+    color: var(--rg-danger-strong);
+}
+
+.rigged-button[data-variant="danger"]:hover:not(:disabled) {
+    background-image: linear-gradient(var(--rg-danger-soft), var(--rg-danger-soft));
+}
+
+.rigged-button[data-variant="success"] {
+    background-color: var(--rg-success-soft);
+    color: var(--rg-success-strong);
+}
+
+.rigged-button[data-variant="success"]:hover:not(:disabled) {
+    background-image: linear-gradient(var(--rg-success-soft), var(--rg-success-soft));
+}
+
+.rigged-button:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: 2px;
+}
+
+.rigged-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
+.rigged-button__content {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+}
+
+.rigged-button__icon {
+    display: flex;
+    flex: none;
+}
+
+/*
+ * The label optical correction is a translateY: every engine rasterizes the
+ * label's vertical ink position in whole device pixels (0.5px steps at 2×),
+ * and Blink/Gecko additionally snap margin offsets to whole CSS pixels, so a
+ * transform declared in exact 0.5px multiples is the only mechanism all three
+ * engines apply verbatim (measured with a 0.1..1px probe ladder per engine).
+ */
+.rigged-button__label {
+    display: block;
+    flex: none;
+    transform: translateY(var(--rigged-button-label-y, 0px));
+}
+
+/*
+ * Optical vertical corrections, measured per engine at true 2× with
+ * alpha-weighted visible-pixel centroids on zeroed vars (see Button.test.tsx).
+ * Figtree 700 sits low in the line box, worst in Gecko. Each correction is
+ * the midpoint of the ink-centroid range across the realistic label set
+ * (descender-heavy "Approve & merge" through ascender-only "Full width"),
+ * rounded to the engines' 0.5px raster step. That keeps balanced-ink labels
+ * within ±0.27px; descender/ascender-skewed words stay within ±0.64px, and
+ * that remaining spread (~0.85px between extremes) is inherent to word ink,
+ * not a layout defect. The label is corrected independently of the icon: raw
+ * icon glyph centroids measure |dy| ≤ 0.09px in all engines, so icons get no
+ * correction and a shared content-span nudge would only knock them off-center.
+ */
+.rigged-button[data-size="small"] {
+    --rigged-button-label-y: -0.5px;
+}
+
+.rigged-button[data-size="medium"] {
+    --rigged-button-label-y: 0px;
+}
+
+.rigged-button[data-size="large"] {
+    --rigged-button-label-y: 0px;
+}
+
+/*
+ * Firefox — only Gecko parses -moz-appearance. (@-moz-document is stripped by
+ * the CSS pipeline, and @supports (font: -apple-system-body) also matches
+ * Blink on macOS, so neither is a usable engine scope.)
+ */
+@supports (-moz-appearance: none) {
+    .rigged-button[data-size="small"] {
+        --rigged-button-label-y: -1px;
+    }
+
+    .rigged-button[data-size="medium"] {
+        --rigged-button-label-y: -0.5px;
+    }
+
+    .rigged-button[data-size="large"] {
+        --rigged-button-label-y: -1px;
+    }
+}
+
+/* WebKit — Blink and Gecko do not parse -webkit-named-image(). */
+@supports (background: -webkit-named-image(i)) {
+    .rigged-button[data-size="small"] {
+        --rigged-button-label-y: -0.5px;
+    }
+
+    .rigged-button[data-size="medium"] {
+        --rigged-button-label-y: -0.5px;
+    }
+
+    .rigged-button[data-size="large"] {
+        --rigged-button-label-y: -1px;
+    }
+}

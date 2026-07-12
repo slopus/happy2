@@ -20,7 +20,8 @@
         "clean": "rm -rf dist coverage"
     },
     "dependencies": {
-        "@fontsource-variable/manrope": "^5.2.8",
+        "@fontsource-variable/figtree": "^5.2.10",
+        "@fontsource-variable/jetbrains-mono": "^5.2.8",
         "solid-js": "^1.9.14"
     },
     "devDependencies": {

@@ -308,7 +308,33 @@ select {
     background-image:
         linear-gradient(rgb(38 93 126 / 0.07) 1px, transparent 1px),
         linear-gradient(90deg, rgb(38 93 126 / 0.07) 1px, transparent 1px);
-    background-size: 12px 12px;
+    background-size: 16px 16px;
+}
+
+/* Dark stages match the surfaces the Relay theme components actually sit on. */
+.specimen-stage[data-stage] {
+    background-image:
+        linear-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgb(255 255 255 / 0.05) 1px, transparent 1px),
+        linear-gradient(rgb(255 255 255 / 0.022) 1px, transparent 1px),
+        linear-gradient(90deg, rgb(255 255 255 / 0.022) 1px, transparent 1px);
+    background-size:
+        80px 80px,
+        80px 80px,
+        16px 16px,
+        16px 16px;
+}
+
+.specimen-stage[data-stage="app"] {
+    background-color: #17161c;
+}
+
+.specimen-stage[data-stage="chrome"] {
+    background-color: #131217;
+}
+
+.specimen-stage[data-stage="surface"] {
+    background-color: #1c1b22;
 }
 
 .dimensioned-button {

@@ -1,0 +1,15 @@
+/*
+ * Icon — hand-drawn 20-unit-grid stroke glyphs.
+ *
+ * All glyph geometry (stroke mass, caps, optical centering) lives in the SVG
+ * path data itself; the CSS only pins the box behavior so icons never distort
+ * inside flex rows and always paint on their own layout box.
+ */
+
+.rigged-icon {
+    box-sizing: border-box;
+    display: block;
+    flex: none;
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+}

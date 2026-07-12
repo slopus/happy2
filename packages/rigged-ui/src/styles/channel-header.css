@@ -1,0 +1,186 @@
+/*
+ * ChannelHeader — 52px context strip across the top of the main app surface.
+ *
+ * Contract: 52px high (border-bottom hairline inside the box), 16px x-padding,
+ * transparent so it composes on --rg-bg-app. Left cluster truncates through
+ * the topic; the right meta cluster (facepile / member count / agent chip /
+ * actions) never shrinks.
+ */
+
+.rigged-channel-header,
+.rigged-channel-header__info,
+.rigged-channel-header__icon,
+.rigged-channel-header__title,
+.rigged-channel-header__dot,
+.rigged-channel-header__topic,
+.rigged-channel-header__meta,
+.rigged-channel-header__members,
+.rigged-channel-header__facepile,
+.rigged-channel-header__member-count,
+.rigged-channel-header__actions {
+    box-sizing: border-box;
+}
+
+.rigged-channel-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    height: 52px;
+    margin: 0;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--rg-border);
+    background: transparent;
+    color: var(--rg-text);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Left cluster: icon · title · dot · topic ------------------------ */
+
+.rigged-channel-header__info {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.rigged-channel-header__icon {
+    display: flex;
+    flex: none;
+    color: var(--rg-text-muted);
+}
+
+.rigged-channel-header__title {
+    flex: none;
+    margin: 0;
+    color: var(--rg-text);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    white-space: nowrap;
+}
+
+/*
+ * Optical corrections, measured at true-2x element captures (alpha-weighted
+ * ink centroid vs the 51px content-lane center; five titles, four topics,
+ * and three counts probed per engine — see ChannelHeader.test.tsx):
+ *   - title 15px/700: Blink paints 0.70–1.31px low and WebKit 0.67–1.26px
+ *     low, so a -1px lift centers the family within ±0.34px. Gecko paints
+ *     the same runs 0.5px lower still (1.20–1.81px) → -1.5px.
+ *   - topic 12px/400: Blink/WebKit 0.37–0.79px low → -0.5px (±0.30px);
+ *     Gecko 0.90–1.29px low → -1px.
+ *   - member-count digits: Blink/WebKit 0.20–0.39px HIGH → +0.5px drop
+ *     (±0.30px); Gecko already sits within ±0.30px → 0.
+ * Values stay in device-pixel quanta (multiples of 0.5px at 2x) so the
+ * shift never re-rasterizes the run. The ink wrappers move the paint
+ * without moving the boxes off the layout grid. Engine scopes follow the
+ * avatar.css detection pattern: Gecko is the only engine that parses
+ * -moz-appearance (@-moz-document is stripped by the CSS pipeline, and
+ * Blink on macOS also matches @supports (font: -apple-system-body)).
+ */
+.rigged-channel-header__title-ink {
+    display: block;
+    transform: translateY(var(--rg-channel-title-optical-y, -1px));
+}
+
+@supports (-moz-appearance: none) {
+    .rigged-channel-header__title-ink {
+        --rg-channel-title-optical-y: -1.5px;
+    }
+
+    .rigged-channel-header__topic-ink {
+        --rg-channel-topic-optical-y: -1px;
+    }
+
+    .rigged-channel-header__member-count-ink {
+        --rg-channel-count-optical-y: 0px;
+    }
+}
+
+.rigged-channel-header__dot {
+    flex: none;
+    width: 3px;
+    height: 3px;
+    border-radius: var(--rg-radius-pill);
+    background: var(--rg-text-faint);
+}
+
+.rigged-channel-header__topic {
+    flex: 0 1 auto;
+    min-width: 0;
+    color: var(--rg-text-muted);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 16px;
+}
+
+/*
+ * Truncation lives on the ink wrapper so the measured 12px/16 topic run can
+ * carry its own optical lift (see the correction comment above) while the
+ * outer span stays on the layout grid.
+ */
+.rigged-channel-header__topic-ink {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transform: translateY(var(--rg-channel-topic-optical-y, -0.5px));
+}
+
+/* ---- Right cluster: facepile · count · agent chip · actions ---------- */
+
+.rigged-channel-header__meta {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+}
+
+.rigged-channel-header__members {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+}
+
+.rigged-channel-header__facepile {
+    display: flex;
+    flex: none;
+}
+
+/*
+ * Overlapping xs avatars: later faces sit on top; a 2px gap ring in the app
+ * surface color keeps them separated and a 1px hairline rings the stack.
+ */
+.rigged-channel-header__face.rigged-avatar {
+    box-shadow:
+        0 0 0 2px var(--rg-bg-app),
+        0 0 0 3px var(--rg-border);
+}
+
+.rigged-channel-header__face.rigged-avatar + .rigged-channel-header__face.rigged-avatar {
+    margin-left: -6px;
+}
+
+.rigged-channel-header__member-count {
+    flex: none;
+    color: var(--rg-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+}
+
+/* Digit-run optical drop, measured per engine (see the comment above). */
+.rigged-channel-header__member-count-ink {
+    display: block;
+    transform: translateY(var(--rg-channel-count-optical-y, 0.5px));
+}
+
+.rigged-channel-header__actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+}

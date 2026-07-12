@@ -1,0 +1,348 @@
+/*
+ * C-009 Sidebar — 288px navigation column on the chrome surface.
+ *
+ * Contract: 288px wide (border included), fills height, --rg-bg-chrome with a
+ * right hairline. 52px header, scrollable 8px-padded body on a 32px row grid,
+ * optional 52px footer behind a top hairline.
+ */
+
+.rigged-sidebar,
+.rigged-sidebar * {
+    box-sizing: border-box;
+}
+
+.rigged-sidebar {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    width: 288px;
+    height: 100%;
+    background: var(--rg-bg-chrome);
+    border-right: 1px solid var(--rg-border);
+    color: var(--rg-text);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* ---- Header ----------------------------------------------------------- */
+
+.rigged-sidebar__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    height: 52px;
+    padding: 0 16px;
+}
+
+.rigged-sidebar__heading {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.rigged-sidebar__title-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+}
+
+.rigged-sidebar__title {
+    display: block;
+    overflow: hidden;
+    color: var(--rg-text);
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transform: translateY(var(--rg-sidebar-header-optical-y, 0px));
+}
+
+.rigged-sidebar__title-chevron {
+    display: flex;
+    flex: none;
+    color: var(--rg-text-muted);
+    transform: translateY(var(--rg-sidebar-chevron-optical-y, 0px));
+}
+
+.rigged-sidebar__subtitle {
+    display: block;
+    overflow: hidden;
+    color: var(--rg-text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transform: translateY(var(--rg-sidebar-header-optical-y, 0px));
+}
+
+.rigged-sidebar__compose {
+    margin-right: -6px; /* optical: keep the glyph on the 16px margin */
+}
+
+/* ---- Body ------------------------------------------------------------- */
+
+.rigged-sidebar__body {
+    flex: 1;
+    min-height: 0;
+    padding: 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.rigged-sidebar__section {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.rigged-sidebar__section + .rigged-sidebar__section {
+    margin-top: 12px;
+}
+
+.rigged-sidebar__section-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    height: 24px;
+    padding: 0 10px;
+}
+
+.rigged-sidebar__section-label {
+    display: block;
+    overflow: hidden;
+    color: var(--rg-text-faint);
+    font-family: var(--rg-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 24px;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transform: translateY(var(--rg-sidebar-section-optical-y, 0px));
+}
+
+.rigged-sidebar__section-action {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    margin-right: -3px; /* optical: align the glyph with the row meta lane */
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--rg-text-muted);
+    appearance: none;
+    cursor: pointer;
+    opacity: 0;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease,
+        opacity 120ms ease;
+}
+
+.rigged-sidebar__section-head:hover .rigged-sidebar__section-action,
+.rigged-sidebar__section-action:focus-visible {
+    opacity: 1;
+}
+
+.rigged-sidebar__section-action:hover {
+    background: var(--rg-bg-hover);
+    color: var(--rg-text-secondary);
+}
+
+.rigged-sidebar__section-action:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: 1px;
+}
+
+/* ---- Rows ------------------------------------------------------------- */
+
+.rigged-sidebar__item {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 32px;
+    margin: 0;
+    padding: 0 10px;
+    border: none;
+    border-radius: var(--rg-radius-sm);
+    background: transparent;
+    color: var(--rg-text-secondary);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+    text-align: left;
+    appearance: none;
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
+}
+
+.rigged-sidebar__item:hover {
+    background: var(--rg-bg-hover);
+}
+
+.rigged-sidebar__item:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: -2px;
+}
+
+.rigged-sidebar__item[data-active] {
+    background: var(--rg-bg-raised);
+    color: var(--rg-text);
+}
+
+.rigged-sidebar__item-leading {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    color: var(--rg-text-muted);
+}
+
+.rigged-sidebar__item[data-active] .rigged-sidebar__item-leading {
+    color: var(--rg-text);
+}
+
+.rigged-sidebar__item-label {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transform: translateY(var(--rg-sidebar-label-optical-y, 0px));
+}
+
+.rigged-sidebar__item[data-active] .rigged-sidebar__item-label {
+    font-weight: 600;
+}
+
+.rigged-sidebar__item[data-unread] {
+    color: var(--rg-text);
+}
+
+.rigged-sidebar__item[data-unread] .rigged-sidebar__item-label {
+    font-weight: 700;
+}
+
+.rigged-sidebar__item[data-kind="action"] {
+    color: var(--rg-text-muted);
+}
+
+.rigged-sidebar__item-badge {
+    flex: none;
+}
+
+.rigged-sidebar__item-meta {
+    display: block;
+    flex: none;
+    color: var(--rg-text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+    transform: translateY(var(--rg-sidebar-meta-optical-y, 0px));
+}
+
+.rigged-sidebar__item-working {
+    display: block;
+    flex: none;
+    color: var(--rg-text-muted);
+    font-family: var(--rg-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+    transform: translateY(var(--rg-sidebar-working-optical-y, 0px));
+}
+
+.rigged-sidebar__item-status {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    margin-right: 1px; /* optical: match the 18px badge lane edge */
+    border-radius: var(--rg-radius-pill);
+}
+
+.rigged-sidebar__item-status[data-status="ready"] {
+    background: var(--rg-online);
+}
+
+.rigged-sidebar__item-status[data-status="working"] {
+    background: var(--rg-warning);
+    box-shadow: 0 0 0 3px var(--rg-warning-soft);
+}
+
+/* ---- Footer ------------------------------------------------------------ */
+
+.rigged-sidebar__footer {
+    display: flex;
+    flex: none;
+    align-items: center;
+    height: 52px;
+    padding: 0 16px;
+    border-top: 1px solid var(--rg-border);
+}
+
+/*
+ * Optical vertical corrections, measured per engine at the fixed 1600×1600
+ * tester viewport (true-2x captures) via alpha-weighted ink centroids in
+ * Sidebar.test.tsx: every row kind and state, section labels, header, footer.
+ * Each var centers the mean painted centroid of its text family inside its
+ * lane; per-row residual is content bias (ascenders/descenders) only. Raw
+ * means before correction — labels: Blink +0.37, Gecko +0.87, WebKit +0.83
+ * (low); meta 11px: Blink -1.0 (high), Gecko/WebKit 0; working: +0.8 low in
+ * all engines; section labels: within 0.26 everywhere (no correction);
+ * heading ink vs header center: Blink -0.45, Gecko +0.22, WebKit -0.06;
+ * chevron ink vs title ink: Blink -0.57, Gecko -1.06, WebKit -0.52 (high).
+ * Engine scopes: only Gecko parses -moz-appearance, only WebKit parses
+ * -webkit-named-image().
+ */
+
+.rigged-sidebar {
+    --rg-sidebar-label-optical-y: -0.4px;
+    --rg-sidebar-meta-optical-y: 1px;
+    --rg-sidebar-working-optical-y: -0.6px;
+    --rg-sidebar-section-optical-y: 0px;
+    --rg-sidebar-header-optical-y: 0.5px;
+    --rg-sidebar-chevron-optical-y: 1px;
+}
+
+@supports (-moz-appearance: none) {
+    .rigged-sidebar {
+        --rg-sidebar-label-optical-y: -0.7px;
+        --rg-sidebar-meta-optical-y: 0px;
+        --rg-sidebar-header-optical-y: 0px;
+        --rg-sidebar-chevron-optical-y: 0.75px;
+    }
+}
+
+@supports (background: -webkit-named-image(i)) {
+    .rigged-sidebar {
+        --rg-sidebar-label-optical-y: -0.85px;
+        --rg-sidebar-meta-optical-y: 0px;
+        --rg-sidebar-working-optical-y: -0.8px;
+        --rg-sidebar-header-optical-y: 0px;
+        --rg-sidebar-chevron-optical-y: 0.5px;
+    }
+}

@@ -1,29 +1,53 @@
 @import "tailwindcss" source(".");
 
-.sidebar-link {
+/* The AppShell fills its host; both hosts mount into #root, which must own
+ * the window height for `height: 100%` to resolve. */
+html,
+body,
+#root {
+    height: 100%;
+    margin: 0;
+}
+
+/* App-glue layout utilities (tokens come from rigged-ui's theme). */
+
+.sidebar-user {
     display: flex;
-    height: 2rem;
-    width: 100%;
+    height: 100%;
     align-items: center;
-    gap: 0.55rem;
-    border: 0;
-    border-radius: 0.45rem;
-    background: transparent;
-    padding: 0 0.5rem;
-    color: #5e526d;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-align: left;
-    transition: background 140ms ease;
+    gap: 10px;
+    padding: 0 16px;
+}
+.sidebar-user-name {
+    color: var(--rg-text);
+    font: 600 13px/16px var(--rg-font-ui);
+}
+.sidebar-user-meta {
+    margin-left: auto;
+    color: var(--rg-text-muted);
+    font: 500 11px/14px var(--rg-font-mono);
 }
 
-.sidebar-link:hover {
-    background: #ebe7f1;
+.feature-empty {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 24px;
+    color: var(--rg-text-muted);
+    text-align: center;
 }
-
-.sidebar-link:focus-visible {
-    outline: 2px solid #6f4b92;
-    outline-offset: 1px;
+.feature-empty h2 {
+    margin: 8px 0 0;
+    color: var(--rg-text);
+    font: 700 15px/20px var(--rg-font-ui);
+}
+.feature-empty p {
+    margin: 0;
+    font: 500 13px/20px var(--rg-font-ui);
 }
 
 .auth-shell {

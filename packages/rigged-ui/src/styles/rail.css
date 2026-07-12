@@ -1,0 +1,172 @@
+/*
+ * Rail — the 76px feature rail on the far left of the window chrome.
+ *
+ * Contract: 76px wide including the right hairline (border-box), fills its
+ * parent's height, chrome background. Column: brand mark, 60×52 icon+label
+ * item buttons, footer slot pinned to the bottom. The 1px right border lives
+ * inside the 76px, so the 75px content lane centers children on .5px CSS
+ * positions — exact physical pixels at the required 2× scale.
+ */
+
+.rigged-rail,
+.rigged-rail * {
+    box-sizing: border-box;
+}
+
+.rigged-rail {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    width: 76px;
+    height: 100%;
+    padding: 10px 0;
+    background: var(--rg-bg-chrome);
+    border-right: 1px solid var(--rg-border);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Brand ----------------------------------------------------------- */
+
+.rigged-rail__brand {
+    display: flex;
+    flex: none;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+
+.rigged-rail__brand-mark {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: var(--rg-tone-brand);
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.rigged-rail__brand-glyph {
+    display: block;
+    color: var(--rg-text-on-accent);
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 15px;
+    transform: translate(var(--rg-rail-glyph-x, 0px), var(--rg-rail-glyph-y, 0.5px));
+}
+
+/*
+ * Engine-measured optical corrections for the brand "R" ink centroid,
+ * re-measured 2026-07-12 with anchored full-resolution captures
+ * (Rail.test.tsx) after the viewport/window fix invalidated every earlier
+ * number. Raw drift (dx, dy) with corrections zeroed: Blink (-0.13, -0.53)
+ * and WebKit (-0.25, -0.56) render the run half a pixel high — the base rule
+ * lowers it 0.5px; Gecko (-0.26, +0.46) renders it half a pixel low and gets
+ * the mirrored override. Residual drift is <=0.26px on both axes everywhere.
+ * Scopes: @-moz-document is stripped by the CSS pipeline and Blink on macOS
+ * also matches @supports (font: -apple-system-body), so Gecko is detected via
+ * -moz-appearance. WebKit needs no own scope — it shares the base value.
+ */
+@supports (-moz-appearance: none) {
+    .rigged-rail__brand-glyph {
+        --rg-rail-glyph-y: -0.5px;
+    }
+}
+
+/* ---- Items ------------------------------------------------------------ */
+
+.rigged-rail__items {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+}
+
+.rigged-rail__item {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 60px;
+    height: 52px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: var(--rg-text-muted);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+    appearance: none;
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
+}
+
+.rigged-rail__item:hover {
+    background: var(--rg-bg-hover);
+    color: var(--rg-text-secondary);
+}
+
+.rigged-rail__item:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: 2px;
+}
+
+.rigged-rail__item[data-active] {
+    background: var(--rg-accent-soft);
+    color: var(--rg-accent-strong);
+}
+
+.rigged-rail__item-icon {
+    position: relative;
+    display: block;
+    flex: none;
+    width: 20px;
+    height: 20px;
+}
+
+.rigged-rail__item-badge {
+    position: absolute;
+    top: -7px;
+    left: 13px;
+    display: block;
+}
+
+.rigged-rail__item-label {
+    display: block;
+    max-width: 56px;
+    overflow: hidden;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 12px;
+    letter-spacing: 0.02em;
+    /* Letter-spacing trails the last glyph, widening the box 0.02em to the
+     * right of the ink; cancel the bias structurally (no translate nudges)
+     * so flex centering centers the ink run itself. */
+    margin-right: -0.02em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rigged-rail__item[data-active] .rigged-rail__item-label {
+    color: var(--rg-text);
+}
+
+/* ---- Footer ------------------------------------------------------------ */
+
+.rigged-rail__footer {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    margin-top: auto;
+    padding-top: 10px;
+}

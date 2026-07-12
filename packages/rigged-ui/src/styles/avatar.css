@@ -1,0 +1,216 @@
+/*
+ * Avatar — identity mark for humans (circle) and agents (rounded square).
+ * Sizes: xs 20 / sm 28 / md 36 / lg 44. Tone gradients come from theme.css.
+ */
+
+.rigged-avatar,
+.rigged-avatar__initials,
+.rigged-avatar__image,
+.rigged-avatar__presence {
+    box-sizing: border-box;
+}
+
+.rigged-avatar {
+    position: relative;
+    display: grid;
+    flex: none;
+    align-items: center;
+    justify-items: center;
+    border-radius: var(--rg-radius-pill);
+    background: var(--rg-tone-slate);
+    color: var(--rg-text-on-accent);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+    font-weight: 700;
+    letter-spacing: 0;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.rigged-avatar[data-size="xs"] {
+    width: 20px;
+    height: 20px;
+    font-size: 8px;
+    line-height: 8px;
+}
+
+.rigged-avatar[data-size="sm"] {
+    width: 28px;
+    height: 28px;
+    font-size: 10px;
+    line-height: 10px;
+}
+
+.rigged-avatar[data-size="md"] {
+    width: 36px;
+    height: 36px;
+    font-size: 12px;
+    line-height: 12px;
+}
+
+.rigged-avatar[data-size="lg"] {
+    width: 44px;
+    height: 44px;
+    font-size: 14px;
+    line-height: 14px;
+}
+
+.rigged-avatar[data-type="agent"][data-size="xs"] {
+    border-radius: 6px;
+}
+
+.rigged-avatar[data-type="agent"][data-size="sm"] {
+    border-radius: 7px;
+}
+
+.rigged-avatar[data-type="agent"][data-size="md"] {
+    border-radius: 9px;
+}
+
+.rigged-avatar[data-type="agent"][data-size="lg"] {
+    border-radius: 10px;
+}
+
+.rigged-avatar[data-tone="violet"] {
+    background: var(--rg-tone-violet);
+}
+
+.rigged-avatar[data-tone="ember"] {
+    background: var(--rg-tone-ember);
+}
+
+.rigged-avatar[data-tone="mint"] {
+    background: var(--rg-tone-mint);
+}
+
+.rigged-avatar[data-tone="ocean"] {
+    background: var(--rg-tone-ocean);
+}
+
+.rigged-avatar[data-tone="rose"] {
+    background: var(--rg-tone-rose);
+}
+
+.rigged-avatar[data-tone="amber"] {
+    background: var(--rg-tone-amber);
+}
+
+.rigged-avatar[data-tone="slate"] {
+    background: var(--rg-tone-slate);
+}
+
+.rigged-avatar[data-tone="brand"] {
+    background: var(--rg-tone-brand);
+}
+
+.rigged-avatar__initials {
+    display: block;
+    transform: translate(var(--rg-avatar-optical-x, 0px), var(--rg-avatar-optical-y, 0px));
+}
+
+/*
+ * Engine-measured optical corrections for the initials ink centroid
+ * (alpha-weighted, asserted at ≤0.75px per axis in Avatar.test.tsx).
+ * Measured at true 2x capture resolution against representative initials
+ * (ST / MJ / S / AI / A); each correction centers the min/max centroid
+ * range of those strings, so the residual is inherent glyph-ink asymmetry
+ * (T's top bar pulls ST high everywhere), not box misalignment. Engines
+ * snap glyph runs to device-pixel steps, so the response to a translate
+ * is non-linear; do not retune by extrapolation, re-sweep with
+ * Avatar.test.tsx probes. Base values are Chromium; Gecko and WebKit
+ * override below.
+ */
+.rigged-avatar[data-size="xs"] {
+    --rg-avatar-optical-x: 0.1px;
+    --rg-avatar-optical-y: -0.3px;
+}
+
+.rigged-avatar[data-size="sm"] {
+    --rg-avatar-optical-x: -0.15px;
+    --rg-avatar-optical-y: 0.54px;
+}
+
+.rigged-avatar[data-size="md"] {
+    --rg-avatar-optical-x: 0.1px;
+    --rg-avatar-optical-y: 0.26px;
+}
+
+.rigged-avatar[data-size="lg"] {
+    --rg-avatar-optical-x: 0.1px;
+    --rg-avatar-optical-y: 1px;
+}
+
+/*
+ * Firefox — Gecko is the only engine that parses -moz-appearance.
+ * (@-moz-document is stripped by the CSS pipeline, and Blink on macOS
+ * matches @supports (font: -apple-system-body), so those two classic
+ * scopes cannot be used here.)
+ */
+@supports (-moz-appearance: none) {
+    .rigged-avatar[data-size="xs"] {
+        --rg-avatar-optical-x: 0.05px;
+        --rg-avatar-optical-y: -0.3px;
+    }
+
+    .rigged-avatar[data-size="sm"] {
+        --rg-avatar-optical-x: 0.3px;
+        --rg-avatar-optical-y: 0px;
+    }
+
+    .rigged-avatar[data-size="md"] {
+        --rg-avatar-optical-x: 0px;
+        --rg-avatar-optical-y: -0.26px;
+    }
+
+    .rigged-avatar[data-size="lg"] {
+        --rg-avatar-optical-x: 0.05px;
+        --rg-avatar-optical-y: 0px;
+    }
+}
+
+/* WebKit — Blink and Gecko do not parse -webkit-named-image(). */
+@supports (background: -webkit-named-image(i)) {
+    .rigged-avatar[data-size="xs"] {
+        --rg-avatar-optical-x: 0.2px;
+        --rg-avatar-optical-y: -0.45px;
+    }
+
+    .rigged-avatar[data-size="sm"] {
+        --rg-avatar-optical-x: 0.3px;
+        --rg-avatar-optical-y: 0.15px;
+    }
+
+    .rigged-avatar[data-size="md"] {
+        --rg-avatar-optical-x: 0.4px;
+        --rg-avatar-optical-y: 0.33px;
+    }
+
+    .rigged-avatar[data-size="lg"] {
+        --rg-avatar-optical-x: 0.4px;
+        --rg-avatar-optical-y: 0.07px;
+    }
+}
+
+.rigged-avatar__image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    object-fit: cover;
+}
+
+.rigged-avatar__presence {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 8px;
+    height: 8px;
+    border: 2px solid var(--rg-bg-app);
+    border-radius: var(--rg-radius-pill);
+    background: var(--rg-online);
+}
+
+.rigged-avatar[data-size="lg"] .rigged-avatar__presence {
+    width: 10px;
+    height: 10px;
+}

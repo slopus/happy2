@@ -1,12 +1,16 @@
 # rigged-ui
 
-View-only SolidJS primitives for Rigged. Components do not read from application stores or own
-product state; callers provide content, appearance, state, and event handlers through props.
-The package bundles the OFL-licensed Manrope variable font so component typography does not depend
-on host operating-system fonts.
+View-only SolidJS primitives for Rigged, implementing the "Relay" dark theme. Components do not
+read from application stores or own product state; callers provide content, appearance, state, and
+event handlers through props. All colors and typography come from the `--rg-*` design tokens in
+`src/theme.css`. The package bundles the OFL-licensed Figtree (UI) and JetBrains Mono (code)
+variable fonts so component typography does not depend on host operating-system fonts.
 
 Run `pnpm --filter rigged-ui dev` to open the blueprint component workbench. Its component selector
-navigates between dedicated Box and Button specimen pages.
+navigates between the specimen pages C-001 (Box) through C-017 (Composer): layout and window
+chrome (AppShell, TitleBar, Rail, Sidebar), chat (ChannelHeader, Message/MessageList, Composer),
+agent surfaces (AgentRunCard, ApprovalCard, EventCard, AgentDesk, DiffSnippet), and the primitives
+they compose (Icon, Button, Avatar, Badge family).
 
 ```tsx
 import { Box, Button } from "rigged-ui";

@@ -1,0 +1,296 @@
+/*
+ * Badge family — Badge (status pill), CountBadge (unread count),
+ * ReactionChip (emoji reaction), KeyCap (shortcut hint).
+ *
+ * Contract heights: Badge 18, CountBadge 18 (min-width 18), ReactionChip 24,
+ * KeyCap 18. Badge and KeyCap use the mono uppercase treatment.
+ */
+
+.rigged-badge,
+.rigged-badge *,
+.rigged-count-badge,
+.rigged-count-badge *,
+.rigged-reaction-chip,
+.rigged-reaction-chip *,
+.rigged-key-cap,
+.rigged-key-cap * {
+    box-sizing: border-box;
+}
+
+/* ---- Badge ---------------------------------------------------------- */
+
+.rigged-badge {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    gap: 4px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-family: var(--rg-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 18px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-synthesis: none;
+    white-space: nowrap;
+}
+
+.rigged-badge__label {
+    display: block;
+    /*
+     * letter-spacing also trails the last glyph, so the advance box the flex
+     * centering centers is 0.06em wider than the ink. Trimming that trailing
+     * space here recenters the ink structurally (no translate needed on x).
+     */
+    margin-right: -0.06em;
+    transform: translate(var(--rg-badge-label-x, 0px), var(--rg-badge-label-y, 0px));
+}
+
+.rigged-badge__icon {
+    display: flex;
+    flex: none;
+    /*
+     * The 12px spark glyph rasterizes with its ink centroid ~0.45px right of
+     * its box in every engine (Badge.test.tsx); the path lives in Icon.tsx,
+     * which the badge cannot edit, so compensate at the slot.
+     */
+    transform: translateX(var(--rg-badge-icon-x, 0px));
+}
+
+.rigged-badge[data-variant="neutral"] {
+    background: var(--rg-bg-inset);
+    color: var(--rg-text-secondary);
+}
+
+.rigged-badge[data-variant="accent"] {
+    background: var(--rg-accent-soft);
+    color: var(--rg-accent-strong);
+}
+
+.rigged-badge[data-variant="success"] {
+    background: var(--rg-success-soft);
+    color: var(--rg-success-strong);
+}
+
+.rigged-badge[data-variant="warning"] {
+    background: var(--rg-warning-soft);
+    color: var(--rg-warning-strong);
+}
+
+.rigged-badge[data-variant="danger"] {
+    background: var(--rg-danger-soft);
+    color: var(--rg-danger-strong);
+}
+
+.rigged-badge[data-variant="info"] {
+    background: var(--rg-info-soft);
+    color: var(--rg-info);
+}
+
+.rigged-badge[data-variant="outline"] {
+    background: transparent;
+    border: 1px solid var(--rg-border-strong);
+    padding: 0 5px; /* keeps label 6px from the visual edge */
+    color: var(--rg-text-secondary);
+}
+
+/* ---- CountBadge ------------------------------------------------------ */
+
+.rigged-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    height: 18px;
+    min-width: 18px;
+    padding: 0 5px;
+    border-radius: var(--rg-radius-pill);
+    font-family: var(--rg-font-ui);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    font-synthesis: none;
+    white-space: nowrap;
+}
+
+.rigged-count-badge__label {
+    display: block;
+    transform: translate(var(--rg-count-label-x, 0px), var(--rg-count-label-y, 0px));
+}
+
+.rigged-count-badge[data-tone="accent"] {
+    background: var(--rg-accent);
+    color: var(--rg-text-on-accent);
+}
+
+.rigged-count-badge[data-tone="neutral"] {
+    background: var(--rg-bg-inset);
+    color: var(--rg-text-secondary);
+}
+
+/* ---- ReactionChip ---------------------------------------------------- */
+
+.rigged-reaction-chip {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    gap: 5px;
+    height: 24px;
+    margin: 0;
+    padding: 0 8px;
+    background: var(--rg-bg-inset);
+    border: 1px solid var(--rg-border);
+    border-radius: var(--rg-radius-pill);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+    appearance: none;
+    cursor: pointer;
+    transition:
+        border-color 120ms ease,
+        background-color 120ms ease;
+}
+
+.rigged-reaction-chip:hover {
+    border-color: var(--rg-border-strong);
+}
+
+.rigged-reaction-chip:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: 2px;
+}
+
+.rigged-reaction-chip__emoji {
+    display: block;
+    font-size: 13px;
+    line-height: 22px;
+    transform: translate(var(--rg-chip-emoji-x, 0px), var(--rg-chip-emoji-y, 0px));
+}
+
+.rigged-reaction-chip__count {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 22px;
+    color: var(--rg-text-secondary);
+    transform: translate(var(--rg-chip-count-x, 0px), var(--rg-chip-count-y, 0px));
+}
+
+.rigged-reaction-chip[data-active] {
+    background: var(--rg-accent-soft);
+    border-color: var(--rg-accent);
+}
+
+.rigged-reaction-chip[data-active] .rigged-reaction-chip__count {
+    color: var(--rg-accent-strong);
+}
+
+/* ---- KeyCap ---------------------------------------------------------- */
+
+.rigged-key-cap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    height: 18px;
+    padding: 0 5px;
+    background: var(--rg-bg-inset);
+    border-radius: 4px;
+    font-family: var(--rg-font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 18px;
+    color: var(--rg-text-secondary);
+    font-synthesis: none;
+    white-space: nowrap;
+}
+
+.rigged-key-cap__label {
+    display: block;
+    transform: translate(var(--rg-keycap-label-x, 0px), var(--rg-keycap-label-y, 0px));
+}
+
+/*
+ * ---- Optical corrections (measured; see Badge.test.tsx) ---------------
+ *
+ * Engine-measured ink-centroid corrections, tuned against alpha-weighted
+ * visible-pixel captures at 2x in all three engines (raw drift measured with
+ * every value below zeroed first). One correction per part must serve every
+ * content case; the residual is inherent glyph-ink asymmetry, not box
+ * misalignment. Engines snap glyph runs to device-pixel steps, so the
+ * response to a translate is non-linear; re-measure, never extrapolate.
+ * Base values are the Chromium measurements; Gecko and WebKit override below.
+ */
+.rigged-badge {
+    --rg-badge-icon-x: -0.2px;
+    --rg-badge-label-x: 0.2px;
+    --rg-badge-label-y: 0.7px;
+}
+
+.rigged-count-badge {
+    --rg-count-label-y: 1.3px;
+}
+
+.rigged-reaction-chip {
+    --rg-chip-count-x: -0.15px;
+    --rg-chip-count-y: 1.4px;
+    --rg-chip-emoji-x: 1.4px;
+    --rg-chip-emoji-y: 0.4px;
+}
+
+.rigged-key-cap {
+    --rg-keycap-label-x: 0.25px;
+    --rg-keycap-label-y: 0.55px;
+}
+
+/*
+ * Firefox — Gecko is the only engine that parses -moz-appearance.
+ * (@-moz-document is stripped by the CSS pipeline, and Blink on macOS
+ * matches @supports (font: -apple-system-body), so those two classic
+ * scopes cannot be used here.)
+ */
+@supports (-moz-appearance: none) {
+    .rigged-badge {
+        --rg-badge-label-y: -0.5px;
+    }
+
+    .rigged-count-badge {
+        --rg-count-label-y: 0.3px;
+    }
+
+    .rigged-reaction-chip {
+        --rg-chip-count-x: -0.15px;
+        --rg-chip-count-y: 0.25px;
+        --rg-chip-emoji-x: 1.6px;
+        --rg-chip-emoji-y: 0.4px;
+    }
+
+    .rigged-key-cap {
+        --rg-keycap-label-x: -0.35px;
+        --rg-keycap-label-y: -0.45px;
+    }
+}
+
+/* WebKit — Blink and Gecko do not parse -webkit-named-image(). */
+@supports (background: -webkit-named-image(i)) {
+    .rigged-badge {
+        --rg-badge-label-y: 0.3px;
+    }
+
+    .rigged-count-badge {
+        --rg-count-label-y: 0.35px;
+    }
+
+    .rigged-reaction-chip {
+        --rg-chip-count-x: -0.15px;
+        --rg-chip-count-y: 0.05px;
+        --rg-chip-emoji-x: 0.25px;
+        --rg-chip-emoji-y: 0.25px;
+    }
+
+    .rigged-key-cap {
+        --rg-keycap-label-x: 0.1px;
+        --rg-keycap-label-y: 0.25px;
+    }
+}

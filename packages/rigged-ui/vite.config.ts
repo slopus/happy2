@@ -24,12 +24,21 @@ export default defineConfig({
             provider: playwright({
                 contextOptions: {
                     deviceScaleFactor: 2,
+                    /* Must be >= the tester viewport below: when the browser
+                     * window is smaller, vitest CSS-scales the tester iframe
+                     * and element captures come out at a fraction of true 2x. */
+                    viewport: {
+                        height: 1660,
+                        width: 1660,
+                    },
                 },
             }),
             ui: false,
+            /* Element captures clip to the viewport; keep it larger than any
+             * test surface so screenshots and pixel measurements never truncate. */
             viewport: {
-                height: 600,
-                width: 400,
+                height: 1600,
+                width: 1600,
             },
         },
     },

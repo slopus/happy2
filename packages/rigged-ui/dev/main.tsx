@@ -1,525 +1,58 @@
-import { createSignal, For, Match, onCleanup, onMount, Switch, type JSX } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { render } from "solid-js/web";
-import {
-    AgentMentionPicker,
-    AgentRunCard,
-    ApprovalRequestCard,
-    Avatar,
-    Box,
-    Button,
-    ContextChips,
-    ContextIcon,
-    Rail,
-    type AvatarSize,
-    type AgentRun,
-    type ApprovalRequest,
-    type ButtonSize,
-    type ButtonVariant,
-    type MentionableAgent,
-    type Feature,
-} from "../src";
+import "../src/index";
 import "./workbench.css";
+import { AgentDeskPage } from "./pages/AgentDeskPage";
+import { AgentRunCardPage } from "./pages/AgentRunCardPage";
+import { ApprovalCardPage } from "./pages/ApprovalCardPage";
+import { AppShellPage } from "./pages/AppShellPage";
+import { AvatarPage } from "./pages/AvatarPage";
+import { BadgePage } from "./pages/BadgePage";
+import { BoxPage } from "./pages/BoxPage";
+import { ButtonPage } from "./pages/ButtonPage";
+import { ChannelHeaderPage } from "./pages/ChannelHeaderPage";
+import { ComposerPage } from "./pages/ComposerPage";
+import { DiffSnippetPage } from "./pages/DiffSnippetPage";
+import { EventCardPage } from "./pages/EventCardPage";
+import { IconPage } from "./pages/IconPage";
+import { MessagePage } from "./pages/MessagePage";
+import { RailPage } from "./pages/RailPage";
+import { SidebarPage } from "./pages/SidebarPage";
+import { TitleBarPage } from "./pages/TitleBarPage";
 
-type ComponentId =
-    | "agent-mention-picker"
-    | "agent-run-card"
-    | "approval-request-card"
-    | "avatar"
-    | "box"
-    | "button"
-    | "context-chips"
-    | "context-icon"
-    | "rail";
-
-const components: Array<{ id: ComponentId; label: string; number: string }> = [
-    { id: "rail", label: "Rail", number: "C-009" },
-    { id: "approval-request-card", label: "Approval request card", number: "C-008" },
-    { id: "context-chips", label: "Context chips", number: "C-007" },
-    { id: "agent-run-card", label: "Agent run card", number: "C-006" },
-    { id: "context-icon", label: "Context icon", number: "C-005" },
-    { id: "agent-mention-picker", label: "Agent mention picker", number: "C-004" },
-    { id: "avatar", label: "Avatar", number: "C-003" },
-    { id: "button", label: "Button", number: "C-002" },
-    { id: "box", label: "Box", number: "C-001" },
+const components: Array<{ id: string; label: string; number: string; page: () => JSX.Element }> = [
+    { id: "box", label: "Box", number: "C-001", page: BoxPage },
+    { id: "icon", label: "Icon", number: "C-002", page: IconPage },
+    { id: "button", label: "Button", number: "C-003", page: ButtonPage },
+    { id: "avatar", label: "Avatar", number: "C-004", page: AvatarPage },
+    { id: "badge", label: "Badge", number: "C-005", page: BadgePage },
+    { id: "diff-snippet", label: "Diff snippet", number: "C-006", page: DiffSnippetPage },
+    { id: "title-bar", label: "Title bar", number: "C-007", page: TitleBarPage },
+    { id: "rail", label: "Rail", number: "C-008", page: RailPage },
+    { id: "sidebar", label: "Sidebar", number: "C-009", page: SidebarPage },
+    { id: "app-shell", label: "App shell", number: "C-010", page: AppShellPage },
+    { id: "channel-header", label: "Channel header", number: "C-011", page: ChannelHeaderPage },
+    { id: "message", label: "Message", number: "C-012", page: MessagePage },
+    { id: "agent-run-card", label: "Agent run card", number: "C-013", page: AgentRunCardPage },
+    { id: "approval-card", label: "Approval card", number: "C-014", page: ApprovalCardPage },
+    { id: "event-card", label: "Event card", number: "C-015", page: EventCardPage },
+    { id: "agent-desk", label: "Agent desk", number: "C-016", page: AgentDeskPage },
+    { id: "composer", label: "Composer", number: "C-017", page: ComposerPage },
 ];
 
-function componentFromHash(): ComponentId {
+function componentFromHash(): string {
     const id = window.location.hash.slice(1).toLowerCase();
-    return components.some((component) => component.id === id) ? (id as ComponentId) : "button";
-}
-
-function DimensionRule(props: { label: string }) {
-    return (
-        <span class="dimension-rule" aria-hidden="true">
-            <i />
-            <b>{props.label}</b>
-            <i />
-        </span>
-    );
-}
-
-function Specimen(props: { children: JSX.Element; detail: string; label: string; number: string }) {
-    return (
-        <article class="specimen">
-            <header>
-                <span>{props.number}</span>
-                <strong>{props.label}</strong>
-                <small>{props.detail}</small>
-            </header>
-            <div class="specimen-stage">{props.children}</div>
-        </article>
-    );
-}
-
-function ButtonPage() {
-    const sizes: Array<{ height: number; size: ButtonSize; width: number }> = [
-        { size: "small", height: 28, width: 112 },
-        { size: "medium", height: 36, width: 128 },
-        { size: "large", height: 44, width: 144 },
-    ];
-    const variants: ButtonVariant[] = ["primary", "secondary", "ghost"];
-
-    return (
-        <ComponentPage
-            number="C-002"
-            title="Button"
-            summary="An action surface with fixed vertical rhythm and optically calibrated type."
-        >
-            <section class="specimen-grid specimen-grid--sizes" aria-label="Button size specimens">
-                <For each={sizes}>
-                    {(item, index) => (
-                        <Specimen
-                            number={`02.${index() + 1}`}
-                            label={`${item.size} / primary`}
-                            detail={`${item.width} × ${item.height}`}
-                        >
-                            <div class="dimensioned-button">
-                                <DimensionRule label={`${item.width}px`} />
-                                <Button size={item.size} width={item.width}>
-                                    Button
-                                </Button>
-                                <span class="height-callout">{item.height}px</span>
-                            </div>
-                        </Specimen>
-                    )}
-                </For>
-            </section>
-
-            <section class="variant-sheet" aria-labelledby="variant-title">
-                <div class="sheet-heading">
-                    <span>02.4</span>
-                    <div>
-                        <h2 id="variant-title">Variant elevation</h2>
-                        <p>Identical geometry, three levels of visual emphasis.</p>
-                    </div>
-                </div>
-                <div class="variant-row">
-                    <For each={variants}>
-                        {(variant) => (
-                            <div>
-                                <Button variant={variant} size="medium" width={136}>
-                                    {variant}
-                                </Button>
-                                <code>{variant}</code>
-                            </div>
-                        )}
-                    </For>
-                </div>
-                <div class="full-width-demo">
-                    <DimensionRule label="container width" />
-                    <Button fullWidth>Full width</Button>
-                </div>
-            </section>
-        </ComponentPage>
-    );
-}
-
-function AvatarPage() {
-    const sizes: Array<{ dimension: number; size: AvatarSize }> = [
-        { size: "xs", dimension: 18 },
-        { size: "sm", dimension: 36 },
-        { size: "md", dimension: 40 },
-    ];
-
-    return (
-        <ComponentPage
-            number="C-003"
-            title="Avatar"
-            summary="A prop-driven identity mark with fixed geometry and measured optical alignment."
-        >
-            <section class="specimen-grid specimen-grid--sizes" aria-label="Avatar size specimens">
-                <For each={sizes}>
-                    {(item, index) => (
-                        <Specimen
-                            number={`03.${index() + 1}`}
-                            label={`${item.size} / human`}
-                            detail={`${item.dimension} × ${item.dimension}`}
-                        >
-                            <div class="dimensioned-avatar">
-                                <DimensionRule label={`${item.dimension}px`} />
-                                <Avatar
-                                    initials="ST"
-                                    size={item.size}
-                                    online={item.size === "sm"}
-                                    style={{
-                                        background:
-                                            "linear-gradient(145deg, #3ca8a4, #4b5fb0 52%, #d14c78)",
-                                    }}
-                                />
-                            </div>
-                        </Specimen>
-                    )}
-                </For>
-            </section>
-
-            <section class="avatar-sheet" aria-labelledby="avatar-forms-title">
-                <div class="sheet-heading">
-                    <span>03.4</span>
-                    <div>
-                        <h2 id="avatar-forms-title">Identity forms</h2>
-                        <p>Human, agent, presence, and image content share one measured shell.</p>
-                    </div>
-                </div>
-                <div class="avatar-form-row">
-                    <div>
-                        <Avatar
-                            initials="MC"
-                            style={{ background: "linear-gradient(145deg, #cf7548, #e9a752)" }}
-                            online
-                        />
-                        <code>human / online</code>
-                    </div>
-                    <div>
-                        <Avatar
-                            initials="F"
-                            type="bot"
-                            style={{ background: "linear-gradient(145deg, #ef566d, #8056c7)" }}
-                        />
-                        <code>bot</code>
-                    </div>
-                </div>
-            </section>
-        </ComponentPage>
-    );
-}
-
-function AgentMentionPickerPage() {
-    const agents: MentionableAgent[] = [
-        {
-            id: "forge",
-            name: "Forge",
-            initials: "F",
-            avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
-            description: "Implements scoped product and engineering work",
-            status: "ready",
-        },
-        {
-            id: "scout",
-            name: "Scout",
-            initials: "S",
-            avatarClass: "bg-[linear-gradient(145deg,#3296a4,#4d67bd)]",
-            description: "Researches context and synthesizes findings",
-            status: "working",
-        },
-    ];
-
-    return (
-        <ComponentPage
-            number="C-004"
-            title="Agent mention picker"
-            summary="An isolated agent-selection surface driven by a list, query, and callback."
-        >
-            <section class="picker-plans" aria-label="Agent mention picker specimens">
-                <Specimen number="04.1" label="agent results" detail="320 px wide">
-                    <AgentMentionPicker agents={agents} query="" onSelect={() => undefined} />
-                </Specimen>
-                <Specimen number="04.2" label="filtered empty" detail="320 px wide">
-                    <AgentMentionPicker
-                        agents={agents}
-                        query="missing"
-                        onSelect={() => undefined}
-                    />
-                </Specimen>
-            </section>
-        </ComponentPage>
-    );
-}
-
-function ContextIconPage() {
-    const kinds = ["file", "run", "thread"] as const;
-
-    return (
-        <ComponentPage
-            number="C-005"
-            title="Context icon"
-            summary="A measured source-kind mark whose visible pixels share one optical center."
-        >
-            <section class="icon-plans" aria-label="Context icon specimens">
-                <For each={kinds}>
-                    {(kind, index) => (
-                        <Specimen number={`05.${index() + 1}`} label={kind} detail="14 × 14">
-                            <div class="dimensioned-icon">
-                                <DimensionRule label="14px" />
-                                <ContextIcon kind={kind} size={14} color="#44384a" />
-                            </div>
-                        </Specimen>
-                    )}
-                </For>
-            </section>
-        </ComponentPage>
-    );
-}
-
-function AgentRunCardPage() {
-    const run: AgentRun = {
-        agent: "Forge",
-        avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
-        branch: "agent/forge/workspace-naming",
-        files: ["WorkspaceCreator.tsx", "WorkspaceHeader.tsx"],
-        initials: "F",
-        progress: 100,
-        status: "review",
-        steps: [
-            { label: "Trace workspace creation and persistence", status: "done" },
-            { label: "Derive a safe default from the project folder", status: "done" },
-            { label: "Add inline rename in the header", status: "done" },
-        ],
-        title: "Default workspace naming",
-    };
-
-    return (
-        <ComponentPage
-            number="C-006"
-            title="Agent run card"
-            summary="A controlled progress and review surface with no internal application state."
-        >
-            <section class="agent-run-plans" aria-label="Agent run card specimens">
-                <Specimen number="06.1" label="collapsed / review" detail="container width">
-                    <AgentRunCard
-                        expanded={false}
-                        reviewed={false}
-                        run={run}
-                        onExpandedChange={() => undefined}
-                        onReviewedChange={() => undefined}
-                    />
-                </Specimen>
-                <Specimen number="06.2" label="expanded / reviewed" detail="container width">
-                    <AgentRunCard
-                        expanded
-                        reviewed
-                        run={run}
-                        onExpandedChange={() => undefined}
-                        onReviewedChange={() => undefined}
-                    />
-                </Specimen>
-            </section>
-        </ComponentPage>
-    );
-}
-
-function ContextChipsPage() {
-    const items = [
-        { detail: "src/main.tsx", id: "file", kind: "file", label: "main.tsx" },
-        { detail: "Agent run", id: "run", kind: "run", label: "Forge" },
-        { detail: "Design thread", id: "thread", kind: "thread", label: "UI review" },
-    ] as const;
-
-    return (
-        <ComponentPage
-            number="C-007"
-            title="Context chips"
-            summary="A fixed-height source list with controlled removal and measured source icons."
-        >
-            <section class="context-chip-plans" aria-label="Context chip specimens">
-                <Specimen number="07.1" label="removable" detail="112 × 28 each">
-                    <ContextChips
-                        chipWidth={112}
-                        items={[...items]}
-                        label="Attached context"
-                        onRemove={() => undefined}
-                    />
-                </Specimen>
-                <Specimen number="07.2" label="read only" detail="112 × 28 each">
-                    <ContextChips
-                        chipWidth={112}
-                        items={[...items]}
-                        label="Message context"
-                        readOnly
-                    />
-                </Specimen>
-            </section>
-        </ComponentPage>
-    );
-}
-
-function ApprovalRequestCardPage() {
-    const request: ApprovalRequest = {
-        action: "edit config/releases/onboarding.json",
-        agent: "Forge",
-        avatarClass: "bg-[linear-gradient(145deg,#ef566d,#8056c7)]",
-        impact: "One shared configuration file for the next internal desktop build.",
-        initials: "F",
-        reason: "Register the migration without broadening access to release settings.",
-        resources: ["Shared config", "1 file", "Reversible"],
-        title: "Update shared onboarding manifest",
-        typeLabel: "Scope expansion",
-    };
-
-    return (
-        <ComponentPage
-            number="C-008"
-            title="Approval request card"
-            summary="A controlled approval gate whose pending and resolved states are supplied by props."
-        >
-            <section class="approval-plans" aria-label="Approval request card specimens">
-                <Specimen number="08.1" label="pending / collapsed" detail="680 px max">
-                    <ApprovalRequestCard
-                        expanded={false}
-                        request={request}
-                        resolution="pending"
-                        onExpandedChange={() => undefined}
-                        onResolutionChange={() => undefined}
-                    />
-                </Specimen>
-                <Specimen number="08.2" label="approved / expanded" detail="680 px max">
-                    <ApprovalRequestCard
-                        expanded
-                        request={request}
-                        resolution="approved"
-                        onExpandedChange={() => undefined}
-                        onResolutionChange={() => undefined}
-                    />
-                </Specimen>
-            </section>
-        </ComponentPage>
-    );
-}
-
-function RailPage() {
-    const features: Feature[] = [
-        { id: "home", icon: "home", name: "Home" },
-        { id: "agents", icon: "agents", name: "Agents" },
-        { id: "tasks", icon: "tasks", name: "Tasks" },
-        { id: "files", icon: "files", name: "Files" },
-        { id: "more", icon: "more", name: "More" },
-    ];
-
-    return (
-        <ComponentPage
-            number="C-009"
-            title="Rail"
-            summary="The full desktop shell rendered as a controlled, reusable large component card."
-        >
-            <section class="rail-plan" aria-label="Rail specimen">
-                <Specimen number="09.1" label="minimum desktop shell" detail="1024 × 704 · 100%">
-                    <div class="rail-blueprint-viewport">
-                        <Rail
-                            activeFeatureId="agents"
-                            features={features}
-                            onFeatureChange={() => undefined}
-                            onQueryChange={() => undefined}
-                            profileInitials="ST"
-                            query=""
-                            showWindowControls
-                            sidebar={
-                                <div class="rail-blueprint-sidebar">
-                                    <strong>Agents</strong>
-                                    <span>288 px sidebar slot</span>
-                                </div>
-                            }
-                        >
-                            <div class="rail-blueprint-main">
-                                <span>Primary workspace</span>
-                                <strong>660 px at minimum window</strong>
-                            </div>
-                        </Rail>
-                    </div>
-                </Specimen>
-            </section>
-        </ComponentPage>
-    );
-}
-
-function BoxPage() {
-    return (
-        <ComponentPage
-            number="C-001"
-            title="Box"
-            summary="A neutral layout primitive whose geometry is completely controlled by props."
-        >
-            <section class="box-plans" aria-label="Box dimension specimens">
-                <Specimen number="01.1" label="fixed dimensions" detail="240 × 120">
-                    <div class="box-demo box-demo--fixed">
-                        <DimensionRule label="240px" />
-                        <Box width={240} height={120} class="blueprint-box">
-                            <span>240 × 120</span>
-                            <small>fixed</small>
-                        </Box>
-                    </div>
-                </Specimen>
-                <Specimen number="01.2" label="percentage width" detail="62.5% × 96">
-                    <div class="box-demo box-demo--fluid">
-                        <Box width="62.5%" height={96} class="blueprint-box blueprint-box--light">
-                            <span>62.5%</span>
-                            <small>container-relative</small>
-                        </Box>
-                    </div>
-                </Specimen>
-                <Specimen number="01.3" label="nested geometry" detail="320 × 180">
-                    <Box width={320} height={180} class="blueprint-box blueprint-box--frame">
-                        <Box width="50%" height="50%" class="blueprint-box blueprint-box--nested">
-                            <span>50 × 50%</span>
-                        </Box>
-                    </Box>
-                </Specimen>
-            </section>
-        </ComponentPage>
-    );
-}
-
-function ComponentPage(props: {
-    children: JSX.Element;
-    number: string;
-    summary: string;
-    title: string;
-}) {
-    return (
-        <main class="component-page">
-            <header class="component-title">
-                <div class="component-number">{props.number}</div>
-                <div>
-                    <p>Component plan</p>
-                    <h1>{props.title}</h1>
-                    <span>{props.summary}</span>
-                </div>
-                <dl>
-                    <div>
-                        <dt>Framework</dt>
-                        <dd>SolidJS</dd>
-                    </div>
-                    <div>
-                        <dt>Contract</dt>
-                        <dd>Props only</dd>
-                    </div>
-                    <div>
-                        <dt>Capture</dt>
-                        <dd>2× retina</dd>
-                    </div>
-                </dl>
-            </header>
-            {props.children}
-        </main>
-    );
+    return components.some((component) => component.id === id) ? id : "icon";
 }
 
 function Workbench() {
-    const [active, setActive] = createSignal<ComponentId>(componentFromHash());
+    const [active, setActive] = createSignal(componentFromHash());
     const syncHash = () => setActive(componentFromHash());
 
     onMount(() => window.addEventListener("hashchange", syncHash));
     onCleanup(() => window.removeEventListener("hashchange", syncHash));
 
-    const selectComponent = (id: ComponentId) => {
+    const selectComponent = (id: string) => {
         window.location.hash = id;
         setActive(id);
     };
@@ -527,7 +60,7 @@ function Workbench() {
     return (
         <div class="workbench-shell">
             <header class="workbench-header">
-                <a href="#button" class="workbench-brand" aria-label="rigged-ui home">
+                <a href="#icon" class="workbench-brand" aria-label="rigged-ui home">
                     <span>R</span>
                     <strong>rigged-ui</strong>
                     <i>component plans</i>
@@ -542,9 +75,7 @@ function Workbench() {
                     <select
                         aria-label="Open component page"
                         value={active()}
-                        onInput={(event) =>
-                            selectComponent(event.currentTarget.value as ComponentId)
-                        }
+                        onInput={(event) => selectComponent(event.currentTarget.value)}
                     >
                         <For each={components}>
                             {(component) => (
@@ -558,32 +89,11 @@ function Workbench() {
                 </label>
             </header>
             <div class="blueprint-field">
-                <Switch fallback={<BoxPage />}>
-                    <Match when={active() === "rail"}>
-                        <RailPage />
-                    </Match>
-                    <Match when={active() === "approval-request-card"}>
-                        <ApprovalRequestCardPage />
-                    </Match>
-                    <Match when={active() === "context-chips"}>
-                        <ContextChipsPage />
-                    </Match>
-                    <Match when={active() === "agent-run-card"}>
-                        <AgentRunCardPage />
-                    </Match>
-                    <Match when={active() === "context-icon"}>
-                        <ContextIconPage />
-                    </Match>
-                    <Match when={active() === "agent-mention-picker"}>
-                        <AgentMentionPickerPage />
-                    </Match>
-                    <Match when={active() === "avatar"}>
-                        <AvatarPage />
-                    </Match>
-                    <Match when={active() === "button"}>
-                        <ButtonPage />
-                    </Match>
-                </Switch>
+                <For each={components}>
+                    {(component) => (
+                        <Show when={active() === component.id}>{component.page()}</Show>
+                    )}
+                </For>
             </div>
         </div>
     );

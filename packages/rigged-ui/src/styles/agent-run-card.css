@@ -1,0 +1,332 @@
+/*
+ * C-013 AgentRunCard — the hero card: an agent run on a surface card.
+ *
+ * Status treatments: review = mint-tinted border + soft glow, working = 3px
+ * brand-gradient progress strip along the top edge, queued = dashed hairline,
+ * complete = neutral hairline with a mint check in the header. Max-width 680.
+ * Every color derives from theme tokens; the mint tints are color-mix()
+ * blends of --rg-success so no raw color values appear here.
+ */
+
+.rigged-agent-run-card,
+.rigged-agent-run-card * {
+    box-sizing: border-box;
+}
+
+.rigged-agent-run-card {
+    position: relative;
+    display: block;
+    max-width: 680px;
+    overflow: hidden;
+    margin: 0;
+    padding: 16px;
+    background-color: var(--rg-bg-surface);
+    border: 1px solid var(--rg-border);
+    border-radius: var(--rg-radius-md);
+    color: var(--rg-text);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+}
+
+.rigged-agent-run-card[data-status="review"] {
+    border-color: color-mix(in srgb, var(--rg-success) 35%, transparent);
+    background-color: color-mix(in srgb, var(--rg-success) 5%, var(--rg-bg-surface));
+    box-shadow: 0 0 24px var(--rg-success-soft);
+}
+
+.rigged-agent-run-card[data-status="queued"] {
+    border-style: dashed;
+    border-color: var(--rg-border-strong);
+}
+
+/* ---- Working progress strip ------------------------------------------ */
+
+.rigged-agent-run-card__progress {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 3px;
+    background-color: var(--rg-bg-inset);
+}
+
+.rigged-agent-run-card__progress-fill {
+    height: 3px;
+    background-image: var(--rg-brand-gradient);
+}
+
+/* ---- Header ----------------------------------------------------------- */
+
+.rigged-agent-run-card__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+}
+
+.rigged-agent-run-card__name {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.rigged-agent-run-card__agent {
+    display: block;
+    overflow: hidden;
+    color: var(--rg-text);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 18px;
+    text-overflow: ellipsis;
+}
+
+.rigged-agent-run-card__kind {
+    display: block;
+    color: var(--rg-text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+}
+
+.rigged-agent-run-card__check {
+    display: flex;
+    flex: none;
+    color: var(--rg-success);
+}
+
+.rigged-agent-run-card__toggle {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin: 0 0 0 auto;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: var(--rg-radius-sm);
+    color: var(--rg-text-muted);
+    cursor: pointer;
+    appearance: none;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
+}
+
+.rigged-agent-run-card__toggle:hover {
+    background-color: var(--rg-bg-hover);
+    color: var(--rg-text-secondary);
+}
+
+.rigged-agent-run-card__toggle:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: 2px;
+}
+
+.rigged-agent-run-card__toggle-icon {
+    display: flex;
+    transition: transform 120ms ease;
+}
+
+.rigged-agent-run-card[data-expanded] .rigged-agent-run-card__toggle-icon {
+    transform: rotate(180deg);
+}
+
+/* ---- Title, diffstat meta, branch ------------------------------------- */
+
+.rigged-agent-run-card__title {
+    margin: 8px 0 0;
+    color: var(--rg-text);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    letter-spacing: -0.01em;
+}
+
+.rigged-agent-run-card__meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+    font-family: var(--rg-font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+}
+
+.rigged-agent-run-card__added {
+    display: block;
+    flex: none;
+    color: var(--rg-diff-add);
+}
+
+.rigged-agent-run-card__removed {
+    display: block;
+    flex: none;
+    color: var(--rg-diff-del);
+}
+
+.rigged-agent-run-card__detail {
+    display: block;
+    overflow: hidden;
+    color: var(--rg-text-muted);
+    text-overflow: ellipsis;
+}
+
+.rigged-agent-run-card__branch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-family: var(--rg-font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+}
+
+.rigged-agent-run-card__branch-icon {
+    display: flex;
+    flex: none;
+    color: var(--rg-text-muted);
+}
+
+.rigged-agent-run-card__branch-name {
+    display: block;
+    overflow: hidden;
+    color: var(--rg-text-secondary);
+    text-overflow: ellipsis;
+}
+
+/* ---- Step checklist (expanded) ---------------------------------------- */
+
+.rigged-agent-run-card__steps {
+    display: block;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.rigged-agent-run-card__step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+}
+
+.rigged-agent-run-card__step-glyph {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+}
+
+.rigged-agent-run-card__step[data-status="done"] .rigged-agent-run-card__step-glyph {
+    color: var(--rg-success);
+}
+
+.rigged-agent-run-card__step-dot {
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--rg-radius-pill);
+}
+
+.rigged-agent-run-card__step[data-status="working"] .rigged-agent-run-card__step-dot {
+    background-color: var(--rg-accent);
+    box-shadow: 0 0 0 3px var(--rg-accent-soft);
+}
+
+.rigged-agent-run-card__step[data-status="pending"] .rigged-agent-run-card__step-dot {
+    border: 1px solid var(--rg-text-faint);
+    background-color: transparent;
+}
+
+.rigged-agent-run-card__step-label {
+    display: block;
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rigged-agent-run-card__step[data-status="done"] .rigged-agent-run-card__step-label {
+    color: var(--rg-text-secondary);
+}
+
+.rigged-agent-run-card__step[data-status="working"] .rigged-agent-run-card__step-label {
+    color: var(--rg-text);
+    font-weight: 600;
+}
+
+.rigged-agent-run-card__step[data-status="pending"] .rigged-agent-run-card__step-label {
+    color: var(--rg-text-muted);
+}
+
+/* ---- Expanded children slot + actions --------------------------------- */
+
+.rigged-agent-run-card__body {
+    margin-top: 12px;
+}
+
+.rigged-agent-run-card__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+/* ---- Engine-measured optical corrections ------------------------------- */
+
+/*
+ * Re-measured 2026-07 at true-2x capture resolution (1600x1600 tester
+ * viewport, verified unscaled by CaptureSanity). Alpha-weighted ink centroids
+ * of every card-owned text run in all three engines (see AgentRunCard.test.tsx)
+ * show: Gecko rasterizes every run of this card's text exactly 0.50px lower
+ * than Blink, and WebKit draws the 12px mono and 13px UI runs 0.44-0.49px
+ * lower while the 15px title already matches Blink (-0.04px). The translate
+ * corrections below cancel that engine drift only — they are paint-only and
+ * never move layout boxes. Icons, the toggle chevron, and step dots measured
+ * true-centered raw (|d| <= 0.11px in every engine), so they carry none.
+ */
+.rigged-agent-run-card__agent,
+.rigged-agent-run-card__kind,
+.rigged-agent-run-card__added,
+.rigged-agent-run-card__removed,
+.rigged-agent-run-card__detail,
+.rigged-agent-run-card__branch-name,
+.rigged-agent-run-card__step-label {
+    translate: 0 var(--rg-run-card-text-y, 0px);
+}
+
+.rigged-agent-run-card__title {
+    translate: 0 var(--rg-run-card-title-y, 0px);
+}
+
+/*
+ * Firefox — only Gecko parses -moz-appearance. (@-moz-document is stripped by
+ * the CSS pipeline, and @supports (font: -apple-system-body) also matches
+ * Blink on macOS, so neither is a usable engine scope.)
+ */
+@supports (-moz-appearance: none) {
+    .rigged-agent-run-card {
+        --rg-run-card-text-y: -0.5px;
+        --rg-run-card-title-y: -0.5px;
+    }
+}
+
+/* WebKit — Blink and Gecko do not parse -webkit-named-image(). */
+@supports (background: -webkit-named-image(i)) {
+    .rigged-agent-run-card {
+        --rg-run-card-text-y: -0.5px;
+        --rg-run-card-title-y: 0px;
+    }
+}

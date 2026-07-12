@@ -1,48 +1,55 @@
 import { splitProps, type JSX } from "solid-js";
 
-export type AvatarType = "bot" | "human";
-export type AvatarSize = "md" | "sm" | "xs";
+export type AvatarSize = "xs" | "sm" | "md" | "lg";
+export type AvatarType = "human" | "agent";
+export type ToneName = "violet" | "ember" | "mint" | "ocean" | "rose" | "amber" | "slate" | "brand";
 
-export type AvatarProps = Omit<JSX.HTMLAttributes<HTMLSpanElement>, "children" | "style"> & {
-    backgroundClass?: string;
+export type AvatarProps = Omit<JSX.HTMLAttributes<HTMLSpanElement>, "style"> & {
     imageUrl?: string;
     initials: string;
-    label?: string;
     online?: boolean;
     size?: AvatarSize;
     style?: JSX.CSSProperties;
+    tone?: ToneName;
     type?: AvatarType;
 };
 
 export function Avatar(props: AvatarProps) {
     const [local, rest] = splitProps(props, [
-        "backgroundClass",
+        "children",
         "class",
         "imageUrl",
         "initials",
-        "label",
         "online",
         "size",
         "style",
+        "tone",
         "type",
     ]);
+    const size = () => local.size ?? "md";
     const type = () => local.type ?? "human";
-    const size = () => local.size ?? "sm";
+    const tone = () => local.tone ?? "slate";
 
     return (
         <span
             {...rest}
-            class={["rigged-avatar", local.backgroundClass, local.class].filter(Boolean).join(" ")}
+            class={["rigged-avatar", local.class].filter(Boolean).join(" ")}
             data-rigged-ui="avatar"
             data-size={size()}
+            data-tone={tone()}
             data-type={type()}
             style={local.style}
-            role={local.label ? "img" : undefined}
-            aria-label={local.label}
-            aria-hidden={local.label ? undefined : "true"}
+            role={props["aria-label"] ? "img" : undefined}
+            aria-hidden={props["aria-label"] ? undefined : "true"}
         >
             {local.imageUrl ? (
-                <img class="rigged-avatar__image" src={local.imageUrl} alt="" />
+                <img
+                    class="rigged-avatar__image"
+                    data-rigged-ui="avatar-image"
+                    src={local.imageUrl}
+                    alt=""
+                    draggable={false}
+                />
             ) : (
                 <span class="rigged-avatar__initials" data-rigged-ui="avatar-initials">
                     {local.initials}

@@ -1,0 +1,391 @@
+/*
+ * C-017 Composer + ContextChips + MentionPicker.
+ *
+ * Composer: surface card (focus-within strengthens the hairline), auto-growing
+ * 15px/22px textarea (1–8 lines), 40px toolbar of 28px ghost icon actions plus
+ * a primary send square. ContextChips: 24px inset chips with kind icons.
+ * MentionPicker: 320px raised popover with 44px agent rows.
+ */
+
+.rigged-composer,
+.rigged-composer *,
+.rigged-context-chips,
+.rigged-context-chips *,
+.rigged-mention-picker,
+.rigged-mention-picker * {
+    box-sizing: border-box;
+}
+
+/* ---- Composer --------------------------------------------------------- */
+
+.rigged-composer {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: var(--rg-bg-surface);
+    border: 1px solid var(--rg-border);
+    border-radius: var(--rg-radius-md);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+    transition: border-color 120ms ease;
+}
+
+.rigged-composer:focus-within {
+    border-color: var(--rg-border-strong);
+}
+
+.rigged-composer__context {
+    display: flex;
+    padding: 8px 10px 0;
+}
+
+.rigged-composer__input {
+    padding: 12px 14px 4px;
+}
+
+.rigged-composer__textarea {
+    display: block;
+    width: 100%;
+    height: 22px;
+    max-height: 176px; /* 8 lines × 22px */
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--rg-text);
+    caret-color: var(--rg-accent);
+    font-family: var(--rg-font-ui);
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 22px;
+    font-synthesis: none;
+    resize: none;
+    overflow-y: auto;
+    outline: none;
+    /* Engine-scoped optical correction (see the corrections block below).
+     * transform keeps layout — card height and auto-grow math — untouched. */
+    transform: translateY(var(--rg-composer-textarea-y, 0px));
+}
+
+.rigged-composer__textarea::placeholder {
+    color: var(--rg-text-muted);
+    opacity: 1;
+}
+
+.rigged-composer__textarea:disabled {
+    color: var(--rg-text-muted);
+    cursor: not-allowed;
+}
+
+.rigged-composer__toolbar {
+    display: flex;
+    align-items: center;
+    height: 40px;
+    padding: 0 8px;
+}
+
+.rigged-composer__actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.rigged-composer__trailing {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+}
+
+/*
+ * The send glyph carries no correction: measured at true 2× in all three
+ * engines, its visible ink bounds sit exactly centered in the 28px primary
+ * square (8..20 on both axes). Its alpha-weighted centroid leans up-right by
+ * design — the paper plane points up-right (see the directional-glyph carve-out
+ * in Icon.test.tsx) — so centroid-chasing translate nudges would misplace it.
+ */
+
+.rigged-composer__hint {
+    color: var(--rg-text-faint);
+    font-family: var(--rg-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 14px;
+    white-space: nowrap;
+}
+
+.rigged-composer__popover {
+    position: absolute;
+    /* Offsets resolve against the padding box; +1px/-1px compensate for the
+     * card's 1px border so the visual anchor is 8px above / 12px in from the
+     * composer's border-box edge. */
+    bottom: calc(100% + 9px);
+    left: 11px;
+    z-index: 20;
+}
+
+/* ---- ContextChips ------------------------------------------------------ */
+
+.rigged-context-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+}
+
+.rigged-context-chips__label {
+    margin-top: var(--rg-chips-label-y, 0px);
+    margin-right: 2px;
+    margin-bottom: calc(-1 * var(--rg-chips-label-y, 0px));
+    color: var(--rg-text-faint);
+    font-family: var(--rg-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 24px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.rigged-context-chips__chip {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 8px;
+    background: var(--rg-bg-inset);
+    border: 1px solid var(--rg-border);
+    border-radius: var(--rg-radius-sm);
+}
+
+.rigged-context-chips__icon {
+    display: flex;
+    flex: none;
+    color: var(--rg-text-muted);
+}
+
+.rigged-context-chips__text {
+    margin-top: var(--rg-chip-text-y, 0px);
+    margin-bottom: calc(-1 * var(--rg-chip-text-y, 0px));
+    color: var(--rg-text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 22px;
+    white-space: nowrap;
+}
+
+.rigged-context-chips__detail {
+    margin-top: var(--rg-chip-detail-y, 0px);
+    margin-bottom: calc(-1 * var(--rg-chip-detail-y, 0px));
+    color: var(--rg-text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 22px;
+    white-space: nowrap;
+}
+
+.rigged-context-chips__remove {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    margin: 0 -2px 0 -1px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--rg-text-muted);
+    cursor: pointer;
+    appearance: none;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
+}
+
+.rigged-context-chips__remove:hover {
+    background: var(--rg-bg-hover);
+    color: var(--rg-text);
+}
+
+.rigged-context-chips__remove:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: 1px;
+}
+
+/* ---- MentionPicker ----------------------------------------------------- */
+
+.rigged-mention-picker {
+    width: 320px;
+    padding: 6px;
+    background: var(--rg-bg-raised);
+    border: 1px solid var(--rg-border-strong);
+    border-radius: var(--rg-radius-md);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+    overflow: hidden;
+}
+
+.rigged-mention-picker__header {
+    display: flex;
+    align-items: center;
+    height: 26px;
+    padding: 0 8px;
+    color: var(--rg-text-faint);
+    font-family: var(--rg-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.rigged-mention-picker__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    height: 44px;
+    margin: 0;
+    padding: 0 8px;
+    border: none;
+    border-radius: var(--rg-radius-sm);
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+    appearance: none;
+    transition: background-color 120ms ease;
+}
+
+.rigged-mention-picker__row:hover {
+    background: var(--rg-bg-hover);
+}
+
+.rigged-mention-picker__row[data-active] {
+    background: var(--rg-accent-soft);
+}
+
+.rigged-mention-picker__row:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: -2px;
+}
+
+.rigged-mention-picker__meta {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-direction: column;
+}
+
+.rigged-mention-picker__name {
+    /* No correction: Blink paints this 13px/16px lane 0.5px above the
+     * Gecko/WebKit consensus, but Blink snaps half-pixel paint offsets (via
+     * margins or position: relative) to whole pixels, so a +0.5px nudge
+     * paints as +1px and overshoots. The 0.5px residual is accepted and
+     * pinned by Composer.test.tsx. */
+    color: var(--rg-text);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rigged-mention-picker__description {
+    /* Engine-scoped optical correction. Relative positioning: only Gecko
+     * carries a description correction, and Gecko paints half-pixel relative
+     * offsets faithfully while its negative-margin pairs produce fractional
+     * flex-item heights. */
+    position: relative;
+    top: var(--rg-picker-desc-y, 0px);
+    color: var(--rg-text-muted);
+    font-size: 12px;
+    font-weight: 400;
+    /* 16px keeps the 31→32px meta stack on integer offsets inside the 44px
+     * row (6px top and bottom), so both line boxes rasterize on whole pixels. */
+    line-height: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rigged-mention-picker__status {
+    flex: none;
+}
+
+.rigged-mention-picker__empty {
+    display: flex;
+    align-items: center;
+    height: 44px;
+    padding: 0 8px;
+    color: var(--rg-text-muted);
+    font-size: 12px;
+    line-height: 16px;
+}
+
+/* ---- Optical corrections ------------------------------------------------ */
+
+/*
+ * Measured per engine at true 2× with alpha-weighted visible-pixel centroids
+ * on zeroed vars, using x-height-only probe strings so the softened baseline
+ * (ink bottom) is directly comparable across engines (see Composer.test.tsx).
+ *
+ * Text nudges use paired margins (margin-top: Y with margin-bottom: -Y) in
+ * center-aligned flex rows: the border box moves down by exactly Y as real
+ * layout while the margin box — and row height — stays fixed. The textarea is
+ * not flex-centered, so it uses a transform, which leaves the card height and
+ * the auto-grow scrollHeight math untouched.
+ *
+ * Raw baselines ("xxxx" ink bottom): textarea 15px/22px — Blink 16 / WebKit 16
+ * / Gecko 16.5 (Gecko rounds the half-leading down, placing the line 0.5px
+ * low). Chip label 12px/22px — Blink 16 / WebKit 16 / Gecko 16.5 (same 0.5px).
+ * Chip detail 11px/22px — Blink 15 (a full pixel above the neighbouring
+ * label's baseline) / WebKit 16 / Gecko 16. Chips label 10px mono uppercase in
+ * the 24px lane — cap-block centroid Blink -0.75 / WebKit -0.25 / Gecko +0.25.
+ * Picker description 12px/16px — Gecko paints it 0.5px below the Blink/WebKit
+ * consensus ("Ships code end to end" ink bottom 15 vs 14.5 in the line box).
+ * Each correction pins every engine to the shared consensus placement.
+ */
+.rigged-context-chips {
+    --rg-chip-text-y: 0px;
+    --rg-chip-detail-y: 1px;
+    --rg-chips-label-y: 0.75px;
+}
+
+/*
+ * Firefox — only Gecko parses -moz-appearance. (@-moz-document is stripped by
+ * the CSS pipeline, and @supports (font: -apple-system-body) also matches
+ * Blink on macOS, so neither is a usable engine scope.)
+ */
+@supports (-moz-appearance: none) {
+    .rigged-composer {
+        --rg-composer-textarea-y: -0.5px;
+    }
+
+    .rigged-context-chips {
+        --rg-chip-text-y: -0.5px;
+        --rg-chip-detail-y: 0px;
+        --rg-chips-label-y: -0.25px;
+    }
+
+    .rigged-mention-picker {
+        --rg-picker-desc-y: -0.5px;
+    }
+}
+
+/* WebKit — Blink and Gecko do not parse -webkit-named-image(). */
+@supports (background: -webkit-named-image(i)) {
+    .rigged-context-chips {
+        --rg-chip-detail-y: 0px;
+        --rg-chips-label-y: 0.25px;
+    }
+}

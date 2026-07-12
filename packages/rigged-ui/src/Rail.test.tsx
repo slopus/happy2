@@ -1,295 +1,487 @@
-import { expect, it, vi } from "vitest";
 import "./styles.css";
-import { Rail, type Feature } from "./Rail";
-import { createRenderer } from "./testing";
+import { expect, it, vi } from "vitest";
+import { Avatar } from "./Avatar";
+import { Rail, type RailItem } from "./Rail";
+import { createRenderer, type RenderedElement } from "./testing";
 
-const features: Feature[] = [
-    { id: "home", icon: "home", name: "Home" },
-    { id: "agents", icon: "agents", name: "Agents" },
-    { id: "tasks", icon: "tasks", name: "Tasks" },
-    { id: "files", icon: "files", name: "Files" },
-    { id: "more", icon: "more", name: "More" },
+const items: RailItem[] = [
+    { badge: 12, icon: "inbox", id: "inbox", label: "Inbox" },
+    { icon: "chat", id: "chat", label: "Chat" },
+    { icon: "spark", id: "agents", label: "Agents" },
+    { icon: "tasks", id: "tasks", label: "Tasks" },
 ];
 
-function SidebarFixture(props: { label: string }) {
-    return (
-        <div
-            style={{
-                background: "#f7f5fb",
-                height: "100%",
-                padding: "24px",
-                "box-sizing": "border-box",
-                color: "#40364e",
-            }}
-        >
-            {props.label}
-        </div>
-    );
+/* 1/2/3-digit badge counts, the fifth rail glyph (files), and a label long
+ * enough to hit the 56px ellipsis clamp. */
+const badgeItems: RailItem[] = [
+    { badge: 5, icon: "chat", id: "one-digit", label: "Chat" },
+    { badge: 64, icon: "tasks", id: "two-digit", label: "Tasks" },
+    { badge: 128, icon: "spark", id: "three-digit", label: "Agents" },
+    { icon: "files", id: "files", label: "Files" },
+    { icon: "inbox", id: "long-label", label: "Notifications" },
+];
+
+/*
+ * Anchored optical measurement.
+ *
+ * Playwright element captures carry a deterministic sub-pixel window offset
+ * that varies with absolute page position (measured up to ±0.8px here), so a
+ * raw captured centroid cannot be compared against box geometry at <1px
+ * precision. Instead the SAME host element is captured twice — once showing
+ * only a test dot whose center is the host's exact box center, once showing
+ * only the measured part — and the centroids are differenced: both captures
+ * share one window, so the offset cancels exactly. pixelCount is asserted >0
+ * for both passes, so a clipped or blank capture can never pass.
+ *
+ * Hosts in the fixtures below are wrapped with a 0.5px shim where needed so
+ * the anchor dot lands on integer CSS positions (exact device pixels at the
+ * mandatory 2x scale); sharp-edged ink at fractional positions is what the
+ * capture resampler quantizes worst.
+ */
+async function anchoredCenter(
+    view: { $: (selector: string) => RenderedElement<Element> },
+    hostSelector: string,
+    partSelector: string,
+) {
+    const host = view.$(hostSelector).element as HTMLElement;
+    const part = view.$(partSelector).element as HTMLElement;
+    const hostBounds = host.getBoundingClientRect();
+
+    const dot = document.createElement("div");
+    Object.assign(dot.style, {
+        position: "absolute",
+        left: `${hostBounds.width / 2 - 2}px`,
+        top: `${hostBounds.height / 2 - 2}px`,
+        width: "4px",
+        height: "4px",
+        background: "#808080",
+    });
+    const hostPosition = getComputedStyle(host).position;
+    if (hostPosition === "static") host.style.setProperty("position", "relative", "important");
+    /* The host's own background (e.g. the active pill) would register as ink;
+     * transitions would smear the black/white differencing passes. */
+    host.style.setProperty("background", "transparent", "important");
+    host.style.setProperty("transition", "none", "important");
+    host.appendChild(dot);
+
+    const children = Array.from(host.querySelectorAll<HTMLElement>("*")).filter((el) => el !== dot);
+    const saved = children.map((el) => el.style.cssText);
+    const showOnly = (visible: (el: HTMLElement) => boolean) => {
+        children.forEach((el, i) => {
+            el.style.cssText = saved[i]!;
+            el.style.setProperty("transition", "none", "important");
+            el.style.setProperty("visibility", visible(el) ? "visible" : "hidden", "important");
+        });
+    };
+
+    try {
+        /* Pass A: anchor dot only. */
+        showOnly(() => false);
+        dot.style.visibility = "visible";
+        const anchor = await view.$(hostSelector).visibleMetrics();
+        expect(anchor.pixelCount, `anchor pixels for ${hostSelector}`).toBeGreaterThan(0);
+
+        /* Pass B: the measured part only (visibility:visible on the part
+         * overrides its hidden ancestors without moving layout). */
+        dot.style.visibility = "hidden";
+        showOnly((el) => el === part || part.contains(el));
+        const ink = await view.$(hostSelector).visibleMetrics();
+        expect(ink.pixelCount, `ink pixels for ${partSelector}`).toBeGreaterThan(0);
+
+        return {
+            dx: ink.center.x - anchor.center.x,
+            dy: ink.center.y - anchor.center.y,
+        };
+    } finally {
+        dot.remove();
+        children.forEach((el, i) => {
+            el.style.cssText = saved[i]!;
+        });
+        host.style.removeProperty("background");
+        host.style.removeProperty("transition");
+        if (hostPosition === "static") host.style.removeProperty("position");
+    }
 }
 
-function MainFixture(props: { label: string }) {
-    return (
-        <div style={{ padding: "24px", color: "#292426" }}>
-            <strong>{props.label}</strong>
-        </div>
-    );
-}
+it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, async () => {
+    const onItemSelect = vi.fn();
+    const view = createRenderer();
 
-it("holds Rail desktop grid geometry, controlled callbacks, and icon optics", async () => {
-    const onBack = vi.fn();
-    const onFeatureChange = vi.fn();
-    const onForward = vi.fn();
-    const onHelp = vi.fn();
-    const onHome = vi.fn();
-    const onProfile = vi.fn();
-    const onQueryChange = vi.fn();
-    const view = createRenderer()
-        .render(
-            () => (
+    /* Each surface pairs the contract fixture with a duplicate behind a 0.5px
+     * shim: the rail centers children on .5px positions inside its 75px
+     * content lane, and the shim moves them onto integer CSS pixels where the
+     * anchored captures are exact. */
+    view.render(
+        () => (
+            <div style={{ display: "flex", gap: "20px", height: "100%" }}>
                 <Rail
-                    data-testid="rail-minimum"
-                    activeFeatureId="agents"
-                    features={features}
-                    onBack={onBack}
-                    onFeatureChange={onFeatureChange}
-                    onForward={onForward}
-                    onHelp={onHelp}
-                    onHome={onHome}
-                    onProfile={onProfile}
-                    onQueryChange={onQueryChange}
-                    profileInitials="ST"
-                    query=""
-                    showWindowControls={true}
-                    sidebar={<SidebarFixture label="Workspace sidebar · 288 px" />}
-                >
-                    <MainFixture label="Primary workspace" />
-                </Rail>
-            ),
-            { width: 1024, height: 704 },
-        )
-        .render(
-            () => (
+                    activeItemId="agents"
+                    data-testid="rail-main"
+                    footer={<Avatar initials="SK" online size="sm" tone="mint" />}
+                    items={items}
+                    onItemSelect={onItemSelect}
+                />
+                <div style={{ "padding-left": "0.5px", height: "100%" }}>
+                    <Rail
+                        activeItemId="agents"
+                        data-testid="rail-m"
+                        footer={<Avatar initials="SK" online size="sm" tone="mint" />}
+                        items={items}
+                        onItemSelect={() => {}}
+                    />
+                </div>
+            </div>
+        ),
+        { width: 240, height: 420 },
+    );
+    view.render(
+        () => (
+            <div style={{ display: "flex", gap: "20px", height: "100%" }}>
                 <Rail
-                    data-testid="rail-large"
-                    activeFeatureId="tasks"
-                    features={features}
-                    onFeatureChange={onFeatureChange}
-                    onQueryChange={onQueryChange}
-                    query="release notes"
-                    showWindowControls={false}
-                    sidebar={<SidebarFixture label="Tasks sidebar · 288 px" />}
-                >
-                    <MainFixture label="Large workspace · 1280 × 800" />
-                </Rail>
-            ),
-            { width: 1280, height: 800 },
-        );
+                    activeItemId="inbox"
+                    brand={
+                        <span
+                            data-testid="custom-brand"
+                            style={{
+                                background: "#38bdf8",
+                                "border-radius": "10px",
+                                display: "block",
+                                height: "34px",
+                                width: "34px",
+                            }}
+                        />
+                    }
+                    data-testid="rail-custom"
+                    items={items.slice(0, 2)}
+                    onItemSelect={() => {}}
+                />
+                <div style={{ "padding-left": "0.5px", height: "100%" }}>
+                    <Rail
+                        activeItemId="inbox"
+                        data-testid="rail-brand"
+                        items={items.slice(0, 2)}
+                        onItemSelect={() => {}}
+                    />
+                </div>
+            </div>
+        ),
+        { width: 240, height: 560 },
+    );
+    view.render(
+        () => (
+            <div style={{ "padding-left": "0.5px", height: "100%" }}>
+                <Rail
+                    activeItemId="files"
+                    data-testid="rail-badges"
+                    items={badgeItems}
+                    onItemSelect={() => {}}
+                />
+            </div>
+        ),
+        { width: 240, height: 360 },
+    );
     await view.ready();
 
-    const minimum = view.$('[data-testid="rail-minimum"]');
-    expect(minimum.bounds()).toEqual({ x: 0, y: 0, width: 1024, height: 704 });
+    /* ---- Root contract ------------------------------------------------- */
+
+    const rail = view.$('[data-testid="rail-main"]');
+    expect(rail.element.tagName).toBe("NAV");
+    expect(rail.bounds()).toEqual({ x: 0, y: 0, width: 76, height: 420 });
     expect(
-        minimum.computedStyles([
+        rail.computedStyles([
+            "background-color",
+            "border-right-color",
+            "border-right-width",
             "box-sizing",
             "display",
-            "font-family",
-            "grid-template-columns",
-            "grid-template-rows",
-            "height",
-            "min-height",
-            "min-width",
-            "overflow-x",
-            "overflow-y",
-            "width",
-        ]),
-    ).toEqual({
-        "box-sizing": "border-box",
-        display: "grid",
-        "font-family": expect.stringMatching(/Rigged Manrope/),
-        "grid-template-columns": "76px 288px 660px",
-        "grid-template-rows": "38px 666px",
-        height: "704px",
-        "min-height": "704px",
-        "min-width": "1024px",
-        "overflow-x": "hidden",
-        "overflow-y": "hidden",
-        width: "1024px",
-    });
-    expect(minimum.computedStyle("background-image")).toContain("linear-gradient");
-
-    expect(
-        view.$('[data-testid="rail-minimum"] [data-rigged-ui="rail-title-row"]').bounds(),
-    ).toEqual({ x: 0, y: 0, width: 1024, height: 38 });
-    expect(
-        view.$('[data-testid="rail-minimum"] [data-rigged-ui="rail-window-controls"]').bounds(),
-    ).toEqual({ x: 0, y: 0, width: 76, height: 38 });
-    expect(
-        view.$('[data-testid="rail-minimum"] [data-rigged-ui="rail-history-controls"]').bounds(),
-    ).toEqual({ x: 76, y: 0, width: 88, height: 38 });
-    expect(
-        view.$('[data-testid="rail-minimum"] [data-rigged-ui="rail-search-region"]').bounds(),
-    ).toEqual({ x: 164, y: 0, width: 772, height: 38 });
-    expect(view.$('[data-testid="rail-minimum"] [data-rigged-ui="rail-search"]').bounds()).toEqual({
-        x: 335,
-        y: 6,
-        width: 430,
-        height: 26,
-    });
-    expect(
-        view.$('[data-testid="rail-minimum"] [data-rigged-ui="rail-help-region"]').bounds(),
-    ).toEqual({ x: 936, y: 0, width: 88, height: 38 });
-    expect(
-        view.$('[data-testid="rail-minimum"] [data-rigged-ui="rail-feature-region"]').bounds(),
-    ).toEqual({ x: 0, y: 38, width: 76, height: 666 });
-    expect(
-        view.$('[data-testid="rail-minimum"] [data-rigged-ui="rail-content-shell"]').bounds(),
-    ).toEqual({ x: 84, y: 46, width: 932, height: 650 });
-    expect(
-        view.$('[data-testid="rail-minimum"] [data-rigged-ui="rail-sidebar-slot"]').bounds(),
-    ).toEqual({ x: 85, y: 47, width: 288, height: 648 });
-    expect(
-        view.$('[data-testid="rail-minimum"] [data-rigged-ui="rail-main-slot"]').bounds(),
-    ).toEqual({ x: 373, y: 47, width: 642, height: 648 });
-
-    const shell = view.$('[data-testid="rail-minimum"] [data-rigged-ui="rail-content-shell"]');
-    expect(
-        shell.computedStyles([
-            "background-color",
-            "border-radius",
-            "border-top-color",
-            "border-top-width",
-            "display",
-            "grid-template-columns",
-            "overflow-x",
-            "overflow-y",
-        ]),
-    ).toEqual({
-        "background-color": "rgb(255, 255, 255)",
-        "border-radius": "14px",
-        "border-top-color": "rgba(255, 255, 255, 0.2)",
-        "border-top-width": "1px",
-        display: "grid",
-        "grid-template-columns": "288px 642px",
-        "overflow-x": "hidden",
-        "overflow-y": "hidden",
-    });
-
-    const active = view.$(
-        '[data-testid="rail-minimum"] [data-rigged-ui="rail-feature"][data-feature-id="agents"]',
-    );
-    expect(active.bounds()).toMatchObject({ width: 62, height: 54 });
-    expect(
-        active.computedStyles([
-            "align-items",
-            "background-color",
-            "border-radius",
-            "border-top-width",
-            "display",
             "flex-direction",
-            "height",
-            "justify-content",
-            "width",
+            "flex-grow",
+            "flex-shrink",
+            "padding-bottom",
+            "padding-left",
+            "padding-right",
+            "padding-top",
         ]),
     ).toEqual({
-        "align-items": "center",
-        "background-color": "rgba(255, 255, 255, 0.24)",
-        "border-radius": "9px",
-        "border-top-width": "0px",
+        "background-color": "rgb(19, 18, 23)",
+        "border-right-color": "rgba(255, 255, 255, 0.07)",
+        "border-right-width": "1px",
+        "box-sizing": "border-box",
         display: "flex",
         "flex-direction": "column",
-        height: "54px",
-        "justify-content": "center",
-        width: "62px",
+        "flex-grow": "0",
+        "flex-shrink": "0",
+        "padding-bottom": "10px",
+        "padding-left": "0px",
+        "padding-right": "0px",
+        "padding-top": "10px",
     });
+
+    /* The taller surface fills too: the rail is height-fluid. */
+    expect(view.$('[data-testid="rail-custom"]').bounds()).toEqual({
+        x: 0,
+        y: 0,
+        width: 76,
+        height: 560,
+    });
+
+    /* ---- Brand mark ------------------------------------------------------ */
+
+    const mark = view.$('[data-testid="rail-main"] [data-rigged-ui="rail-brand-mark"]');
+    /* Centered in the 75px content lane (76 minus the right hairline). */
+    expect(mark.bounds()).toEqual({ x: 20.5, y: 10, width: 34, height: 34 });
+    expect(mark.computedStyles(["border-radius", "display"])).toEqual({
+        "border-radius": "10px",
+        display: "grid",
+    });
+    expect(mark.computedStyle("background-image")).toContain("linear-gradient");
+
+    const glyph = view.$('[data-testid="rail-main"] [data-rigged-ui="rail-brand-glyph"]');
+    const glyphMetrics = glyph.textMetrics();
+    expect(glyphMetrics.text).toBe("R");
+    expect(glyphMetrics.font.family).toBe("Rigged Figtree, system-ui, sans-serif");
+    expect(glyphMetrics.font.size).toBe(15);
+    expect(glyphMetrics.font.weight).toBe("800");
+    expect(glyph.computedStyle("color")).toBe("rgb(255, 255, 255)");
+
+    /* Optical: the R's alpha-weighted ink centroid sits on the mark center.
+     * Raw drift (full-resolution captures, corrections zeroed) was Blink
+     * (-0.13, -0.53), Gecko (-0.26, +0.46), WebKit (-0.25, -0.56); the
+     * engine-scoped 0.5px translate in rail.css corrects all to <=0.26. */
+    const brandDelta = await anchoredCenter(
+        view,
+        '[data-testid="rail-brand"] [data-rigged-ui="rail-brand-mark"]',
+        '[data-testid="rail-brand"] [data-rigged-ui="rail-brand-glyph"]',
+    );
     expect(
-        view.$('[data-testid="rail-minimum"] [data-rigged-ui="rail-feature-label"]').textMetrics(),
-    ).toMatchObject({
-        font: { letterSpacing: -0.1, lineHeight: 10, size: 9.75, weight: "600" },
-        text: "Home",
+        Math.abs(brandDelta.dx),
+        `brand optical x (signed ${brandDelta.dx})`,
+    ).toBeLessThanOrEqual(0.75);
+    expect(
+        Math.abs(brandDelta.dy),
+        `brand optical y (signed ${brandDelta.dy})`,
+    ).toBeLessThanOrEqual(0.75);
+
+    /* Custom brand replaces the default mark. */
+    expect(view.$('[data-testid="rail-custom"] [data-testid="custom-brand"]').bounds().width).toBe(
+        34,
+    );
+    expect(
+        document.querySelectorAll('[data-testid="rail-custom"] [data-rigged-ui="rail-brand-mark"]')
+            .length,
+    ).toBe(0);
+
+    /* ---- Items: 60×52 buttons on the 4px rhythm -------------------------- */
+
+    const inbox = view.$('[data-testid="rail-main"] [data-item-id="inbox"]');
+    const chat = view.$('[data-testid="rail-main"] [data-item-id="chat"]');
+    const active = view.$('[data-testid="rail-main"] [data-item-id="agents"]');
+
+    expect(inbox.element.tagName).toBe("BUTTON");
+    /* brand 10+34 + 12 margin → items start at y 56; 52 tall, 4px gap. */
+    expect(inbox.bounds()).toEqual({ x: 7.5, y: 56, width: 60, height: 52 });
+    expect(chat.bounds()).toEqual({ x: 7.5, y: 112, width: 60, height: 52 });
+    expect(
+        inbox.computedStyles([
+            "background-color",
+            "border-radius",
+            "border-top-width",
+            "box-sizing",
+            "color",
+            "cursor",
+            "display",
+            "flex-direction",
+        ]),
+    ).toEqual({
+        "background-color": "rgba(0, 0, 0, 0)",
+        "border-radius": "8px",
+        "border-top-width": "0px",
+        "box-sizing": "border-box",
+        color: "rgb(117, 112, 133)",
+        cursor: "pointer",
+        display: "flex",
+        "flex-direction": "column",
     });
 
-    const surfaces = Array.from(
-        view.container.querySelectorAll<HTMLElement>("[data-rigged-ui-surface]"),
-    );
-    for (const surface of surfaces) {
-        surface.style.setProperty("zoom", "0.28");
-    }
-    await view.screenshot("Rail.test");
-    for (const surface of surfaces) {
-        surface.style.removeProperty("zoom");
-    }
-    await view.ready();
-
-    const featureIcon = view.$(
-        '[data-testid="rail-minimum"] [data-feature-id="agents"] [data-icon="agents"]',
-    );
-    expect(featureIcon.bounds()).toMatchObject({ width: 21, height: 21 });
-    const featurePixels = await featureIcon.visibleMetrics();
-    expect(featurePixels.pixelCount).toBeGreaterThan(70);
-    expect(featurePixels.bounds.width).toBeGreaterThanOrEqual(14);
-    expect(featurePixels.bounds.height).toBeGreaterThanOrEqual(14);
-    expect(Math.round(featurePixels.center.x * 2)).toBe(21);
-    expect(Math.round(featurePixels.center.y * 2)).toBe(21);
-
-    const searchIcon = view.$(
-        '[data-testid="rail-minimum"] [data-rigged-ui="rail-search"] [data-icon="search"]',
-    );
-    expect(searchIcon.bounds()).toMatchObject({ width: 14, height: 14 });
-    const searchPixels = await searchIcon.visibleMetrics();
-    expect(searchPixels.pixelCount).toBeGreaterThan(30);
-    expect(searchPixels.bounds.width).toBeGreaterThanOrEqual(9);
-    expect(searchPixels.bounds.height).toBeGreaterThanOrEqual(9);
-    expect(Math.round(searchPixels.center.x * 2)).toBe(14);
-    expect(Math.round(searchPixels.center.y * 2)).toBe(14);
-
-    expect(minimum.element.querySelectorAll('[data-rigged-ui="rail-window-control"]')).toHaveLength(
-        3,
-    );
+    /* Active state: accent-soft fill, accent-strong icon, solid label. */
+    expect(active.element.getAttribute("aria-current")).toBe("page");
+    expect(inbox.element.getAttribute("aria-current")).toBeNull();
+    expect(active.computedStyles(["background-color", "color"])).toEqual({
+        "background-color": "rgba(139, 124, 247, 0.15)",
+        color: "rgb(168, 155, 255)",
+    });
     expect(
         view
-            .$('[data-testid="rail-minimum"] [data-control="close"]')
-            .computedStyles(["background-color", "border-radius", "height", "width"]),
-    ).toEqual({
-        "background-color": "rgb(255, 105, 94)",
-        "border-radius": "999px",
-        height: "9px",
-        width: "9px",
+            .$(
+                '[data-testid="rail-main"] [data-item-id="agents"] [data-rigged-ui="rail-item-label"]',
+            )
+            .computedStyle("color"),
+    ).toBe("rgb(237, 234, 242)");
+
+    /* ---- Icon and label inside an item ------------------------------------ */
+
+    const chatIconBox = view.$(
+        '[data-testid="rail-main"] [data-item-id="chat"] [data-rigged-ui="rail-item-icon"]',
+    );
+    expect(chatIconBox.bounds().width).toBe(20);
+    expect(chatIconBox.bounds().height).toBe(20);
+    /* Content column (20 icon + 4 gap + 12 label) centers in the 52px lane. */
+    expect(chatIconBox.bounds().x - chat.bounds().x).toBe(20);
+    expect(chatIconBox.bounds().y - chat.bounds().y).toBe(8);
+
+    const chatIcon = view.$(
+        '[data-testid="rail-main"] [data-item-id="chat"] [data-rigged-ui="icon"]',
+    );
+    expect(chatIcon.computedStyle("color")).toBe("rgb(117, 112, 133)");
+
+    /* Optical: every rail glyph, active and inactive, centroid vs the item
+     * center — the icon row center sits exactly 8px above it. Raw drift
+     * measures <=0.15 horizontal and <=0.10 vertical in all engines with no
+     * CSS correction; any residue is glyph mass owned by Icon path data. */
+    for (const [railId, itemId] of [
+        ["rail-m", "inbox"], // inactive, measured under its badge overlay
+        ["rail-m", "chat"], // inactive
+        ["rail-m", "agents"], // active (spark glyph)
+        ["rail-m", "tasks"], // inactive
+        ["rail-badges", "files"], // active
+    ] as const) {
+        const delta = await anchoredCenter(
+            view,
+            `[data-testid="${railId}"] [data-item-id="${itemId}"]`,
+            `[data-testid="${railId}"] [data-item-id="${itemId}"] [data-rigged-ui="icon"]`,
+        );
+        expect(
+            Math.abs(delta.dx),
+            `${itemId} icon optical x (signed ${delta.dx})`,
+        ).toBeLessThanOrEqual(0.75);
+        expect(
+            Math.abs(delta.dy + 8),
+            `${itemId} icon optical y (signed ${delta.dy + 8})`,
+        ).toBeLessThanOrEqual(0.75);
+    }
+
+    const chatLabel = view.$(
+        '[data-testid="rail-main"] [data-item-id="chat"] [data-rigged-ui="rail-item-label"]',
+    );
+    const labelMetrics = chatLabel.textMetrics();
+    expect(labelMetrics.text).toBe("Chat");
+    expect(labelMetrics.font.family).toBe("Rigged Figtree, system-ui, sans-serif");
+    expect(labelMetrics.font.size).toBe(10);
+    expect(labelMetrics.font.weight).toBe("700");
+    expect(labelMetrics.font.lineHeight).toBe(12);
+    expect(labelMetrics.font.letterSpacing).toBeCloseTo(0.2, 3);
+    expect(chatLabel.bounds().y - chat.bounds().y).toBe(32);
+
+    /* Labels: word ink is inherently asymmetric (ascenders, descenders,
+     * per-letter mass — "Agents" measures -0.5..-0.65 in every engine even
+     * with the trailing letter-spacing bias cancelled), so the horizontal
+     * centroid is asserted at the 0.75 contract and the vertical axis via
+     * line-box symmetry: the 12px line box sits 32px from the item top and
+     * 8px from its bottom, mirroring the icon's 8px top inset. */
+    for (const [railId, itemId, text] of [
+        ["rail-m", "chat", "Chat"], // inactive
+        ["rail-m", "agents", "Agents"], // active
+        ["rail-badges", "two-digit", "Tasks"], // inactive
+        ["rail-badges", "files", "Files"], // active
+    ] as const) {
+        const item = view.$(`[data-testid="${railId}"] [data-item-id="${itemId}"]`);
+        const label = view.$(
+            `[data-testid="${railId}"] [data-item-id="${itemId}"] [data-rigged-ui="rail-item-label"]`,
+        );
+        expect(label.element.textContent).toBe(text);
+        expect(label.bounds().y - item.bounds().y).toBe(32);
+        expect(label.bounds().height).toBe(12);
+        const delta = await anchoredCenter(
+            view,
+            `[data-testid="${railId}"] [data-item-id="${itemId}"]`,
+            `[data-testid="${railId}"] [data-item-id="${itemId}"] [data-rigged-ui="rail-item-label"]`,
+        );
+        expect(
+            Math.abs(delta.dx),
+            `${text} label optical x (signed ${delta.dx})`,
+        ).toBeLessThanOrEqual(0.75);
+    }
+
+    /* Long labels clamp to the 56px lane with an ellipsis, ink kept inside. */
+    const longLabel = view.$(
+        '[data-testid="rail-badges"] [data-item-id="long-label"] [data-rigged-ui="rail-item-label"]',
+    );
+    expect(longLabel.computedStyle("text-overflow")).toBe("ellipsis");
+    expect(longLabel.bounds().width).toBe(56);
+    const longLabelVisible = await longLabel.visibleMetrics();
+    expect(longLabelVisible.pixelCount).toBeGreaterThan(0);
+    expect(longLabelVisible.bounds.width).toBeLessThanOrEqual(56.5);
+
+    /* ---- Unread badge overlapping the icon top-right ----------------------- */
+
+    /* The badge anchors 13px right and 7px up from the icon box for every
+     * digit count; the pill keeps its 18px height and grows rightward only. */
+    const badgeWidths: number[] = [];
+    for (const [itemId, text] of [
+        ["one-digit", "5"],
+        ["two-digit", "64"],
+        ["three-digit", "128"],
+    ] as const) {
+        const badge = view.$(
+            `[data-testid="rail-badges"] [data-item-id="${itemId}"] [data-rigged-ui="rail-item-badge"]`,
+        );
+        const iconBox = view.$(
+            `[data-testid="rail-badges"] [data-item-id="${itemId}"] [data-rigged-ui="rail-item-icon"]`,
+        );
+        expect(badge.bounds().x - iconBox.bounds().x, `${text} badge x offset`).toBe(13);
+        expect(badge.bounds().y - iconBox.bounds().y, `${text} badge y offset`).toBe(-7);
+        const count = view.$(
+            `[data-testid="rail-badges"] [data-item-id="${itemId}"] [data-rigged-ui="count-badge"]`,
+        );
+        expect(count.element.textContent).toBe(text);
+        expect(count.bounds().height).toBe(18);
+        const countVisible = await count.visibleMetrics();
+        expect(countVisible.pixelCount, `${text} badge ink`).toBeGreaterThan(0);
+        badgeWidths.push(count.bounds().width);
+    }
+    expect(badgeWidths[0]).toBe(18);
+    expect(badgeWidths[1]!).toBeGreaterThan(badgeWidths[0]!);
+    expect(badgeWidths[2]!).toBeGreaterThan(badgeWidths[1]!);
+
+    /* Badge styling and absence on badge-less items (checked on rail-main). */
+    const count12 = view.$(
+        '[data-testid="rail-main"] [data-item-id="inbox"] [data-rigged-ui="count-badge"]',
+    );
+    expect(count12.element.textContent).toBe("12");
+    expect(count12.computedStyles(["background-color", "color"])).toEqual({
+        "background-color": "rgb(139, 124, 247)",
+        color: "rgb(255, 255, 255)",
     });
+    expect(
+        document.querySelectorAll(
+            '[data-testid="rail-main"] [data-item-id="chat"] [data-rigged-ui="rail-item-badge"]',
+        ).length,
+    ).toBe(0);
 
-    const large = view.$('[data-testid="rail-large"]');
-    expect(large.bounds()).toEqual({ x: 0, y: 0, width: 1280, height: 800 });
-    expect(large.computedStyle("grid-template-columns")).toBe("76px 288px 916px");
-    expect(large.computedStyle("grid-template-rows")).toBe("38px 762px");
-    expect(
-        view.$('[data-testid="rail-large"] [data-rigged-ui="rail-content-shell"]').bounds(),
-    ).toEqual({ x: 84, y: 46, width: 1188, height: 746 });
-    expect(
-        view.$('[data-testid="rail-large"] [data-rigged-ui="rail-sidebar-slot"]').bounds(),
-    ).toEqual({ x: 85, y: 47, width: 288, height: 744 });
-    expect(view.$('[data-testid="rail-large"] [data-rigged-ui="rail-main-slot"]').bounds()).toEqual(
-        { x: 373, y: 47, width: 898, height: 744 },
-    );
-    expect(large.element.querySelectorAll('[data-rigged-ui="rail-window-control"]')).toHaveLength(
-        0,
-    );
-    expect(
-        large.element.querySelector<HTMLInputElement>('[data-rigged-ui="rail-query"]')!.value,
-    ).toBe("release notes");
+    /* ---- Footer pinned to the bottom ---------------------------------------- */
 
-    const query = minimum.element.querySelector<HTMLInputElement>('[data-rigged-ui="rail-query"]')!;
-    query.value = "agents";
-    query.dispatchEvent(new InputEvent("input", { bubbles: true, data: "s" }));
-    expect(onQueryChange).toHaveBeenCalledWith("agents");
-    active.element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(onFeatureChange).toHaveBeenCalledWith("agents");
-    minimum.element.querySelector<HTMLElement>('[data-rigged-ui="rail-back"]')!.click();
-    minimum.element.querySelector<HTMLElement>('[data-rigged-ui="rail-forward"]')!.click();
-    minimum.element.querySelector<HTMLElement>('[data-rigged-ui="rail-help"]')!.click();
-    minimum.element.querySelector<HTMLElement>('[data-rigged-ui="rail-home"]')!.click();
-    minimum.element.querySelector<HTMLElement>('[data-rigged-ui="rail-profile"]')!.click();
-    expect(onBack).toHaveBeenCalledOnce();
-    expect(onForward).toHaveBeenCalledOnce();
-    expect(onHelp).toHaveBeenCalledOnce();
-    expect(onHome).toHaveBeenCalledOnce();
-    expect(onProfile).toHaveBeenCalledOnce();
+    const footer = view.$('[data-testid="rail-main"] [data-rigged-ui="rail-footer"]');
+    const footerBounds = footer.bounds();
+    expect(footerBounds.y + footerBounds.height).toBe(420 - 10);
+    const footerAvatar = view.$('[data-testid="rail-main"] [data-rigged-ui="avatar"]');
+    expect(footerAvatar.bounds().width).toBe(28);
+    /* Centered in the 75px content lane. */
+    expect(footerAvatar.bounds().x).toBe(23.5);
+    const footerVisible = await footerAvatar.visibleMetrics();
+    expect(footerVisible.pixelCount).toBeGreaterThan(0);
+    expect(
+        document.querySelectorAll('[data-testid="rail-custom"] [data-rigged-ui="rail-footer"]')
+            .length,
+    ).toBe(0);
+
+    /* ---- Selection callback -------------------------------------------------- */
+
+    (chat.element as HTMLButtonElement).click();
+    expect(onItemSelect).toHaveBeenCalledTimes(1);
+    expect(onItemSelect).toHaveBeenCalledWith("chat");
+
+    /* Pixel measurements scroll the page; reset before the capture. */
+    window.scrollTo(0, 0);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await view.screenshot("Rail.test");
 });
