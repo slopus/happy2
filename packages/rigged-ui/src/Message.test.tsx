@@ -274,9 +274,14 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     /* One row: 1, 2, and 3-digit counts all share the same 24px top edge. */
     expect(chipB.bounds().y).toBe(chipA.bounds().y);
     expect(chipC.bounds().y).toBe(chipA.bounds().y);
-    /* toBeCloseTo: Firefox reports the 6px flex gap with float dust (6.000000000000014). */
-    expect(chipB.bounds().x - (chipA.bounds().x + chipA.bounds().width)).toBeCloseTo(6, 6);
-    expect(chipC.bounds().x - (chipB.bounds().x + chipB.bounds().width)).toBeCloseTo(6, 6);
+    /* `bounds()` resolves to 0.001px; retain that full precision when subtracting
+     * independently rounded chip edges around the exact 6px flex gap. */
+    expect(
+        Math.abs(chipB.bounds().x - (chipA.bounds().x + chipA.bounds().width) - 6),
+    ).toBeLessThanOrEqual(0.001);
+    expect(
+        Math.abs(chipC.bounds().x - (chipB.bounds().x + chipB.bounds().width) - 6),
+    ).toBeLessThanOrEqual(0.001);
     expect(chipB.element.getAttribute("aria-pressed")).toBe("true");
 
     const addButton = view.$('[data-testid="m1"] [data-rigged-ui="message-react-add"]');

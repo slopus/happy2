@@ -46,15 +46,15 @@ only source of color and typography in the system. Components must consume
 
 Core values (see `theme.css` for the full set):
 
-| Token group  | Values                                                     |
-| ------------ | ---------------------------------------------------------- |
-| Surfaces     | chrome `#131217`, app `#17161c`, surface `#1c1b22`, raised `#24222b`, code `#141319` |
-| Hairlines    | `rgb(255 255 255 / 0.07)`, strong `rgb(255 255 255 / 0.13)` |
-| Text         | `#edeaf2`, secondary `#a5a0b0`, muted `#757085`, faint `#55515f` |
-| Accent       | violet `#8b7cf7`, strong `#a89bff`, brand gradient violet→pink `#f472b6` |
-| Semantics    | success mint `#34d399`, warning amber `#fbbf24`, danger `#f87171`, info `#60a5fa` |
-| Type         | UI "Rigged Figtree" (Figtree variable), code "Rigged Mono" (JetBrains Mono variable) |
-| Radii        | controls 6 px, cards 10 px, content shell 14 px, pills 999  |
+| Token group | Values                                                                               |
+| ----------- | ------------------------------------------------------------------------------------ |
+| Surfaces    | chrome `#131217`, app `#17161c`, surface `#1c1b22`, raised `#24222b`, code `#141319` |
+| Hairlines   | `rgb(255 255 255 / 0.07)`, strong `rgb(255 255 255 / 0.13)`                          |
+| Text        | `#edeaf2`, secondary `#a5a0b0`, muted `#757085`, faint `#55515f`                     |
+| Accent      | violet `#8b7cf7`, strong `#a89bff`, brand gradient violet→pink `#f472b6`             |
+| Semantics   | success mint `#34d399`, warning amber `#fbbf24`, danger `#f87171`, info `#60a5fa`    |
+| Type        | UI "Rigged Figtree" (Figtree variable), code "Rigged Mono" (JetBrains Mono variable) |
+| Radii       | controls 6 px, cards 10 px, content shell 14 px, pills 999                           |
 
 Text colors are solid (not alpha) so rendering tests can assert exact `rgb()`
 values in every engine. Identity colors for avatars come from the named
@@ -177,6 +177,124 @@ height, fixed weight, disabled font synthesis, and integer geometry. Apply a
 small engine-specific optical correction only when measurement proves that the
 same font and CSS still rasterize differently; keep that correction explicit and
 covered by tests.
+
+Measurement precision is finer than the backing-pixel grid. Record DOM and pixel-derived values to
+at least `0.001px`; use `0.05 CSS px` as the default tolerance for a calibrated baseline or
+alpha-weighted optical-center value. A visible-pixel bounding edge is necessarily quantized to the
+backing-pixel grid, but its discrete value must be asserted exactly; that quantization must not be
+reused as a looser tolerance for the continuous alpha-weighted centroid. Prefer integer component
+geometry, then sweep any font size, variation, or correction in increments no larger than `0.05px`
+in all three browsers. Do not assume a fractional transform changes the raster by its declared
+amount: tests must measure the response, including snapping or antialiasing changes.
+
+### Testing text by character class
+
+Do not treat the alpha-weighted centroid of an arbitrary string as its baseline or as a universal
+vertical-centering target. Glyph content changes painted mass even when typography is perfectly
+aligned: `AAAA` exercises full cap height, `Aaa` mixes cap height and x-height, `aaaa` exercises
+lowercase x-height, and `1234` exercises lining figures. These strings are different measurement
+classes and are not expected to share one painted centroid. If lowercase content may contain
+descenders, add a separate probe such as `agyp`; `aaaa` alone does not exercise the descender band.
+
+For every supported text class, tests must independently assert:
+
+- the actual rendered baseline and line box, using the browser baseline measurement rather than a
+  canvas estimate;
+- visible ink top, bottom, and full-height bounding-box center against the intended container;
+- the alpha-weighted centroid for a representative balanced reference string, while documenting
+  intentional content bias for asymmetric strings;
+- all supported browsers at 2× with the bundled production font and the production weight,
+  letter spacing, line height, and font-feature settings.
+
+Numbers-only controls need extra care. A digit such as `7` is top-heavy, so forcing every possible
+number's alpha centroid to the box center would move its baseline and make the numeral set look
+unstable. Use lining numerals so `0` through `9` occupy a common vertical figure band, and use
+tabular numerals when counts must keep equal digit advances. Prefer the bundled `Rigged Mono`
+(JetBrains Mono) for small counters because its lining, tabular digits rasterize consistently in
+all supported engines. Counter tests must cover every digit `0`–`9`, repeated and mixed multi-digit
+values, and a balanced reference such as `1234`; assert a shared baseline and centered full numeral
+bounds for every case, then use the balanced reference for the strict centroid assertion.
+
+Measure the real ink bounds in the component coordinate system on every test run. For a measured
+text part `P` inside host `H`, combine the rendered rectangles with `visibleMetrics()` as follows:
+`inkLeft = P.x - H.x + visible.bounds.x`, `inkTop = P.y - H.y + visible.bounds.y`, and derive the
+right and bottom edges by adding the visible width and height. Compare the center of those four
+edges with `H.width / 2` and `H.height / 2`. Calculate the alpha centroid separately with
+`P.x - H.x + visible.center.x` and `P.y - H.y + visible.center.y`. Do not substitute the CSS box,
+advance width, canvas metrics, or font ascent for either painted measurement.
+
+Pixel reconstruction must use an integer-aligned render surface as its capture coordinate system,
+not an element screenshot of the text part. A text box commonly begins at a fractional coordinate;
+Playwright rounds an element screenshot's clip to backing pixels, so treating that rounded image as
+if it began at the fractional DOM edge can introduce roughly half a CSS pixel of error that later
+center calculations accidentally cancel. Capture the stable surface, scan only the selected
+element's region, and convert each backing-pixel edge and center back relative to the element's real
+`getBoundingClientRect()` origin.
+
+Keep four typography measurements separate in test output: (1) the DOM line box and baseline, (2)
+raw `CanvasRenderingContext2D.measureText()` font metrics, (3) raster visible bounds, and (4) the
+alpha-weighted optical center. Canvas `actualBoundingBox*` values describe the engine's outline/font
+metric model and can differ materially from screenshot pixels; they are diagnostics, never a
+substitute for visible bounds. A baseline may also differ numerically between engines while each
+engine's painted figure is correctly centered. Assert the measured baseline precisely and require
+baseline sharing among adjacent text in the same engine; do not move centered ink merely to force
+different engines to report the same raw baseline number.
+
+For a counter, use `0` as an additional calibration glyph because its outer contour is close to
+bilaterally symmetric. Assert its signed horizontal and vertical visible-bounds drift and its signed
+alpha-centroid drift independently, in addition to the shared numeral baseline. Assert discrete
+visible bounds exactly and assert the calibrated alpha-centroid value within `0.05px`; assertion
+messages must retain the signed drift so a failure says whether the ink is high, low, left, or
+right. Run this against the isolated label with the real font, foreground color, OpenType features,
+weight, and styling—never against a combined pill screenshot whose fill would overwhelm the text
+measurement. For the current CountBadge treatment, a `0.05px` font-size sweep established `10.8px`
+as the centered visible-bounds result; `11px` placed the zero's alpha center about `0.08–0.17px`
+high depending on the engine and foreground treatment.
+
+Emoji rendered as text require a separate contract from ordinary letters and numbers. The declared
+UI font usually does not contain color emoji, so the browser falls through the emoji font stack to
+an operating-system color font. CSS `font-size` sizes that font's em square, not the visible
+artwork. Individual emoji, variation-selector forms, flags, and zero-width-joiner sequences can
+therefore have different advances, painted widths, heights, baselines, and optical mass even when
+they share one CSS size.
+
+Put font emoji in a fixed, explicitly sized slot and keep adjacent text or numbers in separate
+elements. Test the slot geometry first, then capture and measure each representative emoji element
+independently; never calculate one centroid from a combined emoji-and-label screenshot. Cover plain
+emoji, symbols with emoji presentation, flags, and joined sequences when the component accepts
+them. Assert that each glyph is visible, unclipped, and acceptably centered inside its slot, but do
+not require different artwork to have identical visible bounds. If exact artwork size and optical
+centering must be identical across operating systems rather than only the supported desktop
+browsers, use normalized bundled SVG or PNG assets instead of font fallback emoji.
+
+Keyboard shortcut caps follow the same separation rule. Unicode modifier characters such as `⌘`,
+`⇧`, `⌥`, and `⌃` are not ordinary letters: a mono font may omit them, substitute a platform glyph,
+or draw each with a different em-square scale. Do not put modifier symbols and shortcut letters in
+one undifferentiated text run. Render supported modifiers as normalized Rigged-owned SVG artwork in
+fixed symbol slots, and render letters/digits in fixed mono text cells. KeyCap currently uses 9px
+symbol slots, 6.5px text cells, bearing-aware zero-gap adjacency, and exactly 4px padding on both
+sides.
+
+KeyCap tests must inspect each token independently. Assert SVG viewport and visible-ink size,
+unclipped bounds, signed optical center, text font/size/weight, shared text baseline, fixed cell
+advance, ink-to-ink gaps, relative painted height between every modifier and a reference capital,
+and equal outer padding. Cover every supported modifier plus narrow/wide letters,
+digits, short chords (`⌘K`), multi-modifier chords (`⇧⌘P`), and named keys (`ESC`, `ENTER`). A whole
+shortcut centroid cannot prove token parity because the string's content distribution overwhelms a
+small or mis-scaled modifier icon.
+
+Avatar initials are uppercase cap-band text, not arbitrary optical-center targets. Every initials
+run at one size must share the same live DOM baseline and use the same bundled font metrics. Assert
+the painted bounding box for representative wide, narrow, round, and two-letter runs; use `O` as
+the balanced alpha-centroid calibration glyph and record its signed per-browser result within
+`0.005px`. Do not force `ST`, `MJ`, `AI`, or other content-dependent centroids to zero. A correction
+may be size/engine-specific only when the `O` bounds prove it, and `transform: none` must be tested
+separately from a nominal zero transform because enabling a transform can change text rasterization.
+
+Avatar image coverage, initials, and presence indicators are three independent paint contracts.
+Measure image clipping against the avatar shape, initials without a presence dot overlapping their
+capture, and the presence circle by itself. Presence bounds must equal its declared 8px/10px box,
+and its alpha centroid must be within `0.05px` of that box center at 2×.
 
 Icons require the same standard. Do not center an icon by its file rectangle or
 SVG viewBox alone. Assert its visible bounds and optical center inside every

@@ -1,4 +1,4 @@
-import { Show } from "solid-js";
+import { For, Show } from "solid-js";
 import { Icon, type IconName } from "./Icon";
 
 export type BadgeVariant =
@@ -45,7 +45,7 @@ export type CountBadgeProps = {
     tone?: "accent" | "neutral";
 };
 
-/** Unread-count pill: 18px round, solid accent or quiet inset. */
+/** Unread-count pill: 18px round with mono lining/tabular figures. */
 export function CountBadge(props: CountBadgeProps) {
     /* Stepped integral width (18/25/32…) instead of the intrinsic text width:
      * digit advances are fractional, and a fractional-width pill lands
@@ -87,7 +87,12 @@ export function ReactionChip(props: ReactionChipProps) {
             type="button"
         >
             <span class="rigged-reaction-chip__emoji" data-rigged-ui="reaction-chip-emoji">
-                {props.emoji}
+                <span
+                    class="rigged-reaction-chip__emoji-glyph"
+                    data-rigged-ui="reaction-chip-emoji-glyph"
+                >
+                    {props.emoji}
+                </span>
             </span>
             <span class="rigged-reaction-chip__count" data-rigged-ui="reaction-chip-count">
                 {props.count}
@@ -101,15 +106,59 @@ export type KeyCapProps = {
     keys: string;
 };
 
+const shortcutSymbols = new Set(["⌘", "⇧", "⌥", "⌃"]);
+
+function ShortcutSymbol(props: { symbol: string }) {
+    return (
+        <svg aria-hidden="true" data-shortcut-symbol={props.symbol} fill="none" viewBox="0 0 24 24">
+            <Show when={props.symbol === "⌘"}>
+                <path d="M18 9a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12Z" />
+            </Show>
+            <Show when={props.symbol === "⇧"}>
+                <path d="m12 1.8 9 9.5h-5v9.5H8v-9.5H3l9-9.5Z" />
+            </Show>
+            <Show when={props.symbol === "⌥"}>
+                <path d="M2.85 3.2h5l9 18h4M13.85 3.2h7M2.85 21.2h7" />
+            </Show>
+            <Show when={props.symbol === "⌃"}>
+                <path d="m3 20.1 9-17 9 17" />
+            </Show>
+        </svg>
+    );
+}
+
 /** Keyboard shortcut hint, e.g. ⌘K in the title-bar search field. */
 export function KeyCap(props: KeyCapProps) {
     return (
         <kbd
+            aria-label={props.keys}
             class={["rigged-key-cap", props.class].filter(Boolean).join(" ")}
             data-rigged-ui="key-cap"
         >
             <span class="rigged-key-cap__label" data-rigged-ui="key-cap-label">
-                {props.keys}
+                <For each={Array.from(props.keys)}>
+                    {(key) => (
+                        <span
+                            class="rigged-key-cap__key"
+                            data-kind={shortcutSymbols.has(key) ? "symbol" : "text"}
+                            data-rigged-ui="key-cap-key"
+                        >
+                            <Show
+                                when={shortcutSymbols.has(key)}
+                                fallback={
+                                    <span
+                                        class="rigged-key-cap__text"
+                                        data-rigged-ui="key-cap-text"
+                                    >
+                                        {key}
+                                    </span>
+                                }
+                            >
+                                <ShortcutSymbol symbol={key} />
+                            </Show>
+                        </span>
+                    )}
+                </For>
             </span>
         </kbd>
     );

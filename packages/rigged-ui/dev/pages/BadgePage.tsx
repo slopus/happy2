@@ -64,16 +64,19 @@ export function BadgePage() {
             </Specimen>
 
             <Specimen
-                detail="18px round pill · min-width 18 · ui 11/700 · accent and neutral tones"
+                detail="18px round pill · min-width 18 · mono 11/700 lining tabular numerals · accent and neutral tones"
                 label="CountBadge"
                 number="03"
                 stage="chrome"
             >
                 <div style={column}>
                     <div style={row}>
-                        <CountBadge count={4} />
+                        <For each={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}>
+                            {(count) => <CountBadge count={count} />}
+                        </For>
                         <CountBadge count={12} />
                         <CountBadge count={128} />
+                        <CountBadge count={1234} />
                         <CountBadge count={4} tone="neutral" />
                         <CountBadge count={12} tone="neutral" />
                     </div>
@@ -82,7 +85,7 @@ export function BadgePage() {
             </Specimen>
 
             <Specimen
-                detail="24px pill · inset bg + hairline · emoji 13 + count 11/700 · active = accent"
+                detail="24px pill · fixed 18px system-emoji slot + mono 11/700 lining/tabular count · active = accent"
                 label="ReactionChip"
                 number="04"
                 stage="app"
@@ -93,13 +96,15 @@ export function BadgePage() {
                         <ReactionChip count={3} emoji="🎉" />
                         <ReactionChip count={2} emoji="🚀" />
                         <ReactionChip active count={5} emoji="✅" />
+                        <ReactionChip count={12} emoji="👩‍💻" />
+                        <ReactionChip count={128} emoji="🇺🇸" />
                     </div>
                     <DimensionRule label="24 px high · 8 px x-pad" />
                 </div>
             </Specimen>
 
             <Specimen
-                detail="18px cap · radius 4 · mono 10/500 · inset bg, secondary text"
+                detail="18px cap · normalized 9px modifier SVGs + mono 10.8/500 text cells · bearing-aware adjacency · 4px x-padding"
                 label="KeyCap"
                 number="05"
                 stage="chrome"
@@ -107,6 +112,8 @@ export function BadgePage() {
                 <div style={row}>
                     <KeyCap keys="⌘K" />
                     <KeyCap keys="⇧⌘P" />
+                    <KeyCap keys="⌥⌘K" />
+                    <KeyCap keys="⌃K" />
                     <KeyCap keys="ESC" />
                     <KeyCap keys="ENTER" />
                 </div>

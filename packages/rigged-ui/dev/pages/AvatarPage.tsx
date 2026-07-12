@@ -53,6 +53,25 @@ export function AvatarPage() {
             </Specimen>
 
             <Specimen
+                number="01A"
+                label="Initials calibration"
+                detail="Shared cap baseline · O is the balanced optical reference · content-shaped centroids remain distinct"
+                stage="app"
+            >
+                <div style={row}>
+                    <For each={["O", "ST", "MJ", "AI", "A"]}>
+                        {(initials) => (
+                            <Avatar
+                                initials={initials}
+                                size="md"
+                                tone={initials === "O" ? "ocean" : "slate"}
+                            />
+                        )}
+                    </For>
+                </div>
+            </Specimen>
+
+            <Specimen
                 number="02"
                 label="Agent sizes"
                 detail="Rounded square · radius 6 / 7 / 9 / 10 by size"

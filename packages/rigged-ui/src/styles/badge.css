@@ -3,7 +3,8 @@
  * ReactionChip (emoji reaction), KeyCap (shortcut hint).
  *
  * Contract heights: Badge 18, CountBadge 18 (min-width 18), ReactionChip 24,
- * KeyCap 18. Badge and KeyCap use the mono uppercase treatment.
+ * KeyCap 18. Badge and KeyCap use the mono uppercase treatment; CountBadge
+ * uses mono lining/tabular figures so arbitrary counts share one figure band.
  */
 
 .rigged-badge,
@@ -107,17 +108,17 @@
     min-width: 18px;
     padding: 0 5px;
     border-radius: var(--rg-radius-pill);
-    font-family: var(--rg-font-ui);
-    font-size: 11px;
+    font-family: var(--rg-font-mono);
+    font-size: 10.8px;
     font-weight: 700;
     line-height: 18px;
+    font-variant-numeric: lining-nums tabular-nums;
     font-synthesis: none;
     white-space: nowrap;
 }
 
 .rigged-count-badge__label {
     display: block;
-    transform: translate(var(--rg-count-label-x, 0px), var(--rg-count-label-y, 0px));
 }
 
 .rigged-count-badge[data-tone="accent"] {
@@ -162,19 +163,31 @@
 }
 
 .rigged-reaction-chip__emoji {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 18px;
+    height: 18px;
+    font-family: var(--rg-font-emoji);
     font-size: 13px;
-    line-height: 22px;
+    line-height: 18px;
+}
+
+.rigged-reaction-chip__emoji-glyph {
+    display: block;
+    line-height: 18px;
     transform: translate(var(--rg-chip-emoji-x, 0px), var(--rg-chip-emoji-y, 0px));
 }
 
 .rigged-reaction-chip__count {
     display: block;
+    font-family: var(--rg-font-mono);
     font-size: 11px;
     font-weight: 700;
     line-height: 22px;
+    font-variant-numeric: lining-nums tabular-nums;
     color: var(--rg-text-secondary);
-    transform: translate(var(--rg-chip-count-x, 0px), var(--rg-chip-count-y, 0px));
 }
 
 .rigged-reaction-chip[data-active] {
@@ -194,11 +207,11 @@
     justify-content: center;
     flex: none;
     height: 18px;
-    padding: 0 5px;
+    padding: 0 4px;
     background: var(--rg-bg-inset);
     border-radius: 4px;
     font-family: var(--rg-font-mono);
-    font-size: 10px;
+    font-size: 10.8px;
     font-weight: 500;
     line-height: 18px;
     color: var(--rg-text-secondary);
@@ -207,8 +220,45 @@
 }
 
 .rigged-key-cap__label {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    height: 10px;
+}
+
+.rigged-key-cap__key {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    height: 10px;
+}
+
+.rigged-key-cap__key[data-kind="text"] {
+    width: 6.5px;
+    transform: translateY(var(--rg-keycap-text-y, 0px));
+}
+
+.rigged-key-cap__text {
     display: block;
-    transform: translate(var(--rg-keycap-label-x, 0px), var(--rg-keycap-label-y, 0px));
+    line-height: 10px;
+}
+
+.rigged-key-cap__key[data-kind="symbol"] {
+    width: 9px;
+    transform: translateY(var(--rg-keycap-symbol-y, 0px));
+}
+
+.rigged-key-cap__key svg {
+    display: block;
+    width: 9px;
+    height: 9px;
+    overflow: visible;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
 }
 
 /*
@@ -228,20 +278,14 @@
     --rg-badge-label-y: 0.7px;
 }
 
-.rigged-count-badge {
-    --rg-count-label-y: 1.3px;
-}
-
 .rigged-reaction-chip {
-    --rg-chip-count-x: -0.15px;
-    --rg-chip-count-y: 1.4px;
-    --rg-chip-emoji-x: 1.4px;
-    --rg-chip-emoji-y: 0.4px;
+    --rg-chip-emoji-x: 0.95px;
+    --rg-chip-emoji-y: 0px;
 }
 
 .rigged-key-cap {
-    --rg-keycap-label-x: 0.25px;
-    --rg-keycap-label-y: 0.55px;
+    --rg-keycap-symbol-y: -0.5px;
+    --rg-keycap-text-y: 0.25px;
 }
 
 /*
@@ -255,20 +299,14 @@
         --rg-badge-label-y: -0.5px;
     }
 
-    .rigged-count-badge {
-        --rg-count-label-y: 0.3px;
-    }
-
     .rigged-reaction-chip {
-        --rg-chip-count-x: -0.15px;
-        --rg-chip-count-y: 0.25px;
-        --rg-chip-emoji-x: 1.6px;
-        --rg-chip-emoji-y: 0.4px;
+        --rg-chip-emoji-x: 1.5px;
+        --rg-chip-emoji-y: 0.9px;
     }
 
     .rigged-key-cap {
-        --rg-keycap-label-x: -0.35px;
-        --rg-keycap-label-y: -0.45px;
+        --rg-keycap-symbol-y: -0.5px;
+        --rg-keycap-text-y: 0.25px;
     }
 }
 
@@ -278,19 +316,13 @@
         --rg-badge-label-y: 0.3px;
     }
 
-    .rigged-count-badge {
-        --rg-count-label-y: 0.35px;
-    }
-
     .rigged-reaction-chip {
-        --rg-chip-count-x: -0.15px;
-        --rg-chip-count-y: 0.05px;
-        --rg-chip-emoji-x: 0.25px;
-        --rg-chip-emoji-y: 0.25px;
+        --rg-chip-emoji-x: 0px;
+        --rg-chip-emoji-y: -0.9px;
     }
 
     .rigged-key-cap {
-        --rg-keycap-label-x: 0.1px;
-        --rg-keycap-label-y: 0.25px;
+        --rg-keycap-symbol-y: 0px;
+        --rg-keycap-text-y: 0.25px;
     }
 }

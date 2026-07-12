@@ -4,10 +4,13 @@
     "private": true,
     "type": "module",
     "exports": {
-        ".": "./sources/index.ts"
+        ".": "./sources/index.ts",
+        "./playwright": "./sources/playwright/index.ts"
     },
     "scripts": {
-        "test": "vitest run",
+        "test": "pnpm test:server && pnpm test:playwright",
+        "test:playwright": "playwright install chromium firefox webkit && vitest run --config vitest.playwright.config.ts",
+        "test:server": "vitest run",
         "test:watch": "vitest",
         "typecheck": "tsc --project tsconfig.json",
         "format": "oxfmt --write .",
@@ -21,10 +24,14 @@
         "fastify": "^5.8.2"
     },
     "devDependencies": {
+        "@fontsource-variable/jetbrains-mono": "^5.2.8",
         "@types/node": "^26.1.1",
+        "@vitest/browser-playwright": "^4.1.10",
         "oxfmt": "^0.57.0",
         "oxlint": "^1.73.0",
+        "playwright": "^1.61.1",
         "typescript": "^7.0.2",
+        "vite": "^8.1.4",
         "vitest": "^4.1.10"
     },
     "engines": {

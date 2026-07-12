@@ -412,9 +412,8 @@ it("holds Button icon forms and disabled state with optically centered glyphs", 
         );
         const plainButton = view.$(`[data-testid="plain-${size}"]`);
         const plainLabel = view.$(`[data-testid="plain-${size}"] [data-rigged-ui="button-label"]`);
-        const baseline = label.textMetrics().ink.baseline + labelBounds.y - buttonBounds.y;
-        const plainBaseline =
-            plainLabel.textMetrics().ink.baseline + plainLabel.bounds().y - plainButton.bounds().y;
+        const baseline = label.textMetrics().verticalOffset - buttonBounds.y;
+        const plainBaseline = plainLabel.textMetrics().verticalOffset - plainButton.bounds().y;
         expect(Math.abs(baseline - plainBaseline), `${id} baseline drift`).toBeLessThanOrEqual(0.1);
     }
 

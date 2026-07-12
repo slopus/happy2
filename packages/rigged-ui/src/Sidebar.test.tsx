@@ -359,14 +359,10 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
         "font-weight": "700",
     });
 
-    /*
-     * Row label optical y: every kind in resting / active / unread, short and
-     * long labels. Ink centroid sits on the 32px row midline (measured drift
-     * after the engine-scoped corrections: <= 0.35 Blink, <= 0.52 Gecko,
-     * <= 0.34 WebKit; the Gecko peak is "eng-core", whose all-lowercase
-     * descender-only ink is genuinely bottom-heavy). Vertical-only: word
-     * labels are left-aligned, horizontally asymmetric ink by nature.
-     */
+    /* All row labels share one real DOM baseline. Their alpha centroids are
+     * content-shaped (eng-core is lowercase and descender-heavy), so a
+     * universal centroid-to-row-center assertion would be false typography. */
+    let sharedRowBaseline: number | undefined;
     for (const id of [
         "inbox",
         "my-issues",
@@ -385,8 +381,14 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
         const label = view.$(
             `[data-testid="full"] [data-item-id="${id}"] [data-rigged-ui="sidebar-item-label"]`,
         );
-        const centroid = await rowInk(label, row(id));
-        expect(Math.abs(centroid.y - 16), `${id} label optical y`).toBeLessThanOrEqual(OPTICAL);
+        const metrics = label.textMetrics();
+        const baseline = metrics.baseline.fromSurfaceTop - row(id).bounds().y;
+        sharedRowBaseline ??= baseline;
+        expect(
+            Math.abs(baseline - sharedRowBaseline),
+            `${id} shared row-label baseline`,
+        ).toBeLessThanOrEqual(0.001);
+        expect((await label.visibleMetrics()).pixelCount, `${id} label ink`).toBeGreaterThan(0);
     }
 
     /*

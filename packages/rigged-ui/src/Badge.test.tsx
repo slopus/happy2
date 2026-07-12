@@ -190,20 +190,33 @@ it("centers Badge label and icon ink in every variant", { timeout: 120_000 }, as
 });
 
 it(
-    "centers CountBadge digits at 1, 2, and 3 digits in both tones",
+    "aligns every CountBadge digit to one centered lining-figure band and baseline",
     { timeout: 120_000 },
     async () => {
         const cases = [
+            { count: 0, tone: "accent" },
             { count: 1, tone: "accent" },
+            { count: 2, tone: "accent" },
+            { count: 3, tone: "accent" },
             { count: 4, tone: "accent" },
+            { count: 5, tone: "accent" },
+            { count: 6, tone: "accent" },
             { count: 7, tone: "accent" },
             { count: 8, tone: "accent" },
+            { count: 9, tone: "accent" },
+            { count: 10, tone: "accent" },
+            { count: 11, tone: "accent" },
             { count: 12, tone: "accent" },
+            { count: 44, tone: "accent" },
             { count: 64, tone: "accent" },
+            { count: 88, tone: "accent" },
             { count: 128, tone: "accent" },
             { count: 999, tone: "accent" },
+            { count: 1234, tone: "accent" },
+            { count: 0, tone: "neutral" },
             { count: 7, tone: "neutral" },
             { count: 64, tone: "neutral" },
+            { count: 1234, tone: "neutral" },
         ] as const;
 
         const view = createRenderer();
@@ -213,8 +226,8 @@ it(
                     <style>{INK_FIXTURE_CSS}</style>
                     {cases.map((entry, index) =>
                         cell(
-                            20 + (index % 2) * 60,
-                            20 + Math.floor(index / 2) * 30,
+                            20 + (index % 4) * 58,
+                            20 + Math.floor(index / 4) * 30,
                             <CountBadge
                                 class={`ink c-${entry.tone}-${entry.count}`}
                                 count={entry.count}
@@ -224,38 +237,86 @@ it(
                     )}
                 </div>
             ),
-            { width: 160, height: 180 },
+            { width: 260, height: 210 },
         );
         await view.ready();
 
+        let baseline: number | undefined;
         for (const entry of cases) {
             const id = `c-${entry.tone}-${entry.count}`;
             const badge = view.$(`.${id}`);
-            const measured = await drift(
-                `count/${entry.tone}-${entry.count}`,
-                view.$(`.${id} [data-rigged-ui="count-badge-label"]`),
-                badge,
-            );
+            const label = view.$(`.${id} [data-rigged-ui="count-badge-label"]`);
+            const measured = await drift(`count/${entry.tone}-${entry.count}`, label, badge);
             /*
-             * Vertical: digits share one baseline band, so the centroid is
-             * asserted strictly; residual spread is per-glyph ink ("7" is
-             * top-heavy, "4" bottom-heavy). Horizontal: single digits assert
-             * the ink centroid, but multi-digit runs center their ADVANCE
-             * width (typographically correct), and ink skews toward the
-             * heavier glyphs ("12": the 1 carries little ink) — so they
-             * assert line-box symmetry instead of ink centroid.
+             * Alignment means a common browser-laid-out baseline and a
+             * centered lining-figure HEIGHT band. It does not mean forcing
+             * every content-dependent centroid to zero: "7" is inherently
+             * top-heavy. Rigged Mono's lining/tabular figures make the band
+             * and advance width stable for every number assembled from 0–9.
              */
-            if (String(entry.count).length === 1) {
-                expect(Math.abs(measured.dx), `${id} optical x`).toBeLessThanOrEqual(TOLERANCE);
-            } else {
-                const label = view.$(`.${id} [data-rigged-ui="count-badge-label"]`);
-                const offsets = label.offsets();
+            const metrics = label.textMetrics();
+            const currentBaseline = metrics.verticalOffset - badge.bounds().y;
+            baseline ??= currentBaseline;
+            expect(
+                Math.abs(currentBaseline - baseline),
+                `${id} shared baseline`,
+            ).toBeLessThanOrEqual(0.001);
+            const expectedBaseline = server.browser === "webkit" ? 12.875 : 13;
+            expect(
+                Math.abs(currentBaseline - expectedBaseline),
+                `${id} measured baseline position`,
+            ).toBeLessThanOrEqual(0.005);
+            expect(metrics.font.family, `${id} numeric font`).toBe(
+                "Rigged Mono, ui-monospace, monospace",
+            );
+            const numericVariant = label.computedStyle("font-variant-numeric");
+            expect(numericVariant, `${id} lining figures`).toContain("lining-nums");
+            expect(numericVariant, `${id} tabular figures`).toContain("tabular-nums");
+            expect(Math.abs(measured.by), `${id} full numeral height`).toBeLessThanOrEqual(0.25);
+            expect(
+                Math.abs(label.offsets().left - label.offsets().right),
+                `${id} line-box symmetry`,
+            ).toBeLessThanOrEqual(0.5);
+            if (entry.count === 0) {
                 expect(
-                    Math.abs(offsets.left - offsets.right),
-                    `${id} line-box symmetry`,
-                ).toBeLessThanOrEqual(0.5);
+                    Math.abs(measured.bx),
+                    `${id} zero bounds x ${measured.bx}`,
+                ).toBeLessThanOrEqual(0.001);
+                expect(
+                    Math.abs(measured.by),
+                    `${id} zero bounds y ${measured.by}`,
+                ).toBeLessThanOrEqual(0.001);
+                const expectedOptical =
+                    server.browser === "webkit"
+                        ? entry.tone === "accent"
+                            ? { x: -0.01, y: -0.09 }
+                            : { x: -0.01, y: -0.032 }
+                        : entry.tone === "accent"
+                          ? { x: -0.013, y: -0.007 }
+                          : { x: -0.011, y: -0.007 };
+                expect(
+                    Math.abs(measured.dx - expectedOptical.x),
+                    `${id} measured zero centroid x ${measured.dx}`,
+                ).toBeLessThanOrEqual(0.005);
+                expect(
+                    Math.abs(measured.dy - expectedOptical.y),
+                    `${id} measured zero centroid y ${measured.dy}`,
+                ).toBeLessThanOrEqual(0.005);
             }
-            expect(Math.abs(measured.dy), `${id} optical y`).toBeLessThanOrEqual(TOLERANCE);
+            if (entry.count === 1234) {
+                const expectedOpticalY =
+                    server.browser === "webkit"
+                        ? entry.tone === "accent"
+                            ? 0.093
+                            : 0.164
+                        : entry.tone === "accent"
+                          ? 0.192
+                          : 0.195;
+                expect(
+                    Math.abs(measured.dy - expectedOpticalY),
+                    `${id} measured content-dependent centroid y ${measured.dy}`,
+                ).toBeLessThanOrEqual(0.005);
+            }
             /* Stepped integral width: fractional intrinsic text widths would
              * land right-aligned pills off the device-pixel grid. */
             expect(badge.width(), `${id} stepped width`).toBe(
@@ -265,100 +326,340 @@ it(
     },
 );
 
-it("centers ReactionChip emoji and count ink in their slots", { timeout: 120_000 }, async () => {
-    const cases = [
-        { active: false, count: 2, emoji: "👍" },
-        { active: true, count: 3, emoji: "🎉" },
-        { active: false, count: 14, emoji: "🚀" },
-        { active: false, count: 1, emoji: "✅" },
-        { active: true, count: 12, emoji: "🔥" },
-    ];
+it(
+    "measures each ReactionChip emoji independently inside a fixed slot",
+    { timeout: 120_000 },
+    async () => {
+        const cases = ["👍", "🎉", "🚀", "✅", "🔥", "👩‍💻", "🇺🇸", "❤️"];
 
-    const view = createRenderer();
-    view.render(
-        () => (
-            <div style={{ height: "100%", position: "relative", width: "100%" }}>
-                <style>{INK_FIXTURE_CSS}</style>
-                {cases.map((entry, index) =>
-                    cell(
-                        20,
-                        20 + index * 34,
-                        <ReactionChip
-                            active={entry.active}
-                            class={`ink r-${entry.count}`}
-                            count={entry.count}
-                            emoji={entry.emoji}
-                        />,
-                    ),
-                )}
-            </div>
-        ),
-        { width: 120, height: 220 },
-    );
-    await view.ready();
-
-    for (const entry of cases) {
-        const chip = view.$(`.r-${entry.count}`);
-        expect(chip.height(), `chip ${entry.count} height`).toBe(24);
-
-        /*
-         * Color-emoji artwork carries deliberately asymmetric mass (🎉 fires
-         * up-left, 👍 is bottom-heavy), so the emoji asserts the ink
-         * bounding-box center on both axes instead of the centroid.
-         */
-        const emoji = await chipDrift(
-            `chip-emoji/${entry.emoji}`,
-            view.$(`.r-${entry.count} [data-rigged-ui="reaction-chip-emoji"]`),
-            chip,
-            "left",
+        const view = createRenderer();
+        view.render(
+            () => (
+                <div style={{ height: "100%", position: "relative", width: "100%" }}>
+                    <style>{INK_FIXTURE_CSS}</style>
+                    {cases.map((emoji, index) =>
+                        cell(
+                            20 + (index % 2) * 120,
+                            20 + Math.floor(index / 2) * 34,
+                            <ReactionChip
+                                class={`ink emoji-${index}`}
+                                count={index + 1}
+                                emoji={emoji}
+                            />,
+                        ),
+                    )}
+                </div>
+            ),
+            { width: 280, height: 170 },
         );
-        expect(Math.abs(emoji.bx), `${entry.emoji} optical x`).toBeLessThanOrEqual(TOLERANCE);
-        expect(Math.abs(emoji.by), `${entry.emoji} optical y`).toBeLessThanOrEqual(TOLERANCE);
+        await view.ready();
 
-        const count = await chipDrift(
-            `chip-count/${entry.count}`,
-            view.$(`.r-${entry.count} [data-rigged-ui="reaction-chip-count"]`),
-            chip,
-            "right",
+        for (const [index, emoji] of cases.entries()) {
+            const chip = view.$(`.emoji-${index}`);
+            const slot = view.$(`.emoji-${index} [data-rigged-ui="reaction-chip-emoji"]`);
+            const glyph = view.$(`.emoji-${index} [data-rigged-ui="reaction-chip-emoji-glyph"]`);
+            expect(chip.height(), `${emoji} chip height`).toBe(24);
+            expect(slot.bounds().width, `${emoji} slot width`).toBe(18);
+            expect(slot.bounds().height, `${emoji} slot height`).toBe(18);
+            expect(slot.bounds().x - chip.bounds().x, `${emoji} slot x`).toBe(9);
+            expect(slot.bounds().y - chip.bounds().y, `${emoji} slot y`).toBe(3);
+            expect(slot.computedStyle("font-family"), `${emoji} fallback stack`).toContain(
+                "Apple Color Emoji",
+            );
+            const visible = await glyph.visibleMetrics();
+            expect(visible.pixelCount, `${emoji} ink`).toBeGreaterThan(0);
+            const glyphBounds = glyph.bounds();
+            const slotBounds = slot.bounds();
+            const inkLeft = glyphBounds.x - slotBounds.x + visible.bounds.x;
+            const inkTop = glyphBounds.y - slotBounds.y + visible.bounds.y;
+            const inkRight = inkLeft + visible.bounds.width;
+            const inkBottom = inkTop + visible.bounds.height;
+            expect(inkLeft, `${emoji} unclipped left`).toBeGreaterThanOrEqual(-0.5);
+            expect(inkTop, `${emoji} unclipped top`).toBeGreaterThanOrEqual(-0.5);
+            expect(inkRight, `${emoji} unclipped right`).toBeLessThanOrEqual(18.5);
+            expect(inkBottom, `${emoji} unclipped bottom`).toBeLessThanOrEqual(18.5);
+            /*
+             * System color-emoji artwork has content-dependent mass, so compare
+             * each glyph's full painted bounds with its own slot. Never combine
+             * the emoji and count into one centroid.
+             */
+            const boundsDx = inkLeft + visible.bounds.width / 2 - 9;
+            const boundsDy = inkTop + visible.bounds.height / 2 - 9;
+            expect(Math.abs(boundsDx), `${emoji} bounds x ${boundsDx}`).toBeLessThanOrEqual(0.75);
+            expect(Math.abs(boundsDy), `${emoji} bounds y ${boundsDy}`).toBeLessThanOrEqual(0.75);
+        }
+    },
+);
+
+it(
+    "aligns ReactionChip counts to one lining-figure band and baseline",
+    { timeout: 120_000 },
+    async () => {
+        const counts = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 44, 64, 88, 128, 999, 1234];
+        const view = createRenderer();
+        view.render(
+            () => (
+                <div style={{ height: "100%", position: "relative", width: "100%" }}>
+                    <style>{INK_FIXTURE_CSS}</style>
+                    {counts.map((count, index) =>
+                        cell(
+                            20 + (index % 4) * 74,
+                            20 + Math.floor(index / 4) * 34,
+                            <ReactionChip class={`ink count-${count}`} count={count} emoji="👍" />,
+                        ),
+                    )}
+                </div>
+            ),
+            { width: 330, height: 200 },
         );
-        expect(Math.abs(count.dx), `count ${entry.count} optical x`).toBeLessThanOrEqual(TOLERANCE);
-        expect(Math.abs(count.dy), `count ${entry.count} optical y`).toBeLessThanOrEqual(TOLERANCE);
-    }
-});
+        await view.ready();
 
-it("centers KeyCap ink for short and long shortcut strings", { timeout: 120_000 }, async () => {
-    const cases = ["⌘K", "ESC", "⌘⇧P", "CTRL+SHIFT+K"];
+        let baseline: number | undefined;
+        for (const count of counts) {
+            const chip = view.$(`.count-${count}`);
+            const label = view.$(`.count-${count} [data-rigged-ui="reaction-chip-count"]`);
+            const measured = await chipDrift(`chip-count/${count}`, label, chip, "right");
+            const metrics = label.textMetrics();
+            const currentBaseline = metrics.verticalOffset - chip.bounds().y;
+            baseline ??= currentBaseline;
+            expect(
+                Math.abs(currentBaseline - baseline),
+                `${count} shared baseline`,
+            ).toBeLessThanOrEqual(0.001);
+            expect(
+                Math.abs(currentBaseline - 16),
+                `${count} baseline position`,
+            ).toBeLessThanOrEqual(0.1);
+            expect(metrics.font.family, `${count} numeric font`).toBe(
+                "Rigged Mono, ui-monospace, monospace",
+            );
+            const numericVariant = label.computedStyle("font-variant-numeric");
+            expect(numericVariant, `${count} lining figures`).toContain("lining-nums");
+            expect(numericVariant, `${count} tabular figures`).toContain("tabular-nums");
+            expect(Math.abs(measured.by), `${count} full numeral height`).toBeLessThanOrEqual(0.25);
+            expect(
+                Math.abs(
+                    chip.bounds().x +
+                        chip.bounds().width -
+                        (label.bounds().x + label.bounds().width) -
+                        9,
+                ),
+                `${count} trailing inset`,
+            ).toBeLessThanOrEqual(0.001);
+            if (count === 1234) {
+                expect(Math.abs(measured.dy), `${count} balanced centroid`).toBeLessThanOrEqual(
+                    0.15,
+                );
+            }
+        }
+    },
+);
 
-    const view = createRenderer();
-    view.render(
-        () => (
-            <div style={{ height: "100%", position: "relative", width: "100%" }}>
-                <style>{INK_FIXTURE_CSS}</style>
-                {cases.map((keys, index) =>
-                    cell(20, 20 + index * 30, <KeyCap class={`ink k-${index}`} keys={keys} />),
-                )}
-            </div>
-        ),
-        { width: 160, height: 150 },
-    );
-    await view.ready();
+it(
+    "normalizes every KeyCap character and modifier inside fixed slots",
+    { timeout: 120_000 },
+    async () => {
+        const cases = ["⌘K", "⇧⌘P", "⌥⌘K", "⌃K", "ESC", "ENTER", "AMW09"];
 
-    for (const [index, keys] of cases.entries()) {
-        const cap = view.$(`.k-${index}`);
-        expect(cap.height(), `${keys} height`).toBe(18);
-        const measured = await drift(
-            `keycap/${keys}`,
-            view.$(`.k-${index} [data-rigged-ui="key-cap-label"]`),
-            cap,
+        const view = createRenderer();
+        view.render(
+            () => (
+                <div style={{ height: "100%", position: "relative", width: "100%" }}>
+                    <style>{INK_FIXTURE_CSS}</style>
+                    {cases.map((keys, index) =>
+                        cell(20, 20 + index * 30, <KeyCap class={`ink k-${index}`} keys={keys} />),
+                    )}
+                </div>
+            ),
+            { width: 180, height: 240 },
         );
-        expect(Math.abs(measured.dy), `${keys} optical y`).toBeLessThanOrEqual(TOLERANCE);
-        /*
-         * Shortcut strings mix symbols and letters with uneven per-glyph mass
-         * ("+" is centroid-light), so x asserts the ink bounding-box center.
-         */
-        expect(Math.abs(measured.bx), `${keys} optical x`).toBeLessThanOrEqual(TOLERANCE);
-    }
-});
+        view.render(
+            () => (
+                <div
+                    style={{
+                        "align-items": "center",
+                        background: "#131217",
+                        display: "flex",
+                        gap: "12px",
+                        height: "100%",
+                        padding: "12px",
+                    }}
+                >
+                    {cases.slice(0, 6).map((keys) => (
+                        <KeyCap keys={keys} />
+                    ))}
+                </div>
+            ),
+            { width: 380, height: 50 },
+        );
+        await view.ready();
+
+        let sharedTextBaseline: number | undefined;
+        for (const [index, keys] of cases.entries()) {
+            const cap = view.$(`.k-${index}`);
+            expect(cap.height(), `${keys} height`).toBe(18);
+            expect(cap.element.getAttribute("aria-label"), `${keys} accessible label`).toBe(keys);
+            expect(cap.computedStyle("padding-left"), `${keys} left padding`).toBe("4px");
+            expect(cap.computedStyle("padding-right"), `${keys} right padding`).toBe("4px");
+            const label = view.$(`.k-${index} [data-rigged-ui="key-cap-label"]`);
+            expect(label.bounds().height, `${keys} label height`).toBe(10);
+            expect(label.computedStyle("column-gap"), `${keys} character gap`).toBe("0px");
+            expect(Math.abs(label.offsets().left - 4), `${keys} left inset`).toBeLessThanOrEqual(
+                0.001,
+            );
+            expect(Math.abs(label.offsets().right - 4), `${keys} right inset`).toBeLessThanOrEqual(
+                0.001,
+            );
+            const contentWidth = Array.from(keys).reduce(
+                (width, key) => width + (["⌘", "⇧", "⌥", "⌃"].includes(key) ? 9 : 6.5),
+                0,
+            );
+            expect(label.bounds().width, `${keys} normalized content width`).toBe(contentWidth);
+            expect(cap.width(), `${keys} width with equal padding`).toBe(contentWidth + 8);
+
+            const painted: Array<{
+                bottom: number;
+                key: string;
+                left: number;
+                right: number;
+                top: number;
+                type: "symbol" | "text";
+            }> = [];
+
+            for (const [keyIndex, key] of Array.from(keys).entries()) {
+                const slot = view.$(
+                    `.k-${index} [data-rigged-ui="key-cap-key"]:nth-child(${keyIndex + 1})`,
+                );
+                expect(slot.bounds().height, `${keys}/${key} slot height`).toBe(10);
+                if (["⌘", "⇧", "⌥", "⌃"].includes(key)) {
+                    expect(slot.element.getAttribute("data-kind"), `${keys}/${key} kind`).toBe(
+                        "symbol",
+                    );
+                    expect(slot.bounds().width, `${keys}/${key} slot width`).toBe(9);
+                    const symbol = view.$(
+                        `.k-${index} [data-rigged-ui="key-cap-key"]:nth-child(${keyIndex + 1}) svg`,
+                    );
+                    expect(symbol.bounds().width, `${keys}/${key} symbol width`).toBe(9);
+                    expect(symbol.bounds().height, `${keys}/${key} symbol height`).toBe(9);
+                    const ink = await symbol.visibleMetrics();
+                    const sx = symbol.bounds().x - slot.bounds().x + ink.center.x - 4.5;
+                    const sy = symbol.bounds().y - label.bounds().y + ink.center.y - 5;
+                    expect(ink.pixelCount, `${keys}/${key} symbol ink`).toBeGreaterThan(0);
+                    expect(
+                        Math.abs(sx),
+                        `${keys}/${key} symbol optical x ${sx}`,
+                    ).toBeLessThanOrEqual(0.05);
+                    expect(
+                        Math.abs(sy),
+                        `${keys}/${key} symbol optical y ${sy}`,
+                    ).toBeLessThanOrEqual(0.05);
+                    if (key === "⌘" || key === "⇧") {
+                        expect(ink.bounds.width, `${keys}/${key} normalized symbol width`).toBe(8);
+                        expect(
+                            ink.bounds.height,
+                            `${keys}/${key} normalized symbol height`,
+                        ).toBeGreaterThanOrEqual(7.5);
+                    }
+                    painted.push({
+                        key,
+                        type: "symbol",
+                        left: symbol.bounds().x - label.bounds().x + ink.bounds.x,
+                        right:
+                            symbol.bounds().x - label.bounds().x + ink.bounds.x + ink.bounds.width,
+                        top: symbol.bounds().y - label.bounds().y + ink.bounds.y,
+                        bottom:
+                            symbol.bounds().y - label.bounds().y + ink.bounds.y + ink.bounds.height,
+                    });
+                } else {
+                    expect(slot.element.getAttribute("data-kind"), `${keys}/${key} kind`).toBe(
+                        "text",
+                    );
+                    expect(slot.bounds().width, `${keys}/${key} slot width`).toBe(6.5);
+                    expect(slot.computedStyle("font-family"), `${keys}/${key} font`).toContain(
+                        "Rigged Mono",
+                    );
+                    expect(slot.computedStyle("font-size"), `${keys}/${key} size`).toBe("10.8px");
+                    expect(slot.computedStyle("font-weight"), `${keys}/${key} weight`).toBe("500");
+                    const text = view.$(
+                        `.k-${index} [data-rigged-ui="key-cap-key"]:nth-child(${keyIndex + 1}) [data-rigged-ui="key-cap-text"]`,
+                    );
+                    const metrics = text.textMetrics();
+                    const baseline = metrics.verticalOffset - label.bounds().y;
+                    sharedTextBaseline ??= baseline;
+                    expect(
+                        Math.abs(baseline - sharedTextBaseline),
+                        `${keys}/${key} shared text baseline`,
+                    ).toBeLessThanOrEqual(0.001);
+                    expect(
+                        metrics.fontMetrics.advanceWidth,
+                        `${keys}/${key} font advance`,
+                    ).toBeGreaterThan(0);
+                    const ink = await text.visibleMetrics();
+                    const inkLeft = text.bounds().x - slot.bounds().x + ink.bounds.x;
+                    const inkTop = text.bounds().y - label.bounds().y + ink.bounds.y;
+                    const inkRight = inkLeft + ink.bounds.width;
+                    const boundsY = inkTop + ink.bounds.height / 2 - 5;
+                    expect(ink.pixelCount, `${keys}/${key} text ink`).toBeGreaterThan(0);
+                    expect(inkLeft, `${keys}/${key} unclipped left`).toBeGreaterThanOrEqual(-0.501);
+                    expect(inkRight, `${keys}/${key} unclipped right`).toBeLessThanOrEqual(7.001);
+                    expect(
+                        ink.bounds.height,
+                        `${keys}/${key} normalized visible height`,
+                    ).toBeGreaterThanOrEqual(8.5);
+                    expect(
+                        ink.bounds.height,
+                        `${keys}/${key} normalized visible height`,
+                    ).toBeLessThanOrEqual(9);
+                    expect(
+                        Math.abs(boundsY),
+                        `${keys}/${key} visible-bounds y ${boundsY}`,
+                    ).toBeLessThanOrEqual(0.5);
+                    painted.push({
+                        key,
+                        type: "text",
+                        left: text.bounds().x - label.bounds().x + ink.bounds.x,
+                        right: text.bounds().x - label.bounds().x + ink.bounds.x + ink.bounds.width,
+                        top: text.bounds().y - label.bounds().y + ink.bounds.y,
+                        bottom:
+                            text.bounds().y - label.bounds().y + ink.bounds.y + ink.bounds.height,
+                    });
+                }
+            }
+
+            const reference = painted.find((entry) => entry.type === "text")!;
+            const referenceHeight = reference.bottom - reference.top;
+            const referenceCenterY = (reference.top + reference.bottom) / 2;
+            for (const entry of painted.filter((item) => item.type === "symbol")) {
+                expect(
+                    Math.abs(entry.bottom - entry.top - referenceHeight),
+                    `${keys}/${entry.key} painted-height parity`,
+                ).toBeLessThanOrEqual(1);
+                expect(
+                    Math.abs((entry.top + entry.bottom) / 2 - referenceCenterY),
+                    `${keys}/${entry.key} shared visual axis`,
+                ).toBeLessThanOrEqual(0.5);
+            }
+            for (let token = 1; token < painted.length; token += 1) {
+                const visibleGap = painted[token]!.left - painted[token - 1]!.right;
+                expect(
+                    visibleGap,
+                    `${keys}/${painted[token - 1]!.key}-${painted[token]!.key} ink gap`,
+                ).toBeGreaterThanOrEqual(0);
+                expect(
+                    visibleGap,
+                    `${keys}/${painted[token - 1]!.key}-${painted[token]!.key} ink gap`,
+                ).toBeLessThanOrEqual(1.5);
+            }
+            const visibleLeftPadding = 4 + painted[0]!.left;
+            const visibleRightPadding = 4 + contentWidth - painted.at(-1)!.right;
+            expect(
+                Math.abs(visibleLeftPadding - visibleRightPadding),
+                `${keys} visible outer-padding parity`,
+            ).toBeLessThanOrEqual(1.5);
+        }
+        await view.screenshot("KeyCap.test");
+    },
+);
 
 it("holds Badge family geometry, colors, and behavior", async () => {
     const view = createRenderer();
@@ -389,6 +690,7 @@ it("holds Badge family geometry, colors, and behavior", async () => {
                     <Badge class="g-default" label="DEFAULT" />
                 </div>
                 <div style={{ "align-items": "center", display: "flex", gap: "8px" }}>
+                    <CountBadge class="g-count-0" count={0} />
                     <CountBadge class="g-count-1" count={1} />
                     <CountBadge class="g-count-12" count={12} />
                     <CountBadge class="g-count-128" count={128} />
@@ -410,11 +712,6 @@ it("holds Badge family geometry, colors, and behavior", async () => {
         server.browser === "webkit"
             ? "Rigged Mono, ui-monospace, monospace"
             : '"Rigged Mono", ui-monospace, monospace';
-    const ui =
-        server.browser === "webkit"
-            ? "Rigged Figtree, system-ui, sans-serif"
-            : '"Rigged Figtree", system-ui, sans-serif';
-
     /* Badge: 18px mono uppercase pill; each variant maps to its tokens. */
     const badgeColors: Record<BadgeVariant, { background: string; color: string }> = {
         neutral: { background: "rgba(255, 255, 255, 0.05)", color: "rgb(165, 160, 176)" },
@@ -487,6 +784,7 @@ it("holds Badge family geometry, colors, and behavior", async () => {
 
     /* CountBadge: 18px pill, min-width 18, grows with digit count. */
     for (const [id, tone] of [
+        ["g-count-0", "accent"],
         ["g-count-1", "accent"],
         ["g-count-12", "accent"],
         ["g-count-128", "accent"],
@@ -503,6 +801,7 @@ it("holds Badge family geometry, colors, and behavior", async () => {
                 "font-family",
                 "font-size",
                 "font-weight",
+                "font-variant-numeric",
                 "line-height",
             ]),
             id,
@@ -511,12 +810,14 @@ it("holds Badge family geometry, colors, and behavior", async () => {
                 tone === "accent" ? "rgb(139, 124, 247)" : "rgba(255, 255, 255, 0.05)",
             "border-radius": "999px",
             color: tone === "accent" ? "rgb(255, 255, 255)" : "rgb(165, 160, 176)",
-            "font-family": ui,
-            "font-size": "11px",
+            "font-family": mono,
+            "font-size": "10.8px",
             "font-weight": "700",
+            "font-variant-numeric": "lining-nums tabular-nums",
             "line-height": "18px",
         });
     }
+    expect(view.$(".g-count-0").width()).toBe(18);
     expect(view.$(".g-count-1").width()).toBe(18);
     expect(view.$(".g-count-12").width()).toBeGreaterThan(18);
     expect(view.$(".g-count-12").width()).toBeLessThan(26);
@@ -549,15 +850,31 @@ it("holds Badge family geometry, colors, and behavior", async () => {
     expect(
         view
             .$('.g-chip [data-rigged-ui="reaction-chip-count"]')
-            .computedStyles(["color", "font-size", "font-weight"]),
+            .computedStyles([
+                "color",
+                "font-family",
+                "font-size",
+                "font-weight",
+                "font-variant-numeric",
+                "line-height",
+            ]),
     ).toEqual({
         color: "rgb(165, 160, 176)",
+        "font-family": mono,
         "font-size": "11px",
         "font-weight": "700",
+        "font-variant-numeric": "lining-nums tabular-nums",
+        "line-height": "22px",
     });
+    const emojiSlot = view.$('.g-chip [data-rigged-ui="reaction-chip-emoji"]');
+    expect(emojiSlot.bounds().width).toBe(18);
+    expect(emojiSlot.bounds().height).toBe(18);
+    expect(emojiSlot.computedStyle("font-size")).toBe("13px");
+    expect(emojiSlot.computedStyle("font-family")).toContain("Apple Color Emoji");
     expect(
-        view.$('.g-chip [data-rigged-ui="reaction-chip-emoji"]').computedStyle("font-size"),
-    ).toBe("13px");
+        (await view.$('.g-chip [data-rigged-ui="reaction-chip-emoji-glyph"]').visibleMetrics())
+            .pixelCount,
+    ).toBeGreaterThan(0);
 
     const active = view.$(".g-chip-active");
     expect(active.element.getAttribute("aria-pressed")).toBe("true");
@@ -589,7 +906,7 @@ it("holds Badge family geometry, colors, and behavior", async () => {
             "border-radius": "4px",
             color: "rgb(165, 160, 176)",
             "font-family": mono,
-            "font-size": "10px",
+            "font-size": "10.8px",
             "font-weight": "500",
         });
     }

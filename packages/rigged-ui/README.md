@@ -66,10 +66,16 @@ platform-specific PNG beside the current test file. These images are inspection 
 visual assertions. Every browser context and capture uses a 2× Retina device scale. Use
 `pageBounds()` when document coordinates are needed, or `width()` and `height()` for individual
 dimension assertions. `offsets()` measures an element within its parent;
-`textMetrics()` adds its line-box bounds, computed font properties, measured glyph-ink bounds, and
-baseline position. The asynchronous `visibleMetrics()` analyzes actual rendered pixels and returns
+`textMetrics()` adds its line-box bounds, computed font properties, raw Canvas font metrics, and
+actual DOM baseline position. `baseline.fromElementTop` and `baseline.fromSurfaceTop` are the
+explicit baseline coordinates; `ink.baseline` and `verticalOffset` are compatibility aliases. The
+asynchronous `visibleMetrics()` analyzes
+actual rendered pixels and returns
 both the alpha-weighted optical center and visible-pixel bounding box; `opticalCenter()` and
 `visibleBounds()` expose those values individually.
+
+The Playwright measurement implementation lives in `gym/playwright`; this package's testing entry
+point only supplies the SolidJS mount adapter.
 
 `computedStyle(name)` reads one raw browser-computed CSS value. `computedStyles(names)` returns a
 property/value object for comparison; omit `names` to capture every computed property.

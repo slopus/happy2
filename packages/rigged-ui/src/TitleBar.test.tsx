@@ -397,7 +397,7 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
     expect(
         Math.round(field.bounds().x + field.bounds().width - (cap.bounds().x + cap.bounds().width)),
     ).toBe(5);
-    expect(cap.element.textContent).toBe("⌘K");
+    expect(cap.element.getAttribute("aria-label")).toBe("⌘K");
     /* Cap glyph ink. Intra-cap glyph centering is owned and tuned by
        Badge.test.tsx (KeyCap's own optical corrections live in badge.css),
        so asserting an absolute centroid here would double-own that tuning.
@@ -418,7 +418,7 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
        inset asserted above; intra-cap horizontal ink is Badge-owned. */
     const capLabel = view.$('[data-testid="fixed"] [data-rigged-ui="key-cap-label"]');
     const capControl = view.$('[data-testid="cap-control-k"] [data-rigged-ui="key-cap-label"]');
-    expect(capControl.bounds().height).toBe(18);
+    expect(capControl.bounds().height).toBe(10);
     expect(capControl.bounds().y).toBe(capLabel.bounds().y); // same vertical phase
     const capInk = await capLabel.visibleMetrics();
     const capControlInk = await capControl.visibleMetrics();
@@ -438,7 +438,11 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
     const fluid = view.$('[data-testid="fluid"] [data-rigged-ui="search-field"]');
     expect(fluid.bounds()).toEqual({ x: 12, y: 12, width: 236, height: 26 });
     const fluidCapLabel = view.$('[data-testid="fluid"] [data-rigged-ui="key-cap-label"]');
-    expect(fluidCapLabel.element.textContent).toBe("⇧⌘P");
+    expect(
+        view
+            .$('[data-testid="fluid"] [data-rigged-ui="key-cap"]')
+            .element.getAttribute("aria-label"),
+    ).toBe("⇧⌘P");
     /* Custom hint glyphs get the same vertical-only differential parity
        check against a standalone ⇧⌘P KeyCap at the same vertical phase
        (raw true-2x in-field dy with Badge corrections zeroed: cr -0.92,

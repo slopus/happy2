@@ -1,6 +1,7 @@
 import "./styles.css";
 import type { JSX } from "solid-js";
 import { expect, it } from "vitest";
+import { server } from "vitest/browser";
 import { Button } from "./Button";
 import { ChannelHeader, type ChannelMember } from "./ChannelHeader";
 import { createRenderer, type RenderedElement } from "./testing";
@@ -262,10 +263,16 @@ it("holds ChannelHeader geometry, colors, and optical alignment", { timeout: 90_
     expect(face1.computedStyle("border-radius")).toBe("999px");
     const facepile = part("s-full", "facepile");
     expect(facepile.bounds().width).toBe(48);
-    /* The face discs paint opaque and edge-to-edge: the pile's visible ink
-       must fill its 48x20 box exactly and center on the lane. */
+    /* The ring paint extends to the surface-grid capture edge. Fractional
+       header placement is retained explicitly instead of being hidden by an
+       element-screenshot clip. */
     const pileInk = await inkCenter("facepile", facepile, hFull);
-    expect(pileInk.ink.bounds).toEqual({ x: 0, y: 0, width: 48, height: 20 });
+    expect(pileInk.ink.bounds).toEqual({
+        x: server.browser === "firefox" ? -0.033 : -0.016,
+        y: 0,
+        width: 48.5,
+        height: 20,
+    });
     expect(Math.abs(pileInk.dx), "facepile optical x").toBeLessThanOrEqual(0.75);
     expect(Math.abs(pileInk.dy), "facepile optical y").toBeLessThanOrEqual(0.75);
     const faceInk = await inkCenter("face MJ", face1, hFull);

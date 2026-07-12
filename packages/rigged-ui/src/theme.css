@@ -87,6 +87,7 @@
     /* Typography */
     --rg-font-ui: "Rigged Figtree", system-ui, sans-serif;
     --rg-font-mono: "Rigged Mono", ui-monospace, monospace;
+    --rg-font-emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 
     /* Radii */
     --rg-radius-sm: 6px;

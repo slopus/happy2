@@ -2,14 +2,14 @@
     "extends": "../../tsconfig.base.json",
     "compilerOptions": {
         "target": "ES2022",
-        "lib": ["ES2024", "ESNext.Disposable"],
+        "lib": ["ES2024", "DOM", "DOM.Iterable", "ESNext.Disposable"],
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
         "paths": {
             "@slopus/rigged": ["../server/sources/index.ts"]
         },
-        "types": ["node", "vitest/globals"],
+        "types": ["node", "vite/client", "vitest/globals"],
         "noEmit": true
     },
-    "include": ["sources", "tests", "vitest.config.ts"]
+    "include": ["sources", "tests", "vitest.config.ts", "vitest.playwright.config.ts"]
 }

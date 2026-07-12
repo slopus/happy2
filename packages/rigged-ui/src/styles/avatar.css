@@ -105,89 +105,33 @@
 
 .rigged-avatar__initials {
     display: block;
-    transform: translate(var(--rg-avatar-optical-x, 0px), var(--rg-avatar-optical-y, 0px));
 }
 
-/*
- * Engine-measured optical corrections for the initials ink centroid
- * (alpha-weighted, asserted at ≤0.75px per axis in Avatar.test.tsx).
- * Measured at true 2x capture resolution against representative initials
- * (ST / MJ / S / AI / A); each correction centers the min/max centroid
- * range of those strings, so the residual is inherent glyph-ink asymmetry
- * (T's top bar pulls ST high everywhere), not box misalignment. Engines
- * snap glyph runs to device-pixel steps, so the response to a translate
- * is non-linear; do not retune by extrapolation, re-sweep with
- * Avatar.test.tsx probes. Base values are Chromium; Gecko and WebKit
- * override below.
- */
-.rigged-avatar[data-size="xs"] {
-    --rg-avatar-optical-x: 0.1px;
-    --rg-avatar-optical-y: -0.3px;
+/* Calibrated against the balanced O fixture's visible bounds. */
+.rigged-avatar[data-size="sm"] .rigged-avatar__initials {
+    transform: translateY(0.5px);
 }
 
-.rigged-avatar[data-size="sm"] {
-    --rg-avatar-optical-x: -0.15px;
-    --rg-avatar-optical-y: 0.54px;
+.rigged-avatar[data-size="md"] .rigged-avatar__initials {
+    transform: translateY(0.25px);
 }
 
-.rigged-avatar[data-size="md"] {
-    --rg-avatar-optical-x: 0.1px;
-    --rg-avatar-optical-y: 0.26px;
+.rigged-avatar[data-size="lg"] .rigged-avatar__initials {
+    transform: translateY(1px);
 }
 
-.rigged-avatar[data-size="lg"] {
-    --rg-avatar-optical-x: 0.1px;
-    --rg-avatar-optical-y: 1px;
-}
-
-/*
- * Firefox — Gecko is the only engine that parses -moz-appearance.
- * (@-moz-document is stripped by the CSS pipeline, and Blink on macOS
- * matches @supports (font: -apple-system-body), so those two classic
- * scopes cannot be used here.)
- */
 @supports (-moz-appearance: none) {
-    .rigged-avatar[data-size="xs"] {
-        --rg-avatar-optical-x: 0.05px;
-        --rg-avatar-optical-y: -0.3px;
-    }
-
-    .rigged-avatar[data-size="sm"] {
-        --rg-avatar-optical-x: 0.3px;
-        --rg-avatar-optical-y: 0px;
-    }
-
-    .rigged-avatar[data-size="md"] {
-        --rg-avatar-optical-x: 0px;
-        --rg-avatar-optical-y: -0.26px;
-    }
-
-    .rigged-avatar[data-size="lg"] {
-        --rg-avatar-optical-x: 0.05px;
-        --rg-avatar-optical-y: 0px;
+    .rigged-avatar[data-size="sm"] .rigged-avatar__initials,
+    .rigged-avatar[data-size="md"] .rigged-avatar__initials,
+    .rigged-avatar[data-size="lg"] .rigged-avatar__initials {
+        transform: none;
     }
 }
 
-/* WebKit — Blink and Gecko do not parse -webkit-named-image(). */
 @supports (background: -webkit-named-image(i)) {
-    .rigged-avatar[data-size="xs"] {
-        --rg-avatar-optical-x: 0.2px;
-        --rg-avatar-optical-y: -0.45px;
-    }
-
-    .rigged-avatar[data-size="sm"] {
-        --rg-avatar-optical-x: 0.3px;
-        --rg-avatar-optical-y: 0.15px;
-    }
-
-    .rigged-avatar[data-size="md"] {
-        --rg-avatar-optical-x: 0.4px;
-        --rg-avatar-optical-y: 0.33px;
-    }
-
-    .rigged-avatar[data-size="lg"] {
-        --rg-avatar-optical-x: 0.4px;
-        --rg-avatar-optical-y: 0.07px;
+    .rigged-avatar[data-size="sm"] .rigged-avatar__initials,
+    .rigged-avatar[data-size="lg"] .rigged-avatar__initials {
+        transform: none;
     }
 }
 

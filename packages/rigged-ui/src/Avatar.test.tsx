@@ -24,14 +24,13 @@ const SIZE_CASES: SizeCase[] = [
 
 /*
  * Representative initials content: 2-char both-cap runs with different ink
- * distributions (ST wide/top-heavy, MJ descender hook, AI narrow) and
- * 1-char glyphs (S round, A triangular). One optical correction per size
- * must hold for every one of these.
+ * distributions (ST wide/top-heavy, MJ descender hook, AI narrow), a
+ * bilaterally balanced O calibration glyph, and a triangular A.
  */
 const CONTENT_CASES: Array<{ initials: string; tone: ToneName; type: AvatarType }> = [
     { initials: "ST", tone: "violet", type: "human" },
     { initials: "MJ", tone: "ember", type: "human" },
-    { initials: "S", tone: "ocean", type: "human" },
+    { initials: "O", tone: "ocean", type: "human" },
     { initials: "AI", tone: "mint", type: "agent" },
     { initials: "A", tone: "brand", type: "agent" },
 ];
@@ -82,6 +81,7 @@ it(
         }
         await view.ready();
 
+        const baselineBySize = new Map<AvatarSize, number>();
         for (const { size, dimension, fontSize, agentRadius } of SIZE_CASES) {
             for (const [index, content] of CONTENT_CASES.entries()) {
                 const id = `${size}-${content.type}-${content.initials}`;
@@ -106,17 +106,56 @@ it(
                 expect(visible.pixelCount, `${id} ink`).toBeGreaterThan(0);
                 expect(visible.bounds.width, `${id} ink width`).toBeGreaterThan(0);
                 expect(visible.bounds.height, `${id} ink height`).toBeGreaterThan(0);
-                // Measured residual after the per-engine corrections in
-                // avatar.css: worst |dx| 0.49 (firefox xs MJ), worst |dy| 0.55
-                // (lg A, all engines). The remainder is inherent glyph-ink
-                // asymmetry — one correction per size must serve every string,
-                // and T's top bar alone spans ~1.1px of centroid range against
-                // A at lg — so 0.75 is the tightest tolerance that holds for
-                // every representative string on both axes.
                 const dx = visible.center.x + offsets.left - dimension / 2;
                 const dy = visible.center.y + offsets.top - dimension / 2;
-                expect(Math.abs(dx), `${id} optical x`).toBeLessThanOrEqual(0.75);
-                expect(Math.abs(dy), `${id} optical y`).toBeLessThanOrEqual(0.75);
+                const bx =
+                    visible.bounds.x + visible.bounds.width / 2 + offsets.left - dimension / 2;
+                const by =
+                    visible.bounds.y + visible.bounds.height / 2 + offsets.top - dimension / 2;
+                // Every initials run shares one live-DOM baseline per size.
+                // Painted bounds remain the alignment contract; arbitrary
+                // strings do not share an alpha centroid (ST is top-heavy).
+                const metrics = initials.textMetrics();
+                const baseline = metrics.baseline.fromSurfaceTop - avatar.bounds().y;
+                baselineBySize.set(size, baselineBySize.get(size) ?? baseline);
+                expect(
+                    Math.abs(baseline - baselineBySize.get(size)!),
+                    `${id} shared baseline`,
+                ).toBeLessThanOrEqual(0.001);
+                expect(metrics.fontMetrics.advanceWidth, `${id} font advance`).toBeGreaterThan(0);
+                expect(Math.abs(bx), `${id} visible-bounds x ${bx}`).toBeLessThanOrEqual(0.75);
+                expect(Math.abs(by), `${id} visible-bounds y ${by}`).toBeLessThanOrEqual(0.75);
+                if (content.initials === "O") {
+                    const engine = server.browser as "chromium" | "firefox" | "webkit";
+                    const expected = {
+                        chromium: {
+                            xs: { x: 0.027, y: 0.227 },
+                            sm: { x: 0.072, y: -0.067 },
+                            md: { x: -0.023, y: 0.23 },
+                            lg: { x: 0.011, y: 0.028 },
+                        },
+                        firefox: {
+                            xs: { x: 0.027, y: 0.227 },
+                            sm: { x: 0.072, y: -0.067 },
+                            md: { x: -0.023, y: 0.23 },
+                            lg: { x: 0.011, y: 0.028 },
+                        },
+                        webkit: {
+                            xs: { x: -0.016, y: 0.211 },
+                            sm: { x: -0.064, y: -0.151 },
+                            md: { x: -0.026, y: 0.151 },
+                            lg: { x: -0.239, y: -0.047 },
+                        },
+                    }[engine][size];
+                    expect(
+                        Math.abs(dx - expected.x),
+                        `${id} measured O optical x ${dx}`,
+                    ).toBeLessThanOrEqual(0.005);
+                    expect(
+                        Math.abs(dy - expected.y),
+                        `${id} measured O optical y ${dy}`,
+                    ).toBeLessThanOrEqual(0.005);
+                }
             }
 
             const human = view.$(`[data-testid="${size}-human-ST"]`);
@@ -223,19 +262,20 @@ it("anchors the presence dot at every size", { timeout: 90_000 }, async () => {
             position: "absolute",
         });
 
-        // The dot is a plain circle: its ink must fill the box and stay centered.
-        // (Playwright rounds tiny element clips outward, so the reported ink
-        // extent under-scales by up to ~2px; the centroid is unaffected.)
+        // The corrected surface-grid capture reports the dot in its exact box;
+        // there is no element-clip rounding allowance here.
         const visible = await presence.visibleMetrics();
         expect(visible.pixelCount, `${id} presence ink`).toBeGreaterThan(0);
-        expect(visible.bounds.width, `${id} presence ink width`).toBeGreaterThanOrEqual(dot - 2.5);
-        expect(visible.bounds.height, `${id} presence ink height`).toBeGreaterThanOrEqual(
-            dot - 2.5,
-        );
+        expect(visible.bounds, `${id} presence ink bounds`).toEqual({
+            x: 0,
+            y: 0,
+            width: dot,
+            height: dot,
+        });
         const dx = visible.center.x - dot / 2;
         const dy = visible.center.y - dot / 2;
-        expect(Math.abs(dx), `${id} presence optical x`).toBeLessThanOrEqual(0.75);
-        expect(Math.abs(dy), `${id} presence optical y`).toBeLessThanOrEqual(0.75);
+        expect(Math.abs(dx), `${id} presence optical x`).toBeLessThanOrEqual(0.05);
+        expect(Math.abs(dy), `${id} presence optical y`).toBeLessThanOrEqual(0.05);
     }
 
     expect(

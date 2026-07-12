@@ -27,6 +27,7 @@
     "devDependencies": {
         "@tailwindcss/vite": "^4.3.2",
         "@vitest/browser-playwright": "^4.1.10",
+        "gym": "workspace:*",
         "playwright": "^1.61.1",
         "tailwindcss": "^4.3.2",
         "typescript": "^7.0.2",
