@@ -1,0 +1,1035 @@
+import { sql } from "drizzle-orm";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+// Generated from the fully migrated SQLite schema. Migrations remain the DDL authority.
+export const accountBans = sqliteTable("account_bans", {
+    id: text("id").primaryKey().notNull(),
+    accountId: text("account_id").notNull(),
+    bannedByUserId: text("banned_by_user_id"),
+    reason: text("reason"),
+    bannedAt: text("banned_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    expiresAt: text("expires_at"),
+    revokedAt: text("revoked_at"),
+    revokedByUserId: text("revoked_by_user_id"),
+    revokeReason: text("revoke_reason"),
+});
+
+export const accounts = sqliteTable("accounts", {
+    id: text("id").primaryKey().notNull(),
+    email: text("email").notNull(),
+    passwordHash: text("password_hash"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    active: integer("active").notNull().default(0),
+    bannedAt: text("banned_at"),
+    deletedAt: text("deleted_at"),
+    banExpiresAt: text("ban_expires_at"),
+    banReason: text("ban_reason"),
+    bannedByUserId: text("banned_by_user_id"),
+});
+
+export const apiCredentials = sqliteTable("api_credentials", {
+    id: text("id").primaryKey().notNull(),
+    integrationId: text("integration_id"),
+    userId: text("user_id"),
+    botId: text("bot_id"),
+    name: text("name").notNull(),
+    tokenPrefix: text("token_prefix").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    scopesJson: text("scopes_json").notNull().default("[]"),
+    createdByUserId: text("created_by_user_id"),
+    expiresAt: text("expires_at"),
+    lastUsedAt: text("last_used_at"),
+    revokedAt: text("revoked_at"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const auditLogEntries = sqliteTable("audit_log_entries", {
+    id: text("id").primaryKey().notNull(),
+    actorUserId: text("actor_user_id"),
+    actorIntegrationId: text("actor_integration_id"),
+    action: text("action").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: text("target_id"),
+    chatId: text("chat_id"),
+    beforeJson: text("before_json"),
+    afterJson: text("after_json"),
+    metadataJson: text("metadata_json"),
+    clientIp: text("client_ip"),
+    device: text("device"),
+    appVersion: text("app_version"),
+    userAgent: text("user_agent"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const authMagicLinks = sqliteTable("auth_magic_links", {
+    tokenHash: text("token_hash").primaryKey().notNull(),
+    accountId: text("account_id").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    consumedAt: text("consumed_at"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const authOidcStates = sqliteTable("auth_oidc_states", {
+    state: text("state").primaryKey().notNull(),
+    provider: text("provider").notNull(),
+    codeVerifier: text("code_verifier").notNull(),
+    nonce: text("nonce").notNull(),
+    redirectUri: text("redirect_uri").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const authSessionEvents = sqliteTable("auth_session_events", {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    sessionId: text("session_id").notNull(),
+    eventType: text("event_type").notNull(),
+    ip: text("ip"),
+    forwardedFor: text("forwarded_for"),
+    location: text("location"),
+    device: text("device"),
+    appVersion: text("app_version"),
+    userAgent: text("user_agent"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const authSessions = sqliteTable("auth_sessions", {
+    id: text("id").primaryKey().notNull(),
+    accountId: text("account_id").notNull(),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    expiresAt: text("expires_at").notNull(),
+    lastSeenAt: text("last_seen_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    revokedAt: text("revoked_at"),
+});
+
+export const automationRuns = sqliteTable("automation_runs", {
+    id: text("id").primaryKey().notNull(),
+    automationId: text("automation_id").notNull(),
+    triggerEventId: text("trigger_event_id"),
+    scheduledFor: text("scheduled_for"),
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    inputJson: text("input_json"),
+    resultJson: text("result_json"),
+    lastError: text("last_error"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    startedAt: text("started_at"),
+    completedAt: text("completed_at"),
+});
+
+export const automations = sqliteTable("automations", {
+    id: text("id").primaryKey().notNull(),
+    name: text("name").notNull(),
+    createdByUserId: text("created_by_user_id"),
+    botId: text("bot_id"),
+    chatId: text("chat_id"),
+    triggerType: text("trigger_type").notNull(),
+    triggerConfigJson: text("trigger_config_json").notNull().default("{}"),
+    actionType: text("action_type").notNull().default("send_message"),
+    actionConfigJson: text("action_config_json").notNull().default("{}"),
+    timezone: text("timezone"),
+    nextRunAt: text("next_run_at"),
+    active: integer("active").notNull().default(1),
+    createdSequence: integer("created_sequence").notNull().default(0),
+    lastRunAt: text("last_run_at"),
+    lastError: text("last_error"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    deletedAt: text("deleted_at"),
+});
+
+export const backupRecords = sqliteTable("backup_records", {
+    id: text("id").primaryKey().notNull(),
+    storageProvider: text("storage_provider").notNull(),
+    storageKey: text("storage_key").notNull(),
+    checksumSha256: text("checksum_sha256"),
+    size: integer("size"),
+    status: text("status").notNull().default("pending"),
+    createdByUserId: text("created_by_user_id"),
+    metadataJson: text("metadata_json"),
+    lastError: text("last_error"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    completedAt: text("completed_at"),
+    retentionUntil: text("retention_until"),
+});
+
+export const botIdentities = sqliteTable("bot_identities", {
+    id: text("id").primaryKey().notNull(),
+    name: text("name").notNull(),
+    username: text("username").notNull(),
+    description: text("description"),
+    photoFileId: text("photo_file_id"),
+    ownerUserId: text("owner_user_id"),
+    createdByUserId: text("created_by_user_id"),
+    active: integer("active").notNull().default(1),
+    syncSequence: integer("sync_sequence").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    deletedAt: text("deleted_at"),
+});
+
+export const callCredentialLeases = sqliteTable("call_credential_leases", {
+    id: text("id").primaryKey().notNull(),
+    callId: text("call_id").notNull(),
+    userId: text("user_id").notNull(),
+    provider: text("provider").notNull(),
+    credentialUsername: text("credential_username").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    revokedAt: text("revoked_at"),
+});
+
+export const callEvents = sqliteTable("call_events", {
+    id: text("id").primaryKey().notNull(),
+    callId: text("call_id").notNull(),
+    kind: text("kind").notNull(),
+    actorUserId: text("actor_user_id"),
+    targetUserId: text("target_user_id"),
+    payloadJson: text("payload_json"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const callParticipants = sqliteTable("call_participants", {
+    callId: text("call_id").notNull(),
+    userId: text("user_id").notNull(),
+    invitedByUserId: text("invited_by_user_id"),
+    status: text("status").notNull().default("invited"),
+    invitedAt: text("invited_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    ringingAt: text("ringing_at"),
+    joinedAt: text("joined_at"),
+    leftAt: text("left_at"),
+    lastSeenAt: text("last_seen_at"),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const calls = sqliteTable("calls", {
+    id: text("id").primaryKey().notNull(),
+    chatId: text("chat_id").notNull(),
+    createdByUserId: text("created_by_user_id"),
+    kind: text("kind").notNull().default("audio"),
+    status: text("status").notNull().default("ringing"),
+    provider: text("provider").notNull().default("webrtc"),
+    providerRoomId: text("provider_room_id"),
+    providerDataJson: text("provider_data_json"),
+    startedAt: text("started_at"),
+    endedAt: text("ended_at"),
+    endReason: text("end_reason"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const chatBookmarks = sqliteTable("chat_bookmarks", {
+    id: text("id").primaryKey().notNull(),
+    chatId: text("chat_id").notNull(),
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    url: text("url"),
+    messageId: text("message_id"),
+    fileId: text("file_id"),
+    emoji: text("emoji"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdByUserId: text("created_by_user_id"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const chatMembers = sqliteTable("chat_members", {
+    chatId: text("chat_id").notNull(),
+    userId: text("user_id").notNull(),
+    role: text("role").notNull().default("member"),
+    membershipEpoch: text("membership_epoch").notNull(),
+    syncSequence: integer("sync_sequence").notNull().default(0),
+    joinedAt: text("joined_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    leftAt: text("left_at"),
+    lastReadMessageId: text("last_read_message_id"),
+    lastReadSequence: integer("last_read_sequence").notNull().default(0),
+    lastReadPts: integer("last_read_pts").notNull().default(0),
+    lastReadAt: text("last_read_at"),
+    unreadCount: integer("unread_count").notNull().default(0),
+    mentionCount: integer("mention_count").notNull().default(0),
+    invitedByUserId: text("invited_by_user_id"),
+    removedByUserId: text("removed_by_user_id"),
+});
+
+export const chatPins = sqliteTable("chat_pins", {
+    id: text("id").primaryKey().notNull(),
+    chatId: text("chat_id").notNull(),
+    messageId: text("message_id").notNull(),
+    pinnedByUserId: text("pinned_by_user_id"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const chatSyncCompactions = sqliteTable("chat_sync_compactions", {
+    id: text("id").primaryKey().notNull(),
+    chatId: text("chat_id").notNull(),
+    previousMinPts: integer("previous_min_pts").notNull(),
+    newMinPts: integer("new_min_pts").notNull(),
+    updatesDeleted: integer("updates_deleted").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const chatUpdates = sqliteTable("chat_updates", {
+    chatId: text("chat_id").notNull(),
+    pts: integer("pts").notNull(),
+    ptsCount: integer("pts_count").notNull().default(1),
+    kind: text("kind").notNull(),
+    entityId: text("entity_id"),
+    payloadJson: text("payload_json"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const chats = sqliteTable("chats", {
+    id: text("id").primaryKey().notNull(),
+    kind: text("kind").notNull(),
+    name: text("name"),
+    slug: text("slug"),
+    topic: text("topic"),
+    createdByUserId: text("created_by_user_id"),
+    dmKey: text("dm_key"),
+    pts: integer("pts").notNull().default(0),
+    minRecoverablePts: integer("min_recoverable_pts").notNull().default(0),
+    lastMessageSequence: integer("last_message_sequence").notNull().default(0),
+    lastChangeSequence: integer("last_change_sequence").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    deletedAt: text("deleted_at"),
+    dmType: text("dm_type").notNull().default("none"),
+    visibility: text("visibility").notNull().default("private"),
+    ownerUserId: text("owner_user_id"),
+    photoFileId: text("photo_file_id"),
+    isListed: integer("is_listed").notNull().default(1),
+    archivedAt: text("archived_at"),
+    archivedByUserId: text("archived_by_user_id"),
+    archiveReason: text("archive_reason"),
+    deletedByUserId: text("deleted_by_user_id"),
+    deleteReason: text("delete_reason"),
+    retentionMode: text("retention_mode").notNull().default("inherit"),
+    retentionSeconds: integer("retention_seconds"),
+    defaultExpiryMode: text("default_expiry_mode").notNull().default("none"),
+    defaultSelfDestructSeconds: integer("default_self_destruct_seconds"),
+    defaultAfterReadScope: text("default_after_read_scope").notNull().default("any_reader"),
+    lifecycleVersion: integer("lifecycle_version").notNull().default(1),
+});
+
+export const clientMutations = sqliteTable("client_mutations", {
+    actorUserId: text("actor_user_id").notNull(),
+    scope: text("scope").notNull(),
+    clientMutationId: text("client_mutation_id").notNull(),
+    resultJson: text("result_json").notNull(),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    expiresAt: text("expires_at"),
+    lastAccessedAt: text("last_accessed_at"),
+});
+
+export const customEmojiRevisions = sqliteTable("custom_emoji_revisions", {
+    id: text("id").primaryKey().notNull(),
+    customEmojiId: text("custom_emoji_id").notNull(),
+    name: text("name").notNull(),
+    fileId: text("file_id").notNull(),
+    changedByUserId: text("changed_by_user_id"),
+    changeKind: text("change_kind").notNull(),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const customEmojis = sqliteTable("custom_emojis", {
+    id: text("id").primaryKey().notNull(),
+    name: text("name").notNull(),
+    fileId: text("file_id").notNull(),
+    createdByUserId: text("created_by_user_id"),
+    syncSequence: integer("sync_sequence").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    deletedAt: text("deleted_at"),
+    deletedByUserId: text("deleted_by_user_id"),
+    promotedAt: text("promoted_at"),
+    promotedByUserId: text("promoted_by_user_id"),
+});
+
+export const dataExportJobs = sqliteTable("data_export_jobs", {
+    id: text("id").primaryKey().notNull(),
+    requestedByUserId: text("requested_by_user_id"),
+    kind: text("kind").notNull(),
+    targetId: text("target_id"),
+    status: text("status").notNull().default("pending"),
+    outputFileId: text("output_file_id"),
+    optionsJson: text("options_json"),
+    lastError: text("last_error"),
+    expiresAt: text("expires_at"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    startedAt: text("started_at"),
+    completedAt: text("completed_at"),
+});
+
+export const fileAccessGrants = sqliteTable("file_access_grants", {
+    id: text("id").primaryKey().notNull(),
+    fileId: text("file_id").notNull(),
+    principalType: text("principal_type").notNull(),
+    principalId: text("principal_id").notNull(),
+    sourceMessageId: text("source_message_id"),
+    grantedByUserId: text("granted_by_user_id"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    expiresAt: text("expires_at"),
+});
+
+export const fileDerivatives = sqliteTable("file_derivatives", {
+    sourceFileId: text("source_file_id").notNull(),
+    derivedFileId: text("derived_file_id").notNull(),
+    kind: text("kind").notNull(),
+    variant: text("variant").notNull().default("default"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const fileProcessingJobs = sqliteTable("file_processing_jobs", {
+    id: text("id").primaryKey().notNull(),
+    fileId: text("file_id").notNull(),
+    kind: text("kind").notNull(),
+    status: text("status").notNull().default("pending"),
+    inputJson: text("input_json"),
+    resultJson: text("result_json"),
+    attempts: integer("attempts").notNull().default(0),
+    runAfter: text("run_after").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    lockedAt: text("locked_at"),
+    lockedBy: text("locked_by"),
+    lastError: text("last_error"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    completedAt: text("completed_at"),
+});
+
+export const fileScanEvents = sqliteTable("file_scan_events", {
+    id: text("id").primaryKey().notNull(),
+    fileId: text("file_id").notNull(),
+    scanner: text("scanner").notNull(),
+    status: text("status").notNull(),
+    resultJson: text("result_json"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const fileUploadParts = sqliteTable("file_upload_parts", {
+    uploadSessionId: text("upload_session_id").notNull(),
+    partNumber: integer("part_number").notNull(),
+    byteOffset: integer("byte_offset").notNull(),
+    size: integer("size").notNull(),
+    checksumSha256: text("checksum_sha256"),
+    storageEtag: text("storage_etag"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const fileUploadSessions = sqliteTable("file_upload_sessions", {
+    id: text("id").primaryKey().notNull(),
+    userId: text("user_id").notNull(),
+    fileId: text("file_id"),
+    storageProvider: text("storage_provider").notNull().default("local"),
+    storageKey: text("storage_key").notNull(),
+    originalName: text("original_name").notNull(),
+    contentType: text("content_type").notNull(),
+    expectedSize: integer("expected_size").notNull(),
+    receivedSize: integer("received_size").notNull().default(0),
+    chunkSize: integer("chunk_size").notNull(),
+    checksumSha256: text("checksum_sha256"),
+    status: text("status").notNull().default("pending"),
+    clientMutationId: text("client_mutation_id"),
+    metadataJson: text("metadata_json"),
+    lastError: text("last_error"),
+    expiresAt: text("expires_at").notNull(),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    completedAt: text("completed_at"),
+});
+
+export const files = sqliteTable("files", {
+    id: text("id").primaryKey().notNull(),
+    userId: text("user_id").notNull(),
+    storageName: text("storage_name").notNull(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    thumbhash: text("thumbhash").notNull(),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    uploadedByUserId: text("uploaded_by_user_id"),
+    isPublic: integer("is_public").notNull().default(0),
+    kind: text("kind").notNull().default("file"),
+    originalName: text("original_name"),
+    durationMs: integer("duration_ms"),
+    storageProvider: text("storage_provider").notNull().default("local"),
+    storageKey: text("storage_key"),
+    checksumSha256: text("checksum_sha256"),
+    accessScope: text("access_scope").notNull().default("private"),
+    uploadStatus: text("upload_status").notNull().default("complete"),
+    scanStatus: text("scan_status").notNull().default("unscanned"),
+    scannedAt: text("scanned_at"),
+    scanResultJson: text("scan_result_json"),
+    mediaMetadataJson: text("media_metadata_json"),
+    codec: text("codec"),
+    previewFileId: text("preview_file_id"),
+    thumbnailFileId: text("thumbnail_file_id"),
+    orphanedAt: text("orphaned_at"),
+    retentionUntil: text("retention_until"),
+    deletedAt: text("deleted_at"),
+    deletedByUserId: text("deleted_by_user_id"),
+    deleteReason: text("delete_reason"),
+});
+
+export const idempotencyKeys = sqliteTable("idempotency_keys", {
+    id: text("id").primaryKey().notNull(),
+    principalType: text("principal_type").notNull(),
+    principalId: text("principal_id").notNull(),
+    scope: text("scope").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestHash: text("request_hash").notNull(),
+    status: text("status").notNull().default("in_progress"),
+    responseStatus: integer("response_status"),
+    responseJson: text("response_json"),
+    lockedUntil: text("locked_until"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    expiresAt: text("expires_at").notNull(),
+});
+
+export const integrations = sqliteTable("integrations", {
+    id: text("id").primaryKey().notNull(),
+    kind: text("kind").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    botId: text("bot_id"),
+    createdByUserId: text("created_by_user_id"),
+    scopesJson: text("scopes_json").notNull().default("[]"),
+    configJson: text("config_json"),
+    active: integer("active").notNull().default(1),
+    syncSequence: integer("sync_sequence").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    deletedAt: text("deleted_at"),
+});
+
+export const messageAttachments = sqliteTable("message_attachments", {
+    messageId: text("message_id").notNull(),
+    fileId: text("file_id").notNull(),
+    position: integer("position").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const messageForwardMetadata = sqliteTable("message_forward_metadata", {
+    messageId: text("message_id").primaryKey().notNull(),
+    sourceMessageId: text("source_message_id"),
+    sourceChatId: text("source_chat_id"),
+    sourceSenderUserId: text("source_sender_user_id"),
+    sourceSenderBotId: text("source_sender_bot_id"),
+    sourceSenderName: text("source_sender_name"),
+    sourceCreatedAt: text("source_created_at"),
+    sourceTextSnapshot: text("source_text_snapshot"),
+    forwardedByUserId: text("forwarded_by_user_id"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const messageMentions = sqliteTable("message_mentions", {
+    id: text("id").primaryKey().notNull(),
+    messageId: text("message_id").notNull(),
+    kind: text("kind").notNull(),
+    mentionedUserId: text("mentioned_user_id"),
+    startOffset: integer("start_offset").notNull(),
+    length: integer("length").notNull(),
+    rawText: text("raw_text").notNull(),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const messageReceipts = sqliteTable("message_receipts", {
+    messageId: text("message_id").notNull(),
+    userId: text("user_id").notNull(),
+    deliveredAt: text("delivered_at"),
+    readAt: text("read_at"),
+    expiryTriggeredAt: text("expiry_triggered_at"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const messageRevisions = sqliteTable("message_revisions", {
+    id: text("id").primaryKey().notNull(),
+    messageId: text("message_id").notNull(),
+    revision: integer("revision").notNull(),
+    text: text("text").notNull().default(""),
+    contentJson: text("content_json"),
+    editedByUserId: text("edited_by_user_id"),
+    editReason: text("edit_reason"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const messageSearchDocuments = sqliteTable("message_search_documents", {
+    messageId: text("message_id").primaryKey().notNull(),
+    chatId: text("chat_id").notNull(),
+    normalizedText: text("normalized_text").notNull(),
+    normalizedLength: integer("normalized_length").notNull(),
+    gramCount: integer("gram_count").notNull().default(0),
+    indexedRevision: integer("indexed_revision").notNull(),
+    contentHash: text("content_hash"),
+    messageCreatedAt: text("message_created_at").notNull(),
+    indexedAt: text("indexed_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const messageSearchNgrams = sqliteTable("message_search_ngrams", {
+    gram: text("gram").notNull(),
+    messageId: text("message_id").notNull(),
+    occurrences: integer("occurrences").notNull().default(1),
+});
+
+export const messages = sqliteTable("messages", {
+    id: text("id").primaryKey().notNull(),
+    chatId: text("chat_id").notNull(),
+    sequence: integer("sequence").notNull(),
+    changePts: integer("change_pts").notNull(),
+    senderUserId: text("sender_user_id"),
+    kind: text("kind").notNull().default("user"),
+    text: text("text").notNull().default(""),
+    quotedMessageId: text("quoted_message_id"),
+    threadRootMessageId: text("thread_root_message_id"),
+    forwardedFromMessageId: text("forwarded_from_message_id"),
+    expiresAt: text("expires_at"),
+    editedAt: text("edited_at"),
+    deletedAt: text("deleted_at"),
+    deletedByUserId: text("deleted_by_user_id"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    senderBotId: text("sender_bot_id"),
+    contentJson: text("content_json"),
+    revision: integer("revision").notNull().default(1),
+    editedByUserId: text("edited_by_user_id"),
+    editReason: text("edit_reason"),
+    publishedAt: text("published_at"),
+    expiryMode: text("expiry_mode").notNull().default("none"),
+    selfDestructSeconds: integer("self_destruct_seconds"),
+    afterReadScope: text("after_read_scope").notNull().default("any_reader"),
+    firstReadAt: text("first_read_at"),
+    hardDeleteAt: text("hard_delete_at"),
+    deleteReason: text("delete_reason"),
+});
+
+export const moderationActions = sqliteTable("moderation_actions", {
+    id: text("id").primaryKey().notNull(),
+    reportId: text("report_id"),
+    actorUserId: text("actor_user_id"),
+    targetUserId: text("target_user_id"),
+    chatId: text("chat_id"),
+    messageId: text("message_id"),
+    fileId: text("file_id"),
+    action: text("action").notNull(),
+    reason: text("reason"),
+    metadataJson: text("metadata_json"),
+    automationRunId: text("automation_run_id"),
+    expiresAt: text("expires_at"),
+    revokedAt: text("revoked_at"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const moderationReports = sqliteTable("moderation_reports", {
+    id: text("id").primaryKey().notNull(),
+    reportedByUserId: text("reported_by_user_id"),
+    targetUserId: text("target_user_id"),
+    chatId: text("chat_id"),
+    messageId: text("message_id"),
+    fileId: text("file_id"),
+    reason: text("reason").notNull(),
+    details: text("details"),
+    status: text("status").notNull().default("open"),
+    assignedToUserId: text("assigned_to_user_id"),
+    resolution: text("resolution"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    resolvedAt: text("resolved_at"),
+});
+
+export const notifications = sqliteTable("notifications", {
+    id: text("id").primaryKey().notNull(),
+    userId: text("user_id").notNull(),
+    kind: text("kind").notNull(),
+    chatId: text("chat_id"),
+    messageId: text("message_id"),
+    threadRootMessageId: text("thread_root_message_id"),
+    actorUserId: text("actor_user_id"),
+    actorBotId: text("actor_bot_id"),
+    payloadJson: text("payload_json"),
+    syncSequence: integer("sync_sequence").notNull().default(0),
+    readAt: text("read_at"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    expiresAt: text("expires_at"),
+});
+
+export const oidcIdentities = sqliteTable("oidc_identities", {
+    provider: text("provider").notNull(),
+    subject: text("subject").notNull(),
+    accountId: text("account_id").notNull(),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const rateLimitBuckets = sqliteTable("rate_limit_buckets", {
+    principalKey: text("principal_key").notNull(),
+    action: text("action").notNull(),
+    windowStartedAt: text("window_started_at").notNull(),
+    windowSeconds: integer("window_seconds").notNull(),
+    requestCount: integer("request_count").notNull().default(0),
+    blockedUntil: text("blocked_until"),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const reactions = sqliteTable("reactions", {
+    messageId: text("message_id").notNull(),
+    userId: text("user_id").notNull(),
+    reactionKey: text("reaction_key").notNull(),
+    emoji: text("emoji"),
+    customEmojiId: text("custom_emoji_id"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    customEmojiNameSnapshot: text("custom_emoji_name_snapshot"),
+    customEmojiFileIdSnapshot: text("custom_emoji_file_id_snapshot"),
+});
+
+export const retentionRuns = sqliteTable("retention_runs", {
+    id: text("id").primaryKey().notNull(),
+    scope: text("scope").notNull(),
+    status: text("status").notNull().default("running"),
+    itemsExamined: integer("items_examined").notNull().default(0),
+    itemsDeleted: integer("items_deleted").notNull().default(0),
+    detailsJson: text("details_json"),
+    lastError: text("last_error"),
+    startedAt: text("started_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    completedAt: text("completed_at"),
+});
+
+export const scheduledMessageAttachments = sqliteTable("scheduled_message_attachments", {
+    scheduledMessageId: text("scheduled_message_id").notNull(),
+    fileId: text("file_id").notNull(),
+    position: integer("position").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const scheduledMessages = sqliteTable("scheduled_messages", {
+    id: text("id").primaryKey().notNull(),
+    chatId: text("chat_id").notNull(),
+    createdByUserId: text("created_by_user_id"),
+    senderBotId: text("sender_bot_id"),
+    text: text("text").notNull().default(""),
+    contentJson: text("content_json"),
+    quotedMessageId: text("quoted_message_id"),
+    threadRootMessageId: text("thread_root_message_id"),
+    forwardedFromMessageId: text("forwarded_from_message_id"),
+    scheduledFor: text("scheduled_for").notNull(),
+    timezone: text("timezone"),
+    status: text("status").notNull().default("scheduled"),
+    publishedMessageId: text("published_message_id"),
+    lastError: text("last_error"),
+    clientMutationId: text("client_mutation_id"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    cancelledAt: text("cancelled_at"),
+    publishedAt: text("published_at"),
+});
+
+export const searchIndexState = sqliteTable("search_index_state", {
+    entityKind: text("entity_kind").primaryKey().notNull(),
+    version: integer("version").notNull().default(1),
+    status: text("status").notNull().default("ready"),
+    lastIndexedId: text("last_indexed_id"),
+    lastError: text("last_error"),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const serverSettings = sqliteTable("server_settings", {
+    id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
+    name: text("name").notNull(),
+    title: text("title"),
+    photoFileId: text("photo_file_id"),
+    syncSequence: integer("sync_sequence").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    defaultRetentionMode: text("default_retention_mode").notNull().default("forever"),
+    defaultRetentionSeconds: integer("default_retention_seconds"),
+    defaultFileQuotaBytes: integer("default_file_quota_bytes"),
+    maxUploadBytes: integer("max_upload_bytes"),
+    syncEventRetentionSeconds: integer("sync_event_retention_seconds").notNull().default(2592000),
+    chatUpdateRetentionSeconds: integer("chat_update_retention_seconds").notNull().default(2592000),
+    idempotencyRetentionSeconds: integer("idempotency_retention_seconds").notNull().default(604800),
+});
+
+export const serverSyncState = sqliteTable("server_sync_state", {
+    id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
+    generation: text("generation").notNull(),
+    sequence: integer("sequence").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    automationEventSequence: integer("automation_event_sequence").notNull().default(0),
+    minRecoverableSequence: integer("min_recoverable_sequence").notNull().default(0),
+    lastCompactedAt: text("last_compacted_at"),
+    compactionVersion: integer("compaction_version").notNull().default(0),
+});
+
+export const slashCommands = sqliteTable("slash_commands", {
+    id: text("id").primaryKey().notNull(),
+    integrationId: text("integration_id").notNull(),
+    command: text("command").notNull(),
+    description: text("description"),
+    usageHint: text("usage_hint"),
+    handlerUrl: text("handler_url").notNull(),
+    active: integer("active").notNull().default(1),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const syncCompactions = sqliteTable("sync_compactions", {
+    id: text("id").primaryKey().notNull(),
+    generation: text("generation").notNull(),
+    previousMinSequence: integer("previous_min_sequence").notNull(),
+    newMinSequence: integer("new_min_sequence").notNull(),
+    eventsDeleted: integer("events_deleted").notNull().default(0),
+    mutationsDeleted: integer("mutations_deleted").notNull().default(0),
+    startedAt: text("started_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    completedAt: text("completed_at"),
+    detailsJson: text("details_json"),
+});
+
+export const syncConsumers = sqliteTable("sync_consumers", {
+    id: text("id").primaryKey().notNull(),
+    userId: text("user_id").notNull(),
+    deviceId: text("device_id").notNull(),
+    generation: text("generation").notNull(),
+    sequence: integer("sequence").notNull().default(0),
+    lastSeenAt: text("last_seen_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    revokedAt: text("revoked_at"),
+});
+
+export const syncEvents = sqliteTable("sync_events", {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    sequence: integer("sequence").notNull(),
+    kind: text("kind").notNull(),
+    chatId: text("chat_id"),
+    chatPts: integer("chat_pts"),
+    entityId: text("entity_id"),
+    actorUserId: text("actor_user_id"),
+    targetUserId: text("target_user_id"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const threadParticipants = sqliteTable("thread_participants", {
+    threadRootMessageId: text("thread_root_message_id").notNull(),
+    userId: text("user_id").notNull(),
+    replyCount: integer("reply_count").notNull().default(0),
+    firstParticipatedAt: text("first_participated_at")
+        .notNull()
+        .default(sql.raw("CURRENT_TIMESTAMP")),
+    lastParticipatedAt: text("last_participated_at")
+        .notNull()
+        .default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const threadUserStates = sqliteTable("thread_user_states", {
+    threadRootMessageId: text("thread_root_message_id").notNull(),
+    userId: text("user_id").notNull(),
+    subscribed: integer("subscribed").notNull().default(1),
+    notificationLevel: text("notification_level").notNull().default("all"),
+    lastReadMessageId: text("last_read_message_id"),
+    lastReadSequence: integer("last_read_sequence").notNull().default(0),
+    unreadCount: integer("unread_count").notNull().default(0),
+    mentionCount: integer("mention_count").notNull().default(0),
+    lastParticipatedAt: text("last_participated_at"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const threads = sqliteTable("threads", {
+    rootMessageId: text("root_message_id").primaryKey().notNull(),
+    chatId: text("chat_id").notNull(),
+    createdByUserId: text("created_by_user_id"),
+    replyCount: integer("reply_count").notNull().default(0),
+    lastPts: integer("last_pts").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    lastReplyMessageId: text("last_reply_message_id"),
+    lastReplySequence: integer("last_reply_sequence").notNull().default(0),
+    participantCount: integer("participant_count").notNull().default(0),
+});
+
+export const userBookmarks = sqliteTable("user_bookmarks", {
+    id: text("id").primaryKey().notNull(),
+    userId: text("user_id").notNull(),
+    chatId: text("chat_id"),
+    messageId: text("message_id"),
+    fileId: text("file_id"),
+    url: text("url"),
+    title: text("title"),
+    note: text("note"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const userChatPreferences = sqliteTable("user_chat_preferences", {
+    userId: text("user_id").notNull(),
+    chatId: text("chat_id").notNull(),
+    starred: integer("starred").notNull().default(0),
+    sortOrder: integer("sort_order").notNull().default(0),
+    syncSequence: integer("sync_sequence").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    notificationLevel: text("notification_level").notNull().default("all"),
+    mutedUntil: text("muted_until"),
+    notifyThreadReplies: integer("notify_thread_replies").notNull().default(1),
+    showMessagePreviews: integer("show_message_previews").notNull().default(1),
+});
+
+export const userNotificationPreferences = sqliteTable("user_notification_preferences", {
+    userId: text("user_id").primaryKey().notNull(),
+    directMessages: text("direct_messages").notNull().default("all"),
+    mentions: text("mentions").notNull().default("all"),
+    threadReplies: text("thread_replies").notNull().default("all"),
+    reactions: text("reactions").notNull().default("all"),
+    calls: text("calls").notNull().default("all"),
+    emailNotifications: integer("email_notifications").notNull().default(0),
+    desktopNotifications: integer("desktop_notifications").notNull().default(1),
+    dndStartMinutes: integer("dnd_start_minutes"),
+    dndEndMinutes: integer("dnd_end_minutes"),
+    timezone: text("timezone"),
+    syncSequence: integer("sync_sequence").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const userPresenceSettings = sqliteTable("user_presence_settings", {
+    userId: text("user_id").primaryKey().notNull(),
+    availability: text("availability").notNull().default("automatic"),
+    customStatusText: text("custom_status_text"),
+    customStatusEmoji: text("custom_status_emoji"),
+    statusExpiresAt: text("status_expires_at"),
+    dndUntil: text("dnd_until"),
+    syncSequence: integer("sync_sequence").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const userStorageQuotas = sqliteTable("user_storage_quotas", {
+    userId: text("user_id").primaryKey().notNull(),
+    quotaBytes: integer("quota_bytes"),
+    usedBytes: integer("used_bytes").notNull().default(0),
+    reservedBytes: integer("reserved_bytes").notNull().default(0),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const users = sqliteTable("users", {
+    id: text("id").primaryKey().notNull(),
+    accountId: text("account_id").notNull(),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name"),
+    username: text("username").notNull(),
+    email: text("email"),
+    phone: text("phone"),
+    photoFileId: text("photo_file_id"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    title: text("title"),
+    role: text("role").notNull().default("member"),
+    deletedAt: text("deleted_at"),
+    lastAccessAt: text("last_access_at"),
+    syncSequence: integer("sync_sequence").notNull().default(0),
+});
+
+export const webhookDeliveries = sqliteTable("webhook_deliveries", {
+    id: text("id").primaryKey().notNull(),
+    subscriptionId: text("subscription_id").notNull(),
+    eventId: text("event_id").notNull(),
+    eventType: text("event_type").notNull(),
+    payloadJson: text("payload_json").notNull(),
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: text("next_attempt_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    responseStatus: integer("response_status"),
+    responseBody: text("response_body"),
+    lastError: text("last_error"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    deliveredAt: text("delivered_at"),
+});
+
+export const webhookSubscriptions = sqliteTable("webhook_subscriptions", {
+    id: text("id").primaryKey().notNull(),
+    integrationId: text("integration_id").notNull(),
+    direction: text("direction").notNull(),
+    chatId: text("chat_id"),
+    url: text("url"),
+    tokenHash: text("token_hash"),
+    signingSecretCiphertext: text("signing_secret_ciphertext"),
+    eventTypesJson: text("event_types_json").notNull().default("[]"),
+    active: integer("active").notNull().default(1),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const schema = {
+    accountBans,
+    accounts,
+    apiCredentials,
+    auditLogEntries,
+    authMagicLinks,
+    authOidcStates,
+    authSessionEvents,
+    authSessions,
+    automationRuns,
+    automations,
+    backupRecords,
+    botIdentities,
+    callCredentialLeases,
+    callEvents,
+    callParticipants,
+    calls,
+    chatBookmarks,
+    chatMembers,
+    chatPins,
+    chatSyncCompactions,
+    chatUpdates,
+    chats,
+    clientMutations,
+    customEmojiRevisions,
+    customEmojis,
+    dataExportJobs,
+    fileAccessGrants,
+    fileDerivatives,
+    fileProcessingJobs,
+    fileScanEvents,
+    fileUploadParts,
+    fileUploadSessions,
+    files,
+    idempotencyKeys,
+    integrations,
+    messageAttachments,
+    messageForwardMetadata,
+    messageMentions,
+    messageReceipts,
+    messageRevisions,
+    messageSearchDocuments,
+    messageSearchNgrams,
+    messages,
+    moderationActions,
+    moderationReports,
+    notifications,
+    oidcIdentities,
+    rateLimitBuckets,
+    reactions,
+    retentionRuns,
+    scheduledMessageAttachments,
+    scheduledMessages,
+    searchIndexState,
+    serverSettings,
+    serverSyncState,
+    slashCommands,
+    syncCompactions,
+    syncConsumers,
+    syncEvents,
+    threadParticipants,
+    threadUserStates,
+    threads,
+    userBookmarks,
+    userChatPreferences,
+    userNotificationPreferences,
+    userPresenceSettings,
+    userStorageQuotas,
+    users,
+    webhookDeliveries,
+    webhookSubscriptions,
+} as const;
+
+export type Schema = typeof schema;

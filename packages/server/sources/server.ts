@@ -15,6 +15,7 @@ import { AesGcmSecretProtector } from "./modules/integrations/secrets.js";
 import { NodeWebhookTransport } from "./modules/integrations/transport.js";
 import type { WebhookTransport } from "./modules/integrations/types.js";
 import { OperationsRepository } from "./modules/operations/repository.js";
+import { DataExportWorker } from "./modules/operations/export-worker.js";
 import { OperationsError } from "./modules/operations/types.js";
 import { LocalPubSub, realtimeTopics, type PubSub } from "./modules/realtime/index.js";
 import {
@@ -124,6 +125,7 @@ export async function buildServer(
     let operations: OperationsRepository | undefined;
     let webhookTransport: WebhookTransport | undefined;
     let fileStorage: FileStorage | undefined;
+    let dataExportWorker: DataExportWorker | undefined;
     let unsubscribeWebhookEvents: (() => void) | undefined;
     let expiryTimer: NodeJS.Timeout | undefined;
     let pendingSweep: Promise<void> = Promise.resolve();
@@ -166,6 +168,7 @@ export async function buildServer(
             });
         webhookTransport = services.webhookTransport ?? new NodeWebhookTransport();
         fileStorage = services.fileStorage ?? new FileStorage(config, services.database);
+        dataExportWorker = new DataExportWorker(operations, services.database, fileStorage);
         registerFileRoutes(
             app,
             config,
@@ -236,6 +239,7 @@ export async function buildServer(
                 const eventAutomationHints = (await automation?.runPendingEventAutomations()) ?? [];
                 if (compact) await collaboration!.compactSync();
                 await operations?.expireDueBans();
+                await dataExportWorker?.runDue();
                 if (integrations && webhookTransport) {
                     await integrations.enqueuePendingSyncEvents();
                     await integrations.dispatchDueWebhooks(webhookTransport);

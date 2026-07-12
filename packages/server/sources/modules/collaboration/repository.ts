@@ -1,13 +1,67 @@
 import { createId } from "@paralleldrive/cuid2";
+import { createClient, type Client } from "@libsql/client";
 import {
-    createClient,
-    type Client,
-    type InArgs,
-    type ResultSet,
-    type Row,
-    type Transaction,
-} from "@libsql/client";
+    and,
+    asc,
+    desc,
+    eq,
+    gt,
+    inArray,
+    isNull,
+    lt,
+    lte,
+    ne,
+    or,
+    sql,
+    type SQL,
+} from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import type { FileKind } from "../database.js";
+import { createDatabase, type DrizzleExecutor, type DrizzleTransaction } from "../drizzle.js";
+import {
+    accountBans,
+    accounts,
+    auditLogEntries,
+    authSessions,
+    botIdentities,
+    callEvents,
+    callParticipants,
+    calls,
+    chatBookmarks,
+    chatMembers,
+    chatPins,
+    chatSyncCompactions,
+    chatUpdates,
+    chats,
+    clientMutations,
+    customEmojiRevisions,
+    customEmojis,
+    files,
+    idempotencyKeys,
+    messageAttachments,
+    messageForwardMetadata,
+    messageMentions,
+    messageReceipts,
+    messageRevisions,
+    messageSearchDocuments,
+    messageSearchNgrams,
+    messages,
+    moderationActions,
+    notifications,
+    reactions,
+    serverSettings,
+    serverSyncState,
+    syncCompactions,
+    syncConsumers,
+    syncEvents,
+    threadParticipants,
+    threadUserStates,
+    threads,
+    userChatPreferences,
+    userNotificationPreferences,
+    userPresenceSettings,
+    users,
+} from "../schema.js";
 import {
     CollaborationError,
     type ChatKind,
@@ -29,7 +83,6 @@ import {
     type UserSummary,
 } from "./types.js";
 
-type Executor = Pick<Client, "execute"> | Pick<Transaction, "execute">;
 type ChatAccess = ChatSummary & { isServerAdmin: boolean };
 
 interface ChatMutation {
@@ -38,53 +91,80 @@ interface ChatMutation {
     chatId: string;
 }
 
-const CHAT_SELECT = `
-    SELECT c.id, c.kind, c.name, c.slug, c.topic, c.created_by_user_id,
-           c.dm_type, c.owner_user_id, c.photo_file_id, c.is_listed, c.archived_at,
-           c.retention_mode, c.retention_seconds, c.default_expiry_mode,
-           c.default_self_destruct_seconds, c.default_after_read_scope, c.lifecycle_version,
-           c.pts, c.last_message_sequence, c.created_at, c.updated_at,
-           cm.role AS membership_role, cm.membership_epoch,
-           COALESCE(cm.last_read_sequence, 0) AS last_read_sequence,
-           COALESCE(cm.unread_count, 0) AS unread_count,
-           COALESCE(cm.mention_count, 0) AS mention_count,
-           COALESCE(p.starred, 0) AS starred, p.sort_order,
-           COALESCE(p.notification_level, 'all') AS notification_level,
-           p.muted_until
-      FROM chats c
-      LEFT JOIN chat_members cm
-        ON cm.chat_id = c.id AND cm.user_id = ? AND cm.left_at IS NULL
-      LEFT JOIN user_chat_preferences p
-        ON p.chat_id = c.id AND p.user_id = ?
-`;
+const chatSelection = {
+    id: chats.id,
+    kind: chats.kind,
+    name: chats.name,
+    slug: chats.slug,
+    topic: chats.topic,
+    created_by_user_id: chats.createdByUserId,
+    dm_type: chats.dmType,
+    owner_user_id: chats.ownerUserId,
+    photo_file_id: chats.photoFileId,
+    is_listed: chats.isListed,
+    archived_at: chats.archivedAt,
+    retention_mode: chats.retentionMode,
+    retention_seconds: chats.retentionSeconds,
+    default_expiry_mode: chats.defaultExpiryMode,
+    default_self_destruct_seconds: chats.defaultSelfDestructSeconds,
+    default_after_read_scope: chats.defaultAfterReadScope,
+    lifecycle_version: chats.lifecycleVersion,
+    pts: chats.pts,
+    last_message_sequence: chats.lastMessageSequence,
+    created_at: chats.createdAt,
+    updated_at: chats.updatedAt,
+    membership_role: chatMembers.role,
+    membership_epoch: chatMembers.membershipEpoch,
+    last_read_sequence: sql<number>`coalesce(${chatMembers.lastReadSequence}, 0)`,
+    unread_count: sql<number>`coalesce(${chatMembers.unreadCount}, 0)`,
+    mention_count: sql<number>`coalesce(${chatMembers.mentionCount}, 0)`,
+    starred: sql<number>`coalesce(${userChatPreferences.starred}, 0)`,
+    sort_order: userChatPreferences.sortOrder,
+    notification_level: sql<string>`coalesce(${userChatPreferences.notificationLevel}, 'all')`,
+    muted_until: userChatPreferences.mutedUntil,
+};
 
-const USER_SELECT = `
-    SELECT id, username, first_name, last_name, title, photo_file_id, role
-      FROM users
-`;
+const userSelection = {
+    id: users.id,
+    username: users.username,
+    first_name: users.firstName,
+    last_name: users.lastName,
+    title: users.title,
+    photo_file_id: users.photoFileId,
+    role: users.role,
+};
 
-const FILE_SELECT = `
-    SELECT id, kind, original_name, content_type, size, width, height, duration_ms,
-           thumbhash, uploaded_by_user_id, created_at
-      FROM files
-`;
+const fileSelection = {
+    id: files.id,
+    kind: files.kind,
+    original_name: files.originalName,
+    content_type: files.contentType,
+    size: files.size,
+    width: files.width,
+    height: files.height,
+    duration_ms: files.durationMs,
+    thumbhash: files.thumbhash,
+    uploaded_by_user_id: files.uploadedByUserId,
+    created_at: files.createdAt,
+};
 
 export class CollaborationRepository {
     private readonly client: Client;
+    private readonly db;
     private readonly ownsClient: boolean;
 
     constructor(source: string | Client, authToken?: string) {
         this.ownsClient = typeof source === "string";
         this.client =
             typeof source === "string" ? createClient({ url: source, authToken }) : source;
+        this.db = createDatabase(this.client);
     }
 
     async initialize(): Promise<void> {
-        await this.client.execute({
-            sql: `INSERT OR IGNORE INTO server_sync_state (id, generation, sequence)
-                  VALUES (1, ?, 0)`,
-            args: [createId()],
-        });
+        await this.db
+            .insert(serverSyncState)
+            .values({ id: 1, generation: createId(), sequence: 0 })
+            .onConflictDoNothing();
     }
 
     close(): void {
@@ -97,10 +177,10 @@ export class CollaborationRepository {
     }
 
     async getState(): Promise<SyncState> {
-        const state = await one(
-            this.client,
-            `SELECT generation, sequence FROM server_sync_state WHERE id = 1`,
-        );
+        const [state] = await this.db
+            .select({ generation: serverSyncState.generation, sequence: serverSyncState.sequence })
+            .from(serverSyncState)
+            .where(eq(serverSyncState.id, 1));
         if (!state) throw new Error("Sync state has not been initialized");
         return syncState(state);
     }
@@ -111,12 +191,15 @@ export class CollaborationRepository {
         generation: string;
         sequence: number;
     }): Promise<void> {
-        await this.requireActiveUser(this.client, input.userId);
-        const state = await one(
-            this.client,
-            `SELECT generation, sequence, min_recoverable_sequence
-               FROM server_sync_state WHERE id = 1`,
-        );
+        await this.requireActiveUserDb(this.db, input.userId);
+        const [state] = await this.db
+            .select({
+                generation: serverSyncState.generation,
+                sequence: serverSyncState.sequence,
+                min_recoverable_sequence: serverSyncState.minRecoverableSequence,
+            })
+            .from(serverSyncState)
+            .where(eq(serverSyncState.id, 1));
         if (!state) throw new Error("Sync state has not been initialized");
         if (input.generation !== state.generation)
             throw new CollaborationError("generation_mismatch", "Sync generation has changed");
@@ -124,16 +207,24 @@ export class CollaborationRepository {
             throw new CollaborationError("future_state", "Sync cursor is ahead of the server");
         if (input.sequence < number(state.min_recoverable_sequence, 0))
             throw new CollaborationError("conflict", "Sync cursor is no longer recoverable");
-        await this.client.execute({
-            sql: `INSERT INTO sync_consumers
-                    (id, user_id, device_id, generation, sequence)
-                  VALUES (?, ?, ?, ?, ?)
-                  ON CONFLICT(user_id, device_id) DO UPDATE SET
-                    generation = excluded.generation,
-                    sequence = MAX(sync_consumers.sequence, excluded.sequence),
-                    last_seen_at = CURRENT_TIMESTAMP, revoked_at = NULL`,
-            args: [createId(), input.userId, input.deviceId, input.generation, input.sequence],
-        });
+        await this.db
+            .insert(syncConsumers)
+            .values({
+                id: createId(),
+                userId: input.userId,
+                deviceId: input.deviceId,
+                generation: input.generation,
+                sequence: input.sequence,
+            })
+            .onConflictDoUpdate({
+                target: [syncConsumers.userId, syncConsumers.deviceId],
+                set: {
+                    generation: input.generation,
+                    sequence: sql`max(${syncConsumers.sequence}, excluded.sequence)`,
+                    lastSeenAt: sql`CURRENT_TIMESTAMP`,
+                    revokedAt: null,
+                },
+            });
     }
 
     async compactSync(): Promise<{
@@ -142,185 +233,228 @@ export class CollaborationRepository {
         mutationsDeleted: number;
         chatUpdatesDeleted: number;
     }> {
-        return this.write(async (tx) => {
-            const state = await one(
-                tx,
-                `SELECT generation, sequence, min_recoverable_sequence
-                   FROM server_sync_state WHERE id = 1`,
-            );
-            const settings = await one(
-                tx,
-                `SELECT sync_event_retention_seconds, chat_update_retention_seconds,
-                        idempotency_retention_seconds
-                   FROM server_settings WHERE id = 1`,
-            );
+        return this.writeDb(async (tx) => {
+            const [state] = await tx
+                .select({
+                    generation: serverSyncState.generation,
+                    sequence: serverSyncState.sequence,
+                    minRecoverableSequence: serverSyncState.minRecoverableSequence,
+                })
+                .from(serverSyncState)
+                .where(eq(serverSyncState.id, 1));
+            const [settings] = await tx
+                .select({
+                    syncEventRetentionSeconds: serverSettings.syncEventRetentionSeconds,
+                    chatUpdateRetentionSeconds: serverSettings.chatUpdateRetentionSeconds,
+                    idempotencyRetentionSeconds: serverSettings.idempotencyRetentionSeconds,
+                })
+                .from(serverSettings)
+                .where(eq(serverSettings.id, 1));
             if (!state || !settings) throw new Error("Sync retention settings are missing");
-            const retentionSeconds = number(settings.sync_event_retention_seconds);
-            const candidate = await one(
-                tx,
-                `SELECT COALESCE(MAX(sequence), 0) AS sequence FROM sync_events
-                  WHERE datetime(created_at) < datetime('now', '-' || ? || ' seconds')`,
-                [retentionSeconds],
-            );
-            const activeFloor = await one(
-                tx,
-                `SELECT MIN(sequence) AS sequence FROM sync_consumers
-                  WHERE revoked_at IS NULL AND generation = ?
-                    AND datetime(last_seen_at) >= datetime('now', '-90 days')`,
-                [text(state.generation)],
-            );
-            const previousMin = number(state.min_recoverable_sequence, 0);
+            const retentionSeconds = settings.syncEventRetentionSeconds;
+            const [candidate] = await tx
+                .select({ sequence: sql<number>`coalesce(max(${syncEvents.sequence}), 0)` })
+                .from(syncEvents)
+                .where(
+                    sql`datetime(${syncEvents.createdAt}) < datetime('now', '-' || ${retentionSeconds} || ' seconds')`,
+                );
+            const [activeFloor] = await tx
+                .select({ sequence: sql<number | null>`min(${syncConsumers.sequence})` })
+                .from(syncConsumers)
+                .where(
+                    and(
+                        isNull(syncConsumers.revokedAt),
+                        eq(syncConsumers.generation, state.generation),
+                        sql`datetime(${syncConsumers.lastSeenAt}) >= datetime('now', '-90 days')`,
+                    ),
+                );
+            const previousMin = state.minRecoverableSequence;
             const candidateSequence = number(candidate?.sequence, 0);
             const consumerSequence =
                 activeFloor?.sequence === null || activeFloor?.sequence === undefined
-                    ? number(state.sequence)
+                    ? state.sequence
                     : number(activeFloor.sequence);
             const newMin = Math.max(previousMin, Math.min(candidateSequence, consumerSequence));
             const compactionId = createId();
-            await tx.execute({
-                sql: `INSERT INTO sync_compactions
-                        (id, generation, previous_min_sequence, new_min_sequence)
-                      VALUES (?, ?, ?, ?)`,
-                args: [compactionId, text(state.generation), previousMin, newMin],
+            await tx.insert(syncCompactions).values({
+                id: compactionId,
+                generation: state.generation,
+                previousMinSequence: previousMin,
+                newMinSequence: newMin,
             });
             const deletedEvents =
                 newMin > previousMin
-                    ? await tx.execute({
-                          sql: `DELETE FROM sync_events WHERE sequence <= ?`,
-                          args: [newMin],
-                      })
-                    : { rowsAffected: 0 };
-            const mutationRetention = number(settings.idempotency_retention_seconds);
-            const deletedMutations = await tx.execute({
-                sql: `DELETE FROM client_mutations
-                       WHERE (expires_at IS NOT NULL AND datetime(expires_at) <= CURRENT_TIMESTAMP)
-                          OR datetime(created_at) < datetime('now', '-' || ? || ' seconds')`,
-                args: [mutationRetention],
-            });
-            await tx.execute(
-                `DELETE FROM idempotency_keys WHERE datetime(expires_at) <= CURRENT_TIMESTAMP`,
-            );
-            const chatRetention = number(settings.chat_update_retention_seconds);
-            const chats = await tx.execute({
-                sql: `SELECT chat_id, MAX(pts) AS new_min_pts
-                        FROM chat_updates
-                       WHERE datetime(created_at) < datetime('now', '-' || ? || ' seconds')
-                       GROUP BY chat_id`,
-                args: [chatRetention],
-            });
+                    ? await tx
+                          .delete(syncEvents)
+                          .where(lte(syncEvents.sequence, newMin))
+                          .returning({ id: syncEvents.id })
+                    : [];
+            const mutationRetention = settings.idempotencyRetentionSeconds;
+            const deletedMutations = await tx
+                .delete(clientMutations)
+                .where(
+                    or(
+                        and(
+                            sql`${clientMutations.expiresAt} IS NOT NULL`,
+                            sql`datetime(${clientMutations.expiresAt}) <= CURRENT_TIMESTAMP`,
+                        ),
+                        sql`datetime(${clientMutations.createdAt}) < datetime('now', '-' || ${mutationRetention} || ' seconds')`,
+                    ),
+                )
+                .returning({ actorUserId: clientMutations.actorUserId });
+            await tx
+                .delete(idempotencyKeys)
+                .where(sql`datetime(${idempotencyKeys.expiresAt}) <= CURRENT_TIMESTAMP`);
+            const chatRetention = settings.chatUpdateRetentionSeconds;
+            const compactedChats = await tx
+                .select({
+                    chatId: chatUpdates.chatId,
+                    newMinPts: sql<number>`max(${chatUpdates.pts})`,
+                })
+                .from(chatUpdates)
+                .where(
+                    sql`datetime(${chatUpdates.createdAt}) < datetime('now', '-' || ${chatRetention} || ' seconds')`,
+                )
+                .groupBy(chatUpdates.chatId);
             let chatUpdatesDeleted = 0;
-            for (const chat of chats.rows) {
-                const chatId = text(chat.chat_id);
-                const newMinPts = number(chat.new_min_pts, 0);
-                const current = await one(
-                    tx,
-                    `SELECT min_recoverable_pts FROM chats WHERE id = ?`,
-                    [chatId],
-                );
-                const previousMinPts = number(current?.min_recoverable_pts, 0);
+            for (const chat of compactedChats) {
+                const chatId = chat.chatId;
+                const newMinPts = chat.newMinPts;
+                const [current] = await tx
+                    .select({ minRecoverablePts: chats.minRecoverablePts })
+                    .from(chats)
+                    .where(eq(chats.id, chatId));
+                const previousMinPts = current?.minRecoverablePts ?? 0;
                 if (newMinPts <= previousMinPts) continue;
-                const deleted = await tx.execute({
-                    sql: `DELETE FROM chat_updates WHERE chat_id = ? AND pts <= ?`,
-                    args: [chatId, newMinPts],
-                });
-                chatUpdatesDeleted += deleted.rowsAffected;
-                await tx.execute({
-                    sql: `UPDATE chats SET min_recoverable_pts = ? WHERE id = ?`,
-                    args: [newMinPts, chatId],
-                });
-                await tx.execute({
-                    sql: `INSERT INTO chat_sync_compactions
-                            (id, chat_id, previous_min_pts, new_min_pts, updates_deleted)
-                          VALUES (?, ?, ?, ?, ?)`,
-                    args: [createId(), chatId, previousMinPts, newMinPts, deleted.rowsAffected],
+                const deleted = await tx
+                    .delete(chatUpdates)
+                    .where(and(eq(chatUpdates.chatId, chatId), lte(chatUpdates.pts, newMinPts)))
+                    .returning({ pts: chatUpdates.pts });
+                chatUpdatesDeleted += deleted.length;
+                await tx
+                    .update(chats)
+                    .set({ minRecoverablePts: newMinPts })
+                    .where(eq(chats.id, chatId));
+                await tx.insert(chatSyncCompactions).values({
+                    id: createId(),
+                    chatId,
+                    previousMinPts,
+                    newMinPts,
+                    updatesDeleted: deleted.length,
                 });
             }
-            await tx.execute({
-                sql: `UPDATE server_sync_state
-                         SET min_recoverable_sequence = ?, last_compacted_at = CURRENT_TIMESTAMP,
-                             compaction_version = compaction_version + 1
-                       WHERE id = 1`,
-                args: [newMin],
-            });
-            await tx.execute({
-                sql: `UPDATE sync_compactions
-                         SET events_deleted = ?, mutations_deleted = ?,
-                             completed_at = CURRENT_TIMESTAMP,
-                             details_json = ? WHERE id = ?`,
-                args: [
-                    deletedEvents.rowsAffected,
-                    deletedMutations.rowsAffected,
-                    JSON.stringify({ chatUpdatesDeleted }),
-                    compactionId,
-                ],
-            });
+            await tx
+                .update(serverSyncState)
+                .set({
+                    minRecoverableSequence: newMin,
+                    lastCompactedAt: sql`CURRENT_TIMESTAMP`,
+                    compactionVersion: sql`${serverSyncState.compactionVersion} + 1`,
+                })
+                .where(eq(serverSyncState.id, 1));
+            await tx
+                .update(syncCompactions)
+                .set({
+                    eventsDeleted: deletedEvents.length,
+                    mutationsDeleted: deletedMutations.length,
+                    completedAt: sql`CURRENT_TIMESTAMP`,
+                    detailsJson: JSON.stringify({ chatUpdatesDeleted }),
+                })
+                .where(eq(syncCompactions.id, compactionId));
             return {
                 minRecoverableSequence: String(newMin),
-                eventsDeleted: deletedEvents.rowsAffected,
-                mutationsDeleted: deletedMutations.rowsAffected,
+                eventsDeleted: deletedEvents.length,
+                mutationsDeleted: deletedMutations.length,
                 chatUpdatesDeleted,
             };
         });
     }
 
     async canAccessChat(userId: string, chatId: string): Promise<boolean> {
-        return Boolean(await this.chatAccess(this.client, userId, chatId, false));
+        return Boolean(await this.chatAccessDb(this.db, userId, chatId, false));
     }
 
     async canPostToChat(userId: string, chatId: string): Promise<boolean> {
-        const chat = await this.chatAccess(this.client, userId, chatId, true);
+        const chat = await this.chatAccessDb(this.db, userId, chatId, true);
         return Boolean(
             chat &&
             !chat.archivedAt &&
-            !(await this.isPostingRestricted(this.client, userId, chatId)),
+            !(await this.isPostingRestrictedDb(this.db, userId, chatId)),
         );
     }
 
     async listChats(userId: string): Promise<ChatSummary[]> {
-        const result = await this.client.execute({
-            sql: `${CHAT_SELECT}
-                  WHERE c.deleted_at IS NULL
-                    AND ((c.kind = 'public_channel' AND c.is_listed = 1) OR cm.user_id IS NOT NULL)
-                  ORDER BY COALESCE(p.starred, 0) DESC,
-                           CASE WHEN p.starred = 1 THEN p.sort_order END ASC,
-                           c.updated_at DESC, c.id ASC`,
-            args: [userId, userId],
-        });
-        return result.rows.map(asChat);
+        const rows = await this.db
+            .select(chatSelection)
+            .from(chats)
+            .leftJoin(
+                chatMembers,
+                and(
+                    eq(chatMembers.chatId, chats.id),
+                    eq(chatMembers.userId, userId),
+                    isNull(chatMembers.leftAt),
+                ),
+            )
+            .leftJoin(
+                userChatPreferences,
+                and(
+                    eq(userChatPreferences.chatId, chats.id),
+                    eq(userChatPreferences.userId, userId),
+                ),
+            )
+            .where(
+                and(
+                    isNull(chats.deletedAt),
+                    or(
+                        and(eq(chats.kind, "public_channel"), eq(chats.isListed, 1)),
+                        sql`${chatMembers.userId} IS NOT NULL`,
+                    ),
+                ),
+            )
+            .orderBy(
+                desc(sql`coalesce(${userChatPreferences.starred}, 0)`),
+                asc(
+                    sql`case when ${userChatPreferences.starred} = 1 then ${userChatPreferences.sortOrder} end`,
+                ),
+                desc(chats.updatedAt),
+                asc(chats.id),
+            );
+        return rows.map(asChat);
     }
 
     async getChat(userId: string, chatId: string): Promise<ChatSummary> {
-        const chat = await this.chatAccess(this.client, userId, chatId, false);
+        const chat = await this.chatAccessDb(this.db, userId, chatId, false);
         if (!chat) throw new CollaborationError("not_found", "Chat was not found");
         return chat;
     }
 
     async listChatMembers(userId: string, chatId: string): Promise<UserSummary[]> {
-        let access = await this.chatAccess(this.client, userId, chatId, false);
+        let access = await this.chatAccessDb(this.db, userId, chatId, false);
         if (!access) {
             try {
-                access = await this.requireChatManager(this.client, userId, chatId);
+                access = await this.requireChatManagerDb(this.db, userId, chatId);
             } catch (error) {
                 if (!(error instanceof CollaborationError)) throw error;
                 // Preserve private-channel non-disclosure for ordinary users.
             }
         }
         if (!access) throw new CollaborationError("not_found", "Chat was not found");
-        const result = await this.client.execute({
-            sql: `${USER_SELECT}
-                  WHERE deleted_at IS NULL
-                    AND EXISTS (
-                        SELECT 1 FROM accounts a WHERE a.id = users.account_id
-                          AND a.active = 1 AND a.banned_at IS NULL AND a.deleted_at IS NULL
-                    )
-                    AND id IN (
-                        SELECT user_id FROM chat_members
-                         WHERE chat_id = ? AND left_at IS NULL
-                    )
-                  ORDER BY lower(first_name), lower(last_name), id`,
-            args: [chatId],
-        });
-        return result.rows.map(asUser);
+        const rows = await this.db
+            .select(userSelection)
+            .from(chatMembers)
+            .innerJoin(users, eq(users.id, chatMembers.userId))
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(chatMembers.chatId, chatId),
+                    isNull(chatMembers.leftAt),
+                    isNull(users.deletedAt),
+                    eq(accounts.active, 1),
+                    isNull(accounts.bannedAt),
+                    isNull(accounts.deletedAt),
+                ),
+            )
+            .orderBy(sql`lower(${users.firstName})`, sql`lower(${users.lastName})`, users.id);
+        return rows.map(asUser);
     }
 
     async listChatMemberships(
@@ -328,17 +462,27 @@ export class CollaborationRepository {
         chatId: string,
     ): Promise<Array<{ user: UserSummary; role: ChatRole; joinedAt: string }>> {
         await this.listChatMembers(userId, chatId);
-        const result = await this.client.execute({
-            sql: `SELECT u.id, u.username, u.first_name, u.last_name, u.title,
-                         u.photo_file_id, u.role, cm.role AS chat_role, cm.joined_at
-                    FROM chat_members cm JOIN users u ON u.id = cm.user_id
-                    JOIN accounts a ON a.id = u.account_id
-                   WHERE cm.chat_id = ? AND cm.left_at IS NULL AND u.deleted_at IS NULL
-                     AND a.active = 1 AND a.banned_at IS NULL AND a.deleted_at IS NULL
-                   ORDER BY cm.joined_at, cm.user_id`,
-            args: [chatId],
-        });
-        return result.rows.map((row) => ({
+        const rows = await this.db
+            .select({
+                ...userSelection,
+                chat_role: chatMembers.role,
+                joined_at: chatMembers.joinedAt,
+            })
+            .from(chatMembers)
+            .innerJoin(users, eq(users.id, chatMembers.userId))
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(chatMembers.chatId, chatId),
+                    isNull(chatMembers.leftAt),
+                    isNull(users.deletedAt),
+                    eq(accounts.active, 1),
+                    isNull(accounts.bannedAt),
+                    isNull(accounts.deletedAt),
+                ),
+            )
+            .orderBy(chatMembers.joinedAt, chatMembers.userId);
+        return rows.map((row) => ({
             user: asUser(row),
             role: text(row.chat_role) as ChatRole,
             joinedAt: text(row.joined_at),
@@ -352,39 +496,35 @@ export class CollaborationRepository {
         slug: string;
         topic?: string;
     }): Promise<{ chat: ChatSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            await this.requireActiveUser(tx, input.actorUserId);
+        return this.writeDb(async (tx) => {
+            await this.requireActiveUserDb(tx, input.actorUserId);
             const id = createId();
             const membershipEpoch = createId();
             const sequence = await this.nextSequence(tx);
             try {
-                await tx.execute({
-                    sql: `INSERT INTO chats
-                            (id, kind, name, slug, topic, created_by_user_id, pts,
-                             owner_user_id, visibility, last_change_sequence)
-                          VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
-                    args: [
-                        id,
-                        input.kind,
-                        input.name,
-                        input.slug,
-                        input.topic ?? null,
-                        input.actorUserId,
-                        input.actorUserId,
-                        input.kind === "public_channel" ? "public" : "private",
-                        sequence,
-                    ],
+                await tx.insert(chats).values({
+                    id,
+                    kind: input.kind,
+                    name: input.name,
+                    slug: input.slug,
+                    topic: input.topic,
+                    createdByUserId: input.actorUserId,
+                    pts: 1,
+                    ownerUserId: input.actorUserId,
+                    visibility: input.kind === "public_channel" ? "public" : "private",
+                    lastChangeSequence: sequence,
                 });
             } catch (error) {
                 if (isUniqueConstraint(error))
                     throw new CollaborationError("conflict", "Channel slug is already in use");
                 throw error;
             }
-            await tx.execute({
-                sql: `INSERT INTO chat_members
-                        (chat_id, user_id, role, membership_epoch, sync_sequence)
-                      VALUES (?, ?, 'owner', ?, ?)`,
-                args: [id, input.actorUserId, membershipEpoch, sequence],
+            await tx.insert(chatMembers).values({
+                chatId: id,
+                userId: input.actorUserId,
+                role: "owner",
+                membershipEpoch,
+                syncSequence: sequence,
             });
             await this.insertChatUpdate(tx, {
                 sequence,
@@ -394,7 +534,7 @@ export class CollaborationRepository {
                 entityId: id,
                 actorUserId: input.actorUserId,
             });
-            const chat = await this.chatAccess(tx, input.actorUserId, id, false);
+            const chat = await this.chatAccessDb(tx, input.actorUserId, id, false);
             if (!chat) throw new Error("Created channel is not readable");
             return { chat, hint: chatHint(sequence, id, 1) };
         });
@@ -406,37 +546,41 @@ export class CollaborationRepository {
     ): Promise<{ chat: ChatSummary; hint?: MutationHint }> {
         if (actorUserId === otherUserId)
             throw new CollaborationError("invalid", "A direct message requires another user");
-        return this.write(async (tx) => {
-            await this.requireActiveUser(tx, actorUserId);
-            await this.requireActiveUser(tx, otherUserId);
+        return this.writeDb(async (tx) => {
+            await this.requireActiveUserDb(tx, actorUserId);
+            await this.requireActiveUserDb(tx, otherUserId);
             const dmKey = [actorUserId, otherUserId].sort().join(":");
-            const existing = await one(tx, `SELECT id FROM chats WHERE dm_key = ?`, [dmKey]);
+            const [existing] = await tx
+                .select({ id: chats.id })
+                .from(chats)
+                .where(eq(chats.dmKey, dmKey))
+                .limit(1);
             if (existing) {
-                const chat = await this.chatAccess(tx, actorUserId, text(existing.id), false);
+                const chat = await this.chatAccessDb(tx, actorUserId, existing.id, false);
                 if (!chat) throw new Error("Existing DM is inaccessible");
                 return { chat };
             }
             const id = createId();
             const sequence = await this.nextSequence(tx);
-            await tx.execute({
-                sql: `INSERT INTO chats
-                        (id, kind, dm_type, created_by_user_id, owner_user_id, dm_key, pts,
-                         is_listed, visibility, last_change_sequence)
-                      VALUES (?, 'dm', 'direct', ?, ?, ?, 1, 0, 'direct', ?)`,
-                args: [id, actorUserId, actorUserId, dmKey, sequence],
+            await tx.insert(chats).values({
+                id,
+                kind: "dm",
+                dmType: "direct",
+                createdByUserId: actorUserId,
+                ownerUserId: actorUserId,
+                dmKey,
+                pts: 1,
+                isListed: 0,
+                visibility: "direct",
+                lastChangeSequence: sequence,
             });
             for (const userId of [actorUserId, otherUserId]) {
-                await tx.execute({
-                    sql: `INSERT INTO chat_members
-                            (chat_id, user_id, role, membership_epoch, sync_sequence)
-                          VALUES (?, ?, ?, ?, ?)`,
-                    args: [
-                        id,
-                        userId,
-                        userId === actorUserId ? "owner" : "member",
-                        createId(),
-                        sequence,
-                    ],
+                await tx.insert(chatMembers).values({
+                    chatId: id,
+                    userId,
+                    role: userId === actorUserId ? "owner" : "member",
+                    membershipEpoch: createId(),
+                    syncSequence: sequence,
                 });
             }
             await this.insertChatUpdate(tx, {
@@ -447,7 +591,7 @@ export class CollaborationRepository {
                 entityId: id,
                 actorUserId,
             });
-            const chat = await this.chatAccess(tx, actorUserId, id, false);
+            const chat = await this.chatAccessDb(tx, actorUserId, id, false);
             if (!chat) throw new Error("Created DM is not readable");
             return { chat, hint: chatHint(sequence, id, 1) };
         });
@@ -464,49 +608,42 @@ export class CollaborationRepository {
                 "invalid",
                 "A group direct message requires between 3 and 50 distinct members",
             );
-        return this.write(async (tx) => {
-            for (const userId of memberUserIds) await this.requireActiveUser(tx, userId);
+        return this.writeDb(async (tx) => {
+            for (const userId of memberUserIds) await this.requireActiveUserDb(tx, userId);
             const dmKey = `group:${memberUserIds.join(":")}`;
-            const existing = await one(
-                tx,
-                `SELECT id FROM chats WHERE dm_key = ? AND deleted_at IS NULL`,
-                [dmKey],
-            );
+            const [existing] = await tx
+                .select({ id: chats.id })
+                .from(chats)
+                .where(and(eq(chats.dmKey, dmKey), isNull(chats.deletedAt)))
+                .limit(1);
             if (existing) {
-                const chat = await this.chatAccess(tx, input.actorUserId, text(existing.id), false);
+                const chat = await this.chatAccessDb(tx, input.actorUserId, existing.id, false);
                 if (!chat) throw new Error("Existing group DM is inaccessible");
                 return { chat, memberUserIds };
             }
             const id = createId();
             const sequence = await this.nextSequence(tx);
-            await tx.execute({
-                sql: `INSERT INTO chats
-                        (id, kind, dm_type, name, created_by_user_id, owner_user_id, dm_key, pts,
-                         is_listed, visibility, last_change_sequence)
-                      VALUES (?, 'dm', 'group', ?, ?, ?, ?, 1, 0, 'direct', ?)`,
-                args: [
-                    id,
-                    input.name ?? null,
-                    input.actorUserId,
-                    input.actorUserId,
-                    dmKey,
-                    sequence,
-                ],
+            await tx.insert(chats).values({
+                id,
+                kind: "dm",
+                dmType: "group",
+                name: input.name,
+                createdByUserId: input.actorUserId,
+                ownerUserId: input.actorUserId,
+                dmKey,
+                pts: 1,
+                isListed: 0,
+                visibility: "direct",
+                lastChangeSequence: sequence,
             });
             for (const userId of memberUserIds)
-                await tx.execute({
-                    sql: `INSERT INTO chat_members
-                            (chat_id, user_id, role, membership_epoch, sync_sequence,
-                             invited_by_user_id)
-                          VALUES (?, ?, ?, ?, ?, ?)`,
-                    args: [
-                        id,
-                        userId,
-                        userId === input.actorUserId ? "owner" : "member",
-                        createId(),
-                        sequence,
-                        input.actorUserId,
-                    ],
+                await tx.insert(chatMembers).values({
+                    chatId: id,
+                    userId,
+                    role: userId === input.actorUserId ? "owner" : "member",
+                    membershipEpoch: createId(),
+                    syncSequence: sequence,
+                    invitedByUserId: input.actorUserId,
                 });
             await this.insertChatUpdate(tx, {
                 sequence,
@@ -516,7 +653,7 @@ export class CollaborationRepository {
                 entityId: id,
                 actorUserId: input.actorUserId,
             });
-            const chat = await this.chatAccess(tx, input.actorUserId, id, false);
+            const chat = await this.chatAccessDb(tx, input.actorUserId, id, false);
             if (!chat) throw new Error("Created group DM is not readable");
             return { chat, hint: chatHint(sequence, id, 1), memberUserIds };
         });
@@ -532,23 +669,31 @@ export class CollaborationRepository {
         photoFileId?: string | null;
         isListed?: boolean;
     }): Promise<{ chat: ChatSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const access = await this.requireChatManager(tx, input.actorUserId, input.chatId);
+        return this.writeDb(async (tx) => {
+            const access = await this.requireChatManagerDb(tx, input.actorUserId, input.chatId);
             if (access.kind === "dm")
                 throw new CollaborationError(
                     "invalid",
                     "Direct messages cannot use channel settings",
                 );
             if (input.photoFileId !== undefined && input.photoFileId !== null) {
-                const file = await one(
-                    tx,
-                    `SELECT kind FROM files
-                      WHERE id = ? AND deleted_at IS NULL
-                        AND upload_status = 'complete' AND scan_status != 'infected'
-                        AND (uploaded_by_user_id = ? OR is_public = 1)`,
-                    [input.photoFileId, input.actorUserId],
-                );
-                if (!file || !["photo", "gif"].includes(text(file.kind)))
+                const [file] = await tx
+                    .select({ kind: files.kind })
+                    .from(files)
+                    .where(
+                        and(
+                            eq(files.id, input.photoFileId),
+                            isNull(files.deletedAt),
+                            eq(files.uploadStatus, "complete"),
+                            ne(files.scanStatus, "infected"),
+                            or(
+                                eq(files.uploadedByUserId, input.actorUserId),
+                                eq(files.isPublic, 1),
+                            ),
+                        ),
+                    )
+                    .limit(1);
+                if (!file || !["photo", "gif"].includes(file.kind))
                     throw new CollaborationError("not_found", "Channel photo was not found");
             }
             const sequence = await this.nextSequence(tx);
@@ -563,41 +708,35 @@ export class CollaborationRepository {
                 input.chatId,
             );
             try {
-                await tx.execute({
-                    sql: `UPDATE chats
-                             SET name = CASE WHEN ? = 1 THEN ? ELSE name END,
-                                 slug = CASE WHEN ? = 1 THEN ? ELSE slug END,
-                                 topic = CASE WHEN ? = 1 THEN ? ELSE topic END,
-                                 kind = COALESCE(?, kind),
-                                 visibility = CASE COALESCE(?, kind)
-                                     WHEN 'public_channel' THEN 'public' ELSE 'private' END,
-                                 photo_file_id = CASE WHEN ? = 1 THEN ? ELSE photo_file_id END,
-                                 is_listed = CASE WHEN ? = 1 THEN ? ELSE is_listed END,
-                                 lifecycle_version = lifecycle_version + 1,
-                                 updated_at = CURRENT_TIMESTAMP
-                           WHERE id = ? AND deleted_at IS NULL`,
-                    args: [
-                        input.name === undefined ? 0 : 1,
-                        input.name ?? null,
-                        input.slug === undefined ? 0 : 1,
-                        input.slug ?? null,
-                        input.topic === undefined ? 0 : 1,
-                        input.topic ?? null,
-                        input.kind ?? null,
-                        input.kind ?? null,
-                        input.photoFileId === undefined ? 0 : 1,
-                        input.photoFileId ?? null,
-                        input.isListed === undefined ? 0 : 1,
-                        input.isListed ? 1 : 0,
-                        input.chatId,
-                    ],
-                });
+                await tx
+                    .update(chats)
+                    .set({
+                        ...(input.name === undefined ? {} : { name: input.name }),
+                        ...(input.slug === undefined ? {} : { slug: input.slug }),
+                        ...(input.topic === undefined ? {} : { topic: input.topic }),
+                        ...(input.kind === undefined
+                            ? {}
+                            : {
+                                  kind: input.kind,
+                                  visibility:
+                                      input.kind === "public_channel" ? "public" : "private",
+                              }),
+                        ...(input.photoFileId === undefined
+                            ? {}
+                            : { photoFileId: input.photoFileId }),
+                        ...(input.isListed === undefined
+                            ? {}
+                            : { isListed: input.isListed ? 1 : 0 }),
+                        lifecycleVersion: sql`${chats.lifecycleVersion} + 1`,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    })
+                    .where(and(eq(chats.id, input.chatId), isNull(chats.deletedAt)));
             } catch (error) {
                 if (isUniqueConstraint(error))
                     throw new CollaborationError("conflict", "Channel slug is already in use");
                 throw error;
             }
-            const chat = await this.requireChatManager(tx, input.actorUserId, input.chatId);
+            const chat = await this.requireChatManagerDb(tx, input.actorUserId, input.chatId);
             return { chat, hint: chatHint(sequence, input.chatId, mutation.pts) };
         });
     }
@@ -608,8 +747,8 @@ export class CollaborationRepository {
         archived: boolean;
         reason?: string;
     }): Promise<{ chat: ChatSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const access = await this.requireChatManager(tx, input.actorUserId, input.chatId);
+        return this.writeDb(async (tx) => {
+            const access = await this.requireChatManagerDb(tx, input.actorUserId, input.chatId);
             if (access.kind === "dm")
                 throw new CollaborationError("invalid", "Direct messages cannot be archived");
             if (Boolean(access.archivedAt) === input.archived)
@@ -626,20 +765,17 @@ export class CollaborationRepository {
                 input.archived ? "chat.archived" : "chat.unarchived",
                 input.chatId,
             );
-            await tx.execute({
-                sql: `UPDATE chats
-                         SET archived_at = ${input.archived ? "CURRENT_TIMESTAMP" : "NULL"},
-                             archived_by_user_id = ?, archive_reason = ?,
-                             lifecycle_version = lifecycle_version + 1,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ?`,
-                args: [
-                    input.archived ? input.actorUserId : null,
-                    input.archived ? (input.reason ?? null) : null,
-                    input.chatId,
-                ],
-            });
-            const chat = await this.requireChatManager(tx, input.actorUserId, input.chatId);
+            await tx
+                .update(chats)
+                .set({
+                    archivedAt: input.archived ? sql`CURRENT_TIMESTAMP` : null,
+                    archivedByUserId: input.archived ? input.actorUserId : null,
+                    archiveReason: input.archived ? (input.reason ?? null) : null,
+                    lifecycleVersion: sql`${chats.lifecycleVersion} + 1`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(chats.id, input.chatId));
+            const chat = await this.requireChatManagerDb(tx, input.actorUserId, input.chatId);
             return { chat, hint: chatHint(sequence, input.chatId, mutation.pts) };
         });
     }
@@ -653,8 +789,8 @@ export class CollaborationRepository {
         defaultSelfDestructSeconds?: number | null;
         defaultAfterReadScope?: "any_reader" | "all_readers";
     }): Promise<{ chat: ChatSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const access = await this.requireChatManager(tx, input.actorUserId, input.chatId);
+        return this.writeDb(async (tx) => {
+            const access = await this.requireChatManagerDb(tx, input.actorUserId, input.chatId);
             if (
                 input.retentionMode === "duration" &&
                 input.retentionSeconds === undefined &&
@@ -680,30 +816,29 @@ export class CollaborationRepository {
                 "chat.policiesChanged",
                 input.chatId,
             );
-            await tx.execute({
-                sql: `UPDATE chats
-                         SET retention_mode = COALESCE(?, retention_mode),
-                             retention_seconds = CASE WHEN ? = 1
-                                 THEN ? ELSE retention_seconds END,
-                             default_expiry_mode = COALESCE(?, default_expiry_mode),
-                             default_self_destruct_seconds = CASE WHEN ? = 1
-                                 THEN ? ELSE default_self_destruct_seconds END,
-                             default_after_read_scope = COALESCE(?, default_after_read_scope),
-                             lifecycle_version = lifecycle_version + 1,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ?`,
-                args: [
-                    input.retentionMode ?? null,
-                    input.retentionSeconds === undefined ? 0 : 1,
-                    input.retentionSeconds ?? null,
-                    input.defaultExpiryMode ?? null,
-                    input.defaultSelfDestructSeconds === undefined ? 0 : 1,
-                    input.defaultSelfDestructSeconds ?? null,
-                    input.defaultAfterReadScope ?? null,
-                    input.chatId,
-                ],
-            });
-            const chat = await this.requireChatManager(tx, input.actorUserId, input.chatId);
+            await tx
+                .update(chats)
+                .set({
+                    ...(input.retentionMode === undefined
+                        ? {}
+                        : { retentionMode: input.retentionMode }),
+                    ...(input.retentionSeconds === undefined
+                        ? {}
+                        : { retentionSeconds: input.retentionSeconds }),
+                    ...(input.defaultExpiryMode === undefined
+                        ? {}
+                        : { defaultExpiryMode: input.defaultExpiryMode }),
+                    ...(input.defaultSelfDestructSeconds === undefined
+                        ? {}
+                        : { defaultSelfDestructSeconds: input.defaultSelfDestructSeconds }),
+                    ...(input.defaultAfterReadScope === undefined
+                        ? {}
+                        : { defaultAfterReadScope: input.defaultAfterReadScope }),
+                    lifecycleVersion: sql`${chats.lifecycleVersion} + 1`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(chats.id, input.chatId));
+            const chat = await this.requireChatManagerDb(tx, input.actorUserId, input.chatId);
             return { chat, hint: chatHint(sequence, input.chatId, mutation.pts) };
         });
     }
@@ -713,16 +848,16 @@ export class CollaborationRepository {
         chatId: string;
         reason?: string;
     }): Promise<{ hint: MutationHint; memberUserIds: string[] }> {
-        return this.write(async (tx) => {
-            const access = await this.requireChatManager(tx, input.actorUserId, input.chatId);
+        return this.writeDb(async (tx) => {
+            const access = await this.requireChatManagerDb(tx, input.actorUserId, input.chatId);
             if (access.kind === "dm")
                 throw new CollaborationError("invalid", "Direct messages cannot be deleted");
             if (!access.isServerAdmin && access.membershipRole !== "owner")
                 throw new CollaborationError("forbidden", "Only an owner can delete a channel");
-            const members = await tx.execute({
-                sql: `SELECT user_id FROM chat_members WHERE chat_id = ? AND left_at IS NULL`,
-                args: [input.chatId],
-            });
+            const members = await tx
+                .select({ userId: chatMembers.userId })
+                .from(chatMembers)
+                .where(and(eq(chatMembers.chatId, input.chatId), isNull(chatMembers.leftAt)));
             const sequence = await this.nextSequence(tx);
             const mutation = await this.advanceChatWithSequence(
                 tx,
@@ -732,17 +867,19 @@ export class CollaborationRepository {
                 "chat.deleted",
                 input.chatId,
             );
-            await tx.execute({
-                sql: `UPDATE chats
-                         SET deleted_at = CURRENT_TIMESTAMP, deleted_by_user_id = ?,
-                             delete_reason = ?, lifecycle_version = lifecycle_version + 1,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ?`,
-                args: [input.actorUserId, input.reason ?? null, input.chatId],
-            });
+            await tx
+                .update(chats)
+                .set({
+                    deletedAt: sql`CURRENT_TIMESTAMP`,
+                    deletedByUserId: input.actorUserId,
+                    deleteReason: input.reason ?? null,
+                    lifecycleVersion: sql`${chats.lifecycleVersion} + 1`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(chats.id, input.chatId));
             return {
                 hint: chatHint(sequence, input.chatId, mutation.pts),
-                memberUserIds: members.rows.map((row) => text(row.user_id)),
+                memberUserIds: members.map((row) => row.userId),
             };
         });
     }
@@ -753,8 +890,8 @@ export class CollaborationRepository {
         userId: string;
         role: ChatRole;
     }): Promise<{ hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const access = await this.requireChatManager(tx, input.actorUserId, input.chatId);
+        return this.writeDb(async (tx) => {
+            const access = await this.requireChatManagerDb(tx, input.actorUserId, input.chatId);
             if (access.kind === "dm")
                 throw new CollaborationError("invalid", "Direct-message roles are fixed");
             if (
@@ -763,30 +900,41 @@ export class CollaborationRepository {
                 access.membershipRole !== "owner"
             )
                 throw new CollaborationError("forbidden", "Only an owner can assign ownership");
-            const member = await one(
-                tx,
-                `SELECT role FROM chat_members
-                  WHERE chat_id = ? AND user_id = ? AND left_at IS NULL`,
-                [input.chatId, input.userId],
-            );
+            const [member] = await tx
+                .select({ role: chatMembers.role })
+                .from(chatMembers)
+                .where(
+                    and(
+                        eq(chatMembers.chatId, input.chatId),
+                        eq(chatMembers.userId, input.userId),
+                        isNull(chatMembers.leftAt),
+                    ),
+                )
+                .limit(1);
             if (!member) throw new CollaborationError("not_found", "Member was not found");
             if (member.role === input.role)
                 throw new CollaborationError("conflict", "Member already has this role");
             let replacementOwnerId: string | undefined;
             if (member.role === "owner" && input.role !== "owner") {
-                const another = await one(
-                    tx,
-                    `SELECT user_id FROM chat_members
-                      WHERE chat_id = ? AND user_id != ? AND left_at IS NULL AND role = 'owner'
-                      ORDER BY joined_at, user_id LIMIT 1`,
-                    [input.chatId, input.userId],
-                );
+                const [another] = await tx
+                    .select({ userId: chatMembers.userId })
+                    .from(chatMembers)
+                    .where(
+                        and(
+                            eq(chatMembers.chatId, input.chatId),
+                            ne(chatMembers.userId, input.userId),
+                            isNull(chatMembers.leftAt),
+                            eq(chatMembers.role, "owner"),
+                        ),
+                    )
+                    .orderBy(chatMembers.joinedAt, chatMembers.userId)
+                    .limit(1);
                 if (!another)
                     throw new CollaborationError(
                         "conflict",
                         "Transfer ownership before demoting the only owner",
                     );
-                replacementOwnerId = text(another.user_id);
+                replacementOwnerId = another.userId;
             }
             const sequence = await this.nextSequence(tx);
             const mutation = await this.advanceChatWithSequence(
@@ -798,23 +946,30 @@ export class CollaborationRepository {
                 input.userId,
                 input.userId,
             );
-            await tx.execute({
-                sql: `UPDATE chat_members
-                         SET role = ?, sync_sequence = ?, updated_at = CURRENT_TIMESTAMP
-                       WHERE chat_id = ? AND user_id = ? AND left_at IS NULL`,
-                args: [input.role, sequence, input.chatId, input.userId],
-            });
+            await tx
+                .update(chatMembers)
+                .set({
+                    role: input.role,
+                    syncSequence: sequence,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(chatMembers.chatId, input.chatId),
+                        eq(chatMembers.userId, input.userId),
+                        isNull(chatMembers.leftAt),
+                    ),
+                );
             if (input.role === "owner")
-                await tx.execute({
-                    sql: `UPDATE chats SET owner_user_id = ? WHERE id = ?`,
-                    args: [input.userId, input.chatId],
-                });
+                await tx
+                    .update(chats)
+                    .set({ ownerUserId: input.userId })
+                    .where(eq(chats.id, input.chatId));
             else if (replacementOwnerId)
-                await tx.execute({
-                    sql: `UPDATE chats SET owner_user_id = ?
-                           WHERE id = ? AND owner_user_id = ?`,
-                    args: [replacementOwnerId, input.chatId, input.userId],
-                });
+                await tx
+                    .update(chats)
+                    .set({ ownerUserId: replacementOwnerId })
+                    .where(and(eq(chats.id, input.chatId), eq(chats.ownerUserId, input.userId)));
             return { hint: chatHint(sequence, input.chatId, mutation.pts) };
         });
     }
@@ -824,8 +979,8 @@ export class CollaborationRepository {
         chatId: string,
         topic: string | undefined,
     ): Promise<{ chat: ChatSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const access = await this.requireChatManager(tx, actorUserId, chatId);
+        return this.writeDb(async (tx) => {
+            const access = await this.requireChatManagerDb(tx, actorUserId, chatId);
             if (access.kind === "dm")
                 throw new CollaborationError("invalid", "Direct messages do not have topics");
             const mutation = await this.advanceChat(
@@ -835,11 +990,11 @@ export class CollaborationRepository {
                 "chat.topicChanged",
                 chatId,
             );
-            await tx.execute({
-                sql: `UPDATE chats SET topic = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-                args: [topic ?? null, chatId],
-            });
-            const chat = await this.requireChatManager(tx, actorUserId, chatId);
+            await tx
+                .update(chats)
+                .set({ topic: topic ?? null, updatedAt: sql`CURRENT_TIMESTAMP` })
+                .where(eq(chats.id, chatId));
+            const chat = await this.requireChatManagerDb(tx, actorUserId, chatId);
             return { chat, hint: chatHint(mutation.sequence, chatId, mutation.pts) };
         });
     }
@@ -848,8 +1003,8 @@ export class CollaborationRepository {
         actorUserId: string,
         chatId: string,
     ): Promise<{ chat: ChatSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const access = await this.chatAccess(tx, actorUserId, chatId, false);
+        return this.writeDb(async (tx) => {
+            const access = await this.chatAccessDb(tx, actorUserId, chatId, false);
             if (!access || access.kind !== "public_channel")
                 throw new CollaborationError("not_found", "Public channel was not found");
             if (access.membershipRole)
@@ -864,46 +1019,60 @@ export class CollaborationRepository {
                 actorUserId,
                 actorUserId,
             );
-            await tx.execute({
-                sql: `INSERT INTO chat_members
-                        (chat_id, user_id, role, membership_epoch, sync_sequence)
-                      VALUES (?, ?, 'member', ?, ?)
-                      ON CONFLICT(chat_id, user_id) DO UPDATE SET
-                        role = 'member', membership_epoch = excluded.membership_epoch,
-                        sync_sequence = excluded.sync_sequence, joined_at = CURRENT_TIMESTAMP,
-                        left_at = NULL`,
-                args: [chatId, actorUserId, createId(), sequence],
-            });
-            const chat = await this.chatAccess(tx, actorUserId, chatId, false);
+            await tx
+                .insert(chatMembers)
+                .values({
+                    chatId,
+                    userId: actorUserId,
+                    role: "member",
+                    membershipEpoch: createId(),
+                    syncSequence: sequence,
+                })
+                .onConflictDoUpdate({
+                    target: [chatMembers.chatId, chatMembers.userId],
+                    set: {
+                        role: "member",
+                        membershipEpoch: sql`excluded.membership_epoch`,
+                        syncSequence: sql`excluded.sync_sequence`,
+                        joinedAt: sql`CURRENT_TIMESTAMP`,
+                        leftAt: null,
+                    },
+                });
+            const chat = await this.chatAccessDb(tx, actorUserId, chatId, false);
             if (!chat) throw new Error("Joined chat is not readable");
             return { chat, hint: chatHint(sequence, chatId, mutation.pts) };
         });
     }
 
     async leaveChannel(actorUserId: string, chatId: string): Promise<{ hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const access = await this.chatAccess(tx, actorUserId, chatId, true);
+        return this.writeDb(async (tx) => {
+            const access = await this.chatAccessDb(tx, actorUserId, chatId, true);
             if (!access) throw new CollaborationError("not_found", "Chat was not found");
             if (access.kind === "dm")
                 throw new CollaborationError("invalid", "Direct-message membership is fixed");
             if (access.membershipRole === "owner") {
-                const otherOwner = await one(
-                    tx,
-                    `SELECT user_id FROM chat_members
-                      WHERE chat_id = ? AND user_id != ? AND left_at IS NULL
-                        AND role = 'owner' ORDER BY joined_at, user_id LIMIT 1`,
-                    [chatId, actorUserId],
-                );
+                const [otherOwner] = await tx
+                    .select({ userId: chatMembers.userId })
+                    .from(chatMembers)
+                    .where(
+                        and(
+                            eq(chatMembers.chatId, chatId),
+                            ne(chatMembers.userId, actorUserId),
+                            isNull(chatMembers.leftAt),
+                            eq(chatMembers.role, "owner"),
+                        ),
+                    )
+                    .orderBy(chatMembers.joinedAt, chatMembers.userId)
+                    .limit(1);
                 if (!otherOwner)
                     throw new CollaborationError(
                         "conflict",
                         "Transfer channel ownership before leaving",
                     );
-                await tx.execute({
-                    sql: `UPDATE chats SET owner_user_id = ?
-                           WHERE id = ? AND owner_user_id = ?`,
-                    args: [text(otherOwner.user_id), chatId, actorUserId],
-                });
+                await tx
+                    .update(chats)
+                    .set({ ownerUserId: otherOwner.userId })
+                    .where(and(eq(chats.id, chatId), eq(chats.ownerUserId, actorUserId)));
             }
             const sequence = await this.nextSequence(tx);
             const mutation = await this.advanceChatWithSequence(
@@ -915,12 +1084,16 @@ export class CollaborationRepository {
                 actorUserId,
                 actorUserId,
             );
-            await tx.execute({
-                sql: `UPDATE chat_members
-                         SET left_at = CURRENT_TIMESTAMP, sync_sequence = ?
-                       WHERE chat_id = ? AND user_id = ? AND left_at IS NULL`,
-                args: [sequence, chatId, actorUserId],
-            });
+            await tx
+                .update(chatMembers)
+                .set({ leftAt: sql`CURRENT_TIMESTAMP`, syncSequence: sequence })
+                .where(
+                    and(
+                        eq(chatMembers.chatId, chatId),
+                        eq(chatMembers.userId, actorUserId),
+                        isNull(chatMembers.leftAt),
+                    ),
+                );
             return { hint: chatHint(sequence, chatId, mutation.pts) };
         });
     }
@@ -931,8 +1104,8 @@ export class CollaborationRepository {
         userId: string;
         role?: ChatRole;
     }): Promise<{ hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const access = await this.requireChatManager(tx, input.actorUserId, input.chatId);
+        return this.writeDb(async (tx) => {
+            const access = await this.requireChatManagerDb(tx, input.actorUserId, input.chatId);
             if (access.kind === "dm")
                 throw new CollaborationError("invalid", "Direct-message membership is fixed");
             if (
@@ -941,13 +1114,15 @@ export class CollaborationRepository {
                 access.membershipRole !== "owner"
             )
                 throw new CollaborationError("forbidden", "Only an owner can assign ownership");
-            await this.requireActiveUser(tx, input.userId);
-            const existing = await one(
-                tx,
-                `SELECT left_at FROM chat_members WHERE chat_id = ? AND user_id = ?`,
-                [input.chatId, input.userId],
-            );
-            if (existing && existing.left_at === null)
+            await this.requireActiveUserDb(tx, input.userId);
+            const [existing] = await tx
+                .select({ leftAt: chatMembers.leftAt })
+                .from(chatMembers)
+                .where(
+                    and(eq(chatMembers.chatId, input.chatId), eq(chatMembers.userId, input.userId)),
+                )
+                .limit(1);
+            if (existing && existing.leftAt === null)
                 throw new CollaborationError("conflict", "User is already a channel member");
             const sequence = await this.nextSequence(tx);
             const mutation = await this.advanceChatWithSequence(
@@ -959,16 +1134,25 @@ export class CollaborationRepository {
                 input.userId,
                 input.userId,
             );
-            await tx.execute({
-                sql: `INSERT INTO chat_members
-                        (chat_id, user_id, role, membership_epoch, sync_sequence)
-                      VALUES (?, ?, ?, ?, ?)
-                      ON CONFLICT(chat_id, user_id) DO UPDATE SET
-                        role = excluded.role, membership_epoch = excluded.membership_epoch,
-                        sync_sequence = excluded.sync_sequence, joined_at = CURRENT_TIMESTAMP,
-                        left_at = NULL`,
-                args: [input.chatId, input.userId, input.role ?? "member", createId(), sequence],
-            });
+            await tx
+                .insert(chatMembers)
+                .values({
+                    chatId: input.chatId,
+                    userId: input.userId,
+                    role: input.role ?? "member",
+                    membershipEpoch: createId(),
+                    syncSequence: sequence,
+                })
+                .onConflictDoUpdate({
+                    target: [chatMembers.chatId, chatMembers.userId],
+                    set: {
+                        role: sql`excluded.role`,
+                        membershipEpoch: sql`excluded.membership_epoch`,
+                        syncSequence: sql`excluded.sync_sequence`,
+                        joinedAt: sql`CURRENT_TIMESTAMP`,
+                        leftAt: null,
+                    },
+                });
             return { hint: chatHint(sequence, input.chatId, mutation.pts) };
         });
     }
@@ -978,16 +1162,21 @@ export class CollaborationRepository {
         chatId: string;
         userId: string;
     }): Promise<{ hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const access = await this.requireChatManager(tx, input.actorUserId, input.chatId);
+        return this.writeDb(async (tx) => {
+            const access = await this.requireChatManagerDb(tx, input.actorUserId, input.chatId);
             if (access.kind === "dm")
                 throw new CollaborationError("invalid", "Direct-message membership is fixed");
-            const member = await one(
-                tx,
-                `SELECT role FROM chat_members
-                  WHERE chat_id = ? AND user_id = ? AND left_at IS NULL`,
-                [input.chatId, input.userId],
-            );
+            const [member] = await tx
+                .select({ role: chatMembers.role })
+                .from(chatMembers)
+                .where(
+                    and(
+                        eq(chatMembers.chatId, input.chatId),
+                        eq(chatMembers.userId, input.userId),
+                        isNull(chatMembers.leftAt),
+                    ),
+                )
+                .limit(1);
             if (!member) throw new CollaborationError("not_found", "Member was not found");
             if (member.role === "owner" && !access.isServerAdmin)
                 throw new CollaborationError(
@@ -995,40 +1184,57 @@ export class CollaborationRepository {
                     "Only a server admin can remove an owner",
                 );
             if (member.role === "owner") {
-                const otherOwner = await one(
-                    tx,
-                    `SELECT user_id FROM chat_members
-                      WHERE chat_id = ? AND user_id != ? AND left_at IS NULL AND role = 'owner'
-                      ORDER BY joined_at, user_id LIMIT 1`,
-                    [input.chatId, input.userId],
-                );
-                let replacementOwnerId = optionalText(otherOwner?.user_id);
+                const [otherOwner] = await tx
+                    .select({ userId: chatMembers.userId })
+                    .from(chatMembers)
+                    .where(
+                        and(
+                            eq(chatMembers.chatId, input.chatId),
+                            ne(chatMembers.userId, input.userId),
+                            isNull(chatMembers.leftAt),
+                            eq(chatMembers.role, "owner"),
+                        ),
+                    )
+                    .orderBy(chatMembers.joinedAt, chatMembers.userId)
+                    .limit(1);
+                let replacementOwnerId = otherOwner?.userId;
                 if (!replacementOwnerId) {
-                    const successor = await one(
-                        tx,
-                        `SELECT user_id FROM chat_members
-                          WHERE chat_id = ? AND user_id != ? AND left_at IS NULL
-                          ORDER BY CASE role WHEN 'admin' THEN 0 ELSE 1 END, joined_at, user_id
-                          LIMIT 1`,
-                        [input.chatId, input.userId],
-                    );
+                    const [successor] = await tx
+                        .select({ userId: chatMembers.userId })
+                        .from(chatMembers)
+                        .where(
+                            and(
+                                eq(chatMembers.chatId, input.chatId),
+                                ne(chatMembers.userId, input.userId),
+                                isNull(chatMembers.leftAt),
+                            ),
+                        )
+                        .orderBy(
+                            sql`case ${chatMembers.role} when 'admin' then 0 else 1 end`,
+                            chatMembers.joinedAt,
+                            chatMembers.userId,
+                        )
+                        .limit(1);
                     if (!successor)
                         throw new CollaborationError(
                             "conflict",
                             "The last channel owner cannot be removed",
                         );
-                    await tx.execute({
-                        sql: `UPDATE chat_members SET role = 'owner', updated_at = CURRENT_TIMESTAMP
-                               WHERE chat_id = ? AND user_id = ?`,
-                        args: [input.chatId, successor.user_id],
-                    });
-                    replacementOwnerId = text(successor.user_id);
+                    await tx
+                        .update(chatMembers)
+                        .set({ role: "owner", updatedAt: sql`CURRENT_TIMESTAMP` })
+                        .where(
+                            and(
+                                eq(chatMembers.chatId, input.chatId),
+                                eq(chatMembers.userId, successor.userId),
+                            ),
+                        );
+                    replacementOwnerId = successor.userId;
                 }
-                await tx.execute({
-                    sql: `UPDATE chats SET owner_user_id = ?
-                           WHERE id = ? AND owner_user_id = ?`,
-                    args: [replacementOwnerId, input.chatId, input.userId],
-                });
+                await tx
+                    .update(chats)
+                    .set({ ownerUserId: replacementOwnerId })
+                    .where(and(eq(chats.id, input.chatId), eq(chats.ownerUserId, input.userId)));
             }
             const sequence = await this.nextSequence(tx);
             const mutation = await this.advanceChatWithSequence(
@@ -1040,12 +1246,16 @@ export class CollaborationRepository {
                 input.userId,
                 input.userId,
             );
-            await tx.execute({
-                sql: `UPDATE chat_members
-                         SET left_at = CURRENT_TIMESTAMP, sync_sequence = ?
-                       WHERE chat_id = ? AND user_id = ? AND left_at IS NULL`,
-                args: [sequence, input.chatId, input.userId],
-            });
+            await tx
+                .update(chatMembers)
+                .set({ leftAt: sql`CURRENT_TIMESTAMP`, syncSequence: sequence })
+                .where(
+                    and(
+                        eq(chatMembers.chatId, input.chatId),
+                        eq(chatMembers.userId, input.userId),
+                        isNull(chatMembers.leftAt),
+                    ),
+                );
             return { hint: chatHint(sequence, input.chatId, mutation.pts) };
         });
     }
@@ -1055,32 +1265,42 @@ export class CollaborationRepository {
         chatId: string,
         starred: boolean,
     ): Promise<{ hint: MutationHint }> {
-        return this.write(async (tx) => {
-            if (!(await this.chatAccess(tx, actorUserId, chatId, false)))
+        return this.writeDb(async (tx) => {
+            if (!(await this.chatAccessDb(tx, actorUserId, chatId, false)))
                 throw new CollaborationError("not_found", "Chat was not found");
             const sequence = await this.nextSequence(tx);
-            const nextOrder = starred
-                ? number(
-                      (
-                          await one(
-                              tx,
-                              `SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order
-                                 FROM user_chat_preferences
-                                WHERE user_id = ? AND starred = 1`,
-                              [actorUserId],
-                          )
-                      )?.next_order,
-                  )
-                : 0;
-            await tx.execute({
-                sql: `INSERT INTO user_chat_preferences
-                        (user_id, chat_id, starred, sort_order, sync_sequence)
-                      VALUES (?, ?, ?, ?, ?)
-                      ON CONFLICT(user_id, chat_id) DO UPDATE SET
-                        starred = excluded.starred, sort_order = excluded.sort_order,
-                        sync_sequence = excluded.sync_sequence, updated_at = CURRENT_TIMESTAMP`,
-                args: [actorUserId, chatId, starred ? 1 : 0, nextOrder, sequence],
-            });
+            const [maxOrder] = starred
+                ? await tx
+                      .select({
+                          nextOrder: sql<number>`coalesce(max(${userChatPreferences.sortOrder}), -1) + 1`,
+                      })
+                      .from(userChatPreferences)
+                      .where(
+                          and(
+                              eq(userChatPreferences.userId, actorUserId),
+                              eq(userChatPreferences.starred, 1),
+                          ),
+                      )
+                : [{ nextOrder: 0 }];
+            const nextOrder = maxOrder?.nextOrder ?? 0;
+            await tx
+                .insert(userChatPreferences)
+                .values({
+                    userId: actorUserId,
+                    chatId,
+                    starred: starred ? 1 : 0,
+                    sortOrder: nextOrder,
+                    syncSequence: sequence,
+                })
+                .onConflictDoUpdate({
+                    target: [userChatPreferences.userId, userChatPreferences.chatId],
+                    set: {
+                        starred: starred ? 1 : 0,
+                        sortOrder: nextOrder,
+                        syncSequence: sequence,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    },
+                });
             await this.insertSyncEvent(tx, {
                 sequence,
                 kind: "preferences.changed",
@@ -1093,13 +1313,18 @@ export class CollaborationRepository {
     }
 
     async reorderStarred(actorUserId: string, chatIds: string[]): Promise<{ hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const starred = await tx.execute({
-                sql: `SELECT chat_id FROM user_chat_preferences
-                       WHERE user_id = ? AND starred = 1 ORDER BY sort_order, chat_id`,
-                args: [actorUserId],
-            });
-            const current = starred.rows.map((row) => text(row.chat_id)).sort();
+        return this.writeDb(async (tx) => {
+            const starred = await tx
+                .select({ chatId: userChatPreferences.chatId })
+                .from(userChatPreferences)
+                .where(
+                    and(
+                        eq(userChatPreferences.userId, actorUserId),
+                        eq(userChatPreferences.starred, 1),
+                    ),
+                )
+                .orderBy(userChatPreferences.sortOrder, userChatPreferences.chatId);
+            const current = starred.map((row) => row.chatId).sort();
             const supplied = [...new Set(chatIds)].sort();
             if (
                 current.length !== chatIds.length ||
@@ -1112,12 +1337,16 @@ export class CollaborationRepository {
                 );
             const sequence = await this.nextSequence(tx);
             for (const [sortOrder, chatId] of chatIds.entries()) {
-                await tx.execute({
-                    sql: `UPDATE user_chat_preferences
-                             SET sort_order = ?, sync_sequence = ?, updated_at = CURRENT_TIMESTAMP
-                           WHERE user_id = ? AND chat_id = ? AND starred = 1`,
-                    args: [sortOrder, sequence, actorUserId, chatId],
-                });
+                await tx
+                    .update(userChatPreferences)
+                    .set({ sortOrder, syncSequence: sequence, updatedAt: sql`CURRENT_TIMESTAMP` })
+                    .where(
+                        and(
+                            eq(userChatPreferences.userId, actorUserId),
+                            eq(userChatPreferences.chatId, chatId),
+                            eq(userChatPreferences.starred, 1),
+                        ),
+                    );
             }
             await this.insertSyncEvent(tx, {
                 sequence,
@@ -1134,27 +1363,30 @@ export class CollaborationRepository {
         chatId: string;
         messageId?: string;
     }): Promise<{ chat: ChatSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const access = await this.chatAccess(tx, input.actorUserId, input.chatId, true);
+        return this.writeDb(async (tx) => {
+            const access = await this.chatAccessDb(tx, input.actorUserId, input.chatId, true);
             if (!access) throw new CollaborationError("not_found", "Chat was not found");
-            const target = input.messageId
-                ? await one(
-                      tx,
-                      `SELECT id, sequence, change_pts FROM messages
-                        WHERE id = ? AND chat_id = ? AND deleted_at IS NULL
-                          AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)`,
-                      [input.messageId, input.chatId],
-                  )
-                : await one(
-                      tx,
-                      `SELECT id, sequence, change_pts FROM messages
-                        WHERE chat_id = ? AND deleted_at IS NULL
-                          AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)
-                        ORDER BY sequence DESC LIMIT 1`,
-                      [input.chatId],
-                  );
-            const targetSequence = number(target?.sequence, 0);
-            const targetPts = number(target?.change_pts, 0);
+            const targetConditions = and(
+                eq(messages.chatId, input.chatId),
+                isNull(messages.deletedAt),
+                or(
+                    isNull(messages.expiresAt),
+                    sql`datetime(${messages.expiresAt}) > CURRENT_TIMESTAMP`,
+                ),
+                ...(input.messageId ? [eq(messages.id, input.messageId)] : []),
+            );
+            const [target] = await tx
+                .select({
+                    id: messages.id,
+                    sequence: messages.sequence,
+                    changePts: messages.changePts,
+                })
+                .from(messages)
+                .where(targetConditions)
+                .orderBy(desc(messages.sequence))
+                .limit(1);
+            const targetSequence = target?.sequence ?? 0;
+            const targetPts = target?.changePts ?? 0;
             const sequence = await this.nextSequence(tx);
             const receiptMutation = target
                 ? await this.advanceChatWithSequence(
@@ -1163,96 +1395,108 @@ export class CollaborationRepository {
                       input.actorUserId,
                       input.chatId,
                       "receipt.read",
-                      text(target.id),
+                      target.id,
                   )
                 : undefined;
-            await tx.execute({
-                sql: `INSERT INTO message_receipts
-                        (message_id, user_id, delivered_at, read_at)
-                      SELECT m.id, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                        FROM messages m
-                       WHERE m.chat_id = ? AND m.sequence <= ?
-                         AND m.deleted_at IS NULL
-                         AND (m.sender_user_id IS NULL OR m.sender_user_id != ?)
-                      ON CONFLICT(message_id, user_id) DO UPDATE SET
-                        delivered_at = COALESCE(message_receipts.delivered_at, CURRENT_TIMESTAMP),
-                        read_at = COALESCE(message_receipts.read_at, CURRENT_TIMESTAMP),
-                        updated_at = CURRENT_TIMESTAMP`,
-                args: [input.actorUserId, input.chatId, targetSequence, input.actorUserId],
-            });
-            await tx.execute({
-                sql: `UPDATE messages
-                         SET first_read_at = COALESCE(first_read_at, CURRENT_TIMESTAMP),
-                             expires_at = CASE
-                               WHEN expires_at IS NULL OR datetime(expires_at) > datetime(
-                                 'now', '+' || self_destruct_seconds || ' seconds'
-                               ) THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now',
-                                 '+' || self_destruct_seconds || ' seconds')
-                               ELSE expires_at
-                             END
-                       WHERE chat_id = ? AND sequence <= ? AND deleted_at IS NULL
-                         AND (sender_user_id IS NULL OR sender_user_id != ?)
-                         AND expiry_mode = 'after_read'
-                         AND self_destruct_seconds IS NOT NULL
-                         AND (
-                           after_read_scope = 'any_reader'
-                           OR NOT EXISTS (
-                             SELECT 1 FROM message_receipts mr
-                              WHERE mr.message_id = messages.id
-                                AND mr.read_at IS NULL
-                                AND (messages.sender_user_id IS NULL
-                                     OR mr.user_id != messages.sender_user_id)
-                           )
-                         )`,
-                args: [input.chatId, targetSequence, input.actorUserId],
-            });
-            await tx.execute({
-                sql: `UPDATE message_receipts
-                         SET expiry_triggered_at = COALESCE(expiry_triggered_at, CURRENT_TIMESTAMP),
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE user_id = ? AND read_at IS NOT NULL
-                         AND message_id IN (
-                           SELECT id FROM messages WHERE chat_id = ? AND sequence <= ?
-                             AND expiry_mode = 'after_read' AND expires_at IS NOT NULL
-                         )`,
-                args: [input.actorUserId, input.chatId, targetSequence],
-            });
-            await tx.execute({
-                sql: `UPDATE chat_members
-                         SET last_read_message_id = ?,
-                             last_read_sequence = MAX(last_read_sequence, ?),
-                             last_read_pts = MAX(last_read_pts, ?),
-                             last_read_at = CURRENT_TIMESTAMP,
-                             unread_count = (
-                               SELECT count(*) FROM messages m
-                                WHERE m.chat_id = ? AND m.sequence > ?
-                                  AND m.deleted_at IS NULL
-                                  AND (m.sender_user_id IS NULL OR m.sender_user_id != ?)
-                                  AND (m.expires_at IS NULL OR datetime(m.expires_at) > CURRENT_TIMESTAMP)
-                             ),
-                             mention_count = (
-                               SELECT count(*) FROM message_mentions mm
-                               JOIN messages m ON m.id = mm.message_id
-                                WHERE m.chat_id = ? AND m.sequence > ?
-                                  AND mm.mentioned_user_id = ? AND m.deleted_at IS NULL
-                             ),
-                             sync_sequence = ?, updated_at = CURRENT_TIMESTAMP
-                       WHERE chat_id = ? AND user_id = ? AND left_at IS NULL`,
-                args: [
-                    target ? text(target.id) : null,
-                    targetSequence,
-                    targetPts,
-                    input.chatId,
-                    targetSequence,
-                    input.actorUserId,
-                    input.chatId,
-                    targetSequence,
-                    input.actorUserId,
-                    sequence,
-                    input.chatId,
-                    input.actorUserId,
-                ],
-            });
+            const receiptMessages = await tx
+                .select({ messageId: messages.id })
+                .from(messages)
+                .where(
+                    and(
+                        eq(messages.chatId, input.chatId),
+                        lte(messages.sequence, targetSequence),
+                        isNull(messages.deletedAt),
+                        or(
+                            isNull(messages.senderUserId),
+                            ne(messages.senderUserId, input.actorUserId),
+                        ),
+                    ),
+                );
+            if (receiptMessages.length)
+                await tx
+                    .insert(messageReceipts)
+                    .values(
+                        receiptMessages.map(({ messageId }) => ({
+                            messageId,
+                            userId: input.actorUserId,
+                            deliveredAt: sql`CURRENT_TIMESTAMP`,
+                            readAt: sql`CURRENT_TIMESTAMP`,
+                        })),
+                    )
+                    .onConflictDoUpdate({
+                        target: [messageReceipts.messageId, messageReceipts.userId],
+                        set: {
+                            deliveredAt: sql`coalesce(${messageReceipts.deliveredAt}, CURRENT_TIMESTAMP)`,
+                            readAt: sql`coalesce(${messageReceipts.readAt}, CURRENT_TIMESTAMP)`,
+                            updatedAt: sql`CURRENT_TIMESTAMP`,
+                        },
+                    });
+            await tx
+                .update(messages)
+                .set({
+                    firstReadAt: sql`coalesce(${messages.firstReadAt}, CURRENT_TIMESTAMP)`,
+                    expiresAt: sql`case when ${messages.expiresAt} is null or datetime(${messages.expiresAt}) > datetime('now', '+' || ${messages.selfDestructSeconds} || ' seconds') then strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+' || ${messages.selfDestructSeconds} || ' seconds') else ${messages.expiresAt} end`,
+                })
+                .where(
+                    and(
+                        eq(messages.chatId, input.chatId),
+                        lte(messages.sequence, targetSequence),
+                        isNull(messages.deletedAt),
+                        or(
+                            isNull(messages.senderUserId),
+                            ne(messages.senderUserId, input.actorUserId),
+                        ),
+                        eq(messages.expiryMode, "after_read"),
+                        sql`${messages.selfDestructSeconds} IS NOT NULL`,
+                        or(
+                            eq(messages.afterReadScope, "any_reader"),
+                            sql`not exists (select 1 from chat_members cm where cm.chat_id = ${messages.chatId} and cm.left_at is null and (${messages.senderUserId} is null or cm.user_id != ${messages.senderUserId}) and not exists (select 1 from message_receipts mr where mr.message_id = ${messages.id} and mr.user_id = cm.user_id and mr.read_at is not null))`,
+                        ),
+                    ),
+                );
+            const expiringIds = tx
+                .select({ id: messages.id })
+                .from(messages)
+                .where(
+                    and(
+                        eq(messages.chatId, input.chatId),
+                        lte(messages.sequence, targetSequence),
+                        eq(messages.expiryMode, "after_read"),
+                        sql`${messages.expiresAt} IS NOT NULL`,
+                    ),
+                );
+            await tx
+                .update(messageReceipts)
+                .set({
+                    expiryTriggeredAt: sql`coalesce(${messageReceipts.expiryTriggeredAt}, CURRENT_TIMESTAMP)`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(messageReceipts.userId, input.actorUserId),
+                        sql`${messageReceipts.readAt} IS NOT NULL`,
+                        inArray(messageReceipts.messageId, expiringIds),
+                    ),
+                );
+            await tx
+                .update(chatMembers)
+                .set({
+                    lastReadMessageId: target?.id ?? null,
+                    lastReadSequence: sql`max(${chatMembers.lastReadSequence}, ${targetSequence})`,
+                    lastReadPts: sql`max(${chatMembers.lastReadPts}, ${targetPts})`,
+                    lastReadAt: sql`CURRENT_TIMESTAMP`,
+                    unreadCount: sql`(select count(*) from messages m where m.chat_id = ${input.chatId} and m.sequence > ${targetSequence} and m.deleted_at is null and (m.sender_user_id is null or m.sender_user_id != ${input.actorUserId}) and (m.expires_at is null or datetime(m.expires_at) > CURRENT_TIMESTAMP))`,
+                    mentionCount: sql`(select count(*) from message_mentions mm join messages m on m.id = mm.message_id where m.chat_id = ${input.chatId} and m.sequence > ${targetSequence} and mm.mentioned_user_id = ${input.actorUserId} and m.deleted_at is null)`,
+                    syncSequence: sequence,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(chatMembers.chatId, input.chatId),
+                        eq(chatMembers.userId, input.actorUserId),
+                        isNull(chatMembers.leftAt),
+                    ),
+                );
             await this.insertSyncEvent(tx, {
                 sequence,
                 kind: "preferences.chatRead",
@@ -1261,12 +1505,11 @@ export class CollaborationRepository {
                 targetUserId: input.actorUserId,
             });
             if (target && receiptMutation)
-                await tx.execute({
-                    sql: `UPDATE messages SET change_pts = ?, updated_at = CURRENT_TIMESTAMP
-                           WHERE id = ?`,
-                    args: [receiptMutation.pts, text(target.id)],
-                });
-            const chat = await this.chatAccess(tx, input.actorUserId, input.chatId, true);
+                await tx
+                    .update(messages)
+                    .set({ changePts: receiptMutation.pts, updatedAt: sql`CURRENT_TIMESTAMP` })
+                    .where(eq(messages.id, target.id));
+            const chat = await this.chatAccessDb(tx, input.actorUserId, input.chatId, true);
             if (!chat) throw new Error("Read chat became inaccessible");
             return {
                 chat,
@@ -1288,39 +1531,38 @@ export class CollaborationRepository {
         notifyThreadReplies?: boolean;
         showMessagePreviews?: boolean;
     }): Promise<{ chat: ChatSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            if (!(await this.chatAccess(tx, input.actorUserId, input.chatId, false)))
+        return this.writeDb(async (tx) => {
+            if (!(await this.chatAccessDb(tx, input.actorUserId, input.chatId, false)))
                 throw new CollaborationError("not_found", "Chat was not found");
             const sequence = await this.nextSequence(tx);
-            await tx.execute({
-                sql: `INSERT INTO user_chat_preferences
-                        (user_id, chat_id, notification_level, muted_until,
-                         notify_thread_replies, show_message_previews, sync_sequence)
-                      VALUES (?, ?, ?, ?, ?, ?, ?)
-                      ON CONFLICT(user_id, chat_id) DO UPDATE SET
-                        notification_level = CASE WHEN ? = 1
-                            THEN excluded.notification_level ELSE notification_level END,
-                        muted_until = CASE WHEN ? = 1 THEN excluded.muted_until ELSE muted_until END,
-                        notify_thread_replies = CASE WHEN ? = 1
-                            THEN excluded.notify_thread_replies ELSE notify_thread_replies END,
-                        show_message_previews = CASE WHEN ? = 1
-                            THEN excluded.show_message_previews ELSE show_message_previews END,
-                        sync_sequence = excluded.sync_sequence,
-                        updated_at = CURRENT_TIMESTAMP`,
-                args: [
-                    input.actorUserId,
-                    input.chatId,
-                    input.notificationLevel ?? "all",
-                    input.mutedUntil ?? null,
-                    input.notifyThreadReplies === false ? 0 : 1,
-                    input.showMessagePreviews === false ? 0 : 1,
-                    sequence,
-                    input.notificationLevel === undefined ? 0 : 1,
-                    input.mutedUntil === undefined ? 0 : 1,
-                    input.notifyThreadReplies === undefined ? 0 : 1,
-                    input.showMessagePreviews === undefined ? 0 : 1,
-                ],
-            });
+            await tx
+                .insert(userChatPreferences)
+                .values({
+                    userId: input.actorUserId,
+                    chatId: input.chatId,
+                    notificationLevel: input.notificationLevel ?? "all",
+                    mutedUntil: input.mutedUntil ?? null,
+                    notifyThreadReplies: input.notifyThreadReplies === false ? 0 : 1,
+                    showMessagePreviews: input.showMessagePreviews === false ? 0 : 1,
+                    syncSequence: sequence,
+                })
+                .onConflictDoUpdate({
+                    target: [userChatPreferences.userId, userChatPreferences.chatId],
+                    set: {
+                        ...(input.notificationLevel === undefined
+                            ? {}
+                            : { notificationLevel: input.notificationLevel }),
+                        ...(input.mutedUntil === undefined ? {} : { mutedUntil: input.mutedUntil }),
+                        ...(input.notifyThreadReplies === undefined
+                            ? {}
+                            : { notifyThreadReplies: input.notifyThreadReplies ? 1 : 0 }),
+                        ...(input.showMessagePreviews === undefined
+                            ? {}
+                            : { showMessagePreviews: input.showMessagePreviews ? 1 : 0 }),
+                        syncSequence: sequence,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    },
+                });
             await this.insertSyncEvent(tx, {
                 sequence,
                 kind: "preferences.notificationsChanged",
@@ -1328,7 +1570,7 @@ export class CollaborationRepository {
                 actorUserId: input.actorUserId,
                 targetUserId: input.actorUserId,
             });
-            const chat = await this.chatAccess(tx, input.actorUserId, input.chatId, false);
+            const chat = await this.chatAccessDb(tx, input.actorUserId, input.chatId, false);
             if (!chat) throw new Error("Preference chat became inaccessible");
             return { chat, hint: areaHint(sequence, "preferences") };
         });
@@ -1346,15 +1588,23 @@ export class CollaborationRepository {
         dndEndMinutes?: number;
         timezone?: string;
     }> {
-        await this.requireActiveUser(this.client, userId);
-        const row = await one(
-            this.client,
-            `SELECT direct_messages, mentions, thread_replies, reactions, calls,
-                    email_notifications, desktop_notifications, dnd_start_minutes,
-                    dnd_end_minutes, timezone
-               FROM user_notification_preferences WHERE user_id = ?`,
-            [userId],
-        );
+        await this.requireActiveUserDb(this.db, userId);
+        const [row] = await this.db
+            .select({
+                direct_messages: userNotificationPreferences.directMessages,
+                mentions: userNotificationPreferences.mentions,
+                thread_replies: userNotificationPreferences.threadReplies,
+                reactions: userNotificationPreferences.reactions,
+                calls: userNotificationPreferences.calls,
+                email_notifications: userNotificationPreferences.emailNotifications,
+                desktop_notifications: userNotificationPreferences.desktopNotifications,
+                dnd_start_minutes: userNotificationPreferences.dndStartMinutes,
+                dnd_end_minutes: userNotificationPreferences.dndEndMinutes,
+                timezone: userNotificationPreferences.timezone,
+            })
+            .from(userNotificationPreferences)
+            .where(eq(userNotificationPreferences.userId, userId))
+            .limit(1);
         return {
             directMessages: text(row?.direct_messages, "all") as "all" | "none",
             mentions: text(row?.mentions, "all") as "all" | "none",
@@ -1391,64 +1641,42 @@ export class CollaborationRepository {
         preferences: Awaited<ReturnType<CollaborationRepository["getNotificationPreferences"]>>;
         hint: MutationHint;
     }> {
-        const sequence = await this.write(async (tx) => {
-            await this.requireActiveUser(tx, input.actorUserId);
-            const existing = await one(
-                tx,
-                `SELECT 1 AS found FROM user_notification_preferences WHERE user_id = ?`,
-                [input.actorUserId],
-            );
-            if (!existing)
-                await tx.execute({
-                    sql: `INSERT INTO user_notification_preferences (user_id, sync_sequence)
-                          VALUES (?, ?)`,
-                    args: [input.actorUserId, await this.nextSequence(tx)],
-                });
-            const next = existing ? await this.nextSequence(tx) : undefined;
-            const syncSequence =
-                next ??
-                number(
-                    (
-                        await one(
-                            tx,
-                            `SELECT sync_sequence FROM user_notification_preferences WHERE user_id = ?`,
-                            [input.actorUserId],
-                        )
-                    )?.sync_sequence,
-                );
-            await tx.execute({
-                sql: `UPDATE user_notification_preferences
-                         SET direct_messages = COALESCE(?, direct_messages),
-                             mentions = COALESCE(?, mentions),
-                             thread_replies = COALESCE(?, thread_replies),
-                             reactions = COALESCE(?, reactions), calls = COALESCE(?, calls),
-                             email_notifications = CASE WHEN ? = 1 THEN ? ELSE email_notifications END,
-                             desktop_notifications = CASE WHEN ? = 1 THEN ? ELSE desktop_notifications END,
-                             dnd_start_minutes = CASE WHEN ? = 1 THEN ? ELSE dnd_start_minutes END,
-                             dnd_end_minutes = CASE WHEN ? = 1 THEN ? ELSE dnd_end_minutes END,
-                             timezone = CASE WHEN ? = 1 THEN ? ELSE timezone END,
-                             sync_sequence = ?, updated_at = CURRENT_TIMESTAMP
-                       WHERE user_id = ?`,
-                args: [
-                    input.directMessages ?? null,
-                    input.mentions ?? null,
-                    input.threadReplies ?? null,
-                    input.reactions ?? null,
-                    input.calls ?? null,
-                    input.emailNotifications === undefined ? 0 : 1,
-                    input.emailNotifications ? 1 : 0,
-                    input.desktopNotifications === undefined ? 0 : 1,
-                    input.desktopNotifications ? 1 : 0,
-                    input.dndStartMinutes === undefined ? 0 : 1,
-                    input.dndStartMinutes ?? null,
-                    input.dndEndMinutes === undefined ? 0 : 1,
-                    input.dndEndMinutes ?? null,
-                    input.timezone === undefined ? 0 : 1,
-                    input.timezone ?? null,
+        const sequence = await this.writeDb(async (tx) => {
+            await this.requireActiveUserDb(tx, input.actorUserId);
+            const syncSequence = await this.nextSequence(tx);
+            await tx
+                .insert(userNotificationPreferences)
+                .values({ userId: input.actorUserId, syncSequence })
+                .onConflictDoNothing();
+            await tx
+                .update(userNotificationPreferences)
+                .set({
+                    ...(input.directMessages === undefined
+                        ? {}
+                        : { directMessages: input.directMessages }),
+                    ...(input.mentions === undefined ? {} : { mentions: input.mentions }),
+                    ...(input.threadReplies === undefined
+                        ? {}
+                        : { threadReplies: input.threadReplies }),
+                    ...(input.reactions === undefined ? {} : { reactions: input.reactions }),
+                    ...(input.calls === undefined ? {} : { calls: input.calls }),
+                    ...(input.emailNotifications === undefined
+                        ? {}
+                        : { emailNotifications: input.emailNotifications ? 1 : 0 }),
+                    ...(input.desktopNotifications === undefined
+                        ? {}
+                        : { desktopNotifications: input.desktopNotifications ? 1 : 0 }),
+                    ...(input.dndStartMinutes === undefined
+                        ? {}
+                        : { dndStartMinutes: input.dndStartMinutes }),
+                    ...(input.dndEndMinutes === undefined
+                        ? {}
+                        : { dndEndMinutes: input.dndEndMinutes }),
+                    ...(input.timezone === undefined ? {} : { timezone: input.timezone }),
                     syncSequence,
-                    input.actorUserId,
-                ],
-            });
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(userNotificationPreferences.userId, input.actorUserId));
             await this.insertSyncEvent(tx, {
                 sequence: syncSequence,
                 kind: "preferences.globalNotificationsChanged",
@@ -1469,29 +1697,48 @@ export class CollaborationRepository {
         unreadOnly?: boolean;
         limit: number;
     }): Promise<{ notifications: NotificationSummary[]; nextCursor?: string }> {
-        const conditions = [
-            "n.user_id = ?",
-            "(n.expires_at IS NULL OR datetime(n.expires_at) > CURRENT_TIMESTAMP)",
+        const conditions: SQL[] = [
+            eq(notifications.userId, input.userId),
+            or(
+                isNull(notifications.expiresAt),
+                sql`datetime(${notifications.expiresAt}) > CURRENT_TIMESTAMP`,
+            )!,
         ];
-        const args: InArgs = [input.userId];
-        if (input.unreadOnly) conditions.push("n.read_at IS NULL");
+        if (input.unreadOnly) conditions.push(isNull(notifications.readAt));
         if (input.before) {
-            conditions.push(`(
-                n.created_at < (SELECT created_at FROM notifications WHERE id = ?)
-                OR (n.created_at = (SELECT created_at FROM notifications WHERE id = ?) AND n.id < ?)
-            )`);
-            args.push(input.before, input.before, input.before);
+            const [cursor] = await this.db
+                .select({ createdAt: notifications.createdAt })
+                .from(notifications)
+                .where(eq(notifications.id, input.before))
+                .limit(1);
+            if (cursor)
+                conditions.push(
+                    or(
+                        lt(notifications.createdAt, cursor.createdAt),
+                        and(
+                            eq(notifications.createdAt, cursor.createdAt),
+                            lt(notifications.id, input.before),
+                        ),
+                    )!,
+                );
         }
-        args.push(input.limit + 1);
-        const result = await this.client.execute({
-            sql: `SELECT n.id, n.kind, n.chat_id, n.message_id, n.thread_root_message_id,
-                         n.actor_user_id, n.read_at, n.created_at
-                    FROM notifications n WHERE ${conditions.join(" AND ")}
-                   ORDER BY n.created_at DESC, n.id DESC LIMIT ?`,
-            args,
-        });
-        const hasMore = result.rows.length > input.limit;
-        const rows = result.rows.slice(0, input.limit);
+        const result = await this.db
+            .select({
+                id: notifications.id,
+                kind: notifications.kind,
+                chat_id: notifications.chatId,
+                message_id: notifications.messageId,
+                thread_root_message_id: notifications.threadRootMessageId,
+                actor_user_id: notifications.actorUserId,
+                read_at: notifications.readAt,
+                created_at: notifications.createdAt,
+            })
+            .from(notifications)
+            .where(and(...conditions))
+            .orderBy(desc(notifications.createdAt), desc(notifications.id))
+            .limit(input.limit + 1);
+        const hasMore = result.length > input.limit;
+        const rows = result.slice(0, input.limit);
         return {
             notifications: rows.map(asNotification),
             nextCursor: hasMore ? optionalText(rows.at(-1)?.id) : undefined,
@@ -1503,26 +1750,20 @@ export class CollaborationRepository {
         notificationIds?: string[];
         all?: boolean;
     }): Promise<{ hint: MutationHint }> {
-        return this.write(async (tx) => {
+        return this.writeDb(async (tx) => {
             const ids = [...new Set(input.notificationIds ?? [])];
             if (!input.all && ids.length === 0)
                 throw new CollaborationError("invalid", "Notification ids or all=true is required");
             const sequence = await this.nextSequence(tx);
-            if (input.all)
-                await tx.execute({
-                    sql: `UPDATE notifications SET read_at = CURRENT_TIMESTAMP
-                           WHERE user_id = ? AND read_at IS NULL`,
-                    args: [input.actorUserId],
-                });
-            else {
-                const placeholders = ids.map(() => "?").join(", ");
-                await tx.execute({
-                    sql: `UPDATE notifications SET read_at = CURRENT_TIMESTAMP
-                           WHERE user_id = ? AND read_at IS NULL
-                             AND id IN (${placeholders})`,
-                    args: [input.actorUserId, ...ids],
-                });
-            }
+            const conditions = [
+                eq(notifications.userId, input.actorUserId),
+                isNull(notifications.readAt),
+            ];
+            if (!input.all) conditions.push(inArray(notifications.id, ids));
+            await tx
+                .update(notifications)
+                .set({ readAt: sql`CURRENT_TIMESTAMP` })
+                .where(and(...conditions));
             await this.insertSyncEvent(tx, {
                 sequence,
                 kind: "notification.read",
@@ -1539,52 +1780,86 @@ export class CollaborationRepository {
         unreadOnly?: boolean;
         limit: number;
     }): Promise<{ threads: ThreadSummary[]; nextCursor?: string }> {
-        const conditions = [
-            `(tus.user_id = ? OR tp.user_id = ? OR root.sender_user_id = ?)`,
-            `c.deleted_at IS NULL`,
-            `(c.kind = 'public_channel' OR cm.user_id IS NOT NULL)`,
+        const root = alias(messages, "root");
+        const conditions: SQL[] = [
+            or(
+                eq(threadUserStates.userId, input.userId),
+                eq(threadParticipants.userId, input.userId),
+                eq(root.senderUserId, input.userId),
+            )!,
+            isNull(chats.deletedAt),
+            or(eq(chats.kind, "public_channel"), sql`${chatMembers.userId} IS NOT NULL`)!,
         ];
-        const args: InArgs = [input.userId, input.userId, input.userId];
-        if (input.unreadOnly) conditions.push("COALESCE(tus.unread_count, 0) > 0");
+        if (input.unreadOnly)
+            conditions.push(gt(sql`coalesce(${threadUserStates.unreadCount}, 0)`, 0));
         if (input.before) {
-            conditions.push(`(
-                t.updated_at < (SELECT updated_at FROM threads WHERE root_message_id = ?)
-                OR (t.updated_at = (SELECT updated_at FROM threads WHERE root_message_id = ?)
-                    AND t.root_message_id < ?)
-            )`);
-            args.push(input.before, input.before, input.before);
+            const [cursor] = await this.db
+                .select({ updatedAt: threads.updatedAt })
+                .from(threads)
+                .where(eq(threads.rootMessageId, input.before))
+                .limit(1);
+            if (cursor)
+                conditions.push(
+                    or(
+                        lt(threads.updatedAt, cursor.updatedAt),
+                        and(
+                            eq(threads.updatedAt, cursor.updatedAt),
+                            lt(threads.rootMessageId, input.before),
+                        ),
+                    )!,
+                );
         }
-        args.push(input.limit + 1);
-        const result = await this.client.execute({
-            sql: `SELECT DISTINCT t.root_message_id, t.reply_count, t.participant_count,
-                         t.last_reply_message_id, t.last_reply_sequence, t.updated_at,
-                         COALESCE(tus.subscribed, 0) AS subscribed,
-                         COALESCE(tus.unread_count, 0) AS unread_count,
-                         COALESCE(tus.mention_count, 0) AS mention_count
-                    FROM threads t
-                    JOIN messages root ON root.id = t.root_message_id
-                    JOIN chats c ON c.id = t.chat_id
-               LEFT JOIN chat_members cm
-                      ON cm.chat_id = c.id AND cm.user_id = ? AND cm.left_at IS NULL
-               LEFT JOIN thread_user_states tus
-                      ON tus.thread_root_message_id = t.root_message_id AND tus.user_id = ?
-               LEFT JOIN thread_participants tp
-                      ON tp.thread_root_message_id = t.root_message_id AND tp.user_id = ?
-                   WHERE ${conditions.join(" AND ")}
-                   ORDER BY t.updated_at DESC, t.root_message_id DESC LIMIT ?`,
-            args: [input.userId, input.userId, input.userId, ...args],
-        });
-        const hasMore = result.rows.length > input.limit;
-        const rows = result.rows.slice(0, input.limit);
-        const threads: ThreadSummary[] = [];
+        const result = await this.db
+            .selectDistinct({
+                root_message_id: threads.rootMessageId,
+                reply_count: threads.replyCount,
+                participant_count: threads.participantCount,
+                last_reply_message_id: threads.lastReplyMessageId,
+                last_reply_sequence: threads.lastReplySequence,
+                updated_at: threads.updatedAt,
+                subscribed: sql<number>`coalesce(${threadUserStates.subscribed}, 0)`,
+                unread_count: sql<number>`coalesce(${threadUserStates.unreadCount}, 0)`,
+                mention_count: sql<number>`coalesce(${threadUserStates.mentionCount}, 0)`,
+            })
+            .from(threads)
+            .innerJoin(root, eq(root.id, threads.rootMessageId))
+            .innerJoin(chats, eq(chats.id, threads.chatId))
+            .leftJoin(
+                chatMembers,
+                and(
+                    eq(chatMembers.chatId, chats.id),
+                    eq(chatMembers.userId, input.userId),
+                    isNull(chatMembers.leftAt),
+                ),
+            )
+            .leftJoin(
+                threadUserStates,
+                and(
+                    eq(threadUserStates.threadRootMessageId, threads.rootMessageId),
+                    eq(threadUserStates.userId, input.userId),
+                ),
+            )
+            .leftJoin(
+                threadParticipants,
+                and(
+                    eq(threadParticipants.threadRootMessageId, threads.rootMessageId),
+                    eq(threadParticipants.userId, input.userId),
+                ),
+            )
+            .where(and(...conditions))
+            .orderBy(desc(threads.updatedAt), desc(threads.rootMessageId))
+            .limit(input.limit + 1);
+        const hasMore = result.length > input.limit;
+        const rows = result.slice(0, input.limit);
+        const summaries: ThreadSummary[] = [];
         for (const row of rows) {
-            const root = await this.getMessageProjection(
-                this.client,
+            const root = await this.getMessageProjectionDb(
+                this.db,
                 input.userId,
                 text(row.root_message_id),
             );
             if (!root) continue;
-            threads.push({
+            summaries.push({
                 root,
                 replyCount: number(row.reply_count, 0),
                 participantCount: number(row.participant_count, 0),
@@ -1597,7 +1872,7 @@ export class CollaborationRepository {
             });
         }
         return {
-            threads,
+            threads: summaries,
             nextCursor: hasMore ? optionalText(rows.at(-1)?.root_message_id) : undefined,
         };
     }
@@ -1608,39 +1883,39 @@ export class CollaborationRepository {
         subscribed: boolean;
         notificationLevel?: NotificationLevel;
     }): Promise<{ hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const root = await this.getMessageProjection(
+        return this.writeDb(async (tx) => {
+            const root = await this.getMessageProjectionDb(
                 tx,
                 input.actorUserId,
                 input.threadRootMessageId,
             );
             if (!root || root.deletedAt)
                 throw new CollaborationError("not_found", "Thread was not found");
-            if (
-                !(await one(tx, `SELECT 1 AS found FROM threads WHERE root_message_id = ?`, [
-                    input.threadRootMessageId,
-                ]))
-            )
-                throw new CollaborationError("not_found", "Thread was not found");
+            const [thread] = await tx
+                .select({ id: threads.rootMessageId })
+                .from(threads)
+                .where(eq(threads.rootMessageId, input.threadRootMessageId))
+                .limit(1);
+            if (!thread) throw new CollaborationError("not_found", "Thread was not found");
             const sequence = await this.nextSequence(tx);
-            await tx.execute({
-                sql: `INSERT INTO thread_user_states
-                        (thread_root_message_id, user_id, subscribed, notification_level)
-                      VALUES (?, ?, ?, ?)
-                      ON CONFLICT(thread_root_message_id, user_id) DO UPDATE SET
-                        subscribed = excluded.subscribed,
-                        notification_level = CASE WHEN ? = 1
-                            THEN excluded.notification_level
-                            ELSE thread_user_states.notification_level END,
-                        updated_at = CURRENT_TIMESTAMP`,
-                args: [
-                    input.threadRootMessageId,
-                    input.actorUserId,
-                    input.subscribed ? 1 : 0,
-                    input.notificationLevel ?? "all",
-                    input.notificationLevel === undefined ? 0 : 1,
-                ],
-            });
+            await tx
+                .insert(threadUserStates)
+                .values({
+                    threadRootMessageId: input.threadRootMessageId,
+                    userId: input.actorUserId,
+                    subscribed: input.subscribed ? 1 : 0,
+                    notificationLevel: input.notificationLevel ?? "all",
+                })
+                .onConflictDoUpdate({
+                    target: [threadUserStates.threadRootMessageId, threadUserStates.userId],
+                    set: {
+                        subscribed: input.subscribed ? 1 : 0,
+                        ...(input.notificationLevel === undefined
+                            ? {}
+                            : { notificationLevel: input.notificationLevel }),
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    },
+                });
             await this.insertSyncEvent(tx, {
                 sequence,
                 kind: "threadPreferences.subscriptionChanged",
@@ -1657,61 +1932,48 @@ export class CollaborationRepository {
         threadRootMessageId: string;
         messageId?: string;
     }): Promise<{ hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const root = await this.getMessageProjection(
+        return this.writeDb(async (tx) => {
+            const root = await this.getMessageProjectionDb(
                 tx,
                 input.actorUserId,
                 input.threadRootMessageId,
             );
             if (!root) throw new CollaborationError("not_found", "Thread was not found");
-            const target = input.messageId
-                ? await one(
-                      tx,
-                      `SELECT id, sequence FROM messages
-                        WHERE id = ? AND thread_root_message_id = ? AND deleted_at IS NULL`,
-                      [input.messageId, input.threadRootMessageId],
-                  )
-                : await one(
-                      tx,
-                      `SELECT id, sequence FROM messages
-                        WHERE thread_root_message_id = ? AND deleted_at IS NULL
-                        ORDER BY sequence DESC LIMIT 1`,
-                      [input.threadRootMessageId],
-                  );
-            const targetSequence = number(target?.sequence, 0);
+            const [target] = await tx
+                .select({ id: messages.id, sequence: messages.sequence })
+                .from(messages)
+                .where(
+                    and(
+                        eq(messages.threadRootMessageId, input.threadRootMessageId),
+                        isNull(messages.deletedAt),
+                        ...(input.messageId ? [eq(messages.id, input.messageId)] : []),
+                    ),
+                )
+                .orderBy(desc(messages.sequence))
+                .limit(1);
+            const targetSequence = target?.sequence ?? 0;
             const sequence = await this.nextSequence(tx);
-            await tx.execute({
-                sql: `INSERT INTO thread_user_states
-                        (thread_root_message_id, user_id, subscribed, last_read_message_id,
-                         last_read_sequence, unread_count, mention_count)
-                      VALUES (?, ?, 1, ?, ?, 0, 0)
-                      ON CONFLICT(thread_root_message_id, user_id) DO UPDATE SET
-                        last_read_message_id = excluded.last_read_message_id,
-                        last_read_sequence = MAX(last_read_sequence, excluded.last_read_sequence),
-                        unread_count = (
-                          SELECT count(*) FROM messages m
-                           WHERE m.thread_root_message_id = ? AND m.sequence > ?
-                             AND m.deleted_at IS NULL
-                        ),
-                        mention_count = (
-                          SELECT count(*) FROM message_mentions mm
-                          JOIN messages m ON m.id = mm.message_id
-                           WHERE m.thread_root_message_id = ? AND m.sequence > ?
-                             AND mm.mentioned_user_id = ? AND m.deleted_at IS NULL
-                        ),
-                        updated_at = CURRENT_TIMESTAMP`,
-                args: [
-                    input.threadRootMessageId,
-                    input.actorUserId,
-                    target ? text(target.id) : null,
-                    targetSequence,
-                    input.threadRootMessageId,
-                    targetSequence,
-                    input.threadRootMessageId,
-                    targetSequence,
-                    input.actorUserId,
-                ],
-            });
+            await tx
+                .insert(threadUserStates)
+                .values({
+                    threadRootMessageId: input.threadRootMessageId,
+                    userId: input.actorUserId,
+                    subscribed: 1,
+                    lastReadMessageId: target?.id ?? null,
+                    lastReadSequence: targetSequence,
+                    unreadCount: 0,
+                    mentionCount: 0,
+                })
+                .onConflictDoUpdate({
+                    target: [threadUserStates.threadRootMessageId, threadUserStates.userId],
+                    set: {
+                        lastReadMessageId: target?.id ?? null,
+                        lastReadSequence: sql`max(${threadUserStates.lastReadSequence}, ${targetSequence})`,
+                        unreadCount: sql`(select count(*) from messages m where m.thread_root_message_id = ${input.threadRootMessageId} and m.sequence > ${targetSequence} and m.deleted_at is null)`,
+                        mentionCount: sql`(select count(*) from message_mentions mm join messages m on m.id = mm.message_id where m.thread_root_message_id = ${input.threadRootMessageId} and m.sequence > ${targetSequence} and mm.mentioned_user_id = ${input.actorUserId} and m.deleted_at is null)`,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    },
+                });
             await this.insertSyncEvent(tx, {
                 sequence,
                 kind: "threadPreferences.read",
@@ -1724,17 +1986,22 @@ export class CollaborationRepository {
     }
 
     async listChatPins(userId: string, chatId: string): Promise<ChatPinSummary[]> {
-        if (!(await this.chatAccess(this.client, userId, chatId, false)))
+        if (!(await this.chatAccessDb(this.db, userId, chatId, false)))
             throw new CollaborationError("not_found", "Chat was not found");
-        const result = await this.client.execute({
-            sql: `SELECT id, message_id, pinned_by_user_id, created_at
-                    FROM chat_pins WHERE chat_id = ? ORDER BY created_at DESC, id DESC`,
-            args: [chatId],
-        });
+        const result = await this.db
+            .select({
+                id: chatPins.id,
+                message_id: chatPins.messageId,
+                pinned_by_user_id: chatPins.pinnedByUserId,
+                created_at: chatPins.createdAt,
+            })
+            .from(chatPins)
+            .where(eq(chatPins.chatId, chatId))
+            .orderBy(desc(chatPins.createdAt), desc(chatPins.id));
         const pins: ChatPinSummary[] = [];
-        for (const row of result.rows) {
-            const message = await this.getMessageProjection(
-                this.client,
+        for (const row of result) {
+            const message = await this.getMessageProjectionDb(
+                this.db,
                 userId,
                 text(row.message_id),
             );
@@ -1755,21 +2022,30 @@ export class CollaborationRepository {
         messageId: string;
         pinned: boolean;
     }): Promise<{ hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const message = await this.getMessageProjection(tx, input.actorUserId, input.messageId);
+        return this.writeDb(async (tx) => {
+            const message = await this.getMessageProjectionDb(
+                tx,
+                input.actorUserId,
+                input.messageId,
+            );
             if (!message || message.deletedAt)
                 throw new CollaborationError("not_found", "Message was not found");
-            const access = await this.chatAccess(tx, input.actorUserId, message.chatId, true);
+            const access = await this.chatAccessDb(tx, input.actorUserId, message.chatId, true);
             if (!access) throw new CollaborationError("not_found", "Message was not found");
             if (access.archivedAt)
                 throw new CollaborationError("forbidden", "Archived chats are read-only");
-            if (await this.isPostingRestricted(tx, input.actorUserId, message.chatId))
+            if (await this.isPostingRestrictedDb(tx, input.actorUserId, message.chatId))
                 throw new CollaborationError("forbidden", "Posting is restricted by moderation");
-            const existing = await one(
-                tx,
-                `SELECT id, pinned_by_user_id FROM chat_pins WHERE chat_id = ? AND message_id = ?`,
-                [message.chatId, input.messageId],
-            );
+            const [existing] = await tx
+                .select({ id: chatPins.id, pinnedByUserId: chatPins.pinnedByUserId })
+                .from(chatPins)
+                .where(
+                    and(
+                        eq(chatPins.chatId, message.chatId),
+                        eq(chatPins.messageId, input.messageId),
+                    ),
+                )
+                .limit(1);
             if (Boolean(existing) === input.pinned)
                 throw new CollaborationError(
                     "conflict",
@@ -1777,7 +2053,7 @@ export class CollaborationRepository {
                 );
             if (
                 !input.pinned &&
-                existing?.pinned_by_user_id !== input.actorUserId &&
+                existing?.pinnedByUserId !== input.actorUserId &&
                 !access.isServerAdmin &&
                 access.membershipRole !== "owner" &&
                 access.membershipRole !== "admin"
@@ -1793,31 +2069,45 @@ export class CollaborationRepository {
                 input.messageId,
             );
             if (input.pinned)
-                await tx.execute({
-                    sql: `INSERT INTO chat_pins
-                            (id, chat_id, message_id, pinned_by_user_id)
-                          VALUES (?, ?, ?, ?)`,
-                    args: [createId(), message.chatId, input.messageId, input.actorUserId],
+                await tx.insert(chatPins).values({
+                    id: createId(),
+                    chatId: message.chatId,
+                    messageId: input.messageId,
+                    pinnedByUserId: input.actorUserId,
                 });
             else
-                await tx.execute({
-                    sql: `DELETE FROM chat_pins WHERE chat_id = ? AND message_id = ?`,
-                    args: [message.chatId, input.messageId],
-                });
+                await tx
+                    .delete(chatPins)
+                    .where(
+                        and(
+                            eq(chatPins.chatId, message.chatId),
+                            eq(chatPins.messageId, input.messageId),
+                        ),
+                    );
             return { hint: chatHint(sequence, message.chatId, mutation.pts) };
         });
     }
 
     async listChatBookmarks(userId: string, chatId: string): Promise<ChatBookmarkSummary[]> {
-        if (!(await this.chatAccess(this.client, userId, chatId, false)))
+        if (!(await this.chatAccessDb(this.db, userId, chatId, false)))
             throw new CollaborationError("not_found", "Chat was not found");
-        const result = await this.client.execute({
-            sql: `SELECT id, kind, title, url, message_id, file_id, emoji,
-                         created_by_user_id, sort_order, created_at
-                    FROM chat_bookmarks WHERE chat_id = ? ORDER BY sort_order, id`,
-            args: [chatId],
-        });
-        return result.rows.map((row) => ({
+        const result = await this.db
+            .select({
+                id: chatBookmarks.id,
+                kind: chatBookmarks.kind,
+                title: chatBookmarks.title,
+                url: chatBookmarks.url,
+                message_id: chatBookmarks.messageId,
+                file_id: chatBookmarks.fileId,
+                emoji: chatBookmarks.emoji,
+                created_by_user_id: chatBookmarks.createdByUserId,
+                sort_order: chatBookmarks.sortOrder,
+                created_at: chatBookmarks.createdAt,
+            })
+            .from(chatBookmarks)
+            .where(eq(chatBookmarks.chatId, chatId))
+            .orderBy(chatBookmarks.sortOrder, chatBookmarks.id);
+        return result.map((row) => ({
             id: text(row.id),
             chatId,
             kind: text(row.kind) as ChatBookmarkSummary["kind"],
@@ -1842,30 +2132,24 @@ export class CollaborationRepository {
         fileId?: string;
         emoji?: string;
     }): Promise<{ bookmark: ChatBookmarkSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const access = await this.chatAccess(tx, input.actorUserId, input.chatId, true);
+        return this.writeDb(async (tx) => {
+            const access = await this.chatAccessDb(tx, input.actorUserId, input.chatId, true);
             if (!access) throw new CollaborationError("not_found", "Chat was not found");
             if (access.archivedAt)
                 throw new CollaborationError("forbidden", "Archived chats are read-only");
             if (input.kind === "message")
-                await this.requireMessageInChat(tx, input.messageId!, input.chatId);
+                await this.requireMessageInChatDb(tx, input.messageId!, input.chatId);
             if (
                 input.kind === "file" &&
-                !(await this.canAccessFileWith(tx, input.actorUserId, input.fileId!))
+                !(await this.canAccessFileWithDb(tx, input.actorUserId, input.fileId!))
             )
                 throw new CollaborationError("not_found", "File was not found");
             const id = createId();
-            const order = number(
-                (
-                    await one(
-                        tx,
-                        `SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order
-                           FROM chat_bookmarks WHERE chat_id = ?`,
-                        [input.chatId],
-                    )
-                )?.next_order,
-                0,
-            );
+            const [next] = await tx
+                .select({ order: sql<number>`coalesce(max(${chatBookmarks.sortOrder}), -1) + 1` })
+                .from(chatBookmarks)
+                .where(eq(chatBookmarks.chatId, input.chatId));
+            const order = next?.order ?? 0;
             const sequence = await this.nextSequence(tx);
             const mutation = await this.advanceChatWithSequence(
                 tx,
@@ -1875,23 +2159,17 @@ export class CollaborationRepository {
                 "bookmark.created",
                 id,
             );
-            await tx.execute({
-                sql: `INSERT INTO chat_bookmarks
-                        (id, chat_id, kind, title, url, message_id, file_id, emoji,
-                         sort_order, created_by_user_id)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                args: [
-                    id,
-                    input.chatId,
-                    input.kind,
-                    input.title,
-                    input.url ?? null,
-                    input.messageId ?? null,
-                    input.fileId ?? null,
-                    input.emoji ?? null,
-                    order,
-                    input.actorUserId,
-                ],
+            await tx.insert(chatBookmarks).values({
+                id,
+                chatId: input.chatId,
+                kind: input.kind,
+                title: input.title,
+                url: input.url,
+                messageId: input.messageId,
+                fileId: input.fileId,
+                emoji: input.emoji,
+                sortOrder: order,
+                createdByUserId: input.actorUserId,
             });
             return {
                 bookmark: {
@@ -1917,17 +2195,22 @@ export class CollaborationRepository {
         chatId: string;
         bookmarkId: string;
     }): Promise<{ hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const access = await this.chatAccess(tx, input.actorUserId, input.chatId, true);
+        return this.writeDb(async (tx) => {
+            const access = await this.chatAccessDb(tx, input.actorUserId, input.chatId, true);
             if (!access) throw new CollaborationError("not_found", "Chat was not found");
-            const bookmark = await one(
-                tx,
-                `SELECT created_by_user_id FROM chat_bookmarks WHERE id = ? AND chat_id = ?`,
-                [input.bookmarkId, input.chatId],
-            );
+            const [bookmark] = await tx
+                .select({ createdByUserId: chatBookmarks.createdByUserId })
+                .from(chatBookmarks)
+                .where(
+                    and(
+                        eq(chatBookmarks.id, input.bookmarkId),
+                        eq(chatBookmarks.chatId, input.chatId),
+                    ),
+                )
+                .limit(1);
             if (!bookmark) throw new CollaborationError("not_found", "Bookmark was not found");
             if (
-                bookmark.created_by_user_id !== input.actorUserId &&
+                bookmark.createdByUserId !== input.actorUserId &&
                 !access.isServerAdmin &&
                 access.membershipRole !== "owner" &&
                 access.membershipRole !== "admin"
@@ -1942,10 +2225,14 @@ export class CollaborationRepository {
                 "bookmark.deleted",
                 input.bookmarkId,
             );
-            await tx.execute({
-                sql: `DELETE FROM chat_bookmarks WHERE id = ? AND chat_id = ?`,
-                args: [input.bookmarkId, input.chatId],
-            });
+            await tx
+                .delete(chatBookmarks)
+                .where(
+                    and(
+                        eq(chatBookmarks.id, input.bookmarkId),
+                        eq(chatBookmarks.chatId, input.chatId),
+                    ),
+                );
             return { hint: chatHint(sequence, input.chatId, mutation.pts) };
         });
     }
@@ -1967,29 +2254,36 @@ export class CollaborationRepository {
         forwardedFromMessageId?: string;
     }): Promise<{ message: MessageSummary; hint: MutationHint }> {
         const scope = `message.send:${input.chatId}`;
-        return this.write(async (tx) => {
+        return this.writeDb(async (tx) => {
             if (input.kind === "automated") {
-                await this.requireServerAdmin(tx, input.actorUserId);
+                await this.requireServerAdminDb(tx, input.actorUserId);
                 if (
                     input.senderBotId &&
-                    !(await one(
-                        tx,
-                        `SELECT 1 AS found FROM bot_identities
-                          WHERE id = ? AND active = 1 AND deleted_at IS NULL`,
-                        [input.senderBotId],
-                    ))
+                    !(
+                        await tx
+                            .select({ id: botIdentities.id })
+                            .from(botIdentities)
+                            .where(
+                                and(
+                                    eq(botIdentities.id, input.senderBotId),
+                                    eq(botIdentities.active, 1),
+                                    isNull(botIdentities.deletedAt),
+                                ),
+                            )
+                            .limit(1)
+                    )[0]
                 )
                     throw new CollaborationError("not_found", "Bot identity was not found");
             }
             if (input.clientMutationId) {
-                const previous = await this.findClientMutation(
+                const previous = await this.findClientMutationDb(
                     tx,
                     input.actorUserId,
                     scope,
                     input.clientMutationId,
                 );
                 if (previous) {
-                    const message = await this.getMessageProjection(
+                    const message = await this.getMessageProjectionDb(
                         tx,
                         input.actorUserId,
                         text(previous.messageId),
@@ -2007,12 +2301,12 @@ export class CollaborationRepository {
             }
             const access =
                 input.kind === "automated"
-                    ? await this.requireChatManager(tx, input.actorUserId, input.chatId)
-                    : await this.chatAccess(tx, input.actorUserId, input.chatId, true);
+                    ? await this.requireChatManagerDb(tx, input.actorUserId, input.chatId)
+                    : await this.chatAccessDb(tx, input.actorUserId, input.chatId, true);
             if (!access) throw new CollaborationError("not_found", "Chat was not found");
             if (access.archivedAt)
                 throw new CollaborationError("forbidden", "Archived chats are read-only");
-            if (await this.isPostingRestricted(tx, input.actorUserId, input.chatId))
+            if (await this.isPostingRestrictedDb(tx, input.actorUserId, input.chatId))
                 throw new CollaborationError("forbidden", "Posting is restricted by moderation");
             const expiryMode =
                 input.expiryMode ??
@@ -2035,14 +2329,16 @@ export class CollaborationRepository {
                     : null;
             let retentionSeconds = access.retentionSeconds;
             if (access.retentionMode === "inherit") {
-                const defaults = await one(
-                    tx,
-                    `SELECT default_retention_mode, default_retention_seconds
-                       FROM server_settings WHERE id = 1`,
-                );
+                const [defaults] = await tx
+                    .select({
+                        defaultRetentionMode: serverSettings.defaultRetentionMode,
+                        defaultRetentionSeconds: serverSettings.defaultRetentionSeconds,
+                    })
+                    .from(serverSettings)
+                    .where(eq(serverSettings.id, 1));
                 retentionSeconds =
-                    defaults?.default_retention_mode === "duration"
-                        ? number(defaults.default_retention_seconds, 0) || undefined
+                    defaults?.defaultRetentionMode === "duration"
+                        ? (defaults.defaultRetentionSeconds ?? undefined)
                         : undefined;
             } else if (access.retentionMode === "forever") retentionSeconds = undefined;
             const retentionAt = retentionSeconds
@@ -2050,9 +2346,9 @@ export class CollaborationRepository {
                 : null;
             const expiresAt = earliestDate(selfDestructAt, retentionAt);
             if (input.quotedMessageId)
-                await this.requireMessageInChat(tx, input.quotedMessageId, input.chatId);
+                await this.requireMessageInChatDb(tx, input.quotedMessageId, input.chatId);
             if (input.forwardedFromMessageId) {
-                const source = await this.getMessageProjection(
+                const source = await this.getMessageProjectionDb(
                     tx,
                     input.actorUserId,
                     input.forwardedFromMessageId,
@@ -2061,17 +2357,17 @@ export class CollaborationRepository {
                     throw new CollaborationError("not_found", "Source message was not found");
             }
             if (input.threadRootMessageId) {
-                const root = await this.requireMessageInChat(
+                const root = await this.requireMessageInChatDb(
                     tx,
                     input.threadRootMessageId,
                     input.chatId,
                 );
-                if (root.thread_root_message_id)
+                if (root.threadRootMessageId)
                     throw new CollaborationError("invalid", "Threads cannot be nested");
             }
             const fileIds = [...new Set(input.attachmentFileIds ?? [])];
             for (const fileId of fileIds)
-                if (!(await this.canAccessFileWith(tx, input.actorUserId, fileId)))
+                if (!(await this.canAccessFileWithDb(tx, input.actorUserId, fileId)))
                     throw new CollaborationError("not_found", "Attachment file was not found");
             const id = createId();
             const sequence = await this.nextSequence(tx);
@@ -2087,84 +2383,81 @@ export class CollaborationRepository {
             );
             if (mutation.messageSequence === undefined)
                 throw new Error("Message sequence was not allocated");
-            await tx.execute({
-                sql: `INSERT INTO messages
-                        (id, chat_id, sequence, change_pts, sender_user_id, kind, text,
-                         quoted_message_id, thread_root_message_id,
-                         forwarded_from_message_id, expires_at, expiry_mode,
-                         self_destruct_seconds, after_read_scope, sender_bot_id, published_at)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-                args: [
-                    id,
-                    input.chatId,
-                    mutation.messageSequence,
-                    mutation.pts,
-                    input.kind === "automated" ? null : input.actorUserId,
-                    input.kind ?? "user",
-                    input.text,
-                    input.quotedMessageId ?? null,
-                    input.threadRootMessageId ?? null,
-                    input.forwardedFromMessageId ?? null,
-                    expiresAt,
-                    expiryMode,
-                    selfDestructSeconds ?? null,
-                    input.afterReadScope ?? "any_reader",
-                    input.senderBotId ?? null,
-                ],
+            await tx.insert(messages).values({
+                id,
+                chatId: input.chatId,
+                sequence: mutation.messageSequence,
+                changePts: mutation.pts,
+                senderUserId: input.kind === "automated" ? null : input.actorUserId,
+                kind: input.kind ?? "user",
+                text: input.text,
+                quotedMessageId: input.quotedMessageId,
+                threadRootMessageId: input.threadRootMessageId,
+                forwardedFromMessageId: input.forwardedFromMessageId,
+                expiresAt,
+                expiryMode,
+                selfDestructSeconds,
+                afterReadScope: input.afterReadScope ?? access.defaultAfterReadScope,
+                senderBotId: input.senderBotId,
+                publishedAt: sql`CURRENT_TIMESTAMP`,
             });
-            const mentions = await this.replaceMessageMentions(tx, id, input.text);
-            await this.indexMessageForSearch(tx, id, input.chatId, input.text, 1);
-            for (const [position, fileId] of fileIds.entries()) {
-                await tx.execute({
-                    sql: `INSERT INTO message_attachments (message_id, file_id, position)
-                          VALUES (?, ?, ?)`,
-                    args: [id, fileId, position],
-                });
-            }
+            const mentions = await this.replaceMessageMentionsDb(tx, id, input.text);
+            await this.indexMessageForSearchDb(tx, id, input.chatId, input.text, 1);
+            if (fileIds.length)
+                await tx
+                    .insert(messageAttachments)
+                    .values(
+                        fileIds.map((fileId, position) => ({ messageId: id, fileId, position })),
+                    );
             if (input.threadRootMessageId) {
-                await tx.execute({
-                    sql: `INSERT INTO threads
-                            (root_message_id, chat_id, created_by_user_id, reply_count, last_pts,
-                             last_reply_message_id, last_reply_sequence, participant_count)
-                          VALUES (?, ?, ?, 1, ?, ?, ?, 1)
-                          ON CONFLICT(root_message_id) DO UPDATE SET
-                            reply_count = reply_count + 1, last_pts = excluded.last_pts,
-                            last_reply_message_id = excluded.last_reply_message_id,
-                            last_reply_sequence = excluded.last_reply_sequence,
-                            updated_at = CURRENT_TIMESTAMP`,
-                    args: [
-                        input.threadRootMessageId,
-                        input.chatId,
-                        input.actorUserId,
-                        mutation.pts,
-                        id,
-                        mutation.messageSequence,
-                    ],
-                });
-                await tx.execute({
-                    sql: `INSERT INTO thread_participants
-                            (thread_root_message_id, user_id, reply_count)
-                          VALUES (?, ?, 1)
-                          ON CONFLICT(thread_root_message_id, user_id) DO UPDATE SET
-                            reply_count = reply_count + 1,
-                            last_participated_at = CURRENT_TIMESTAMP`,
-                    args: [input.threadRootMessageId, input.actorUserId],
-                });
-                await tx.execute({
-                    sql: `UPDATE threads
-                             SET participant_count = (
-                                 SELECT count(*) FROM thread_participants
-                                  WHERE thread_root_message_id = ?
-                             )
-                           WHERE root_message_id = ?`,
-                    args: [input.threadRootMessageId, input.threadRootMessageId],
-                });
-                await tx.execute({
-                    sql: `UPDATE messages SET change_pts = ? WHERE id = ?`,
-                    args: [mutation.pts, input.threadRootMessageId],
-                });
+                await tx
+                    .insert(threads)
+                    .values({
+                        rootMessageId: input.threadRootMessageId,
+                        chatId: input.chatId,
+                        createdByUserId: input.actorUserId,
+                        replyCount: 1,
+                        lastPts: mutation.pts,
+                        lastReplyMessageId: id,
+                        lastReplySequence: mutation.messageSequence,
+                        participantCount: 1,
+                    })
+                    .onConflictDoUpdate({
+                        target: threads.rootMessageId,
+                        set: {
+                            replyCount: sql`${threads.replyCount} + 1`,
+                            lastPts: mutation.pts,
+                            lastReplyMessageId: id,
+                            lastReplySequence: mutation.messageSequence,
+                            updatedAt: sql`CURRENT_TIMESTAMP`,
+                        },
+                    });
+                await tx
+                    .insert(threadParticipants)
+                    .values({
+                        threadRootMessageId: input.threadRootMessageId,
+                        userId: input.actorUserId,
+                        replyCount: 1,
+                    })
+                    .onConflictDoUpdate({
+                        target: [threadParticipants.threadRootMessageId, threadParticipants.userId],
+                        set: {
+                            replyCount: sql`${threadParticipants.replyCount} + 1`,
+                            lastParticipatedAt: sql`CURRENT_TIMESTAMP`,
+                        },
+                    });
+                await tx
+                    .update(threads)
+                    .set({
+                        participantCount: sql`(select count(*) from thread_participants where thread_root_message_id = ${input.threadRootMessageId})`,
+                    })
+                    .where(eq(threads.rootMessageId, input.threadRootMessageId));
+                await tx
+                    .update(messages)
+                    .set({ changePts: mutation.pts })
+                    .where(eq(messages.id, input.threadRootMessageId));
             }
-            await this.recordMessageDelivery(tx, {
+            await this.recordMessageDeliveryDb(tx, {
                 actorUserId: input.actorUserId,
                 chat: access,
                 messageId: id,
@@ -2175,17 +2468,17 @@ export class CollaborationRepository {
                 syncSequence: sequence,
             });
             if (input.clientMutationId)
-                await this.storeClientMutation(
+                await this.storeClientMutationDb(
                     tx,
                     input.actorUserId,
                     scope,
                     input.clientMutationId,
                     { messageId: id, sequence, pts: mutation.pts },
                 );
-            const message = await this.getMessageProjection(tx, input.actorUserId, id);
+            const message = await this.getMessageProjectionDb(tx, input.actorUserId, id);
             if (!message) throw new Error("Created message is not readable");
             if (input.kind === "automated")
-                await this.appendAudit(tx, {
+                await this.appendAuditDb(tx, {
                     actorUserId: input.actorUserId,
                     action: "message.automated_sent",
                     targetType: "message",
@@ -2205,9 +2498,9 @@ export class CollaborationRepository {
     }): Promise<{ messages: MessageSummary[]; hints: MutationHint[] }> {
         const targetChatIds = [...new Set(input.targetChatIds)];
         const scope = `message.forward:${input.messageId}`;
-        return this.write(async (tx) => {
+        return this.writeDb(async (tx) => {
             if (input.clientMutationId) {
-                const previous = await this.findClientMutation(
+                const previous = await this.findClientMutationDb(
                     tx,
                     input.actorUserId,
                     scope,
@@ -2222,7 +2515,11 @@ export class CollaborationRepository {
                         : [];
                     const messages: MessageSummary[] = [];
                     for (const id of ids) {
-                        const message = await this.getMessageProjection(tx, input.actorUserId, id);
+                        const message = await this.getMessageProjectionDb(
+                            tx,
+                            input.actorUserId,
+                            id,
+                        );
                         if (message) messages.push(message);
                     }
                     return {
@@ -2237,17 +2534,21 @@ export class CollaborationRepository {
                     };
                 }
             }
-            const source = await this.getMessageProjection(tx, input.actorUserId, input.messageId);
+            const source = await this.getMessageProjectionDb(
+                tx,
+                input.actorUserId,
+                input.messageId,
+            );
             if (!source || source.deletedAt)
                 throw new CollaborationError("not_found", "Source message was not found");
             const destinations = new Map<string, ChatAccess>();
             for (const chatId of targetChatIds) {
-                const destination = await this.chatAccess(tx, input.actorUserId, chatId, true);
+                const destination = await this.chatAccessDb(tx, input.actorUserId, chatId, true);
                 if (!destination)
                     throw new CollaborationError("not_found", "Destination chat was not found");
                 if (destination.archivedAt)
                     throw new CollaborationError("forbidden", "Archived chats are read-only");
-                if (await this.isPostingRestricted(tx, input.actorUserId, chatId))
+                if (await this.isPostingRestrictedDb(tx, input.actorUserId, chatId))
                     throw new CollaborationError(
                         "forbidden",
                         "Posting is restricted by moderation",
@@ -2255,7 +2556,7 @@ export class CollaborationRepository {
                 destinations.set(chatId, destination);
             }
             const sequence = await this.nextSequence(tx);
-            const messages: MessageSummary[] = [];
+            const forwardedMessages: MessageSummary[] = [];
             const hints: MutationHint[] = [];
             const messageIds: string[] = [];
             const points: Array<{ chatId: string; pts: number }> = [];
@@ -2263,15 +2564,15 @@ export class CollaborationRepository {
                 const destination = destinations.get(chatId)!;
                 let retentionSeconds = destination.retentionSeconds;
                 if (destination.retentionMode === "inherit") {
-                    const defaults = await one(
-                        tx,
-                        `SELECT default_retention_mode, default_retention_seconds
-                           FROM server_settings WHERE id = 1`,
-                    );
+                    const [defaults] = await tx
+                        .select({
+                            mode: serverSettings.defaultRetentionMode,
+                            seconds: serverSettings.defaultRetentionSeconds,
+                        })
+                        .from(serverSettings)
+                        .where(eq(serverSettings.id, 1));
                     retentionSeconds =
-                        defaults?.default_retention_mode === "duration"
-                            ? number(defaults.default_retention_seconds, 0) || undefined
-                            : undefined;
+                        defaults?.mode === "duration" ? (defaults.seconds ?? undefined) : undefined;
                 } else if (destination.retentionMode === "forever") retentionSeconds = undefined;
                 const expiryMode = destination.defaultExpiryMode;
                 const selfDestructSeconds = destination.defaultSelfDestructSeconds;
@@ -2296,50 +2597,40 @@ export class CollaborationRepository {
                 );
                 if (mutation.messageSequence === undefined)
                     throw new Error("Message sequence was not allocated");
-                await tx.execute({
-                    sql: `INSERT INTO messages
-                            (id, chat_id, sequence, change_pts, sender_user_id, kind, text,
-                             forwarded_from_message_id, expires_at, expiry_mode,
-                             self_destruct_seconds, after_read_scope, published_at)
-                          VALUES (?, ?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-                    args: [
-                        id,
-                        chatId,
-                        mutation.messageSequence,
-                        mutation.pts,
-                        input.actorUserId,
-                        source.text,
-                        source.id,
-                        expiresAt ?? null,
-                        expiryMode,
-                        selfDestructSeconds ?? null,
-                        destination.defaultAfterReadScope,
-                    ],
+                await tx.insert(messages).values({
+                    id,
+                    chatId,
+                    sequence: mutation.messageSequence,
+                    changePts: mutation.pts,
+                    senderUserId: input.actorUserId,
+                    kind: "user",
+                    text: source.text,
+                    forwardedFromMessageId: source.id,
+                    expiresAt,
+                    expiryMode,
+                    selfDestructSeconds,
+                    afterReadScope: destination.defaultAfterReadScope,
+                    publishedAt: sql`CURRENT_TIMESTAMP`,
                 });
-                await this.indexMessageForSearch(tx, id, chatId, source.text, 1);
-                await tx.execute({
-                    sql: `INSERT INTO message_forward_metadata
-                            (message_id, source_message_id, source_chat_id,
-                             source_sender_user_id, source_created_at, source_text_snapshot,
-                             forwarded_by_user_id)
-                          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                    args: [
-                        id,
-                        source.id,
-                        source.chatId,
-                        source.sender?.id ?? null,
-                        source.createdAt,
-                        source.text,
-                        input.actorUserId,
-                    ],
+                await this.indexMessageForSearchDb(tx, id, chatId, source.text, 1);
+                await tx.insert(messageForwardMetadata).values({
+                    messageId: id,
+                    sourceMessageId: source.id,
+                    sourceChatId: source.chatId,
+                    sourceSenderUserId: source.sender?.id,
+                    sourceCreatedAt: source.createdAt,
+                    sourceTextSnapshot: source.text,
+                    forwardedByUserId: input.actorUserId,
                 });
-                for (const [position, file] of source.attachments.entries())
-                    await tx.execute({
-                        sql: `INSERT INTO message_attachments (message_id, file_id, position)
-                              VALUES (?, ?, ?)`,
-                        args: [id, file.id, position],
-                    });
-                await this.recordMessageDelivery(tx, {
+                if (source.attachments.length)
+                    await tx.insert(messageAttachments).values(
+                        source.attachments.map((file, position) => ({
+                            messageId: id,
+                            fileId: file.id,
+                            position,
+                        })),
+                    );
+                await this.recordMessageDeliveryDb(tx, {
                     actorUserId: input.actorUserId,
                     chat: destination,
                     messageId: id,
@@ -2347,27 +2638,27 @@ export class CollaborationRepository {
                     mentionedUserIds: [],
                     syncSequence: sequence,
                 });
-                const message = await this.getMessageProjection(tx, input.actorUserId, id);
+                const message = await this.getMessageProjectionDb(tx, input.actorUserId, id);
                 if (!message) throw new Error("Forwarded message is not readable");
-                messages.push(message);
+                forwardedMessages.push(message);
                 messageIds.push(id);
                 points.push({ chatId, pts: mutation.pts });
                 hints.push(chatHint(sequence, chatId, mutation.pts));
             }
             if (input.clientMutationId)
-                await this.storeClientMutation(
+                await this.storeClientMutationDb(
                     tx,
                     input.actorUserId,
                     scope,
                     input.clientMutationId,
                     { messageIds, sequence, points },
                 );
-            return { messages, hints };
+            return { messages: forwardedMessages, hints };
         });
     }
 
     async getMessage(userId: string, messageId: string): Promise<MessageSummary> {
-        const message = await this.getMessageProjection(this.client, userId, messageId);
+        const message = await this.getMessageProjectionDb(this.db, userId, messageId);
         if (!message) throw new CollaborationError("not_found", "Message was not found");
         return message;
     }
@@ -2379,97 +2670,96 @@ export class CollaborationRepository {
         reason?: string;
         expectedRevision?: number;
     }): Promise<{ message: MessageSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const row = await one(
-                tx,
-                `SELECT m.chat_id, m.sender_user_id, m.kind, m.text, m.content_json,
-                        m.revision, m.deleted_at, m.expires_at
-                   FROM messages m
-                  WHERE m.id = ?`,
-                [input.messageId],
-            );
-            if (!row || row.deleted_at !== null || isPast(optionalText(row.expires_at)))
+        return this.writeDb(async (tx) => {
+            const [row] = await tx
+                .select({
+                    chatId: messages.chatId,
+                    senderUserId: messages.senderUserId,
+                    kind: messages.kind,
+                    text: messages.text,
+                    contentJson: messages.contentJson,
+                    revision: messages.revision,
+                    deletedAt: messages.deletedAt,
+                    expiresAt: messages.expiresAt,
+                })
+                .from(messages)
+                .where(eq(messages.id, input.messageId))
+                .limit(1);
+            if (!row || row.deletedAt !== null || isPast(row.expiresAt ?? undefined))
                 throw new CollaborationError("not_found", "Message was not found");
-            const access = await this.chatAccess(tx, input.actorUserId, text(row.chat_id), false);
+            const access = await this.chatAccessDb(tx, input.actorUserId, row.chatId, false);
             if (!access) throw new CollaborationError("not_found", "Message was not found");
             if (access.archivedAt)
                 throw new CollaborationError("forbidden", "Archived chats are read-only");
-            if (await this.isPostingRestricted(tx, input.actorUserId, text(row.chat_id)))
+            if (await this.isPostingRestrictedDb(tx, input.actorUserId, row.chatId))
                 throw new CollaborationError("forbidden", "Posting is restricted by moderation");
-            if (row.kind !== "user" || row.sender_user_id !== input.actorUserId)
+            if (row.kind !== "user" || row.senderUserId !== input.actorUserId)
                 throw new CollaborationError("forbidden", "Cannot edit this message");
-            const revision = number(row.revision, 1);
+            const revision = row.revision;
             if (input.expectedRevision !== undefined && input.expectedRevision !== revision)
                 throw new CollaborationError("conflict", "Message was edited by another request");
-            if (text(row.text) === input.text)
+            if (row.text === input.text)
                 throw new CollaborationError("conflict", "Message text is unchanged");
             const sequence = await this.nextSequence(tx);
             const mutation = await this.advanceChatWithSequence(
                 tx,
                 sequence,
                 input.actorUserId,
-                text(row.chat_id),
+                row.chatId,
                 "message.edited",
                 input.messageId,
             );
-            await tx.execute({
-                sql: `INSERT OR IGNORE INTO message_revisions
-                        (id, message_id, revision, text, content_json, edited_by_user_id,
-                         edit_reason)
-                      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                args: [
-                    createId(),
-                    input.messageId,
+            await tx
+                .insert(messageRevisions)
+                .values({
+                    id: createId(),
+                    messageId: input.messageId,
                     revision,
-                    text(row.text),
-                    row.content_json ?? null,
-                    input.actorUserId,
-                    input.reason ?? null,
-                ],
-            });
+                    text: row.text,
+                    contentJson: row.contentJson,
+                    editedByUserId: input.actorUserId,
+                    editReason: input.reason,
+                })
+                .onConflictDoNothing();
             const nextRevision = revision + 1;
-            await tx.execute({
-                sql: `UPDATE messages
-                         SET text = ?, revision = ?, edited_at = CURRENT_TIMESTAMP,
-                             edited_by_user_id = ?, edit_reason = ?, change_pts = ?,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ?`,
-                args: [
-                    input.text,
-                    nextRevision,
-                    input.actorUserId,
-                    input.reason ?? null,
-                    mutation.pts,
-                    input.messageId,
-                ],
+            await tx
+                .update(messages)
+                .set({
+                    text: input.text,
+                    revision: nextRevision,
+                    editedAt: sql`CURRENT_TIMESTAMP`,
+                    editedByUserId: input.actorUserId,
+                    editReason: input.reason ?? null,
+                    changePts: mutation.pts,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(messages.id, input.messageId));
+            await tx.insert(messageRevisions).values({
+                id: createId(),
+                messageId: input.messageId,
+                revision: nextRevision,
+                text: input.text,
+                contentJson: null,
+                editedByUserId: input.actorUserId,
+                editReason: input.reason,
             });
-            await tx.execute({
-                sql: `INSERT INTO message_revisions
-                        (id, message_id, revision, text, content_json, edited_by_user_id,
-                         edit_reason)
-                      VALUES (?, ?, ?, ?, NULL, ?, ?)`,
-                args: [
-                    createId(),
-                    input.messageId,
-                    nextRevision,
-                    input.text,
-                    input.actorUserId,
-                    input.reason ?? null,
-                ],
-            });
-            await this.replaceMessageMentions(tx, input.messageId, input.text);
-            await this.indexMessageForSearch(
+            await this.replaceMessageMentionsDb(tx, input.messageId, input.text);
+            await this.indexMessageForSearchDb(
                 tx,
                 input.messageId,
-                text(row.chat_id),
+                row.chatId,
                 input.text,
                 nextRevision,
             );
-            const message = await this.getMessageProjection(tx, input.actorUserId, input.messageId);
+            const message = await this.getMessageProjectionDb(
+                tx,
+                input.actorUserId,
+                input.messageId,
+            );
             if (!message) throw new Error("Edited message is not readable");
             return {
                 message,
-                hint: chatHint(sequence, text(row.chat_id), mutation.pts),
+                hint: chatHint(sequence, row.chatId, mutation.pts),
             };
         });
     }
@@ -2486,15 +2776,21 @@ export class CollaborationRepository {
             createdAt: string;
         }>
     > {
-        const message = await this.getMessageProjection(this.client, userId, messageId);
+        const message = await this.getMessageProjectionDb(this.db, userId, messageId);
         if (!message || message.deletedAt)
             throw new CollaborationError("not_found", "Message was not found");
-        const result = await this.client.execute({
-            sql: `SELECT revision, text, edited_by_user_id, edit_reason, created_at
-                    FROM message_revisions WHERE message_id = ? ORDER BY revision DESC`,
-            args: [messageId],
-        });
-        return result.rows.map((row) => ({
+        const result = await this.db
+            .select({
+                revision: messageRevisions.revision,
+                text: messageRevisions.text,
+                edited_by_user_id: messageRevisions.editedByUserId,
+                edit_reason: messageRevisions.editReason,
+                created_at: messageRevisions.createdAt,
+            })
+            .from(messageRevisions)
+            .where(eq(messageRevisions.messageId, messageId))
+            .orderBy(desc(messageRevisions.revision));
+        return result.map((row) => ({
             revision: number(row.revision),
             text: text(row.text),
             editedByUserId: optionalText(row.edited_by_user_id),
@@ -2511,63 +2807,61 @@ export class CollaborationRepository {
         threadRootMessageId?: string;
         limit: number;
     }): Promise<{ messages: MessageSummary[]; chatPts: string; hasMore: boolean }> {
-        const chat = await this.chatAccess(this.client, input.userId, input.chatId, false);
+        const chat = await this.chatAccessDb(this.db, input.userId, input.chatId, false);
         if (!chat) throw new CollaborationError("not_found", "Chat was not found");
-        const conditions = ["m.chat_id = ?"];
-        const args: InArgs = [input.chatId];
+        const conditions: SQL[] = [eq(messages.chatId, input.chatId)];
         if (input.threadRootMessageId) {
-            conditions.push("m.thread_root_message_id = ?");
-            args.push(input.threadRootMessageId);
-        } else conditions.push("m.thread_root_message_id IS NULL");
+            conditions.push(eq(messages.threadRootMessageId, input.threadRootMessageId));
+        } else conditions.push(isNull(messages.threadRootMessageId));
         if (input.beforeSequence !== undefined) {
-            conditions.push("m.sequence < ?");
-            args.push(input.beforeSequence);
+            conditions.push(lt(messages.sequence, input.beforeSequence));
         }
         if (input.afterSequence !== undefined) {
-            conditions.push("m.sequence > ?");
-            args.push(input.afterSequence);
+            conditions.push(gt(messages.sequence, input.afterSequence));
         }
         const ascending = input.afterSequence !== undefined;
-        args.push(input.limit + 1);
-        const result = await this.client.execute({
-            sql: `SELECT m.id FROM messages m
-                   WHERE ${conditions.join(" AND ")}
-                   ORDER BY m.sequence ${ascending ? "ASC" : "DESC"}
-                   LIMIT ?`,
-            args,
-        });
-        const hasMore = result.rows.length > input.limit;
-        const ids = result.rows.slice(0, input.limit).map((row) => text(row.id));
-        const messages: MessageSummary[] = [];
+        const result = await this.db
+            .select({ id: messages.id })
+            .from(messages)
+            .where(and(...conditions))
+            .orderBy(ascending ? asc(messages.sequence) : desc(messages.sequence))
+            .limit(input.limit + 1);
+        const hasMore = result.length > input.limit;
+        const ids = result.slice(0, input.limit).map((row) => row.id);
+        const summaries: MessageSummary[] = [];
         for (const id of ids) {
-            const message = await this.getMessageProjection(this.client, input.userId, id);
-            if (message) messages.push(message);
+            const message = await this.getMessageProjectionDb(this.db, input.userId, id);
+            if (message) summaries.push(message);
         }
-        if (!ascending) messages.reverse();
-        return { messages, chatPts: chat.pts, hasMore };
+        if (!ascending) summaries.reverse();
+        return { messages: summaries, chatPts: chat.pts, hasMore };
     }
 
     async deleteMessage(
         actorUserId: string,
         messageId: string,
     ): Promise<{ message: MessageSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const row = await one(
-                tx,
-                `SELECT m.chat_id, m.sender_user_id, m.deleted_at, m.thread_root_message_id,
-                        u.role AS actor_role
-                   FROM messages m JOIN users u ON u.id = ?
-                  WHERE m.id = ?`,
-                [actorUserId, messageId],
-            );
+        return this.writeDb(async (tx) => {
+            const [row] = await tx
+                .select({
+                    chatId: messages.chatId,
+                    senderUserId: messages.senderUserId,
+                    deletedAt: messages.deletedAt,
+                    threadRootMessageId: messages.threadRootMessageId,
+                    actorRole: users.role,
+                })
+                .from(messages)
+                .innerJoin(users, eq(users.id, actorUserId))
+                .where(eq(messages.id, messageId))
+                .limit(1);
             if (!row) throw new CollaborationError("not_found", "Message was not found");
-            if (!(await this.chatAccess(tx, actorUserId, text(row.chat_id), false)))
+            if (!(await this.chatAccessDb(tx, actorUserId, row.chatId, false)))
                 throw new CollaborationError("not_found", "Message was not found");
-            if (row.deleted_at !== null)
+            if (row.deletedAt !== null)
                 throw new CollaborationError("conflict", "Message is already deleted");
-            if (text(row.sender_user_id, "") !== actorUserId && row.actor_role !== "admin")
+            if ((row.senderUserId ?? "") !== actorUserId && row.actorRole !== "admin")
                 throw new CollaborationError("forbidden", "Cannot delete this message");
-            const chatId = text(row.chat_id);
+            const chatId = row.chatId;
             const sequence = await this.nextSequence(tx);
             const mutation = await this.advanceChatWithSequence(
                 tx,
@@ -2577,33 +2871,25 @@ export class CollaborationRepository {
                 "message.deleted",
                 messageId,
             );
-            await tx.execute({
-                sql: `UPDATE messages
-                         SET text = '', deleted_at = CURRENT_TIMESTAMP,
-                             deleted_by_user_id = ?, change_pts = ?, updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ? AND deleted_at IS NULL`,
-                args: [actorUserId, mutation.pts, messageId],
-            });
-            await tx.execute({
-                sql: `DELETE FROM message_search_documents WHERE message_id = ?`,
-                args: [messageId],
-            });
-            await tx.execute({
-                sql: `DELETE FROM message_revisions WHERE message_id = ?`,
-                args: [messageId],
-            });
-            await tx.execute({
-                sql: `DELETE FROM notifications WHERE message_id = ?`,
-                args: [messageId],
-            });
-            if (row.thread_root_message_id) {
-                await this.recomputeThreadProjection(
-                    tx,
-                    text(row.thread_root_message_id),
-                    mutation.pts,
-                );
+            await tx
+                .update(messages)
+                .set({
+                    text: "",
+                    deletedAt: sql`CURRENT_TIMESTAMP`,
+                    deletedByUserId: actorUserId,
+                    changePts: mutation.pts,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(and(eq(messages.id, messageId), isNull(messages.deletedAt)));
+            await tx
+                .delete(messageSearchDocuments)
+                .where(eq(messageSearchDocuments.messageId, messageId));
+            await tx.delete(messageRevisions).where(eq(messageRevisions.messageId, messageId));
+            await tx.delete(notifications).where(eq(notifications.messageId, messageId));
+            if (row.threadRootMessageId) {
+                await this.recomputeThreadProjectionDb(tx, row.threadRootMessageId, mutation.pts);
             }
-            const message = await this.getMessageProjection(tx, actorUserId, messageId);
+            const message = await this.getMessageProjectionDb(tx, actorUserId, messageId);
             if (!message) throw new Error("Deleted message tombstone is not readable");
             return { message, hint: chatHint(sequence, chatId, mutation.pts) };
         });
@@ -2616,28 +2902,36 @@ export class CollaborationRepository {
         customEmojiId?: string;
         active: boolean;
     }): Promise<{ message: MessageSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
+        return this.writeDb(async (tx) => {
             if (Boolean(input.emoji) === Boolean(input.customEmojiId))
                 throw new CollaborationError(
                     "invalid",
                     "Exactly one reaction identifier is required",
                 );
-            const message = await this.getMessageProjection(tx, input.actorUserId, input.messageId);
+            const message = await this.getMessageProjectionDb(
+                tx,
+                input.actorUserId,
+                input.messageId,
+            );
             if (!message || message.deletedAt)
                 throw new CollaborationError("not_found", "Message was not found");
-            if (await this.isPostingRestricted(tx, input.actorUserId, message.chatId))
+            if (await this.isPostingRestrictedDb(tx, input.actorUserId, message.chatId))
                 throw new CollaborationError("forbidden", "Posting is restricted by moderation");
             const reactionKey = input.customEmojiId
                 ? `custom:${input.customEmojiId}`
                 : `unicode:${input.emoji}`;
-            let customEmoji: Row | undefined;
+            let customEmoji: { name: string; fileId: string } | undefined;
             if (input.customEmojiId) {
-                customEmoji = await one(
-                    tx,
-                    `SELECT name, file_id FROM custom_emojis
-                      WHERE id = ? AND deleted_at IS NULL`,
-                    [input.customEmojiId],
-                );
+                [customEmoji] = await tx
+                    .select({ name: customEmojis.name, fileId: customEmojis.fileId })
+                    .from(customEmojis)
+                    .where(
+                        and(
+                            eq(customEmojis.id, input.customEmojiId),
+                            isNull(customEmojis.deletedAt),
+                        ),
+                    )
+                    .limit(1);
                 if (!customEmoji)
                     throw new CollaborationError("not_found", "Custom emoji was not found");
             }
@@ -2651,39 +2945,44 @@ export class CollaborationRepository {
                 input.messageId,
             );
             if (input.active) {
-                await tx.execute({
-                    sql: `INSERT OR IGNORE INTO reactions
-                            (message_id, user_id, reaction_key, emoji, custom_emoji_id,
-                             custom_emoji_name_snapshot, custom_emoji_file_id_snapshot)
-                          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                    args: [
-                        input.messageId,
-                        input.actorUserId,
+                await tx
+                    .insert(reactions)
+                    .values({
+                        messageId: input.messageId,
+                        userId: input.actorUserId,
                         reactionKey,
-                        input.emoji ?? null,
-                        input.customEmojiId ?? null,
-                        customEmoji ? text(customEmoji.name) : null,
-                        customEmoji ? text(customEmoji.file_id) : null,
-                    ],
-                });
+                        emoji: input.emoji,
+                        customEmojiId: input.customEmojiId,
+                        customEmojiNameSnapshot: customEmoji?.name,
+                        customEmojiFileIdSnapshot: customEmoji?.fileId,
+                    })
+                    .onConflictDoNothing();
             } else {
-                await tx.execute({
-                    sql: `DELETE FROM reactions
-                           WHERE message_id = ? AND user_id = ? AND reaction_key = ?`,
-                    args: [input.messageId, input.actorUserId, reactionKey],
-                });
+                await tx
+                    .delete(reactions)
+                    .where(
+                        and(
+                            eq(reactions.messageId, input.messageId),
+                            eq(reactions.userId, input.actorUserId),
+                            eq(reactions.reactionKey, reactionKey),
+                        ),
+                    );
             }
-            const recipient = await one(tx, `SELECT sender_user_id FROM messages WHERE id = ?`, [
-                input.messageId,
-            ]);
-            const recipientUserId = optionalText(recipient?.sender_user_id);
+            const [recipient] = await tx
+                .select({ senderUserId: messages.senderUserId })
+                .from(messages)
+                .where(eq(messages.id, input.messageId));
+            const recipientUserId = recipient?.senderUserId ?? undefined;
             const reactionPreference = recipientUserId
-                ? await one(
-                      tx,
-                      `SELECT COALESCE(reactions, 'all') AS reactions
-                         FROM user_notification_preferences WHERE user_id = ?`,
-                      [recipientUserId],
-                  )
+                ? (
+                      await tx
+                          .select({
+                              reactions: sql<string>`coalesce(${userNotificationPreferences.reactions}, 'all')`,
+                          })
+                          .from(userNotificationPreferences)
+                          .where(eq(userNotificationPreferences.userId, recipientUserId))
+                          .limit(1)
+                  )[0]
                 : undefined;
             if (
                 input.active &&
@@ -2692,20 +2991,15 @@ export class CollaborationRepository {
                 reactionPreference?.reactions !== "none"
             ) {
                 const notificationId = createId();
-                await tx.execute({
-                    sql: `INSERT INTO notifications
-                            (id, user_id, kind, chat_id, message_id, actor_user_id,
-                             payload_json, sync_sequence)
-                          VALUES (?, ?, 'reaction', ?, ?, ?, ?, ?)`,
-                    args: [
-                        notificationId,
-                        recipientUserId,
-                        message.chatId,
-                        input.messageId,
-                        input.actorUserId,
-                        JSON.stringify({ reactionKey }),
-                        sequence,
-                    ],
+                await tx.insert(notifications).values({
+                    id: notificationId,
+                    userId: recipientUserId,
+                    kind: "reaction",
+                    chatId: message.chatId,
+                    messageId: input.messageId,
+                    actorUserId: input.actorUserId,
+                    payloadJson: JSON.stringify({ reactionKey }),
+                    syncSequence: sequence,
                 });
                 await this.insertSyncEvent(tx, {
                     sequence,
@@ -2715,11 +3009,15 @@ export class CollaborationRepository {
                     targetUserId: recipientUserId,
                 });
             }
-            await tx.execute({
-                sql: `UPDATE messages SET change_pts = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-                args: [mutation.pts, input.messageId],
-            });
-            const updated = await this.getMessageProjection(tx, input.actorUserId, input.messageId);
+            await tx
+                .update(messages)
+                .set({ changePts: mutation.pts, updatedAt: sql`CURRENT_TIMESTAMP` })
+                .where(eq(messages.id, input.messageId));
+            const updated = await this.getMessageProjectionDb(
+                tx,
+                input.actorUserId,
+                input.messageId,
+            );
             if (!updated) throw new Error("Reacted message is not readable");
             return {
                 message: updated,
@@ -2754,11 +3052,11 @@ export class CollaborationRepository {
             };
         }
         const currentSequence = number(current.sequence);
-        const retention = await one(
-            this.client,
-            `SELECT min_recoverable_sequence FROM server_sync_state WHERE id = 1`,
-        );
-        if (input.fromSequence < number(retention?.min_recoverable_sequence, 0))
+        const [retention] = await this.db
+            .select({ minRecoverableSequence: serverSyncState.minRecoverableSequence })
+            .from(serverSyncState)
+            .where(eq(serverSyncState.id, 1));
+        if (input.fromSequence < (retention?.minRecoverableSequence ?? 0))
             return {
                 kind: "reset",
                 changedChats: [],
@@ -2772,13 +3070,15 @@ export class CollaborationRepository {
         const target = Math.min(input.untilSequence ?? currentSequence, currentSequence);
         if (input.fromSequence > currentSequence || target < input.fromSequence)
             throw new CollaborationError("future_state", "Sync cursor is ahead of the server");
-        const page = await this.client.execute({
-            sql: `SELECT DISTINCT sequence FROM sync_events
-                   WHERE sequence > ? AND sequence <= ?
-                   ORDER BY sequence ASC LIMIT ?`,
-            args: [input.fromSequence, target, input.limit + 1],
-        });
-        const sequences = page.rows.map((row) => number(row.sequence));
+        const page = await this.db
+            .selectDistinct({ sequence: syncEvents.sequence })
+            .from(syncEvents)
+            .where(
+                and(gt(syncEvents.sequence, input.fromSequence), lte(syncEvents.sequence, target)),
+            )
+            .orderBy(asc(syncEvents.sequence))
+            .limit(input.limit + 1);
+        const sequences = page.map((row) => row.sequence);
         const hasMore = sequences.length > input.limit;
         const included = sequences.slice(0, input.limit);
         const intermediate = hasMore ? included.at(-1)! : target;
@@ -2793,17 +3093,20 @@ export class CollaborationRepository {
                 targetState: state,
             };
         }
-        const placeholders = included.map(() => "?").join(", ");
-        const events = await this.client.execute({
-            sql: `SELECT sequence, kind, chat_id, target_user_id
-                    FROM sync_events WHERE sequence IN (${placeholders})
-                   ORDER BY sequence, id`,
-            args: included,
-        });
+        const events = await this.db
+            .select({
+                sequence: syncEvents.sequence,
+                kind: syncEvents.kind,
+                chat_id: syncEvents.chatId,
+                target_user_id: syncEvents.targetUserId,
+            })
+            .from(syncEvents)
+            .where(inArray(syncEvents.sequence, included))
+            .orderBy(syncEvents.sequence, syncEvents.id);
         const changedChatIds = new Set<string>();
         const removedChatIds = new Set<string>();
         const areas = new Set<string>();
-        for (const event of events.rows) {
+        for (const event of events) {
             const targetUserId = optionalText(event.target_user_id);
             const kind = text(event.kind);
             const chatId = optionalText(event.chat_id);
@@ -2818,11 +3121,13 @@ export class CollaborationRepository {
                 continue;
             }
             if (chatId && kind === "chat.deleted") {
-                const wasMember = await one(
-                    this.client,
-                    `SELECT 1 AS found FROM chat_members WHERE chat_id = ? AND user_id = ?`,
-                    [chatId, input.userId],
-                );
+                const [wasMember] = await this.db
+                    .select({ userId: chatMembers.userId })
+                    .from(chatMembers)
+                    .where(
+                        and(eq(chatMembers.chatId, chatId), eq(chatMembers.userId, input.userId)),
+                    )
+                    .limit(1);
                 if (wasMember) removedChatIds.add(chatId);
                 continue;
             }
@@ -2851,7 +3156,7 @@ export class CollaborationRepository {
         }
         const changedChats: ChatSummary[] = [];
         for (const chatId of changedChatIds) {
-            const chat = await this.chatAccess(this.client, input.userId, chatId, false);
+            const chat = await this.chatAccessDb(this.db, input.userId, chatId, false);
             if (chat) changedChats.push(chat);
         }
         const state = stateAt(current.generation, intermediate);
@@ -2897,22 +3202,31 @@ export class CollaborationRepository {
         if (currentEpoch !== input.membershipEpoch) return { kind: "reset", ...base };
         if (input.fromPts > currentPts || target < input.fromPts)
             throw new CollaborationError("future_state", "Chat cursor is ahead of the server");
-        const recoverable = await one(
-            this.client,
-            `SELECT min_recoverable_pts FROM chats WHERE id = ?`,
-            [input.chatId],
-        );
-        if (input.fromPts < number(recoverable?.min_recoverable_pts, 0))
+        const [recoverable] = await this.db
+            .select({ minRecoverablePts: chats.minRecoverablePts })
+            .from(chats)
+            .where(eq(chats.id, input.chatId));
+        if (input.fromPts < (recoverable?.minRecoverablePts ?? 0))
             return { kind: "tooLong", ...base };
-        const result = await this.client.execute({
-            sql: `SELECT pts, pts_count, kind, entity_id
-                    FROM chat_updates
-                   WHERE chat_id = ? AND pts > ? AND pts <= ?
-                   ORDER BY pts ASC LIMIT ?`,
-            args: [input.chatId, input.fromPts, target, input.limit + 1],
-        });
-        const hasMore = result.rows.length > input.limit;
-        const rows = result.rows.slice(0, input.limit);
+        const result = await this.db
+            .select({
+                pts: chatUpdates.pts,
+                pts_count: chatUpdates.ptsCount,
+                kind: chatUpdates.kind,
+                entity_id: chatUpdates.entityId,
+            })
+            .from(chatUpdates)
+            .where(
+                and(
+                    eq(chatUpdates.chatId, input.chatId),
+                    gt(chatUpdates.pts, input.fromPts),
+                    lte(chatUpdates.pts, target),
+                ),
+            )
+            .orderBy(asc(chatUpdates.pts))
+            .limit(input.limit + 1);
+        const hasMore = result.length > input.limit;
+        const rows = result.slice(0, input.limit);
         const intermediate = hasMore ? number(rows.at(-1)?.pts) : target;
         const updates = rows.map((row) => ({
             pts: text(row.pts),
@@ -2935,7 +3249,7 @@ export class CollaborationRepository {
         const messages: MessageSummary[] = [];
         const projectedMessageIds = new Set<string>();
         for (const messageId of messageIds) {
-            const message = await this.getMessageProjection(this.client, input.userId, messageId);
+            const message = await this.getMessageProjectionDb(this.db, input.userId, messageId);
             if (!message) continue;
             messages.push(message);
             projectedMessageIds.add(message.id);
@@ -2943,8 +3257,8 @@ export class CollaborationRepository {
                 message.threadRootMessageId &&
                 !projectedMessageIds.has(message.threadRootMessageId)
             ) {
-                const root = await this.getMessageProjection(
-                    this.client,
+                const root = await this.getMessageProjectionDb(
+                    this.db,
                     input.userId,
                     message.threadRootMessageId,
                 );
@@ -2967,34 +3281,46 @@ export class CollaborationRepository {
     }
 
     async expireDueMessages(limit = 100): Promise<MutationHint | undefined> {
-        return this.write(async (tx) => {
-            const due = await tx.execute({
-                sql: `SELECT m.id, m.chat_id, m.thread_root_message_id
-                        FROM messages m
-                        JOIN chats c ON c.id = m.chat_id
-                        JOIN server_settings s ON s.id = 1
-                       WHERE m.deleted_at IS NULL AND (
-                         (m.expires_at IS NOT NULL
-                          AND datetime(m.expires_at) <= CURRENT_TIMESTAMP)
-                         OR (c.retention_mode = 'duration'
-                             AND c.retention_seconds IS NOT NULL
-                             AND datetime(m.created_at, '+' || c.retention_seconds || ' seconds')
-                                 <= CURRENT_TIMESTAMP)
-                         OR (c.retention_mode = 'inherit'
-                             AND s.default_retention_mode = 'duration'
-                             AND s.default_retention_seconds IS NOT NULL
-                             AND datetime(m.created_at, '+' || s.default_retention_seconds || ' seconds')
-                                 <= CURRENT_TIMESTAMP)
-                       )
-                       ORDER BY COALESCE(m.expires_at, m.created_at), m.id LIMIT ?`,
-                args: [limit],
-            });
-            if (due.rows.length === 0) return undefined;
+        return this.writeDb(async (tx) => {
+            const due = await tx
+                .select({
+                    id: messages.id,
+                    chatId: messages.chatId,
+                    threadRootMessageId: messages.threadRootMessageId,
+                })
+                .from(messages)
+                .innerJoin(chats, eq(chats.id, messages.chatId))
+                .innerJoin(serverSettings, eq(serverSettings.id, 1))
+                .where(
+                    and(
+                        isNull(messages.deletedAt),
+                        or(
+                            and(
+                                sql`${messages.expiresAt} IS NOT NULL`,
+                                sql`datetime(${messages.expiresAt}) <= CURRENT_TIMESTAMP`,
+                            ),
+                            and(
+                                eq(chats.retentionMode, "duration"),
+                                sql`${chats.retentionSeconds} IS NOT NULL`,
+                                sql`datetime(${messages.createdAt}, '+' || ${chats.retentionSeconds} || ' seconds') <= CURRENT_TIMESTAMP`,
+                            ),
+                            and(
+                                eq(chats.retentionMode, "inherit"),
+                                eq(serverSettings.defaultRetentionMode, "duration"),
+                                sql`${serverSettings.defaultRetentionSeconds} IS NOT NULL`,
+                                sql`datetime(${messages.createdAt}, '+' || ${serverSettings.defaultRetentionSeconds} || ' seconds') <= CURRENT_TIMESTAMP`,
+                            ),
+                        ),
+                    ),
+                )
+                .orderBy(sql`coalesce(${messages.expiresAt}, ${messages.createdAt})`, messages.id)
+                .limit(limit);
+            if (due.length === 0) return undefined;
             const sequence = await this.nextSequence(tx);
-            const chats = new Map<string, number>();
-            for (const row of due.rows) {
-                const messageId = text(row.id);
-                const chatId = text(row.chat_id);
+            const changedChats = new Map<string, number>();
+            for (const row of due) {
+                const messageId = row.id;
+                const chatId = row.chatId;
                 const mutation = await this.advanceChatWithSequence(
                     tx,
                     sequence,
@@ -3003,82 +3329,93 @@ export class CollaborationRepository {
                     "message.expired",
                     messageId,
                 );
-                const changed = await tx.execute({
-                    sql: `UPDATE messages
-                             SET text = '', deleted_at = CURRENT_TIMESTAMP,
-                                 change_pts = ?, updated_at = CURRENT_TIMESTAMP
-                           WHERE id = ? AND deleted_at IS NULL`,
-                    args: [mutation.pts, messageId],
-                });
-                if (changed.rowsAffected) {
-                    await tx.execute({
-                        sql: `DELETE FROM message_search_documents WHERE message_id = ?`,
-                        args: [messageId],
-                    });
-                    await tx.execute({
-                        sql: `DELETE FROM message_revisions WHERE message_id = ?`,
-                        args: [messageId],
-                    });
-                    await tx.execute({
-                        sql: `DELETE FROM notifications WHERE message_id = ?`,
-                        args: [messageId],
-                    });
-                    const threadRootMessageId = optionalText(row.thread_root_message_id);
+                const changed = await tx
+                    .update(messages)
+                    .set({
+                        text: "",
+                        deletedAt: sql`CURRENT_TIMESTAMP`,
+                        changePts: mutation.pts,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    })
+                    .where(and(eq(messages.id, messageId), isNull(messages.deletedAt)))
+                    .returning({ id: messages.id });
+                if (changed.length) {
+                    await tx
+                        .delete(messageSearchDocuments)
+                        .where(eq(messageSearchDocuments.messageId, messageId));
+                    await tx
+                        .delete(messageRevisions)
+                        .where(eq(messageRevisions.messageId, messageId));
+                    await tx.delete(notifications).where(eq(notifications.messageId, messageId));
+                    const threadRootMessageId = row.threadRootMessageId ?? undefined;
                     if (threadRootMessageId) {
-                        await this.recomputeThreadProjection(tx, threadRootMessageId, mutation.pts);
-                        await tx.execute({
-                            sql: `UPDATE messages SET change_pts = ? WHERE id = ?`,
-                            args: [mutation.pts, threadRootMessageId],
-                        });
+                        await this.recomputeThreadProjectionDb(
+                            tx,
+                            threadRootMessageId,
+                            mutation.pts,
+                        );
+                        await tx
+                            .update(messages)
+                            .set({ changePts: mutation.pts })
+                            .where(eq(messages.id, threadRootMessageId));
                     }
-                    chats.set(chatId, mutation.pts);
+                    changedChats.set(chatId, mutation.pts);
                 }
             }
             return {
                 sequence: String(sequence),
-                chats: [...chats].map(([chatId, pts]) => ({ chatId, pts: String(pts) })),
+                chats: [...changedChats].map(([chatId, pts]) => ({ chatId, pts: String(pts) })),
                 areas: [],
             };
         });
     }
 
     async listContacts(): Promise<UserSummary[]> {
-        const result = await this.client.execute(
-            `${USER_SELECT}
-              WHERE deleted_at IS NULL
-                AND EXISTS (
-                    SELECT 1 FROM accounts a WHERE a.id = users.account_id
-                      AND a.active = 1 AND a.banned_at IS NULL AND a.deleted_at IS NULL
-                )
-              ORDER BY lower(first_name), lower(last_name), id`,
-        );
-        return result.rows.map(asUser);
+        const result = await this.db
+            .select(userSelection)
+            .from(users)
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    isNull(users.deletedAt),
+                    eq(accounts.active, 1),
+                    isNull(accounts.bannedAt),
+                    isNull(accounts.deletedAt),
+                ),
+            )
+            .orderBy(sql`lower(${users.firstName})`, sql`lower(${users.lastName})`, users.id);
+        return result.map(asUser);
     }
 
     async listPresenceSettings(userIds?: string[]): Promise<PresenceSettingsSummary[]> {
         const ids = userIds ? [...new Set(userIds)] : undefined;
         if (ids?.length === 0) return [];
-        const condition = ids ? `WHERE ups.user_id IN (${ids.map(() => "?").join(", ")})` : "";
-        const result = await this.client.execute({
-            sql: `SELECT ups.user_id, ups.availability,
-                         CASE WHEN ups.status_expires_at IS NULL
-                                   OR datetime(ups.status_expires_at) > CURRENT_TIMESTAMP
-                              THEN ups.custom_status_text END AS custom_status_text,
-                         CASE WHEN ups.status_expires_at IS NULL
-                                   OR datetime(ups.status_expires_at) > CURRENT_TIMESTAMP
-                              THEN ups.custom_status_emoji END AS custom_status_emoji,
-                         CASE WHEN ups.status_expires_at IS NULL
-                                   OR datetime(ups.status_expires_at) > CURRENT_TIMESTAMP
-                              THEN ups.status_expires_at END AS status_expires_at,
-                         CASE WHEN ups.dnd_until IS NOT NULL
-                                   AND datetime(ups.dnd_until) > CURRENT_TIMESTAMP
-                              THEN ups.dnd_until END AS dnd_until,
-                         ups.updated_at
-                    FROM user_presence_settings ups ${condition}
-                   ORDER BY ups.user_id`,
-            args: ids ?? [],
-        });
-        return result.rows.map((row) => ({
+        const activeStatus = or(
+            isNull(userPresenceSettings.statusExpiresAt),
+            gt(sql`datetime(${userPresenceSettings.statusExpiresAt})`, sql`CURRENT_TIMESTAMP`),
+        );
+        const result = await this.db
+            .select({
+                user_id: userPresenceSettings.userId,
+                availability: userPresenceSettings.availability,
+                custom_status_text: sql<
+                    string | null
+                >`case when ${activeStatus} then ${userPresenceSettings.customStatusText} end`,
+                custom_status_emoji: sql<
+                    string | null
+                >`case when ${activeStatus} then ${userPresenceSettings.customStatusEmoji} end`,
+                status_expires_at: sql<
+                    string | null
+                >`case when ${activeStatus} then ${userPresenceSettings.statusExpiresAt} end`,
+                dnd_until: sql<
+                    string | null
+                >`case when ${userPresenceSettings.dndUntil} is not null and datetime(${userPresenceSettings.dndUntil}) > CURRENT_TIMESTAMP then ${userPresenceSettings.dndUntil} end`,
+                updated_at: userPresenceSettings.updatedAt,
+            })
+            .from(userPresenceSettings)
+            .where(ids ? inArray(userPresenceSettings.userId, ids) : undefined)
+            .orderBy(userPresenceSettings.userId);
+        return result.map((row) => ({
             userId: text(row.user_id),
             availability:
                 optionalText(row.dnd_until) !== undefined
@@ -3100,48 +3437,47 @@ export class CollaborationRepository {
         statusExpiresAt?: string | null;
         dndUntil?: string | null;
     }): Promise<{ presence: PresenceSettingsSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            await this.requireActiveUser(tx, input.actorUserId);
+        return this.writeDb(async (tx) => {
+            await this.requireActiveUserDb(tx, input.actorUserId);
             const sequence = await this.nextSequence(tx);
-            await tx.execute({
-                sql: `INSERT INTO user_presence_settings
-                        (user_id, availability, custom_status_text, custom_status_emoji,
-                         status_expires_at, dnd_until, sync_sequence)
-                      VALUES (?, ?, ?, ?, ?, ?, ?)
-                      ON CONFLICT(user_id) DO UPDATE SET
-                        availability = CASE WHEN ? = 1
-                            THEN excluded.availability ELSE availability END,
-                        custom_status_text = CASE WHEN ? = 1
-                            THEN excluded.custom_status_text ELSE custom_status_text END,
-                        custom_status_emoji = CASE WHEN ? = 1
-                            THEN excluded.custom_status_emoji ELSE custom_status_emoji END,
-                        status_expires_at = CASE WHEN ? = 1
-                            THEN excluded.status_expires_at ELSE status_expires_at END,
-                        dnd_until = CASE WHEN ? = 1 THEN excluded.dnd_until ELSE dnd_until END,
-                        sync_sequence = excluded.sync_sequence,
-                        updated_at = CURRENT_TIMESTAMP`,
-                args: [
-                    input.actorUserId,
-                    input.availability ?? "automatic",
-                    input.customStatusText ?? null,
-                    input.customStatusEmoji ?? null,
-                    input.statusExpiresAt ?? null,
-                    input.dndUntil ?? null,
-                    sequence,
-                    input.availability === undefined ? 0 : 1,
-                    input.customStatusText === undefined ? 0 : 1,
-                    input.customStatusEmoji === undefined ? 0 : 1,
-                    input.statusExpiresAt === undefined ? 0 : 1,
-                    input.dndUntil === undefined ? 0 : 1,
-                ],
-            });
+            await tx
+                .insert(userPresenceSettings)
+                .values({
+                    userId: input.actorUserId,
+                    availability: input.availability ?? "automatic",
+                    customStatusText: input.customStatusText,
+                    customStatusEmoji: input.customStatusEmoji,
+                    statusExpiresAt: input.statusExpiresAt,
+                    dndUntil: input.dndUntil,
+                    syncSequence: sequence,
+                })
+                .onConflictDoUpdate({
+                    target: userPresenceSettings.userId,
+                    set: {
+                        ...(input.availability === undefined
+                            ? {}
+                            : { availability: input.availability }),
+                        ...(input.customStatusText === undefined
+                            ? {}
+                            : { customStatusText: input.customStatusText }),
+                        ...(input.customStatusEmoji === undefined
+                            ? {}
+                            : { customStatusEmoji: input.customStatusEmoji }),
+                        ...(input.statusExpiresAt === undefined
+                            ? {}
+                            : { statusExpiresAt: input.statusExpiresAt }),
+                        ...(input.dndUntil === undefined ? {} : { dndUntil: input.dndUntil }),
+                        syncSequence: sequence,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    },
+                });
             await this.insertSyncEvent(tx, {
                 sequence,
                 kind: "presence.updated",
                 entityId: input.actorUserId,
                 actorUserId: input.actorUserId,
             });
-            const [presence] = await this.listPresenceSettingsWith(tx, [input.actorUserId]);
+            const [presence] = await this.listPresenceSettingsWithDb(tx, [input.actorUserId]);
             if (!presence) throw new Error("Presence settings were not saved");
             return { presence, hint: areaHint(sequence, "presence") };
         });
@@ -3153,19 +3489,24 @@ export class CollaborationRepository {
         kind: "audio" | "video";
         invitedUserIds?: string[];
     }): Promise<{ call: CallSummary; hint: MutationHint; invitedUserIds: string[] }> {
-        return this.write(async (tx) => {
-            const access = await this.chatAccess(tx, input.actorUserId, input.chatId, true);
+        return this.writeDb(async (tx) => {
+            const access = await this.chatAccessDb(tx, input.actorUserId, input.chatId, true);
             if (!access) throw new CollaborationError("not_found", "Chat was not found");
             if (access.archivedAt)
                 throw new CollaborationError("forbidden", "Archived chats are read-only");
-            if (await this.isPostingRestricted(tx, input.actorUserId, input.chatId))
+            if (await this.isPostingRestrictedDb(tx, input.actorUserId, input.chatId))
                 throw new CollaborationError("forbidden", "Calling is restricted by moderation");
-            const members = await tx.execute({
-                sql: `SELECT user_id FROM chat_members
-                       WHERE chat_id = ? AND left_at IS NULL AND user_id != ?`,
-                args: [input.chatId, input.actorUserId],
-            });
-            const memberIds = new Set(members.rows.map((row) => text(row.user_id)));
+            const members = await tx
+                .select({ userId: chatMembers.userId })
+                .from(chatMembers)
+                .where(
+                    and(
+                        eq(chatMembers.chatId, input.chatId),
+                        isNull(chatMembers.leftAt),
+                        ne(chatMembers.userId, input.actorUserId),
+                    ),
+                );
+            const memberIds = new Set(members.map((row) => row.userId));
             const invitedUserIds = input.invitedUserIds
                 ? [...new Set(input.invitedUserIds)]
                 : [...memberIds];
@@ -3176,12 +3517,16 @@ export class CollaborationRepository {
                 );
             if (invitedUserIds.some((userId) => !memberIds.has(userId)))
                 throw new CollaborationError("not_found", "A call participant was not found");
-            const active = await one(
-                tx,
-                `SELECT id FROM calls
-                  WHERE chat_id = ? AND status IN ('ringing', 'active') LIMIT 1`,
-                [input.chatId],
-            );
+            const [active] = await tx
+                .select({ id: calls.id })
+                .from(calls)
+                .where(
+                    and(
+                        eq(calls.chatId, input.chatId),
+                        inArray(calls.status, ["ringing", "active"]),
+                    ),
+                )
+                .limit(1);
             if (active) throw new CollaborationError("conflict", "Chat already has an active call");
             const id = createId();
             const sequence = await this.nextSequence(tx);
@@ -3193,55 +3538,56 @@ export class CollaborationRepository {
                 "call.created",
                 id,
             );
-            await tx.execute({
-                sql: `INSERT INTO calls (id, chat_id, created_by_user_id, kind)
-                      VALUES (?, ?, ?, ?)`,
-                args: [id, input.chatId, input.actorUserId, input.kind],
+            await tx.insert(calls).values({
+                id,
+                chatId: input.chatId,
+                createdByUserId: input.actorUserId,
+                kind: input.kind,
             });
-            await tx.execute({
-                sql: `INSERT INTO call_participants
-                        (call_id, user_id, invited_by_user_id, status, joined_at, last_seen_at)
-                      VALUES (?, ?, ?, 'joined', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-                args: [id, input.actorUserId, input.actorUserId],
+            await tx.insert(callParticipants).values({
+                callId: id,
+                userId: input.actorUserId,
+                invitedByUserId: input.actorUserId,
+                status: "joined",
+                joinedAt: sql`CURRENT_TIMESTAMP`,
+                lastSeenAt: sql`CURRENT_TIMESTAMP`,
             });
-            await tx.execute({
-                sql: `INSERT INTO call_events (id, call_id, kind, actor_user_id)
-                      VALUES (?, ?, 'created', ?)`,
-                args: [createId(), id, input.actorUserId],
+            await tx.insert(callEvents).values({
+                id: createId(),
+                callId: id,
+                kind: "created",
+                actorUserId: input.actorUserId,
             });
             for (const userId of invitedUserIds) {
-                await tx.execute({
-                    sql: `INSERT INTO call_participants
-                            (call_id, user_id, invited_by_user_id, status, ringing_at)
-                          VALUES (?, ?, ?, 'ringing', CURRENT_TIMESTAMP)`,
-                    args: [id, userId, input.actorUserId],
+                await tx.insert(callParticipants).values({
+                    callId: id,
+                    userId,
+                    invitedByUserId: input.actorUserId,
+                    status: "ringing",
+                    ringingAt: sql`CURRENT_TIMESTAMP`,
                 });
-                await tx.execute({
-                    sql: `INSERT INTO call_events
-                            (id, call_id, kind, actor_user_id, target_user_id)
-                          VALUES (?, ?, 'ringing', ?, ?)`,
-                    args: [createId(), id, input.actorUserId, userId],
+                await tx.insert(callEvents).values({
+                    id: createId(),
+                    callId: id,
+                    kind: "ringing",
+                    actorUserId: input.actorUserId,
+                    targetUserId: userId,
                 });
-                const notificationPreference = await one(
-                    tx,
-                    `SELECT calls FROM user_notification_preferences WHERE user_id = ?`,
-                    [userId],
-                );
+                const [notificationPreference] = await tx
+                    .select({ calls: userNotificationPreferences.calls })
+                    .from(userNotificationPreferences)
+                    .where(eq(userNotificationPreferences.userId, userId))
+                    .limit(1);
                 if (notificationPreference?.calls === "none") continue;
                 const notificationId = createId();
-                await tx.execute({
-                    sql: `INSERT INTO notifications
-                            (id, user_id, kind, chat_id, actor_user_id, payload_json,
-                             sync_sequence)
-                          VALUES (?, ?, 'call', ?, ?, ?, ?)`,
-                    args: [
-                        notificationId,
-                        userId,
-                        input.chatId,
-                        input.actorUserId,
-                        JSON.stringify({ callId: id, kind: input.kind }),
-                        sequence,
-                    ],
+                await tx.insert(notifications).values({
+                    id: notificationId,
+                    userId,
+                    kind: "call",
+                    chatId: input.chatId,
+                    actorUserId: input.actorUserId,
+                    payloadJson: JSON.stringify({ callId: id, kind: input.kind }),
+                    syncSequence: sequence,
                 });
                 await this.insertSyncEvent(tx, {
                     sequence,
@@ -3251,7 +3597,7 @@ export class CollaborationRepository {
                     targetUserId: userId,
                 });
             }
-            const call = await this.getCallProjection(tx, input.actorUserId, id);
+            const call = await this.getCallProjectionDb(tx, input.actorUserId, id);
             if (!call) throw new Error("Created call is not readable");
             return {
                 call,
@@ -3265,7 +3611,7 @@ export class CollaborationRepository {
     }
 
     async getCall(userId: string, callId: string): Promise<CallSummary> {
-        const call = await this.getCallProjection(this.client, userId, callId);
+        const call = await this.getCallProjectionDb(this.db, userId, callId);
         if (!call) throw new CollaborationError("not_found", "Call was not found");
         return call;
     }
@@ -3275,27 +3621,34 @@ export class CollaborationRepository {
         chatId?: string;
         limit: number;
     }): Promise<CallSummary[]> {
-        if (
-            input.chatId &&
-            !(await this.chatAccess(this.client, input.userId, input.chatId, false))
-        )
+        if (input.chatId && !(await this.chatAccessDb(this.db, input.userId, input.chatId, false)))
             throw new CollaborationError("not_found", "Chat was not found");
-        const result = await this.client.execute({
-            sql: `SELECT c.id FROM calls c
-                   WHERE (? IS NULL OR c.chat_id = ?)
-                     AND EXISTS (
-                       SELECT 1 FROM call_participants cp
-                        WHERE cp.call_id = c.id AND cp.user_id = ?
-                     )
-                   ORDER BY c.created_at DESC, c.id DESC LIMIT ?`,
-            args: [input.chatId ?? null, input.chatId ?? null, input.userId, input.limit],
-        });
-        const calls: CallSummary[] = [];
-        for (const row of result.rows) {
-            const call = await this.getCallProjection(this.client, input.userId, text(row.id));
-            if (call) calls.push(call);
+        const visibleCalls = this.db
+            .select({ callId: callParticipants.callId })
+            .from(callParticipants)
+            .where(
+                and(
+                    eq(callParticipants.callId, calls.id),
+                    eq(callParticipants.userId, input.userId),
+                ),
+            );
+        const result = await this.db
+            .select({ id: calls.id })
+            .from(calls)
+            .where(
+                and(
+                    ...(input.chatId ? [eq(calls.chatId, input.chatId)] : []),
+                    sql`exists ${visibleCalls}`,
+                ),
+            )
+            .orderBy(desc(calls.createdAt), desc(calls.id))
+            .limit(input.limit);
+        const callSummaries: CallSummary[] = [];
+        for (const row of result) {
+            const call = await this.getCallProjectionDb(this.db, input.userId, row.id);
+            if (call) callSummaries.push(call);
         }
-        return calls;
+        return callSummaries;
     }
 
     async updateCallParticipation(input: {
@@ -3303,16 +3656,21 @@ export class CollaborationRepository {
         callId: string;
         action: "join" | "decline" | "leave";
     }): Promise<{ call: CallSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const call = await this.getCallProjection(tx, input.actorUserId, input.callId);
+        return this.writeDb(async (tx) => {
+            const call = await this.getCallProjectionDb(tx, input.actorUserId, input.callId);
             if (!call) throw new CollaborationError("not_found", "Call was not found");
             if (call.status === "ended" || call.status === "cancelled" || call.status === "failed")
                 throw new CollaborationError("conflict", "Call has ended");
-            const participant = await one(
-                tx,
-                `SELECT status FROM call_participants WHERE call_id = ? AND user_id = ?`,
-                [input.callId, input.actorUserId],
-            );
+            const [participant] = await tx
+                .select({ status: callParticipants.status })
+                .from(callParticipants)
+                .where(
+                    and(
+                        eq(callParticipants.callId, input.callId),
+                        eq(callParticipants.userId, input.actorUserId),
+                    ),
+                )
+                .limit(1);
             if (!participant) throw new CollaborationError("not_found", "Call was not found");
             const nextStatus =
                 input.action === "join"
@@ -3329,43 +3687,64 @@ export class CollaborationRepository {
                 `call.${nextStatus}`,
                 input.callId,
             );
-            await tx.execute({
-                sql: `UPDATE call_participants
-                         SET status = ?,
-                             joined_at = CASE WHEN ? = 'joined' THEN COALESCE(joined_at, CURRENT_TIMESTAMP) ELSE joined_at END,
-                             left_at = CASE WHEN ? IN ('declined', 'left') THEN CURRENT_TIMESTAMP ELSE left_at END,
-                             last_seen_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                       WHERE call_id = ? AND user_id = ?`,
-                args: [nextStatus, nextStatus, nextStatus, input.callId, input.actorUserId],
-            });
-            await tx.execute({
-                sql: `INSERT INTO call_events (id, call_id, kind, actor_user_id)
-                      VALUES (?, ?, ?, ?)`,
-                args: [createId(), input.callId, nextStatus, input.actorUserId],
+            await tx
+                .update(callParticipants)
+                .set({
+                    status: nextStatus,
+                    joinedAt:
+                        nextStatus === "joined"
+                            ? sql`coalesce(${callParticipants.joinedAt}, CURRENT_TIMESTAMP)`
+                            : sql`${callParticipants.joinedAt}`,
+                    leftAt: ["declined", "left"].includes(nextStatus)
+                        ? sql`CURRENT_TIMESTAMP`
+                        : sql`${callParticipants.leftAt}`,
+                    lastSeenAt: sql`CURRENT_TIMESTAMP`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(callParticipants.callId, input.callId),
+                        eq(callParticipants.userId, input.actorUserId),
+                    ),
+                );
+            await tx.insert(callEvents).values({
+                id: createId(),
+                callId: input.callId,
+                kind: nextStatus,
+                actorUserId: input.actorUserId,
             });
             if (nextStatus === "joined")
-                await tx.execute({
-                    sql: `UPDATE calls SET status = 'active',
-                                 started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
-                                 updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-                    args: [input.callId],
-                });
+                await tx
+                    .update(calls)
+                    .set({
+                        status: "active",
+                        startedAt: sql`coalesce(${calls.startedAt}, CURRENT_TIMESTAMP)`,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    })
+                    .where(eq(calls.id, input.callId));
             else {
-                const remaining = await one(
-                    tx,
-                    `SELECT 1 AS found FROM call_participants
-                      WHERE call_id = ? AND status IN ('joined', 'ringing', 'invited') LIMIT 1`,
-                    [input.callId],
-                );
+                const [remaining] = await tx
+                    .select({ userId: callParticipants.userId })
+                    .from(callParticipants)
+                    .where(
+                        and(
+                            eq(callParticipants.callId, input.callId),
+                            inArray(callParticipants.status, ["joined", "ringing", "invited"]),
+                        ),
+                    )
+                    .limit(1);
                 if (!remaining)
-                    await tx.execute({
-                        sql: `UPDATE calls SET status = 'ended', ended_at = CURRENT_TIMESTAMP,
-                                     end_reason = 'no_participants', updated_at = CURRENT_TIMESTAMP
-                               WHERE id = ?`,
-                        args: [input.callId],
-                    });
+                    await tx
+                        .update(calls)
+                        .set({
+                            status: "ended",
+                            endedAt: sql`CURRENT_TIMESTAMP`,
+                            endReason: "no_participants",
+                            updatedAt: sql`CURRENT_TIMESTAMP`,
+                        })
+                        .where(eq(calls.id, input.callId));
             }
-            const updated = await this.getCallProjection(tx, input.actorUserId, input.callId);
+            const updated = await this.getCallProjectionDb(tx, input.actorUserId, input.callId);
             if (!updated) throw new Error("Updated call is not readable");
             return {
                 call: updated,
@@ -3382,10 +3761,10 @@ export class CollaborationRepository {
         callId: string;
         reason?: string;
     }): Promise<{ call: CallSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const call = await this.getCallProjection(tx, input.actorUserId, input.callId);
+        return this.writeDb(async (tx) => {
+            const call = await this.getCallProjectionDb(tx, input.actorUserId, input.callId);
             if (!call) throw new CollaborationError("not_found", "Call was not found");
-            const access = await this.chatAccess(tx, input.actorUserId, call.chatId, true);
+            const access = await this.chatAccessDb(tx, input.actorUserId, call.chatId, true);
             if (!access) throw new CollaborationError("not_found", "Call was not found");
             if (
                 call.createdByUserId !== input.actorUserId &&
@@ -3405,32 +3784,31 @@ export class CollaborationRepository {
                 "call.ended",
                 input.callId,
             );
-            await tx.execute({
-                sql: `UPDATE calls SET status = 'ended', ended_at = CURRENT_TIMESTAMP,
-                             end_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-                args: [input.reason ?? "ended", input.callId],
+            await tx
+                .update(calls)
+                .set({
+                    status: "ended",
+                    endedAt: sql`CURRENT_TIMESTAMP`,
+                    endReason: input.reason ?? "ended",
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(calls.id, input.callId));
+            await tx
+                .update(callParticipants)
+                .set({
+                    status: sql`case when ${callParticipants.status} in ('ringing', 'invited') then 'missed' when ${callParticipants.status} = 'joined' then 'left' else ${callParticipants.status} end`,
+                    leftAt: sql`case when ${callParticipants.status} in ('ringing', 'invited', 'joined') then CURRENT_TIMESTAMP else ${callParticipants.leftAt} end`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(callParticipants.callId, input.callId));
+            await tx.insert(callEvents).values({
+                id: createId(),
+                callId: input.callId,
+                kind: "ended",
+                actorUserId: input.actorUserId,
+                payloadJson: JSON.stringify({ reason: input.reason ?? "ended" }),
             });
-            await tx.execute({
-                sql: `UPDATE call_participants
-                         SET status = CASE WHEN status IN ('ringing', 'invited') THEN 'missed'
-                                           WHEN status = 'joined' THEN 'left' ELSE status END,
-                             left_at = CASE WHEN status IN ('ringing', 'invited', 'joined')
-                                            THEN CURRENT_TIMESTAMP ELSE left_at END,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE call_id = ?`,
-                args: [input.callId],
-            });
-            await tx.execute({
-                sql: `INSERT INTO call_events (id, call_id, kind, actor_user_id, payload_json)
-                      VALUES (?, ?, 'ended', ?, ?)`,
-                args: [
-                    createId(),
-                    input.callId,
-                    input.actorUserId,
-                    JSON.stringify({ reason: input.reason ?? "ended" }),
-                ],
-            });
-            const updated = await this.getCallProjection(tx, input.actorUserId, input.callId);
+            const updated = await this.getCallProjectionDb(tx, input.actorUserId, input.callId);
             if (!updated) throw new Error("Ended call is not readable");
             return {
                 call: updated,
@@ -3448,40 +3826,66 @@ export class CollaborationRepository {
         chatId: string;
         recipientUserId?: string;
     }): Promise<boolean> {
-        const row = await one(
-            this.client,
-            `SELECT 1 AS found FROM calls c
-              JOIN call_participants sender
-                ON sender.call_id = c.id AND sender.user_id = ?
-             WHERE c.id = ? AND c.chat_id = ? AND c.status IN ('ringing', 'active')
-               AND sender.status IN ('ringing', 'joined')
-               AND (? IS NULL OR EXISTS (
-                 SELECT 1 FROM call_participants recipient
-                  WHERE recipient.call_id = c.id AND recipient.user_id = ?
-                    AND recipient.status IN ('ringing', 'joined')
-               ))`,
-            [
-                input.userId,
-                input.callId,
-                input.chatId,
-                input.recipientUserId ?? null,
-                input.recipientUserId ?? null,
-            ],
-        );
+        const sender = alias(callParticipants, "sender");
+        const recipient = alias(callParticipants, "recipient");
+        const recipientExists = this.db
+            .select({ userId: recipient.userId })
+            .from(recipient)
+            .where(
+                and(
+                    eq(recipient.callId, calls.id),
+                    eq(recipient.userId, input.recipientUserId!),
+                    inArray(recipient.status, ["ringing", "joined"]),
+                ),
+            );
+        const [row] = await this.db
+            .select({ id: calls.id })
+            .from(calls)
+            .innerJoin(sender, and(eq(sender.callId, calls.id), eq(sender.userId, input.userId)))
+            .where(
+                and(
+                    eq(calls.id, input.callId),
+                    eq(calls.chatId, input.chatId),
+                    inArray(calls.status, ["ringing", "active"]),
+                    inArray(sender.status, ["ringing", "joined"]),
+                    ...(input.recipientUserId ? [sql`exists ${recipientExists}`] : []),
+                ),
+            )
+            .limit(1);
         return Boolean(row);
     }
 
     async listDirectoryChannels(userId: string): Promise<ChatSummary[]> {
-        const result = await this.client.execute({
-            sql: `${CHAT_SELECT}
-                  WHERE c.deleted_at IS NULL
-                    AND c.kind IN ('public_channel', 'private_channel')
-                    AND ((c.kind = 'public_channel' AND c.is_listed = 1)
-                         OR cm.user_id IS NOT NULL)
-                  ORDER BY lower(c.name), c.id`,
-            args: [userId, userId],
-        });
-        return result.rows.map(asChat);
+        const result = await this.db
+            .select(chatSelection)
+            .from(chats)
+            .leftJoin(
+                chatMembers,
+                and(
+                    eq(chatMembers.chatId, chats.id),
+                    eq(chatMembers.userId, userId),
+                    isNull(chatMembers.leftAt),
+                ),
+            )
+            .leftJoin(
+                userChatPreferences,
+                and(
+                    eq(userChatPreferences.chatId, chats.id),
+                    eq(userChatPreferences.userId, userId),
+                ),
+            )
+            .where(
+                and(
+                    isNull(chats.deletedAt),
+                    inArray(chats.kind, ["public_channel", "private_channel"]),
+                    or(
+                        and(eq(chats.kind, "public_channel"), eq(chats.isListed, 1)),
+                        sql`${chatMembers.userId} IS NOT NULL`,
+                    ),
+                ),
+            )
+            .orderBy(sql`lower(${chats.name})`, chats.id);
+        return result.map(asChat);
     }
 
     async listFiles(input: {
@@ -3490,44 +3894,53 @@ export class CollaborationRepository {
         before?: string;
         limit: number;
     }): Promise<{ files: FileSummary[]; nextCursor?: string }> {
-        const conditions = [
-            "f.deleted_at IS NULL",
-            "f.upload_status = 'complete'",
-            "f.scan_status != 'infected'",
-            "m.deleted_at IS NULL",
-            "(m.expires_at IS NULL OR datetime(m.expires_at) > CURRENT_TIMESTAMP)",
-            "c.deleted_at IS NULL",
-            "(c.kind = 'public_channel' OR cm.user_id IS NOT NULL)",
+        const conditions: SQL[] = [
+            isNull(files.deletedAt),
+            eq(files.uploadStatus, "complete"),
+            ne(files.scanStatus, "infected"),
+            isNull(messages.deletedAt),
+            or(
+                isNull(messages.expiresAt),
+                sql`datetime(${messages.expiresAt}) > CURRENT_TIMESTAMP`,
+            )!,
+            isNull(chats.deletedAt),
+            or(eq(chats.kind, "public_channel"), sql`${chatMembers.userId} IS NOT NULL`)!,
         ];
-        const args: InArgs = [input.userId];
         if (input.kind) {
-            conditions.push("f.kind = ?");
-            args.push(input.kind);
+            conditions.push(eq(files.kind, input.kind));
         }
         if (input.before) {
-            conditions.push(`(
-                f.created_at < (SELECT created_at FROM files WHERE id = ?)
-                OR (f.created_at = (SELECT created_at FROM files WHERE id = ?) AND f.id < ?)
-            )`);
-            args.push(input.before, input.before, input.before);
+            const [cursor] = await this.db
+                .select({ createdAt: files.createdAt })
+                .from(files)
+                .where(eq(files.id, input.before));
+            if (cursor)
+                conditions.push(
+                    or(
+                        lt(files.createdAt, cursor.createdAt),
+                        and(eq(files.createdAt, cursor.createdAt), lt(files.id, input.before)),
+                    )!,
+                );
         }
-        args.push(input.limit + 1);
-        const result = await this.client.execute({
-            sql: `SELECT DISTINCT f.id, f.kind, f.original_name, f.content_type, f.size,
-                                  f.width, f.height, f.duration_ms, f.thumbhash,
-                                  f.uploaded_by_user_id, f.created_at
-                    FROM files f
-                    JOIN message_attachments ma ON ma.file_id = f.id
-                    JOIN messages m ON m.id = ma.message_id
-                    JOIN chats c ON c.id = m.chat_id
-               LEFT JOIN chat_members cm
-                      ON cm.chat_id = c.id AND cm.user_id = ? AND cm.left_at IS NULL
-                   WHERE ${conditions.join(" AND ")}
-                   ORDER BY f.created_at DESC, f.id DESC LIMIT ?`,
-            args,
-        });
-        const hasMore = result.rows.length > input.limit;
-        const rows = result.rows.slice(0, input.limit);
+        const result = await this.db
+            .selectDistinct(fileSelection)
+            .from(files)
+            .innerJoin(messageAttachments, eq(messageAttachments.fileId, files.id))
+            .innerJoin(messages, eq(messages.id, messageAttachments.messageId))
+            .innerJoin(chats, eq(chats.id, messages.chatId))
+            .leftJoin(
+                chatMembers,
+                and(
+                    eq(chatMembers.chatId, chats.id),
+                    eq(chatMembers.userId, input.userId),
+                    isNull(chatMembers.leftAt),
+                ),
+            )
+            .where(and(...conditions))
+            .orderBy(desc(files.createdAt), desc(files.id))
+            .limit(input.limit + 1);
+        const hasMore = result.length > input.limit;
+        const rows = result.slice(0, input.limit);
         return {
             files: rows.map(asFile),
             nextCursor: hasMore ? text(rows.at(-1)?.id) : undefined,
@@ -3535,23 +3948,31 @@ export class CollaborationRepository {
     }
 
     async canAccessFile(userId: string, fileId: string): Promise<boolean> {
-        return this.canAccessFileWith(this.client, userId, fileId);
+        return this.canAccessFileWithDb(this.db, userId, fileId);
     }
 
     async listCustomEmoji(): Promise<
         Array<{ id: string; name: string; file: FileSummary; createdByUserId: string }>
     > {
-        const result = await this.client.execute({
-            sql: `SELECT e.id AS emoji_id, e.name, e.created_by_user_id,
-                         f.id, f.kind, f.original_name, f.content_type, f.size, f.width,
-                         f.height, f.duration_ms, f.thumbhash, f.uploaded_by_user_id, f.created_at
-                    FROM custom_emojis e JOIN files f ON f.id = e.file_id
-                   WHERE e.deleted_at IS NULL AND f.deleted_at IS NULL
-                     AND f.upload_status = 'complete' AND f.scan_status != 'infected'
-                   ORDER BY e.name`,
-            args: [],
-        });
-        return result.rows.map((row) => ({
+        const result = await this.db
+            .select({
+                emoji_id: customEmojis.id,
+                name: customEmojis.name,
+                created_by_user_id: customEmojis.createdByUserId,
+                ...fileSelection,
+            })
+            .from(customEmojis)
+            .innerJoin(files, eq(files.id, customEmojis.fileId))
+            .where(
+                and(
+                    isNull(customEmojis.deletedAt),
+                    isNull(files.deletedAt),
+                    eq(files.uploadStatus, "complete"),
+                    ne(files.scanStatus, "infected"),
+                ),
+            )
+            .orderBy(customEmojis.name);
+        return result.map((row) => ({
             id: text(row.emoji_id),
             name: text(row.name),
             file: asFile(row),
@@ -3563,33 +3984,40 @@ export class CollaborationRepository {
         emoji: { id: string; name: string; file: FileSummary; createdByUserId: string };
         hint: MutationHint;
     }> {
-        return this.write(async (tx) => {
-            await this.requireActiveUser(tx, input.actorUserId);
-            const file = await one(
-                tx,
-                `${FILE_SELECT}
-                  WHERE id = ? AND deleted_at IS NULL AND upload_status = 'complete'
-                    AND scan_status != 'infected'
-                    AND (uploaded_by_user_id = ? OR is_public = 1)`,
-                [input.fileId, input.actorUserId],
-            );
+        return this.writeDb(async (tx) => {
+            await this.requireActiveUserDb(tx, input.actorUserId);
+            const [file] = await tx
+                .select(fileSelection)
+                .from(files)
+                .where(
+                    and(
+                        eq(files.id, input.fileId),
+                        isNull(files.deletedAt),
+                        eq(files.uploadStatus, "complete"),
+                        ne(files.scanStatus, "infected"),
+                        or(eq(files.uploadedByUserId, input.actorUserId), eq(files.isPublic, 1)),
+                    ),
+                )
+                .limit(1);
             if (!file || !["photo", "gif"].includes(text(file.kind)))
                 throw new CollaborationError("not_found", "Emoji image file was not found");
             const id = createId();
             const sequence = await this.nextSequence(tx);
             try {
-                await tx.execute({
-                    sql: `INSERT INTO custom_emojis
-                            (id, name, file_id, created_by_user_id, sync_sequence)
-                          VALUES (?, ?, ?, ?, ?)`,
-                    args: [id, input.name, input.fileId, input.actorUserId, sequence],
+                await tx.insert(customEmojis).values({
+                    id,
+                    name: input.name,
+                    fileId: input.fileId,
+                    createdByUserId: input.actorUserId,
+                    syncSequence: sequence,
                 });
-                await tx.execute({
-                    sql: `INSERT INTO custom_emoji_revisions
-                            (id, custom_emoji_id, name, file_id, changed_by_user_id,
-                             change_kind)
-                          VALUES (?, ?, ?, ?, ?, 'created')`,
-                    args: [createId(), id, input.name, input.fileId, input.actorUserId],
+                await tx.insert(customEmojiRevisions).values({
+                    id: createId(),
+                    customEmojiId: id,
+                    name: input.name,
+                    fileId: input.fileId,
+                    changedByUserId: input.actorUserId,
+                    changeKind: "created",
                 });
             } catch (error) {
                 if (isUniqueConstraint(error))
@@ -3615,27 +4043,30 @@ export class CollaborationRepository {
     }
 
     async deleteCustomEmoji(actorUserId: string, emojiId: string): Promise<{ hint: MutationHint }> {
-        return this.write(async (tx) => {
-            const emoji = await one(
-                tx,
-                `SELECT e.created_by_user_id, e.name, e.file_id, u.role AS actor_role
-                   FROM custom_emojis e JOIN users u ON u.id = ?
-                  WHERE e.id = ? AND e.deleted_at IS NULL`,
-                [actorUserId, emojiId],
-            );
+        return this.writeDb(async (tx) => {
+            const [emoji] = await tx
+                .select({
+                    createdByUserId: customEmojis.createdByUserId,
+                    name: customEmojis.name,
+                    fileId: customEmojis.fileId,
+                    actorRole: users.role,
+                })
+                .from(customEmojis)
+                .innerJoin(users, eq(users.id, actorUserId))
+                .where(and(eq(customEmojis.id, emojiId), isNull(customEmojis.deletedAt)))
+                .limit(1);
             if (!emoji) throw new CollaborationError("not_found", "Emoji was not found");
-            if (emoji.created_by_user_id !== actorUserId && emoji.actor_role !== "admin")
+            if (emoji.createdByUserId !== actorUserId && emoji.actorRole !== "admin")
                 throw new CollaborationError("forbidden", "Cannot delete this emoji");
             const sequence = await this.nextSequence(tx);
-            const affected = await tx.execute({
-                sql: `SELECT DISTINCT m.chat_id
-                        FROM reactions r JOIN messages m ON m.id = r.message_id
-                       WHERE r.custom_emoji_id = ? AND m.deleted_at IS NULL`,
-                args: [emojiId],
-            });
-            const chats: Array<{ chatId: string; pts: string }> = [];
-            for (const row of affected.rows) {
-                const chatId = text(row.chat_id);
+            const affected = await tx
+                .selectDistinct({ chatId: messages.chatId })
+                .from(reactions)
+                .innerJoin(messages, eq(messages.id, reactions.messageId))
+                .where(and(eq(reactions.customEmojiId, emojiId), isNull(messages.deletedAt)));
+            const chatHints: Array<{ chatId: string; pts: string }> = [];
+            for (const row of affected) {
+                const chatId = row.chatId;
                 const mutation = await this.advanceChatWithSequence(
                     tx,
                     sequence,
@@ -3644,22 +4075,20 @@ export class CollaborationRepository {
                     "reaction.emojiDeleted",
                     emojiId,
                 );
-                chats.push({ chatId, pts: String(mutation.pts) });
+                chatHints.push({ chatId, pts: String(mutation.pts) });
             }
-            await tx.execute({
-                sql: `DELETE FROM reactions WHERE custom_emoji_id = ?`,
-                args: [emojiId],
-            });
-            await tx.execute({
-                sql: `UPDATE custom_emojis
-                         SET deleted_at = CURRENT_TIMESTAMP, sync_sequence = ? WHERE id = ?`,
-                args: [sequence, emojiId],
-            });
-            await tx.execute({
-                sql: `INSERT INTO custom_emoji_revisions
-                        (id, custom_emoji_id, name, file_id, changed_by_user_id, change_kind)
-                      VALUES (?, ?, ?, ?, ?, 'deleted')`,
-                args: [createId(), emojiId, text(emoji.name), text(emoji.file_id), actorUserId],
+            await tx.delete(reactions).where(eq(reactions.customEmojiId, emojiId));
+            await tx
+                .update(customEmojis)
+                .set({ deletedAt: sql`CURRENT_TIMESTAMP`, syncSequence: sequence })
+                .where(eq(customEmojis.id, emojiId));
+            await tx.insert(customEmojiRevisions).values({
+                id: createId(),
+                customEmojiId: emojiId,
+                name: emoji.name,
+                fileId: emoji.fileId,
+                changedByUserId: actorUserId,
+                changeKind: "deleted",
             });
             await this.insertSyncEvent(tx, {
                 sequence,
@@ -3668,7 +4097,7 @@ export class CollaborationRepository {
                 actorUserId,
             });
             return {
-                hint: { sequence: String(sequence), chats, areas: ["emoji"] },
+                hint: { sequence: String(sequence), chats: chatHints, areas: ["emoji"] },
             };
         });
     }
@@ -3728,35 +4157,59 @@ export class CollaborationRepository {
         const grams = [...searchGrams(normalized).keys()];
         const rankedMessages: Array<{ messageId: string; score: number }> = [];
         if (grams.length > 0) {
-            const placeholders = grams.map(() => "?").join(", ");
             const candidateLimit = offset + input.limit + candidates.length + 1;
-            const messageRows = await this.client.execute({
-                sql: `WITH matched AS (
-                        SELECT g.message_id, count(*) AS matched_grams
-                          FROM message_search_ngrams g
-                         WHERE g.gram IN (${placeholders})
-                         GROUP BY g.message_id
-                      )
-                      SELECT d.message_id, d.normalized_text,
-                             CASE WHEN instr(d.normalized_text, ?) > 0 THEN 1.0
-                                  ELSE CAST(matched.matched_grams AS REAL) /
-                                       MAX(1, d.gram_count + ? - matched.matched_grams)
-                              END AS candidate_score
-                        FROM matched
-                        JOIN message_search_documents d ON d.message_id = matched.message_id
-                        JOIN messages m ON m.id = d.message_id
-                        JOIN chats c ON c.id = d.chat_id
-                   LEFT JOIN chat_members cm
-                          ON cm.chat_id = c.id AND cm.user_id = ? AND cm.left_at IS NULL
-                       WHERE m.deleted_at IS NULL
-                         AND (m.expires_at IS NULL OR datetime(m.expires_at) > CURRENT_TIMESTAMP)
-                         AND c.deleted_at IS NULL
-                         AND (c.kind = 'public_channel' OR cm.user_id IS NOT NULL)
-                       ORDER BY candidate_score DESC, d.message_created_at DESC, d.message_id DESC
-                       LIMIT ?`,
-                args: [...grams, normalized, grams.length, input.userId, candidateLimit],
-            });
-            for (const row of messageRows.rows) {
+            const matched = this.db
+                .select({
+                    messageId: messageSearchNgrams.messageId,
+                    matchedGrams: sql<number>`count(*)`.as("matched_grams"),
+                })
+                .from(messageSearchNgrams)
+                .where(inArray(messageSearchNgrams.gram, grams))
+                .groupBy(messageSearchNgrams.messageId)
+                .as("matched");
+            const candidateScore = sql<number>`case when instr(${messageSearchDocuments.normalizedText}, ${normalized}) > 0 then 1.0 else cast(${matched.matchedGrams} as real) / max(1, ${messageSearchDocuments.gramCount} + ${grams.length} - ${matched.matchedGrams}) end`;
+            const messageRows = await this.db
+                .select({
+                    message_id: messageSearchDocuments.messageId,
+                    normalized_text: messageSearchDocuments.normalizedText,
+                    candidate_score: candidateScore,
+                })
+                .from(matched)
+                .innerJoin(
+                    messageSearchDocuments,
+                    eq(messageSearchDocuments.messageId, matched.messageId),
+                )
+                .innerJoin(messages, eq(messages.id, messageSearchDocuments.messageId))
+                .innerJoin(chats, eq(chats.id, messageSearchDocuments.chatId))
+                .leftJoin(
+                    chatMembers,
+                    and(
+                        eq(chatMembers.chatId, chats.id),
+                        eq(chatMembers.userId, input.userId),
+                        isNull(chatMembers.leftAt),
+                    ),
+                )
+                .where(
+                    and(
+                        isNull(messages.deletedAt),
+                        or(
+                            isNull(messages.expiresAt),
+                            sql`datetime(${messages.expiresAt}) > CURRENT_TIMESTAMP`,
+                        ),
+                        isNull(chats.deletedAt),
+                        or(
+                            eq(chats.kind, "public_channel"),
+                            sql`${chatMembers.userId} IS NOT NULL`,
+                        ),
+                    ),
+                )
+                .orderBy(
+                    desc(candidateScore),
+                    desc(messageSearchDocuments.messageCreatedAt),
+                    desc(messageSearchDocuments.messageId),
+                )
+                .limit(candidateLimit);
+            for (const row of messageRows) {
                 const fuzzy = fuzzyScore(normalized, text(row.normalized_text));
                 const ngram = Number(row.candidate_score);
                 const score = Math.max(fuzzy, Number.isFinite(ngram) ? ngram * 0.85 : 0);
@@ -3764,7 +4217,7 @@ export class CollaborationRepository {
             }
         }
         for (const { messageId, score } of rankedMessages) {
-            const message = await this.getMessageProjection(this.client, input.userId, messageId);
+            const message = await this.getMessageProjectionDb(this.db, input.userId, messageId);
             if (message) candidates.push({ type: "message", score, message });
         }
         const ranked = candidates.sort(
@@ -3789,12 +4242,17 @@ export class CollaborationRepository {
         defaultRetentionSeconds?: number;
         updatedAt: string;
     }> {
-        const row = await one(
-            this.client,
-            `SELECT name, title, photo_file_id, default_retention_mode,
-                    default_retention_seconds, updated_at
-               FROM server_settings WHERE id = 1`,
-        );
+        const [row] = await this.db
+            .select({
+                name: serverSettings.name,
+                title: serverSettings.title,
+                photo_file_id: serverSettings.photoFileId,
+                default_retention_mode: serverSettings.defaultRetentionMode,
+                default_retention_seconds: serverSettings.defaultRetentionSeconds,
+                updated_at: serverSettings.updatedAt,
+            })
+            .from(serverSettings)
+            .where(eq(serverSettings.id, 1));
         if (!row) throw new Error("Server settings are missing");
         return {
             name: text(row.name),
@@ -3819,19 +4277,22 @@ export class CollaborationRepository {
             }
         >
     > {
-        await this.requireServerAdmin(this.client, actorUserId);
-        const result = await this.client.execute({
-            sql: `SELECT u.id, u.username, u.first_name, u.last_name, u.title,
-                         u.photo_file_id, u.role, u.last_access_at, a.email,
-                         a.banned_at, a.deleted_at,
-                         MAX(s.last_seen_at) AS session_last_seen_at
-                    FROM users u JOIN accounts a ON a.id = u.account_id
-               LEFT JOIN auth_sessions s ON s.account_id = a.id
-                   GROUP BY u.id
-                   ORDER BY u.created_at, u.id`,
-            args: [],
-        });
-        return result.rows.map((row) => ({
+        await this.requireServerAdminDb(this.db, actorUserId);
+        const result = await this.db
+            .select({
+                ...userSelection,
+                last_access_at: users.lastAccessAt,
+                email: accounts.email,
+                banned_at: accounts.bannedAt,
+                deleted_at: accounts.deletedAt,
+                session_last_seen_at: sql<string | null>`max(${authSessions.lastSeenAt})`,
+            })
+            .from(users)
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .leftJoin(authSessions, eq(authSessions.accountId, accounts.id))
+            .groupBy(users.id)
+            .orderBy(users.createdAt, users.id);
+        return result.map((row) => ({
             ...asUser(row),
             lastAccessAt: optionalText(row.last_access_at),
             email: text(row.email),
@@ -3852,26 +4313,27 @@ export class CollaborationRepository {
         server: Awaited<ReturnType<CollaborationRepository["getServerProfile"]>>;
         hint: MutationHint;
     }> {
-        const result = await this.write(async (tx) => {
-            await this.requireServerAdmin(tx, input.actorUserId);
+        const result = await this.writeDb(async (tx) => {
+            await this.requireServerAdminDb(tx, input.actorUserId);
             if (
                 input.photoFileId &&
-                !(await this.canAccessFileWith(tx, input.actorUserId, input.photoFileId))
+                !(await this.canAccessFileWithDb(tx, input.actorUserId, input.photoFileId))
             )
                 throw new CollaborationError("not_found", "Server photo file was not found");
-            const current = await one(
-                tx,
-                `SELECT default_retention_mode, default_retention_seconds
-                   FROM server_settings WHERE id = 1`,
-            );
+            const [current] = await tx
+                .select({
+                    defaultRetentionMode: serverSettings.defaultRetentionMode,
+                    defaultRetentionSeconds: serverSettings.defaultRetentionSeconds,
+                })
+                .from(serverSettings)
+                .where(eq(serverSettings.id, 1));
             if (!current) throw new Error("Server settings are missing");
-            const retentionMode =
-                input.defaultRetentionMode ?? text(current.default_retention_mode);
+            const retentionMode = input.defaultRetentionMode ?? current.defaultRetentionMode;
             const retentionSeconds =
                 input.defaultRetentionSeconds === undefined
-                    ? current.default_retention_seconds === null
+                    ? current.defaultRetentionSeconds === null
                         ? undefined
-                        : number(current.default_retention_seconds)
+                        : current.defaultRetentionSeconds
                     : (input.defaultRetentionSeconds ?? undefined);
             if (retentionMode === "duration" && !retentionSeconds)
                 throw new CollaborationError(
@@ -3879,38 +4341,28 @@ export class CollaborationRepository {
                     "Duration retention requires defaultRetentionSeconds",
                 );
             const sequence = await this.nextSequence(tx);
-            await tx.execute({
-                sql: `UPDATE server_settings
-                         SET name = CASE WHEN ? = 1 THEN ? ELSE name END,
-                             title = CASE WHEN ? = 1 THEN ? ELSE title END,
-                             photo_file_id = CASE WHEN ? = 1 THEN ? ELSE photo_file_id END,
-                             default_retention_mode = CASE WHEN ? = 1
-                                 THEN ? ELSE default_retention_mode END,
-                             default_retention_seconds = CASE WHEN ? = 1
-                                 THEN ? ELSE default_retention_seconds END,
-                             sync_sequence = ?,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE id = 1`,
-                args: [
-                    input.name === undefined ? 0 : 1,
-                    input.name ?? null,
-                    input.title === undefined ? 0 : 1,
-                    input.title ?? null,
-                    input.photoFileId === undefined ? 0 : 1,
-                    input.photoFileId ?? null,
-                    input.defaultRetentionMode === undefined ? 0 : 1,
-                    input.defaultRetentionMode ?? null,
-                    input.defaultRetentionSeconds === undefined ? 0 : 1,
-                    input.defaultRetentionSeconds ?? null,
-                    sequence,
-                ],
-            });
+            await tx
+                .update(serverSettings)
+                .set({
+                    ...(input.name === undefined ? {} : { name: input.name }),
+                    ...(input.title === undefined ? {} : { title: input.title }),
+                    ...(input.photoFileId === undefined ? {} : { photoFileId: input.photoFileId }),
+                    ...(input.defaultRetentionMode === undefined
+                        ? {}
+                        : { defaultRetentionMode: input.defaultRetentionMode }),
+                    ...(input.defaultRetentionSeconds === undefined
+                        ? {}
+                        : { defaultRetentionSeconds: input.defaultRetentionSeconds }),
+                    syncSequence: sequence,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(serverSettings.id, 1));
             await this.insertSyncEvent(tx, {
                 sequence,
                 kind: "server.updated",
                 actorUserId: input.actorUserId,
             });
-            await this.appendAudit(tx, {
+            await this.appendAuditDb(tx, {
                 actorUserId: input.actorUserId,
                 action: "server.updated",
                 targetType: "server",
@@ -3934,39 +4386,37 @@ export class CollaborationRepository {
         title?: string | null;
         role?: "member" | "admin";
     }): Promise<{ user: UserSummary; hint: MutationHint }> {
-        return this.write(async (tx) => {
-            await this.requireServerAdmin(tx, input.actorUserId);
-            await this.requireActiveUser(tx, input.userId);
+        return this.writeDb(async (tx) => {
+            await this.requireServerAdminDb(tx, input.actorUserId);
+            await this.requireActiveUserDb(tx, input.userId);
             if (input.actorUserId === input.userId && input.role === "member")
                 throw new CollaborationError("invalid", "An admin cannot demote themselves");
             const sequence = await this.nextSequence(tx);
-            await tx.execute({
-                sql: `UPDATE users
-                         SET title = CASE WHEN ? = 1 THEN ? ELSE title END,
-                             role = COALESCE(?, role), sync_sequence = ?
-                       WHERE id = ? AND deleted_at IS NULL`,
-                args: [
-                    input.title === undefined ? 0 : 1,
-                    input.title ?? null,
-                    input.role ?? null,
-                    sequence,
-                    input.userId,
-                ],
-            });
+            await tx
+                .update(users)
+                .set({
+                    ...(input.title === undefined ? {} : { title: input.title }),
+                    ...(input.role === undefined ? {} : { role: input.role }),
+                    syncSequence: sequence,
+                })
+                .where(and(eq(users.id, input.userId), isNull(users.deletedAt)));
             await this.insertSyncEvent(tx, {
                 sequence,
                 kind: "user.updated",
                 entityId: input.userId,
                 actorUserId: input.actorUserId,
             });
-            await this.appendAudit(tx, {
+            await this.appendAuditDb(tx, {
                 actorUserId: input.actorUserId,
                 action: "user.administration_updated",
                 targetType: "user",
                 targetId: input.userId,
                 after: { title: input.title, role: input.role },
             });
-            const user = await one(tx, `${USER_SELECT} WHERE id = ?`, [input.userId]);
+            const [user] = await tx
+                .select(userSelection)
+                .from(users)
+                .where(eq(users.id, input.userId));
             if (!user) throw new Error("Updated user is missing");
             return { user: asUser(user), hint: areaHint(sequence, "users") };
         });
@@ -3977,68 +4427,78 @@ export class CollaborationRepository {
         userId: string;
         banned: boolean;
     }): Promise<{ hint: MutationHint }> {
-        return this.write(async (tx) => {
-            await this.requireServerAdmin(tx, input.actorUserId);
+        return this.writeDb(async (tx) => {
+            await this.requireServerAdminDb(tx, input.actorUserId);
             if (input.actorUserId === input.userId)
                 throw new CollaborationError("invalid", "An admin cannot ban themselves");
-            await this.requireExistingUser(tx, input.userId);
+            const [existingUser] = await tx
+                .select({ id: users.id })
+                .from(users)
+                .where(eq(users.id, input.userId));
+            if (!existingUser) throw new CollaborationError("not_found", "User was not found");
             const sequence = await this.nextSequence(tx);
-            const target = await one(
-                tx,
-                `SELECT u.account_id, a.banned_at
-                   FROM users u JOIN accounts a ON a.id = u.account_id
-                  WHERE u.id = ?`,
-                [input.userId],
-            );
+            const [target] = await tx
+                .select({ accountId: users.accountId, bannedAt: accounts.bannedAt })
+                .from(users)
+                .innerJoin(accounts, eq(accounts.id, users.accountId))
+                .where(eq(users.id, input.userId));
             if (!target) throw new CollaborationError("not_found", "User was not found");
-            if ((target.banned_at !== null) === input.banned)
+            if ((target.bannedAt !== null) === input.banned)
                 throw new CollaborationError(
                     "conflict",
                     input.banned ? "User is already banned" : "User is not banned",
                 );
-            await tx.execute({
-                sql: `UPDATE accounts
-                         SET banned_at = ${input.banned ? "CURRENT_TIMESTAMP" : "NULL"},
-                             ban_expires_at = NULL,
-                             ban_reason = ${input.banned ? "'Administrative action'" : "NULL"},
-                             banned_by_user_id = ${input.banned ? "?" : "NULL"}
-                       WHERE id = (SELECT account_id FROM users WHERE id = ?)`,
-                args: input.banned ? [input.actorUserId, input.userId] : [input.userId],
-            });
+            await tx
+                .update(accounts)
+                .set({
+                    bannedAt: input.banned ? sql`CURRENT_TIMESTAMP` : null,
+                    banExpiresAt: null,
+                    banReason: input.banned ? "Administrative action" : null,
+                    bannedByUserId: input.banned ? input.actorUserId : null,
+                })
+                .where(eq(accounts.id, target.accountId));
             if (input.banned) {
-                await tx.execute({
-                    sql: `INSERT INTO account_bans
-                            (id, account_id, banned_by_user_id, reason)
-                          VALUES (?, ?, ?, 'Administrative action')`,
-                    args: [createId(), text(target.account_id), input.actorUserId],
+                await tx.insert(accountBans).values({
+                    id: createId(),
+                    accountId: target.accountId,
+                    bannedByUserId: input.actorUserId,
+                    reason: "Administrative action",
                 });
-                await tx.execute({
-                    sql: `UPDATE auth_sessions SET revoked_at = CURRENT_TIMESTAMP
-                           WHERE account_id = (SELECT account_id FROM users WHERE id = ?)
-                             AND revoked_at IS NULL`,
-                    args: [input.userId],
-                });
+                await tx
+                    .update(authSessions)
+                    .set({ revokedAt: sql`CURRENT_TIMESTAMP` })
+                    .where(
+                        and(
+                            eq(authSessions.accountId, target.accountId),
+                            isNull(authSessions.revokedAt),
+                        ),
+                    );
             } else {
-                await tx.execute({
-                    sql: `UPDATE account_bans
-                             SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP),
-                                 revoked_by_user_id = COALESCE(revoked_by_user_id, ?),
-                                 revoke_reason = COALESCE(revoke_reason, 'Administrative action')
-                           WHERE account_id = ? AND revoked_at IS NULL`,
-                    args: [input.actorUserId, text(target.account_id)],
-                });
+                await tx
+                    .update(accountBans)
+                    .set({
+                        revokedAt: sql`coalesce(${accountBans.revokedAt}, CURRENT_TIMESTAMP)`,
+                        revokedByUserId: sql`coalesce(${accountBans.revokedByUserId}, ${input.actorUserId})`,
+                        revokeReason: sql`coalesce(${accountBans.revokeReason}, 'Administrative action')`,
+                    })
+                    .where(
+                        and(
+                            eq(accountBans.accountId, target.accountId),
+                            isNull(accountBans.revokedAt),
+                        ),
+                    );
             }
-            await tx.execute({
-                sql: `UPDATE users SET sync_sequence = ? WHERE id = ?`,
-                args: [sequence, input.userId],
-            });
+            await tx
+                .update(users)
+                .set({ syncSequence: sequence })
+                .where(eq(users.id, input.userId));
             await this.insertSyncEvent(tx, {
                 sequence,
                 kind: input.banned ? "user.banned" : "user.unbanned",
                 entityId: input.userId,
                 actorUserId: input.actorUserId,
             });
-            await this.appendAudit(tx, {
+            await this.appendAuditDb(tx, {
                 actorUserId: input.actorUserId,
                 action: input.banned ? "user.banned" : "user.unbanned",
                 targetType: "user",
@@ -4052,65 +4512,89 @@ export class CollaborationRepository {
         actorUserId: string;
         userId: string;
     }): Promise<{ hint: MutationHint }> {
-        return this.write(async (tx) => {
-            await this.requireServerAdmin(tx, input.actorUserId);
+        return this.writeDb(async (tx) => {
+            await this.requireServerAdminDb(tx, input.actorUserId);
             if (input.actorUserId === input.userId)
                 throw new CollaborationError("invalid", "An admin cannot delete themselves");
-            await this.requireActiveUser(tx, input.userId);
+            await this.requireActiveUserDb(tx, input.userId);
             const sequence = await this.nextSequence(tx);
-            const memberships = await tx.execute({
-                sql: `SELECT cm.chat_id, cm.role, c.kind
-                        FROM chat_members cm JOIN chats c ON c.id = cm.chat_id
-                       WHERE cm.user_id = ? AND cm.left_at IS NULL AND c.deleted_at IS NULL`,
-                args: [input.userId],
-            });
+            const memberships = await tx
+                .select({ chatId: chatMembers.chatId, role: chatMembers.role, kind: chats.kind })
+                .from(chatMembers)
+                .innerJoin(chats, eq(chats.id, chatMembers.chatId))
+                .where(
+                    and(
+                        eq(chatMembers.userId, input.userId),
+                        isNull(chatMembers.leftAt),
+                        isNull(chats.deletedAt),
+                    ),
+                );
             const chatPoints: Array<{ chatId: string; pts: string }> = [];
-            for (const membership of memberships.rows) {
-                const chatId = text(membership.chat_id);
+            for (const membership of memberships) {
+                const chatId = membership.chatId;
                 let eventKind = "member.deleted";
                 if (membership.kind !== "dm" && membership.role === "owner") {
-                    const remainingOwner = await one(
-                        tx,
-                        `SELECT user_id FROM chat_members
-                          WHERE chat_id = ? AND user_id != ? AND left_at IS NULL
-                            AND role = 'owner' LIMIT 1`,
-                        [chatId, input.userId],
-                    );
-                    let replacementOwnerId = optionalText(remainingOwner?.user_id);
+                    const [remainingOwner] = await tx
+                        .select({ userId: chatMembers.userId })
+                        .from(chatMembers)
+                        .where(
+                            and(
+                                eq(chatMembers.chatId, chatId),
+                                ne(chatMembers.userId, input.userId),
+                                isNull(chatMembers.leftAt),
+                                eq(chatMembers.role, "owner"),
+                            ),
+                        )
+                        .limit(1);
+                    let replacementOwnerId = remainingOwner?.userId;
                     if (!replacementOwnerId) {
-                        const successor = await one(
-                            tx,
-                            `SELECT cm.user_id
-                               FROM chat_members cm
-                               JOIN users u ON u.id = cm.user_id
-                               JOIN accounts a ON a.id = u.account_id
-                              WHERE cm.chat_id = ? AND cm.user_id != ? AND cm.left_at IS NULL
-                                AND u.deleted_at IS NULL AND a.active = 1
-                                AND a.banned_at IS NULL AND a.deleted_at IS NULL
-                              ORDER BY CASE cm.role WHEN 'admin' THEN 0 ELSE 1 END,
-                                       cm.joined_at, cm.user_id LIMIT 1`,
-                            [chatId, input.userId],
-                        );
+                        const [successor] = await tx
+                            .select({ userId: chatMembers.userId })
+                            .from(chatMembers)
+                            .innerJoin(users, eq(users.id, chatMembers.userId))
+                            .innerJoin(accounts, eq(accounts.id, users.accountId))
+                            .where(
+                                and(
+                                    eq(chatMembers.chatId, chatId),
+                                    ne(chatMembers.userId, input.userId),
+                                    isNull(chatMembers.leftAt),
+                                    isNull(users.deletedAt),
+                                    eq(accounts.active, 1),
+                                    isNull(accounts.bannedAt),
+                                    isNull(accounts.deletedAt),
+                                ),
+                            )
+                            .orderBy(
+                                sql`case ${chatMembers.role} when 'admin' then 0 else 1 end`,
+                                chatMembers.joinedAt,
+                                chatMembers.userId,
+                            )
+                            .limit(1);
                         if (successor) {
-                            replacementOwnerId = text(successor.user_id);
-                            await tx.execute({
-                                sql: `UPDATE chat_members
-                                         SET role = 'owner', sync_sequence = ?,
-                                             updated_at = CURRENT_TIMESTAMP
-                                       WHERE chat_id = ? AND user_id = ?`,
-                                args: [sequence, chatId, text(successor.user_id)],
-                            });
+                            replacementOwnerId = successor.userId;
+                            await tx
+                                .update(chatMembers)
+                                .set({
+                                    role: "owner",
+                                    syncSequence: sequence,
+                                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                                })
+                                .where(
+                                    and(
+                                        eq(chatMembers.chatId, chatId),
+                                        eq(chatMembers.userId, successor.userId),
+                                    ),
+                                );
                             eventKind = "member.deletedAndOwnershipTransferred";
                         } else {
                             eventKind = "chat.deletedWithLastMember";
                         }
                     }
                     if (replacementOwnerId)
-                        await tx.execute({
-                            sql: `UPDATE chats SET owner_user_id = ?
-                                   WHERE id = ? AND owner_user_id = ?`,
-                            args: [replacementOwnerId, chatId, input.userId],
-                        });
+                        await tx
+                            .update(chats)
+                            .set({ ownerUserId: replacementOwnerId })
+                            .where(and(eq(chats.id, chatId), eq(chats.ownerUserId, input.userId)));
                 }
                 const mutation = await this.advanceChatWithSequence(
                     tx,
@@ -4123,47 +4607,66 @@ export class CollaborationRepository {
                 );
                 chatPoints.push({ chatId, pts: String(mutation.pts) });
                 if (membership.kind !== "dm")
-                    await tx.execute({
-                        sql: `UPDATE chat_members
-                                 SET left_at = CURRENT_TIMESTAMP, sync_sequence = ?
-                               WHERE chat_id = ? AND user_id = ? AND left_at IS NULL`,
-                        args: [sequence, chatId, input.userId],
-                    });
+                    await tx
+                        .update(chatMembers)
+                        .set({ leftAt: sql`CURRENT_TIMESTAMP`, syncSequence: sequence })
+                        .where(
+                            and(
+                                eq(chatMembers.chatId, chatId),
+                                eq(chatMembers.userId, input.userId),
+                                isNull(chatMembers.leftAt),
+                            ),
+                        );
                 if (eventKind === "chat.deletedWithLastMember")
-                    await tx.execute({
-                        sql: `UPDATE chats SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?`,
-                        args: [chatId],
-                    });
+                    await tx
+                        .update(chats)
+                        .set({ deletedAt: sql`CURRENT_TIMESTAMP` })
+                        .where(eq(chats.id, chatId));
             }
-            await tx.execute({
-                sql: `UPDATE accounts
-                         SET deleted_at = CURRENT_TIMESTAMP, active = 0, password_hash = NULL,
-                             email = 'deleted+' || id || '@invalid.local'
-                       WHERE id = (SELECT account_id FROM users WHERE id = ?)`,
-                args: [input.userId],
-            });
-            await tx.execute({
-                sql: `UPDATE auth_sessions SET revoked_at = CURRENT_TIMESTAMP
-                       WHERE account_id = (SELECT account_id FROM users WHERE id = ?)
-                         AND revoked_at IS NULL`,
-                args: [input.userId],
-            });
-            await tx.execute({
-                sql: `UPDATE users
-                         SET deleted_at = CURRENT_TIMESTAMP, sync_sequence = ?,
-                             first_name = 'Deleted', last_name = NULL, title = NULL,
-                             username = 'deleted_' || id,
-                             email = NULL, phone = NULL, photo_file_id = NULL
-                       WHERE id = ?`,
-                args: [sequence, input.userId],
-            });
+            const [target] = await tx
+                .select({ accountId: users.accountId })
+                .from(users)
+                .where(eq(users.id, input.userId));
+            if (!target) throw new CollaborationError("not_found", "User was not found");
+            await tx
+                .update(accounts)
+                .set({
+                    deletedAt: sql`CURRENT_TIMESTAMP`,
+                    active: 0,
+                    passwordHash: null,
+                    email: sql`'deleted+' || ${accounts.id} || '@invalid.local'`,
+                })
+                .where(eq(accounts.id, target.accountId));
+            await tx
+                .update(authSessions)
+                .set({ revokedAt: sql`CURRENT_TIMESTAMP` })
+                .where(
+                    and(
+                        eq(authSessions.accountId, target.accountId),
+                        isNull(authSessions.revokedAt),
+                    ),
+                );
+            await tx
+                .update(users)
+                .set({
+                    deletedAt: sql`CURRENT_TIMESTAMP`,
+                    syncSequence: sequence,
+                    firstName: "Deleted",
+                    lastName: null,
+                    title: null,
+                    username: sql`'deleted_' || ${users.id}`,
+                    email: null,
+                    phone: null,
+                    photoFileId: null,
+                })
+                .where(eq(users.id, input.userId));
             await this.insertSyncEvent(tx, {
                 sequence,
                 kind: "user.deleted",
                 entityId: input.userId,
                 actorUserId: input.actorUserId,
             });
-            await this.appendAudit(tx, {
+            await this.appendAuditDb(tx, {
                 actorUserId: input.actorUserId,
                 action: "user.deleted",
                 targetType: "user",
@@ -4183,15 +4686,13 @@ export class CollaborationRepository {
         clientMutationId?: string;
         botId?: string;
     }): Promise<{ message: MessageSummary; hint: MutationHint }> {
-        await this.requireServerAdmin(this.client, input.actorUserId);
-        if (
-            !(await one(
-                this.client,
-                `SELECT 1 AS found FROM chats WHERE id = ? AND deleted_at IS NULL`,
-                [input.chatId],
-            ))
-        )
-            throw new CollaborationError("not_found", "Chat was not found");
+        await this.requireServerAdminDb(this.db, input.actorUserId);
+        const [chat] = await this.db
+            .select({ id: chats.id })
+            .from(chats)
+            .where(and(eq(chats.id, input.chatId), isNull(chats.deletedAt)))
+            .limit(1);
+        if (!chat) throw new CollaborationError("not_found", "Chat was not found");
         return this.sendMessage({
             actorUserId: input.actorUserId,
             chatId: input.chatId,
@@ -4203,134 +4704,101 @@ export class CollaborationRepository {
         });
     }
 
-    private async chatAccess(
-        executor: Executor,
+    private async chatAccessDb(
+        executor: DrizzleExecutor,
         userId: string,
         chatId: string,
         requireMembership: boolean,
     ): Promise<ChatAccess | undefined> {
-        const row = await one(
-            executor,
-            `${CHAT_SELECT}
-             WHERE c.id = ? AND c.deleted_at IS NULL
-               AND EXISTS (
-                 SELECT 1 FROM users actor
-                 JOIN accounts actor_account ON actor_account.id = actor.account_id
-                  WHERE actor.id = ? AND actor.deleted_at IS NULL
-                    AND actor_account.active = 1
-                    AND actor_account.banned_at IS NULL
-                    AND actor_account.deleted_at IS NULL
-               )
-               AND (${requireMembership ? "cm.user_id IS NOT NULL" : "c.kind = 'public_channel' OR cm.user_id IS NOT NULL"})`,
-            [userId, userId, chatId, userId],
-        );
+        const [row] = await executor
+            .select(chatSelection)
+            .from(chats)
+            .leftJoin(
+                chatMembers,
+                and(
+                    eq(chatMembers.chatId, chats.id),
+                    eq(chatMembers.userId, userId),
+                    isNull(chatMembers.leftAt),
+                ),
+            )
+            .leftJoin(
+                userChatPreferences,
+                and(
+                    eq(userChatPreferences.chatId, chats.id),
+                    eq(userChatPreferences.userId, userId),
+                ),
+            )
+            .innerJoin(users, eq(users.id, userId))
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(chats.id, chatId),
+                    isNull(chats.deletedAt),
+                    isNull(users.deletedAt),
+                    eq(accounts.active, 1),
+                    isNull(accounts.bannedAt),
+                    isNull(accounts.deletedAt),
+                    requireMembership
+                        ? sql`${chatMembers.userId} IS NOT NULL`
+                        : or(
+                              eq(chats.kind, "public_channel"),
+                              sql`${chatMembers.userId} IS NOT NULL`,
+                          ),
+                ),
+            )
+            .limit(1);
         if (!row) return undefined;
-        const actor = await one(
-            executor,
-            `SELECT role FROM users WHERE id = ? AND deleted_at IS NULL`,
-            [userId],
-        );
+        const [actor] = await executor
+            .select({ role: users.role })
+            .from(users)
+            .where(and(eq(users.id, userId), isNull(users.deletedAt)))
+            .limit(1);
         return { ...asChat(row), isServerAdmin: actor?.role === "admin" };
     }
 
-    private async getCallProjection(
-        executor: Executor,
-        viewerUserId: string,
-        callId: string,
-    ): Promise<CallSummary | undefined> {
-        const row = await one(
-            executor,
-            `SELECT id, chat_id, created_by_user_id, kind, status, started_at, ended_at,
-                    end_reason, created_at, updated_at
-               FROM calls WHERE id = ?`,
-            [callId],
-        );
-        if (!row) return undefined;
-        if (!(await this.chatAccess(executor, viewerUserId, text(row.chat_id), false)))
-            return undefined;
-        const visibleParticipant = await one(
-            executor,
-            `SELECT 1 AS found FROM call_participants WHERE call_id = ? AND user_id = ?`,
-            [callId, viewerUserId],
-        );
-        if (!visibleParticipant) return undefined;
-        const participants = await executor.execute({
-            sql: `SELECT user_id, status, joined_at, left_at
-                    FROM call_participants WHERE call_id = ? ORDER BY invited_at, user_id`,
-            args: [callId],
-        });
-        return {
-            id: text(row.id),
-            chatId: text(row.chat_id),
-            createdByUserId: optionalText(row.created_by_user_id),
-            kind: text(row.kind) as CallSummary["kind"],
-            status: text(row.status) as CallSummary["status"],
-            participants: participants.rows.map((participant) => ({
-                userId: text(participant.user_id),
-                status: text(participant.status) as CallSummary["participants"][number]["status"],
-                joinedAt: optionalText(participant.joined_at),
-                leftAt: optionalText(participant.left_at),
-            })),
-            startedAt: optionalText(row.started_at),
-            endedAt: optionalText(row.ended_at),
-            endReason: optionalText(row.end_reason),
-            createdAt: text(row.created_at),
-            updatedAt: text(row.updated_at),
-        };
-    }
-
-    private async listPresenceSettingsWith(
-        executor: Executor,
-        userIds: string[],
-    ): Promise<PresenceSettingsSummary[]> {
-        if (userIds.length === 0) return [];
-        const result = await executor.execute({
-            sql: `SELECT user_id, availability, custom_status_text, custom_status_emoji,
-                         status_expires_at, dnd_until, updated_at
-                    FROM user_presence_settings
-                   WHERE user_id IN (${userIds.map(() => "?").join(", ")})`,
-            args: userIds,
-        });
-        return result.rows.map((row) => {
-            const statusActive =
-                !optionalText(row.status_expires_at) ||
-                !isPast(optionalText(row.status_expires_at));
-            const dndActive =
-                optionalText(row.dnd_until) !== undefined && !isPast(optionalText(row.dnd_until));
-            return {
-                userId: text(row.user_id),
-                availability: dndActive
-                    ? "dnd"
-                    : (text(row.availability) as PresenceSettingsSummary["availability"]),
-                customStatusText: statusActive ? optionalText(row.custom_status_text) : undefined,
-                customStatusEmoji: statusActive ? optionalText(row.custom_status_emoji) : undefined,
-                statusExpiresAt: statusActive ? optionalText(row.status_expires_at) : undefined,
-                dndUntil: dndActive ? optionalText(row.dnd_until) : undefined,
-                updatedAt: text(row.updated_at),
-            };
-        });
-    }
-
-    private async requireChatManager(
-        executor: Executor,
+    private async requireChatManagerDb(
+        executor: DrizzleExecutor,
         userId: string,
         chatId: string,
     ): Promise<ChatAccess> {
-        let access = await this.chatAccess(executor, userId, chatId, true);
+        let access = await this.chatAccessDb(executor, userId, chatId, true);
         if (!access) {
-            const admin = await one(
-                executor,
-                `SELECT 1 AS found FROM users u JOIN accounts a ON a.id = u.account_id
-                  WHERE u.id = ? AND u.role = 'admin' AND u.deleted_at IS NULL
-                    AND a.active = 1 AND a.banned_at IS NULL AND a.deleted_at IS NULL`,
-                [userId],
-            );
+            const [admin] = await executor
+                .select({ id: users.id })
+                .from(users)
+                .innerJoin(accounts, eq(accounts.id, users.accountId))
+                .where(
+                    and(
+                        eq(users.id, userId),
+                        eq(users.role, "admin"),
+                        isNull(users.deletedAt),
+                        eq(accounts.active, 1),
+                        isNull(accounts.bannedAt),
+                        isNull(accounts.deletedAt),
+                    ),
+                )
+                .limit(1);
             if (admin) {
-                const row = await one(
-                    executor,
-                    `${CHAT_SELECT} WHERE c.id = ? AND c.deleted_at IS NULL`,
-                    [userId, userId, chatId],
-                );
+                const [row] = await executor
+                    .select(chatSelection)
+                    .from(chats)
+                    .leftJoin(
+                        chatMembers,
+                        and(
+                            eq(chatMembers.chatId, chats.id),
+                            eq(chatMembers.userId, userId),
+                            isNull(chatMembers.leftAt),
+                        ),
+                    )
+                    .leftJoin(
+                        userChatPreferences,
+                        and(
+                            eq(userChatPreferences.chatId, chats.id),
+                            eq(userChatPreferences.userId, userId),
+                        ),
+                    )
+                    .where(and(eq(chats.id, chatId), isNull(chats.deletedAt)))
+                    .limit(1);
                 if (row) access = { ...asChat(row), isServerAdmin: true };
             }
         }
@@ -4344,90 +4812,155 @@ export class CollaborationRepository {
         return access;
     }
 
-    private async requireActiveUser(executor: Executor, userId: string): Promise<void> {
-        const row = await one(
-            executor,
-            `SELECT 1 AS found FROM users u JOIN accounts a ON a.id = u.account_id
-              WHERE u.id = ? AND u.deleted_at IS NULL AND a.deleted_at IS NULL
-                AND a.banned_at IS NULL AND a.active = 1`,
-            [userId],
-        );
+    private async requireActiveUserDb(executor: DrizzleExecutor, userId: string): Promise<void> {
+        const [row] = await executor
+            .select({ id: users.id })
+            .from(users)
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(users.id, userId),
+                    isNull(users.deletedAt),
+                    isNull(accounts.deletedAt),
+                    isNull(accounts.bannedAt),
+                    eq(accounts.active, 1),
+                ),
+            )
+            .limit(1);
         if (!row) throw new CollaborationError("not_found", "User was not found");
     }
 
-    private async isPostingRestricted(
-        executor: Executor,
+    private async isPostingRestrictedDb(
+        executor: DrizzleExecutor,
         userId: string,
         chatId: string,
     ): Promise<boolean> {
-        return Boolean(
-            await one(
-                executor,
-                `SELECT 1 AS found FROM moderation_actions
-                  WHERE action = 'restrict' AND target_user_id = ? AND revoked_at IS NULL
-                    AND (chat_id IS NULL OR chat_id = ?)
-                    AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)
-                  LIMIT 1`,
-                [userId, chatId],
-            ),
-        );
+        const [row] = await executor
+            .select({ id: moderationActions.id })
+            .from(moderationActions)
+            .where(
+                and(
+                    eq(moderationActions.action, "restrict"),
+                    eq(moderationActions.targetUserId, userId),
+                    isNull(moderationActions.revokedAt),
+                    or(isNull(moderationActions.chatId), eq(moderationActions.chatId, chatId)),
+                    or(
+                        isNull(moderationActions.expiresAt),
+                        gt(moderationActions.expiresAt, sql`CURRENT_TIMESTAMP`),
+                    ),
+                ),
+            )
+            .limit(1);
+        return Boolean(row);
     }
 
-    private async requireExistingUser(executor: Executor, userId: string): Promise<void> {
-        if (!(await one(executor, `SELECT 1 AS found FROM users WHERE id = ?`, [userId])))
-            throw new CollaborationError("not_found", "User was not found");
+    private async getCallProjectionDb(
+        executor: DrizzleExecutor,
+        viewerUserId: string,
+        callId: string,
+    ): Promise<CallSummary | undefined> {
+        const [row] = await executor
+            .select({
+                id: calls.id,
+                chatId: calls.chatId,
+                createdByUserId: calls.createdByUserId,
+                kind: calls.kind,
+                status: calls.status,
+                startedAt: calls.startedAt,
+                endedAt: calls.endedAt,
+                endReason: calls.endReason,
+                createdAt: calls.createdAt,
+                updatedAt: calls.updatedAt,
+            })
+            .from(calls)
+            .where(eq(calls.id, callId))
+            .limit(1);
+        if (!row || !(await this.chatAccessDb(executor, viewerUserId, row.chatId, false)))
+            return undefined;
+        const [visible] = await executor
+            .select({ userId: callParticipants.userId })
+            .from(callParticipants)
+            .where(
+                and(eq(callParticipants.callId, callId), eq(callParticipants.userId, viewerUserId)),
+            )
+            .limit(1);
+        if (!visible) return undefined;
+        const participants = await executor
+            .select({
+                userId: callParticipants.userId,
+                status: callParticipants.status,
+                joinedAt: callParticipants.joinedAt,
+                leftAt: callParticipants.leftAt,
+            })
+            .from(callParticipants)
+            .where(eq(callParticipants.callId, callId))
+            .orderBy(callParticipants.invitedAt, callParticipants.userId);
+        return {
+            id: row.id,
+            chatId: row.chatId,
+            createdByUserId: row.createdByUserId ?? undefined,
+            kind: row.kind as CallSummary["kind"],
+            status: row.status as CallSummary["status"],
+            participants: participants.map((p) => ({
+                userId: p.userId,
+                status: p.status as CallSummary["participants"][number]["status"],
+                joinedAt: p.joinedAt ?? undefined,
+                leftAt: p.leftAt ?? undefined,
+            })),
+            startedAt: row.startedAt ?? undefined,
+            endedAt: row.endedAt ?? undefined,
+            endReason: row.endReason ?? undefined,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+        };
     }
 
-    private async requireServerAdmin(executor: Executor, userId: string): Promise<void> {
-        const row = await one(
-            executor,
-            `SELECT 1 AS found FROM users u JOIN accounts a ON a.id = u.account_id
-              WHERE u.id = ? AND u.role = 'admin' AND u.deleted_at IS NULL
-                AND a.banned_at IS NULL AND a.deleted_at IS NULL AND a.active = 1`,
-            [userId],
-        );
-        if (!row) throw new CollaborationError("forbidden", "Server admin permission is required");
-    }
-
-    private async appendAudit(
-        tx: Transaction,
-        input: {
-            actorUserId: string;
-            action: string;
-            targetType: string;
-            targetId?: string;
-            chatId?: string;
-            after?: Record<string, unknown>;
-        },
-    ): Promise<void> {
-        await tx.execute({
-            sql: `INSERT INTO audit_log_entries
-                    (id, actor_user_id, action, target_type, target_id, chat_id, after_json)
-                  VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            args: [
-                createId(),
-                input.actorUserId,
-                input.action,
-                input.targetType,
-                input.targetId ?? null,
-                input.chatId ?? null,
-                input.after ? JSON.stringify(input.after) : null,
-            ],
+    private async listPresenceSettingsWithDb(
+        executor: DrizzleExecutor,
+        userIds: string[],
+    ): Promise<PresenceSettingsSummary[]> {
+        if (!userIds.length) return [];
+        const rows = await executor
+            .select({
+                userId: userPresenceSettings.userId,
+                availability: userPresenceSettings.availability,
+                customStatusText: userPresenceSettings.customStatusText,
+                customStatusEmoji: userPresenceSettings.customStatusEmoji,
+                statusExpiresAt: userPresenceSettings.statusExpiresAt,
+                dndUntil: userPresenceSettings.dndUntil,
+                updatedAt: userPresenceSettings.updatedAt,
+            })
+            .from(userPresenceSettings)
+            .where(inArray(userPresenceSettings.userId, userIds));
+        return rows.map((row) => {
+            const statusActive = !row.statusExpiresAt || !isPast(row.statusExpiresAt);
+            const dndActive = !!row.dndUntil && !isPast(row.dndUntil);
+            return {
+                userId: row.userId,
+                availability: dndActive
+                    ? "dnd"
+                    : (row.availability as PresenceSettingsSummary["availability"]),
+                customStatusText: statusActive ? (row.customStatusText ?? undefined) : undefined,
+                customStatusEmoji: statusActive ? (row.customStatusEmoji ?? undefined) : undefined,
+                statusExpiresAt: statusActive ? (row.statusExpiresAt ?? undefined) : undefined,
+                dndUntil: dndActive ? (row.dndUntil ?? undefined) : undefined,
+                updatedAt: row.updatedAt,
+            };
         });
     }
 
-    private async nextSequence(tx: Transaction): Promise<number> {
-        const row = await one(
-            tx,
-            `UPDATE server_sync_state SET sequence = sequence + 1 WHERE id = 1
-             RETURNING sequence`,
-        );
+    private async nextSequence(tx: DrizzleTransaction): Promise<number> {
+        const [row] = await tx
+            .update(serverSyncState)
+            .set({ sequence: sql`${serverSyncState.sequence} + 1` })
+            .where(eq(serverSyncState.id, 1))
+            .returning({ sequence: serverSyncState.sequence });
         if (!row) throw new Error("Sync state has not been initialized");
-        return number(row.sequence);
+        return row.sequence;
     }
 
     private async advanceChat(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         actorUserId: string,
         chatId: string,
         kind: string,
@@ -4447,7 +4980,7 @@ export class CollaborationRepository {
     }
 
     private async advanceChatWithSequence(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         sequence: number,
         actorUserId: string | undefined,
         chatId: string,
@@ -4456,21 +4989,20 @@ export class CollaborationRepository {
         targetUserId?: string,
         incrementMessageSequence = false,
     ): Promise<ChatMutation & { messageSequence?: number }> {
-        const row = await one(
-            tx,
-            `UPDATE chats
-                SET pts = pts + 1,
-                    last_message_sequence = last_message_sequence + ?,
-                    last_change_sequence = ?, updated_at = CURRENT_TIMESTAMP
-              WHERE id = ? AND deleted_at IS NULL
-              RETURNING pts, last_message_sequence`,
-            [incrementMessageSequence ? 1 : 0, sequence, chatId],
-        );
+        const [row] = await tx
+            .update(chats)
+            .set({
+                pts: sql`${chats.pts} + 1`,
+                lastMessageSequence: sql`${chats.lastMessageSequence} + ${incrementMessageSequence ? 1 : 0}`,
+                lastChangeSequence: sequence,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(and(eq(chats.id, chatId), isNull(chats.deletedAt)))
+            .returning({ pts: chats.pts, lastMessageSequence: chats.lastMessageSequence });
         if (!row) throw new CollaborationError("not_found", "Chat was not found");
-        const pts = number(row.pts);
         await this.insertChatUpdate(tx, {
             sequence,
-            pts,
+            pts: row.pts,
             chatId,
             kind,
             entityId,
@@ -4479,16 +5011,14 @@ export class CollaborationRepository {
         });
         return {
             sequence,
-            pts,
+            pts: row.pts,
             chatId,
-            messageSequence: incrementMessageSequence
-                ? number(row.last_message_sequence)
-                : undefined,
+            messageSequence: incrementMessageSequence ? row.lastMessageSequence : undefined,
         };
     }
 
     private async insertChatUpdate(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         input: {
             sequence: number;
             pts: number;
@@ -4499,11 +5029,12 @@ export class CollaborationRepository {
             targetUserId?: string;
         },
     ): Promise<void> {
-        await tx.execute({
-            sql: `INSERT INTO chat_updates
-                    (chat_id, pts, pts_count, kind, entity_id)
-                  VALUES (?, ?, 1, ?, ?)`,
-            args: [input.chatId, input.pts, input.kind, input.entityId ?? null],
+        await tx.insert(chatUpdates).values({
+            chatId: input.chatId,
+            pts: input.pts,
+            ptsCount: 1,
+            kind: input.kind,
+            entityId: input.entityId,
         });
         await this.insertSyncEvent(tx, {
             sequence: input.sequence,
@@ -4526,7 +5057,7 @@ export class CollaborationRepository {
     }
 
     private async insertSyncEvent(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         input: {
             sequence: number;
             kind: string;
@@ -4537,265 +5068,280 @@ export class CollaborationRepository {
             targetUserId?: string;
         },
     ): Promise<void> {
-        await tx.execute({
-            sql: `INSERT INTO sync_events
-                    (sequence, kind, chat_id, chat_pts, entity_id, actor_user_id, target_user_id)
-                  VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            args: [
-                input.sequence,
-                input.kind,
-                input.chatId ?? null,
-                input.chatPts ?? null,
-                input.entityId ?? null,
-                input.actorUserId ?? null,
-                input.targetUserId ?? null,
-            ],
+        await tx.insert(syncEvents).values({
+            sequence: input.sequence,
+            kind: input.kind,
+            chatId: input.chatId,
+            chatPts: input.chatPts,
+            entityId: input.entityId,
+            actorUserId: input.actorUserId,
+            targetUserId: input.targetUserId,
         });
     }
 
-    private async requireMessageInChat(
-        executor: Executor,
+    private async recomputeThreadProjectionDb(
+        tx: DrizzleTransaction,
+        threadRootMessageId: string,
+        pts: number,
+    ): Promise<void> {
+        await tx
+            .delete(threadParticipants)
+            .where(eq(threadParticipants.threadRootMessageId, threadRootMessageId));
+        const participants = await tx
+            .select({
+                userId: messages.senderUserId,
+                replyCount: sql<number>`count(*)`,
+                firstParticipatedAt: sql<string>`min(${messages.createdAt})`,
+                lastParticipatedAt: sql<string>`max(${messages.createdAt})`,
+            })
+            .from(messages)
+            .where(
+                and(
+                    eq(messages.threadRootMessageId, threadRootMessageId),
+                    sql`${messages.senderUserId} IS NOT NULL`,
+                    isNull(messages.deletedAt),
+                    or(
+                        isNull(messages.expiresAt),
+                        sql`datetime(${messages.expiresAt}) > CURRENT_TIMESTAMP`,
+                    ),
+                ),
+            )
+            .groupBy(messages.senderUserId);
+        if (participants.length)
+            await tx.insert(threadParticipants).values(
+                participants.map((p) => ({
+                    threadRootMessageId,
+                    userId: p.userId!,
+                    replyCount: p.replyCount,
+                    firstParticipatedAt: p.firstParticipatedAt,
+                    lastParticipatedAt: p.lastParticipatedAt,
+                })),
+            );
+        const active = and(
+            eq(messages.threadRootMessageId, threadRootMessageId),
+            isNull(messages.deletedAt),
+            or(
+                isNull(messages.expiresAt),
+                sql`datetime(${messages.expiresAt}) > CURRENT_TIMESTAMP`,
+            ),
+        );
+        const [last] = await tx
+            .select({ id: messages.id, sequence: messages.sequence })
+            .from(messages)
+            .where(active)
+            .orderBy(desc(messages.sequence))
+            .limit(1);
+        const [counts] = await tx
+            .select({ replies: sql<number>`count(*)` })
+            .from(messages)
+            .where(active);
+        const [participantCount] = await tx
+            .select({ count: sql<number>`count(*)` })
+            .from(threadParticipants)
+            .where(eq(threadParticipants.threadRootMessageId, threadRootMessageId));
+        await tx
+            .update(threads)
+            .set({
+                replyCount: counts?.replies ?? 0,
+                participantCount: participantCount?.count ?? 0,
+                lastReplyMessageId: last?.id ?? null,
+                lastReplySequence: last?.sequence ?? 0,
+                lastPts: pts,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(eq(threads.rootMessageId, threadRootMessageId));
+        await tx
+            .update(threadUserStates)
+            .set({
+                unreadCount: sql`(select count(*) from messages m where m.thread_root_message_id = ${threadRootMessageId} and m.deleted_at is null and (m.expires_at is null or datetime(m.expires_at) > CURRENT_TIMESTAMP) and m.sequence > ${threadUserStates.lastReadSequence} and (m.sender_user_id is null or m.sender_user_id != ${threadUserStates.userId}))`,
+                mentionCount: sql`(select count(*) from message_mentions mm join messages m on m.id = mm.message_id where m.thread_root_message_id = ${threadRootMessageId} and m.deleted_at is null and m.sequence > ${threadUserStates.lastReadSequence} and mm.mentioned_user_id = ${threadUserStates.userId})`,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(eq(threadUserStates.threadRootMessageId, threadRootMessageId));
+    }
+
+    private async canAccessFileWithDb(
+        executor: DrizzleExecutor,
+        userId: string,
+        fileId: string,
+    ): Promise<boolean> {
+        const [row] = await executor
+            .select({ id: files.id })
+            .from(files)
+            .where(
+                and(
+                    eq(files.id, fileId),
+                    isNull(files.deletedAt),
+                    eq(files.uploadStatus, "complete"),
+                    ne(files.scanStatus, "infected"),
+                    or(
+                        eq(files.isPublic, 1),
+                        eq(files.uploadedByUserId, userId),
+                        sql`exists (select 1 from custom_emojis e where e.file_id = ${files.id} and e.deleted_at is null)`,
+                        sql`exists (select 1 from server_settings s where s.photo_file_id = ${files.id})`,
+                        sql`exists (select 1 from users u where u.photo_file_id = ${files.id} and u.deleted_at is null)`,
+                        sql`exists (select 1 from bot_identities b where b.photo_file_id = ${files.id} and b.deleted_at is null and b.active = 1)`,
+                        sql`exists (select 1 from chats photo_chat left join chat_members photo_member on photo_member.chat_id = photo_chat.id and photo_member.user_id = ${userId} and photo_member.left_at is null where photo_chat.photo_file_id = ${files.id} and photo_chat.deleted_at is null and (photo_chat.kind = 'public_channel' or photo_member.user_id is not null))`,
+                        sql`exists (select 1 from file_access_grants g where g.file_id = ${files.id} and (g.expires_at is null or datetime(g.expires_at) > CURRENT_TIMESTAMP) and ((g.principal_type = 'user' and g.principal_id = ${userId}) or g.principal_type in ('server', 'custom_emoji') or (g.principal_type = 'chat' and exists (select 1 from chats grant_chat left join chat_members grant_member on grant_member.chat_id = grant_chat.id and grant_member.user_id = ${userId} and grant_member.left_at is null where grant_chat.id = g.principal_id and grant_chat.deleted_at is null and (grant_chat.kind = 'public_channel' or grant_member.user_id is not null)))))`,
+                        sql`exists (select 1 from message_attachments ma join messages m on m.id = ma.message_id join chats c on c.id = m.chat_id left join chat_members cm on cm.chat_id = c.id and cm.user_id = ${userId} and cm.left_at is null where ma.file_id = ${files.id} and m.deleted_at is null and (m.expires_at is null or datetime(m.expires_at) > CURRENT_TIMESTAMP) and c.deleted_at is null and (c.kind = 'public_channel' or cm.user_id is not null))`,
+                    ),
+                ),
+            )
+            .limit(1);
+        return Boolean(row);
+    }
+
+    private async requireMessageInChatDb(
+        executor: DrizzleExecutor,
         messageId: string,
         chatId: string,
-    ): Promise<Row> {
-        const row = await one(
-            executor,
-            `SELECT id, chat_id, thread_root_message_id FROM messages
-              WHERE id = ? AND chat_id = ? AND deleted_at IS NULL
-                AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)`,
-            [messageId, chatId],
-        );
+    ) {
+        const [row] = await executor
+            .select({
+                id: messages.id,
+                chatId: messages.chatId,
+                threadRootMessageId: messages.threadRootMessageId,
+            })
+            .from(messages)
+            .where(
+                and(
+                    eq(messages.id, messageId),
+                    eq(messages.chatId, chatId),
+                    isNull(messages.deletedAt),
+                    or(
+                        isNull(messages.expiresAt),
+                        sql`datetime(${messages.expiresAt}) > CURRENT_TIMESTAMP`,
+                    ),
+                ),
+            )
+            .limit(1);
         if (!row) throw new CollaborationError("not_found", "Referenced message was not found");
         return row;
     }
 
-    private async recomputeThreadProjection(
-        tx: Transaction,
-        threadRootMessageId: string,
-        pts: number,
-    ): Promise<void> {
-        await tx.execute({
-            sql: `DELETE FROM thread_participants WHERE thread_root_message_id = ?`,
-            args: [threadRootMessageId],
-        });
-        await tx.execute({
-            sql: `INSERT INTO thread_participants
-                    (thread_root_message_id, user_id, reply_count, first_participated_at,
-                     last_participated_at)
-                  SELECT ?, sender_user_id, count(*), MIN(created_at), MAX(created_at)
-                    FROM messages
-                   WHERE thread_root_message_id = ? AND sender_user_id IS NOT NULL
-                     AND deleted_at IS NULL
-                     AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)
-                   GROUP BY sender_user_id`,
-            args: [threadRootMessageId, threadRootMessageId],
-        });
-        const lastReply = await one(
-            tx,
-            `SELECT id, sequence FROM messages
-              WHERE thread_root_message_id = ? AND deleted_at IS NULL
-                AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)
-              ORDER BY sequence DESC LIMIT 1`,
-            [threadRootMessageId],
-        );
-        const replyCount = await one(
-            tx,
-            `SELECT count(*) AS count FROM messages
-              WHERE thread_root_message_id = ? AND deleted_at IS NULL
-                AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)`,
-            [threadRootMessageId],
-        );
-        await tx.execute({
-            sql: `UPDATE threads
-                     SET reply_count = ?, participant_count = (
-                           SELECT count(*) FROM thread_participants
-                            WHERE thread_root_message_id = ?
-                         ),
-                         last_reply_message_id = ?, last_reply_sequence = ?, last_pts = ?,
-                         updated_at = CURRENT_TIMESTAMP
-                   WHERE root_message_id = ?`,
-            args: [
-                number(replyCount?.count, 0),
-                threadRootMessageId,
-                lastReply ? text(lastReply.id) : null,
-                lastReply ? number(lastReply.sequence) : 0,
-                pts,
-                threadRootMessageId,
-            ],
-        });
-        await tx.execute({
-            sql: `UPDATE thread_user_states
-                     SET unread_count = (
-                           SELECT count(*) FROM messages m
-                            WHERE m.thread_root_message_id = ? AND m.deleted_at IS NULL
-                              AND (m.expires_at IS NULL
-                                   OR datetime(m.expires_at) > CURRENT_TIMESTAMP)
-                              AND m.sequence > thread_user_states.last_read_sequence
-                              AND (m.sender_user_id IS NULL
-                                   OR m.sender_user_id != thread_user_states.user_id)
-                         ),
-                         mention_count = (
-                           SELECT count(*) FROM message_mentions mm
-                           JOIN messages m ON m.id = mm.message_id
-                            WHERE m.thread_root_message_id = ? AND m.deleted_at IS NULL
-                              AND m.sequence > thread_user_states.last_read_sequence
-                              AND mm.mentioned_user_id = thread_user_states.user_id
-                         ),
-                         updated_at = CURRENT_TIMESTAMP
-                   WHERE thread_root_message_id = ?`,
-            args: [threadRootMessageId, threadRootMessageId, threadRootMessageId],
-        });
-    }
-
-    private async canAccessFileWith(
-        executor: Executor,
-        userId: string,
-        fileId: string,
-    ): Promise<boolean> {
-        return Boolean(
-            await one(
-                executor,
-                `SELECT 1 AS found FROM files f
-                  WHERE f.id = ? AND f.deleted_at IS NULL
-                    AND f.upload_status = 'complete' AND f.scan_status != 'infected' AND (
-                    f.is_public = 1 OR f.uploaded_by_user_id = ?
-                    OR EXISTS (
-                      SELECT 1 FROM custom_emojis e
-                       WHERE e.file_id = f.id AND e.deleted_at IS NULL
-                    )
-                    OR EXISTS (
-                      SELECT 1 FROM server_settings s WHERE s.photo_file_id = f.id
-                    )
-                    OR EXISTS (
-                      SELECT 1 FROM file_access_grants g
-                       WHERE g.file_id = f.id
-                         AND (g.expires_at IS NULL
-                              OR datetime(g.expires_at) > CURRENT_TIMESTAMP)
-                         AND (
-                           (g.principal_type = 'user' AND g.principal_id = ?)
-                           OR g.principal_type IN ('server', 'custom_emoji')
-                           OR (g.principal_type = 'chat' AND EXISTS (
-                             SELECT 1 FROM chats grant_chat
-                        LEFT JOIN chat_members grant_member
-                               ON grant_member.chat_id = grant_chat.id
-                              AND grant_member.user_id = ?
-                              AND grant_member.left_at IS NULL
-                              WHERE grant_chat.id = g.principal_id
-                                AND grant_chat.deleted_at IS NULL
-                                AND (grant_chat.kind = 'public_channel'
-                                     OR grant_member.user_id IS NOT NULL)
-                           ))
-                         )
-                    )
-                    OR EXISTS (
-                      SELECT 1 FROM message_attachments ma
-                      JOIN messages m ON m.id = ma.message_id
-                      JOIN chats c ON c.id = m.chat_id
-                 LEFT JOIN chat_members cm
-                        ON cm.chat_id = c.id AND cm.user_id = ? AND cm.left_at IS NULL
-                     WHERE ma.file_id = f.id AND m.deleted_at IS NULL
-                       AND (m.expires_at IS NULL OR datetime(m.expires_at) > CURRENT_TIMESTAMP)
-                       AND c.deleted_at IS NULL
-                       AND (c.kind = 'public_channel' OR cm.user_id IS NOT NULL)
-                    )
-                  ) LIMIT 1`,
-                [fileId, userId, userId, userId, userId],
-            ),
-        );
-    }
-
-    private async getMessageProjection(
-        executor: Executor,
+    private async getMessageProjectionDb(
+        executor: DrizzleExecutor,
         viewerUserId: string,
         messageId: string,
     ): Promise<MessageSummary | undefined> {
-        const row = await one(
-            executor,
-            `SELECT m.id, m.chat_id, m.sequence, m.change_pts, m.sender_user_id,
-                    m.kind, m.text, m.quoted_message_id, m.thread_root_message_id,
-                    m.forwarded_from_message_id, m.expires_at, m.edited_at,
-                    m.expiry_mode, m.self_destruct_seconds, m.first_read_at,
-                    m.revision, m.deleted_at, m.created_at,
-                    su.id AS sender_id, su.username AS sender_username,
-                    su.first_name AS sender_first_name, su.last_name AS sender_last_name,
-                    su.title AS sender_title, su.photo_file_id AS sender_photo_file_id,
-                    su.role AS sender_role,
-                    b.id AS sender_bot_id, b.name AS sender_bot_name,
-                    b.username AS sender_bot_username,
-                    b.photo_file_id AS sender_bot_photo_file_id,
-                    qm.sender_user_id AS quoted_sender_user_id,
-                    qm.text AS quoted_text, qm.deleted_at AS quoted_deleted_at,
-                    qm.expires_at AS quoted_expires_at,
-                    fm.chat_id AS forwarded_from_chat_id,
-                    COALESCE(t.reply_count, 0) AS thread_reply_count
-               FROM messages m
-          LEFT JOIN users su ON su.id = m.sender_user_id
-          LEFT JOIN bot_identities b ON b.id = m.sender_bot_id
-          LEFT JOIN messages qm ON qm.id = m.quoted_message_id
-          LEFT JOIN messages fm ON fm.id = m.forwarded_from_message_id
-          LEFT JOIN threads t ON t.root_message_id = m.id
-              WHERE m.id = ?`,
-            [messageId],
-        );
-        if (!row) return undefined;
-        if (!(await this.chatAccess(executor, viewerUserId, text(row.chat_id), false)))
+        const sender = alias(users, "sender");
+        const bot = alias(botIdentities, "sender_bot");
+        const quoted = alias(messages, "quoted");
+        const forwarded = alias(messages, "forwarded");
+        const [row] = await executor
+            .select({
+                id: messages.id,
+                chat_id: messages.chatId,
+                sequence: messages.sequence,
+                change_pts: messages.changePts,
+                sender_user_id: messages.senderUserId,
+                kind: messages.kind,
+                text: messages.text,
+                quoted_message_id: messages.quotedMessageId,
+                thread_root_message_id: messages.threadRootMessageId,
+                forwarded_from_message_id: messages.forwardedFromMessageId,
+                expires_at: messages.expiresAt,
+                edited_at: messages.editedAt,
+                expiry_mode: messages.expiryMode,
+                self_destruct_seconds: messages.selfDestructSeconds,
+                first_read_at: messages.firstReadAt,
+                revision: messages.revision,
+                deleted_at: messages.deletedAt,
+                created_at: messages.createdAt,
+                sender_id: sender.id,
+                sender_username: sender.username,
+                sender_first_name: sender.firstName,
+                sender_last_name: sender.lastName,
+                sender_title: sender.title,
+                sender_photo_file_id: sender.photoFileId,
+                sender_role: sender.role,
+                sender_bot_id: bot.id,
+                sender_bot_name: bot.name,
+                sender_bot_username: bot.username,
+                sender_bot_photo_file_id: bot.photoFileId,
+                quoted_sender_user_id: quoted.senderUserId,
+                quoted_text: quoted.text,
+                quoted_deleted_at: quoted.deletedAt,
+                quoted_expires_at: quoted.expiresAt,
+                forwarded_from_chat_id: forwarded.chatId,
+                thread_reply_count: sql<number>`coalesce(${threads.replyCount}, 0)`,
+            })
+            .from(messages)
+            .leftJoin(sender, eq(sender.id, messages.senderUserId))
+            .leftJoin(bot, eq(bot.id, messages.senderBotId))
+            .leftJoin(quoted, eq(quoted.id, messages.quotedMessageId))
+            .leftJoin(forwarded, eq(forwarded.id, messages.forwardedFromMessageId))
+            .leftJoin(threads, eq(threads.rootMessageId, messages.id))
+            .where(eq(messages.id, messageId))
+            .limit(1);
+        if (!row || !(await this.chatAccessDb(executor, viewerUserId, row.chat_id, false)))
             return undefined;
-        const deleted = row.deleted_at !== null || isPast(optionalText(row.expires_at));
-        let attachments: FileSummary[] = [];
-        if (!deleted) {
-            const files = await executor.execute({
-                sql: `${FILE_SELECT}
-                       WHERE deleted_at IS NULL AND upload_status = 'complete'
-                         AND scan_status != 'infected' AND id IN (
-                         SELECT file_id FROM message_attachments WHERE message_id = ?
-                       )
-                       ORDER BY (
-                         SELECT position FROM message_attachments
-                          WHERE message_id = ? AND file_id = files.id
-                       ), id`,
-                args: [messageId, messageId],
-            });
-            attachments = files.rows.map(asFile);
-        }
+        const deleted = row.deleted_at !== null || isPast(row.expires_at ?? undefined);
+        const attachmentRows = deleted
+            ? []
+            : await executor
+                  .select(fileSelection)
+                  .from(messageAttachments)
+                  .innerJoin(files, eq(files.id, messageAttachments.fileId))
+                  .where(
+                      and(
+                          eq(messageAttachments.messageId, messageId),
+                          isNull(files.deletedAt),
+                          eq(files.uploadStatus, "complete"),
+                          ne(files.scanStatus, "infected"),
+                      ),
+                  )
+                  .orderBy(messageAttachments.position, files.id);
         const reactionRows = deleted
-            ? ({ rows: [] } as unknown as ResultSet)
-            : await executor.execute({
-                  sql: `SELECT reaction_key, emoji, custom_emoji_id, user_id
-                          FROM reactions WHERE message_id = ?
-                         ORDER BY reaction_key, created_at, user_id`,
-                  args: [messageId],
-              });
+            ? []
+            : await executor
+                  .select({
+                      reaction_key: reactions.reactionKey,
+                      emoji: reactions.emoji,
+                      custom_emoji_id: reactions.customEmojiId,
+                      user_id: reactions.userId,
+                  })
+                  .from(reactions)
+                  .where(eq(reactions.messageId, messageId))
+                  .orderBy(reactions.reactionKey, reactions.createdAt, reactions.userId);
+        const mentionRows = deleted
+            ? []
+            : await executor
+                  .select({
+                      kind: messageMentions.kind,
+                      mentioned_user_id: messageMentions.mentionedUserId,
+                      start_offset: messageMentions.startOffset,
+                      length: messageMentions.length,
+                      raw_text: messageMentions.rawText,
+                  })
+                  .from(messageMentions)
+                  .where(eq(messageMentions.messageId, messageId))
+                  .orderBy(messageMentions.startOffset);
+        const receiptRows = await executor
+            .select({
+                user_id: messageReceipts.userId,
+                delivered_at: messageReceipts.deliveredAt,
+                read_at: messageReceipts.readAt,
+            })
+            .from(messageReceipts)
+            .where(eq(messageReceipts.messageId, messageId))
+            .orderBy(messageReceipts.userId);
         const reactionMap = new Map<string, ReactionSummary>();
-        for (const reaction of reactionRows.rows) {
-            const key = text(reaction.reaction_key);
-            const existing = reactionMap.get(key) ?? {
-                key,
-                emoji: optionalText(reaction.emoji),
-                customEmojiId: optionalText(reaction.custom_emoji_id),
+        for (const reaction of reactionRows) {
+            const existing = reactionMap.get(reaction.reaction_key) ?? {
+                key: reaction.reaction_key,
+                emoji: reaction.emoji ?? undefined,
+                customEmojiId: reaction.custom_emoji_id ?? undefined,
                 count: 0,
                 reacted: false,
                 userIds: [],
             };
-            const userId = text(reaction.user_id);
             existing.count += 1;
-            existing.reacted ||= userId === viewerUserId;
-            existing.userIds.push(userId);
-            reactionMap.set(key, existing);
+            existing.reacted ||= reaction.user_id === viewerUserId;
+            existing.userIds.push(reaction.user_id);
+            reactionMap.set(reaction.reaction_key, existing);
         }
-        const mentionRows = deleted
-            ? ({ rows: [] } as unknown as ResultSet)
-            : await executor.execute({
-                  sql: `SELECT kind, mentioned_user_id, start_offset, length, raw_text
-                          FROM message_mentions WHERE message_id = ? ORDER BY start_offset`,
-                  args: [messageId],
-              });
-        const receiptRows = await executor.execute({
-            sql: `SELECT user_id, delivered_at, read_at
-                    FROM message_receipts WHERE message_id = ?
-                   ORDER BY user_id`,
-            args: [messageId],
-        });
-        const sender = row.sender_id
+        const senderSummary = row.sender_id
             ? asUser({
                   id: row.sender_id,
                   username: row.sender_username,
@@ -4804,166 +5350,168 @@ export class CollaborationRepository {
                   title: row.sender_title,
                   photo_file_id: row.sender_photo_file_id,
                   role: row.sender_role,
-              } as unknown as Row)
+              })
             : undefined;
-        const forwardedFromChatId = optionalText(row.forwarded_from_chat_id);
+        const forwardedFromChatId = row.forwarded_from_chat_id ?? undefined;
         const forwardedFrom =
             row.forwarded_from_message_id &&
             forwardedFromChatId &&
-            (await this.chatAccess(executor, viewerUserId, forwardedFromChatId, false))
-                ? {
-                      messageId: text(row.forwarded_from_message_id),
-                      chatId: forwardedFromChatId,
-                  }
+            (await this.chatAccessDb(executor, viewerUserId, forwardedFromChatId, false))
+                ? { messageId: row.forwarded_from_message_id, chatId: forwardedFromChatId }
                 : undefined;
         const quotedDeleted =
-            row.quoted_deleted_at !== null || isPast(optionalText(row.quoted_expires_at));
+            row.quoted_deleted_at !== null || isPast(row.quoted_expires_at ?? undefined);
         return {
-            id: text(row.id),
-            chatId: text(row.chat_id),
-            sequence: text(row.sequence),
-            changePts: text(row.change_pts),
-            sender,
+            id: row.id,
+            chatId: row.chat_id,
+            sequence: String(row.sequence),
+            changePts: String(row.change_pts),
+            sender: senderSummary,
             senderBot: row.sender_bot_id
                 ? {
-                      id: text(row.sender_bot_id),
-                      name: text(row.sender_bot_name),
-                      username: text(row.sender_bot_username),
-                      photoFileId: optionalText(row.sender_bot_photo_file_id),
+                      id: row.sender_bot_id,
+                      name: row.sender_bot_name!,
+                      username: row.sender_bot_username!,
+                      photoFileId: row.sender_bot_photo_file_id ?? undefined,
                   }
                 : undefined,
-            kind: text(row.kind) as "user" | "automated",
-            text: deleted ? "" : text(row.text),
+            kind: row.kind as "user" | "automated",
+            text: deleted ? "" : row.text,
             quotedMessage: row.quoted_message_id
                 ? {
-                      id: text(row.quoted_message_id),
-                      senderUserId: optionalText(row.quoted_sender_user_id),
-                      text: quotedDeleted || deleted ? "" : text(row.quoted_text, ""),
+                      id: row.quoted_message_id,
+                      senderUserId: row.quoted_sender_user_id ?? undefined,
+                      text: quotedDeleted || deleted ? "" : (row.quoted_text ?? ""),
                       deleted: quotedDeleted,
                   }
                 : undefined,
-            threadRootMessageId: optionalText(row.thread_root_message_id),
-            threadReplyCount: number(row.thread_reply_count, 0),
-            revision: number(row.revision, 1),
-            mentions: mentionRows.rows.map((mention) => ({
-                kind: text(mention.kind) as MessageSummary["mentions"][number]["kind"],
-                userId: optionalText(mention.mentioned_user_id),
-                offset: number(mention.start_offset),
-                length: number(mention.length),
-                rawText: text(mention.raw_text),
+            threadRootMessageId: row.thread_root_message_id ?? undefined,
+            threadReplyCount: row.thread_reply_count,
+            revision: row.revision,
+            mentions: mentionRows.map((mention) => ({
+                kind: mention.kind as MessageSummary["mentions"][number]["kind"],
+                userId: mention.mentioned_user_id ?? undefined,
+                offset: mention.start_offset,
+                length: mention.length,
+                rawText: mention.raw_text,
             })),
             forwardedFrom,
-            attachments,
+            attachments: attachmentRows.map(asFile),
             reactions: [...reactionMap.values()],
-            receipts: receiptRows.rows.map((receipt) => ({
-                userId: text(receipt.user_id),
-                deliveredAt: optionalText(receipt.delivered_at),
-                readAt: optionalText(receipt.read_at),
+            receipts: receiptRows.map((receipt) => ({
+                userId: receipt.user_id,
+                deliveredAt: receipt.delivered_at ?? undefined,
+                readAt: receipt.read_at ?? undefined,
             })),
-            expiresAt: optionalText(row.expires_at),
-            expiryMode: text(row.expiry_mode, "none") as MessageSummary["expiryMode"],
-            selfDestructSeconds: number(row.self_destruct_seconds, 0) || undefined,
-            firstReadAt: optionalText(row.first_read_at),
-            editedAt: optionalText(row.edited_at),
-            deletedAt: deleted
-                ? (optionalText(row.deleted_at) ?? optionalText(row.expires_at))
-                : undefined,
-            createdAt: text(row.created_at),
+            expiresAt: row.expires_at ?? undefined,
+            expiryMode: row.expiry_mode as MessageSummary["expiryMode"],
+            selfDestructSeconds: row.self_destruct_seconds ?? undefined,
+            firstReadAt: row.first_read_at ?? undefined,
+            editedAt: row.edited_at ?? undefined,
+            deletedAt: deleted ? (row.deleted_at ?? row.expires_at ?? undefined) : undefined,
+            createdAt: row.created_at,
         };
     }
 
-    private async replaceMessageMentions(
-        tx: Transaction,
+    private async replaceMessageMentionsDb(
+        tx: DrizzleTransaction,
         messageId: string,
         messageText: string,
     ): Promise<{ userIds: string[]; notifyAll: boolean }> {
-        await tx.execute({
-            sql: `DELETE FROM message_mentions WHERE message_id = ?`,
-            args: [messageId],
-        });
+        await tx.delete(messageMentions).where(eq(messageMentions.messageId, messageId));
         const mentionedUsers = new Set<string>();
         let notifyAll = false;
         const seenRanges = new Set<string>();
         for (const match of messageText.matchAll(
             /(^|[^\p{L}\p{N}_])@([a-zA-Z0-9_][a-zA-Z0-9_.-]{0,63})/gu,
         )) {
-            const rawText = `@${match[2]}`;
+            const candidate = match[2].replace(/[.-]+$/g, "");
+            if (!candidate) continue;
+            const rawText = `@${candidate}`;
             const startOffset = (match.index ?? 0) + match[1].length;
             const range = `${startOffset}:${rawText.length}`;
             if (seenRanges.has(range)) continue;
             seenRanges.add(range);
-            const special = match[2].toLowerCase();
-            if (special === "channel" || special === "here" || special === "everyone") {
-                await tx.execute({
-                    sql: `INSERT INTO message_mentions
-                            (id, message_id, kind, start_offset, length, raw_text)
-                          VALUES (?, ?, ?, ?, ?, ?)`,
-                    args: [createId(), messageId, special, startOffset, rawText.length, rawText],
+            const special = candidate.toLowerCase();
+            if (["channel", "here", "everyone"].includes(special)) {
+                await tx.insert(messageMentions).values({
+                    id: createId(),
+                    messageId,
+                    kind: special,
+                    startOffset,
+                    length: rawText.length,
+                    rawText,
                 });
                 notifyAll = true;
                 continue;
             }
-            const user = await one(
-                tx,
-                `SELECT u.id FROM users u JOIN accounts a ON a.id = u.account_id
-                  WHERE lower(u.username) = lower(?) AND u.deleted_at IS NULL
-                    AND a.active = 1 AND a.banned_at IS NULL AND a.deleted_at IS NULL`,
-                [match[2]],
-            );
+            const [user] = await tx
+                .select({ id: users.id })
+                .from(users)
+                .innerJoin(accounts, eq(accounts.id, users.accountId))
+                .where(
+                    and(
+                        sql`lower(${users.username}) = lower(${candidate})`,
+                        isNull(users.deletedAt),
+                        eq(accounts.active, 1),
+                        isNull(accounts.bannedAt),
+                        isNull(accounts.deletedAt),
+                    ),
+                )
+                .limit(1);
             if (!user) continue;
-            const userId = text(user.id);
-            await tx.execute({
-                sql: `INSERT INTO message_mentions
-                        (id, message_id, kind, mentioned_user_id, start_offset, length, raw_text)
-                      VALUES (?, ?, 'user', ?, ?, ?, ?)`,
-                args: [createId(), messageId, userId, startOffset, rawText.length, rawText],
+            await tx.insert(messageMentions).values({
+                id: createId(),
+                messageId,
+                kind: "user",
+                mentionedUserId: user.id,
+                startOffset,
+                length: rawText.length,
+                rawText,
             });
-            mentionedUsers.add(userId);
+            mentionedUsers.add(user.id);
         }
         return { userIds: [...mentionedUsers], notifyAll };
     }
 
-    private async indexMessageForSearch(
-        tx: Transaction,
+    private async indexMessageForSearchDb(
+        tx: DrizzleTransaction,
         messageId: string,
         chatId: string,
         messageText: string,
         revision: number,
     ): Promise<void> {
-        await tx.execute({
-            sql: `DELETE FROM message_search_documents WHERE message_id = ?`,
-            args: [messageId],
-        });
+        await tx
+            .delete(messageSearchDocuments)
+            .where(eq(messageSearchDocuments.messageId, messageId));
         const normalized = normalizeSearch(messageText);
         if (!normalized) return;
         const grams = searchGrams(normalized);
-        const created = await one(tx, `SELECT created_at FROM messages WHERE id = ?`, [messageId]);
+        const [created] = await tx
+            .select({ createdAt: messages.createdAt })
+            .from(messages)
+            .where(eq(messages.id, messageId))
+            .limit(1);
         if (!created) throw new Error("Search source message is missing");
-        await tx.execute({
-            sql: `INSERT INTO message_search_documents
-                    (message_id, chat_id, normalized_text, normalized_length, gram_count,
-                     indexed_revision, message_created_at)
-                  VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            args: [
-                messageId,
-                chatId,
-                normalized,
-                normalized.length,
-                grams.size,
-                revision,
-                text(created.created_at),
-            ],
+        await tx.insert(messageSearchDocuments).values({
+            messageId,
+            chatId,
+            normalizedText: normalized,
+            normalizedLength: normalized.length,
+            gramCount: grams.size,
+            indexedRevision: revision,
+            messageCreatedAt: created.createdAt,
         });
-        for (const [gram, occurrences] of grams)
-            await tx.execute({
-                sql: `INSERT INTO message_search_ngrams (gram, message_id, occurrences)
-                      VALUES (?, ?, ?)`,
-                args: [gram, messageId, occurrences],
-            });
+        if (grams.size)
+            await tx
+                .insert(messageSearchNgrams)
+                .values(
+                    [...grams].map(([gram, occurrences]) => ({ gram, messageId, occurrences })),
+                );
     }
 
-    private async recordMessageDelivery(
-        tx: Transaction,
+    private async recordMessageDeliveryDb(
+        tx: DrizzleTransaction,
         input: {
             actorUserId: string;
             chat: ChatSummary;
@@ -4976,115 +5524,138 @@ export class CollaborationRepository {
         },
     ): Promise<void> {
         const mentioned = new Set(input.mentionedUserIds);
-        const recipients = await tx.execute({
-            sql: `SELECT cm.user_id, COALESCE(p.notification_level, 'all') AS notification_level,
-                         p.muted_until,
-                         COALESCE(p.notify_thread_replies, 1) AS notify_thread_replies,
-                         COALESCE(unp.direct_messages, 'all') AS direct_messages,
-                         COALESCE(unp.mentions, 'all') AS mention_notifications,
-                         COALESCE(unp.thread_replies, 'all') AS thread_replies
-                    FROM chat_members cm
-               LEFT JOIN user_chat_preferences p
-                      ON p.chat_id = cm.chat_id AND p.user_id = cm.user_id
-               LEFT JOIN user_notification_preferences unp ON unp.user_id = cm.user_id
-                   WHERE cm.chat_id = ? AND cm.left_at IS NULL AND cm.user_id != ?`,
-            args: [input.chat.id, input.actorUserId],
-        });
+        const recipients = await tx
+            .select({
+                userId: chatMembers.userId,
+                notificationLevel: sql<string>`coalesce(${userChatPreferences.notificationLevel}, 'all')`,
+                mutedUntil: userChatPreferences.mutedUntil,
+                notifyThreadReplies: sql<number>`coalesce(${userChatPreferences.notifyThreadReplies}, 1)`,
+                directMessages: sql<string>`coalesce(${userNotificationPreferences.directMessages}, 'all')`,
+                mentionNotifications: sql<string>`coalesce(${userNotificationPreferences.mentions}, 'all')`,
+                threadReplies: sql<string>`coalesce(${userNotificationPreferences.threadReplies}, 'all')`,
+            })
+            .from(chatMembers)
+            .leftJoin(
+                userChatPreferences,
+                and(
+                    eq(userChatPreferences.chatId, chatMembers.chatId),
+                    eq(userChatPreferences.userId, chatMembers.userId),
+                ),
+            )
+            .leftJoin(
+                userNotificationPreferences,
+                eq(userNotificationPreferences.userId, chatMembers.userId),
+            )
+            .where(
+                and(
+                    eq(chatMembers.chatId, input.chat.id),
+                    isNull(chatMembers.leftAt),
+                    ne(chatMembers.userId, input.actorUserId),
+                ),
+            );
         let rootSenderUserId: string | undefined;
         if (input.threadRootMessageId) {
-            rootSenderUserId = optionalText(
-                (
-                    await one(tx, `SELECT sender_user_id FROM messages WHERE id = ?`, [
-                        input.threadRootMessageId,
-                    ])
-                )?.sender_user_id,
-            );
+            const [root] = await tx
+                .select({ senderUserId: messages.senderUserId })
+                .from(messages)
+                .where(eq(messages.id, input.threadRootMessageId));
+            rootSenderUserId = root?.senderUserId ?? undefined;
             for (const userId of new Set(
                 [input.actorUserId, rootSenderUserId].filter(Boolean) as string[],
-            ))
-                await tx.execute({
-                    sql: `INSERT INTO thread_user_states
-                            (thread_root_message_id, user_id, subscribed, last_read_message_id,
-                             last_read_sequence, last_participated_at)
-                          VALUES (?, ?, 1, ?, ?, CURRENT_TIMESTAMP)
-                          ON CONFLICT(thread_root_message_id, user_id) DO UPDATE SET
-                            subscribed = 1,
-                            last_read_message_id = CASE WHEN excluded.user_id = ?
-                                THEN excluded.last_read_message_id ELSE last_read_message_id END,
-                            last_read_sequence = CASE WHEN excluded.user_id = ?
-                                THEN excluded.last_read_sequence ELSE last_read_sequence END,
-                            last_participated_at = CASE WHEN excluded.user_id = ?
-                                THEN CURRENT_TIMESTAMP ELSE last_participated_at END,
-                            updated_at = CURRENT_TIMESTAMP`,
-                    args: [
-                        input.threadRootMessageId,
+            )) {
+                const actor = userId === input.actorUserId;
+                await tx
+                    .insert(threadUserStates)
+                    .values({
+                        threadRootMessageId: input.threadRootMessageId,
                         userId,
-                        input.messageId,
-                        input.messageSequence,
-                        input.actorUserId,
-                        input.actorUserId,
-                        input.actorUserId,
-                    ],
-                });
+                        subscribed: 1,
+                        lastReadMessageId: input.messageId,
+                        lastReadSequence: input.messageSequence,
+                        lastParticipatedAt: sql`CURRENT_TIMESTAMP`,
+                    })
+                    .onConflictDoUpdate({
+                        target: [threadUserStates.threadRootMessageId, threadUserStates.userId],
+                        set: {
+                            subscribed: 1,
+                            ...(actor
+                                ? {
+                                      lastReadMessageId: input.messageId,
+                                      lastReadSequence: input.messageSequence,
+                                      lastParticipatedAt: sql`CURRENT_TIMESTAMP`,
+                                  }
+                                : {}),
+                            updatedAt: sql`CURRENT_TIMESTAMP`,
+                        },
+                    });
+            }
         }
-        for (const recipient of recipients.rows) {
-            const userId = text(recipient.user_id);
+        for (const recipient of recipients) {
+            const userId = recipient.userId;
             const isMentioned = input.mentionAll === true || mentioned.has(userId);
-            await tx.execute({
-                sql: `UPDATE chat_members
-                         SET unread_count = unread_count + 1,
-                             mention_count = mention_count + ?,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE chat_id = ? AND user_id = ? AND left_at IS NULL`,
-                args: [isMentioned ? 1 : 0, input.chat.id, userId],
-            });
-            await tx.execute({
-                sql: `INSERT INTO message_receipts (message_id, user_id, delivered_at)
-                      VALUES (?, ?, CURRENT_TIMESTAMP)
-                      ON CONFLICT(message_id, user_id) DO UPDATE SET
-                        delivered_at = COALESCE(message_receipts.delivered_at, CURRENT_TIMESTAMP),
-                        updated_at = CURRENT_TIMESTAMP`,
-                args: [input.messageId, userId],
-            });
-
+            await tx
+                .update(chatMembers)
+                .set({
+                    unreadCount: sql`${chatMembers.unreadCount} + 1`,
+                    mentionCount: sql`${chatMembers.mentionCount} + ${isMentioned ? 1 : 0}`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(chatMembers.chatId, input.chat.id),
+                        eq(chatMembers.userId, userId),
+                        isNull(chatMembers.leftAt),
+                    ),
+                );
+            await tx
+                .insert(messageReceipts)
+                .values({ messageId: input.messageId, userId, deliveredAt: sql`CURRENT_TIMESTAMP` })
+                .onConflictDoUpdate({
+                    target: [messageReceipts.messageId, messageReceipts.userId],
+                    set: {
+                        deliveredAt: sql`coalesce(${messageReceipts.deliveredAt}, CURRENT_TIMESTAMP)`,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    },
+                });
             let threadSubscribed = false;
             let threadNotificationLevel: NotificationLevel = "all";
             if (input.threadRootMessageId) {
-                const state = await one(
-                    tx,
-                    `SELECT subscribed, notification_level FROM thread_user_states
-                      WHERE thread_root_message_id = ? AND user_id = ?`,
-                    [input.threadRootMessageId, userId],
-                );
-                threadSubscribed =
-                    number(state?.subscribed, 0) === 1 || userId === rootSenderUserId;
-                threadNotificationLevel = text(
-                    state?.notification_level,
-                    "all",
-                ) as NotificationLevel;
+                const [state] = await tx
+                    .select({
+                        subscribed: threadUserStates.subscribed,
+                        notificationLevel: threadUserStates.notificationLevel,
+                    })
+                    .from(threadUserStates)
+                    .where(
+                        and(
+                            eq(threadUserStates.threadRootMessageId, input.threadRootMessageId),
+                            eq(threadUserStates.userId, userId),
+                        ),
+                    )
+                    .limit(1);
+                threadSubscribed = state?.subscribed === 1 || userId === rootSenderUserId;
+                threadNotificationLevel = (state?.notificationLevel ?? "all") as NotificationLevel;
                 if (threadSubscribed || isMentioned)
-                    await tx.execute({
-                        sql: `INSERT INTO thread_user_states
-                                (thread_root_message_id, user_id, subscribed, unread_count,
-                                 mention_count)
-                              VALUES (?, ?, ?, 1, ?)
-                              ON CONFLICT(thread_root_message_id, user_id) DO UPDATE SET
-                                unread_count = unread_count + 1,
-                                mention_count = mention_count + excluded.mention_count,
-                                updated_at = CURRENT_TIMESTAMP`,
-                        args: [
-                            input.threadRootMessageId,
+                    await tx
+                        .insert(threadUserStates)
+                        .values({
+                            threadRootMessageId: input.threadRootMessageId,
                             userId,
-                            threadSubscribed || isMentioned ? 1 : 0,
-                            isMentioned ? 1 : 0,
-                        ],
-                    });
+                            subscribed: threadSubscribed || isMentioned ? 1 : 0,
+                            unreadCount: 1,
+                            mentionCount: isMentioned ? 1 : 0,
+                        })
+                        .onConflictDoUpdate({
+                            target: [threadUserStates.threadRootMessageId, threadUserStates.userId],
+                            set: {
+                                unreadCount: sql`${threadUserStates.unreadCount} + 1`,
+                                mentionCount: sql`${threadUserStates.mentionCount} + ${isMentioned ? 1 : 0}`,
+                                updatedAt: sql`CURRENT_TIMESTAMP`,
+                            },
+                        });
             }
-
             const muted =
-                optionalText(recipient.muted_until) !== undefined &&
-                !isPast(optionalText(recipient.muted_until));
-            const level = text(recipient.notification_level, "all");
+                recipient.mutedUntil !== null && !isPast(recipient.mutedUntil ?? undefined);
             const kind = isMentioned
                 ? "mention"
                 : input.threadRootMessageId && threadSubscribed
@@ -5094,40 +5665,34 @@ export class CollaborationRepository {
                     : undefined;
             const globallyAllowed =
                 kind === "mention"
-                    ? recipient.mention_notifications !== "none"
+                    ? recipient.mentionNotifications !== "none"
                     : kind === "thread_reply"
-                      ? number(recipient.notify_thread_replies, 1) === 1 &&
-                        recipient.thread_replies !== "none" &&
-                        (recipient.thread_replies !== "mentions" || isMentioned) &&
+                      ? recipient.notifyThreadReplies === 1 &&
+                        recipient.threadReplies !== "none" &&
+                        (recipient.threadReplies !== "mentions" || isMentioned) &&
                         threadNotificationLevel !== "none" &&
                         (threadNotificationLevel !== "mentions" || isMentioned)
                       : kind === "direct_message"
-                        ? recipient.direct_messages !== "none"
+                        ? recipient.directMessages !== "none"
                         : true;
             if (
                 !kind ||
                 !globallyAllowed ||
                 muted ||
-                level === "none" ||
-                (level === "mentions" && !isMentioned)
+                recipient.notificationLevel === "none" ||
+                (recipient.notificationLevel === "mentions" && !isMentioned)
             )
                 continue;
             const notificationId = createId();
-            await tx.execute({
-                sql: `INSERT INTO notifications
-                        (id, user_id, kind, chat_id, message_id, thread_root_message_id,
-                         actor_user_id, sync_sequence)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                args: [
-                    notificationId,
-                    userId,
-                    kind,
-                    input.chat.id,
-                    input.messageId,
-                    input.threadRootMessageId ?? null,
-                    input.actorUserId,
-                    input.syncSequence,
-                ],
+            await tx.insert(notifications).values({
+                id: notificationId,
+                userId,
+                kind,
+                chatId: input.chat.id,
+                messageId: input.messageId,
+                threadRootMessageId: input.threadRootMessageId,
+                actorUserId: input.actorUserId,
+                syncSequence: input.syncSequence,
             });
             await this.insertSyncEvent(tx, {
                 sequence: input.syncSequence,
@@ -5139,65 +5704,106 @@ export class CollaborationRepository {
         }
     }
 
-    private async findClientMutation(
-        executor: Executor,
+    private async findClientMutationDb(
+        executor: DrizzleExecutor,
         actorUserId: string,
         scope: string,
         clientMutationId: string,
     ): Promise<Record<string, unknown> | undefined> {
-        const row = await one(
-            executor,
-            `SELECT result_json FROM client_mutations
-              WHERE actor_user_id = ? AND scope = ? AND client_mutation_id = ?`,
-            [actorUserId, scope, clientMutationId],
-        );
+        const [row] = await executor
+            .select({ resultJson: clientMutations.resultJson })
+            .from(clientMutations)
+            .where(
+                and(
+                    eq(clientMutations.actorUserId, actorUserId),
+                    eq(clientMutations.scope, scope),
+                    eq(clientMutations.clientMutationId, clientMutationId),
+                ),
+            )
+            .limit(1);
         if (!row) return undefined;
-        await executor.execute({
-            sql: `UPDATE client_mutations SET last_accessed_at = CURRENT_TIMESTAMP
-                   WHERE actor_user_id = ? AND scope = ? AND client_mutation_id = ?`,
-            args: [actorUserId, scope, clientMutationId],
-        });
-        return JSON.parse(text(row.result_json)) as Record<string, unknown>;
+        await executor
+            .update(clientMutations)
+            .set({ lastAccessedAt: sql`CURRENT_TIMESTAMP` })
+            .where(
+                and(
+                    eq(clientMutations.actorUserId, actorUserId),
+                    eq(clientMutations.scope, scope),
+                    eq(clientMutations.clientMutationId, clientMutationId),
+                ),
+            );
+        return JSON.parse(row.resultJson) as Record<string, unknown>;
     }
 
-    private async storeClientMutation(
-        tx: Transaction,
+    private async storeClientMutationDb(
+        tx: DrizzleTransaction,
         actorUserId: string,
         scope: string,
         clientMutationId: string,
         result: Record<string, unknown>,
     ): Promise<void> {
-        await tx.execute({
-            sql: `INSERT INTO client_mutations
-                    (actor_user_id, scope, client_mutation_id, result_json, expires_at,
-                     last_accessed_at)
-                  VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+' ||
-                    COALESCE((SELECT idempotency_retention_seconds FROM server_settings WHERE id = 1),
-                             604800) || ' seconds'), CURRENT_TIMESTAMP)`,
-            args: [actorUserId, scope, clientMutationId, JSON.stringify(result)],
+        const [settings] = await tx
+            .select({ retentionSeconds: serverSettings.idempotencyRetentionSeconds })
+            .from(serverSettings)
+            .where(eq(serverSettings.id, 1));
+        const retention = settings?.retentionSeconds ?? 604800;
+        await tx.insert(clientMutations).values({
+            actorUserId,
+            scope,
+            clientMutationId,
+            resultJson: JSON.stringify(result),
+            expiresAt: sql`strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+' || ${retention} || ' seconds')`,
+            lastAccessedAt: sql`CURRENT_TIMESTAMP`,
         });
     }
 
-    private async write<T>(operation: (tx: Transaction) => Promise<T>): Promise<T> {
-        const tx = await this.client.transaction("write");
-        try {
-            const result = await operation(tx);
-            await tx.commit();
-            return result;
-        } catch (error) {
-            if (!tx.closed) await tx.rollback();
-            throw error;
-        } finally {
-            tx.close();
-        }
+    private async requireServerAdminDb(executor: DrizzleExecutor, userId: string): Promise<void> {
+        const [row] = await executor
+            .select({ id: users.id })
+            .from(users)
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(users.id, userId),
+                    eq(users.role, "admin"),
+                    isNull(users.deletedAt),
+                    isNull(accounts.bannedAt),
+                    isNull(accounts.deletedAt),
+                    eq(accounts.active, 1),
+                ),
+            )
+            .limit(1);
+        if (!row) throw new CollaborationError("forbidden", "Server admin permission is required");
+    }
+
+    private async appendAuditDb(
+        tx: DrizzleTransaction,
+        input: {
+            actorUserId: string;
+            action: string;
+            targetType: string;
+            targetId?: string;
+            chatId?: string;
+            after?: Record<string, unknown>;
+        },
+    ): Promise<void> {
+        await tx.insert(auditLogEntries).values({
+            id: createId(),
+            actorUserId: input.actorUserId,
+            action: input.action,
+            targetType: input.targetType,
+            targetId: input.targetId,
+            chatId: input.chatId,
+            afterJson: input.after ? JSON.stringify(input.after) : null,
+        });
+    }
+
+    private writeDb<T>(operation: (tx: DrizzleTransaction) => Promise<T>): Promise<T> {
+        return this.db.transaction(operation);
     }
 }
 
-async function one(executor: Executor, sql: string, args: InArgs = []): Promise<Row | undefined> {
-    return (await executor.execute({ sql, args })).rows[0];
-}
-
-function asChat(row: Row): ChatSummary {
+function asChat(row: Record<string, unknown>): ChatSummary {
     const kind = text(row.kind) as ChatKind;
     const starred = number(row.starred, 0) === 1;
     return {
@@ -5244,7 +5850,7 @@ function asChat(row: Row): ChatSummary {
     };
 }
 
-function asUser(row: Row): UserSummary {
+function asUser(row: Record<string, unknown>): UserSummary {
     return {
         id: text(row.id),
         username: text(row.username),
@@ -5256,7 +5862,7 @@ function asUser(row: Row): UserSummary {
     };
 }
 
-function asFile(row: Row): FileSummary {
+function asFile(row: Record<string, unknown>): FileSummary {
     return {
         id: text(row.id),
         kind: text(row.kind) as FileKind,
@@ -5272,7 +5878,7 @@ function asFile(row: Row): FileSummary {
     };
 }
 
-function asNotification(row: Row): NotificationSummary {
+function asNotification(row: Record<string, unknown>): NotificationSummary {
     return {
         id: text(row.id),
         kind: text(row.kind) as NotificationSummary["kind"],
@@ -5285,7 +5891,7 @@ function asNotification(row: Row): NotificationSummary {
     };
 }
 
-function syncState(row: Row): SyncState {
+function syncState(row: Record<string, unknown>): SyncState {
     return stateAt(text(row.generation), number(row.sequence));
 }
 

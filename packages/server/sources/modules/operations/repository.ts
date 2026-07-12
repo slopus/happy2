@@ -1,13 +1,37 @@
-import {
-    createClient,
-    type Client,
-    type InArgs,
-    type InValue,
-    type Row,
-    type Transaction,
-} from "@libsql/client";
+import { createClient, type Client } from "@libsql/client";
 import { createId } from "@paralleldrive/cuid2";
+import { and, asc, desc, eq, gt, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
+import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import type { RequestMetadata } from "../database.js";
+import { createDatabase, type DrizzleExecutor, type DrizzleTransaction } from "../drizzle.js";
+import {
+    accountBans,
+    accounts,
+    auditLogEntries,
+    authSessionEvents,
+    authSessions,
+    backupRecords,
+    chatMembers,
+    chatUpdates,
+    chats,
+    dataExportJobs,
+    fileAccessGrants,
+    files,
+    messageAttachments,
+    messageRevisions,
+    messageSearchDocuments,
+    messages,
+    moderationActions,
+    moderationReports,
+    notifications,
+    retentionRuns,
+    serverSyncState,
+    syncEvents,
+    threadParticipants,
+    threadUserStates,
+    threads,
+    users,
+} from "../schema.js";
 import {
     OperationsError,
     type AccountBan,
@@ -28,8 +52,6 @@ import {
     type UserAccessTelemetry,
 } from "./types.js";
 
-type Executor = Pick<Client, "execute"> | Pick<Transaction, "execute">;
-
 interface AuditContext {
     request?: RequestMetadata;
     metadata?: Record<string, unknown>;
@@ -45,62 +67,128 @@ interface AccountTarget {
     bannedByUserId?: string;
 }
 
-const AUDIT_SELECT = `
-    SELECT id, actor_user_id, actor_integration_id, action, target_type, target_id,
-           chat_id, before_json, after_json, metadata_json, client_ip, device,
-           app_version, user_agent, created_at
-      FROM audit_log_entries
-`;
+export interface ClaimedDataExport extends DataExportJob {
+    claimStartedAt: string;
+}
 
-const BAN_SELECT = `
-    SELECT b.id, b.account_id, u.id AS user_id, u.username,
-           b.banned_by_user_id, b.reason, b.banned_at, b.expires_at,
-           b.revoked_at, b.revoked_by_user_id, b.revoke_reason
-      FROM account_bans b
-      LEFT JOIN users u ON u.account_id = b.account_id
-`;
+const auditSelection = {
+    id: auditLogEntries.id,
+    actor_user_id: auditLogEntries.actorUserId,
+    actor_integration_id: auditLogEntries.actorIntegrationId,
+    action: auditLogEntries.action,
+    target_type: auditLogEntries.targetType,
+    target_id: auditLogEntries.targetId,
+    chat_id: auditLogEntries.chatId,
+    before_json: auditLogEntries.beforeJson,
+    after_json: auditLogEntries.afterJson,
+    metadata_json: auditLogEntries.metadataJson,
+    client_ip: auditLogEntries.clientIp,
+    device: auditLogEntries.device,
+    app_version: auditLogEntries.appVersion,
+    user_agent: auditLogEntries.userAgent,
+    created_at: auditLogEntries.createdAt,
+};
 
-const REPORT_SELECT = `
-    SELECT id, reported_by_user_id, target_user_id, chat_id, message_id, file_id,
-           reason, details, status, assigned_to_user_id, resolution,
-           created_at, updated_at, resolved_at
-      FROM moderation_reports
-`;
+const banSelection = {
+    id: accountBans.id,
+    account_id: accountBans.accountId,
+    user_id: users.id,
+    username: users.username,
+    banned_by_user_id: accountBans.bannedByUserId,
+    reason: accountBans.reason,
+    banned_at: accountBans.bannedAt,
+    expires_at: accountBans.expiresAt,
+    revoked_at: accountBans.revokedAt,
+    revoked_by_user_id: accountBans.revokedByUserId,
+    revoke_reason: accountBans.revokeReason,
+};
 
-const MODERATION_ACTION_SELECT = `
-    SELECT id, report_id, actor_user_id, target_user_id, chat_id, message_id,
-           file_id, action, reason, metadata_json, expires_at, revoked_at, created_at
-      FROM moderation_actions
-`;
+const reportSelection = {
+    id: moderationReports.id,
+    reported_by_user_id: moderationReports.reportedByUserId,
+    target_user_id: moderationReports.targetUserId,
+    chat_id: moderationReports.chatId,
+    message_id: moderationReports.messageId,
+    file_id: moderationReports.fileId,
+    reason: moderationReports.reason,
+    details: moderationReports.details,
+    status: moderationReports.status,
+    assigned_to_user_id: moderationReports.assignedToUserId,
+    resolution: moderationReports.resolution,
+    created_at: moderationReports.createdAt,
+    updated_at: moderationReports.updatedAt,
+    resolved_at: moderationReports.resolvedAt,
+};
 
-const EXPORT_SELECT = `
-    SELECT id, requested_by_user_id, kind, target_id, status, output_file_id,
-           options_json, last_error, expires_at, created_at, started_at, completed_at
-      FROM data_export_jobs
-`;
+const moderationActionSelection = {
+    id: moderationActions.id,
+    report_id: moderationActions.reportId,
+    actor_user_id: moderationActions.actorUserId,
+    target_user_id: moderationActions.targetUserId,
+    chat_id: moderationActions.chatId,
+    message_id: moderationActions.messageId,
+    file_id: moderationActions.fileId,
+    action: moderationActions.action,
+    reason: moderationActions.reason,
+    metadata_json: moderationActions.metadataJson,
+    expires_at: moderationActions.expiresAt,
+    revoked_at: moderationActions.revokedAt,
+    created_at: moderationActions.createdAt,
+};
 
-const BACKUP_SELECT = `
-    SELECT id, storage_provider, storage_key, checksum_sha256, size, status,
-           created_by_user_id, metadata_json, last_error, created_at,
-           completed_at, retention_until
-      FROM backup_records
-`;
+const exportSelection = {
+    id: dataExportJobs.id,
+    requested_by_user_id: dataExportJobs.requestedByUserId,
+    kind: dataExportJobs.kind,
+    target_id: dataExportJobs.targetId,
+    status: dataExportJobs.status,
+    output_file_id: dataExportJobs.outputFileId,
+    options_json: dataExportJobs.optionsJson,
+    last_error: dataExportJobs.lastError,
+    expires_at: dataExportJobs.expiresAt,
+    created_at: dataExportJobs.createdAt,
+    started_at: dataExportJobs.startedAt,
+    completed_at: dataExportJobs.completedAt,
+};
 
-const RETENTION_SELECT = `
-    SELECT id, scope, status, items_examined, items_deleted, details_json,
-           last_error, started_at, completed_at
-      FROM retention_runs
-`;
+const backupSelection = {
+    id: backupRecords.id,
+    storage_provider: backupRecords.storageProvider,
+    storage_key: backupRecords.storageKey,
+    checksum_sha256: backupRecords.checksumSha256,
+    size: backupRecords.size,
+    status: backupRecords.status,
+    created_by_user_id: backupRecords.createdByUserId,
+    metadata_json: backupRecords.metadataJson,
+    last_error: backupRecords.lastError,
+    created_at: backupRecords.createdAt,
+    completed_at: backupRecords.completedAt,
+    retention_until: backupRecords.retentionUntil,
+};
+
+const retentionSelection = {
+    id: retentionRuns.id,
+    scope: retentionRuns.scope,
+    status: retentionRuns.status,
+    items_examined: retentionRuns.itemsExamined,
+    items_deleted: retentionRuns.itemsDeleted,
+    details_json: retentionRuns.detailsJson,
+    last_error: retentionRuns.lastError,
+    started_at: retentionRuns.startedAt,
+    completed_at: retentionRuns.completedAt,
+};
 
 /** Durable administrative and operational state. All authorization is rechecked in SQLite. */
 export class OperationsRepository {
     private readonly client: Client;
+    private readonly db;
     private readonly ownsClient: boolean;
 
     constructor(source: string | Client, authToken?: string) {
         this.ownsClient = typeof source === "string";
         this.client =
             typeof source === "string" ? createClient({ url: source, authToken }) : source;
+        this.db = createDatabase(this.client);
     }
 
     close(): void {
@@ -116,23 +204,23 @@ export class OperationsRepository {
         before?: string;
         limit: number;
     }): Promise<Page<AuditLogEntry>> {
-        await this.requireAdmin(this.client, input.actorUserId);
+        await this.requireAdminDb(this.db, input.actorUserId);
         const cursor = decodeCursor(input.before);
-        const clauses: string[] = [];
-        const args: InValue[] = [];
-        if (input.action) addFilter(clauses, args, "action = ?", input.action);
-        if (input.targetType) addFilter(clauses, args, "target_type = ?", input.targetType);
-        if (input.targetId) addFilter(clauses, args, "target_id = ?", input.targetId);
+        const conditions: SQL[] = [];
+        if (input.action) conditions.push(eq(auditLogEntries.action, input.action));
+        if (input.targetType) conditions.push(eq(auditLogEntries.targetType, input.targetType));
+        if (input.targetId) conditions.push(eq(auditLogEntries.targetId, input.targetId));
         if (input.auditedActorUserId)
-            addFilter(clauses, args, "actor_user_id = ?", input.auditedActorUserId);
-        addCursor(clauses, args, cursor);
-        args.push(input.limit + 1);
-        const result = await this.client.execute({
-            sql: `${AUDIT_SELECT}${where(clauses)}
-                  ORDER BY created_at DESC, id DESC LIMIT ?`,
-            args,
-        });
-        return page(result.rows, input.limit, asAudit);
+            conditions.push(eq(auditLogEntries.actorUserId, input.auditedActorUserId));
+        if (cursor)
+            conditions.push(cursorCondition(auditLogEntries.createdAt, auditLogEntries.id, cursor));
+        const rows = await this.db
+            .select(auditSelection)
+            .from(auditLogEntries)
+            .where(and(...conditions))
+            .orderBy(desc(auditLogEntries.createdAt), desc(auditLogEntries.id))
+            .limit(input.limit + 1);
+        return page(rows, input.limit, asAudit);
     }
 
     async applyBan(input: {
@@ -143,11 +231,11 @@ export class OperationsRepository {
         context?: AuditContext;
     }): Promise<AccountBan> {
         const expiresAt = futureTimestamp(input.expiresAt, "expiresAt");
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
             if (input.actorUserId === input.targetUserId)
                 throw new OperationsError("forbidden", "Administrators cannot ban themselves");
-            const target = await this.accountTarget(tx, input.targetUserId);
+            const target = await this.accountTargetDb(tx, input.targetUserId);
             await this.closeElapsedBan(tx, target);
             if (
                 target.bannedAt &&
@@ -155,37 +243,34 @@ export class OperationsRepository {
             )
                 throw new OperationsError("conflict", "User already has an active ban");
             const id = createId();
-            await tx.execute({
-                sql: `INSERT INTO account_bans
-                        (id, account_id, banned_by_user_id, reason, expires_at)
-                      VALUES (?, ?, ?, ?, ?)`,
-                args: [
-                    id,
-                    target.accountId,
-                    input.actorUserId,
-                    input.reason ?? null,
-                    expiresAt ?? null,
-                ],
+            await tx.insert(accountBans).values({
+                id,
+                accountId: target.accountId,
+                bannedByUserId: input.actorUserId,
+                reason: input.reason,
+                expiresAt,
             });
-            await tx.execute({
-                sql: `UPDATE accounts
-                         SET banned_at = CURRENT_TIMESTAMP, ban_expires_at = ?, ban_reason = ?,
-                             banned_by_user_id = ?
-                       WHERE id = ?`,
-                args: [
-                    expiresAt ?? null,
-                    input.reason ?? null,
-                    input.actorUserId,
-                    target.accountId,
-                ],
-            });
-            const sessions = await tx.execute({
-                sql: `UPDATE auth_sessions SET revoked_at = CURRENT_TIMESTAMP
-                       WHERE account_id = ? AND revoked_at IS NULL`,
-                args: [target.accountId],
-            });
+            await tx
+                .update(accounts)
+                .set({
+                    bannedAt: sql`CURRENT_TIMESTAMP`,
+                    banExpiresAt: expiresAt ?? null,
+                    banReason: input.reason ?? null,
+                    bannedByUserId: input.actorUserId,
+                })
+                .where(eq(accounts.id, target.accountId));
+            const sessions = await tx
+                .update(authSessions)
+                .set({ revokedAt: sql`CURRENT_TIMESTAMP` })
+                .where(
+                    and(
+                        eq(authSessions.accountId, target.accountId),
+                        isNull(authSessions.revokedAt),
+                    ),
+                )
+                .returning({ id: authSessions.id });
             await this.syncUserMutation(tx, input.actorUserId, target.userId, "user.banned");
-            const ban = await requiredRow(tx, `${BAN_SELECT} WHERE b.id = ?`, [id], asBan);
+            const ban = await this.banDb(tx, id);
             await this.appendAudit(tx, {
                 actorUserId: input.actorUserId,
                 action: "user.ban_applied",
@@ -194,7 +279,7 @@ export class OperationsRepository {
                 before: accountTargetState(target),
                 after: ban,
                 context: mergeContext(input.context, {
-                    revokedSessionCount: sessions.rowsAffected,
+                    revokedSessionCount: sessions.length,
                 }),
             });
             return ban;
@@ -207,38 +292,36 @@ export class OperationsRepository {
         reason?: string;
         context?: AuditContext;
     }): Promise<AccountBan> {
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
-            const target = await this.accountTarget(tx, input.targetUserId);
-            const current = await one(
-                tx,
-                `${BAN_SELECT}
-                 WHERE b.account_id = ? AND b.revoked_at IS NULL
-                 ORDER BY b.banned_at DESC, b.id DESC LIMIT 1`,
-                [target.accountId],
-            );
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
+            const target = await this.accountTargetDb(tx, input.targetUserId);
+            const [current] = await tx
+                .select(banSelection)
+                .from(accountBans)
+                .leftJoin(users, eq(users.accountId, accountBans.accountId))
+                .where(
+                    and(eq(accountBans.accountId, target.accountId), isNull(accountBans.revokedAt)),
+                )
+                .orderBy(desc(accountBans.bannedAt), desc(accountBans.id))
+                .limit(1);
             if (!current || !target.bannedAt)
                 throw new OperationsError("conflict", "User does not have an active ban");
-            await tx.execute({
-                sql: `UPDATE account_bans
-                         SET revoked_at = CURRENT_TIMESTAMP, revoked_by_user_id = ?, revoke_reason = ?
-                       WHERE account_id = ? AND revoked_at IS NULL`,
-                args: [input.actorUserId, input.reason ?? null, target.accountId],
-            });
-            await tx.execute({
-                sql: `UPDATE accounts
-                         SET banned_at = NULL, ban_expires_at = NULL, ban_reason = NULL,
-                             banned_by_user_id = NULL
-                       WHERE id = ?`,
-                args: [target.accountId],
-            });
+            await tx
+                .update(accountBans)
+                .set({
+                    revokedAt: sql`CURRENT_TIMESTAMP`,
+                    revokedByUserId: input.actorUserId,
+                    revokeReason: input.reason ?? null,
+                })
+                .where(
+                    and(eq(accountBans.accountId, target.accountId), isNull(accountBans.revokedAt)),
+                );
+            await tx
+                .update(accounts)
+                .set({ bannedAt: null, banExpiresAt: null, banReason: null, bannedByUserId: null })
+                .where(eq(accounts.id, target.accountId));
             await this.syncUserMutation(tx, input.actorUserId, target.userId, "user.unbanned");
-            const ban = await requiredRow(
-                tx,
-                `${BAN_SELECT} WHERE b.id = ?`,
-                [text(current.id)],
-                asBan,
-            );
+            const ban = await this.banDb(tx, text(current.id));
             await this.appendAudit(tx, {
                 actorUserId: input.actorUserId,
                 action: "user.ban_revoked",
@@ -254,59 +337,82 @@ export class OperationsRepository {
 
     /** Clears elapsed bans durably. Safe for concurrent timers on multiple server instances. */
     async expireDueBans(input?: { actorUserId?: string; context?: AuditContext }): Promise<number> {
-        return this.write(async (tx) => {
-            if (input?.actorUserId) await this.requireAdmin(tx, input.actorUserId);
+        return this.writeDb(async (tx) => {
+            if (input?.actorUserId) await this.requireAdminDb(tx, input.actorUserId);
             const now = new Date().toISOString();
-            const due = await tx.execute({
-                sql: `SELECT a.id AS account_id, u.id AS user_id, a.banned_at,
-                             a.ban_expires_at, a.ban_reason, a.banned_by_user_id
-                        FROM accounts a
-                        LEFT JOIN users u ON u.account_id = a.id
-                       WHERE a.banned_at IS NOT NULL AND a.ban_expires_at IS NOT NULL
-                         AND a.ban_expires_at <= ?`,
-                args: [now],
-            });
-            for (const row of due.rows) {
-                const accountId = text(row.account_id);
-                await tx.execute({
-                    sql: `UPDATE account_bans
-                             SET revoked_at = COALESCE(revoked_at, ?),
-                                 revoke_reason = COALESCE(revoke_reason, 'expired')
-                           WHERE account_id = ? AND revoked_at IS NULL AND expires_at <= ?`,
-                    args: [now, accountId, now],
-                });
-                const updated = await tx.execute({
-                    sql: `UPDATE accounts
-                             SET banned_at = NULL, ban_expires_at = NULL, ban_reason = NULL,
-                                 banned_by_user_id = NULL
-                           WHERE id = ? AND banned_at IS NOT NULL
-                             AND ban_expires_at IS NOT NULL AND ban_expires_at <= ?`,
-                    args: [accountId, now],
-                });
-                if (!updated.rowsAffected) continue;
-                if (row.user_id)
+            const due = await tx
+                .select({
+                    accountId: accounts.id,
+                    userId: users.id,
+                    bannedAt: accounts.bannedAt,
+                    banExpiresAt: accounts.banExpiresAt,
+                    banReason: accounts.banReason,
+                    bannedByUserId: accounts.bannedByUserId,
+                })
+                .from(accounts)
+                .leftJoin(users, eq(users.accountId, accounts.id))
+                .where(
+                    and(
+                        sql`${accounts.bannedAt} IS NOT NULL`,
+                        sql`${accounts.banExpiresAt} IS NOT NULL`,
+                        lte(accounts.banExpiresAt, now),
+                    ),
+                );
+            for (const row of due) {
+                await tx
+                    .update(accountBans)
+                    .set({
+                        revokedAt: sql`coalesce(${accountBans.revokedAt}, ${now})`,
+                        revokeReason: sql`coalesce(${accountBans.revokeReason}, 'expired')`,
+                    })
+                    .where(
+                        and(
+                            eq(accountBans.accountId, row.accountId),
+                            isNull(accountBans.revokedAt),
+                            lte(accountBans.expiresAt, now),
+                        ),
+                    );
+                const updated = await tx
+                    .update(accounts)
+                    .set({
+                        bannedAt: null,
+                        banExpiresAt: null,
+                        banReason: null,
+                        bannedByUserId: null,
+                    })
+                    .where(
+                        and(
+                            eq(accounts.id, row.accountId),
+                            sql`${accounts.bannedAt} IS NOT NULL`,
+                            sql`${accounts.banExpiresAt} IS NOT NULL`,
+                            lte(accounts.banExpiresAt, now),
+                        ),
+                    )
+                    .returning({ id: accounts.id });
+                if (!updated.length) continue;
+                if (row.userId)
                     await this.syncUserMutation(
                         tx,
                         input?.actorUserId,
-                        text(row.user_id),
+                        row.userId,
                         "user.unbanned",
                     );
                 await this.appendAudit(tx, {
                     actorUserId: input?.actorUserId,
                     action: "user.ban_expired",
                     targetType: "user",
-                    targetId: optionalText(row.user_id),
+                    targetId: row.userId ?? undefined,
                     before: {
-                        bannedAt: optionalText(row.banned_at),
-                        expiresAt: optionalText(row.ban_expires_at),
-                        reason: optionalText(row.ban_reason),
-                        bannedByUserId: optionalText(row.banned_by_user_id),
+                        bannedAt: row.bannedAt ?? undefined,
+                        expiresAt: row.banExpiresAt ?? undefined,
+                        reason: row.banReason ?? undefined,
+                        bannedByUserId: row.bannedByUserId ?? undefined,
                     },
                     after: { banned: false },
                     context: input?.context,
                 });
             }
-            return due.rows.length;
+            return due.length;
         });
     }
 
@@ -317,28 +423,38 @@ export class OperationsRepository {
         before?: string;
         limit: number;
     }): Promise<Page<AccountBan>> {
-        await this.requireAdmin(this.client, input.actorUserId);
+        await this.requireAdminDb(this.db, input.actorUserId);
         const cursor = decodeCursor(input.before);
-        const clauses: string[] = [];
-        const args: InValue[] = [];
-        if (input.targetUserId) addFilter(clauses, args, "u.id = ?", input.targetUserId);
+        const conditions: SQL[] = [];
+        if (input.targetUserId) conditions.push(eq(users.id, input.targetUserId));
         const now = new Date().toISOString();
         if (input.status === "active") {
-            clauses.push("b.revoked_at IS NULL AND (b.expires_at IS NULL OR b.expires_at > ?)");
-            args.push(now);
+            conditions.push(
+                and(
+                    isNull(accountBans.revokedAt),
+                    or(isNull(accountBans.expiresAt), gt(accountBans.expiresAt, now)),
+                )!,
+            );
         } else if (input.status === "expired") {
-            clauses.push("b.revoked_at IS NULL AND b.expires_at IS NOT NULL AND b.expires_at <= ?");
-            args.push(now);
+            conditions.push(
+                and(
+                    isNull(accountBans.revokedAt),
+                    sql`${accountBans.expiresAt} IS NOT NULL`,
+                    lte(accountBans.expiresAt, now),
+                )!,
+            );
         } else if (input.status === "revoked") {
-            clauses.push("b.revoked_at IS NOT NULL");
+            conditions.push(sql`${accountBans.revokedAt} IS NOT NULL`);
         }
-        addCursor(clauses, args, cursor, "b.banned_at", "b.id");
-        args.push(input.limit + 1);
-        const result = await this.client.execute({
-            sql: `${BAN_SELECT}${where(clauses)} ORDER BY b.banned_at DESC, b.id DESC LIMIT ?`,
-            args,
-        });
-        return page(result.rows, input.limit, asBan, (item) => item.bannedAt);
+        if (cursor) conditions.push(cursorCondition(accountBans.bannedAt, accountBans.id, cursor));
+        const rows = await this.db
+            .select(banSelection)
+            .from(accountBans)
+            .leftJoin(users, eq(users.accountId, accountBans.accountId))
+            .where(and(...conditions))
+            .orderBy(desc(accountBans.bannedAt), desc(accountBans.id))
+            .limit(input.limit + 1);
+        return page(rows, input.limit, asBan, (item) => item.bannedAt);
     }
 
     async createReport(input: {
@@ -353,27 +469,21 @@ export class OperationsRepository {
     }): Promise<ModerationReport> {
         if (![input.targetUserId, input.chatId, input.messageId, input.fileId].some(Boolean))
             throw new OperationsError("invalid", "A report must identify at least one target");
-        return this.write(async (tx) => {
-            await this.requireActiveUser(tx, input.actorUserId);
+        return this.writeDb(async (tx) => {
+            await this.requireActiveUserDb(tx, input.actorUserId);
             await this.requireReportTargetAccess(tx, input);
             const id = createId();
-            await tx.execute({
-                sql: `INSERT INTO moderation_reports
-                        (id, reported_by_user_id, target_user_id, chat_id, message_id,
-                         file_id, reason, details)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                args: [
-                    id,
-                    input.actorUserId,
-                    input.targetUserId ?? null,
-                    input.chatId ?? null,
-                    input.messageId ?? null,
-                    input.fileId ?? null,
-                    input.reason,
-                    input.details ?? null,
-                ],
+            await tx.insert(moderationReports).values({
+                id,
+                reportedByUserId: input.actorUserId,
+                targetUserId: input.targetUserId,
+                chatId: input.chatId,
+                messageId: input.messageId,
+                fileId: input.fileId,
+                reason: input.reason,
+                details: input.details,
             });
-            const report = await requiredRow(tx, `${REPORT_SELECT} WHERE id = ?`, [id], asReport);
+            const report = await this.reportDb(tx, id);
             await this.appendAudit(tx, {
                 actorUserId: input.actorUserId,
                 action: "moderation.report_created",
@@ -394,20 +504,23 @@ export class OperationsRepository {
         before?: string;
         limit: number;
     }): Promise<Page<ModerationReport>> {
-        await this.requireAdmin(this.client, input.actorUserId);
+        await this.requireAdminDb(this.db, input.actorUserId);
         const cursor = decodeCursor(input.before);
-        const clauses: string[] = [];
-        const args: InValue[] = [];
-        if (input.status) addFilter(clauses, args, "status = ?", input.status);
+        const conditions: SQL[] = [];
+        if (input.status) conditions.push(eq(moderationReports.status, input.status));
         if (input.assignedToUserId)
-            addFilter(clauses, args, "assigned_to_user_id = ?", input.assignedToUserId);
-        addCursor(clauses, args, cursor);
-        args.push(input.limit + 1);
-        const result = await this.client.execute({
-            sql: `${REPORT_SELECT}${where(clauses)} ORDER BY created_at DESC, id DESC LIMIT ?`,
-            args,
-        });
-        return page(result.rows, input.limit, asReport);
+            conditions.push(eq(moderationReports.assignedToUserId, input.assignedToUserId));
+        if (cursor)
+            conditions.push(
+                cursorCondition(moderationReports.createdAt, moderationReports.id, cursor),
+            );
+        const rows = await this.db
+            .select(reportSelection)
+            .from(moderationReports)
+            .where(and(...conditions))
+            .orderBy(desc(moderationReports.createdAt), desc(moderationReports.id))
+            .limit(input.limit + 1);
+        return page(rows, input.limit, asReport);
     }
 
     async updateReport(input: {
@@ -424,10 +537,10 @@ export class OperationsRepository {
             input.resolution === undefined
         )
             throw new OperationsError("invalid", "At least one report field is required");
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
-            const before = await this.report(tx, input.reportId);
-            if (input.assignedToUserId) await this.requireAdmin(tx, input.assignedToUserId);
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
+            const before = await this.reportDb(tx, input.reportId);
+            if (input.assignedToUserId) await this.requireAdminDb(tx, input.assignedToUserId);
             const status = input.status ?? before.status;
             const assigned =
                 input.assignedToUserId === undefined
@@ -435,17 +548,20 @@ export class OperationsRepository {
                     : input.assignedToUserId;
             const resolution =
                 input.resolution === undefined ? before.resolution : input.resolution;
-            await tx.execute({
-                sql: `UPDATE moderation_reports
-                         SET status = ?, assigned_to_user_id = ?, resolution = ?,
-                             resolved_at = CASE WHEN ? IN ('resolved', 'dismissed')
-                                                THEN COALESCE(resolved_at, CURRENT_TIMESTAMP)
-                                                ELSE NULL END,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ?`,
-                args: [status, assigned ?? null, resolution ?? null, status, input.reportId],
-            });
-            const after = await this.report(tx, input.reportId);
+            await tx
+                .update(moderationReports)
+                .set({
+                    status,
+                    assignedToUserId: assigned ?? null,
+                    resolution: resolution ?? null,
+                    resolvedAt:
+                        status === "resolved" || status === "dismissed"
+                            ? sql`coalesce(${moderationReports.resolvedAt}, CURRENT_TIMESTAMP)`
+                            : null,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(moderationReports.id, input.reportId));
+            const after = await this.reportDb(tx, input.reportId);
             await this.appendAudit(tx, {
                 actorUserId: input.actorUserId,
                 action: "moderation.report_updated",
@@ -477,14 +593,14 @@ export class OperationsRepository {
         const expiresAt = futureTimestamp(input.expiresAt, "expiresAt");
         if (expiresAt && input.action !== "ban" && input.action !== "restrict")
             throw new OperationsError("invalid", `${input.action} does not support expiresAt`);
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
             if (input.automationRunId) {
-                const existing = await one(
-                    tx,
-                    `${MODERATION_ACTION_SELECT} WHERE automation_run_id = ?`,
-                    [input.automationRunId],
-                );
+                const [existing] = await tx
+                    .select(moderationActionSelection)
+                    .from(moderationActions)
+                    .where(eq(moderationActions.automationRunId, input.automationRunId))
+                    .limit(1);
                 if (existing) {
                     const action = asModerationAction(existing);
                     if (action.reportId !== input.reportId)
@@ -493,12 +609,12 @@ export class OperationsRepository {
                             "Automation run is already bound to another moderation report",
                         );
                     return {
-                        report: await this.report(tx, input.reportId),
+                        report: await this.reportDb(tx, input.reportId),
                         action,
                     };
                 }
             }
-            const before = await this.report(tx, input.reportId);
+            const before = await this.reportDb(tx, input.reportId);
             if (
                 (input.action === "ban" ||
                     input.action === "unban" ||
@@ -565,41 +681,32 @@ export class OperationsRepository {
                     before.targetUserId!,
                 );
 
-            await tx.execute({
-                sql: `INSERT INTO moderation_actions
-                        (id, report_id, actor_user_id, target_user_id, chat_id, message_id,
-                         file_id, action, reason, metadata_json, automation_run_id, expires_at)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                args: [
-                    actionId,
-                    input.reportId,
-                    input.actorUserId,
-                    before.targetUserId ?? null,
-                    actionChatId ?? null,
-                    before.messageId ?? null,
-                    before.fileId ?? null,
-                    input.action,
-                    input.reason ?? null,
-                    json(input.metadata),
-                    input.automationRunId ?? null,
-                    expiresAt ?? null,
-                ],
+            await tx.insert(moderationActions).values({
+                id: actionId,
+                reportId: input.reportId,
+                actorUserId: input.actorUserId,
+                targetUserId: before.targetUserId,
+                chatId: actionChatId,
+                messageId: before.messageId,
+                fileId: before.fileId,
+                action: input.action,
+                reason: input.reason,
+                metadataJson: json(input.metadata),
+                automationRunId: input.automationRunId,
+                expiresAt,
             });
-            await tx.execute({
-                sql: `UPDATE moderation_reports
-                         SET status = 'resolved', assigned_to_user_id = ?,
-                             resolution = ?, resolved_at = CURRENT_TIMESTAMP,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ?`,
-                args: [input.actorUserId, input.reason ?? input.action, input.reportId],
-            });
-            const report = await this.report(tx, input.reportId);
-            const action = await requiredRow(
-                tx,
-                `${MODERATION_ACTION_SELECT} WHERE id = ?`,
-                [actionId],
-                asModerationAction,
-            );
+            await tx
+                .update(moderationReports)
+                .set({
+                    status: "resolved",
+                    assignedToUserId: input.actorUserId,
+                    resolution: input.reason ?? input.action,
+                    resolvedAt: sql`CURRENT_TIMESTAMP`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(moderationReports.id, input.reportId));
+            const report = await this.reportDb(tx, input.reportId);
+            const action = await this.moderationActionDb(tx, actionId);
             await this.appendAudit(tx, {
                 actorUserId: input.actorUserId,
                 action: `moderation.${input.action}`,
@@ -620,25 +727,23 @@ export class OperationsRepository {
         reason?: string;
         context?: AuditContext;
     }): Promise<{ action: ModerationAction; sync: OperationsSyncHint }> {
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
-            const before = await requiredRow(
-                tx,
-                `${MODERATION_ACTION_SELECT} WHERE id = ?`,
-                [input.actionId],
-                asModerationAction,
-                "Moderation action was not found",
-            );
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
+            const before = await this.moderationActionDb(tx, input.actionId);
             if (before.revokedAt)
                 throw new OperationsError("conflict", "Moderation action is already revoked");
             if (before.action !== "restrict")
                 throw new OperationsError("conflict", "Only restrictions can be revoked");
             if (!before.targetUserId) throw new Error("Restriction is missing its target user");
-            await tx.execute({
-                sql: `UPDATE moderation_actions SET revoked_at = CURRENT_TIMESTAMP
-                       WHERE id = ? AND revoked_at IS NULL`,
-                args: [input.actionId],
-            });
+            await tx
+                .update(moderationActions)
+                .set({ revokedAt: sql`CURRENT_TIMESTAMP` })
+                .where(
+                    and(
+                        eq(moderationActions.id, input.actionId),
+                        isNull(moderationActions.revokedAt),
+                    ),
+                );
             const sync = await this.createModerationNotification(tx, {
                 actorUserId: input.actorUserId,
                 targetUserId: before.targetUserId,
@@ -648,12 +753,7 @@ export class OperationsRepository {
                 action: "restrict_revoked",
                 reason: input.reason,
             });
-            const action = await requiredRow(
-                tx,
-                `${MODERATION_ACTION_SELECT} WHERE id = ?`,
-                [input.actionId],
-                asModerationAction,
-            );
+            const action = await this.moderationActionDb(tx, input.actionId);
             await this.appendAudit(tx, {
                 actorUserId: input.actorUserId,
                 action: "moderation.action_revoked",
@@ -677,8 +777,8 @@ export class OperationsRepository {
         context?: AuditContext;
     }): Promise<DataExportJob> {
         const expiresAt = futureTimestamp(input.expiresAt, "expiresAt");
-        return this.write(async (tx) => {
-            const actor = await this.requireActiveUser(tx, input.actorUserId);
+        return this.writeDb(async (tx) => {
+            const actor = await this.requireActiveUserDb(tx, input.actorUserId);
             let targetId = input.targetId;
             if (input.kind === "user_data") {
                 targetId ??= input.actorUserId;
@@ -687,7 +787,7 @@ export class OperationsRepository {
                         "forbidden",
                         "Only administrators can export another user",
                     );
-                await this.requireExistingUser(tx, targetId);
+                await this.requireExistingUserDb(tx, targetId);
             } else if (input.kind === "chat_history") {
                 if (!targetId)
                     throw new OperationsError("invalid", "chat_history requires targetId");
@@ -699,20 +799,15 @@ export class OperationsRepository {
                 targetId = undefined;
             }
             const id = createId();
-            await tx.execute({
-                sql: `INSERT INTO data_export_jobs
-                        (id, requested_by_user_id, kind, target_id, options_json, expires_at)
-                      VALUES (?, ?, ?, ?, ?, ?)`,
-                args: [
-                    id,
-                    input.actorUserId,
-                    input.kind,
-                    targetId ?? null,
-                    json(input.options),
-                    expiresAt ?? null,
-                ],
+            await tx.insert(dataExportJobs).values({
+                id,
+                requestedByUserId: input.actorUserId,
+                kind: input.kind,
+                targetId,
+                optionsJson: json(input.options),
+                expiresAt,
             });
-            const job = await this.exportJob(tx, id);
+            const job = await this.exportJobDb(tx, id);
             await this.appendAudit(tx, {
                 actorUserId: input.actorUserId,
                 action: "data_export.requested",
@@ -727,8 +822,8 @@ export class OperationsRepository {
     }
 
     async getDataExport(actorUserId: string, jobId: string): Promise<DataExportJob> {
-        const actor = await this.requireActiveUser(this.client, actorUserId);
-        const job = await this.exportJob(this.client, jobId);
+        const actor = await this.requireActiveUserDb(this.db, actorUserId);
+        const job = await this.exportJobDb(this.db, jobId);
         if (actor.role !== "admin" && job.requestedByUserId !== actorUserId)
             throw new OperationsError("not_found", "Data export was not found");
         return job;
@@ -742,22 +837,24 @@ export class OperationsRepository {
         limit: number;
         ownOnly?: boolean;
     }): Promise<Page<DataExportJob>> {
-        const actor = await this.requireActiveUser(this.client, input.actorUserId);
+        const actor = await this.requireActiveUserDb(this.db, input.actorUserId);
         if (!input.ownOnly && actor.role !== "admin")
             throw new OperationsError("forbidden", "Administrator access is required");
-        const clauses: string[] = [];
-        const args: InValue[] = [];
-        if (input.ownOnly) addFilter(clauses, args, "requested_by_user_id = ?", input.actorUserId);
+        const conditions: SQL[] = [];
+        if (input.ownOnly) conditions.push(eq(dataExportJobs.requestedByUserId, input.actorUserId));
         else if (input.requestedByUserId)
-            addFilter(clauses, args, "requested_by_user_id = ?", input.requestedByUserId);
-        if (input.status) addFilter(clauses, args, "status = ?", input.status);
-        addCursor(clauses, args, decodeCursor(input.before));
-        args.push(input.limit + 1);
-        const result = await this.client.execute({
-            sql: `${EXPORT_SELECT}${where(clauses)} ORDER BY created_at DESC, id DESC LIMIT ?`,
-            args,
-        });
-        return page(result.rows, input.limit, asExport);
+            conditions.push(eq(dataExportJobs.requestedByUserId, input.requestedByUserId));
+        if (input.status) conditions.push(eq(dataExportJobs.status, input.status));
+        const cursor = decodeCursor(input.before);
+        if (cursor)
+            conditions.push(cursorCondition(dataExportJobs.createdAt, dataExportJobs.id, cursor));
+        const rows = await this.db
+            .select(exportSelection)
+            .from(dataExportJobs)
+            .where(and(...conditions))
+            .orderBy(desc(dataExportJobs.createdAt), desc(dataExportJobs.id))
+            .limit(input.limit + 1);
+        return page(rows, input.limit, asExport);
     }
 
     async cancelDataExport(input: {
@@ -765,20 +862,18 @@ export class OperationsRepository {
         jobId: string;
         context?: AuditContext;
     }): Promise<DataExportJob> {
-        return this.write(async (tx) => {
-            const actor = await this.requireActiveUser(tx, input.actorUserId);
-            const before = await this.exportJob(tx, input.jobId);
+        return this.writeDb(async (tx) => {
+            const actor = await this.requireActiveUserDb(tx, input.actorUserId);
+            const before = await this.exportJobDb(tx, input.jobId);
             if (actor.role !== "admin" && before.requestedByUserId !== input.actorUserId)
                 throw new OperationsError("not_found", "Data export was not found");
             if (before.status !== "pending" && before.status !== "running")
                 throw new OperationsError("conflict", "Data export can no longer be cancelled");
-            await tx.execute({
-                sql: `UPDATE data_export_jobs
-                         SET status = 'cancelled', completed_at = CURRENT_TIMESTAMP
-                       WHERE id = ?`,
-                args: [input.jobId],
-            });
-            const after = await this.exportJob(tx, input.jobId);
+            await tx
+                .update(dataExportJobs)
+                .set({ status: "cancelled", completedAt: sql`CURRENT_TIMESTAMP` })
+                .where(eq(dataExportJobs.id, input.jobId));
+            const after = await this.exportJobDb(tx, input.jobId);
             await this.appendAudit(tx, {
                 actorUserId: input.actorUserId,
                 action: "data_export.cancelled",
@@ -802,9 +897,9 @@ export class OperationsRepository {
         context?: AuditContext;
     }): Promise<DataExportJob> {
         const expiresAt = futureTimestamp(input.expiresAt, "expiresAt");
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
-            const before = await this.exportJob(tx, input.jobId);
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
+            const before = await this.exportJobDb(tx, input.jobId);
             assertExportTransition(before.status, input.status);
             if (input.status === "complete") {
                 if (!input.outputFileId)
@@ -812,65 +907,65 @@ export class OperationsRepository {
                         "invalid",
                         "A completed export requires outputFileId",
                     );
-                const file = await one(
-                    tx,
-                    `SELECT id FROM files
-                      WHERE id = ? AND deleted_at IS NULL AND upload_status = 'complete'`,
-                    [input.outputFileId],
-                );
+                const [file] = await tx
+                    .select({ id: files.id })
+                    .from(files)
+                    .where(
+                        and(
+                            eq(files.id, input.outputFileId),
+                            isNull(files.deletedAt),
+                            eq(files.uploadStatus, "complete"),
+                        ),
+                    );
                 if (!file) throw new OperationsError("not_found", "Output file was not found");
                 if (!before.requestedByUserId)
                     throw new OperationsError(
                         "conflict",
                         "Export requester no longer exists; the artifact cannot be granted safely",
                     );
-                await tx.execute({
-                    sql: `INSERT INTO file_access_grants
-                            (id, file_id, principal_type, principal_id, granted_by_user_id,
-                             expires_at)
-                          VALUES (?, ?, 'user', ?, ?, ?)
-                          ON CONFLICT(file_id, principal_type, principal_id)
-                            WHERE source_message_id IS NULL
-                          DO UPDATE SET
-                            expires_at = CASE
-                              WHEN file_access_grants.expires_at IS NULL OR excluded.expires_at IS NULL
-                                THEN NULL
-                              WHEN file_access_grants.expires_at > excluded.expires_at
-                                THEN file_access_grants.expires_at
-                              ELSE excluded.expires_at
-                            END`,
-                    args: [
-                        createId(),
-                        input.outputFileId,
-                        before.requestedByUserId,
-                        input.actorUserId,
-                        expiresAt ?? before.expiresAt ?? null,
-                    ],
-                });
+                await tx
+                    .insert(fileAccessGrants)
+                    .values({
+                        id: createId(),
+                        fileId: input.outputFileId,
+                        principalType: "user",
+                        principalId: before.requestedByUserId,
+                        grantedByUserId: input.actorUserId,
+                        expiresAt: expiresAt ?? before.expiresAt,
+                    })
+                    .onConflictDoUpdate({
+                        target: [
+                            fileAccessGrants.fileId,
+                            fileAccessGrants.principalType,
+                            fileAccessGrants.principalId,
+                        ],
+                        targetWhere: isNull(fileAccessGrants.sourceMessageId),
+                        set: {
+                            expiresAt: sql`CASE WHEN ${fileAccessGrants.expiresAt} IS NULL OR excluded.expires_at IS NULL THEN NULL WHEN ${fileAccessGrants.expiresAt} > excluded.expires_at THEN ${fileAccessGrants.expiresAt} ELSE excluded.expires_at END`,
+                        },
+                    });
             }
             if (input.status === "failed" && !input.lastError)
                 throw new OperationsError("invalid", "A failed export requires lastError");
-            await tx.execute({
-                sql: `UPDATE data_export_jobs
-                         SET status = ?, output_file_id = COALESCE(?, output_file_id),
-                             last_error = ?, expires_at = COALESCE(?, expires_at),
-                             started_at = CASE WHEN ? = 'running' THEN COALESCE(started_at, CURRENT_TIMESTAMP)
-                                               ELSE started_at END,
-                             completed_at = CASE WHEN ? IN ('complete', 'failed', 'cancelled', 'expired')
-                                                 THEN COALESCE(completed_at, CURRENT_TIMESTAMP)
-                                                 ELSE completed_at END
-                       WHERE id = ?`,
-                args: [
-                    input.status,
-                    input.outputFileId ?? null,
-                    input.lastError ?? null,
-                    expiresAt ?? null,
-                    input.status,
-                    input.status,
-                    input.jobId,
-                ],
-            });
-            const after = await this.exportJob(tx, input.jobId);
+            await tx
+                .update(dataExportJobs)
+                .set({
+                    status: input.status,
+                    outputFileId: input.outputFileId ?? sql`${dataExportJobs.outputFileId}`,
+                    lastError: input.lastError ?? null,
+                    expiresAt: expiresAt ?? sql`${dataExportJobs.expiresAt}`,
+                    startedAt:
+                        input.status === "running"
+                            ? sql`coalesce(${dataExportJobs.startedAt}, CURRENT_TIMESTAMP)`
+                            : sql`${dataExportJobs.startedAt}`,
+                    completedAt: ["complete", "failed", "cancelled", "expired"].includes(
+                        input.status,
+                    )
+                        ? sql`coalesce(${dataExportJobs.completedAt}, CURRENT_TIMESTAMP)`
+                        : sql`${dataExportJobs.completedAt}`,
+                })
+                .where(eq(dataExportJobs.id, input.jobId));
+            const after = await this.exportJobDb(tx, input.jobId);
             await this.appendAudit(tx, {
                 actorUserId: input.actorUserId,
                 action: `data_export.${input.status}`,
@@ -884,6 +979,221 @@ export class OperationsRepository {
         });
     }
 
+    async claimPendingDataExports(limit = 5, leaseMs = 5 * 60_000): Promise<ClaimedDataExport[]> {
+        const claimedAt = new Date().toISOString();
+        const staleBefore = new Date(Date.now() - leaseMs).toISOString();
+        return this.writeDb(async (tx) => {
+            const claimable = or(
+                eq(dataExportJobs.status, "pending"),
+                and(
+                    eq(dataExportJobs.status, "running"),
+                    or(
+                        isNull(dataExportJobs.startedAt),
+                        lte(dataExportJobs.startedAt, staleBefore),
+                    ),
+                ),
+            );
+            const candidates = await tx
+                .select({ id: dataExportJobs.id })
+                .from(dataExportJobs)
+                .where(claimable)
+                .orderBy(dataExportJobs.createdAt, dataExportJobs.id)
+                .limit(limit);
+            const claimed: ClaimedDataExport[] = [];
+            for (const candidate of candidates) {
+                const [row] = await tx
+                    .update(dataExportJobs)
+                    .set({ status: "running", startedAt: claimedAt, lastError: null })
+                    .where(and(eq(dataExportJobs.id, candidate.id), claimable))
+                    .returning(exportSelection);
+                if (row) claimed.push({ ...asExport(row), claimStartedAt: claimedAt });
+            }
+            return claimed;
+        });
+    }
+
+    async buildDataExportArtifact(claim: ClaimedDataExport): Promise<Record<string, unknown>> {
+        if (!claim.requestedByUserId) throw new Error("Data export requester no longer exists");
+        const base = {
+            schemaVersion: 1,
+            exportId: claim.id,
+            kind: claim.kind,
+            requestedByUserId: claim.requestedByUserId,
+            targetId: claim.targetId,
+            createdAt: claim.createdAt,
+            generatedAt: new Date().toISOString(),
+            options: claim.options,
+        };
+        if (claim.kind === "user_data") {
+            const targetId = claim.targetId ?? claim.requestedByUserId;
+            const [profile] = await this.db
+                .select({
+                    id: users.id,
+                    username: users.username,
+                    firstName: users.firstName,
+                    lastName: users.lastName,
+                    title: users.title,
+                    email: accounts.email,
+                    phone: users.phone,
+                    photoFileId: users.photoFileId,
+                    createdAt: users.createdAt,
+                })
+                .from(users)
+                .innerJoin(accounts, eq(accounts.id, users.accountId))
+                .where(eq(users.id, targetId));
+            if (!profile) throw new Error("Data export target no longer exists");
+            const options = objectValue(claim.options);
+            const exportedFiles = options.includeFiles
+                ? await this.db
+                      .select({
+                          id: files.id,
+                          kind: files.kind,
+                          originalName: files.originalName,
+                          contentType: files.contentType,
+                          size: files.size,
+                          createdAt: files.createdAt,
+                      })
+                      .from(files)
+                      .where(and(eq(files.uploadedByUserId, targetId), isNull(files.deletedAt)))
+                      .orderBy(files.createdAt, files.id)
+                : [];
+            return { ...base, data: { profile, files: exportedFiles } };
+        }
+        if (claim.kind === "chat_history") {
+            if (
+                !claim.targetId ||
+                !(await this.canAccessChat(this.db, claim.requestedByUserId, claim.targetId))
+            )
+                throw new Error("Data export chat is no longer accessible");
+            const [chat] = await this.db
+                .select({ id: chats.id, kind: chats.kind, name: chats.name, topic: chats.topic })
+                .from(chats)
+                .where(eq(chats.id, claim.targetId));
+            const exportedMessages = await this.db
+                .select({
+                    id: messages.id,
+                    sequence: messages.sequence,
+                    senderUserId: messages.senderUserId,
+                    senderBotId: messages.senderBotId,
+                    kind: messages.kind,
+                    text: messages.text,
+                    threadRootMessageId: messages.threadRootMessageId,
+                    createdAt: messages.createdAt,
+                    editedAt: messages.editedAt,
+                    deletedAt: messages.deletedAt,
+                })
+                .from(messages)
+                .where(eq(messages.chatId, claim.targetId))
+                .orderBy(messages.sequence);
+            return { ...base, data: { chat, messages: exportedMessages } };
+        }
+        await this.requireAdminDb(this.db, claim.requestedByUserId);
+        if (claim.kind === "audit_log") {
+            const entries = await this.db
+                .select(auditSelection)
+                .from(auditLogEntries)
+                .orderBy(auditLogEntries.createdAt, auditLogEntries.id);
+            return { ...base, data: { auditLog: entries.map(asAudit) } };
+        }
+        const [exportedUsers, exportedChats] = await Promise.all([
+            this.db
+                .select({
+                    id: users.id,
+                    username: users.username,
+                    role: users.role,
+                    createdAt: users.createdAt,
+                    deletedAt: users.deletedAt,
+                })
+                .from(users)
+                .orderBy(users.createdAt, users.id),
+            this.db
+                .select({
+                    id: chats.id,
+                    kind: chats.kind,
+                    name: chats.name,
+                    createdAt: chats.createdAt,
+                    deletedAt: chats.deletedAt,
+                })
+                .from(chats)
+                .orderBy(chats.createdAt, chats.id),
+        ]);
+        return { ...base, data: { users: exportedUsers, chats: exportedChats } };
+    }
+
+    async completeClaimedDataExport(
+        claim: ClaimedDataExport,
+        outputFileId: string,
+    ): Promise<boolean> {
+        const requesterId = claim.requestedByUserId;
+        if (!requesterId) return false;
+        return this.writeDb(async (tx) => {
+            const [completed] = await tx
+                .update(dataExportJobs)
+                .set({
+                    status: "complete",
+                    outputFileId,
+                    lastError: null,
+                    completedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(dataExportJobs.id, claim.id),
+                        eq(dataExportJobs.status, "running"),
+                        eq(dataExportJobs.startedAt, claim.claimStartedAt),
+                    ),
+                )
+                .returning({ id: dataExportJobs.id });
+            if (!completed) return false;
+            await tx
+                .insert(fileAccessGrants)
+                .values({
+                    id: createId(),
+                    fileId: outputFileId,
+                    principalType: "user",
+                    principalId: requesterId,
+                    grantedByUserId: requesterId,
+                    expiresAt: claim.expiresAt,
+                })
+                .onConflictDoUpdate({
+                    target: [
+                        fileAccessGrants.fileId,
+                        fileAccessGrants.principalType,
+                        fileAccessGrants.principalId,
+                    ],
+                    targetWhere: isNull(fileAccessGrants.sourceMessageId),
+                    set: { expiresAt: claim.expiresAt ?? null },
+                });
+            await this.appendAudit(tx, {
+                actorUserId: requesterId,
+                action: "data_export.complete",
+                targetType: "data_export",
+                targetId: claim.id,
+                after: { outputFileId },
+            });
+            return true;
+        });
+    }
+
+    async failClaimedDataExport(claim: ClaimedDataExport, error: unknown): Promise<boolean> {
+        const message = error instanceof Error ? error.message : String(error);
+        const [failed] = await this.db
+            .update(dataExportJobs)
+            .set({
+                status: "failed",
+                lastError: message.slice(0, 2_000),
+                completedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(
+                and(
+                    eq(dataExportJobs.id, claim.id),
+                    eq(dataExportJobs.status, "running"),
+                    eq(dataExportJobs.startedAt, claim.claimStartedAt),
+                ),
+            )
+            .returning({ id: dataExportJobs.id });
+        return Boolean(failed);
+    }
+
     async createBackup(input: {
         actorUserId: string;
         storageProvider: string;
@@ -893,30 +1203,24 @@ export class OperationsRepository {
         context?: AuditContext;
     }): Promise<BackupRecord> {
         const retentionUntil = futureTimestamp(input.retentionUntil, "retentionUntil");
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
             const id = createId();
             try {
-                await tx.execute({
-                    sql: `INSERT INTO backup_records
-                            (id, storage_provider, storage_key, created_by_user_id,
-                             metadata_json, retention_until)
-                          VALUES (?, ?, ?, ?, ?, ?)`,
-                    args: [
-                        id,
-                        input.storageProvider,
-                        input.storageKey,
-                        input.actorUserId,
-                        json(input.metadata),
-                        retentionUntil ?? null,
-                    ],
+                await tx.insert(backupRecords).values({
+                    id,
+                    storageProvider: input.storageProvider,
+                    storageKey: input.storageKey,
+                    createdByUserId: input.actorUserId,
+                    metadataJson: json(input.metadata),
+                    retentionUntil,
                 });
             } catch (error) {
                 if (isUniqueConstraint(error))
                     throw new OperationsError("conflict", "Backup storage key is already recorded");
                 throw error;
             }
-            const backup = await this.backup(tx, id);
+            const backup = await this.backupDb(tx, id);
             await this.appendAudit(tx, {
                 actorUserId: input.actorUserId,
                 action: "backup.created",
@@ -935,17 +1239,19 @@ export class OperationsRepository {
         before?: string;
         limit: number;
     }): Promise<Page<BackupRecord>> {
-        await this.requireAdmin(this.client, input.actorUserId);
-        const clauses: string[] = [];
-        const args: InValue[] = [];
-        if (input.status) addFilter(clauses, args, "status = ?", input.status);
-        addCursor(clauses, args, decodeCursor(input.before));
-        args.push(input.limit + 1);
-        const result = await this.client.execute({
-            sql: `${BACKUP_SELECT}${where(clauses)} ORDER BY created_at DESC, id DESC LIMIT ?`,
-            args,
-        });
-        return page(result.rows, input.limit, asBackup);
+        await this.requireAdminDb(this.db, input.actorUserId);
+        const conditions: SQL[] = [];
+        if (input.status) conditions.push(eq(backupRecords.status, input.status));
+        const cursor = decodeCursor(input.before);
+        if (cursor)
+            conditions.push(cursorCondition(backupRecords.createdAt, backupRecords.id, cursor));
+        const rows = await this.db
+            .select(backupSelection)
+            .from(backupRecords)
+            .where(and(...conditions))
+            .orderBy(desc(backupRecords.createdAt), desc(backupRecords.id))
+            .limit(input.limit + 1);
+        return page(rows, input.limit, asBackup);
     }
 
     async updateBackup(input: {
@@ -960,9 +1266,9 @@ export class OperationsRepository {
         context?: AuditContext;
     }): Promise<BackupRecord> {
         const retentionUntil = futureTimestamp(input.retentionUntil, "retentionUntil");
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
-            const before = await this.backup(tx, input.backupId);
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
+            const before = await this.backupDb(tx, input.backupId);
             assertBackupTransition(before.status, input.status);
             if (input.status === "complete" && (!input.checksumSha256 || input.size === undefined))
                 throw new OperationsError(
@@ -971,28 +1277,24 @@ export class OperationsRepository {
                 );
             if (input.status === "failed" && !input.lastError)
                 throw new OperationsError("invalid", "A failed backup requires lastError");
-            await tx.execute({
-                sql: `UPDATE backup_records
-                         SET status = ?, checksum_sha256 = COALESCE(?, checksum_sha256),
-                             size = COALESCE(?, size), last_error = ?,
-                             retention_until = COALESCE(?, retention_until),
-                             metadata_json = COALESCE(?, metadata_json),
-                             completed_at = CASE WHEN ? IN ('complete', 'failed', 'deleted')
-                                                 THEN COALESCE(completed_at, CURRENT_TIMESTAMP)
-                                                 ELSE completed_at END
-                       WHERE id = ?`,
-                args: [
-                    input.status,
-                    input.checksumSha256 ?? null,
-                    input.size ?? null,
-                    input.lastError ?? null,
-                    retentionUntil ?? null,
-                    json(input.metadata),
-                    input.status,
-                    input.backupId,
-                ],
-            });
-            const after = await this.backup(tx, input.backupId);
+            await tx
+                .update(backupRecords)
+                .set({
+                    status: input.status,
+                    checksumSha256: input.checksumSha256 ?? sql`${backupRecords.checksumSha256}`,
+                    size: input.size ?? sql`${backupRecords.size}`,
+                    lastError: input.lastError ?? null,
+                    retentionUntil: retentionUntil ?? sql`${backupRecords.retentionUntil}`,
+                    metadataJson:
+                        input.metadata === undefined
+                            ? sql`${backupRecords.metadataJson}`
+                            : json(input.metadata),
+                    completedAt: ["complete", "failed", "deleted"].includes(input.status)
+                        ? sql`coalesce(${backupRecords.completedAt}, CURRENT_TIMESTAMP)`
+                        : sql`${backupRecords.completedAt}`,
+                })
+                .where(eq(backupRecords.id, input.backupId));
+            const after = await this.backupDb(tx, input.backupId);
             await this.appendAudit(tx, {
                 actorUserId: input.actorUserId,
                 action: `backup.${input.status}`,
@@ -1012,24 +1314,25 @@ export class OperationsRepository {
         details?: Record<string, unknown>;
         context?: AuditContext;
     }): Promise<RetentionRun> {
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
-            const active = await one(
-                tx,
-                `SELECT id FROM retention_runs WHERE scope = ? AND status = 'running'`,
-                [input.scope],
-            );
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
+            const [active] = await tx
+                .select({ id: retentionRuns.id })
+                .from(retentionRuns)
+                .where(
+                    and(eq(retentionRuns.scope, input.scope), eq(retentionRuns.status, "running")),
+                )
+                .limit(1);
             if (active)
                 throw new OperationsError(
                     "conflict",
                     "A retention run is already active for this scope",
                 );
             const id = createId();
-            await tx.execute({
-                sql: `INSERT INTO retention_runs (id, scope, details_json) VALUES (?, ?, ?)`,
-                args: [id, input.scope, json(input.details)],
-            });
-            const run = await this.retentionRun(tx, id);
+            await tx
+                .insert(retentionRuns)
+                .values({ id, scope: input.scope, detailsJson: json(input.details) });
+            const run = await this.retentionRunDb(tx, id);
             await this.appendAudit(tx, {
                 actorUserId: input.actorUserId,
                 action: "retention.started",
@@ -1048,17 +1351,19 @@ export class OperationsRepository {
         before?: string;
         limit: number;
     }): Promise<Page<RetentionRun>> {
-        await this.requireAdmin(this.client, input.actorUserId);
-        const clauses: string[] = [];
-        const args: InValue[] = [];
-        if (input.scope) addFilter(clauses, args, "scope = ?", input.scope);
-        addCursor(clauses, args, decodeCursor(input.before), "started_at", "id");
-        args.push(input.limit + 1);
-        const result = await this.client.execute({
-            sql: `${RETENTION_SELECT}${where(clauses)} ORDER BY started_at DESC, id DESC LIMIT ?`,
-            args,
-        });
-        return page(result.rows, input.limit, asRetention, (item) => item.startedAt);
+        await this.requireAdminDb(this.db, input.actorUserId);
+        const conditions: SQL[] = [];
+        if (input.scope) conditions.push(eq(retentionRuns.scope, input.scope));
+        const cursor = decodeCursor(input.before);
+        if (cursor)
+            conditions.push(cursorCondition(retentionRuns.startedAt, retentionRuns.id, cursor));
+        const rows = await this.db
+            .select(retentionSelection)
+            .from(retentionRuns)
+            .where(and(...conditions))
+            .orderBy(desc(retentionRuns.startedAt), desc(retentionRuns.id))
+            .limit(input.limit + 1);
+        return page(rows, input.limit, asRetention, (item) => item.startedAt);
     }
 
     async finishRetentionRun(input: {
@@ -1071,29 +1376,28 @@ export class OperationsRepository {
         lastError?: string;
         context?: AuditContext;
     }): Promise<RetentionRun> {
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
-            const before = await this.retentionRun(tx, input.runId);
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
+            const before = await this.retentionRunDb(tx, input.runId);
             if (before.status !== "running")
                 throw new OperationsError("conflict", "Retention run is already finished");
             if (input.status === "failed" && !input.lastError)
                 throw new OperationsError("invalid", "A failed retention run requires lastError");
-            await tx.execute({
-                sql: `UPDATE retention_runs
-                         SET status = ?, items_examined = ?, items_deleted = ?,
-                             details_json = COALESCE(?, details_json), last_error = ?,
-                             completed_at = CURRENT_TIMESTAMP
-                       WHERE id = ?`,
-                args: [
-                    input.status,
-                    input.itemsExamined,
-                    input.itemsDeleted,
-                    json(input.details),
-                    input.lastError ?? null,
-                    input.runId,
-                ],
-            });
-            const after = await this.retentionRun(tx, input.runId);
+            await tx
+                .update(retentionRuns)
+                .set({
+                    status: input.status,
+                    itemsExamined: input.itemsExamined,
+                    itemsDeleted: input.itemsDeleted,
+                    detailsJson:
+                        input.details === undefined
+                            ? sql`${retentionRuns.detailsJson}`
+                            : json(input.details),
+                    lastError: input.lastError ?? null,
+                    completedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(retentionRuns.id, input.runId));
+            const after = await this.retentionRunDb(tx, input.runId);
             await this.appendAudit(tx, {
                 actorUserId: input.actorUserId,
                 action: `retention.${input.status}`,
@@ -1112,40 +1416,59 @@ export class OperationsRepository {
         before?: string;
         limit: number;
     }): Promise<Page<UserAccessTelemetry>> {
-        await this.requireAdmin(this.client, input.actorUserId);
+        await this.requireAdminDb(this.db, input.actorUserId);
         const cursor = decodeCursor(input.before);
-        const clauses = ["1 = 1"];
-        const args: InValue[] = [];
-        addCursor(clauses, args, cursor, "COALESCE(u.last_access_at, '')", "u.id");
-        args.push(input.limit + 1);
-        const result = await this.client.execute({
-            sql: `SELECT u.id, u.username, a.email, u.role, u.last_access_at,
-                         a.banned_at, a.ban_expires_at, a.deleted_at,
-                         MAX(s.last_seen_at) AS last_session_access_at,
-                         SUM(CASE WHEN s.revoked_at IS NULL AND s.expires_at > CURRENT_TIMESTAMP
-                                  THEN 1 ELSE 0 END) AS active_session_count,
-                         (SELECT e.ip FROM auth_session_events e
-                           JOIN auth_sessions recent ON recent.id = e.session_id
-                          WHERE recent.account_id = a.id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS last_client_ip,
-                         (SELECT e.device FROM auth_session_events e
-                           JOIN auth_sessions recent ON recent.id = e.session_id
-                          WHERE recent.account_id = a.id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS last_device,
-                         (SELECT e.app_version FROM auth_session_events e
-                           JOIN auth_sessions recent ON recent.id = e.session_id
-                          WHERE recent.account_id = a.id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS last_app_version,
-                         (SELECT e.user_agent FROM auth_session_events e
-                           JOIN auth_sessions recent ON recent.id = e.session_id
-                          WHERE recent.account_id = a.id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS last_user_agent
-                    FROM users u JOIN accounts a ON a.id = u.account_id
-                    LEFT JOIN auth_sessions s ON s.account_id = a.id
-                   ${where(clauses)}
-                   GROUP BY u.id, u.username, a.email, u.role, u.last_access_at,
-                            a.banned_at, a.ban_expires_at, a.deleted_at
-                   ORDER BY COALESCE(u.last_access_at, '') DESC, u.id DESC LIMIT ?`,
-            args,
-        });
+        const recentEvent = (column: AnySQLiteColumn) =>
+            this.db
+                .select({ value: column })
+                .from(authSessionEvents)
+                .innerJoin(authSessions, eq(authSessions.id, authSessionEvents.sessionId))
+                .where(eq(authSessions.accountId, accounts.id))
+                .orderBy(desc(authSessionEvents.createdAt), desc(authSessionEvents.id))
+                .limit(1);
+        const conditions: SQL[] = [];
+        const accessAt = sql`coalesce(${users.lastAccessAt}, '')`;
+        if (cursor)
+            conditions.push(
+                or(lt(accessAt, cursor.at), and(eq(accessAt, cursor.at), lt(users.id, cursor.id)))!,
+            );
+        const result = await this.db
+            .select({
+                id: users.id,
+                username: users.username,
+                email: accounts.email,
+                role: users.role,
+                last_access_at: users.lastAccessAt,
+                banned_at: accounts.bannedAt,
+                ban_expires_at: accounts.banExpiresAt,
+                deleted_at: accounts.deletedAt,
+                last_session_access_at: sql<string | null>`max(${authSessions.lastSeenAt})`,
+                active_session_count: sql<number>`sum(case when ${authSessions.revokedAt} is null and ${authSessions.expiresAt} > CURRENT_TIMESTAMP then 1 else 0 end)`,
+                last_client_ip: sql<string | null>`(${recentEvent(authSessionEvents.ip)})`,
+                last_device: sql<string | null>`(${recentEvent(authSessionEvents.device)})`,
+                last_app_version: sql<
+                    string | null
+                >`(${recentEvent(authSessionEvents.appVersion)})`,
+                last_user_agent: sql<string | null>`(${recentEvent(authSessionEvents.userAgent)})`,
+            })
+            .from(users)
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .leftJoin(authSessions, eq(authSessions.accountId, accounts.id))
+            .where(and(...conditions))
+            .groupBy(
+                users.id,
+                users.username,
+                accounts.email,
+                users.role,
+                users.lastAccessAt,
+                accounts.bannedAt,
+                accounts.banExpiresAt,
+                accounts.deletedAt,
+            )
+            .orderBy(desc(accessAt), desc(users.id))
+            .limit(input.limit + 1);
         return page(
-            result.rows,
+            result,
             input.limit,
             asAccess,
             (item) => item.lastAccessAt ?? "",
@@ -1153,55 +1476,69 @@ export class OperationsRepository {
         );
     }
 
-    private async requireActiveUser(
-        executor: Executor,
-        userId: string,
-    ): Promise<{ role: "member" | "admin" }> {
-        const row = await one(
-            executor,
-            `SELECT u.role FROM users u JOIN accounts a ON a.id = u.account_id
-              WHERE u.id = ? AND u.deleted_at IS NULL AND a.active = 1
-                AND a.deleted_at IS NULL AND a.banned_at IS NULL`,
-            [userId],
-        );
-        if (!row) throw new OperationsError("forbidden", "An active user is required");
-        return { role: text(row.role) as "member" | "admin" };
+    private async requireActiveUserDb(executor: DrizzleExecutor, userId: string) {
+        const [row] = await executor
+            .select({ id: users.id, role: users.role })
+            .from(users)
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(users.id, userId),
+                    isNull(users.deletedAt),
+                    eq(accounts.active, 1),
+                    isNull(accounts.bannedAt),
+                    isNull(accounts.deletedAt),
+                ),
+            );
+        if (!row) throw new OperationsError("not_found", "User was not found");
+        return row;
     }
 
-    private async requireAdmin(executor: Executor, userId: string): Promise<void> {
-        const actor = await this.requireActiveUser(executor, userId);
-        if (actor.role !== "admin")
+    private async requireAdminDb(executor: DrizzleExecutor, userId: string): Promise<void> {
+        const user = await this.requireActiveUserDb(executor, userId);
+        if (user.role !== "admin")
             throw new OperationsError("forbidden", "Administrator access is required");
     }
 
-    private async requireExistingUser(executor: Executor, userId: string): Promise<void> {
-        if (!(await one(executor, `SELECT id FROM users WHERE id = ?`, [userId])))
-            throw new OperationsError("not_found", "User was not found");
+    private async requireExistingUserDb(executor: DrizzleExecutor, userId: string): Promise<void> {
+        const [row] = await executor
+            .select({ id: users.id })
+            .from(users)
+            .where(and(eq(users.id, userId), isNull(users.deletedAt)));
+        if (!row) throw new OperationsError("not_found", "User was not found");
     }
 
-    private async accountTarget(executor: Executor, userId: string): Promise<AccountTarget> {
-        const row = await one(
-            executor,
-            `SELECT a.id AS account_id, u.id AS user_id, u.username, a.banned_at,
-                    a.ban_expires_at, a.ban_reason, a.banned_by_user_id
-               FROM users u JOIN accounts a ON a.id = u.account_id
-              WHERE u.id = ? AND u.deleted_at IS NULL AND a.deleted_at IS NULL`,
-            [userId],
-        );
+    private async accountTargetDb(
+        executor: DrizzleExecutor,
+        userId: string,
+    ): Promise<AccountTarget> {
+        const [row] = await executor
+            .select({
+                accountId: accounts.id,
+                userId: users.id,
+                username: users.username,
+                bannedAt: accounts.bannedAt,
+                banExpiresAt: accounts.banExpiresAt,
+                banReason: accounts.banReason,
+                bannedByUserId: accounts.bannedByUserId,
+            })
+            .from(users)
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(and(eq(users.id, userId), isNull(users.deletedAt), isNull(accounts.deletedAt)));
         if (!row) throw new OperationsError("not_found", "User was not found");
         return {
-            accountId: text(row.account_id),
-            userId: text(row.user_id),
-            username: text(row.username),
-            bannedAt: optionalText(row.banned_at),
-            banExpiresAt: optionalText(row.ban_expires_at),
-            banReason: optionalText(row.ban_reason),
-            bannedByUserId: optionalText(row.banned_by_user_id),
+            accountId: row.accountId,
+            userId: row.userId,
+            username: row.username,
+            bannedAt: row.bannedAt ?? undefined,
+            banExpiresAt: row.banExpiresAt ?? undefined,
+            banReason: row.banReason ?? undefined,
+            bannedByUserId: row.bannedByUserId ?? undefined,
         };
     }
 
     private async applyBanInTransaction(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         actorUserId: string,
         targetUserId: string,
         reason?: string,
@@ -1209,57 +1546,64 @@ export class OperationsRepository {
     ): Promise<OperationsSyncHint> {
         if (actorUserId === targetUserId)
             throw new OperationsError("forbidden", "Administrators cannot ban themselves");
-        const target = await this.accountTarget(tx, targetUserId);
+        const target = await this.accountTargetDb(tx, targetUserId);
         await this.closeElapsedBan(tx, target);
         if (
             target.bannedAt &&
             (!target.banExpiresAt || Date.parse(target.banExpiresAt) > Date.now())
         )
             throw new OperationsError("conflict", "User already has an active ban");
-        await tx.execute({
-            sql: `INSERT INTO account_bans
-                    (id, account_id, banned_by_user_id, reason, expires_at)
-                  VALUES (?, ?, ?, ?, ?)`,
-            args: [createId(), target.accountId, actorUserId, reason ?? null, expiresAt ?? null],
+        await tx.insert(accountBans).values({
+            id: createId(),
+            accountId: target.accountId,
+            bannedByUserId: actorUserId,
+            reason,
+            expiresAt,
         });
-        await tx.execute({
-            sql: `UPDATE accounts SET banned_at = CURRENT_TIMESTAMP, ban_expires_at = ?,
-                         ban_reason = ?, banned_by_user_id = ? WHERE id = ?`,
-            args: [expiresAt ?? null, reason ?? null, actorUserId, target.accountId],
-        });
-        await tx.execute({
-            sql: `UPDATE auth_sessions SET revoked_at = CURRENT_TIMESTAMP
-                   WHERE account_id = ? AND revoked_at IS NULL`,
-            args: [target.accountId],
-        });
+        await tx
+            .update(accounts)
+            .set({
+                bannedAt: sql`CURRENT_TIMESTAMP`,
+                banExpiresAt: expiresAt ?? null,
+                banReason: reason ?? null,
+                bannedByUserId: actorUserId,
+            })
+            .where(eq(accounts.id, target.accountId));
+        await tx
+            .update(authSessions)
+            .set({ revokedAt: sql`CURRENT_TIMESTAMP` })
+            .where(
+                and(eq(authSessions.accountId, target.accountId), isNull(authSessions.revokedAt)),
+            );
         return this.syncUserMutation(tx, actorUserId, target.userId, "user.banned");
     }
 
     private async revokeBanInTransaction(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         actorUserId: string,
         targetUserId: string,
         reason?: string,
     ): Promise<OperationsSyncHint> {
-        const target = await this.accountTarget(tx, targetUserId);
+        const target = await this.accountTargetDb(tx, targetUserId);
         if (!target.bannedAt)
             throw new OperationsError("conflict", "User does not have an active ban");
-        await tx.execute({
-            sql: `UPDATE account_bans SET revoked_at = CURRENT_TIMESTAMP,
-                         revoked_by_user_id = ?, revoke_reason = ?
-                   WHERE account_id = ? AND revoked_at IS NULL`,
-            args: [actorUserId, reason ?? null, target.accountId],
-        });
-        await tx.execute({
-            sql: `UPDATE accounts SET banned_at = NULL, ban_expires_at = NULL,
-                         ban_reason = NULL, banned_by_user_id = NULL WHERE id = ?`,
-            args: [target.accountId],
-        });
+        await tx
+            .update(accountBans)
+            .set({
+                revokedAt: sql`CURRENT_TIMESTAMP`,
+                revokedByUserId: actorUserId,
+                revokeReason: reason ?? null,
+            })
+            .where(and(eq(accountBans.accountId, target.accountId), isNull(accountBans.revokedAt)));
+        await tx
+            .update(accounts)
+            .set({ bannedAt: null, banExpiresAt: null, banReason: null, bannedByUserId: null })
+            .where(eq(accounts.id, target.accountId));
         return this.syncUserMutation(tx, actorUserId, target.userId, "user.unbanned");
     }
 
     private async createModerationNotification(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         input: {
             actorUserId: string;
             targetUserId: string;
@@ -1271,27 +1615,23 @@ export class OperationsRepository {
             expiresAt?: string;
         },
     ): Promise<OperationsSyncHint> {
-        await this.requireExistingUser(tx, input.targetUserId);
+        await this.requireExistingUserDb(tx, input.targetUserId);
         const sequence = await this.nextSequence(tx);
         const notificationId = createId();
-        await tx.execute({
-            sql: `INSERT INTO notifications
-                    (id, user_id, kind, chat_id, actor_user_id, payload_json, sync_sequence)
-                  VALUES (?, ?, 'moderation', ?, ?, ?, ?)`,
-            args: [
-                notificationId,
-                input.targetUserId,
-                input.chatId ?? null,
-                input.actorUserId,
-                JSON.stringify({
-                    actionId: input.actionId,
-                    reportId: input.reportId,
-                    action: input.action,
-                    reason: input.reason,
-                    expiresAt: input.expiresAt,
-                }),
-                sequence,
-            ],
+        await tx.insert(notifications).values({
+            id: notificationId,
+            userId: input.targetUserId,
+            kind: "moderation",
+            chatId: input.chatId,
+            actorUserId: input.actorUserId,
+            payloadJson: JSON.stringify({
+                actionId: input.actionId,
+                reportId: input.reportId,
+                action: input.action,
+                reason: input.reason,
+                expiresAt: input.expiresAt,
+            }),
+            syncSequence: sequence,
         });
         await this.insertSyncEvent(tx, {
             sequence,
@@ -1304,20 +1644,24 @@ export class OperationsRepository {
     }
 
     private async removeMessageInTransaction(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         actorUserId: string,
         messageId: string,
         reason?: string,
     ): Promise<{ chatId: string; sync: OperationsSyncHint }> {
-        const message = await one(
-            tx,
-            `SELECT chat_id, deleted_at, thread_root_message_id FROM messages WHERE id = ?`,
-            [messageId],
-        );
+        const [message] = await tx
+            .select({
+                chatId: messages.chatId,
+                deletedAt: messages.deletedAt,
+                threadRootMessageId: messages.threadRootMessageId,
+            })
+            .from(messages)
+            .where(eq(messages.id, messageId))
+            .limit(1);
         if (!message) throw new OperationsError("not_found", "Message was not found");
-        if (message.deleted_at !== null)
+        if (message.deletedAt !== null)
             throw new OperationsError("conflict", "Message is already removed");
-        const chatId = text(message.chat_id);
+        const chatId = message.chatId;
         const sequence = await this.nextSequence(tx);
         const pts = await this.advanceChatMutation(tx, {
             sequence,
@@ -1326,33 +1670,30 @@ export class OperationsRepository {
             entityId: messageId,
             actorUserId,
         });
-        await tx.execute({
-            sql: `UPDATE messages
-                     SET text = '', content_json = NULL, deleted_at = CURRENT_TIMESTAMP,
-                         deleted_by_user_id = ?, delete_reason = ?, change_pts = ?,
-                         updated_at = CURRENT_TIMESTAMP
-                   WHERE id = ? AND deleted_at IS NULL`,
-            args: [actorUserId, reason ?? "moderation", pts, messageId],
-        });
-        await tx.execute({
-            sql: `DELETE FROM message_search_documents WHERE message_id = ?`,
-            args: [messageId],
-        });
-        await tx.execute({
-            sql: `DELETE FROM message_revisions WHERE message_id = ?`,
-            args: [messageId],
-        });
-        await tx.execute({
-            sql: `DELETE FROM notifications WHERE message_id = ?`,
-            args: [messageId],
-        });
-        if (message.thread_root_message_id) {
-            const threadRootMessageId = text(message.thread_root_message_id);
+        await tx
+            .update(messages)
+            .set({
+                text: "",
+                contentJson: null,
+                deletedAt: sql`CURRENT_TIMESTAMP`,
+                deletedByUserId: actorUserId,
+                deleteReason: reason ?? "moderation",
+                changePts: pts,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(and(eq(messages.id, messageId), isNull(messages.deletedAt)));
+        await tx
+            .delete(messageSearchDocuments)
+            .where(eq(messageSearchDocuments.messageId, messageId));
+        await tx.delete(messageRevisions).where(eq(messageRevisions.messageId, messageId));
+        await tx.delete(notifications).where(eq(notifications.messageId, messageId));
+        if (message.threadRootMessageId) {
+            const threadRootMessageId = message.threadRootMessageId;
             await this.recomputeThreadProjection(tx, threadRootMessageId, pts);
-            await tx.execute({
-                sql: `UPDATE messages SET change_pts = ? WHERE id = ?`,
-                args: [pts, threadRootMessageId],
-            });
+            await tx
+                .update(messages)
+                .set({ changePts: pts })
+                .where(eq(messages.id, threadRootMessageId));
         }
         return {
             chatId,
@@ -1361,28 +1702,36 @@ export class OperationsRepository {
     }
 
     private async removeFileInTransaction(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         actorUserId: string,
         fileId: string,
         reason?: string,
     ): Promise<OperationsSyncHint> {
-        const file = await one(tx, `SELECT deleted_at FROM files WHERE id = ?`, [fileId]);
+        const [file] = await tx
+            .select({ deletedAt: files.deletedAt })
+            .from(files)
+            .where(eq(files.id, fileId))
+            .limit(1);
         if (!file) throw new OperationsError("not_found", "File was not found");
-        if (file.deleted_at !== null)
+        if (file.deletedAt !== null)
             throw new OperationsError("conflict", "File is already removed");
-        const chats = await tx.execute({
-            sql: `SELECT DISTINCT m.chat_id
-                    FROM message_attachments ma
-                    JOIN messages m ON m.id = ma.message_id
-                    JOIN chats c ON c.id = m.chat_id
-                   WHERE ma.file_id = ? AND m.deleted_at IS NULL AND c.deleted_at IS NULL
-                   ORDER BY m.chat_id`,
-            args: [fileId],
-        });
+        const affectedChats = await tx
+            .selectDistinct({ chatId: messages.chatId })
+            .from(messageAttachments)
+            .innerJoin(messages, eq(messages.id, messageAttachments.messageId))
+            .innerJoin(chats, eq(chats.id, messages.chatId))
+            .where(
+                and(
+                    eq(messageAttachments.fileId, fileId),
+                    isNull(messages.deletedAt),
+                    isNull(chats.deletedAt),
+                ),
+            )
+            .orderBy(messages.chatId);
         const sequence = await this.nextSequence(tx);
         const chatPoints: Array<{ chatId: string; pts: string }> = [];
-        for (const row of chats.rows) {
-            const chatId = text(row.chat_id);
+        for (const row of affectedChats) {
+            const chatId = row.chatId;
             const pts = await this.advanceChatMutation(tx, {
                 sequence,
                 chatId,
@@ -1392,18 +1741,18 @@ export class OperationsRepository {
             });
             chatPoints.push({ chatId, pts: String(pts) });
         }
-        await tx.execute({
-            sql: `UPDATE files
-                     SET deleted_at = CURRENT_TIMESTAMP, deleted_by_user_id = ?,
-                         delete_reason = ?, access_scope = 'private', is_public = 0,
-                         orphaned_at = COALESCE(orphaned_at, CURRENT_TIMESTAMP)
-                   WHERE id = ? AND deleted_at IS NULL`,
-            args: [actorUserId, reason ?? "moderation", fileId],
-        });
-        await tx.execute({
-            sql: `DELETE FROM file_access_grants WHERE file_id = ?`,
-            args: [fileId],
-        });
+        await tx
+            .update(files)
+            .set({
+                deletedAt: sql`CURRENT_TIMESTAMP`,
+                deletedByUserId: actorUserId,
+                deleteReason: reason ?? "moderation",
+                accessScope: "private",
+                isPublic: 0,
+                orphanedAt: sql`coalesce(${files.orphanedAt}, CURRENT_TIMESTAMP)`,
+            })
+            .where(and(eq(files.id, fileId), isNull(files.deletedAt)));
+        await tx.delete(fileAccessGrants).where(eq(fileAccessGrants.fileId, fileId));
         await this.insertSyncEvent(tx, {
             sequence,
             kind: "file.removed",
@@ -1414,28 +1763,41 @@ export class OperationsRepository {
     }
 
     private async deleteUserInTransaction(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         actorUserId: string,
         targetUserId: string,
     ): Promise<OperationsSyncHint> {
         if (actorUserId === targetUserId)
             throw new OperationsError("forbidden", "Administrators cannot delete themselves");
-        const target = await one(
-            tx,
-            `SELECT u.role, u.account_id
-               FROM users u JOIN accounts a ON a.id = u.account_id
-              WHERE u.id = ? AND u.deleted_at IS NULL AND a.deleted_at IS NULL`,
-            [targetUserId],
-        );
+        const [target] = await tx
+            .select({ role: users.role, accountId: users.accountId })
+            .from(users)
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(users.id, targetUserId),
+                    isNull(users.deletedAt),
+                    isNull(accounts.deletedAt),
+                ),
+            )
+            .limit(1);
         if (!target) throw new OperationsError("not_found", "User was not found");
         if (target.role === "admin") {
-            const otherAdmin = await one(
-                tx,
-                `SELECT 1 AS found FROM users u JOIN accounts a ON a.id = u.account_id
-                  WHERE u.id != ? AND u.role = 'admin' AND u.deleted_at IS NULL
-                    AND a.active = 1 AND a.banned_at IS NULL AND a.deleted_at IS NULL LIMIT 1`,
-                [targetUserId],
-            );
+            const [otherAdmin] = await tx
+                .select({ id: users.id })
+                .from(users)
+                .innerJoin(accounts, eq(accounts.id, users.accountId))
+                .where(
+                    and(
+                        sql`${users.id} != ${targetUserId}`,
+                        eq(users.role, "admin"),
+                        isNull(users.deletedAt),
+                        eq(accounts.active, 1),
+                        isNull(accounts.bannedAt),
+                        isNull(accounts.deletedAt),
+                    ),
+                )
+                .limit(1);
             if (!otherAdmin)
                 throw new OperationsError(
                     "forbidden",
@@ -1444,42 +1806,63 @@ export class OperationsRepository {
         }
 
         const sequence = await this.nextSequence(tx);
-        const memberships = await tx.execute({
-            sql: `SELECT cm.chat_id, cm.role, c.kind
-                    FROM chat_members cm JOIN chats c ON c.id = cm.chat_id
-                   WHERE cm.user_id = ? AND cm.left_at IS NULL AND c.deleted_at IS NULL`,
-            args: [targetUserId],
-        });
+        const memberships = await tx
+            .select({ chatId: chatMembers.chatId, role: chatMembers.role, kind: chats.kind })
+            .from(chatMembers)
+            .innerJoin(chats, eq(chats.id, chatMembers.chatId))
+            .where(
+                and(
+                    eq(chatMembers.userId, targetUserId),
+                    isNull(chatMembers.leftAt),
+                    isNull(chats.deletedAt),
+                ),
+            );
         const chatPoints: Array<{ chatId: string; pts: string }> = [];
-        for (const membership of memberships.rows) {
-            const chatId = text(membership.chat_id);
+        for (const membership of memberships) {
+            const chatId = membership.chatId;
             let eventKind = "member.deleted";
             if (membership.kind !== "dm" && membership.role === "owner") {
-                const successor = await one(
-                    tx,
-                    `SELECT cm.user_id
-                       FROM chat_members cm
-                       JOIN users u ON u.id = cm.user_id
-                       JOIN accounts a ON a.id = u.account_id
-                      WHERE cm.chat_id = ? AND cm.user_id != ? AND cm.left_at IS NULL
-                        AND u.deleted_at IS NULL AND a.active = 1
-                        AND a.banned_at IS NULL AND a.deleted_at IS NULL
-                      ORDER BY CASE cm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
-                               cm.joined_at, cm.user_id LIMIT 1`,
-                    [chatId, targetUserId],
-                );
+                const [successor] = await tx
+                    .select({ userId: chatMembers.userId })
+                    .from(chatMembers)
+                    .innerJoin(users, eq(users.id, chatMembers.userId))
+                    .innerJoin(accounts, eq(accounts.id, users.accountId))
+                    .where(
+                        and(
+                            eq(chatMembers.chatId, chatId),
+                            sql`${chatMembers.userId} != ${targetUserId}`,
+                            isNull(chatMembers.leftAt),
+                            isNull(users.deletedAt),
+                            eq(accounts.active, 1),
+                            isNull(accounts.bannedAt),
+                            isNull(accounts.deletedAt),
+                        ),
+                    )
+                    .orderBy(
+                        sql`case ${chatMembers.role} when 'owner' then 0 when 'admin' then 1 else 2 end`,
+                        asc(chatMembers.joinedAt),
+                        asc(chatMembers.userId),
+                    )
+                    .limit(1);
                 if (successor) {
-                    const successorId = text(successor.user_id);
-                    await tx.execute({
-                        sql: `UPDATE chat_members
-                                 SET role = 'owner', sync_sequence = ?, updated_at = CURRENT_TIMESTAMP
-                               WHERE chat_id = ? AND user_id = ?`,
-                        args: [sequence, chatId, successorId],
-                    });
-                    await tx.execute({
-                        sql: `UPDATE chats SET owner_user_id = ? WHERE id = ?`,
-                        args: [successorId, chatId],
-                    });
+                    const successorId = successor.userId;
+                    await tx
+                        .update(chatMembers)
+                        .set({
+                            role: "owner",
+                            syncSequence: sequence,
+                            updatedAt: sql`CURRENT_TIMESTAMP`,
+                        })
+                        .where(
+                            and(
+                                eq(chatMembers.chatId, chatId),
+                                eq(chatMembers.userId, successorId),
+                            ),
+                        );
+                    await tx
+                        .update(chats)
+                        .set({ ownerUserId: successorId })
+                        .where(eq(chats.id, chatId));
                     eventKind = "member.deletedAndOwnershipTransferred";
                 } else eventKind = "chat.deleted";
             }
@@ -1492,46 +1875,64 @@ export class OperationsRepository {
             });
             chatPoints.push({ chatId, pts: String(pts) });
             if (membership.kind !== "dm")
-                await tx.execute({
-                    sql: `UPDATE chat_members
-                             SET left_at = CURRENT_TIMESTAMP, removed_by_user_id = ?,
-                                 sync_sequence = ?, updated_at = CURRENT_TIMESTAMP
-                           WHERE chat_id = ? AND user_id = ? AND left_at IS NULL`,
-                    args: [actorUserId, sequence, chatId, targetUserId],
-                });
+                await tx
+                    .update(chatMembers)
+                    .set({
+                        leftAt: sql`CURRENT_TIMESTAMP`,
+                        removedByUserId: actorUserId,
+                        syncSequence: sequence,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    })
+                    .where(
+                        and(
+                            eq(chatMembers.chatId, chatId),
+                            eq(chatMembers.userId, targetUserId),
+                            isNull(chatMembers.leftAt),
+                        ),
+                    );
             if (eventKind === "chat.deleted")
-                await tx.execute({
-                    sql: `UPDATE chats
-                             SET deleted_at = CURRENT_TIMESTAMP, deleted_by_user_id = ?,
-                                 delete_reason = 'last member deleted', owner_user_id = NULL
-                           WHERE id = ?`,
-                    args: [actorUserId, chatId],
-                });
+                await tx
+                    .update(chats)
+                    .set({
+                        deletedAt: sql`CURRENT_TIMESTAMP`,
+                        deletedByUserId: actorUserId,
+                        deleteReason: "last member deleted",
+                        ownerUserId: null,
+                    })
+                    .where(eq(chats.id, chatId));
         }
-        const accountId = text(target.account_id);
-        await tx.execute({
-            sql: `UPDATE auth_sessions SET revoked_at = CURRENT_TIMESTAMP
-                   WHERE account_id = ? AND revoked_at IS NULL`,
-            args: [accountId],
-        });
-        await tx.execute({
-            sql: `UPDATE accounts
-                     SET deleted_at = CURRENT_TIMESTAMP, active = 0, password_hash = NULL,
-                         banned_at = NULL, ban_expires_at = NULL, ban_reason = NULL,
-                         banned_by_user_id = NULL,
-                         email = 'deleted+' || id || '@invalid.local'
-                   WHERE id = ? AND deleted_at IS NULL`,
-            args: [accountId],
-        });
-        await tx.execute({
-            sql: `UPDATE users
-                     SET deleted_at = CURRENT_TIMESTAMP, sync_sequence = ?,
-                         first_name = 'Deleted', last_name = NULL, title = NULL,
-                         username = 'deleted_' || id, email = NULL, phone = NULL,
-                         photo_file_id = NULL
-                   WHERE id = ? AND deleted_at IS NULL`,
-            args: [sequence, targetUserId],
-        });
+        const accountId = target.accountId;
+        await tx
+            .update(authSessions)
+            .set({ revokedAt: sql`CURRENT_TIMESTAMP` })
+            .where(and(eq(authSessions.accountId, accountId), isNull(authSessions.revokedAt)));
+        await tx
+            .update(accounts)
+            .set({
+                deletedAt: sql`CURRENT_TIMESTAMP`,
+                active: 0,
+                passwordHash: null,
+                bannedAt: null,
+                banExpiresAt: null,
+                banReason: null,
+                bannedByUserId: null,
+                email: sql`'deleted+' || ${accounts.id} || '@invalid.local'`,
+            })
+            .where(and(eq(accounts.id, accountId), isNull(accounts.deletedAt)));
+        await tx
+            .update(users)
+            .set({
+                deletedAt: sql`CURRENT_TIMESTAMP`,
+                syncSequence: sequence,
+                firstName: "Deleted",
+                lastName: null,
+                title: null,
+                username: sql`'deleted_' || ${users.id}`,
+                email: null,
+                phone: null,
+                photoFileId: null,
+            })
+            .where(and(eq(users.id, targetUserId), isNull(users.deletedAt)));
         await this.insertSyncEvent(tx, {
             sequence,
             kind: "user.deleted",
@@ -1542,95 +1943,101 @@ export class OperationsRepository {
     }
 
     private async recomputeThreadProjection(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         threadRootMessageId: string,
         pts: number,
     ): Promise<void> {
-        await tx.execute({
-            sql: `DELETE FROM thread_participants WHERE thread_root_message_id = ?`,
-            args: [threadRootMessageId],
-        });
-        await tx.execute({
-            sql: `INSERT INTO thread_participants
-                    (thread_root_message_id, user_id, reply_count, first_participated_at,
-                     last_participated_at)
-                  SELECT ?, sender_user_id, count(*), MIN(created_at), MAX(created_at)
-                    FROM messages
-                   WHERE thread_root_message_id = ? AND sender_user_id IS NOT NULL
-                     AND deleted_at IS NULL
-                     AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)
-                   GROUP BY sender_user_id`,
-            args: [threadRootMessageId, threadRootMessageId],
-        });
-        const lastReply = await one(
-            tx,
-            `SELECT id, sequence FROM messages
-              WHERE thread_root_message_id = ? AND deleted_at IS NULL
-                AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)
-              ORDER BY sequence DESC LIMIT 1`,
-            [threadRootMessageId],
+        await tx
+            .delete(threadParticipants)
+            .where(eq(threadParticipants.threadRootMessageId, threadRootMessageId));
+        const participantRows = await tx
+            .select({
+                userId: messages.senderUserId,
+                replyCount: sql<number>`count(*)`,
+                firstParticipatedAt: sql<string>`min(${messages.createdAt})`,
+                lastParticipatedAt: sql<string>`max(${messages.createdAt})`,
+            })
+            .from(messages)
+            .where(
+                and(
+                    eq(messages.threadRootMessageId, threadRootMessageId),
+                    sql`${messages.senderUserId} IS NOT NULL`,
+                    isNull(messages.deletedAt),
+                    or(
+                        isNull(messages.expiresAt),
+                        sql`datetime(${messages.expiresAt}) > CURRENT_TIMESTAMP`,
+                    ),
+                ),
+            )
+            .groupBy(messages.senderUserId);
+        if (participantRows.length)
+            await tx.insert(threadParticipants).values(
+                participantRows.map((row) => ({
+                    threadRootMessageId,
+                    userId: row.userId!,
+                    replyCount: row.replyCount,
+                    firstParticipatedAt: row.firstParticipatedAt,
+                    lastParticipatedAt: row.lastParticipatedAt,
+                })),
+            );
+        const activeReplies = and(
+            eq(messages.threadRootMessageId, threadRootMessageId),
+            isNull(messages.deletedAt),
+            or(
+                isNull(messages.expiresAt),
+                sql`datetime(${messages.expiresAt}) > CURRENT_TIMESTAMP`,
+            ),
         );
-        const replyCount = await one(
-            tx,
-            `SELECT count(*) AS count FROM messages
-              WHERE thread_root_message_id = ? AND deleted_at IS NULL
-                AND (expires_at IS NULL OR datetime(expires_at) > CURRENT_TIMESTAMP)`,
-            [threadRootMessageId],
-        );
-        await tx.execute({
-            sql: `UPDATE threads
-                     SET reply_count = ?, participant_count = (
-                           SELECT count(*) FROM thread_participants
-                            WHERE thread_root_message_id = ?
-                         ),
-                         last_reply_message_id = ?, last_reply_sequence = ?, last_pts = ?,
-                         updated_at = CURRENT_TIMESTAMP
-                   WHERE root_message_id = ?`,
-            args: [
-                number(replyCount?.count, 0),
-                threadRootMessageId,
-                lastReply ? text(lastReply.id) : null,
-                lastReply ? number(lastReply.sequence) : 0,
-                pts,
-                threadRootMessageId,
-            ],
-        });
-        await tx.execute({
-            sql: `UPDATE thread_user_states
-                     SET unread_count = (
-                           SELECT count(*) FROM messages m
-                            WHERE m.thread_root_message_id = ? AND m.deleted_at IS NULL
-                              AND (m.expires_at IS NULL
-                                   OR datetime(m.expires_at) > CURRENT_TIMESTAMP)
-                              AND m.sequence > thread_user_states.last_read_sequence
-                              AND (m.sender_user_id IS NULL
-                                   OR m.sender_user_id != thread_user_states.user_id)
-                         ),
-                         mention_count = (
-                           SELECT count(*) FROM message_mentions mm
-                           JOIN messages m ON m.id = mm.message_id
-                            WHERE m.thread_root_message_id = ? AND m.deleted_at IS NULL
-                              AND m.sequence > thread_user_states.last_read_sequence
-                              AND mm.mentioned_user_id = thread_user_states.user_id
-                         ),
-                         updated_at = CURRENT_TIMESTAMP
-                   WHERE thread_root_message_id = ?`,
-            args: [threadRootMessageId, threadRootMessageId, threadRootMessageId],
-        });
+        const [lastReply] = await tx
+            .select({ id: messages.id, sequence: messages.sequence })
+            .from(messages)
+            .where(activeReplies)
+            .orderBy(desc(messages.sequence))
+            .limit(1);
+        const [replyCount] = await tx
+            .select({ count: sql<number>`count(*)` })
+            .from(messages)
+            .where(activeReplies);
+        const [participantCount] = await tx
+            .select({ count: sql<number>`count(*)` })
+            .from(threadParticipants)
+            .where(eq(threadParticipants.threadRootMessageId, threadRootMessageId));
+        await tx
+            .update(threads)
+            .set({
+                replyCount: replyCount?.count ?? 0,
+                participantCount: participantCount?.count ?? 0,
+                lastReplyMessageId: lastReply?.id ?? null,
+                lastReplySequence: lastReply?.sequence ?? 0,
+                lastPts: pts,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(eq(threads.rootMessageId, threadRootMessageId));
+        await tx
+            .update(threadUserStates)
+            .set({
+                unreadCount: sql`(select count(*) from messages m where m.thread_root_message_id = ${threadRootMessageId} and m.deleted_at is null and (m.expires_at is null or datetime(m.expires_at) > CURRENT_TIMESTAMP) and m.sequence > ${threadUserStates.lastReadSequence} and (m.sender_user_id is null or m.sender_user_id != ${threadUserStates.userId}))`,
+                mentionCount: sql`(select count(*) from message_mentions mm join messages m on m.id = mm.message_id where m.thread_root_message_id = ${threadRootMessageId} and m.deleted_at is null and m.sequence > ${threadUserStates.lastReadSequence} and mm.mentioned_user_id = ${threadUserStates.userId})`,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(eq(threadUserStates.threadRootMessageId, threadRootMessageId));
     }
 
-    private async nextSequence(tx: Transaction): Promise<number> {
-        const state = await one(
-            tx,
-            `UPDATE server_sync_state SET sequence = sequence + 1, updated_at = CURRENT_TIMESTAMP
-              WHERE id = 1 RETURNING sequence`,
-        );
+    private async nextSequence(tx: DrizzleTransaction): Promise<number> {
+        const [state] = await tx
+            .update(serverSyncState)
+            .set({
+                sequence: sql`${serverSyncState.sequence} + 1`,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(eq(serverSyncState.id, 1))
+            .returning({ sequence: serverSyncState.sequence });
         if (!state) throw new Error("Sync state has not been initialized");
-        return number(state.sequence);
+        return state.sequence;
     }
 
     private async advanceChatMutation(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         input: {
             sequence: number;
             chatId: string;
@@ -1639,26 +2046,30 @@ export class OperationsRepository {
             actorUserId?: string;
         },
     ): Promise<number> {
-        const chat = await one(
-            tx,
-            `UPDATE chats
-                SET pts = pts + 1, last_change_sequence = ?, updated_at = CURRENT_TIMESTAMP
-              WHERE id = ? AND deleted_at IS NULL RETURNING pts`,
-            [input.sequence, input.chatId],
-        );
+        const [chat] = await tx
+            .update(chats)
+            .set({
+                pts: sql`${chats.pts} + 1`,
+                lastChangeSequence: input.sequence,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(and(eq(chats.id, input.chatId), isNull(chats.deletedAt)))
+            .returning({ pts: chats.pts });
         if (!chat) throw new OperationsError("not_found", "Chat was not found");
-        const pts = number(chat.pts);
-        await tx.execute({
-            sql: `INSERT INTO chat_updates (chat_id, pts, pts_count, kind, entity_id)
-                  VALUES (?, ?, 1, ?, ?)`,
-            args: [input.chatId, pts, input.kind, input.entityId ?? null],
+        const pts = chat.pts;
+        await tx.insert(chatUpdates).values({
+            chatId: input.chatId,
+            pts,
+            ptsCount: 1,
+            kind: input.kind,
+            entityId: input.entityId,
         });
         await this.insertSyncEvent(tx, { ...input, chatPts: pts });
         return pts;
     }
 
     private async insertSyncEvent(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         input: {
             sequence: number;
             kind: string;
@@ -1669,49 +2080,32 @@ export class OperationsRepository {
             targetUserId?: string;
         },
     ): Promise<void> {
-        await tx.execute({
-            sql: `INSERT INTO sync_events
-                    (sequence, kind, chat_id, chat_pts, entity_id, actor_user_id, target_user_id)
-                  VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            args: [
-                input.sequence,
-                input.kind,
-                input.chatId ?? null,
-                input.chatPts ?? null,
-                input.entityId ?? null,
-                input.actorUserId ?? null,
-                input.targetUserId ?? null,
-            ],
+        await tx.insert(syncEvents).values({
+            sequence: input.sequence,
+            kind: input.kind,
+            chatId: input.chatId,
+            chatPts: input.chatPts,
+            entityId: input.entityId,
+            actorUserId: input.actorUserId,
+            targetUserId: input.targetUserId,
         });
     }
 
     private async syncUserMutation(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         actorUserId: string | undefined,
         targetUserId: string,
         kind: string,
     ): Promise<OperationsSyncHint> {
-        const state = await one(
-            tx,
-            `UPDATE server_sync_state SET sequence = sequence + 1, updated_at = CURRENT_TIMESTAMP
-              WHERE id = 1 RETURNING sequence`,
-        );
-        if (!state) throw new Error("Sync state has not been initialized");
-        const sequence = number(state.sequence);
-        await tx.execute({
-            sql: `UPDATE users SET sync_sequence = ? WHERE id = ?`,
-            args: [sequence, targetUserId],
-        });
-        await tx.execute({
-            sql: `INSERT INTO sync_events
-                    (sequence, kind, entity_id, actor_user_id, target_user_id)
-                  VALUES (?, ?, ?, ?, ?)`,
-            args: [sequence, kind, targetUserId, actorUserId ?? null, targetUserId],
-        });
+        const sequence = await this.nextSequence(tx);
+        await tx.update(users).set({ syncSequence: sequence }).where(eq(users.id, targetUserId));
+        await tx
+            .insert(syncEvents)
+            .values({ sequence, kind, entityId: targetUserId, actorUserId, targetUserId });
         return { sequence: String(sequence), chats: [], areas: ["users"] };
     }
 
-    private async closeElapsedBan(tx: Transaction, target: AccountTarget): Promise<void> {
+    private async closeElapsedBan(tx: DrizzleTransaction, target: AccountTarget): Promise<void> {
         if (
             !target.bannedAt ||
             !target.banExpiresAt ||
@@ -1719,24 +2113,33 @@ export class OperationsRepository {
         )
             return;
         const now = new Date().toISOString();
-        await tx.execute({
-            sql: `UPDATE account_bans
-                     SET revoked_at = COALESCE(revoked_at, ?),
-                         revoke_reason = COALESCE(revoke_reason, 'expired')
-                   WHERE account_id = ? AND revoked_at IS NULL AND expires_at <= ?`,
-            args: [now, target.accountId, now],
-        });
-        await tx.execute({
-            sql: `UPDATE accounts
-                     SET banned_at = NULL, ban_expires_at = NULL, ban_reason = NULL,
-                         banned_by_user_id = NULL
-                   WHERE id = ? AND ban_expires_at IS NOT NULL AND ban_expires_at <= ?`,
-            args: [target.accountId, now],
-        });
+        await tx
+            .update(accountBans)
+            .set({
+                revokedAt: sql`coalesce(${accountBans.revokedAt}, ${now})`,
+                revokeReason: sql`coalesce(${accountBans.revokeReason}, 'expired')`,
+            })
+            .where(
+                and(
+                    eq(accountBans.accountId, target.accountId),
+                    isNull(accountBans.revokedAt),
+                    lte(accountBans.expiresAt, now),
+                ),
+            );
+        await tx
+            .update(accounts)
+            .set({ bannedAt: null, banExpiresAt: null, banReason: null, bannedByUserId: null })
+            .where(
+                and(
+                    eq(accounts.id, target.accountId),
+                    sql`${accounts.banExpiresAt} IS NOT NULL`,
+                    lte(accounts.banExpiresAt, now),
+                ),
+            );
     }
 
     private async requireReportTargetAccess(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         input: {
             actorUserId: string;
             targetUserId?: string;
@@ -1745,114 +2148,178 @@ export class OperationsRepository {
             fileId?: string;
         },
     ): Promise<void> {
-        if (input.targetUserId) await this.requireExistingUser(tx, input.targetUserId);
+        if (input.targetUserId) await this.requireExistingUserDb(tx, input.targetUserId);
         if (input.chatId && !(await this.canAccessChat(tx, input.actorUserId, input.chatId)))
             throw new OperationsError("not_found", "Chat was not found");
         if (input.messageId) {
-            const message = await one(tx, `SELECT chat_id FROM messages WHERE id = ?`, [
-                input.messageId,
-            ]);
-            if (
-                !message ||
-                !(await this.canAccessChat(tx, input.actorUserId, text(message.chat_id)))
-            )
+            const [message] = await tx
+                .select({ chatId: messages.chatId })
+                .from(messages)
+                .where(eq(messages.id, input.messageId))
+                .limit(1);
+            if (!message || !(await this.canAccessChat(tx, input.actorUserId, message.chatId)))
                 throw new OperationsError("not_found", "Message was not found");
-            if (input.chatId && input.chatId !== text(message.chat_id))
+            if (input.chatId && input.chatId !== message.chatId)
                 throw new OperationsError("invalid", "messageId does not belong to chatId");
         }
         if (input.fileId) {
-            const accessible = await one(
-                tx,
-                `SELECT f.id FROM files f
-                  WHERE f.id = ? AND f.deleted_at IS NULL AND (
-                    f.is_public = 1 OR f.uploaded_by_user_id = ? OR
-                    EXISTS (SELECT 1 FROM file_access_grants g
-                             WHERE g.file_id = f.id AND
-                               ((g.principal_type = 'user' AND g.principal_id = ?) OR
-                                (g.principal_type = 'server') OR
-                                (g.principal_type = 'chat' AND EXISTS (
-                                  SELECT 1 FROM chats c LEFT JOIN chat_members cm
-                                    ON cm.chat_id = c.id AND cm.user_id = ? AND cm.left_at IS NULL
-                                   WHERE c.id = g.principal_id AND c.deleted_at IS NULL
-                                     AND (c.visibility = 'public' OR cm.user_id IS NOT NULL))))
-                               AND (g.expires_at IS NULL OR g.expires_at > CURRENT_TIMESTAMP)) OR
-                    EXISTS (SELECT 1 FROM message_attachments ma JOIN messages m ON m.id = ma.message_id
-                              JOIN chats c ON c.id = m.chat_id LEFT JOIN chat_members cm
-                                ON cm.chat_id = c.id AND cm.user_id = ? AND cm.left_at IS NULL
-                             WHERE ma.file_id = f.id AND m.deleted_at IS NULL AND c.deleted_at IS NULL
-                               AND (c.visibility = 'public' OR cm.user_id IS NOT NULL))
-                  )`,
-                [
-                    input.fileId,
-                    input.actorUserId,
-                    input.actorUserId,
-                    input.actorUserId,
-                    input.actorUserId,
-                ],
-            );
+            const grants = tx
+                .select({ found: sql`1` })
+                .from(fileAccessGrants)
+                .where(
+                    and(
+                        eq(fileAccessGrants.fileId, files.id),
+                        or(
+                            and(
+                                eq(fileAccessGrants.principalType, "user"),
+                                eq(fileAccessGrants.principalId, input.actorUserId),
+                            ),
+                            eq(fileAccessGrants.principalType, "server"),
+                            and(
+                                eq(fileAccessGrants.principalType, "chat"),
+                                sql`exists (select 1 from chats c left join chat_members cm on cm.chat_id = c.id and cm.user_id = ${input.actorUserId} and cm.left_at is null where c.id = ${fileAccessGrants.principalId} and c.deleted_at is null and (c.visibility = 'public' or cm.user_id is not null))`,
+                            ),
+                        ),
+                        or(
+                            isNull(fileAccessGrants.expiresAt),
+                            gt(fileAccessGrants.expiresAt, sql`CURRENT_TIMESTAMP`),
+                        ),
+                    ),
+                );
+            const attachments = tx
+                .select({ found: sql`1` })
+                .from(messageAttachments)
+                .innerJoin(messages, eq(messages.id, messageAttachments.messageId))
+                .innerJoin(chats, eq(chats.id, messages.chatId))
+                .leftJoin(
+                    chatMembers,
+                    and(
+                        eq(chatMembers.chatId, chats.id),
+                        eq(chatMembers.userId, input.actorUserId),
+                        isNull(chatMembers.leftAt),
+                    ),
+                )
+                .where(
+                    and(
+                        eq(messageAttachments.fileId, files.id),
+                        isNull(messages.deletedAt),
+                        isNull(chats.deletedAt),
+                        or(eq(chats.visibility, "public"), sql`${chatMembers.userId} IS NOT NULL`),
+                    ),
+                );
+            const [accessible] = await tx
+                .select({ id: files.id })
+                .from(files)
+                .where(
+                    and(
+                        eq(files.id, input.fileId),
+                        isNull(files.deletedAt),
+                        or(
+                            eq(files.isPublic, 1),
+                            eq(files.uploadedByUserId, input.actorUserId),
+                            sql`exists ${grants}`,
+                            sql`exists ${attachments}`,
+                        ),
+                    ),
+                )
+                .limit(1);
             if (!accessible) throw new OperationsError("not_found", "File was not found");
         }
     }
 
     private async canAccessChat(
-        executor: Executor,
+        executor: DrizzleExecutor,
         userId: string,
         chatId: string,
     ): Promise<boolean> {
-        return Boolean(
-            await one(
-                executor,
-                `SELECT c.id FROM chats c LEFT JOIN chat_members cm
-                   ON cm.chat_id = c.id AND cm.user_id = ? AND cm.left_at IS NULL
-                 WHERE c.id = ? AND c.deleted_at IS NULL
-                   AND (c.visibility = 'public' OR cm.user_id IS NOT NULL)`,
-                [userId, chatId],
-            ),
-        );
+        const [row] = await executor
+            .select({ id: chats.id })
+            .from(chats)
+            .leftJoin(
+                chatMembers,
+                and(
+                    eq(chatMembers.chatId, chats.id),
+                    eq(chatMembers.userId, userId),
+                    isNull(chatMembers.leftAt),
+                ),
+            )
+            .where(
+                and(
+                    eq(chats.id, chatId),
+                    isNull(chats.deletedAt),
+                    or(eq(chats.visibility, "public"), sql`${chatMembers.userId} IS NOT NULL`),
+                ),
+            )
+            .limit(1);
+        return Boolean(row);
     }
 
-    private report(executor: Executor, id: string): Promise<ModerationReport> {
-        return requiredRow(
-            executor,
-            `${REPORT_SELECT} WHERE id = ?`,
-            [id],
-            asReport,
-            "Moderation report was not found",
-        );
+    private async banDb(executor: DrizzleExecutor, id: string): Promise<AccountBan> {
+        const [row] = await executor
+            .select(banSelection)
+            .from(accountBans)
+            .leftJoin(users, eq(users.accountId, accountBans.accountId))
+            .where(eq(accountBans.id, id))
+            .limit(1);
+        if (!row) throw new OperationsError("not_found", "Ban was not found");
+        return asBan(row);
     }
 
-    private exportJob(executor: Executor, id: string): Promise<DataExportJob> {
-        return requiredRow(
-            executor,
-            `${EXPORT_SELECT} WHERE id = ?`,
-            [id],
-            asExport,
-            "Data export was not found",
-        );
+    private async reportDb(executor: DrizzleExecutor, id: string): Promise<ModerationReport> {
+        const [row] = await executor
+            .select(reportSelection)
+            .from(moderationReports)
+            .where(eq(moderationReports.id, id))
+            .limit(1);
+        if (!row) throw new OperationsError("not_found", "Moderation report was not found");
+        return asReport(row);
     }
 
-    private backup(executor: Executor, id: string): Promise<BackupRecord> {
-        return requiredRow(
-            executor,
-            `${BACKUP_SELECT} WHERE id = ?`,
-            [id],
-            asBackup,
-            "Backup was not found",
-        );
+    private async moderationActionDb(
+        executor: DrizzleExecutor,
+        id: string,
+    ): Promise<ModerationAction> {
+        const [row] = await executor
+            .select(moderationActionSelection)
+            .from(moderationActions)
+            .where(eq(moderationActions.id, id))
+            .limit(1);
+        if (!row) throw new OperationsError("not_found", "Moderation action was not found");
+        return asModerationAction(row);
     }
 
-    private retentionRun(executor: Executor, id: string): Promise<RetentionRun> {
-        return requiredRow(
-            executor,
-            `${RETENTION_SELECT} WHERE id = ?`,
-            [id],
-            asRetention,
-            "Retention run was not found",
-        );
+    private async exportJobDb(executor: DrizzleExecutor, id: string): Promise<DataExportJob> {
+        const [row] = await executor
+            .select(exportSelection)
+            .from(dataExportJobs)
+            .where(eq(dataExportJobs.id, id))
+            .limit(1);
+        if (!row) throw new OperationsError("not_found", "Data export was not found");
+        return asExport(row);
+    }
+
+    private async backupDb(executor: DrizzleExecutor, id: string): Promise<BackupRecord> {
+        const [row] = await executor
+            .select(backupSelection)
+            .from(backupRecords)
+            .where(eq(backupRecords.id, id))
+            .limit(1);
+        if (!row) throw new OperationsError("not_found", "Backup was not found");
+        return asBackup(row);
+    }
+
+    private async retentionRunDb(executor: DrizzleExecutor, id: string): Promise<RetentionRun> {
+        const [row] = await executor
+            .select(retentionSelection)
+            .from(retentionRuns)
+            .where(eq(retentionRuns.id, id))
+            .limit(1);
+        if (!row) throw new OperationsError("not_found", "Retention run was not found");
+        return asRetention(row);
     }
 
     private async appendAudit(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         input: {
             actorUserId?: string;
             action: string;
@@ -1870,68 +2337,26 @@ export class OperationsRepository {
             ...(request?.forwardedFor ? { forwardedFor: request.forwardedFor } : {}),
             ...(request?.location ? { location: request.location } : {}),
         };
-        await tx.execute({
-            sql: `INSERT INTO audit_log_entries
-                    (id, actor_user_id, action, target_type, target_id, chat_id,
-                     before_json, after_json, metadata_json, client_ip, device,
-                     app_version, user_agent)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            args: [
-                createId(),
-                input.actorUserId ?? null,
-                input.action,
-                input.targetType,
-                input.targetId ?? null,
-                input.chatId ?? null,
-                json(input.before),
-                json(input.after),
-                Object.keys(metadata).length ? JSON.stringify(metadata) : null,
-                request?.ip ?? null,
-                request?.device ?? null,
-                request?.appVersion ?? null,
-                request?.userAgent ?? null,
-            ],
+        await tx.insert(auditLogEntries).values({
+            id: createId(),
+            actorUserId: input.actorUserId,
+            action: input.action,
+            targetType: input.targetType,
+            targetId: input.targetId,
+            chatId: input.chatId,
+            beforeJson: json(input.before),
+            afterJson: json(input.after),
+            metadataJson: Object.keys(metadata).length ? JSON.stringify(metadata) : null,
+            clientIp: request?.ip,
+            device: request?.device,
+            appVersion: request?.appVersion,
+            userAgent: request?.userAgent,
         });
     }
 
-    private async write<T>(operation: (tx: Transaction) => Promise<T>): Promise<T> {
-        const tx = await this.client.transaction("write");
-        try {
-            const result = await operation(tx);
-            await tx.commit();
-            return result;
-        } catch (error) {
-            if (!tx.closed) await tx.rollback();
-            throw error;
-        } finally {
-            tx.close();
-        }
+    private writeDb<T>(operation: (tx: DrizzleTransaction) => Promise<T>): Promise<T> {
+        return this.db.transaction(operation);
     }
-}
-
-async function one(executor: Executor, sql: string, args: InArgs = []): Promise<Row | undefined> {
-    return (await executor.execute({ sql, args })).rows[0];
-}
-
-async function requiredRow<T>(
-    executor: Executor,
-    sql: string,
-    args: InArgs,
-    map: (row: Row) => T,
-    message = "Record was not found",
-): Promise<T> {
-    const row = await one(executor, sql, args);
-    if (!row) throw new OperationsError("not_found", message);
-    return map(row);
-}
-
-function addFilter(clauses: string[], args: InValue[], sql: string, value: string): void {
-    clauses.push(sql);
-    args.push(value);
-}
-
-function where(clauses: readonly string[]): string {
-    return clauses.length ? ` WHERE ${clauses.join(" AND ")}` : "";
 }
 
 interface Cursor {
@@ -1939,16 +2364,15 @@ interface Cursor {
     id: string;
 }
 
-function addCursor(
-    clauses: string[],
-    args: InValue[],
-    cursor: Cursor | undefined,
-    timestampColumn = "created_at",
-    idColumn = "id",
-): void {
-    if (!cursor) return;
-    clauses.push(`(${timestampColumn} < ? OR (${timestampColumn} = ? AND ${idColumn} < ?))`);
-    args.push(cursor.at, cursor.at, cursor.id);
+function cursorCondition(
+    timestampColumn: AnySQLiteColumn,
+    idColumn: AnySQLiteColumn,
+    cursor: Cursor,
+): SQL {
+    return or(
+        lt(timestampColumn, cursor.at),
+        and(eq(timestampColumn, cursor.at), lt(idColumn, cursor.id)),
+    )!;
 }
 
 function decodeCursor(value: string | undefined): Cursor | undefined {
@@ -1976,10 +2400,10 @@ function encodeCursor(at: string, id: string): string {
     return Buffer.from(JSON.stringify({ at, id }), "utf8").toString("base64url");
 }
 
-function page<T>(
-    rows: Row[],
+function page<R extends Record<string, unknown>, T>(
+    rows: R[],
     limit: number,
-    map: (row: Row) => T,
+    map: (row: R) => T,
     timestamp: (item: T) => string = (item) => (item as { createdAt: string }).createdAt,
     id: (item: T) => string = (item) => (item as { id: string }).id,
 ): Page<T> {
@@ -1992,7 +2416,7 @@ function page<T>(
     };
 }
 
-function asAudit(row: Row): AuditLogEntry {
+function asAudit(row: Record<string, unknown>): AuditLogEntry {
     return {
         id: text(row.id),
         actorUserId: optionalText(row.actor_user_id),
@@ -2012,7 +2436,7 @@ function asAudit(row: Row): AuditLogEntry {
     };
 }
 
-function asBan(row: Row): AccountBan {
+function asBan(row: Record<string, unknown>): AccountBan {
     const revokedAt = optionalText(row.revoked_at);
     const expiresAt = optionalText(row.expires_at);
     return {
@@ -2035,7 +2459,7 @@ function asBan(row: Row): AccountBan {
     };
 }
 
-function asReport(row: Row): ModerationReport {
+function asReport(row: Record<string, unknown>): ModerationReport {
     return {
         id: text(row.id),
         reportedByUserId: optionalText(row.reported_by_user_id),
@@ -2054,7 +2478,7 @@ function asReport(row: Row): ModerationReport {
     };
 }
 
-function asModerationAction(row: Row): ModerationAction {
+function asModerationAction(row: Record<string, unknown>): ModerationAction {
     return {
         id: text(row.id),
         reportId: optionalText(row.report_id),
@@ -2072,7 +2496,7 @@ function asModerationAction(row: Row): ModerationAction {
     };
 }
 
-function asExport(row: Row): DataExportJob {
+function asExport(row: Record<string, unknown>): DataExportJob {
     return {
         id: text(row.id),
         requestedByUserId: optionalText(row.requested_by_user_id),
@@ -2089,7 +2513,7 @@ function asExport(row: Row): DataExportJob {
     };
 }
 
-function asBackup(row: Row): BackupRecord {
+function asBackup(row: Record<string, unknown>): BackupRecord {
     return {
         id: text(row.id),
         storageProvider: text(row.storage_provider),
@@ -2106,7 +2530,7 @@ function asBackup(row: Row): BackupRecord {
     };
 }
 
-function asRetention(row: Row): RetentionRun {
+function asRetention(row: Record<string, unknown>): RetentionRun {
     return {
         id: text(row.id),
         scope: text(row.scope) as RetentionScope,
@@ -2120,7 +2544,7 @@ function asRetention(row: Row): RetentionRun {
     };
 }
 
-function asAccess(row: Row): UserAccessTelemetry {
+function asAccess(row: Record<string, unknown>): UserAccessTelemetry {
     return {
         userId: text(row.id),
         username: text(row.username),
@@ -2206,6 +2630,12 @@ function parseJson(value: unknown): unknown {
     }
 }
 
+function objectValue(value: unknown): Record<string, unknown> {
+    return value && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
+}
+
 function text(value: unknown): string {
     if (typeof value === "string") return value;
     if (typeof value === "number" || typeof value === "bigint") return String(value);
@@ -2229,8 +2659,12 @@ function optionalNumber(value: unknown): number | undefined {
 }
 
 function isUniqueConstraint(error: unknown): boolean {
-    return (
-        String((error as { code?: unknown }).code ?? "").includes("CONSTRAINT") ||
-        String((error as { message?: unknown }).message ?? "").includes("UNIQUE constraint")
-    );
+    let current: unknown = error;
+    for (let depth = 0; current && depth < 5; depth += 1) {
+        const value = current as { code?: unknown; message?: unknown; cause?: unknown };
+        const details = `${String(value.code ?? "")} ${String(value.message ?? "")}`.toLowerCase();
+        if (details.includes("unique") || details.includes("constraint")) return true;
+        current = value.cause;
+    }
+    return false;
 }

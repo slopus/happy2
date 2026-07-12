@@ -1,6 +1,24 @@
 import { createHash, createHmac } from "node:crypto";
 import { createId } from "@paralleldrive/cuid2";
-import { createClient, type Client, type InArgs, type Row, type Transaction } from "@libsql/client";
+import { createClient, type Client } from "@libsql/client";
+import { and, asc, desc, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
+import { createDatabase, type DrizzleExecutor, type DrizzleTransaction } from "../drizzle.js";
+import {
+    accounts,
+    apiCredentials,
+    auditLogEntries,
+    botIdentities,
+    chatMembers,
+    chats,
+    files,
+    integrations,
+    serverSyncState,
+    slashCommands,
+    syncEvents,
+    users,
+    webhookDeliveries,
+    webhookSubscriptions,
+} from "../schema.js";
 import {
     generateApiToken,
     generateIncomingWebhookToken,
@@ -35,8 +53,6 @@ import {
     type WebhookTransport,
 } from "./types.js";
 
-type Executor = Pick<Client, "execute"> | Pick<Transaction, "execute">;
-
 export interface IntegrationRepositoryOptions {
     secretProtector: SecretProtector;
     urlPolicy?: WebhookUrlPolicy;
@@ -56,6 +72,7 @@ const MAX_DELIVERY_ATTEMPTS = 8;
 
 export class IntegrationRepository {
     private readonly client: Client;
+    private readonly db;
     private readonly ownsClient: boolean;
     private readonly protector: SecretProtector;
     private readonly urlPolicy: WebhookUrlPolicy;
@@ -70,6 +87,7 @@ export class IntegrationRepository {
         this.protector = options.secretProtector;
         this.urlPolicy = options.urlPolicy ?? new StrictWebhookUrlPolicy();
         this.now = options.now ?? (() => new Date());
+        this.db = createDatabase(this.client);
     }
 
     close(): void {
@@ -77,13 +95,22 @@ export class IntegrationRepository {
     }
 
     async listBots(actorUserId: string): Promise<BotSummary[]> {
-        await this.requireAdmin(this.client, actorUserId);
-        const result = await this.client.execute(
-            `SELECT id, name, username, description, photo_file_id, owner_user_id,
-                    active, created_at, updated_at
-               FROM bot_identities ORDER BY created_at DESC, id DESC`,
-        );
-        return result.rows.map(asBot);
+        await this.requireAdminDb(this.db, actorUserId);
+        const rows = await this.db
+            .select({
+                id: botIdentities.id,
+                name: botIdentities.name,
+                username: botIdentities.username,
+                description: botIdentities.description,
+                photo_file_id: botIdentities.photoFileId,
+                owner_user_id: botIdentities.ownerUserId,
+                active: botIdentities.active,
+                created_at: botIdentities.createdAt,
+                updated_at: botIdentities.updatedAt,
+            })
+            .from(botIdentities)
+            .orderBy(desc(botIdentities.createdAt), desc(botIdentities.id));
+        return rows.map(asBot);
     }
 
     async createBot(input: {
@@ -97,37 +124,31 @@ export class IntegrationRepository {
         const name = requiredTrimmed(input.name, "Bot name", 200);
         const username = normalizedUsername(input.username);
         const description = optionalTrimmed(input.description, "Bot description", 2_000);
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
-            if (input.ownerUserId) await this.requireActiveUser(tx, input.ownerUserId);
-            if (input.photoFileId) await this.requireFile(tx, input.photoFileId);
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
+            if (input.ownerUserId) await this.requireActiveUserDb(tx, input.ownerUserId);
+            if (input.photoFileId) await this.requireFileDb(tx, input.photoFileId);
             const id = createId();
             try {
-                await tx.execute({
-                    sql: `INSERT INTO bot_identities
-                            (id, name, username, description, photo_file_id, owner_user_id,
-                             created_by_user_id)
-                          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                    args: [
-                        id,
-                        name,
-                        username,
-                        description ?? null,
-                        input.photoFileId ?? null,
-                        input.ownerUserId ?? null,
-                        input.actorUserId,
-                    ],
+                await tx.insert(botIdentities).values({
+                    id,
+                    name,
+                    username,
+                    description: description ?? null,
+                    photoFileId: input.photoFileId ?? null,
+                    ownerUserId: input.ownerUserId ?? null,
+                    createdByUserId: input.actorUserId,
                 });
             } catch (error: unknown) {
                 throw constraintConflict(error, "Bot username is already in use");
             }
-            const change = await this.recordChange(tx, input.actorUserId, "bot.created", id);
-            await this.appendAudit(tx, input.actorUserId, "bot.created", "bot", id);
-            await tx.execute({
-                sql: `UPDATE bot_identities SET sync_sequence = ? WHERE id = ?`,
-                args: [change.sequence, id],
-            });
-            return { value: await this.getBot(tx, id), change };
+            const change = await this.recordChangeDb(tx, input.actorUserId, "bot.created", id);
+            await this.appendAuditDb(tx, input.actorUserId, "bot.created", "bot", id);
+            await tx
+                .update(botIdentities)
+                .set({ syncSequence: Number(change.sequence) })
+                .where(eq(botIdentities.id, id));
+            return { value: await this.getBotDb(tx, id), change };
         });
     }
 
@@ -156,87 +177,94 @@ export class IntegrationRepository {
             input.description === undefined || input.description === null
                 ? input.description
                 : optionalTrimmed(input.description, "Bot description", 2_000);
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
-            await this.getBot(tx, input.botId, true);
-            if (input.ownerUserId) await this.requireActiveUser(tx, input.ownerUserId);
-            if (input.photoFileId) await this.requireFile(tx, input.photoFileId);
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
+            await this.getBotDb(tx, input.botId, true);
+            if (input.ownerUserId) await this.requireActiveUserDb(tx, input.ownerUserId);
+            if (input.photoFileId) await this.requireFileDb(tx, input.photoFileId);
             try {
-                await tx.execute({
-                    sql: `UPDATE bot_identities
-                             SET name = CASE WHEN ? = 1 THEN ? ELSE name END,
-                                 username = CASE WHEN ? = 1 THEN ? ELSE username END,
-                                 description = CASE WHEN ? = 1 THEN ? ELSE description END,
-                                 photo_file_id = CASE WHEN ? = 1 THEN ? ELSE photo_file_id END,
-                                 owner_user_id = CASE WHEN ? = 1 THEN ? ELSE owner_user_id END,
-                                 updated_at = CURRENT_TIMESTAMP
-                           WHERE id = ? AND deleted_at IS NULL`,
-                    args: [
-                        name === undefined ? 0 : 1,
-                        name ?? null,
-                        username === undefined ? 0 : 1,
-                        username ?? null,
-                        input.description === undefined ? 0 : 1,
-                        description ?? null,
-                        input.photoFileId === undefined ? 0 : 1,
-                        input.photoFileId ?? null,
-                        input.ownerUserId === undefined ? 0 : 1,
-                        input.ownerUserId ?? null,
-                        input.botId,
-                    ],
-                });
+                await tx
+                    .update(botIdentities)
+                    .set({
+                        ...(name === undefined ? {} : { name }),
+                        ...(username === undefined ? {} : { username }),
+                        ...(input.description === undefined
+                            ? {}
+                            : { description: description ?? null }),
+                        ...(input.photoFileId === undefined
+                            ? {}
+                            : { photoFileId: input.photoFileId }),
+                        ...(input.ownerUserId === undefined
+                            ? {}
+                            : { ownerUserId: input.ownerUserId }),
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    })
+                    .where(and(eq(botIdentities.id, input.botId), isNull(botIdentities.deletedAt)));
             } catch (error: unknown) {
                 throw constraintConflict(error, "Bot username is already in use");
             }
-            const change = await this.recordChange(
+            const change = await this.recordChangeDb(
                 tx,
                 input.actorUserId,
                 "bot.updated",
                 input.botId,
             );
-            await this.appendAudit(tx, input.actorUserId, "bot.updated", "bot", input.botId);
-            await tx.execute({
-                sql: `UPDATE bot_identities SET sync_sequence = ? WHERE id = ?`,
-                args: [change.sequence, input.botId],
-            });
-            return { value: await this.getBot(tx, input.botId), change };
+            await this.appendAuditDb(tx, input.actorUserId, "bot.updated", "bot", input.botId);
+            await tx
+                .update(botIdentities)
+                .set({ syncSequence: Number(change.sequence) })
+                .where(eq(botIdentities.id, input.botId));
+            return { value: await this.getBotDb(tx, input.botId), change };
         });
     }
 
     async revokeBot(actorUserId: string, botId: string): Promise<IntegrationChange> {
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, actorUserId);
-            const result = await tx.execute({
-                sql: `UPDATE bot_identities
-                         SET active = 0, deleted_at = CURRENT_TIMESTAMP,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ? AND deleted_at IS NULL`,
-                args: [botId],
-            });
-            if (!result.rowsAffected) throw new IntegrationError("not_found", "Bot was not found");
-            await tx.execute({
-                sql: `UPDATE api_credentials SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP)
-                       WHERE bot_id = ? OR integration_id IN
-                           (SELECT id FROM integrations WHERE bot_id = ?)`,
-                args: [botId, botId],
-            });
-            await tx.execute({
-                sql: `UPDATE integrations SET active = 0, deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP),
-                             updated_at = CURRENT_TIMESTAMP WHERE bot_id = ?`,
-                args: [botId],
-            });
-            const change = await this.recordChange(tx, actorUserId, "bot.revoked", botId);
-            await this.appendAudit(tx, actorUserId, "bot.revoked", "bot", botId);
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, actorUserId);
+            const changed = await tx
+                .update(botIdentities)
+                .set({
+                    active: 0,
+                    deletedAt: sql`CURRENT_TIMESTAMP`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(and(eq(botIdentities.id, botId), isNull(botIdentities.deletedAt)))
+                .returning({ id: botIdentities.id });
+            if (changed.length === 0) throw new IntegrationError("not_found", "Bot was not found");
+            const integrationIds = tx
+                .select({ id: integrations.id })
+                .from(integrations)
+                .where(eq(integrations.botId, botId));
+            await tx
+                .update(apiCredentials)
+                .set({ revokedAt: sql`coalesce(${apiCredentials.revokedAt}, CURRENT_TIMESTAMP)` })
+                .where(
+                    or(
+                        eq(apiCredentials.botId, botId),
+                        sql`${apiCredentials.integrationId} in (${integrationIds})`,
+                    ),
+                );
+            await tx
+                .update(integrations)
+                .set({
+                    active: 0,
+                    deletedAt: sql`coalesce(${integrations.deletedAt}, CURRENT_TIMESTAMP)`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(integrations.botId, botId));
+            const change = await this.recordChangeDb(tx, actorUserId, "bot.revoked", botId);
+            await this.appendAuditDb(tx, actorUserId, "bot.revoked", "bot", botId);
             return change;
         });
     }
 
     async listIntegrations(actorUserId: string): Promise<IntegrationSummary[]> {
-        await this.requireAdmin(this.client, actorUserId);
-        const result = await this.client.execute(
-            `${integrationSelect()} ORDER BY created_at DESC, id DESC`,
-        );
-        return result.rows.map(asIntegration);
+        await this.requireAdminDb(this.db, actorUserId);
+        const rows = await this.db
+            .select(integrationSelection)
+            .from(integrations)
+            .orderBy(desc(integrations.createdAt), desc(integrations.id));
+        return rows.map(asIntegration);
     }
 
     async createIntegration(input: {
@@ -254,39 +282,38 @@ export class IntegrationRepository {
         actorUserId: string,
         integrationId: string,
     ): Promise<IntegrationChange> {
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, actorUserId);
-            const result = await tx.execute({
-                sql: `UPDATE integrations
-                         SET active = 0, deleted_at = CURRENT_TIMESTAMP,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ? AND deleted_at IS NULL`,
-                args: [integrationId],
-            });
-            if (!result.rowsAffected)
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, actorUserId);
+            const changed = await tx
+                .update(integrations)
+                .set({
+                    active: 0,
+                    deletedAt: sql`CURRENT_TIMESTAMP`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(and(eq(integrations.id, integrationId), isNull(integrations.deletedAt)))
+                .returning({ id: integrations.id });
+            if (changed.length === 0)
                 throw new IntegrationError("not_found", "Integration was not found");
-            await tx.execute({
-                sql: `UPDATE api_credentials SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP)
-                       WHERE integration_id = ?`,
-                args: [integrationId],
-            });
-            await tx.execute({
-                sql: `UPDATE webhook_subscriptions SET active = 0, updated_at = CURRENT_TIMESTAMP
-                       WHERE integration_id = ?`,
-                args: [integrationId],
-            });
-            await tx.execute({
-                sql: `UPDATE slash_commands SET active = 0, updated_at = CURRENT_TIMESTAMP
-                       WHERE integration_id = ?`,
-                args: [integrationId],
-            });
-            const change = await this.recordChange(
+            await tx
+                .update(apiCredentials)
+                .set({ revokedAt: sql`coalesce(${apiCredentials.revokedAt}, CURRENT_TIMESTAMP)` })
+                .where(eq(apiCredentials.integrationId, integrationId));
+            await tx
+                .update(webhookSubscriptions)
+                .set({ active: 0, updatedAt: sql`CURRENT_TIMESTAMP` })
+                .where(eq(webhookSubscriptions.integrationId, integrationId));
+            await tx
+                .update(slashCommands)
+                .set({ active: 0, updatedAt: sql`CURRENT_TIMESTAMP` })
+                .where(eq(slashCommands.integrationId, integrationId));
+            const change = await this.recordChangeDb(
                 tx,
                 actorUserId,
                 "integration.revoked",
                 integrationId,
             );
-            await this.appendAudit(
+            await this.appendAuditDb(
                 tx,
                 actorUserId,
                 "integration.revoked",
@@ -301,13 +328,14 @@ export class IntegrationRepository {
         actorUserId: string,
         integrationId: string,
     ): Promise<ApiCredentialSummary[]> {
-        await this.requireAdmin(this.client, actorUserId);
-        await this.requireIntegration(this.client, integrationId, false);
-        const rows = await this.client.execute({
-            sql: `${credentialSelect()} WHERE integration_id = ? ORDER BY created_at DESC, id DESC`,
-            args: [integrationId],
-        });
-        return rows.rows.map(asCredential);
+        await this.requireAdminDb(this.db, actorUserId);
+        await this.requireIntegrationDb(this.db, integrationId, false);
+        const rows = await this.db
+            .select(credentialSelection)
+            .from(apiCredentials)
+            .where(eq(apiCredentials.integrationId, integrationId))
+            .orderBy(desc(apiCredentials.createdAt), desc(apiCredentials.id));
+        return rows.map(asCredential);
     }
 
     async createApiCredential(input: {
@@ -320,29 +348,23 @@ export class IntegrationRepository {
         const name = requiredTrimmed(input.name, "Credential name", 200);
         const expiresAt = input.expiresAt ? futureDate(input.expiresAt, this.now()) : undefined;
         const token = generateApiToken();
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
-            const integration = await this.requireIntegration(tx, input.integrationId, true);
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
+            const integration = await this.requireIntegrationDb(tx, input.integrationId, true);
             const scopes = input.scopes ? normalizeScopes(input.scopes) : integration.scopes;
             requireScopeSubset(scopes, integration.scopes);
             const id = createId();
-            await tx.execute({
-                sql: `INSERT INTO api_credentials
-                        (id, integration_id, name, token_prefix, token_hash, scopes_json,
-                         created_by_user_id, expires_at)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                args: [
-                    id,
-                    input.integrationId,
-                    name,
-                    tokenPrefix(token),
-                    secretHash(token),
-                    JSON.stringify(scopes),
-                    input.actorUserId,
-                    expiresAt ?? null,
-                ],
+            await tx.insert(apiCredentials).values({
+                id,
+                integrationId: input.integrationId,
+                name,
+                tokenPrefix: tokenPrefix(token),
+                tokenHash: secretHash(token),
+                scopesJson: JSON.stringify(scopes),
+                createdByUserId: input.actorUserId,
+                expiresAt: expiresAt ?? null,
             });
-            await this.appendAudit(
+            await this.appendAuditDb(
                 tx,
                 input.actorUserId,
                 "integration.credential_created",
@@ -350,23 +372,26 @@ export class IntegrationRepository {
                 id,
                 { integrationId: input.integrationId, scopes },
             );
-            const row = await one(tx, `${credentialSelect()} WHERE id = ?`, [id]);
+            const [row] = await tx
+                .select(credentialSelection)
+                .from(apiCredentials)
+                .where(eq(apiCredentials.id, id));
             if (!row) throw new Error("API credential was not created");
             return { credential: asCredential(row), token };
         });
     }
 
     async revokeApiCredential(actorUserId: string, credentialId: string): Promise<void> {
-        await this.write(async (tx) => {
-            await this.requireAdmin(tx, actorUserId);
-            const result = await tx.execute({
-                sql: `UPDATE api_credentials SET revoked_at = CURRENT_TIMESTAMP
-                       WHERE id = ? AND revoked_at IS NULL`,
-                args: [credentialId],
-            });
-            if (!result.rowsAffected)
+        await this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, actorUserId);
+            const changed = await tx
+                .update(apiCredentials)
+                .set({ revokedAt: sql`CURRENT_TIMESTAMP` })
+                .where(and(eq(apiCredentials.id, credentialId), isNull(apiCredentials.revokedAt)))
+                .returning({ id: apiCredentials.id });
+            if (changed.length === 0)
                 throw new IntegrationError("not_found", "API credential was not found");
-            await this.appendAudit(
+            await this.appendAuditDb(
                 tx,
                 actorUserId,
                 "integration.credential_revoked",
@@ -382,44 +407,55 @@ export class IntegrationRepository {
     ): Promise<AuthenticatedIntegration | undefined> {
         if (!token.startsWith("rgd_api_") || token.length > 256) return undefined;
         const requested = normalizeScopes(requiredScopes);
-        const candidates = await this.client.execute({
-            sql: `SELECT c.id, c.integration_id, c.token_hash,
-                         c.scopes_json AS credential_scopes_json,
-                         i.scopes_json AS integration_scopes_json, i.bot_id,
-                         i.created_by_user_id
-                    FROM api_credentials c
-                    JOIN integrations i ON i.id = c.integration_id
-                    JOIN users creator ON creator.id = i.created_by_user_id
-                    JOIN accounts creator_account ON creator_account.id = creator.account_id
-                   WHERE c.token_prefix = ? AND c.revoked_at IS NULL
-                     AND (c.expires_at IS NULL OR datetime(c.expires_at) > CURRENT_TIMESTAMP)
-                     AND i.active = 1 AND i.deleted_at IS NULL
-                     AND creator.role = 'admin' AND creator.deleted_at IS NULL
-                     AND creator_account.active = 1 AND creator_account.banned_at IS NULL
-                     AND creator_account.deleted_at IS NULL`,
-            args: [tokenPrefix(token)],
-        });
+        const candidates = await this.db
+            .select({
+                id: apiCredentials.id,
+                integrationId: apiCredentials.integrationId,
+                tokenHash: apiCredentials.tokenHash,
+                credentialScopesJson: apiCredentials.scopesJson,
+                integrationScopesJson: integrations.scopesJson,
+                botId: integrations.botId,
+                createdByUserId: integrations.createdByUserId,
+            })
+            .from(apiCredentials)
+            .innerJoin(integrations, eq(integrations.id, apiCredentials.integrationId))
+            .innerJoin(users, eq(users.id, integrations.createdByUserId))
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(apiCredentials.tokenPrefix, tokenPrefix(token)),
+                    isNull(apiCredentials.revokedAt),
+                    or(
+                        isNull(apiCredentials.expiresAt),
+                        gt(sql`datetime(${apiCredentials.expiresAt})`, sql`CURRENT_TIMESTAMP`),
+                    ),
+                    eq(integrations.active, 1),
+                    isNull(integrations.deletedAt),
+                    eq(users.role, "admin"),
+                    isNull(users.deletedAt),
+                    eq(accounts.active, 1),
+                    isNull(accounts.bannedAt),
+                    isNull(accounts.deletedAt),
+                ),
+            );
         const digest = secretHash(token);
-        const row = candidates.rows.find((candidate) =>
-            hashesEqual(text(candidate.token_hash), digest),
-        );
+        const row = candidates.find((candidate) => hashesEqual(candidate.tokenHash, digest));
         if (!row) return undefined;
-        const credentialScopes = parseScopes(row.credential_scopes_json);
-        const integrationScopeValues = parseScopes(row.integration_scopes_json);
+        const credentialScopes = parseScopes(row.credentialScopesJson);
+        const integrationScopeValues = parseScopes(row.integrationScopesJson);
         const effective = credentialScopes.filter((scope) =>
             integrationScopeValues.includes(scope),
         );
         if (requested.some((scope) => !effective.includes(scope))) return undefined;
-        await this.client.execute({
-            sql: `UPDATE api_credentials SET last_used_at = CURRENT_TIMESTAMP
-                   WHERE id = ? AND revoked_at IS NULL`,
-            args: [text(row.id)],
-        });
+        await this.db
+            .update(apiCredentials)
+            .set({ lastUsedAt: sql`CURRENT_TIMESTAMP` })
+            .where(and(eq(apiCredentials.id, row.id), isNull(apiCredentials.revokedAt)));
         return {
-            credentialId: text(row.id),
-            integrationId: text(row.integration_id),
-            actorUserId: text(row.created_by_user_id),
-            botId: optionalText(row.bot_id),
+            credentialId: row.id,
+            integrationId: row.integrationId!,
+            actorUserId: row.createdByUserId!,
+            botId: row.botId ?? undefined,
             scopes: effective,
         };
     }
@@ -432,11 +468,11 @@ export class IntegrationRepository {
         chatId: string;
     }): Promise<IntegrationMutation<IssuedIncomingWebhook>> {
         const token = generateIncomingWebhookToken();
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
-            await this.requireBot(tx, input.botId);
-            await this.requireChat(tx, input.chatId);
-            const integration = await this.insertIntegration(tx, {
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
+            await this.requireBotDb(tx, input.botId);
+            await this.requireChatDb(tx, input.chatId);
+            const integration = await this.insertIntegrationDb(tx, {
                 actorUserId: input.actorUserId,
                 kind: "incoming_webhook",
                 name: input.name,
@@ -445,13 +481,15 @@ export class IntegrationRepository {
                 scopes: ["messages:write"],
             });
             const subscriptionId = createId();
-            await tx.execute({
-                sql: `INSERT INTO webhook_subscriptions
-                        (id, integration_id, direction, chat_id, token_hash, event_types_json)
-                      VALUES (?, ?, 'incoming', ?, ?, '[]')`,
-                args: [subscriptionId, integration.id, input.chatId, secretHash(token)],
+            await tx.insert(webhookSubscriptions).values({
+                id: subscriptionId,
+                integrationId: integration.id,
+                direction: "incoming",
+                chatId: input.chatId,
+                tokenHash: secretHash(token),
+                eventTypesJson: "[]",
             });
-            const change = await this.finishIntegrationChange(
+            const change = await this.finishIntegrationChangeDb(
                 tx,
                 input.actorUserId,
                 "integration.created",
@@ -459,8 +497,8 @@ export class IntegrationRepository {
             );
             return {
                 value: {
-                    integration: await this.getIntegration(tx, integration.id),
-                    subscription: await this.getSubscription(tx, subscriptionId),
+                    integration: await this.getIntegrationDb(tx, integration.id),
+                    subscription: await this.getSubscriptionDb(tx, subscriptionId),
                     token,
                 },
                 change,
@@ -484,32 +522,45 @@ export class IntegrationRepository {
                 !/^[\x21-\x7e]+$/.test(idempotencyKey))
         )
             throw new IntegrationError("invalid", "Idempotency key is invalid");
-        const row = await one(
-            this.client,
-            `SELECT ws.id, ws.chat_id, i.id AS integration_id, i.bot_id, i.scopes_json,
-                    i.created_by_user_id
-               FROM webhook_subscriptions ws
-               JOIN integrations i ON i.id = ws.integration_id
-               JOIN users creator ON creator.id = i.created_by_user_id
-              JOIN accounts creator_account ON creator_account.id = creator.account_id
-              WHERE ws.direction = 'incoming' AND ws.token_hash = ? AND ws.active = 1
-                AND i.kind = 'incoming_webhook' AND i.active = 1 AND i.deleted_at IS NULL
-                AND creator.role = 'admin' AND creator.deleted_at IS NULL
-                AND creator_account.active = 1 AND creator_account.banned_at IS NULL
-                AND creator_account.deleted_at IS NULL`,
-            [secretHash(token)],
-        );
-        if (!row || !parseScopes(row.scopes_json).includes("messages:write"))
+        const [row] = await this.db
+            .select({
+                id: webhookSubscriptions.id,
+                chatId: webhookSubscriptions.chatId,
+                integrationId: integrations.id,
+                botId: integrations.botId,
+                scopesJson: integrations.scopesJson,
+                createdByUserId: integrations.createdByUserId,
+            })
+            .from(webhookSubscriptions)
+            .innerJoin(integrations, eq(integrations.id, webhookSubscriptions.integrationId))
+            .innerJoin(users, eq(users.id, integrations.createdByUserId))
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(webhookSubscriptions.direction, "incoming"),
+                    eq(webhookSubscriptions.tokenHash, secretHash(token)),
+                    eq(webhookSubscriptions.active, 1),
+                    eq(integrations.kind, "incoming_webhook"),
+                    eq(integrations.active, 1),
+                    isNull(integrations.deletedAt),
+                    eq(users.role, "admin"),
+                    isNull(users.deletedAt),
+                    eq(accounts.active, 1),
+                    isNull(accounts.bannedAt),
+                    isNull(accounts.deletedAt),
+                ),
+            );
+        if (!row || !parseScopes(row.scopesJson).includes("messages:write"))
             throw new IntegrationError("unauthorized", "Incoming webhook token is invalid");
-        const chatId = optionalText(row.chat_id);
-        const botId = optionalText(row.bot_id);
-        const actorUserId = optionalText(row.created_by_user_id);
+        const chatId = row.chatId ?? undefined;
+        const botId = row.botId ?? undefined;
+        const actorUserId = row.createdByUserId ?? undefined;
         if (!chatId || !botId || !actorUserId)
             throw new IntegrationError("forbidden", "Incoming webhook is no longer configured");
         return sink.sendMessage({
             actorUserId,
-            integrationId: text(row.integration_id),
-            subscriptionId: text(row.id),
+            integrationId: row.integrationId,
+            subscriptionId: row.id,
             botId,
             chatId,
             text: textBody,
@@ -529,10 +580,10 @@ export class IntegrationRepository {
         const eventTypes = normalizeEventTypes(input.eventTypes);
         const signingSecret = generateSigningSecret();
         const ciphertext = await this.protector.protect(signingSecret);
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
-            if (input.chatId) await this.requireChat(tx, input.chatId);
-            const integration = await this.insertIntegration(tx, {
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
+            if (input.chatId) await this.requireChatDb(tx, input.chatId);
+            const integration = await this.insertIntegrationDb(tx, {
                 actorUserId: input.actorUserId,
                 kind: "outgoing_webhook",
                 name: input.name,
@@ -540,21 +591,16 @@ export class IntegrationRepository {
                 scopes: ["events:read"],
             });
             const subscriptionId = createId();
-            await tx.execute({
-                sql: `INSERT INTO webhook_subscriptions
-                        (id, integration_id, direction, chat_id, url,
-                         signing_secret_ciphertext, event_types_json)
-                      VALUES (?, ?, 'outgoing', ?, ?, ?, ?)`,
-                args: [
-                    subscriptionId,
-                    integration.id,
-                    input.chatId ?? null,
-                    url,
-                    ciphertext,
-                    JSON.stringify(eventTypes),
-                ],
+            await tx.insert(webhookSubscriptions).values({
+                id: subscriptionId,
+                integrationId: integration.id,
+                direction: "outgoing",
+                chatId: input.chatId ?? null,
+                url,
+                signingSecretCiphertext: ciphertext,
+                eventTypesJson: JSON.stringify(eventTypes),
             });
-            const change = await this.finishIntegrationChange(
+            const change = await this.finishIntegrationChangeDb(
                 tx,
                 input.actorUserId,
                 "integration.created",
@@ -562,8 +608,8 @@ export class IntegrationRepository {
             );
             return {
                 value: {
-                    integration: await this.getIntegration(tx, integration.id),
-                    subscription: await this.getSubscription(tx, subscriptionId),
+                    integration: await this.getIntegrationDb(tx, integration.id),
+                    subscription: await this.getSubscriptionDb(tx, subscriptionId),
                     signingSecret,
                 },
                 change,
@@ -575,13 +621,14 @@ export class IntegrationRepository {
         actorUserId: string,
         integrationId: string,
     ): Promise<WebhookSubscriptionSummary[]> {
-        await this.requireAdmin(this.client, actorUserId);
-        await this.requireIntegration(this.client, integrationId, false);
-        const rows = await this.client.execute({
-            sql: `${subscriptionSelect()} WHERE integration_id = ? ORDER BY created_at DESC, id DESC`,
-            args: [integrationId],
-        });
-        return rows.rows.map(asSubscription);
+        await this.requireAdminDb(this.db, actorUserId);
+        await this.requireIntegrationDb(this.db, integrationId, false);
+        const rows = await this.db
+            .select(subscriptionSelection)
+            .from(webhookSubscriptions)
+            .where(eq(webhookSubscriptions.integrationId, integrationId))
+            .orderBy(desc(webhookSubscriptions.createdAt), desc(webhookSubscriptions.id));
+        return rows.map(asSubscription);
     }
 
     async enqueueOutgoingEvent(input: {
@@ -598,34 +645,50 @@ export class IntegrationRepository {
             occurredAt: this.now().toISOString(),
             payload: input.payload,
         });
-        return this.write(async (tx) => {
-            const subscriptions = await tx.execute({
-                sql: `SELECT ws.id
-                        FROM webhook_subscriptions ws
-                        JOIN integrations i ON i.id = ws.integration_id
-                       WHERE ws.direction = 'outgoing' AND ws.active = 1
-                         AND i.active = 1 AND i.deleted_at IS NULL
-                         AND (? IS NULL AND ws.chat_id IS NULL OR ws.chat_id IS NULL OR ws.chat_id = ?)
-                         AND EXISTS (SELECT 1 FROM json_each(ws.event_types_json) WHERE value = ?)
-                         AND EXISTS (SELECT 1 FROM json_each(i.scopes_json) WHERE value = 'events:read')
-                       ORDER BY ws.id`,
-                args: [input.chatId ?? null, input.chatId ?? null, eventType],
-            });
+        return this.writeDb(async (tx) => {
+            const subscriptions = await tx
+                .select({ id: webhookSubscriptions.id })
+                .from(webhookSubscriptions)
+                .innerJoin(integrations, eq(integrations.id, webhookSubscriptions.integrationId))
+                .where(
+                    and(
+                        eq(webhookSubscriptions.direction, "outgoing"),
+                        eq(webhookSubscriptions.active, 1),
+                        eq(integrations.active, 1),
+                        isNull(integrations.deletedAt),
+                        or(
+                            isNull(webhookSubscriptions.chatId),
+                            eq(webhookSubscriptions.chatId, input.chatId ?? ""),
+                        ),
+                        sql`exists (select 1 from json_each(${webhookSubscriptions.eventTypesJson}) where value = ${eventType})`,
+                        sql`exists (select 1 from json_each(${integrations.scopesJson}) where value = 'events:read')`,
+                    ),
+                )
+                .orderBy(asc(webhookSubscriptions.id));
             const deliveries: QueuedWebhookDelivery[] = [];
-            for (const row of subscriptions.rows) {
-                const subscriptionId = text(row.id);
+            for (const row of subscriptions) {
+                const subscriptionId = row.id;
                 const id = createId();
-                await tx.execute({
-                    sql: `INSERT OR IGNORE INTO webhook_deliveries
-                            (id, subscription_id, event_id, event_type, payload_json)
-                          VALUES (?, ?, ?, ?, ?)`,
-                    args: [id, subscriptionId, input.eventId, eventType, payloadJson],
-                });
-                const delivery = await one(
-                    tx,
-                    `${deliverySelect()} WHERE subscription_id = ? AND event_id = ?`,
-                    [subscriptionId, input.eventId],
-                );
+                await tx
+                    .insert(webhookDeliveries)
+                    .values({
+                        id,
+                        subscriptionId,
+                        eventId: input.eventId,
+                        eventType,
+                        payloadJson,
+                        nextAttemptAt: this.now().toISOString(),
+                    })
+                    .onConflictDoNothing();
+                const [delivery] = await tx
+                    .select(deliverySelection)
+                    .from(webhookDeliveries)
+                    .where(
+                        and(
+                            eq(webhookDeliveries.subscriptionId, subscriptionId),
+                            eq(webhookDeliveries.eventId, input.eventId),
+                        ),
+                    );
                 if (delivery) deliveries.push(asDelivery(delivery));
             }
             return deliveries;
@@ -639,28 +702,27 @@ export class IntegrationRepository {
     async enqueueSyncSequence(sequence: string): Promise<QueuedWebhookDelivery[]> {
         if (!/^\d+$/.test(sequence))
             throw new IntegrationError("invalid", "Sync sequence is invalid");
-        const events = await this.client.execute({
-            sql: `SELECT id, sequence, kind, chat_id, chat_pts, entity_id,
-                         actor_user_id, target_user_id, created_at
-                    FROM sync_events WHERE sequence = ? ORDER BY id`,
-            args: [sequence],
-        });
+        const events = await this.db
+            .select()
+            .from(syncEvents)
+            .where(eq(syncEvents.sequence, Number(sequence)))
+            .orderBy(asc(syncEvents.id));
         const deliveries: QueuedWebhookDelivery[] = [];
-        for (const event of events.rows) {
+        for (const event of events) {
             deliveries.push(
                 ...(await this.enqueueOutgoingEvent({
-                    eventId: `sync:${text(event.id)}`,
-                    eventType: text(event.kind),
-                    chatId: optionalText(event.chat_id),
+                    eventId: `sync:${event.id}`,
+                    eventType: event.kind,
+                    chatId: event.chatId ?? undefined,
                     payload: {
-                        syncEventId: text(event.id),
-                        sequence: text(event.sequence),
-                        chatId: optionalText(event.chat_id),
-                        chatPts: optionalText(event.chat_pts),
-                        entityId: optionalText(event.entity_id),
-                        actorUserId: optionalText(event.actor_user_id),
-                        targetUserId: optionalText(event.target_user_id),
-                        createdAt: text(event.created_at),
+                        syncEventId: String(event.id),
+                        sequence: String(event.sequence),
+                        chatId: event.chatId ?? undefined,
+                        chatPts: event.chatPts === null ? undefined : String(event.chatPts),
+                        entityId: event.entityId ?? undefined,
+                        actorUserId: event.actorUserId ?? undefined,
+                        targetUserId: event.targetUserId ?? undefined,
+                        createdAt: event.createdAt,
                     },
                 })),
             );
@@ -671,35 +733,46 @@ export class IntegrationRepository {
     /** Recovers sync rows missed by ephemeral pubsub delivery, without a local cursor. */
     async enqueuePendingSyncEvents(limit = 100): Promise<QueuedWebhookDelivery[]> {
         positiveLimit(limit, 1_000);
-        const sequences = await this.client.execute({
-            sql: `SELECT se.sequence, MIN(se.id) AS first_event_id
-                    FROM sync_events se
-                   WHERE EXISTS (
-                     SELECT 1
-                       FROM webhook_subscriptions ws
-                       JOIN integrations i ON i.id = ws.integration_id
-                      WHERE ws.direction = 'outgoing' AND ws.active = 1
-                        AND i.active = 1 AND i.deleted_at IS NULL
-                        AND julianday(se.created_at) >= julianday(ws.created_at)
-                        AND (ws.chat_id IS NULL OR ws.chat_id = se.chat_id)
-                        AND EXISTS (SELECT 1 FROM json_each(ws.event_types_json)
-                                     WHERE value = se.kind)
-                        AND EXISTS (SELECT 1 FROM json_each(i.scopes_json)
-                                     WHERE value = 'events:read')
-                        AND NOT EXISTS (
-                          SELECT 1 FROM webhook_deliveries d
-                           WHERE d.subscription_id = ws.id
-                             AND d.event_id = 'sync:' || se.id
-                        )
-                   )
-                   GROUP BY se.sequence
-                   ORDER BY first_event_id
-                   LIMIT ?`,
-            args: [limit],
-        });
+        const alreadyQueued = this.db
+            .select({ id: webhookDeliveries.id })
+            .from(webhookDeliveries)
+            .where(
+                and(
+                    eq(webhookDeliveries.subscriptionId, webhookSubscriptions.id),
+                    eq(webhookDeliveries.eventId, sql`'sync:' || ${syncEvents.id}`),
+                ),
+            );
+        const eligibleSubscription = this.db
+            .select({ id: webhookSubscriptions.id })
+            .from(webhookSubscriptions)
+            .innerJoin(integrations, eq(integrations.id, webhookSubscriptions.integrationId))
+            .where(
+                and(
+                    eq(webhookSubscriptions.direction, "outgoing"),
+                    eq(webhookSubscriptions.active, 1),
+                    eq(integrations.active, 1),
+                    isNull(integrations.deletedAt),
+                    sql`julianday(${syncEvents.createdAt}) >= julianday(${webhookSubscriptions.createdAt})`,
+                    or(
+                        isNull(webhookSubscriptions.chatId),
+                        eq(webhookSubscriptions.chatId, syncEvents.chatId),
+                    ),
+                    sql`exists (select 1 from json_each(${webhookSubscriptions.eventTypesJson}) where value = ${syncEvents.kind})`,
+                    sql`exists (select 1 from json_each(${integrations.scopesJson}) where value = 'events:read')`,
+                    sql`not exists ${alreadyQueued}`,
+                ),
+            );
+        const firstEventId = sql<number>`min(${syncEvents.id})`;
+        const sequences = await this.db
+            .select({ sequence: syncEvents.sequence, firstEventId })
+            .from(syncEvents)
+            .where(sql`exists ${eligibleSubscription}`)
+            .groupBy(syncEvents.sequence)
+            .orderBy(firstEventId)
+            .limit(limit);
         const deliveries: QueuedWebhookDelivery[] = [];
-        for (const row of sequences.rows)
-            deliveries.push(...(await this.enqueueSyncSequence(text(row.sequence))));
+        for (const row of sequences)
+            deliveries.push(...(await this.enqueueSyncSequence(String(row.sequence))));
         return deliveries;
     }
 
@@ -708,17 +781,20 @@ export class IntegrationRepository {
         integrationId: string,
         limit = 100,
     ): Promise<QueuedWebhookDelivery[]> {
-        await this.requireAdmin(this.client, actorUserId);
+        await this.requireAdminDb(this.db, actorUserId);
         positiveLimit(limit, 200);
-        await this.requireIntegration(this.client, integrationId, false);
-        const rows = await this.client.execute({
-            sql: `${deliverySelect()}
-                    JOIN webhook_subscriptions ws ON ws.id = webhook_deliveries.subscription_id
-                   WHERE ws.integration_id = ?
-                   ORDER BY webhook_deliveries.created_at DESC, webhook_deliveries.id DESC LIMIT ?`,
-            args: [integrationId, limit],
-        });
-        return rows.rows.map(asDelivery);
+        await this.requireIntegrationDb(this.db, integrationId, false);
+        const rows = await this.db
+            .select(deliverySelection)
+            .from(webhookDeliveries)
+            .innerJoin(
+                webhookSubscriptions,
+                eq(webhookSubscriptions.id, webhookDeliveries.subscriptionId),
+            )
+            .where(eq(webhookSubscriptions.integrationId, integrationId))
+            .orderBy(desc(webhookDeliveries.createdAt), desc(webhookDeliveries.id))
+            .limit(limit);
+        return rows.map(asDelivery);
     }
 
     async createSlashCommand(input: {
@@ -734,10 +810,10 @@ export class IntegrationRepository {
         const handlerUrl = this.urlPolicy.validateForStorage(input.handlerUrl);
         const signingSecret = generateSigningSecret();
         const ciphertext = await this.protector.protect(signingSecret);
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
-            if (input.botId) await this.requireBot(tx, input.botId);
-            const integration = await this.insertIntegration(tx, {
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
+            if (input.botId) await this.requireBotDb(tx, input.botId);
+            const integration = await this.insertIntegrationDb(tx, {
                 actorUserId: input.actorUserId,
                 kind: "slash_command",
                 name: input.name,
@@ -747,36 +823,27 @@ export class IntegrationRepository {
             });
             const commandId = createId();
             try {
-                await tx.execute({
-                    sql: `INSERT INTO slash_commands
-                            (id, integration_id, command, description, usage_hint, handler_url)
-                          VALUES (?, ?, ?, ?, ?, ?)`,
-                    args: [
-                        commandId,
-                        integration.id,
-                        command,
+                await tx.insert(slashCommands).values({
+                    id: commandId,
+                    integrationId: integration.id,
+                    command,
+                    description:
                         optionalTrimmed(input.description, "Command description", 500) ?? null,
-                        optionalTrimmed(input.usageHint, "Usage hint", 500) ?? null,
-                        handlerUrl,
-                    ],
+                    usageHint: optionalTrimmed(input.usageHint, "Usage hint", 500) ?? null,
+                    handlerUrl,
                 });
             } catch (error: unknown) {
                 throw constraintConflict(error, "Slash command is already registered");
             }
-            await tx.execute({
-                sql: `INSERT INTO webhook_subscriptions
-                        (id, integration_id, direction, url, signing_secret_ciphertext,
-                         event_types_json)
-                      VALUES (?, ?, 'outgoing', ?, ?, ?)`,
-                args: [
-                    createId(),
-                    integration.id,
-                    handlerUrl,
-                    ciphertext,
-                    JSON.stringify([slashEventType(commandId)]),
-                ],
+            await tx.insert(webhookSubscriptions).values({
+                id: createId(),
+                integrationId: integration.id,
+                direction: "outgoing",
+                url: handlerUrl,
+                signingSecretCiphertext: ciphertext,
+                eventTypesJson: JSON.stringify([slashEventType(commandId)]),
             });
-            const change = await this.finishIntegrationChange(
+            const change = await this.finishIntegrationChangeDb(
                 tx,
                 input.actorUserId,
                 "integration.created",
@@ -784,8 +851,8 @@ export class IntegrationRepository {
             );
             return {
                 value: {
-                    integration: await this.getIntegration(tx, integration.id),
-                    command: await this.getSlashCommand(tx, commandId),
+                    integration: await this.getIntegrationDb(tx, integration.id),
+                    command: await this.getSlashCommandDb(tx, commandId),
                     signingSecret,
                 },
                 change,
@@ -794,14 +861,20 @@ export class IntegrationRepository {
     }
 
     async listSlashCommands(actorUserId: string): Promise<SlashCommandSummary[]> {
-        await this.requireActiveUser(this.client, actorUserId);
-        const rows = await this.client.execute(
-            `${slashCommandSelect()}
-              JOIN integrations i ON i.id = slash_commands.integration_id
-             WHERE slash_commands.active = 1 AND i.active = 1 AND i.deleted_at IS NULL
-             ORDER BY slash_commands.command`,
-        );
-        return rows.rows.map(asSlashCommand);
+        await this.requireActiveUserDb(this.db, actorUserId);
+        const rows = await this.db
+            .select(slashCommandSelection)
+            .from(slashCommands)
+            .innerJoin(integrations, eq(integrations.id, slashCommands.integrationId))
+            .where(
+                and(
+                    eq(slashCommands.active, 1),
+                    eq(integrations.active, 1),
+                    isNull(integrations.deletedAt),
+                ),
+            )
+            .orderBy(asc(slashCommands.command));
+        return rows.map(asSlashCommand);
     }
 
     async invokeSlashCommand(input: {
@@ -812,12 +885,12 @@ export class IntegrationRepository {
     }): Promise<QueuedWebhookDelivery> {
         const command = normalizedCommand(input.command);
         const commandText = optionalTextBody(input.text, "Command text", 20_000) ?? "";
-        return this.write(async (tx) => {
-            await this.requireChatMember(tx, input.actorUserId, input.chatId);
-            const commandRow = await this.findSlashSubscription(tx, command);
+        return this.writeDb(async (tx) => {
+            await this.requireChatMemberDb(tx, input.actorUserId, input.chatId);
+            const commandRow = await this.findSlashSubscriptionDb(tx, command);
             if (!commandRow) throw new IntegrationError("not_found", "Slash command was not found");
             const eventId = `slash:${createId()}`;
-            const eventType = slashEventType(text(commandRow.id));
+            const eventType = slashEventType(commandRow.id);
             const payload = serializedPayload({
                 eventId,
                 eventType,
@@ -827,17 +900,22 @@ export class IntegrationRepository {
                     text: commandText,
                     chatId: input.chatId,
                     actorUserId: input.actorUserId,
-                    integrationId: text(commandRow.integration_id),
+                    integrationId: commandRow.integrationId,
                 },
             });
             const deliveryId = createId();
-            await tx.execute({
-                sql: `INSERT INTO webhook_deliveries
-                        (id, subscription_id, event_id, event_type, payload_json)
-                      VALUES (?, ?, ?, ?, ?)`,
-                args: [deliveryId, text(commandRow.subscription_id), eventId, eventType, payload],
+            await tx.insert(webhookDeliveries).values({
+                id: deliveryId,
+                subscriptionId: commandRow.subscriptionId,
+                eventId,
+                eventType,
+                payloadJson: payload,
+                nextAttemptAt: this.now().toISOString(),
             });
-            const delivery = await one(tx, `${deliverySelect()} WHERE id = ?`, [deliveryId]);
+            const [delivery] = await tx
+                .select(deliverySelection)
+                .from(webhookDeliveries)
+                .where(eq(webhookDeliveries.id, deliveryId));
             if (!delivery) throw new Error("Slash command invocation was not queued");
             return asDelivery(delivery);
         });
@@ -895,106 +973,17 @@ export class IntegrationRepository {
         botId?: string;
         scopes: readonly IntegrationScope[];
     }): Promise<IntegrationMutation<IntegrationSummary>> {
-        return this.write(async (tx) => {
-            await this.requireAdmin(tx, input.actorUserId);
-            if (input.botId) await this.requireBot(tx, input.botId);
-            const integration = await this.insertIntegration(tx, input);
-            const change = await this.finishIntegrationChange(
+        return this.writeDb(async (tx) => {
+            await this.requireAdminDb(tx, input.actorUserId);
+            if (input.botId) await this.requireBotDb(tx, input.botId);
+            const integration = await this.insertIntegrationDb(tx, input);
+            const change = await this.finishIntegrationChangeDb(
                 tx,
                 input.actorUserId,
                 "integration.created",
                 integration.id,
             );
-            return { value: await this.getIntegration(tx, integration.id), change };
-        });
-    }
-
-    private async insertIntegration(
-        tx: Transaction,
-        input: {
-            actorUserId: string;
-            kind: IntegrationKind;
-            name: string;
-            description?: string;
-            botId?: string;
-            scopes: readonly IntegrationScope[];
-        },
-    ): Promise<{ id: string }> {
-        if (!integrationKinds.includes(input.kind))
-            throw new IntegrationError("invalid", "Integration kind is invalid");
-        const id = createId();
-        await tx.execute({
-            sql: `INSERT INTO integrations
-                    (id, kind, name, description, bot_id, created_by_user_id, scopes_json)
-                  VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            args: [
-                id,
-                input.kind,
-                requiredTrimmed(input.name, "Integration name", 200),
-                optionalTrimmed(input.description, "Integration description", 2_000) ?? null,
-                input.botId ?? null,
-                input.actorUserId,
-                JSON.stringify(normalizeScopes(input.scopes)),
-            ],
-        });
-        return { id };
-    }
-
-    private async finishIntegrationChange(
-        tx: Transaction,
-        actorUserId: string,
-        kind: string,
-        integrationId: string,
-    ): Promise<IntegrationChange> {
-        const change = await this.recordChange(tx, actorUserId, kind, integrationId);
-        await this.appendAudit(tx, actorUserId, kind, "integration", integrationId);
-        await tx.execute({
-            sql: `UPDATE integrations SET sync_sequence = ? WHERE id = ?`,
-            args: [change.sequence, integrationId],
-        });
-        return change;
-    }
-
-    private async recordChange(
-        tx: Transaction,
-        actorUserId: string,
-        kind: string,
-        entityId: string,
-    ): Promise<IntegrationChange> {
-        const state = await one(
-            tx,
-            `UPDATE server_sync_state SET sequence = sequence + 1 WHERE id = 1 RETURNING sequence`,
-        );
-        if (!state) throw new Error("Server sync state is not initialized");
-        const sequence = text(state.sequence);
-        await tx.execute({
-            sql: `INSERT INTO sync_events (sequence, kind, entity_id, actor_user_id)
-                  VALUES (?, ?, ?, ?)`,
-            args: [sequence, kind, entityId, actorUserId],
-        });
-        return { sequence, kind, entityId };
-    }
-
-    private async appendAudit(
-        tx: Transaction,
-        actorUserId: string,
-        action: string,
-        targetType: string,
-        targetId: string,
-        metadata?: Record<string, unknown>,
-    ): Promise<void> {
-        await tx.execute({
-            sql: `INSERT INTO audit_log_entries
-                    (id, actor_user_id, action, target_type, target_id, metadata_json)
-                  VALUES (?, ?, ?, ?, ?, ?)`,
-            args: [
-                createId(),
-                actorUserId,
-                action,
-                targetType,
-                targetId,
-                metadata ? JSON.stringify(metadata) : null,
-            ],
+            return { value: await this.getIntegrationDb(tx, integration.id), change };
         });
     }
 
@@ -1005,44 +994,81 @@ export class IntegrationRepository {
     ): Promise<ClaimedDelivery[]> {
         const now = this.now();
         const leaseUntil = new Date(now.getTime() + leaseMs).toISOString();
-        return this.write(async (tx) => {
-            const due = await tx.execute({
-                sql: `SELECT d.id
-                        FROM webhook_deliveries d
-                        JOIN webhook_subscriptions ws ON ws.id = d.subscription_id
-                        JOIN integrations i ON i.id = ws.integration_id
-                       WHERE d.attempts < ?
-                         AND (d.status IN ('pending', 'failed')
-                              OR (d.status = 'delivering' AND julianday(d.next_attempt_at) <= julianday(?)))
-                         AND julianday(d.next_attempt_at) <= julianday(?)
-                         AND ws.active = 1 AND ws.direction = 'outgoing'
-                         AND i.active = 1 AND i.deleted_at IS NULL
-                       ORDER BY d.next_attempt_at, d.id LIMIT ?`,
-                args: [maxAttempts, now.toISOString(), now.toISOString(), limit],
-            });
+        return this.writeDb(async (tx) => {
+            const due = await tx
+                .select({ id: webhookDeliveries.id })
+                .from(webhookDeliveries)
+                .innerJoin(
+                    webhookSubscriptions,
+                    eq(webhookSubscriptions.id, webhookDeliveries.subscriptionId),
+                )
+                .innerJoin(integrations, eq(integrations.id, webhookSubscriptions.integrationId))
+                .where(
+                    and(
+                        sql`${webhookDeliveries.attempts} < ${maxAttempts}`,
+                        or(
+                            sql`${webhookDeliveries.status} in ('pending', 'failed')`,
+                            and(
+                                eq(webhookDeliveries.status, "delivering"),
+                                lte(
+                                    sql`julianday(${webhookDeliveries.nextAttemptAt})`,
+                                    sql`julianday(${now.toISOString()})`,
+                                ),
+                            ),
+                        ),
+                        lte(
+                            sql`julianday(${webhookDeliveries.nextAttemptAt})`,
+                            sql`julianday(${now.toISOString()})`,
+                        ),
+                        eq(webhookSubscriptions.active, 1),
+                        eq(webhookSubscriptions.direction, "outgoing"),
+                        eq(integrations.active, 1),
+                        isNull(integrations.deletedAt),
+                    ),
+                )
+                .orderBy(asc(webhookDeliveries.nextAttemptAt), asc(webhookDeliveries.id))
+                .limit(limit);
             const claimed: ClaimedDelivery[] = [];
-            for (const candidate of due.rows) {
-                const id = text(candidate.id);
-                const result = await tx.execute({
-                    sql: `UPDATE webhook_deliveries
-                             SET status = 'delivering', attempts = attempts + 1,
-                                 next_attempt_at = ?
-                           WHERE id = ? AND attempts < ?
-                             AND (status IN ('pending', 'failed')
-                                  OR (status = 'delivering' AND julianday(next_attempt_at) <= julianday(?)))`,
-                    args: [leaseUntil, id, maxAttempts, now.toISOString()],
-                });
-                if (!result.rowsAffected) continue;
-                const row = await one(
-                    tx,
-                    `SELECT d.id, d.subscription_id, d.event_id, d.event_type, d.status,
-                            d.attempts, d.next_attempt_at, d.created_at, d.payload_json,
-                            ws.url, ws.signing_secret_ciphertext
-                       FROM webhook_deliveries d
-                       JOIN webhook_subscriptions ws ON ws.id = d.subscription_id
-                      WHERE d.id = ?`,
-                    [id],
-                );
+            for (const candidate of due) {
+                const id = candidate.id;
+                const changed = await tx
+                    .update(webhookDeliveries)
+                    .set({
+                        status: "delivering",
+                        attempts: sql`${webhookDeliveries.attempts} + 1`,
+                        nextAttemptAt: leaseUntil,
+                    })
+                    .where(
+                        and(
+                            eq(webhookDeliveries.id, id),
+                            sql`${webhookDeliveries.attempts} < ${maxAttempts}`,
+                            or(
+                                sql`${webhookDeliveries.status} in ('pending', 'failed')`,
+                                and(
+                                    eq(webhookDeliveries.status, "delivering"),
+                                    lte(
+                                        sql`julianday(${webhookDeliveries.nextAttemptAt})`,
+                                        sql`julianday(${now.toISOString()})`,
+                                    ),
+                                ),
+                            ),
+                        ),
+                    )
+                    .returning({ id: webhookDeliveries.id });
+                if (changed.length === 0) continue;
+                const [row] = await tx
+                    .select({
+                        ...deliverySelection,
+                        payload_json: webhookDeliveries.payloadJson,
+                        url: webhookSubscriptions.url,
+                        signing_secret_ciphertext: webhookSubscriptions.signingSecretCiphertext,
+                    })
+                    .from(webhookDeliveries)
+                    .innerJoin(
+                        webhookSubscriptions,
+                        eq(webhookSubscriptions.id, webhookDeliveries.subscriptionId),
+                    )
+                    .where(eq(webhookDeliveries.id, id));
                 if (row) claimed.push(asClaimedDelivery(row));
             }
             return claimed;
@@ -1054,18 +1080,22 @@ export class IntegrationRepository {
         responseStatus: number,
         responseBody?: string,
     ): Promise<void> {
-        await this.client.execute({
-            sql: `UPDATE webhook_deliveries
-                     SET status = 'delivered', response_status = ?, response_body = ?,
-                         last_error = NULL, delivered_at = CURRENT_TIMESTAMP
-                   WHERE id = ? AND status = 'delivering' AND next_attempt_at = ?`,
-            args: [
+        await this.db
+            .update(webhookDeliveries)
+            .set({
+                status: "delivered",
                 responseStatus,
-                truncate(responseBody, MAX_DELIVERY_RESPONSE) ?? null,
-                delivery.id,
-                delivery.nextAttemptAt,
-            ],
-        });
+                responseBody: truncate(responseBody, MAX_DELIVERY_RESPONSE) ?? null,
+                lastError: null,
+                deliveredAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(
+                and(
+                    eq(webhookDeliveries.id, delivery.id),
+                    eq(webhookDeliveries.status, "delivering"),
+                    eq(webhookDeliveries.nextAttemptAt, delivery.nextAttemptAt),
+                ),
+            );
     }
 
     private async failDelivery(
@@ -1080,211 +1110,361 @@ export class IntegrationRepository {
             : new Date(
                   this.now().getTime() + retryDelay(delivery.id, delivery.attempts),
               ).toISOString();
-        await this.client.execute({
-            sql: `UPDATE webhook_deliveries
-                     SET status = 'failed', next_attempt_at = ?, response_status = ?,
-                         response_body = ?, last_error = ?
-                   WHERE id = ? AND status = 'delivering' AND next_attempt_at = ?`,
-            args: [
+        await this.db
+            .update(webhookDeliveries)
+            .set({
+                status: "failed",
                 nextAttemptAt,
-                response?.statusCode ?? null,
-                truncate(response?.responseBody, MAX_DELIVERY_RESPONSE) ?? null,
-                truncate(errorMessage(error), 2_000)!,
-                delivery.id,
-                delivery.nextAttemptAt,
-            ],
-        });
+                responseStatus: response?.statusCode ?? null,
+                responseBody: truncate(response?.responseBody, MAX_DELIVERY_RESPONSE) ?? null,
+                lastError: truncate(errorMessage(error), 2_000)!,
+            })
+            .where(
+                and(
+                    eq(webhookDeliveries.id, delivery.id),
+                    eq(webhookDeliveries.status, "delivering"),
+                    eq(webhookDeliveries.nextAttemptAt, delivery.nextAttemptAt),
+                ),
+            );
     }
 
-    private async findSlashSubscription(
-        executor: Executor,
-        command: string,
-    ): Promise<Row | undefined> {
-        return one(
-            executor,
-            `SELECT sc.id, sc.integration_id, ws.id AS subscription_id
-               FROM slash_commands sc
-               JOIN integrations i ON i.id = sc.integration_id
-               JOIN webhook_subscriptions ws ON ws.integration_id = i.id
-              WHERE sc.command = ? COLLATE NOCASE AND sc.active = 1
-                AND i.active = 1 AND i.deleted_at IS NULL
-                AND EXISTS (SELECT 1 FROM json_each(i.scopes_json)
-                             WHERE value = 'commands:receive')
-                AND ws.direction = 'outgoing' AND ws.active = 1
-                AND EXISTS (SELECT 1 FROM json_each(ws.event_types_json)
-                             WHERE value = 'slash_command:' || sc.id)
-              LIMIT 1`,
-            [command],
-        );
-    }
-
-    private async requireAdmin(executor: Executor, userId: string): Promise<void> {
-        const row = await one(
-            executor,
-            `SELECT 1 AS found FROM users u JOIN accounts a ON a.id = u.account_id
-              WHERE u.id = ? AND u.role = 'admin' AND u.deleted_at IS NULL
-                AND a.active = 1 AND a.banned_at IS NULL AND a.deleted_at IS NULL`,
-            [userId],
-        );
+    private async requireAdminDb(executor: DrizzleExecutor, userId: string): Promise<void> {
+        const [row] = await executor
+            .select({ id: users.id })
+            .from(users)
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(users.id, userId),
+                    eq(users.role, "admin"),
+                    isNull(users.deletedAt),
+                    eq(accounts.active, 1),
+                    isNull(accounts.bannedAt),
+                    isNull(accounts.deletedAt),
+                ),
+            );
         if (!row) throw new IntegrationError("forbidden", "Server admin permission is required");
     }
 
-    private async requireActiveUser(executor: Executor, userId: string): Promise<void> {
-        const row = await one(
-            executor,
-            `SELECT 1 AS found FROM users u JOIN accounts a ON a.id = u.account_id
-              WHERE u.id = ? AND u.deleted_at IS NULL AND a.active = 1
-                AND a.banned_at IS NULL AND a.deleted_at IS NULL`,
-            [userId],
-        );
+    private async requireActiveUserDb(executor: DrizzleExecutor, userId: string): Promise<void> {
+        const [row] = await executor
+            .select({ id: users.id })
+            .from(users)
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(users.id, userId),
+                    isNull(users.deletedAt),
+                    eq(accounts.active, 1),
+                    isNull(accounts.bannedAt),
+                    isNull(accounts.deletedAt),
+                ),
+            );
         if (!row) throw new IntegrationError("not_found", "User was not found");
     }
 
-    private async requireChatMember(
-        executor: Executor,
+    private async requireChatMemberDb(
+        executor: DrizzleExecutor,
         userId: string,
         chatId: string,
     ): Promise<void> {
-        const row = await one(
-            executor,
-            `SELECT 1 AS found FROM chat_members cm
-              JOIN chats c ON c.id = cm.chat_id
-              JOIN users u ON u.id = cm.user_id
-              JOIN accounts a ON a.id = u.account_id
-             WHERE cm.chat_id = ? AND cm.user_id = ? AND cm.left_at IS NULL
-               AND c.deleted_at IS NULL AND c.archived_at IS NULL
-               AND u.deleted_at IS NULL AND a.active = 1
-               AND a.banned_at IS NULL AND a.deleted_at IS NULL`,
-            [chatId, userId],
-        );
+        const [row] = await executor
+            .select({ id: chatMembers.chatId })
+            .from(chatMembers)
+            .innerJoin(chats, eq(chats.id, chatMembers.chatId))
+            .innerJoin(users, eq(users.id, chatMembers.userId))
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(chatMembers.chatId, chatId),
+                    eq(chatMembers.userId, userId),
+                    isNull(chatMembers.leftAt),
+                    isNull(chats.deletedAt),
+                    isNull(chats.archivedAt),
+                    isNull(users.deletedAt),
+                    eq(accounts.active, 1),
+                    isNull(accounts.bannedAt),
+                    isNull(accounts.deletedAt),
+                ),
+            );
         if (!row) throw new IntegrationError("not_found", "Chat was not found");
     }
 
-    private async requireChat(executor: Executor, chatId: string): Promise<void> {
-        if (
-            !(await one(
-                executor,
-                `SELECT 1 AS found FROM chats WHERE id = ? AND deleted_at IS NULL`,
-                [chatId],
-            ))
-        )
-            throw new IntegrationError("not_found", "Chat was not found");
+    private async requireChatDb(executor: DrizzleExecutor, chatId: string): Promise<void> {
+        const [row] = await executor
+            .select({ id: chats.id })
+            .from(chats)
+            .where(and(eq(chats.id, chatId), isNull(chats.deletedAt)));
+        if (!row) throw new IntegrationError("not_found", "Chat was not found");
     }
 
-    private async requireFile(executor: Executor, fileId: string): Promise<void> {
-        if (
-            !(await one(
-                executor,
-                `SELECT 1 AS found FROM files WHERE id = ? AND deleted_at IS NULL AND upload_status = 'complete'`,
-                [fileId],
-            ))
-        )
-            throw new IntegrationError("not_found", "File was not found");
+    private async requireFileDb(executor: DrizzleExecutor, fileId: string): Promise<void> {
+        const [row] = await executor
+            .select({ id: files.id })
+            .from(files)
+            .where(
+                and(
+                    eq(files.id, fileId),
+                    isNull(files.deletedAt),
+                    eq(files.uploadStatus, "complete"),
+                    sql`${files.scanStatus} != 'infected'`,
+                ),
+            );
+        if (!row) throw new IntegrationError("not_found", "File was not found");
     }
 
-    private async requireBot(executor: Executor, botId: string): Promise<void> {
-        await this.getBot(executor, botId, true);
+    private async requireBotDb(executor: DrizzleExecutor, botId: string): Promise<void> {
+        await this.getBotDb(executor, botId, true);
     }
 
-    private async requireIntegration(
-        executor: Executor,
+    private async requireIntegrationDb(
+        executor: DrizzleExecutor,
         integrationId: string,
         active: boolean,
     ): Promise<IntegrationSummary> {
-        const integration = await this.getIntegration(executor, integrationId);
-        if (active && !integration.active)
+        const row = await this.getIntegrationDb(executor, integrationId);
+        if (active && !row.active)
             throw new IntegrationError("not_found", "Integration was not found");
-        return integration;
+        return row;
     }
 
-    private async getBot(executor: Executor, botId: string, active = false): Promise<BotSummary> {
-        const row = await one(
-            executor,
-            `SELECT id, name, username, description, photo_file_id, owner_user_id,
-                    active, created_at, updated_at, deleted_at
-               FROM bot_identities WHERE id = ?`,
-            [botId],
-        );
-        if (!row || (active && (number(row.active) !== 1 || row.deleted_at !== null)))
+    private async getBotDb(
+        executor: DrizzleExecutor,
+        botId: string,
+        active = false,
+    ): Promise<BotSummary> {
+        const [row] = await executor
+            .select(botSelection)
+            .from(botIdentities)
+            .where(eq(botIdentities.id, botId));
+        if (!row || (active && (row.active !== 1 || row.deleted_at !== null)))
             throw new IntegrationError("not_found", "Bot was not found");
-        const bot = asBot(row);
-        if (active && !bot.active) throw new IntegrationError("not_found", "Bot was not found");
-        return bot;
+        return asBot(row);
     }
 
-    private async getIntegration(
-        executor: Executor,
+    private async getIntegrationDb(
+        executor: DrizzleExecutor,
         integrationId: string,
     ): Promise<IntegrationSummary> {
-        const row = await one(executor, `${integrationSelect()} WHERE id = ?`, [integrationId]);
+        const [row] = await executor
+            .select(integrationSelection)
+            .from(integrations)
+            .where(eq(integrations.id, integrationId));
         if (!row) throw new IntegrationError("not_found", "Integration was not found");
         return asIntegration(row);
     }
 
-    private async getSubscription(
-        executor: Executor,
+    private async getSubscriptionDb(
+        executor: DrizzleExecutor,
         subscriptionId: string,
     ): Promise<WebhookSubscriptionSummary> {
-        const row = await one(executor, `${subscriptionSelect()} WHERE id = ?`, [subscriptionId]);
+        const [row] = await executor
+            .select(subscriptionSelection)
+            .from(webhookSubscriptions)
+            .where(eq(webhookSubscriptions.id, subscriptionId));
         if (!row) throw new Error("Webhook subscription was not created");
         return asSubscription(row);
     }
 
-    private async getSlashCommand(
-        executor: Executor,
+    private async getSlashCommandDb(
+        executor: DrizzleExecutor,
         commandId: string,
     ): Promise<SlashCommandSummary> {
-        const row = await one(executor, `${slashCommandSelect()} WHERE id = ?`, [commandId]);
+        const [row] = await executor
+            .select(slashCommandSelection)
+            .from(slashCommands)
+            .where(eq(slashCommands.id, commandId));
         if (!row) throw new Error("Slash command was not created");
         return asSlashCommand(row);
     }
 
-    private async write<T>(operation: (tx: Transaction) => Promise<T>): Promise<T> {
-        const tx = await this.client.transaction("write");
-        try {
-            const result = await operation(tx);
-            await tx.commit();
-            return result;
-        } catch (error: unknown) {
-            if (!tx.closed) await tx.rollback();
-            throw error;
-        } finally {
-            tx.close();
-        }
+    private async findSlashSubscriptionDb(executor: DrizzleExecutor, command: string) {
+        const [row] = await executor
+            .select({
+                id: slashCommands.id,
+                integrationId: slashCommands.integrationId,
+                subscriptionId: webhookSubscriptions.id,
+            })
+            .from(slashCommands)
+            .innerJoin(integrations, eq(integrations.id, slashCommands.integrationId))
+            .innerJoin(
+                webhookSubscriptions,
+                eq(webhookSubscriptions.integrationId, integrations.id),
+            )
+            .where(
+                and(
+                    sql`${slashCommands.command} = ${command} collate nocase`,
+                    eq(slashCommands.active, 1),
+                    eq(integrations.active, 1),
+                    isNull(integrations.deletedAt),
+                    sql`exists (select 1 from json_each(${integrations.scopesJson}) where value = 'commands:receive')`,
+                    eq(webhookSubscriptions.direction, "outgoing"),
+                    eq(webhookSubscriptions.active, 1),
+                    sql`exists (select 1 from json_each(${webhookSubscriptions.eventTypesJson}) where value = 'slash_command:' || ${slashCommands.id})`,
+                ),
+            )
+            .limit(1);
+        return row;
+    }
+
+    private async insertIntegrationDb(
+        tx: DrizzleTransaction,
+        input: {
+            actorUserId: string;
+            kind: IntegrationKind;
+            name: string;
+            description?: string;
+            botId?: string;
+            scopes: readonly IntegrationScope[];
+        },
+    ): Promise<{ id: string }> {
+        if (!integrationKinds.includes(input.kind))
+            throw new IntegrationError("invalid", "Integration kind is invalid");
+        const id = createId();
+        await tx.insert(integrations).values({
+            id,
+            kind: input.kind,
+            name: requiredTrimmed(input.name, "Integration name", 200),
+            description:
+                optionalTrimmed(input.description, "Integration description", 2_000) ?? null,
+            botId: input.botId ?? null,
+            createdByUserId: input.actorUserId,
+            scopesJson: JSON.stringify(normalizeScopes(input.scopes)),
+        });
+        return { id };
+    }
+
+    private async finishIntegrationChangeDb(
+        tx: DrizzleTransaction,
+        actorUserId: string,
+        kind: string,
+        integrationId: string,
+    ): Promise<IntegrationChange> {
+        const change = await this.recordChangeDb(tx, actorUserId, kind, integrationId);
+        await this.appendAuditDb(tx, actorUserId, kind, "integration", integrationId);
+        await tx
+            .update(integrations)
+            .set({ syncSequence: Number(change.sequence) })
+            .where(eq(integrations.id, integrationId));
+        return change;
+    }
+
+    private async recordChangeDb(
+        tx: DrizzleTransaction,
+        actorUserId: string,
+        kind: string,
+        entityId: string,
+    ): Promise<IntegrationChange> {
+        const [state] = await tx
+            .update(serverSyncState)
+            .set({ sequence: sql`${serverSyncState.sequence} + 1` })
+            .where(eq(serverSyncState.id, 1))
+            .returning({ sequence: serverSyncState.sequence });
+        if (!state) throw new Error("Server sync state is not initialized");
+        await tx.insert(syncEvents).values({
+            sequence: state.sequence,
+            kind,
+            entityId,
+            actorUserId,
+        });
+        return { sequence: String(state.sequence), kind, entityId };
+    }
+
+    private async appendAuditDb(
+        tx: DrizzleTransaction,
+        actorUserId: string,
+        action: string,
+        targetType: string,
+        targetId: string,
+        metadata?: Record<string, unknown>,
+    ): Promise<void> {
+        await tx.insert(auditLogEntries).values({
+            id: createId(),
+            actorUserId,
+            action,
+            targetType,
+            targetId,
+            metadataJson: metadata ? JSON.stringify(metadata) : null,
+        });
+    }
+
+    private writeDb<T>(operation: (tx: DrizzleTransaction) => Promise<T>): Promise<T> {
+        return this.db.transaction(operation);
     }
 }
 
-function integrationSelect(): string {
-    return `SELECT id, kind, name, description, bot_id, scopes_json, active,
-                   created_at, updated_at FROM integrations`;
-}
+const botSelection = {
+    id: botIdentities.id,
+    name: botIdentities.name,
+    username: botIdentities.username,
+    description: botIdentities.description,
+    photo_file_id: botIdentities.photoFileId,
+    owner_user_id: botIdentities.ownerUserId,
+    active: botIdentities.active,
+    created_at: botIdentities.createdAt,
+    updated_at: botIdentities.updatedAt,
+    deleted_at: botIdentities.deletedAt,
+};
 
-function credentialSelect(): string {
-    return `SELECT id, integration_id, name, token_prefix, scopes_json, expires_at,
-                   last_used_at, revoked_at, created_at FROM api_credentials`;
-}
+const integrationSelection = {
+    id: integrations.id,
+    kind: integrations.kind,
+    name: integrations.name,
+    description: integrations.description,
+    bot_id: integrations.botId,
+    scopes_json: integrations.scopesJson,
+    active: integrations.active,
+    created_at: integrations.createdAt,
+    updated_at: integrations.updatedAt,
+};
 
-function subscriptionSelect(): string {
-    return `SELECT id, integration_id, direction, chat_id, url, event_types_json,
-                   active, created_at, updated_at FROM webhook_subscriptions`;
-}
+const credentialSelection = {
+    id: apiCredentials.id,
+    integration_id: apiCredentials.integrationId,
+    name: apiCredentials.name,
+    token_prefix: apiCredentials.tokenPrefix,
+    scopes_json: apiCredentials.scopesJson,
+    expires_at: apiCredentials.expiresAt,
+    last_used_at: apiCredentials.lastUsedAt,
+    revoked_at: apiCredentials.revokedAt,
+    created_at: apiCredentials.createdAt,
+};
 
-function slashCommandSelect(): string {
-    return `SELECT slash_commands.id, slash_commands.integration_id, slash_commands.command,
-                   slash_commands.description, slash_commands.usage_hint,
-                   slash_commands.active, slash_commands.created_at,
-                   slash_commands.updated_at FROM slash_commands`;
-}
+const subscriptionSelection = {
+    id: webhookSubscriptions.id,
+    integration_id: webhookSubscriptions.integrationId,
+    direction: webhookSubscriptions.direction,
+    chat_id: webhookSubscriptions.chatId,
+    url: webhookSubscriptions.url,
+    event_types_json: webhookSubscriptions.eventTypesJson,
+    active: webhookSubscriptions.active,
+    created_at: webhookSubscriptions.createdAt,
+    updated_at: webhookSubscriptions.updatedAt,
+};
 
-function deliverySelect(): string {
-    return `SELECT webhook_deliveries.id, webhook_deliveries.subscription_id,
-                   webhook_deliveries.event_id, webhook_deliveries.event_type,
-                   webhook_deliveries.status, webhook_deliveries.attempts,
-                   webhook_deliveries.next_attempt_at, webhook_deliveries.created_at
-              FROM webhook_deliveries`;
-}
+const slashCommandSelection = {
+    id: slashCommands.id,
+    integration_id: slashCommands.integrationId,
+    command: slashCommands.command,
+    description: slashCommands.description,
+    usage_hint: slashCommands.usageHint,
+    active: slashCommands.active,
+    created_at: slashCommands.createdAt,
+    updated_at: slashCommands.updatedAt,
+};
 
-function asBot(row: Row): BotSummary {
+const deliverySelection = {
+    id: webhookDeliveries.id,
+    subscription_id: webhookDeliveries.subscriptionId,
+    event_id: webhookDeliveries.eventId,
+    event_type: webhookDeliveries.eventType,
+    status: webhookDeliveries.status,
+    attempts: webhookDeliveries.attempts,
+    next_attempt_at: webhookDeliveries.nextAttemptAt,
+    created_at: webhookDeliveries.createdAt,
+};
+
+function asBot(row: Record<string, unknown>): BotSummary {
     return {
         id: text(row.id),
         name: text(row.name),
@@ -1298,7 +1478,7 @@ function asBot(row: Row): BotSummary {
     };
 }
 
-function asIntegration(row: Row): IntegrationSummary {
+function asIntegration(row: Record<string, unknown>): IntegrationSummary {
     return {
         id: text(row.id),
         kind: text(row.kind) as IntegrationKind,
@@ -1312,7 +1492,7 @@ function asIntegration(row: Row): IntegrationSummary {
     };
 }
 
-function asCredential(row: Row): ApiCredentialSummary {
+function asCredential(row: Record<string, unknown>): ApiCredentialSummary {
     return {
         id: text(row.id),
         integrationId: text(row.integration_id),
@@ -1326,7 +1506,7 @@ function asCredential(row: Row): ApiCredentialSummary {
     };
 }
 
-function asSubscription(row: Row): WebhookSubscriptionSummary {
+function asSubscription(row: Record<string, unknown>): WebhookSubscriptionSummary {
     return {
         id: text(row.id),
         integrationId: text(row.integration_id),
@@ -1340,7 +1520,7 @@ function asSubscription(row: Row): WebhookSubscriptionSummary {
     };
 }
 
-function asSlashCommand(row: Row): SlashCommandSummary {
+function asSlashCommand(row: Record<string, unknown>): SlashCommandSummary {
     return {
         id: text(row.id),
         integrationId: text(row.integration_id),
@@ -1353,7 +1533,7 @@ function asSlashCommand(row: Row): SlashCommandSummary {
     };
 }
 
-function asDelivery(row: Row): QueuedWebhookDelivery {
+function asDelivery(row: Record<string, unknown>): QueuedWebhookDelivery {
     return {
         id: text(row.id),
         subscriptionId: text(row.subscription_id),
@@ -1366,7 +1546,7 @@ function asDelivery(row: Row): QueuedWebhookDelivery {
     };
 }
 
-function asClaimedDelivery(row: Row): ClaimedDelivery {
+function asClaimedDelivery(row: Record<string, unknown>): ClaimedDelivery {
     return {
         ...asDelivery(row),
         url: text(row.url),
@@ -1516,10 +1696,6 @@ function stringArray(value: unknown): string[] {
     if (!Array.isArray(parsed) || parsed.some((entry) => typeof entry !== "string"))
         throw new Error("Expected JSON string array");
     return parsed;
-}
-
-async function one(executor: Executor, sql: string, args: InArgs = []): Promise<Row | undefined> {
-    return (await executor.execute({ sql, args })).rows[0];
 }
 
 function text(value: unknown): string {

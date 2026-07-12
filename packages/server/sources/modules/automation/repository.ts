@@ -1,10 +1,25 @@
-import { createId } from "@paralleldrive/cuid2";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { createClient, type Client, type InArgs, type Row, type Transaction } from "@libsql/client";
+import { createClient, type Client } from "@libsql/client";
+import { createId } from "@paralleldrive/cuid2";
+import { and, asc, desc, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
 import type { CollaborationRepository } from "../collaboration/repository.js";
 import { CollaborationError, type MutationHint } from "../collaboration/types.js";
-
-type Executor = Pick<Client, "execute"> | Pick<Transaction, "execute">;
+import { createDatabase, type DrizzleExecutor, type DrizzleTransaction } from "../drizzle.js";
+import {
+    accounts,
+    auditLogEntries,
+    automationRuns,
+    automations,
+    botIdentities,
+    chats,
+    messages,
+    scheduledMessageAttachments,
+    scheduledMessages,
+    serverSyncState,
+    syncEvents,
+    users,
+    webhookDeliveries,
+} from "../schema.js";
 
 type ModerationAction =
     | "warn"
@@ -60,8 +75,11 @@ export interface ScheduledMessageSummary {
     updatedAt: string;
 }
 
+type AutomationRow = typeof automations.$inferSelect;
+
 export class AutomationRepository {
     private readonly client: Client;
+    private readonly db;
     private readonly ownsClient: boolean;
 
     constructor(
@@ -74,6 +92,7 @@ export class AutomationRepository {
             typeof source === "string"
                 ? createClient({ url: source, authToken: options.authToken })
                 : source;
+        this.db = createDatabase(this.client);
     }
 
     close(): void {
@@ -81,14 +100,14 @@ export class AutomationRepository {
     }
 
     async listAutomations(actorUserId: string): Promise<AutomationSummary[]> {
-        await this.requireAdmin(this.client, actorUserId);
-        const result = await this.client.execute(
-            `SELECT id, name, chat_id, bot_id, trigger_type, trigger_config_json,
-                    action_type, action_config_json, timezone, next_run_at, active,
-                    last_run_at, last_error, created_at, updated_at
-               FROM automations WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC`,
-        );
-        return result.rows.map(asAutomation);
+        await this.requireAdmin(this.db, actorUserId);
+        return (
+            await this.db
+                .select()
+                .from(automations)
+                .where(isNull(automations.deletedAt))
+                .orderBy(desc(automations.createdAt), desc(automations.id))
+        ).map(asAutomation);
     }
 
     async createAutomation(input: {
@@ -119,31 +138,24 @@ export class AutomationRepository {
             const triggerConfig = webhookToken
                 ? { ...input.triggerConfig, tokenHash: secretHash(webhookToken) }
                 : input.triggerConfig;
-            await tx.execute({
-                sql: `INSERT INTO automations
-                        (id, name, created_by_user_id, bot_id, chat_id, trigger_type,
-                         trigger_config_json, action_type, action_config_json, timezone,
-                         next_run_at)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                args: [
-                    id,
-                    input.name,
-                    input.actorUserId,
-                    input.botId ?? null,
-                    input.chatId ?? null,
-                    input.triggerType,
-                    JSON.stringify(triggerConfig),
-                    input.actionType,
-                    JSON.stringify(input.actionConfig),
-                    input.timezone ?? null,
-                    input.nextRunAt ?? null,
-                ],
+            await tx.insert(automations).values({
+                id,
+                name: input.name,
+                createdByUserId: input.actorUserId,
+                botId: input.botId ?? null,
+                chatId: input.chatId ?? null,
+                triggerType: input.triggerType,
+                triggerConfigJson: JSON.stringify(triggerConfig),
+                actionType: input.actionType,
+                actionConfigJson: JSON.stringify(input.actionConfig),
+                timezone: input.timezone ?? null,
+                nextRunAt: input.nextRunAt ?? null,
             });
             const sequence = await this.nextSequence(tx);
-            await tx.execute({
-                sql: `UPDATE automations SET created_sequence = ? WHERE id = ?`,
-                args: [sequence, id],
-            });
+            await tx
+                .update(automations)
+                .set({ createdSequence: sequence })
+                .where(eq(automations.id, id));
             await this.insertSyncEvent(tx, {
                 sequence,
                 kind: "automation.created",
@@ -151,7 +163,7 @@ export class AutomationRepository {
                 actorUserId: input.actorUserId,
             });
             await this.appendAudit(tx, input.actorUserId, "automation.created", id);
-            const row = await one(tx, automationSelect(), [id]);
+            const row = await getAutomation(tx, id);
             if (!row) throw new Error("Automation was not created");
             return {
                 automation: asAutomation(row),
@@ -172,9 +184,9 @@ export class AutomationRepository {
     }): Promise<{ automation: AutomationSummary; hint: MutationHint }> {
         return this.write(async (tx) => {
             await this.requireAdmin(tx, input.actorUserId);
-            const current = await one(tx, automationSelect(), [input.automationId]);
+            const current = await getAutomation(tx, input.automationId);
             if (!current) throw new CollaborationError("not_found", "Automation was not found");
-            const currentTriggerConfig = jsonObject(current.trigger_config_json);
+            const currentTriggerConfig = jsonObject(current.triggerConfigJson);
             const triggerConfig = input.triggerConfig
                 ? {
                       ...input.triggerConfig,
@@ -183,44 +195,34 @@ export class AutomationRepository {
                           : {}),
                   }
                 : currentTriggerConfig;
-            const actionConfig = input.actionConfig ?? jsonObject(current.action_config_json);
+            const actionConfig = input.actionConfig ?? jsonObject(current.actionConfigJson);
             validateTrigger(
-                text(current.trigger_type) as AutomationSummary["triggerType"],
+                current.triggerType as AutomationSummary["triggerType"],
                 triggerConfig,
                 input.nextRunAt === null
                     ? undefined
-                    : (input.nextRunAt ?? optionalText(current.next_run_at)),
+                    : (input.nextRunAt ?? current.nextRunAt ?? undefined),
             );
             validateAction(
-                text(current.action_type) as AutomationSummary["actionType"],
+                current.actionType as AutomationSummary["actionType"],
                 actionConfig,
-                optionalText(current.chat_id),
+                current.chatId ?? undefined,
             );
-            await tx.execute({
-                sql: `UPDATE automations
-                         SET active = CASE WHEN ? = 1 THEN ? ELSE active END,
-                             name = CASE WHEN ? = 1 THEN ? ELSE name END,
-                             trigger_config_json = CASE WHEN ? = 1
-                                 THEN ? ELSE trigger_config_json END,
-                             action_config_json = CASE WHEN ? = 1
-                                 THEN ? ELSE action_config_json END,
-                             next_run_at = CASE WHEN ? = 1 THEN ? ELSE next_run_at END,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ? AND deleted_at IS NULL`,
-                args: [
-                    input.active === undefined ? 0 : 1,
-                    input.active ? 1 : 0,
-                    input.name === undefined ? 0 : 1,
-                    input.name ?? null,
-                    input.triggerConfig === undefined ? 0 : 1,
-                    JSON.stringify(triggerConfig),
-                    input.actionConfig === undefined ? 0 : 1,
-                    JSON.stringify(actionConfig),
-                    input.nextRunAt === undefined ? 0 : 1,
-                    input.nextRunAt ?? null,
-                    input.automationId,
-                ],
-            });
+            await tx
+                .update(automations)
+                .set({
+                    ...(input.active === undefined ? {} : { active: input.active ? 1 : 0 }),
+                    ...(input.name === undefined ? {} : { name: input.name }),
+                    ...(input.triggerConfig === undefined
+                        ? {}
+                        : { triggerConfigJson: JSON.stringify(triggerConfig) }),
+                    ...(input.actionConfig === undefined
+                        ? {}
+                        : { actionConfigJson: JSON.stringify(actionConfig) }),
+                    ...(input.nextRunAt === undefined ? {} : { nextRunAt: input.nextRunAt }),
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(and(eq(automations.id, input.automationId), isNull(automations.deletedAt)));
             const sequence = await this.nextSequence(tx);
             await this.insertSyncEvent(tx, {
                 sequence,
@@ -229,26 +231,25 @@ export class AutomationRepository {
                 actorUserId: input.actorUserId,
             });
             await this.appendAudit(tx, input.actorUserId, "automation.updated", input.automationId);
-            const row = await one(tx, automationSelect(), [input.automationId]);
+            const row = await getAutomation(tx, input.automationId);
             if (!row) throw new Error("Automation disappeared");
-            return {
-                automation: asAutomation(row),
-                hint: areaHint(sequence, "automations"),
-            };
+            return { automation: asAutomation(row), hint: areaHint(sequence, "automations") };
         });
     }
 
     async deleteAutomation(actorUserId: string, automationId: string): Promise<MutationHint> {
         return this.write(async (tx) => {
             await this.requireAdmin(tx, actorUserId);
-            const result = await tx.execute({
-                sql: `UPDATE automations
-                         SET active = 0, deleted_at = CURRENT_TIMESTAMP,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ? AND deleted_at IS NULL`,
-                args: [automationId],
-            });
-            if (!result.rowsAffected)
+            const changed = await tx
+                .update(automations)
+                .set({
+                    active: 0,
+                    deletedAt: sql`CURRENT_TIMESTAMP`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(and(eq(automations.id, automationId), isNull(automations.deletedAt)))
+                .returning({ id: automations.id });
+            if (changed.length === 0)
                 throw new CollaborationError("not_found", "Automation was not found");
             const sequence = await this.nextSequence(tx);
             await this.insertSyncEvent(tx, {
@@ -267,7 +268,7 @@ export class AutomationRepository {
         automationId: string,
         triggerEventId = `manual:${createId()}`,
     ): Promise<{ hint?: MutationHint; runId: string }> {
-        await this.requireAdmin(this.client, actorUserId);
+        await this.requireAdmin(this.db, actorUserId);
         return this.executeAutomation(automationId, triggerEventId, actorUserId);
     }
 
@@ -284,43 +285,57 @@ export class AutomationRepository {
                 !/^[\x21-\x7e]+$/.test(idempotencyKey))
         )
             throw new CollaborationError("invalid", "Idempotency key is invalid");
-        const candidates = await this.client.execute(
-            `${automationSelectBase()}
-              WHERE active = 1 AND deleted_at IS NULL AND trigger_type = 'webhook'
-              ORDER BY id`,
-        );
+        const candidates = await this.db
+            .select()
+            .from(automations)
+            .where(
+                and(
+                    eq(automations.active, 1),
+                    isNull(automations.deletedAt),
+                    eq(automations.triggerType, "webhook"),
+                ),
+            )
+            .orderBy(asc(automations.id));
         const digest = secretHash(token);
-        const row = candidates.rows.find((candidate) => {
-            const stored = jsonObject(candidate.trigger_config_json).tokenHash;
+        const row = candidates.find((candidate) => {
+            const stored = jsonObject(candidate.triggerConfigJson).tokenHash;
             return typeof stored === "string" && hashesEqual(stored, digest);
         });
-        const actorUserId = optionalText(row?.created_by_user_id);
-        if (!row || !actorUserId)
+        if (!row?.createdByUserId)
             throw new CollaborationError("not_found", "Automation webhook was not found");
         const eventId = idempotencyKey
-            ? `webhook:${secretHash(`${text(row.id)}:${idempotencyKey}`)}`
+            ? `webhook:${secretHash(`${row.id}:${idempotencyKey}`)}`
             : `webhook:${createId()}`;
-        return this.executeAutomation(text(row.id), eventId, actorUserId);
+        return this.executeAutomation(row.id, eventId, row.createdByUserId);
     }
 
     async runDueAutomations(limit = 25): Promise<MutationHint[]> {
-        const due = await this.client.execute({
-            sql: `SELECT id, created_by_user_id, next_run_at
-                    FROM automations
-                   WHERE active = 1 AND deleted_at IS NULL AND trigger_type = 'schedule'
-                     AND next_run_at IS NOT NULL AND datetime(next_run_at) <= CURRENT_TIMESTAMP
-                   ORDER BY next_run_at, id LIMIT ?`,
-            args: [limit],
-        });
+        const due = await this.db
+            .select({
+                id: automations.id,
+                createdByUserId: automations.createdByUserId,
+                nextRunAt: automations.nextRunAt,
+            })
+            .from(automations)
+            .where(
+                and(
+                    eq(automations.active, 1),
+                    isNull(automations.deletedAt),
+                    eq(automations.triggerType, "schedule"),
+                    sql`${automations.nextRunAt} is not null`,
+                    lte(sql`datetime(${automations.nextRunAt})`, sql`CURRENT_TIMESTAMP`),
+                ),
+            )
+            .orderBy(asc(automations.nextRunAt), asc(automations.id))
+            .limit(limit);
         const hints: MutationHint[] = [];
-        for (const row of due.rows) {
-            const actorUserId = optionalText(row.created_by_user_id);
-            if (!actorUserId) continue;
+        for (const row of due) {
+            if (!row.createdByUserId || !row.nextRunAt) continue;
             try {
                 const result = await this.executeAutomation(
-                    text(row.id),
-                    `schedule:${text(row.next_run_at)}`,
-                    actorUserId,
+                    row.id,
+                    `schedule:${row.nextRunAt}`,
+                    row.createdByUserId,
                 );
                 if (result.hint) hints.push(result.hint);
             } catch {
@@ -332,26 +347,26 @@ export class AutomationRepository {
 
     /** Processes durable sync events after the event-automation cursor, including after restart. */
     async runPendingEventAutomations(limit = 100): Promise<MutationHint[]> {
-        const cursor = await one(
-            this.client,
-            `SELECT automation_event_sequence FROM server_sync_state WHERE id = 1`,
-        );
+        const [cursor] = await this.db
+            .select({ sequence: serverSyncState.automationEventSequence })
+            .from(serverSyncState)
+            .where(eq(serverSyncState.id, 1));
         if (!cursor) throw new Error("Sync state has not been initialized");
-        const sequences = await this.client.execute({
-            sql: `SELECT DISTINCT sequence FROM sync_events
-                   WHERE sequence > ? ORDER BY sequence LIMIT ?`,
-            args: [number(cursor.automation_event_sequence), limit],
-        });
+        const sequences = await this.db
+            .selectDistinct({ sequence: syncEvents.sequence })
+            .from(syncEvents)
+            .where(gt(syncEvents.sequence, cursor.sequence))
+            .orderBy(asc(syncEvents.sequence))
+            .limit(limit);
         const hints: MutationHint[] = [];
-        for (const row of sequences.rows) {
-            const sequence = number(row.sequence);
-            hints.push(...(await this.runEventAutomations(sequence)));
-            await this.client.execute({
-                sql: `UPDATE server_sync_state
-                         SET automation_event_sequence = max(automation_event_sequence, ?)
-                       WHERE id = 1`,
-                args: [sequence],
-            });
+        for (const row of sequences) {
+            hints.push(...(await this.runEventAutomations(row.sequence)));
+            await this.db
+                .update(serverSyncState)
+                .set({
+                    automationEventSequence: sql`max(${serverSyncState.automationEventSequence}, ${row.sequence})`,
+                })
+                .where(eq(serverSyncState.id, 1));
         }
         return hints;
     }
@@ -360,44 +375,66 @@ export class AutomationRepository {
         if (!Number.isSafeInteger(sequence) || sequence < 1)
             throw new TypeError("sequence must be a positive safe integer");
         const [events, definitions] = await Promise.all([
-            this.client.execute({
-                sql: `SELECT id, kind, chat_id, entity_id FROM sync_events
-                       WHERE sequence = ? ORDER BY id`,
-                args: [sequence],
-            }),
-            this.client.execute(
-                `${automationSelectBase()}
-                  WHERE active = 1 AND deleted_at IS NULL AND trigger_type = 'event'
-                  ORDER BY id`,
-            ),
+            this.db
+                .select({
+                    id: syncEvents.id,
+                    kind: syncEvents.kind,
+                    chatId: syncEvents.chatId,
+                    entityId: syncEvents.entityId,
+                })
+                .from(syncEvents)
+                .where(eq(syncEvents.sequence, sequence))
+                .orderBy(asc(syncEvents.id)),
+            this.db
+                .select()
+                .from(automations)
+                .where(
+                    and(
+                        eq(automations.active, 1),
+                        isNull(automations.deletedAt),
+                        eq(automations.triggerType, "event"),
+                    ),
+                )
+                .orderBy(asc(automations.id)),
         ]);
         const hints: MutationHint[] = [];
-        for (const event of events.rows) {
-            const eventId = number(event.id);
-            const kind = text(event.kind);
-            const chatId = optionalText(event.chat_id);
-            const entityId = optionalText(event.entity_id);
-            const automated = entityId
+        for (const event of events) {
+            const automated = event.entityId
                 ? Boolean(
-                      await one(
-                          this.client,
-                          `SELECT 1 AS found FROM messages
-                            WHERE id = ? AND sender_bot_id IS NOT NULL`,
-                          [entityId],
-                      ),
+                      (
+                          await this.db
+                              .select({ id: messages.id })
+                              .from(messages)
+                              .where(
+                                  and(
+                                      eq(messages.id, event.entityId),
+                                      or(
+                                          eq(messages.kind, "automated"),
+                                          sql`${messages.senderBotId} is not null`,
+                                      ),
+                                  ),
+                              )
+                              .limit(1)
+                      )[0],
                   )
                 : false;
-            for (const definition of definitions.rows) {
-                if (number(definition.created_sequence) >= sequence) continue;
+            for (const definition of definitions) {
+                if (definition.createdSequence >= sequence) continue;
                 const automation = asAutomation(definition);
-                if (!matchesEvent(automation.triggerConfig, { kind, chatId, automated })) continue;
-                const actorUserId = optionalText(definition.created_by_user_id);
-                if (!actorUserId) continue;
+                if (
+                    !matchesEvent(automation.triggerConfig, {
+                        kind: event.kind,
+                        chatId: event.chatId ?? undefined,
+                        automated,
+                    })
+                )
+                    continue;
+                if (!definition.createdByUserId) continue;
                 try {
                     const result = await this.executeAutomation(
                         automation.id,
-                        `sync:${eventId}`,
-                        actorUserId,
+                        `sync:${event.id}`,
+                        definition.createdByUserId,
                     );
                     if (result.hint) hints.push(result.hint);
                 } catch {
@@ -427,46 +464,41 @@ export class AutomationRepository {
         return this.write(async (tx) => {
             const id = createId();
             try {
-                await tx.execute({
-                    sql: `INSERT INTO scheduled_messages
-                            (id, chat_id, created_by_user_id, text, quoted_message_id,
-                             thread_root_message_id, scheduled_for, timezone, client_mutation_id)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    args: [
-                        id,
-                        input.chatId,
-                        input.actorUserId,
-                        input.text,
-                        input.quotedMessageId ?? null,
-                        input.threadRootMessageId ?? null,
-                        input.scheduledFor,
-                        input.timezone ?? null,
-                        input.clientMutationId ?? null,
-                    ],
+                await tx.insert(scheduledMessages).values({
+                    id,
+                    chatId: input.chatId,
+                    createdByUserId: input.actorUserId,
+                    text: input.text,
+                    quotedMessageId: input.quotedMessageId ?? null,
+                    threadRootMessageId: input.threadRootMessageId ?? null,
+                    scheduledFor: input.scheduledFor,
+                    timezone: input.timezone ?? null,
+                    clientMutationId: input.clientMutationId ?? null,
                 });
             } catch (error) {
                 if (!input.clientMutationId) throw error;
-                const existing = await one(
-                    tx,
-                    `SELECT id FROM scheduled_messages
-                      WHERE created_by_user_id = ? AND client_mutation_id = ?`,
-                    [input.actorUserId, input.clientMutationId],
-                );
+                const [existing] = await tx
+                    .select({ id: scheduledMessages.id })
+                    .from(scheduledMessages)
+                    .where(
+                        and(
+                            eq(scheduledMessages.createdByUserId, input.actorUserId),
+                            eq(scheduledMessages.clientMutationId, input.clientMutationId),
+                        ),
+                    );
                 if (!existing) throw error;
                 return {
-                    message: await this.getScheduledMessageWith(
-                        tx,
-                        input.actorUserId,
-                        text(existing.id),
-                    ),
+                    message: await this.getScheduledMessageWith(tx, input.actorUserId, existing.id),
                 };
             }
-            for (const [position, fileId] of input.attachmentFileIds.entries())
-                await tx.execute({
-                    sql: `INSERT INTO scheduled_message_attachments
-                            (scheduled_message_id, file_id, position) VALUES (?, ?, ?)`,
-                    args: [id, fileId, position],
-                });
+            if (input.attachmentFileIds.length > 0)
+                await tx.insert(scheduledMessageAttachments).values(
+                    input.attachmentFileIds.map((fileId, position) => ({
+                        scheduledMessageId: id,
+                        fileId,
+                        position,
+                    })),
+                );
             const sequence = await this.nextSequence(tx);
             await this.insertSyncEvent(tx, {
                 sequence,
@@ -483,16 +515,14 @@ export class AutomationRepository {
     }
 
     async listScheduledMessages(actorUserId: string): Promise<ScheduledMessageSummary[]> {
-        const result = await this.client.execute({
-            sql: `SELECT id FROM scheduled_messages
-                   WHERE created_by_user_id = ? ORDER BY scheduled_for, id`,
-            args: [actorUserId],
-        });
+        const rows = await this.db
+            .select({ id: scheduledMessages.id })
+            .from(scheduledMessages)
+            .where(eq(scheduledMessages.createdByUserId, actorUserId))
+            .orderBy(asc(scheduledMessages.scheduledFor), asc(scheduledMessages.id));
         const messages: ScheduledMessageSummary[] = [];
-        for (const row of result.rows)
-            messages.push(
-                await this.getScheduledMessageWith(this.client, actorUserId, text(row.id)),
-            );
+        for (const row of rows)
+            messages.push(await this.getScheduledMessageWith(this.db, actorUserId, row.id));
         return messages;
     }
 
@@ -501,14 +531,22 @@ export class AutomationRepository {
         scheduledMessageId: string,
     ): Promise<MutationHint> {
         return this.write(async (tx) => {
-            const result = await tx.execute({
-                sql: `UPDATE scheduled_messages
-                         SET status = 'cancelled', cancelled_at = CURRENT_TIMESTAMP,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ? AND created_by_user_id = ? AND status = 'scheduled'`,
-                args: [scheduledMessageId, actorUserId],
-            });
-            if (!result.rowsAffected)
+            const changed = await tx
+                .update(scheduledMessages)
+                .set({
+                    status: "cancelled",
+                    cancelledAt: sql`CURRENT_TIMESTAMP`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(scheduledMessages.id, scheduledMessageId),
+                        eq(scheduledMessages.createdByUserId, actorUserId),
+                        eq(scheduledMessages.status, "scheduled"),
+                    ),
+                )
+                .returning({ id: scheduledMessages.id });
+            if (changed.length === 0)
                 throw new CollaborationError("not_found", "Scheduled message was not found");
             const sequence = await this.nextSequence(tx);
             await this.insertSyncEvent(tx, {
@@ -523,81 +561,117 @@ export class AutomationRepository {
     }
 
     async publishDueScheduledMessages(limit = 25): Promise<MutationHint[]> {
-        const due = await this.client.execute({
-            sql: `SELECT id, created_by_user_id FROM scheduled_messages
-                   WHERE (status = 'scheduled' AND datetime(scheduled_for) <= CURRENT_TIMESTAMP)
-                      OR (status = 'publishing'
-                          AND datetime(updated_at) <= datetime('now', '-1 minute'))
-                   ORDER BY scheduled_for, id LIMIT ?`,
-            args: [limit],
-        });
+        const due = await this.db
+            .select({ id: scheduledMessages.id, actorUserId: scheduledMessages.createdByUserId })
+            .from(scheduledMessages)
+            .where(
+                or(
+                    and(
+                        eq(scheduledMessages.status, "scheduled"),
+                        lte(
+                            sql`datetime(${scheduledMessages.scheduledFor})`,
+                            sql`CURRENT_TIMESTAMP`,
+                        ),
+                    ),
+                    and(
+                        eq(scheduledMessages.status, "publishing"),
+                        lte(
+                            sql`datetime(${scheduledMessages.updatedAt})`,
+                            sql`datetime('now', '-1 minute')`,
+                        ),
+                    ),
+                ),
+            )
+            .orderBy(asc(scheduledMessages.scheduledFor), asc(scheduledMessages.id))
+            .limit(limit);
         const hints: MutationHint[] = [];
-        for (const row of due.rows) {
-            const id = text(row.id);
-            const actorUserId = optionalText(row.created_by_user_id);
-            if (!actorUserId) continue;
-            const claimed = await this.client.execute({
-                sql: `UPDATE scheduled_messages SET status = 'publishing',
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ? AND (
-                         status = 'scheduled'
-                         OR (status = 'publishing'
-                             AND datetime(updated_at) <= datetime('now', '-1 minute'))
-                       )`,
-                args: [id],
-            });
-            if (!claimed.rowsAffected) continue;
+        for (const row of due) {
+            if (!row.actorUserId) continue;
+            const actorUserId = row.actorUserId;
+            const [claimed] = await this.db
+                .update(scheduledMessages)
+                .set({ status: "publishing", updatedAt: sql`CURRENT_TIMESTAMP` })
+                .where(
+                    and(
+                        eq(scheduledMessages.id, row.id),
+                        or(
+                            eq(scheduledMessages.status, "scheduled"),
+                            and(
+                                eq(scheduledMessages.status, "publishing"),
+                                lte(
+                                    sql`datetime(${scheduledMessages.updatedAt})`,
+                                    sql`datetime('now', '-1 minute')`,
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+                .returning({ id: scheduledMessages.id });
+            if (!claimed) continue;
+            let sent: Awaited<ReturnType<CollaborationRepository["sendMessage"]>>;
             try {
-                const scheduled = await this.getScheduledMessageWith(this.client, actorUserId, id);
-                const detail = await one(
-                    this.client,
-                    `SELECT quoted_message_id, thread_root_message_id
-                       FROM scheduled_messages WHERE id = ?`,
-                    [id],
-                );
-                const sent = await this.collaboration.sendMessage({
+                const scheduled = await this.getScheduledMessageWith(this.db, actorUserId, row.id);
+                const [detail] = await this.db
+                    .select({
+                        quotedMessageId: scheduledMessages.quotedMessageId,
+                        threadRootMessageId: scheduledMessages.threadRootMessageId,
+                    })
+                    .from(scheduledMessages)
+                    .where(eq(scheduledMessages.id, row.id));
+                sent = await this.collaboration.sendMessage({
                     actorUserId,
                     chatId: scheduled.chatId,
                     text: scheduled.text,
                     attachmentFileIds: scheduled.attachmentFileIds,
-                    quotedMessageId: optionalText(detail?.quoted_message_id),
-                    threadRootMessageId: optionalText(detail?.thread_root_message_id),
-                    clientMutationId: `scheduled:${id}`,
+                    quotedMessageId: detail?.quotedMessageId ?? undefined,
+                    threadRootMessageId: detail?.threadRootMessageId ?? undefined,
+                    clientMutationId: `scheduled:${row.id}`,
                 });
-                await this.client.execute({
-                    sql: `UPDATE scheduled_messages
-                             SET status = 'published', published_message_id = ?,
-                                 published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                           WHERE id = ?`,
-                    args: [sent.message.id, id],
-                });
-                hints.push(sent.hint);
-                hints.push(
-                    await this.recordAreaChange({
-                        actorUserId,
-                        kind: "scheduled.published",
-                        entityId: id,
-                        area: "scheduled-messages",
-                        targetUserId: actorUserId,
-                    }),
-                );
             } catch (error) {
-                await this.client.execute({
-                    sql: `UPDATE scheduled_messages
-                             SET status = 'failed', last_error = ?, updated_at = CURRENT_TIMESTAMP
-                           WHERE id = ?`,
-                    args: [errorMessage(error), id],
-                });
                 hints.push(
-                    await this.recordAreaChange({
-                        actorUserId,
-                        kind: "scheduled.failed",
-                        entityId: id,
-                        area: "scheduled-messages",
-                        targetUserId: actorUserId,
+                    await this.write(async (tx) => {
+                        await tx
+                            .update(scheduledMessages)
+                            .set({
+                                status: "failed",
+                                lastError: errorMessage(error),
+                                updatedAt: sql`CURRENT_TIMESTAMP`,
+                            })
+                            .where(eq(scheduledMessages.id, row.id));
+                        const sequence = await this.nextSequence(tx);
+                        await this.insertSyncEvent(tx, {
+                            sequence,
+                            kind: "scheduled.failed",
+                            entityId: row.id,
+                            actorUserId,
+                            targetUserId: actorUserId,
+                        });
+                        return areaHint(sequence, "scheduled-messages");
                     }),
                 );
+                continue;
             }
+            const areaHintValue = await this.write(async (tx) => {
+                await tx
+                    .update(scheduledMessages)
+                    .set({
+                        status: "published",
+                        publishedMessageId: sent.message.id,
+                        publishedAt: sql`CURRENT_TIMESTAMP`,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    })
+                    .where(eq(scheduledMessages.id, row.id));
+                const sequence = await this.nextSequence(tx);
+                await this.insertSyncEvent(tx, {
+                    sequence,
+                    kind: "scheduled.published",
+                    entityId: row.id,
+                    actorUserId,
+                    targetUserId: actorUserId,
+                });
+                return areaHint(sequence, "scheduled-messages");
+            });
+            hints.push(sent.hint, areaHintValue);
         }
         return hints;
     }
@@ -608,71 +682,82 @@ export class AutomationRepository {
         actorUserId: string,
     ): Promise<{ hint?: MutationHint; runId: string }> {
         const claimed = await this.write(async (tx) => {
-            const row = await one(tx, automationSelect(), [automationId]);
-            if (!row || number(row.active) !== 1)
+            const row = await getAutomation(tx, automationId);
+            if (!row || row.active !== 1)
                 throw new CollaborationError("not_found", "Automation was not found");
-            const existing = await one(
-                tx,
-                `SELECT id, status, result_json FROM automation_runs
-                  WHERE automation_id = ? AND trigger_event_id = ?`,
-                [automationId, triggerEventId],
-            );
-            if (existing && text(existing.status) === "succeeded")
+            const [existing] = await tx
+                .select()
+                .from(automationRuns)
+                .where(
+                    and(
+                        eq(automationRuns.automationId, automationId),
+                        eq(automationRuns.triggerEventId, triggerEventId),
+                    ),
+                );
+            if (existing?.status === "succeeded")
                 return {
                     automation: asAutomation(row),
-                    runId: text(existing.id),
+                    runId: existing.id,
                     alreadyCompleted: true,
                 };
             let runId: string;
             if (existing) {
-                runId = text(existing.id);
-                const reclaimed = await tx.execute({
-                    sql: `UPDATE automation_runs
-                             SET status = 'running', attempts = attempts + 1,
-                                 started_at = CURRENT_TIMESTAMP, completed_at = NULL,
-                                 last_error = NULL
-                           WHERE id = ? AND (
-                             status IN ('pending', 'failed')
-                             OR (status = 'running'
-                                 AND datetime(started_at) <= datetime('now', '-1 minute'))
-                           )`,
-                    args: [runId],
-                });
-                if (!reclaimed.rowsAffected)
-                    return {
-                        automation: asAutomation(row),
-                        runId,
-                        alreadyCompleted: true,
-                    };
+                runId = existing.id;
+                const reclaimed = await tx
+                    .update(automationRuns)
+                    .set({
+                        status: "running",
+                        attempts: sql`${automationRuns.attempts} + 1`,
+                        startedAt: sql`CURRENT_TIMESTAMP`,
+                        completedAt: null,
+                        lastError: null,
+                    })
+                    .where(
+                        and(
+                            eq(automationRuns.id, runId),
+                            or(
+                                sql`${automationRuns.status} in ('pending', 'failed')`,
+                                and(
+                                    eq(automationRuns.status, "running"),
+                                    lte(
+                                        sql`datetime(${automationRuns.startedAt})`,
+                                        sql`datetime('now', '-1 minute')`,
+                                    ),
+                                ),
+                            ),
+                        ),
+                    )
+                    .returning({ id: automationRuns.id });
+                if (reclaimed.length === 0)
+                    return { automation: asAutomation(row), runId, alreadyCompleted: true };
             } else {
                 runId = createId();
-                await tx.execute({
-                    sql: `INSERT INTO automation_runs
-                        (id, automation_id, trigger_event_id, scheduled_for, status,
-                         attempts, started_at)
-                      VALUES (?, ?, ?, ?, 'running', 1, CURRENT_TIMESTAMP)`,
-                    args: [runId, automationId, triggerEventId, row.next_run_at ?? null],
+                await tx.insert(automationRuns).values({
+                    id: runId,
+                    automationId,
+                    triggerEventId,
+                    scheduledFor: row.nextRunAt,
+                    status: "running",
+                    attempts: 1,
+                    startedAt: sql`CURRENT_TIMESTAMP`,
                 });
             }
             await this.appendAudit(tx, actorUserId, "automation.run", automationId);
-            const config = jsonObject(row.trigger_config_json);
-            const intervalSeconds = positiveNumber(config.intervalSeconds);
-            await tx.execute({
-                sql: `UPDATE automations
-                         SET next_run_at = CASE WHEN ? IS NULL THEN NULL
-                              ELSE strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+' || ? || ' seconds') END,
-                             active = CASE WHEN ? IS NULL AND trigger_type = 'schedule'
-                                           THEN 0 ELSE active END,
-                             last_run_at = CURRENT_TIMESTAMP, last_error = NULL,
-                             updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ?`,
-                args: [
-                    intervalSeconds ?? null,
-                    intervalSeconds ?? null,
-                    intervalSeconds ?? null,
-                    automationId,
-                ],
-            });
+            const intervalSeconds = positiveNumber(
+                jsonObject(row.triggerConfigJson).intervalSeconds,
+            );
+            await tx
+                .update(automations)
+                .set({
+                    nextRunAt: intervalSeconds
+                        ? new Date(Date.now() + intervalSeconds * 1_000).toISOString()
+                        : null,
+                    ...(intervalSeconds || row.triggerType !== "schedule" ? {} : { active: 0 }),
+                    lastRunAt: sql`CURRENT_TIMESTAMP`,
+                    lastError: null,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(automations.id, automationId));
             return { automation: asAutomation(row), runId, alreadyCompleted: false };
         });
         if (claimed.alreadyCompleted) return { runId: claimed.runId };
@@ -681,13 +766,11 @@ export class AutomationRepository {
             if (claimed.automation.actionType === "send_message") {
                 const config = claimed.automation.actionConfig;
                 const chatId = claimed.automation.chatId ?? requiredString(config.chatId, "chatId");
-                const textValue = requiredString(config.text, "text");
-                const attachmentFileIds = stringArray(config.attachmentFileIds);
                 const sent = await this.collaboration.sendAutomatedMessage({
                     actorUserId,
                     chatId,
-                    text: textValue,
-                    attachmentFileIds,
+                    text: requiredString(config.text, "text"),
+                    attachmentFileIds: stringArray(config.attachmentFileIds),
                     clientMutationId: `automation:${claimed.runId}`,
                     botId: claimed.automation.botId,
                 });
@@ -697,18 +780,16 @@ export class AutomationRepository {
                     claimed.automation.actionConfig.subscriptionId,
                     "subscriptionId",
                 );
-                await this.client.execute({
-                    sql: `INSERT INTO webhook_deliveries
-                            (id, subscription_id, event_id, event_type, payload_json)
-                          VALUES (?, ?, ?, 'automation.triggered', ?)
-                          ON CONFLICT(subscription_id, event_id) DO NOTHING`,
-                    args: [
-                        createId(),
+                await this.db
+                    .insert(webhookDeliveries)
+                    .values({
+                        id: createId(),
                         subscriptionId,
-                        claimed.runId,
-                        JSON.stringify(claimed.automation.actionConfig.payload ?? {}),
-                    ],
-                });
+                        eventId: claimed.runId,
+                        eventType: "automation.triggered",
+                        payloadJson: JSON.stringify(claimed.automation.actionConfig.payload ?? {}),
+                    })
+                    .onConflictDoNothing();
             } else {
                 if (!this.options.moderate)
                     throw new Error("Moderation automation handler is unavailable");
@@ -724,109 +805,130 @@ export class AutomationRepository {
                 });
                 hint = moderated.sync;
             }
-            await this.client.execute({
-                sql: `UPDATE automation_runs SET status = 'succeeded', result_json = ?,
-                             completed_at = CURRENT_TIMESTAMP WHERE id = ?`,
-                args: [JSON.stringify({ hint: hint ?? null }), claimed.runId],
-            });
+            await this.db
+                .update(automationRuns)
+                .set({
+                    status: "succeeded",
+                    resultJson: JSON.stringify({ hint: hint ?? null }),
+                    completedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(automationRuns.id, claimed.runId));
             return { hint, runId: claimed.runId };
         } catch (error) {
             const message = errorMessage(error);
-            await this.client.batch(
-                [
-                    {
-                        sql: `UPDATE automation_runs SET status = 'failed', last_error = ?,
-                                     completed_at = CURRENT_TIMESTAMP WHERE id = ?`,
-                        args: [message, claimed.runId],
-                    },
-                    {
-                        sql: `UPDATE automations SET last_error = ?, updated_at = CURRENT_TIMESTAMP
-                               WHERE id = ?`,
-                        args: [message, automationId],
-                    },
-                ],
-                "write",
-            );
+            await this.write(async (tx) => {
+                await tx
+                    .update(automationRuns)
+                    .set({
+                        status: "failed",
+                        lastError: message,
+                        completedAt: sql`CURRENT_TIMESTAMP`,
+                    })
+                    .where(eq(automationRuns.id, claimed.runId));
+                await tx
+                    .update(automations)
+                    .set({ lastError: message, updatedAt: sql`CURRENT_TIMESTAMP` })
+                    .where(eq(automations.id, automationId));
+            });
             throw error;
         }
     }
 
     private async getScheduledMessageWith(
-        executor: Executor,
+        executor: DrizzleExecutor,
         actorUserId: string,
         id: string,
     ): Promise<ScheduledMessageSummary> {
-        const row = await one(
-            executor,
-            `SELECT id, chat_id, text, scheduled_for, timezone, status,
-                    published_message_id, last_error, created_at, updated_at
-               FROM scheduled_messages WHERE id = ? AND created_by_user_id = ?`,
-            [id, actorUserId],
-        );
+        const [row] = await executor
+            .select()
+            .from(scheduledMessages)
+            .where(
+                and(
+                    eq(scheduledMessages.id, id),
+                    eq(scheduledMessages.createdByUserId, actorUserId),
+                ),
+            );
         if (!row) throw new CollaborationError("not_found", "Scheduled message was not found");
-        const files = await executor.execute({
-            sql: `SELECT file_id FROM scheduled_message_attachments
-                   WHERE scheduled_message_id = ? ORDER BY position`,
-            args: [id],
-        });
+        const attachments = await executor
+            .select({ fileId: scheduledMessageAttachments.fileId })
+            .from(scheduledMessageAttachments)
+            .where(eq(scheduledMessageAttachments.scheduledMessageId, id))
+            .orderBy(asc(scheduledMessageAttachments.position));
         return {
             id,
-            chatId: text(row.chat_id),
-            text: text(row.text),
-            attachmentFileIds: files.rows.map((file) => text(file.file_id)),
-            scheduledFor: text(row.scheduled_for),
-            timezone: optionalText(row.timezone),
-            status: text(row.status) as ScheduledMessageSummary["status"],
-            publishedMessageId: optionalText(row.published_message_id),
-            lastError: optionalText(row.last_error),
-            createdAt: text(row.created_at),
-            updatedAt: text(row.updated_at),
+            chatId: row.chatId,
+            text: row.text,
+            attachmentFileIds: attachments.map(({ fileId }) => fileId),
+            scheduledFor: row.scheduledFor,
+            timezone: row.timezone ?? undefined,
+            status: row.status as ScheduledMessageSummary["status"],
+            publishedMessageId: row.publishedMessageId ?? undefined,
+            lastError: row.lastError ?? undefined,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
         };
     }
 
-    private async requireAdmin(executor: Executor, userId: string): Promise<void> {
-        const row = await one(
-            executor,
-            `SELECT 1 AS found FROM users u JOIN accounts a ON a.id = u.account_id
-              WHERE u.id = ? AND u.role = 'admin' AND u.deleted_at IS NULL
-                AND a.active = 1 AND a.banned_at IS NULL AND a.deleted_at IS NULL`,
-            [userId],
-        );
+    private async requireAdmin(executor: DrizzleExecutor, userId: string): Promise<void> {
+        const [row] = await executor
+            .select({ id: users.id })
+            .from(users)
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(users.id, userId),
+                    eq(users.role, "admin"),
+                    isNull(users.deletedAt),
+                    eq(accounts.active, 1),
+                    isNull(accounts.bannedAt),
+                    isNull(accounts.deletedAt),
+                ),
+            );
         if (!row) throw new CollaborationError("forbidden", "Server admin permission is required");
     }
 
-    private async chatExists(executor: Executor, chatId: string): Promise<boolean> {
+    private async chatExists(executor: DrizzleExecutor, chatId: string): Promise<boolean> {
         return Boolean(
-            await one(
-                executor,
-                `SELECT 1 AS found FROM chats WHERE id = ? AND deleted_at IS NULL`,
-                [chatId],
-            ),
+            (
+                await executor
+                    .select({ id: chats.id })
+                    .from(chats)
+                    .where(and(eq(chats.id, chatId), isNull(chats.deletedAt)))
+                    .limit(1)
+            )[0],
         );
     }
 
-    private async botExists(executor: Executor, botId: string): Promise<boolean> {
+    private async botExists(executor: DrizzleExecutor, botId: string): Promise<boolean> {
         return Boolean(
-            await one(
-                executor,
-                `SELECT 1 AS found FROM bot_identities WHERE id = ? AND active = 1 AND deleted_at IS NULL`,
-                [botId],
-            ),
+            (
+                await executor
+                    .select({ id: botIdentities.id })
+                    .from(botIdentities)
+                    .where(
+                        and(
+                            eq(botIdentities.id, botId),
+                            eq(botIdentities.active, 1),
+                            isNull(botIdentities.deletedAt),
+                        ),
+                    )
+                    .limit(1)
+            )[0],
         );
     }
 
-    private async nextSequence(tx: Transaction): Promise<number> {
-        const row = await one(
-            tx,
-            `UPDATE server_sync_state SET sequence = sequence + 1 WHERE id = 1
-             RETURNING sequence`,
-        );
+    private async nextSequence(tx: DrizzleTransaction): Promise<number> {
+        const [row] = await tx
+            .update(serverSyncState)
+            .set({ sequence: sql`${serverSyncState.sequence} + 1` })
+            .where(eq(serverSyncState.id, 1))
+            .returning({ sequence: serverSyncState.sequence });
         if (!row) throw new Error("Sync state has not been initialized");
-        return number(row.sequence);
+        return row.sequence;
     }
 
     private async insertSyncEvent(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         input: {
             sequence: number;
             kind: string;
@@ -835,98 +937,69 @@ export class AutomationRepository {
             targetUserId?: string;
         },
     ): Promise<void> {
-        await tx.execute({
-            sql: `INSERT INTO sync_events
-                    (sequence, kind, entity_id, actor_user_id, target_user_id)
-                  VALUES (?, ?, ?, ?, ?)`,
-            args: [
-                input.sequence,
-                input.kind,
-                input.entityId,
-                input.actorUserId ?? null,
-                input.targetUserId ?? null,
-            ],
-        });
-    }
-
-    private async recordAreaChange(input: {
-        actorUserId?: string;
-        kind: string;
-        entityId: string;
-        area: string;
-        targetUserId?: string;
-    }): Promise<MutationHint> {
-        return this.write(async (tx) => {
-            const sequence = await this.nextSequence(tx);
-            await this.insertSyncEvent(tx, { sequence, ...input });
-            return areaHint(sequence, input.area);
+        await tx.insert(syncEvents).values({
+            sequence: input.sequence,
+            kind: input.kind,
+            entityId: input.entityId,
+            actorUserId: input.actorUserId ?? null,
+            targetUserId: input.targetUserId ?? null,
         });
     }
 
     private async appendAudit(
-        tx: Transaction,
+        tx: DrizzleTransaction,
         actorUserId: string,
         action: string,
         targetId: string,
     ): Promise<void> {
-        await tx.execute({
-            sql: `INSERT INTO audit_log_entries
-                    (id, actor_user_id, action, target_type, target_id)
-                  VALUES (?, ?, ?, 'automation', ?)`,
-            args: [createId(), actorUserId, action, targetId],
+        await tx.insert(auditLogEntries).values({
+            id: createId(),
+            actorUserId,
+            action,
+            targetType: "automation",
+            targetId,
         });
     }
 
-    private async write<T>(operation: (tx: Transaction) => Promise<T>): Promise<T> {
-        const tx = await this.client.transaction("write");
-        try {
-            const result = await operation(tx);
-            await tx.commit();
-            return result;
-        } catch (error) {
-            if (!tx.closed) await tx.rollback();
-            throw error;
-        } finally {
-            tx.close();
-        }
+    private write<T>(operation: (tx: DrizzleTransaction) => Promise<T>): Promise<T> {
+        return this.db.transaction(operation);
     }
+}
+
+async function getAutomation(
+    executor: DrizzleExecutor,
+    id: string,
+): Promise<AutomationRow | undefined> {
+    const rows = await executor
+        .select()
+        .from(automations)
+        .where(and(eq(automations.id, id), isNull(automations.deletedAt)));
+    return rows[0];
 }
 
 function areaHint(sequence: number, area: string): MutationHint {
     return { sequence: String(sequence), chats: [], areas: [area] };
 }
 
-function automationSelect(): string {
-    return `${automationSelectBase()} WHERE id = ? AND deleted_at IS NULL`;
-}
-
-function automationSelectBase(): string {
-    return `SELECT id, name, chat_id, bot_id, trigger_type, trigger_config_json,
-                   action_type, action_config_json, timezone, next_run_at, active,
-                   last_run_at, last_error, created_at, updated_at, created_by_user_id,
-                   created_sequence
-              FROM automations`;
-}
-
-function asAutomation(row: Row): AutomationSummary {
-    const triggerConfig = jsonObject(row.trigger_config_json);
+function asAutomation(row: AutomationRow): AutomationSummary {
+    const triggerConfig = jsonObject(row.triggerConfigJson);
     delete triggerConfig.tokenHash;
     return {
-        id: text(row.id),
-        name: text(row.name),
-        chatId: optionalText(row.chat_id),
-        botId: optionalText(row.bot_id),
-        triggerType: text(row.trigger_type) as AutomationSummary["triggerType"],
+        id: row.id,
+        name: row.name,
+        chatId: row.chatId ?? undefined,
+        botId: row.botId ?? undefined,
+        triggerType: row.triggerType as AutomationSummary["triggerType"],
         triggerConfig,
-        actionType: text(row.action_type) as AutomationSummary["actionType"],
-        actionConfig: jsonObject(row.action_config_json),
-        timezone: optionalText(row.timezone),
-        nextRunAt: optionalText(row.next_run_at),
-        active: number(row.active) === 1,
-        lastRunAt: optionalText(row.last_run_at),
-        lastError: optionalText(row.last_error),
-        createdAt: text(row.created_at),
-        updatedAt: text(row.updated_at),
+        actionType: row.actionType as AutomationSummary["actionType"],
+        actionConfig: jsonObject(row.actionConfigJson),
+        timezone: row.timezone ?? undefined,
+        nextRunAt: row.nextRunAt ?? undefined,
+        active: row.active === 1,
+        lastRunAt: row.lastRunAt ?? undefined,
+        lastError: row.lastError ?? undefined,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
     };
 }
 
@@ -1037,29 +1110,8 @@ function hashesEqual(left: string, right: string): boolean {
     return a.length === b.length && a.length > 0 && timingSafeEqual(a, b);
 }
 
-async function one(executor: Executor, sql: string, args: InArgs = []): Promise<Row | undefined> {
-    return (await executor.execute({ sql, args })).rows[0];
-}
-
-function text(value: unknown): string {
-    if (typeof value === "string") return value;
-    if (typeof value === "number" || typeof value === "bigint") return String(value);
-    throw new Error("Expected database text value");
-}
-
-function optionalText(value: unknown): string | undefined {
-    return value === null || value === undefined ? undefined : text(value);
-}
-
-function number(value: unknown): number {
-    if (typeof value === "number") return value;
-    if (typeof value === "bigint") return Number(value);
-    if (typeof value === "string" && /^-?\d+$/.test(value)) return Number(value);
-    throw new Error("Expected database integer value");
-}
-
-function jsonObject(value: unknown): Record<string, unknown> {
-    const parsed = JSON.parse(text(value)) as unknown;
+function jsonObject(value: string): Record<string, unknown> {
+    const parsed = JSON.parse(value) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
         throw new Error("Expected JSON object");
     return parsed as Record<string, unknown>;

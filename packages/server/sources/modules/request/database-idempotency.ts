@@ -1,5 +1,8 @@
 import { createId } from "@paralleldrive/cuid2";
-import { createClient, type Client, type InArgs, type Row, type Transaction } from "@libsql/client";
+import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
+import { createClient, type Client } from "@libsql/client";
+import { createDatabase, type DrizzleExecutor } from "../drizzle.js";
+import { idempotencyKeys } from "../schema.js";
 import type {
     IdempotencyAcquireInput,
     IdempotencyAcquireResult,
@@ -7,145 +10,143 @@ import type {
     IdempotencyStore,
 } from "./idempotency.js";
 
-type Executor = Pick<Client, "execute"> | Pick<Transaction, "execute">;
+const requestKey = (storageKey: string) =>
+    and(
+        eq(idempotencyKeys.principalType, "system"),
+        eq(idempotencyKeys.principalId, "http"),
+        eq(idempotencyKeys.scope, "request"),
+        eq(idempotencyKeys.idempotencyKey, storageKey),
+    );
 
 /** Shared SQLite/libSQL adapter; leases and fencing remain authoritative across processes. */
 export class DatabaseIdempotencyStore<TResponse> implements IdempotencyStore<TResponse> {
     private readonly client: Client;
+    private readonly db;
     private readonly ownsClient: boolean;
 
     constructor(source: string | Client, authToken?: string) {
         this.ownsClient = typeof source === "string";
         this.client =
             typeof source === "string" ? createClient({ url: source, authToken }) : source;
+        this.db = createDatabase(this.client);
     }
 
     async acquire(input: IdempotencyAcquireInput): Promise<IdempotencyAcquireResult<TResponse>> {
-        return this.write(async (tx) => {
-            let row = await this.find(tx, input.storageKey);
-            if (row && Date.parse(text(row.expires_at)) <= input.now) {
-                await tx.execute({
-                    sql: `DELETE FROM idempotency_keys WHERE id = ?`,
-                    args: [row.id],
-                });
+        return this.db.transaction(async (tx) => {
+            let row: KeyRow | undefined = await find(tx, input.storageKey);
+            if (row && Date.parse(row.expiresAt) <= input.now) {
+                await tx.delete(idempotencyKeys).where(eq(idempotencyKeys.id, row.id));
                 row = undefined;
             }
             if (row) {
-                if (row.request_hash !== input.fingerprint) return { kind: "conflict" };
+                if (row.requestHash !== input.fingerprint) return { kind: "conflict" };
                 if (row.status === "completed")
                     return {
                         kind: "replay",
-                        response: JSON.parse(text(row.response_json)) as TResponse,
+                        response: JSON.parse(requiredJson(row.responseJson)) as TResponse,
                     };
-                const lockedUntil = optionalText(row.locked_until);
-                if (lockedUntil && Date.parse(lockedUntil) > input.now)
-                    return { kind: "in_progress", retryAt: Date.parse(lockedUntil) };
-                await tx.execute({
-                    sql: `UPDATE idempotency_keys
-                             SET status = 'in_progress', request_hash = ?, response_status = NULL,
-                                 response_json = ?, locked_until = ?, expires_at = ?,
-                                 updated_at = CURRENT_TIMESTAMP
-                           WHERE id = ?`,
-                    args: [
-                        input.fingerprint,
-                        JSON.stringify({ leaseToken: input.leaseToken }),
-                        iso(input.leaseExpiresAt),
-                        iso(input.recordExpiresAt),
-                        row.id,
-                    ],
-                });
+                if (row.lockedUntil && Date.parse(row.lockedUntil) > input.now)
+                    return { kind: "in_progress", retryAt: Date.parse(row.lockedUntil) };
+                await tx
+                    .update(idempotencyKeys)
+                    .set({
+                        status: "in_progress",
+                        requestHash: input.fingerprint,
+                        responseStatus: null,
+                        responseJson: JSON.stringify({ leaseToken: input.leaseToken }),
+                        lockedUntil: iso(input.leaseExpiresAt),
+                        expiresAt: iso(input.recordExpiresAt),
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    })
+                    .where(eq(idempotencyKeys.id, row.id));
                 return { kind: "acquired" };
             }
-            await tx.execute({
-                sql: `INSERT INTO idempotency_keys
-                        (id, principal_type, principal_id, scope, idempotency_key, request_hash,
-                         status, response_json, locked_until, expires_at)
-                      VALUES (?, 'system', 'http', 'request', ?, ?, 'in_progress', ?, ?, ?)`,
-                args: [
-                    createId(),
-                    input.storageKey,
-                    input.fingerprint,
-                    JSON.stringify({ leaseToken: input.leaseToken }),
-                    iso(input.leaseExpiresAt),
-                    iso(input.recordExpiresAt),
-                ],
+            await tx.insert(idempotencyKeys).values({
+                id: createId(),
+                principalType: "system",
+                principalId: "http",
+                scope: "request",
+                idempotencyKey: input.storageKey,
+                requestHash: input.fingerprint,
+                status: "in_progress",
+                responseJson: JSON.stringify({ leaseToken: input.leaseToken }),
+                lockedUntil: iso(input.leaseExpiresAt),
+                expiresAt: iso(input.recordExpiresAt),
             });
             return { kind: "acquired" };
         });
     }
 
     async complete(input: IdempotencyCompleteInput<TResponse>): Promise<boolean> {
-        return this.write(async (tx) => {
-            const row = await this.find(tx, input.storageKey);
+        return this.db.transaction(async (tx) => {
+            const row = await find(tx, input.storageKey);
             if (!row || row.status !== "in_progress") return false;
-            if (leaseToken(row.response_json) !== input.leaseToken) return false;
-            const result = await tx.execute({
-                sql: `UPDATE idempotency_keys
-                         SET status = 'completed', response_json = ?, locked_until = NULL,
-                             expires_at = ?, updated_at = CURRENT_TIMESTAMP
-                       WHERE id = ? AND status = 'in_progress'`,
-                args: [JSON.stringify(input.response), iso(input.recordExpiresAt), row.id],
-            });
-            return result.rowsAffected === 1;
+            if (leaseToken(row.responseJson) !== input.leaseToken) return false;
+            const changed = await tx
+                .update(idempotencyKeys)
+                .set({
+                    status: "completed",
+                    responseJson: JSON.stringify(input.response),
+                    lockedUntil: null,
+                    expiresAt: iso(input.recordExpiresAt),
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(eq(idempotencyKeys.id, row.id), eq(idempotencyKeys.status, "in_progress")),
+                )
+                .returning({ id: idempotencyKeys.id });
+            return changed.length === 1;
         });
     }
 
     async release(storageKey: string, token: string): Promise<boolean> {
-        return this.write(async (tx) => {
-            const row = await this.find(tx, storageKey);
-            if (!row || row.status !== "in_progress" || leaseToken(row.response_json) !== token)
+        return this.db.transaction(async (tx) => {
+            const row = await find(tx, storageKey);
+            if (!row || row.status !== "in_progress" || leaseToken(row.responseJson) !== token)
                 return false;
-            const result = await tx.execute({
-                sql: `DELETE FROM idempotency_keys WHERE id = ? AND status = 'in_progress'`,
-                args: [row.id],
-            });
-            return result.rowsAffected === 1;
+            const changed = await tx
+                .delete(idempotencyKeys)
+                .where(
+                    and(eq(idempotencyKeys.id, row.id), eq(idempotencyKeys.status, "in_progress")),
+                )
+                .returning({ id: idempotencyKeys.id });
+            return changed.length === 1;
         });
     }
 
     async purgeExpired(now: number, limit = 1_000): Promise<number> {
-        const result = await this.client.execute({
-            sql: `DELETE FROM idempotency_keys WHERE id IN (
-                    SELECT id FROM idempotency_keys WHERE datetime(expires_at) <= datetime(?)
-                     ORDER BY expires_at, id LIMIT ?
-                  )`,
-            args: [iso(now), limit],
+        return this.db.transaction(async (tx) => {
+            const due = await tx
+                .select({ id: idempotencyKeys.id })
+                .from(idempotencyKeys)
+                .where(lte(idempotencyKeys.expiresAt, iso(now)))
+                .orderBy(asc(idempotencyKeys.expiresAt), asc(idempotencyKeys.id))
+                .limit(limit);
+            if (due.length === 0) return 0;
+            return (
+                await tx
+                    .delete(idempotencyKeys)
+                    .where(
+                        inArray(
+                            idempotencyKeys.id,
+                            due.map(({ id }) => id),
+                        ),
+                    )
+                    .returning({ id: idempotencyKeys.id })
+            ).length;
         });
-        return result.rowsAffected;
     }
 
     close(): void {
         if (this.ownsClient) this.client.close();
     }
-
-    private find(executor: Executor, storageKey: string): Promise<Row | undefined> {
-        return one(
-            executor,
-            `SELECT id, request_hash, status, response_json, locked_until, expires_at
-               FROM idempotency_keys
-              WHERE principal_type = 'system' AND principal_id = 'http'
-                AND scope = 'request' AND idempotency_key = ?`,
-            [storageKey],
-        );
-    }
-
-    private async write<T>(operation: (tx: Transaction) => Promise<T>): Promise<T> {
-        const tx = await this.client.transaction("write");
-        try {
-            const result = await operation(tx);
-            await tx.commit();
-            return result;
-        } catch (error) {
-            if (!tx.closed) await tx.rollback();
-            throw error;
-        } finally {
-            tx.close();
-        }
-    }
 }
 
-async function one(executor: Executor, sql: string, args: InArgs): Promise<Row | undefined> {
-    return (await executor.execute({ sql, args })).rows[0];
+type KeyRow = typeof idempotencyKeys.$inferSelect;
+
+async function find(executor: DrizzleExecutor, storageKey: string): Promise<KeyRow | undefined> {
+    const rows = await executor.select().from(idempotencyKeys).where(requestKey(storageKey));
+    return rows[0];
 }
 
 function leaseToken(value: unknown): string | undefined {
@@ -158,16 +159,11 @@ function leaseToken(value: unknown): string | undefined {
     }
 }
 
+function requiredJson(value: string | null): string {
+    if (value === null) throw new Error("Idempotency response is missing");
+    return value;
+}
+
 function iso(value: number): string {
     return new Date(value).toISOString();
-}
-
-function text(value: unknown): string {
-    if (typeof value === "string") return value;
-    if (typeof value === "number" || typeof value === "bigint") return String(value);
-    throw new Error("Expected database text value");
-}
-
-function optionalText(value: unknown): string | undefined {
-    return value === null || value === undefined ? undefined : text(value);
 }
