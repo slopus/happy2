@@ -1,11 +1,9 @@
 /*
  * Rail — the 76px feature rail on the far left of the window chrome.
  *
- * Contract: 76px wide including the right hairline (border-box), fills its
- * parent's height, chrome background. Column: brand mark, 60×52 icon+label
- * item buttons, footer slot pinned to the bottom. The 1px right border lives
- * inside the 76px, so the 75px content lane centers children on .5px CSS
- * positions — exact physical pixels at the required 2× scale.
+ * Contract: 76px wide, fills its parent's height, transparent over the window
+ * chrome. Column: optional brand slot, 60×52 icon+label item buttons, footer
+ * slot pinned with equal 20px left/right/bottom clearance.
  */
 
 .rigged-rail,
@@ -20,7 +18,7 @@
     align-items: center;
     width: 76px;
     height: 100%;
-    padding: 10px 0;
+    padding: 10px 0 20px;
     /* Seamless chrome: transparent over the window backdrop, no right hairline —
        the rail and title bar read as one frame. The full 76px lane centers its
        60px items on integer coordinates. */
@@ -36,45 +34,6 @@
     flex: none;
     justify-content: center;
     margin-bottom: 12px;
-}
-
-.rigged-rail__brand-mark {
-    display: grid;
-    flex: none;
-    place-items: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    background: var(--rg-tone-brand);
-    -webkit-user-select: none;
-    user-select: none;
-}
-
-.rigged-rail__brand-glyph {
-    display: block;
-    color: var(--rg-text-on-accent);
-    font-size: 15px;
-    font-weight: 800;
-    line-height: 15px;
-    transform: translate(var(--rg-rail-glyph-x, 0px), var(--rg-rail-glyph-y, 0.5px));
-}
-
-/*
- * Engine-measured optical corrections for the brand "R" ink centroid,
- * re-measured 2026-07-12 with anchored full-resolution captures
- * (Rail.test.tsx) after the viewport/window fix invalidated every earlier
- * number. Raw drift (dx, dy) with corrections zeroed: Blink (-0.13, -0.53)
- * and WebKit (-0.25, -0.56) render the run half a pixel high — the base rule
- * lowers it 0.5px; Gecko (-0.26, +0.46) renders it half a pixel low and gets
- * the mirrored override. Residual drift is <=0.26px on both axes everywhere.
- * Scopes: @-moz-document is stripped by the CSS pipeline and Blink on macOS
- * also matches @supports (font: -apple-system-body), so Gecko is detected via
- * -moz-appearance. WebKit needs no own scope — it shares the base value.
- */
-@supports (-moz-appearance: none) {
-    .rigged-rail__brand-glyph {
-        --rg-rail-glyph-y: -0.5px;
-    }
 }
 
 /* ---- Items ------------------------------------------------------------ */

@@ -13,6 +13,7 @@ import { createRenderer, type RenderedElement } from "./testing";
  *
  * Luminance landmarks (averaged RGB) used by the probes below:
  *   window chrome  --rg-bg-chrome rgb(19,18,23)            ≈ 20
+ *   app surface    --rg-bg-app rgb(23,22,28)                ≈ 24
  *   card fill      slot content #1c1b22 rgb(28,27,34)      ≈ 30
  *   card hairline  rgba(255,255,255,0.07) over rgb(23,22,28) ≈ 40
  */
@@ -32,7 +33,7 @@ function slot(testid: string, style: JSX.CSSProperties = {}) {
 
 const titleBarSlot = (testid: string) => slot(testid, { background: "#131217", height: "38px" });
 const railSlot = (testid: string) => slot(testid, { background: "#131217", width: "76px" });
-const sidebarSlot = (testid: string) => slot(testid, { background: "#131217", width: "288px" });
+const sidebarSlot = (testid: string) => slot(testid, { background: "#17161c", width: "288px" });
 
 const cardStyles = [
     "background-color",
@@ -62,8 +63,8 @@ const cardStyles = [
 const expectedCardStyles = {
     "background-color": "rgb(23, 22, 28)",
     "border-bottom-color": "rgba(255, 255, 255, 0.07)",
-    "border-bottom-left-radius": "14px",
-    "border-bottom-right-radius": "14px",
+    "border-bottom-left-radius": "8px",
+    "border-bottom-right-radius": "8px",
     "border-bottom-style": "solid",
     "border-bottom-width": "1px",
     "border-left-color": "rgba(255, 255, 255, 0.07)",
@@ -73,8 +74,8 @@ const expectedCardStyles = {
     "border-right-style": "solid",
     "border-right-width": "1px",
     "border-top-color": "rgba(255, 255, 255, 0.07)",
-    "border-top-left-radius": "14px",
-    "border-top-right-radius": "14px",
+    "border-top-left-radius": "8px",
+    "border-top-right-radius": "8px",
     "border-top-style": "solid",
     "border-top-width": "1px",
     "box-sizing": "border-box",
@@ -84,8 +85,13 @@ const expectedCardStyles = {
     "overflow-y": "hidden",
 };
 
-/* The card corner radius from the shell contract (--rg-radius-shell). */
-const CARD_RADIUS = 14;
+const expectedMainCardStyles = {
+    ...expectedCardStyles,
+    "flex-direction": "row",
+};
+
+/* The content card mirrors the native macOS window corner. */
+const CARD_RADIUS = 8;
 
 /* Element captures must be exact 2x — CaptureSanity.test.tsx guards this. */
 const DEVICE_SCALE = 2;
@@ -125,10 +131,10 @@ async function capturePixels(element: Element) {
  *    immediately instead of corrupting the measurements downstream.
  * 2. Ink must exist (pixelCount > 0) and its bounding box must reach all
  *    four box edges.
- * 3. The unpainted-pixel budget is exact: square chrome surfaces paint wall
- *    to wall, radius-14 cards miss only the four corner cuts —
- *    4·(1−π/4)·(r·2)² ≈ 2692 device pixels, minus the partial-alpha arc ring
- *    that the alpha-diff still counts as painted.
+ * 3. The unpainted-pixel budget scales from the declared corner radius:
+ *    square chrome surfaces paint wall to wall while rounded cards miss only
+ *    the four corner cuts, minus the partial-alpha arc ring that the
+ *    alpha-diff still counts as painted.
  * 4. Solid fills are symmetric ink, so the alpha-weighted centroid must sit
  *    on the geometric box center; any interior blank region drags it off.
  *    (AppShell renders no glyphs — surface centroids are its optical truth.)
@@ -173,7 +179,7 @@ async function expectFullyPainted(part: RenderedElement<Element>, label: string,
  * Direct luminance proof of one inset card at exact 2x: the 1px
  * rgba(255,255,255,0.07) hairline occupies precisely the outermost two
  * device rows/columns of the card box (≈lum 40), the slot fill inside reads
- * ≈lum 30, and just inside each box corner — but outside the 14px arc — the
+ * ≈lum 30, and just inside each box corner — but outside the 8px arc — the
  * darker window chrome (≈lum 20) shows through the radius cut. Each edge is
  * sampled along the middle half of the edge so the corner arcs never bias
  * the profile. A blank (unpainted or clipped) region decodes as lum 0 and
@@ -229,12 +235,12 @@ async function expectCardHairline(card: RenderedElement<Element>, label: string)
         expect(profile.outer, detail).toBeGreaterThan(34);
         expect(profile.outer, detail).toBeLessThan(47);
         expect(profile.outer, detail).toBeGreaterThan(profile.inner + 5);
-        expect(profile.inner, `${detail} (interior not blank)`).toBeGreaterThan(25);
+        expect(profile.inner, `${detail} (interior not blank)`).toBeGreaterThan(23);
         expect(profile.inner, `${detail} (interior not blank)`).toBeLessThan(35);
     }
 
-    // Radius cut: 2 CSS px inside each box corner is ~3px outside the 14px
-    // arc, so the darker window chrome must show through at all four corners.
+    // Radius cut: 2 CSS px inside each box corner remains outside the 8px arc,
+    // so the darker window chrome must show through at all four corners.
     const inset = 2 * DEVICE_SCALE;
     const corners = {
         "bottom-left": pixels.luminance(inset, pixels.height - 1 - inset),
@@ -317,7 +323,8 @@ it("holds the inset main and panel card geometry at the 1024×704 window contrac
         "overflow-x": "hidden",
     });
 
-    // Row composition: title bar, then rail | sidebar | content.
+    // Row composition: title bar, then rail | content. The sidebar lives
+    // inside the main content card beside the workspace.
     expect(view.$('[data-rigged-ui="app-shell-title-bar"]').bounds()).toEqual({
         x: 0,
         y: 0,
@@ -337,16 +344,16 @@ it("holds the inset main and panel card geometry at the 1024×704 window contrac
         height: 666,
     });
     expect(view.$('[data-rigged-ui="app-shell-sidebar"]').bounds()).toEqual({
-        x: 76,
-        y: 38,
+        x: 77,
+        y: 39,
         width: 288,
-        height: 666,
+        height: 656,
     });
 
-    // The content region owns the 8px inset contract: 8px outer edges and an
-    // 8px gap between the two cards.
+    // The content region begins immediately after the rail. Top and left are
+    // flush; right, bottom, and the optional card gap keep the 8px rhythm.
     const content = view.$('[data-rigged-ui="app-shell-content"]');
-    expect(content.bounds()).toEqual({ x: 364, y: 38, width: 660, height: 666 });
+    expect(content.bounds()).toEqual({ x: 76, y: 38, width: 948, height: 666 });
     expect(
         content.computedStyles([
             "column-gap",
@@ -358,44 +365,60 @@ it("holds the inset main and panel card geometry at the 1024×704 window contrac
     ).toEqual({
         "column-gap": "8px",
         "padding-bottom": "8px",
-        "padding-left": "8px",
+        "padding-left": "0px",
         "padding-right": "8px",
-        "padding-top": "8px",
+        "padding-top": "0px",
     });
 
-    // Main card: inset 8px on every side, panel + gap reserved at the right.
+    // Main card: flush to title and rail, containing one contiguous sidebar +
+    // workspace panel; panel, gap, and right/bottom clearance use 8px.
     const main = view.$('[data-testid="shell-full"] [data-rigged-ui="app-shell-main"]');
-    expect(main.bounds()).toEqual({ x: 372, y: 46, width: 296, height: 650 });
-    expect(main.offsets()).toEqual({ top: 8, right: 356, bottom: 8, left: 8 });
-    expect(main.computedStyles(cardStyles)).toEqual(expectedCardStyles);
+    expect(main.bounds()).toEqual({ x: 76, y: 38, width: 592, height: 658 });
+    expect(main.offsets()).toEqual({ top: 0, right: 356, bottom: 8, left: 0 });
+    expect(main.computedStyles(cardStyles)).toEqual(expectedMainCardStyles);
 
-    // Panel card: default 340px wide, same treatment, 8px off the right edge.
+    const workspace = view.$('[data-testid="shell-full"] [data-rigged-ui="app-shell-workspace"]');
+    expect(workspace.bounds()).toEqual({ x: 365, y: 39, width: 302, height: 656 });
+    expect(workspace.bounds().x).toBe(
+        view.$('[data-testid="shell-full"] [data-rigged-ui="app-shell-sidebar"]').bounds().x + 288,
+    );
+
+    // Panel card: default 340px wide, flush to the title row and 8px from the
+    // right/bottom edges.
     const panel = view.$('[data-testid="shell-full"] [data-rigged-ui="app-shell-panel"]');
-    expect(panel.bounds()).toEqual({ x: 676, y: 46, width: 340, height: 650 });
-    expect(panel.offsets()).toEqual({ top: 8, right: 8, bottom: 8, left: 312 });
+    expect(panel.bounds()).toEqual({ x: 676, y: 38, width: 340, height: 658 });
+    expect(panel.offsets()).toEqual({ top: 0, right: 8, bottom: 8, left: 600 });
     expect(panel.computedStyles(cardStyles)).toEqual(expectedCardStyles);
 
-    // Slot content mounts inside the card, clipped past the 1px hairline.
+    // Sidebar and workspace slots touch inside the shared card; panel content
+    // is clipped past its 1px hairline.
+    expect(view.$('[data-testid="full-sidebar"]').bounds()).toEqual({
+        x: 77,
+        y: 39,
+        width: 288,
+        height: 656,
+    });
     expect(view.$('[data-testid="full-main"]').bounds()).toEqual({
-        x: 373,
-        y: 47,
-        width: 294,
-        height: 648,
+        x: 365,
+        y: 39,
+        width: 302,
+        height: 656,
     });
     expect(view.$('[data-testid="full-panel"]').bounds()).toEqual({
         x: 677,
-        y: 47,
+        y: 39,
         width: 338,
-        height: 648,
+        height: 656,
     });
 
-    // Without sidebar and panel the single card takes the full 8px-inset area.
+    // Without sidebar and panel the card remains flush top/left with 8px
+    // right/bottom clearance.
     const bareMain = view.$('[data-testid="shell-bare"] [data-rigged-ui="app-shell-main"]');
     expect(
         view.$('[data-testid="shell-bare"] [data-rigged-ui="app-shell-content"]').bounds(),
     ).toEqual({ x: 76, y: 38, width: 948, height: 666 });
-    expect(bareMain.bounds()).toEqual({ x: 84, y: 46, width: 932, height: 650 });
-    expect(bareMain.offsets()).toEqual({ top: 8, right: 8, bottom: 8, left: 8 });
+    expect(bareMain.bounds()).toEqual({ x: 76, y: 38, width: 940, height: 658 });
+    expect(bareMain.offsets()).toEqual({ top: 0, right: 8, bottom: 8, left: 0 });
 
     // Pixel truth: both whole 1024×704 windows and every chrome slot paint
     // wall to wall, and each card paints its full box with the corner cut
@@ -413,7 +436,7 @@ it("holds the inset main and panel card geometry at the 1024×704 window contrac
     await view.screenshot("AppShell.test");
 });
 
-it("keeps the 8px rhythm at larger windows and honors panelWidth", async () => {
+it("keeps the asymmetric 8px rhythm at larger windows and honors panelWidth", async () => {
     const view = createRenderer().render(
         () => (
             <AppShell
@@ -444,24 +467,24 @@ it("keeps the 8px rhythm at larger windows and honors panelWidth", async () => {
         height: 762,
     });
     expect(view.$('[data-rigged-ui="app-shell-content"]').bounds()).toEqual({
-        x: 364,
+        x: 76,
         y: 38,
-        width: 916,
+        width: 1204,
         height: 762,
     });
 
     // The main card absorbs all extra width; the panel stays at panelWidth.
     const main = view.$('[data-rigged-ui="app-shell-main"]');
-    expect(main.bounds()).toEqual({ x: 372, y: 46, width: 592, height: 746 });
-    expect(main.offsets()).toEqual({ top: 8, right: 316, bottom: 8, left: 8 });
+    expect(main.bounds()).toEqual({ x: 76, y: 38, width: 888, height: 754 });
+    expect(main.offsets()).toEqual({ top: 0, right: 316, bottom: 8, left: 0 });
     expect(main.computedStyles(["flex-grow", "min-width"])).toEqual({
         "flex-grow": "1",
         "min-width": "0px",
     });
 
     const panel = view.$('[data-rigged-ui="app-shell-panel"]');
-    expect(panel.bounds()).toEqual({ x: 972, y: 46, width: 300, height: 746 });
-    expect(panel.offsets()).toEqual({ top: 8, right: 8, bottom: 8, left: 608 });
+    expect(panel.bounds()).toEqual({ x: 972, y: 38, width: 300, height: 754 });
+    expect(panel.offsets()).toEqual({ top: 0, right: 8, bottom: 8, left: 896 });
     expect(panel.computedStyles(["flex-grow", "width"])).toEqual({
         "flex-grow": "0",
         width: "300px",
@@ -506,17 +529,22 @@ it("composes the intermediate slot combinations: sidebar-only and panel-only", a
         );
     await view.ready();
 
-    // Sidebar without panel: one card fills the inset content region.
+    // Sidebar without panel: sidebar and workspace share one inset card.
     const sidebarOnlyRoot = view.$('[data-testid="shell-sidebar-only"]');
     expect(sidebarOnlyRoot.bounds()).toEqual({ x: 0, y: 0, width: 1024, height: 704 });
     expect(
         view.$('[data-testid="shell-sidebar-only"] [data-rigged-ui="app-shell-sidebar"]').bounds(),
-    ).toEqual({ x: 76, y: 38, width: 288, height: 666 });
+    ).toEqual({ x: 77, y: 39, width: 288, height: 656 });
     const sidebarOnlyMain = view.$(
         '[data-testid="shell-sidebar-only"] [data-rigged-ui="app-shell-main"]',
     );
-    expect(sidebarOnlyMain.bounds()).toEqual({ x: 372, y: 46, width: 644, height: 650 });
-    expect(sidebarOnlyMain.offsets()).toEqual({ top: 8, right: 8, bottom: 8, left: 8 });
+    expect(sidebarOnlyMain.bounds()).toEqual({ x: 76, y: 38, width: 940, height: 658 });
+    expect(sidebarOnlyMain.offsets()).toEqual({ top: 0, right: 8, bottom: 8, left: 0 });
+    expect(
+        view
+            .$('[data-testid="shell-sidebar-only"] [data-rigged-ui="app-shell-workspace"]')
+            .bounds(),
+    ).toEqual({ x: 365, y: 39, width: 650, height: 656 });
 
     // Panel without sidebar: the pair of cards docks right after the rail.
     const panelOnlyRoot = view.$('[data-testid="shell-panel-only"]');
@@ -529,10 +557,10 @@ it("composes the intermediate slot combinations: sidebar-only and panel-only", a
     expect(
         view.$('[data-testid="shell-panel-only"] [data-rigged-ui="app-shell-content"]').bounds(),
     ).toEqual({ x: 76, y: 38, width: 948, height: 666 });
-    expect(panelOnlyMain.bounds()).toEqual({ x: 84, y: 46, width: 584, height: 650 });
-    expect(panelOnlyMain.offsets()).toEqual({ top: 8, right: 356, bottom: 8, left: 8 });
-    expect(panelOnlyPanel.bounds()).toEqual({ x: 676, y: 46, width: 340, height: 650 });
-    expect(panelOnlyPanel.offsets()).toEqual({ top: 8, right: 8, bottom: 8, left: 600 });
+    expect(panelOnlyMain.bounds()).toEqual({ x: 76, y: 38, width: 592, height: 658 });
+    expect(panelOnlyMain.offsets()).toEqual({ top: 0, right: 356, bottom: 8, left: 0 });
+    expect(panelOnlyPanel.bounds()).toEqual({ x: 676, y: 38, width: 340, height: 658 });
+    expect(panelOnlyPanel.offsets()).toEqual({ top: 0, right: 8, bottom: 8, left: 600 });
 
     // Pixel truth for the intermediate compositions: whole windows painted,
     // every card box painted with corner cuts and four live hairlines.

@@ -12,8 +12,10 @@ export type AppShellProps = Omit<JSX.HTMLAttributes<HTMLDivElement>, "style"> & 
 
 /*
  * Window composition for the Relay desktop app. Chrome base, title bar row,
- * then rail | optional sidebar | the inset main card (8px inset, 14px radius
- * contract) and an optional right panel card sharing the same 8px rhythm.
+ * then rail | the main card (no top/left inset, 8px right/bottom inset and
+ * native-window radius) and an optional right panel card across an 8px gap.
+ * The optional sidebar lives inside the main card so navigation and workspace
+ * form one continuous content panel.
  */
 export function AppShell(props: AppShellProps) {
     const [local, rest] = splitProps(props, [
@@ -41,14 +43,22 @@ export function AppShell(props: AppShellProps) {
                 <div class="rigged-app-shell__rail" data-rigged-ui="app-shell-rail">
                     {local.rail}
                 </div>
-                <Show when={local.sidebar}>
-                    <div class="rigged-app-shell__sidebar" data-rigged-ui="app-shell-sidebar">
-                        {local.sidebar}
-                    </div>
-                </Show>
                 <div class="rigged-app-shell__content" data-rigged-ui="app-shell-content">
                     <main class="rigged-app-shell__main" data-rigged-ui="app-shell-main">
-                        {local.children}
+                        <Show when={local.sidebar}>
+                            <div
+                                class="rigged-app-shell__sidebar"
+                                data-rigged-ui="app-shell-sidebar"
+                            >
+                                {local.sidebar}
+                            </div>
+                        </Show>
+                        <div
+                            class="rigged-app-shell__workspace"
+                            data-rigged-ui="app-shell-workspace"
+                        >
+                            {local.children}
+                        </div>
                     </main>
                     <Show when={local.panel}>
                         <aside

@@ -19,9 +19,9 @@ export type RailProps = Omit<JSX.HTMLAttributes<HTMLElement>, "style"> & {
 };
 
 /**
- * The 76px feature rail: brand mark on top, icon+label destinations,
- * footer slot (profile avatar) pinned to the bottom. Navigation only —
- * the app shell composes it next to the sidebar and main area.
+ * The 76px feature rail: optional brand slot, icon+label destinations, and a
+ * footer slot (profile avatar) pinned to the bottom. Navigation only — the app
+ * shell composes it next to the main content panel.
  */
 export function Rail(props: RailProps) {
     const [local, rest] = splitProps(props, [
@@ -41,19 +41,11 @@ export function Rail(props: RailProps) {
             data-rigged-ui="rail"
             style={local.style}
         >
-            <div class="rigged-rail__brand" data-rigged-ui="rail-brand">
-                {local.brand ?? (
-                    <span
-                        aria-hidden="true"
-                        class="rigged-rail__brand-mark"
-                        data-rigged-ui="rail-brand-mark"
-                    >
-                        <span class="rigged-rail__brand-glyph" data-rigged-ui="rail-brand-glyph">
-                            R
-                        </span>
-                    </span>
-                )}
-            </div>
+            <Show when={local.brand}>
+                <div class="rigged-rail__brand" data-rigged-ui="rail-brand">
+                    {local.brand}
+                </div>
+            </Show>
             <div class="rigged-rail__items" data-rigged-ui="rail-items">
                 <For each={local.items}>
                     {(item) => (

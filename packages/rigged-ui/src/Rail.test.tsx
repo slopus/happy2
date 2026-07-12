@@ -118,7 +118,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
                 <Rail
                     activeItemId="agents"
                     data-testid="rail-main"
-                    footer={<Avatar initials="SK" online size="sm" tone="mint" />}
+                    footer={<Avatar initials="SK" online size="md" tone="mint" />}
                     items={items}
                     onItemSelect={onItemSelect}
                 />
@@ -126,7 +126,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
                     <Rail
                         activeItemId="agents"
                         data-testid="rail-m"
-                        footer={<Avatar initials="SK" online size="sm" tone="mint" />}
+                        footer={<Avatar initials="SK" online size="md" tone="mint" />}
                         items={items}
                         onItemSelect={() => {}}
                     />
@@ -212,7 +212,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
         "flex-direction": "column",
         "flex-grow": "0",
         "flex-shrink": "0",
-        "padding-bottom": "10px",
+        "padding-bottom": "20px",
         "padding-left": "0px",
         "padding-right": "0px",
         "padding-top": "10px",
@@ -226,51 +226,23 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
         height: 560,
     });
 
-    /* ---- Brand mark ------------------------------------------------------ */
-
-    const mark = view.$('[data-testid="rail-main"] [data-rigged-ui="rail-brand-mark"]');
-    /* Centered in the full 76px lane (no right hairline). */
-    expect(mark.bounds()).toEqual({ x: 21, y: 10, width: 34, height: 34 });
-    expect(mark.computedStyles(["border-radius", "display"])).toEqual({
-        "border-radius": "10px",
-        display: "grid",
-    });
-    expect(mark.computedStyle("background-image")).toContain("linear-gradient");
-
-    const glyph = view.$('[data-testid="rail-main"] [data-rigged-ui="rail-brand-glyph"]');
-    const glyphMetrics = glyph.textMetrics();
-    expect(glyphMetrics.text).toBe("R");
-    expect(glyphMetrics.font.family).toBe("Rigged Figtree, system-ui, sans-serif");
-    expect(glyphMetrics.font.size).toBe(15);
-    expect(glyphMetrics.font.weight).toBe("800");
-    expect(glyph.computedStyle("color")).toBe("rgb(255, 255, 255)");
-
-    /* Optical: the R's alpha-weighted ink centroid sits on the mark center.
-     * Raw drift (full-resolution captures, corrections zeroed) was Blink
-     * (-0.13, -0.53), Gecko (-0.26, +0.46), WebKit (-0.25, -0.56); the
-     * engine-scoped 0.5px translate in rail.css corrects all to <=0.26. */
-    const brandDelta = await anchoredCenter(
-        view,
-        '[data-testid="rail-brand"] [data-rigged-ui="rail-brand-mark"]',
-        '[data-testid="rail-brand"] [data-rigged-ui="rail-brand-glyph"]',
-    );
+    /* No brand is rendered by default. A supplied brand still occupies the
+     * optional centered slot without restoring the removed R mark. */
     expect(
-        Math.abs(brandDelta.dx),
-        `brand optical x (signed ${brandDelta.dx})`,
-    ).toBeLessThanOrEqual(0.75);
+        document.querySelectorAll('[data-testid="rail-main"] [data-rigged-ui="rail-brand"]'),
+    ).toHaveLength(0);
     expect(
-        Math.abs(brandDelta.dy),
-        `brand optical y (signed ${brandDelta.dy})`,
-    ).toBeLessThanOrEqual(0.75);
-
-    /* Custom brand replaces the default mark. */
+        document.querySelectorAll('[data-testid="rail-brand"] [data-rigged-ui="rail-brand"]'),
+    ).toHaveLength(0);
     expect(view.$('[data-testid="rail-custom"] [data-testid="custom-brand"]').bounds().width).toBe(
         34,
     );
-    expect(
-        document.querySelectorAll('[data-testid="rail-custom"] [data-rigged-ui="rail-brand-mark"]')
-            .length,
-    ).toBe(0);
+    expect(view.$('[data-testid="rail-custom"] [data-testid="custom-brand"]').bounds()).toEqual({
+        x: 21,
+        y: 10,
+        width: 34,
+        height: 34,
+    });
 
     /* ---- Items: 60×52 buttons on the 4px rhythm -------------------------- */
 
@@ -279,9 +251,9 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     const active = view.$('[data-testid="rail-main"] [data-item-id="agents"]');
 
     expect(inbox.element.tagName).toBe("BUTTON");
-    /* brand 10+34 + 12 margin → items start at y 56; 52 tall, 4px gap. */
-    expect(inbox.bounds()).toEqual({ x: 8, y: 56, width: 60, height: 52 });
-    expect(chat.bounds()).toEqual({ x: 8, y: 112, width: 60, height: 52 });
+    /* With no default brand, items start at the 10px top inset. */
+    expect(inbox.bounds()).toEqual({ x: 8, y: 10, width: 60, height: 52 });
+    expect(chat.bounds()).toEqual({ x: 8, y: 66, width: 60, height: 52 });
     expect(
         inbox.computedStyles([
             "background-color",
@@ -415,7 +387,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
 
     /* ---- Unread badge overlapping the icon top-right ----------------------- */
 
-    /* The badge anchors 13px right and 7px up from the icon box for every
+    /* The badge anchors 13px right and 6px up from the icon box for every
      * digit count; the pill keeps its 18px height and grows rightward only. */
     const badgeWidths: number[] = [];
     for (const [itemId, text] of [
@@ -464,11 +436,13 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
 
     const footer = view.$('[data-testid="rail-main"] [data-rigged-ui="rail-footer"]');
     const footerBounds = footer.bounds();
-    expect(footerBounds.y + footerBounds.height).toBe(420 - 10);
+    expect(footerBounds.y + footerBounds.height).toBe(420 - 20);
     const footerAvatar = view.$('[data-testid="rail-main"] [data-rigged-ui="avatar"]');
-    expect(footerAvatar.bounds().width).toBe(28);
-    /* Centered in the full 76px lane. */
-    expect(footerAvatar.bounds().x).toBe(24);
+    expect(footerAvatar.bounds().width).toBe(36);
+    const avatarBounds = footerAvatar.bounds();
+    expect(avatarBounds.x).toBe(20);
+    expect(76 - avatarBounds.x - avatarBounds.width).toBe(20);
+    expect(420 - avatarBounds.y - avatarBounds.height).toBe(20);
     const footerVisible = await footerAvatar.visibleMetrics();
     expect(footerVisible.pixelCount).toBeGreaterThan(0);
     expect(

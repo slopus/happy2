@@ -18,7 +18,7 @@ function Slot(props: { height?: string; label: string; note?: string; width?: st
                 color: "var(--rg-text-faint)",
                 display: "flex",
                 "flex-direction": "column",
-                gap: "4px",
+                gap: "8px",
                 height: props.height ?? "100%",
                 "justify-content": "center",
                 margin: "6px",
@@ -67,11 +67,11 @@ export function AppShellPage() {
     return (
         <ComponentPage
             number="C-010"
-            summary="Window composition: chrome base, 38px title bar row, rail | sidebar | inset main card (8px inset, 14px radius) with an optional right panel card on the same 8px rhythm."
+            summary="Window composition: chrome base, 38px title bar row, rail | main card with no top/left inset, an 8px right/bottom inset, and a macOS-matched 8px radius."
             title="AppShell"
         >
             <Specimen
-                detail="rail 76px · sidebar 288px · main card inset 8px, radius 14px, hairline · panel 340px docked right, 8px gap"
+                detail="rail 76px · no top/left inset · 8px right/bottom + panel gap · radius 8px · sidebar + workspace share the card"
                 label="Full composition with panel"
                 number="01"
                 stage="chrome"
@@ -89,14 +89,14 @@ export function AppShellPage() {
             </Specimen>
 
             <Specimen
-                detail="no panel — the main card absorbs the full width and keeps the 8px inset on every edge"
+                detail="no panel — sidebar and workspace share one card, flush to rail/title with 8px right/bottom clearance"
                 label="Rail + sidebar, no panel"
                 number="02"
                 stage="chrome"
             >
                 {window1024(
                     <AppShell rail={railSlot()} sidebar={sidebarSlot()} titleBar={titleBarSlot()}>
-                        <Slot label="children" note="main 644px wide at 1024px window" />
+                        <Slot label="children" note="workspace beside the 288px sidebar" />
                     </AppShell>,
                 )}
             </Specimen>

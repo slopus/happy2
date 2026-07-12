@@ -23,11 +23,11 @@ export function RailPage() {
     return (
         <ComponentPage
             number="C-008"
-            summary="The 76px feature rail: brand mark, icon+label destinations with unread badges, and a footer slot pinned to the bottom. The app shell composes it left of the sidebar."
+            summary="The 76px feature rail: icon+label destinations with unread badges, an optional brand slot, and a footer avatar with equal side/bottom clearance."
             title="Rail"
         >
             <Specimen
-                detail="76px wide · full height · chrome bg · right hairline · padding 10px 0"
+                detail="76px wide · transparent chrome · 10px top / 20px bottom padding"
                 label="Rail — full geometry"
                 number="01"
                 stage="chrome"
@@ -50,10 +50,9 @@ export function RailPage() {
                         }}
                     >
                         <DimensionRule label="76 px wide" />
-                        <DimensionRule label="brand 34 px · radius 10" />
                         <DimensionRule label="items 60 × 52 · radius 8" />
                         <DimensionRule label="icon 20 px + label 10/700" />
-                        <DimensionRule label="footer pinned · 10 px inset" />
+                        <DimensionRule label="footer avatar · 20 px left / right / bottom" />
                     </div>
                 </div>
             </Specimen>
@@ -94,7 +93,7 @@ export function RailPage() {
             </Specimen>
 
             <Specimen
-                detail="brand slot replaces the default R mark · footer slot holds the profile avatar"
+                detail="optional brand slot appears only when supplied · footer slot holds the profile avatar"
                 label="Slots"
                 number="03"
                 stage="chrome"

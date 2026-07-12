@@ -33,6 +33,21 @@ describe("App", () => {
         expect(getByText("Device farm verification")).toBeTruthy();
     });
 
+    it("keeps chat navigation and conversation in one content panel", () => {
+        const { container, queryByRole } = render(() => <App />);
+
+        const main = container.querySelector('[data-rigged-ui="app-shell-main"]');
+        const sidebar = container.querySelector('[data-rigged-ui="app-shell-sidebar"]');
+        const workspace = container.querySelector('[data-rigged-ui="app-shell-workspace"]');
+
+        expect(sidebar?.parentElement).toBe(main);
+        expect(workspace?.parentElement).toBe(main);
+        expect(sidebar?.nextElementSibling).toBe(workspace);
+        expect(container.querySelector('[data-rigged-ui="rail-brand"]')).toBeNull();
+        expect(queryByRole("button", { name: "History" })).toBeNull();
+        expect(queryByRole("button", { name: "Settings" })).toBeNull();
+    });
+
     it("only renders window controls for the desktop host", () => {
         const web = render(() => <App platform="web" />);
         expect(web.container.querySelector('[data-rigged-ui="title-bar-controls"]')).toBeNull();

@@ -46,15 +46,15 @@ only source of color and typography in the system. Components must consume
 
 Core values (see `theme.css` for the full set):
 
-| Token group | Values                                                                               |
-| ----------- | ------------------------------------------------------------------------------------ |
-| Surfaces    | chrome `#131217`, app `#17161c`, surface `#1c1b22`, raised `#24222b`, code `#141319` |
-| Hairlines   | `rgb(255 255 255 / 0.07)`, strong `rgb(255 255 255 / 0.13)`                          |
-| Text        | `#edeaf2`, secondary `#a5a0b0`, muted `#757085`, faint `#55515f`                     |
-| Accent      | violet `#8b7cf7`, strong `#a89bff`, brand gradient violet→pink `#f472b6`             |
-| Semantics   | success mint `#34d399`, warning amber `#fbbf24`, danger `#f87171`, info `#60a5fa`    |
-| Type        | UI "Rigged Figtree" (Figtree variable), code "Rigged Mono" (JetBrains Mono variable) |
-| Radii       | controls 6 px, cards 10 px, content shell 14 px, pills 999                           |
+| Token group | Values                                                                                |
+| ----------- | ------------------------------------------------------------------------------------- |
+| Surfaces    | chrome `#131217`, app `#17161c`, surface `#1c1b22`, raised `#24222b`, code `#141319`  |
+| Hairlines   | `rgb(255 255 255 / 0.07)`, strong `rgb(255 255 255 / 0.13)`                           |
+| Text        | `#edeaf2`, secondary `#a5a0b0`, muted `#757085`, faint `#55515f`                      |
+| Accent      | violet `#8b7cf7`, strong `#a89bff`, brand gradient violet→pink `#f472b6`              |
+| Semantics   | success mint `#34d399`, warning amber `#fbbf24`, danger `#f87171`, info `#60a5fa`     |
+| Type        | UI "Rigged Figtree" (Figtree variable), code "Rigged Mono" (JetBrains Mono variable)  |
+| Radii       | controls 6 px, macOS-matched content 8 px, cards 10 px, large shells 14 px, pills 999 |
 
 Text colors are solid (not alpha) so rendering tests can assert exact `rgb()`
 values in every engine. Identity colors for avatars come from the named
@@ -73,19 +73,19 @@ should make declared dimensions easy to inspect.
 
 Current reference dimensions are:
 
-| Element                   | Reference dimension       |
-| ------------------------- | ------------------------- |
-| Minimum app window        | 1024 × 704 px             |
-| App title/navigation row  | 38 px high                |
-| Feature rail              | 76 px wide                |
-| Standard sidebar          | 288 px wide               |
-| Main content shell inset  | 8 px                      |
-| Main content shell radius | 14 px                     |
-| Small button              | 28 px high                |
-| Medium button             | 36 px high                |
-| Large button              | 44 px high                |
-| Blueprint toolbar         | 42 px high                |
-| Blueprint specimen grid   | 16 px minor / 80 px major |
+| Element                   | Reference dimension            |
+| ------------------------- | ------------------------------ |
+| Minimum app window        | 1024 × 704 px                  |
+| App title/navigation row  | 38 px high                     |
+| Feature rail              | 76 px wide                     |
+| Standard sidebar          | 288 px wide                    |
+| Main content shell inset  | 0 top/left · 8 px right/bottom |
+| Main content shell radius | 8 px (macOS window match)      |
+| Small button              | 28 px high                     |
+| Medium button             | 36 px high                     |
+| Large button              | 44 px high                     |
+| Blueprint toolbar         | 42 px high                     |
+| Blueprint specimen grid   | 16 px minor / 80 px major      |
 
 These are defaults and existing contracts, not permission to make every layout
 fixed-size. Components may accept explicit numeric or percentage dimensions

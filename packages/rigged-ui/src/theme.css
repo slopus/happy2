@@ -27,7 +27,7 @@
 
 :root {
     /* Surfaces */
-    --rg-bg-chrome: #131217; /* window chrome: title bar, rail, sidebar */
+    --rg-bg-chrome: #131217; /* window chrome: title bar and rail */
     --rg-bg-app: #17161c; /* main content shell base */
     --rg-bg-surface: #1c1b22; /* cards and panels on the app base */
     --rg-bg-raised: #24222b; /* raised card, popover, active surface */
@@ -96,6 +96,7 @@
     /* Radii */
     --rg-radius-sm: 6px;
     --rg-radius-md: 10px;
+    --rg-radius-window: 8px; /* matches the native macOS window corner */
     --rg-radius-shell: 14px; /* main content shell contract */
     --rg-radius-pill: 999px;
 

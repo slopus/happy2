@@ -1,5 +1,5 @@
 import { createSignal, Match, Show, Switch, type JSX } from "solid-js";
-import { AppShell, Avatar, Button, Rail, TitleBar } from "rigged-ui";
+import { AppShell, Avatar, Rail, TitleBar } from "rigged-ui";
 import { AuthGate, type AuthSession } from "./components/AuthGate";
 import {
     adminUsers,
@@ -74,24 +74,6 @@ function Shell(props: AppProps & { session?: AuthSession }) {
             searchPlaceholder="Search Rigged…"
             searchValue={search()}
             showWindowControls={props.platform === "desktop"}
-            trailing={
-                <>
-                    <Button
-                        aria-label="History"
-                        icon="clock"
-                        iconOnly
-                        size="small"
-                        variant="ghost"
-                    />
-                    <Button
-                        aria-label="Settings"
-                        icon="settings"
-                        iconOnly
-                        size="small"
-                        variant="ghost"
-                    />
-                </>
-            }
         />
     );
 

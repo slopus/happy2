@@ -2,10 +2,10 @@
  * AppShell — Relay window composition.
  *
  * Chrome-colored base filling the window (1024×704 minimum contract).
- * Column: title bar row, then a body row of rail | optional sidebar |
- * content. The content region carries the 8px inset contract: the main
- * workspace renders as a 14px-radius hairline card on --rg-bg-app, and the
- * optional right panel docks as a second card on the same 8px rhythm.
+ * Column: title bar row, then a body row of rail | content. The content region
+ * carries an 8px right/bottom inset with no top/left inset. Its main 8px-radius
+ * card owns the optional sidebar and workspace as one continuous panel; the
+ * optional right panel docks beside it across an 8px gap.
  */
 
 .rigged-app-shell {
@@ -37,7 +37,39 @@
     min-height: 0;
 }
 
-.rigged-app-shell__rail,
+.rigged-app-shell__rail {
+    box-sizing: border-box;
+    display: flex;
+    align-items: stretch;
+    flex: none;
+    min-height: 0;
+}
+
+/* No extra space against the title row or rail. The outer right/bottom edges
+ * and optional panel gap retain the 8px shell rhythm. */
+.rigged-app-shell__content {
+    box-sizing: border-box;
+    display: flex;
+    flex: 1 1 0%;
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+    padding: 0 8px 8px 0;
+}
+
+.rigged-app-shell__main {
+    box-sizing: border-box;
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: row;
+    min-width: 0;
+    min-height: 0;
+    background: var(--rg-bg-app);
+    border: 1px solid var(--rg-border);
+    border-radius: var(--rg-radius-window);
+    overflow: hidden;
+}
+
 .rigged-app-shell__sidebar {
     box-sizing: border-box;
     display: flex;
@@ -46,28 +78,13 @@
     min-height: 0;
 }
 
-/* 8px inset contract: outer edges and the card gap share one rhythm. */
-.rigged-app-shell__content {
-    box-sizing: border-box;
-    display: flex;
-    flex: 1 1 0%;
-    gap: 8px;
-    min-width: 0;
-    min-height: 0;
-    padding: 8px;
-}
-
-.rigged-app-shell__main {
+.rigged-app-shell__workspace {
     box-sizing: border-box;
     display: flex;
     flex: 1 1 0%;
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    background: var(--rg-bg-app);
-    border: 1px solid var(--rg-border);
-    border-radius: var(--rg-radius-shell);
-    overflow: hidden;
 }
 
 .rigged-app-shell__panel {
@@ -78,6 +95,6 @@
     min-height: 0;
     background: var(--rg-bg-app);
     border: 1px solid var(--rg-border);
-    border-radius: var(--rg-radius-shell);
+    border-radius: var(--rg-radius-window);
     overflow: hidden;
 }
