@@ -20,8 +20,8 @@ server or as a separately deployed authentication service. Its behavior is
 configured from a TOML file; do not add deployment-specific switches to code.
 
 - Keep `/` deliberately minimal. Versioned, useful HTTP APIs live under `/v0`.
-- Authentication mechanisms are independently enabled in TOML: OIDC, password,
-  and email magic links. SMTP credentials always come from environment
+- Exactly one authentication mechanism is enabled in TOML at a time: OIDC,
+  password, or email magic links. SMTP credentials always come from environment
   variables, never the TOML file.
 - Session JWTs are RS256 signed and intentionally long lived, but they are not
   self-validating authority. Every authenticated request must confirm that the

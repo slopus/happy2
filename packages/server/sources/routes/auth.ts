@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { ServerConfig } from "../modules/config/type.js";
+import { supportedAuthMethods } from "../modules/auth/methods.js";
 import { AuthService } from "../modules/auth/service.js";
 
 export function registerAuthRoutes(
@@ -7,6 +8,7 @@ export function registerAuthRoutes(
     config: ServerConfig,
     auth: AuthService,
 ): void {
+    app.get("/v0/auth/methods", async () => supportedAuthMethods(config));
     app.get("/v0/auth/session", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return reply.code(401).send({ error: "unauthorized" });

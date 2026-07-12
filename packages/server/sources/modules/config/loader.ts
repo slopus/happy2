@@ -77,10 +77,22 @@ export function parseConfig(input: string): ServerConfig {
         });
     }
 
+    if (oidc.size > 1) {
+        throw new Error("only one OIDC provider can be enabled at a time");
+    }
+
     const magicEnabled = boolean(magicLink.enabled, "auth.magic_link.enabled");
     const magicRedirectUrl = string(magicLink.redirect_url, "auth.magic_link.redirect_url", true);
     if (magicEnabled && !magicRedirectUrl)
         throw new Error("auth.magic_link.redirect_url is required when magic links are enabled");
+    const enabledMethods = [
+        boolean(password.enabled, "auth.password.enabled"),
+        magicEnabled,
+        oidc.size > 0,
+    ].filter(Boolean).length;
+    if (enabledMethods > 1) {
+        throw new Error("only one authentication method can be enabled at a time");
+    }
     return {
         server: {
             role,

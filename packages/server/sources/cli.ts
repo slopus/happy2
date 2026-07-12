@@ -1,15 +1,19 @@
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { TokenService } from "./modules/auth/tokens.js";
+import { defaultConfig } from "./modules/config/defaults.js";
 import { initializeManagedEnvironment } from "./modules/config/environment.js";
 import { loadConfig } from "./modules/config/loader.js";
 import { Database } from "./modules/database.js";
 import { buildServer } from "./server.js";
 
 const { values } = parseArgs({
-    options: { config: { type: "string", default: process.env.RIGGED_CONFIG ?? "rigged.toml" } },
+    options: { config: { type: "string" } },
 });
-const config = await loadConfig(values.config!);
-await initializeManagedEnvironment(values.config!, config);
+const configPath = values.config ?? process.env.RIGGED_CONFIG;
+const config = configPath ? await loadConfig(configPath) : defaultConfig();
+// In configless mode the current working directory owns the generated .env.
+await initializeManagedEnvironment(configPath ?? join(process.cwd(), "rigged.toml"), config);
 const database = new Database(
     config.database.url,
     config.database.authTokenEnv ? process.env[config.database.authTokenEnv] : undefined,

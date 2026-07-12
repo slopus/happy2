@@ -8,7 +8,7 @@ versioned under `/v0`; `/` is only a small service-status response.
 ## Run
 
 ```sh
-# Development, with reload:
+# Development, with reload and no configuration file:
 pnpm dev:server
 
 # Production package:
@@ -16,6 +16,16 @@ cp packages/server/rigged.example.toml rigged.toml
 pnpm --filter @slopus/rigged build
 pnpm --filter @slopus/rigged start -- --config ../../rigged.toml
 ```
+
+Without a TOML file, development starts an `all`-role server on
+`127.0.0.1:3000` with SQLite, self-service password registration, and local
+JWT/pepper generation. Provide a custom TOML with `--config /path/to/rigged.toml`
+or `RIGGED_CONFIG=/path/to/rigged.toml` to override those defaults.
+
+Clients can discover the selected issuance method at `GET /v0/auth/methods`.
+The response includes the server role and one `method` value: `password`,
+`magic_link`, `oidc`, or `null` in validation-only API mode. Password responses
+also report `signupEnabled`; OIDC responses report `oidcProvider`.
 
 The server applies the bundled Drizzle SQLite migrations at startup. `file:`
 database URLs are suitable when all replicas share one local filesystem with
@@ -35,7 +45,9 @@ material, because the adjacent `.env` file is the durable key store.
 
 ## Authentication
 
-Enable password, magic-link, and OIDC independently in `rigged.toml`.
+Choose exactly one of password, magic-link, or OIDC in `rigged.toml`; startup
+rejects configurations that enable more than one method. Clients can learn the
+selected method from `GET /v0/auth/methods`.
 
 - Password registration is disabled unless `signup_enabled` is true. Every
   password has its own random salt; a server-wide password pepper is also used.

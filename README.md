@@ -34,12 +34,13 @@ pnpm check              # Type-check, test, and build every package
 plus main process to `packages/desktop/dist`. Start the latter after building
 with `pnpm --filter @rigged/desktop start`.
 
-Start a local server with `pnpm dev:server`. It uses the included development
-TOML configuration, creates its SQLite database under `packages/server`, and
-generates durable local keys in `packages/server/.env` on its first start. Copy
-`packages/server/rigged.example.toml` before production deployment and adjust
-the host, public URL, database, and key configuration. See the server package
-README for deployment and auth configuration.
+Start a local server with `pnpm dev:server`. Without a TOML file it enables
+self-service password registration and login, creates its SQLite database under
+`packages/server`, and generates durable local JWT keys plus password pepper in
+`packages/server/.env` on first start. Pass `--config path/to/rigged.toml` (or
+set `RIGGED_CONFIG`) to override the defaults; copy the example TOML before
+production deployment. See the server package README for deployment and auth
+configuration.
 
 ## Working convention
 
