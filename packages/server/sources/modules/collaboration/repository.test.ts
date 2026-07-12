@@ -179,6 +179,68 @@ describe("CollaborationRepository", () => {
         expect(deleted.message).toMatchObject({ text: "", deletedAt: expect.any(String) });
     });
 
+    it("publishes durable receipts and triggers after-read expiry", async () => {
+        const channel = await repository.createChannel({
+            actorUserId: ada.id,
+            kind: "public_channel",
+            name: "Read state",
+            slug: "read-state",
+        });
+        await repository.joinPublicChannel(grace.id, channel.chat.id);
+        const sent = await repository.sendAutomatedMessage({
+            actorUserId: ada.id,
+            chatId: channel.chat.id,
+            text: "This expires after it is read",
+            clientMutationId: "automated-after-read",
+        });
+        const configured = await repository.sendMessage({
+            actorUserId: ada.id,
+            chatId: channel.chat.id,
+            text: "Read once",
+            expiryMode: "after_read",
+            selfDestructSeconds: 60,
+        });
+        expect(sent.message.receipts).toEqual([
+            expect.objectContaining({ userId: grace.id, deliveredAt: expect.any(String) }),
+        ]);
+        const beforeReadPts = Number(configured.hint.chats[0]!.pts);
+        const read = await repository.markChatRead({
+            actorUserId: grace.id,
+            chatId: channel.chat.id,
+            messageId: configured.message.id,
+        });
+        expect(read.hint.chats).toEqual([expect.objectContaining({ chatId: channel.chat.id })]);
+        const projected = await repository.getMessage(ada.id, configured.message.id);
+        expect(projected).toMatchObject({
+            firstReadAt: expect.any(String),
+            expiresAt: expect.any(String),
+            receipts: [
+                expect.objectContaining({
+                    userId: grace.id,
+                    readAt: expect.any(String),
+                }),
+            ],
+        });
+        const difference = await repository.getChatDifference({
+            userId: ada.id,
+            chatId: channel.chat.id,
+            membershipEpoch: (await repository.getChat(ada.id, channel.chat.id)).membershipEpoch,
+            fromPts: beforeReadPts,
+            limit: 20,
+        });
+        expect(difference.updates).toContainEqual(
+            expect.objectContaining({
+                kind: "receipt.read",
+                entityId: configured.message.id,
+            }),
+        );
+        expect(difference.messages[0]?.receipts).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ userId: grace.id, readAt: expect.any(String) }),
+            ]),
+        );
+    });
+
     it("derives forwarded-file access from every live destination attachment", async () => {
         const privateChannel = await repository.createChannel({
             actorUserId: ada.id,
@@ -255,7 +317,7 @@ describe("CollaborationRepository", () => {
         expect(privateSearch).toEqual([]);
     });
 
-    it("reports a removed private chat to the removed member", async () => {
+    it("syncs membership changes to both remaining and removed members", async () => {
         const channel = await repository.createChannel({
             actorUserId: ada.id,
             kind: "private_channel",
@@ -280,6 +342,13 @@ describe("CollaborationRepository", () => {
             limit: 100,
         });
         expect(difference.removedChatIds).toEqual([channel.chat.id]);
+        const remainingDifference = await repository.getDifference({
+            userId: ada.id,
+            generation: beforeRemoval.generation,
+            fromSequence: Number(beforeRemoval.sequence),
+            limit: 100,
+        });
+        expect(remainingDifference.changedChats.map((chat) => chat.id)).toContain(channel.chat.id);
         await expect(repository.getChat(grace.id, channel.chat.id)).rejects.toBeInstanceOf(
             CollaborationError,
         );
@@ -296,7 +365,16 @@ describe("CollaborationRepository", () => {
             actorUserId: ada.id,
             chatId: channel.chat.id,
             text: "This message expires",
-            expiresAt: new Date(Date.now() - 1_000).toISOString(),
+            expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        });
+        await repository.editMessage({
+            actorUserId: ada.id,
+            messageId: sent.message.id,
+            text: "This edited message expires",
+        });
+        await database.extensionClient().execute({
+            sql: `UPDATE messages SET expires_at = datetime('now', '-1 second') WHERE id = ?`,
+            args: [sent.message.id],
         });
         const hint = await repository.expireDueMessages();
         expect(hint?.chats[0]?.chatId).toBe(channel.chat.id);
@@ -311,6 +389,142 @@ describe("CollaborationRepository", () => {
             limit: 100,
         });
         expect(difference.updates.map((update) => update.kind)).toContain("message.expired");
+        await expect(
+            repository.listMessageRevisions(ada.id, sent.message.id),
+        ).rejects.toMatchObject({ code: "not_found" });
+        const revisions = await database.extensionClient().execute({
+            sql: `SELECT count(*) AS count FROM message_revisions WHERE message_id = ?`,
+            args: [sent.message.id],
+        });
+        expect(Number(revisions.rows[0]?.count)).toBe(0);
+    });
+
+    it("keeps access telemetry admin-only and prevents custom emoji file promotion by readers", async () => {
+        const contacts = await repository.listContacts();
+        expect(contacts.find((user) => user.id === grace.id)).not.toHaveProperty("lastAccessAt");
+        const admins = await repository.listAdminUsers(ada.id);
+        expect(admins.find((user) => user.id === grace.id)).toHaveProperty("lastAccessAt");
+
+        const channel = await repository.createChannel({
+            actorUserId: ada.id,
+            kind: "private_channel",
+            name: "Emoji Source",
+            slug: "emoji-source",
+        });
+        await repository.addChannelMember({
+            actorUserId: ada.id,
+            chatId: channel.chat.id,
+            userId: grace.id,
+        });
+        const file: StoredFile = {
+            id: "private-emoji-image",
+            userId: ada.id,
+            uploadedByUserId: ada.id,
+            isPublic: false,
+            storageName: "private-emoji-image.gif",
+            contentType: "image/gif",
+            size: 43,
+            width: 16,
+            height: 16,
+            thumbhash: "",
+            kind: "gif",
+            originalName: "secret.gif",
+        };
+        await database.createFile(file);
+        await repository.sendMessage({
+            actorUserId: ada.id,
+            chatId: channel.chat.id,
+            text: "source",
+            attachmentFileIds: [file.id],
+        });
+        await expect(
+            repository.createCustomEmoji({
+                actorUserId: grace.id,
+                name: "not_mine",
+                fileId: file.id,
+            }),
+        ).rejects.toMatchObject({ code: "not_found" });
+
+        const emoji = await repository.createCustomEmoji({
+            actorUserId: ada.id,
+            name: "owned",
+            fileId: file.id,
+        });
+        const message = await repository.sendMessage({
+            actorUserId: ada.id,
+            chatId: channel.chat.id,
+            text: "react here",
+        });
+        await repository.setReaction({
+            actorUserId: grace.id,
+            messageId: message.message.id,
+            customEmojiId: emoji.emoji.id,
+            active: true,
+        });
+        const deletion = await repository.deleteCustomEmoji(ada.id, emoji.emoji.id);
+        expect(deletion.hint.chats.map(({ chatId }) => chatId)).toContain(channel.chat.id);
+        expect((await repository.getMessage(ada.id, message.message.id)).reactions).toEqual([]);
+    });
+
+    it("transfers ownership when an owner is deleted and lets server admins recover channels", async () => {
+        const channel = await repository.createChannel({
+            actorUserId: grace.id,
+            kind: "private_channel",
+            name: "Owned by Grace",
+            slug: "owned-by-grace",
+        });
+        await repository.addChannelMember({
+            actorUserId: grace.id,
+            chatId: channel.chat.id,
+            userId: linus.id,
+        });
+
+        await repository.deleteUser({ actorUserId: ada.id, userId: grace.id });
+        expect((await repository.getChat(linus.id, channel.chat.id)).membershipRole).toBe("owner");
+        const updated = await repository.updateTopic(ada.id, channel.chat.id, "Recovered by admin");
+        expect(updated.chat.topic).toBe("Recovered by admin");
+    });
+
+    it("compacts acknowledged sync history and makes stale cursors reset explicitly", async () => {
+        const baseline = await repository.getState();
+        const channel = await repository.createChannel({
+            actorUserId: ada.id,
+            kind: "public_channel",
+            name: "Compaction",
+            slug: "compaction",
+        });
+        await repository.sendMessage({
+            actorUserId: ada.id,
+            chatId: channel.chat.id,
+            text: "old durable event",
+        });
+        const current = await repository.getState();
+        await repository.acknowledgeSyncConsumer({
+            userId: ada.id,
+            deviceId: "desktop-test",
+            generation: current.generation,
+            sequence: Number(current.sequence),
+        });
+        await database
+            .extensionClient()
+            .batch(
+                [
+                    "UPDATE server_settings SET sync_event_retention_seconds = 1, chat_update_retention_seconds = 1",
+                    "UPDATE sync_events SET created_at = datetime('now', '-2 days')",
+                    "UPDATE chat_updates SET created_at = datetime('now', '-2 days')",
+                ],
+                "write",
+            );
+        const compacted = await repository.compactSync();
+        expect(Number(compacted.minRecoverableSequence)).toBeGreaterThan(Number(baseline.sequence));
+        expect(compacted.eventsDeleted).toBeGreaterThan(0);
+        const difference = await repository.getDifference({
+            userId: ada.id,
+            generation: baseline.generation,
+            fromSequence: Number(baseline.sequence),
+            limit: 100,
+        });
+        expect(difference).toMatchObject({ kind: "reset", areas: ["all"] });
     });
 });
 

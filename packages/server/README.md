@@ -102,43 +102,62 @@ serve collaboration routes; `all` and `api` roles do.
 
 The main route groups are:
 
-| Area                | Routes                                                                                                                                                                                                           |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Chats               | `GET /v0/chats`, `GET /v0/chats/:chatId`, `POST /v0/chats/createDirectMessage`, `POST /v0/chats/createChannel`                                                                                                   |
-| Membership          | `POST /v0/chats/:chatId/join`, `leave`, `addMember`, and `removeMember`                                                                                                                                          |
-| Messages            | `GET /v0/chats/:chatId/messages`, `POST /v0/chats/:chatId/sendMessage`, `POST /v0/messages/:messageId/deleteMessage` and `forwardMessage`                                                                        |
-| Replies and threads | `quotedMessageId` on a normal send creates an explicit quoted reply in the main chat; `POST /v0/messages/:messageId/sendThreadMessage` and `GET /v0/messages/:messageId/thread` use the separate thread timeline |
-| Reactions and emoji | `POST /v0/messages/:messageId/addReaction` / `removeReaction`; `GET /v0/customEmoji`, `POST /v0/customEmoji/createCustomEmoji`, and `deleteCustomEmoji`                                                          |
-| Discovery           | `GET /v0/contacts`, `/v0/directory`, `/v0/directory/users`, `/v0/directory/channels`, and `/v0/search?q=...`                                                                                                     |
-| Preferences         | `POST /v0/chats/:chatId/setStar` and `POST /v0/chats/reorderStarred`                                                                                                                                             |
-| Files               | `POST /v0/files/upload`, `GET /v0/files`, `GET /v0/files/:fileId`, and `POST /v0/files/:fileId/createSignedUrl`                                                                                                  |
-| Admin               | `GET /v0/admin/users`, user ban/unban/delete/update actions, `POST /v0/admin/updateServer`, and `POST /v0/admin/sendAutomatedMessage`                                                                            |
-| Realtime            | `GET /v0/sync/events`, typing/presence POSTs, and `POST /v0/calls/:callId/sendSignal`                                                                                                                            |
+| Area                  | Route families                                                                                                                            |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Chats                 | `/v0/chats`, `createDirectMessage`, `createGroupDirectMessage`, `createChannel`, and channel update/archive/unarchive/delete actions      |
+| Membership and policy | chat join/leave/add/remove/set-role actions, member lists, posting policy, retention policy, topic, and owner transfer                    |
+| Messages              | history and message reads; send/edit/delete/forward actions; revision history; read receipts and unread state                             |
+| Replies and threads   | `quotedMessageId` creates an explicit reply in the main timeline; thread send/list/subscription/read actions maintain a separate timeline |
+| Message organization  | reactions, custom emoji, pins, chat and user bookmarks, scheduled messages, notifications, stars, and per-user ordering                   |
+| Discovery             | contacts, directories, files, thread inbox, calls, and fuzzy global search across visible users, channels, and messages                   |
+| Files                 | streaming and resumable uploads, upload state/cancel/complete, ranged downloads, image/video previews, deletion, and signed URLs          |
+| Presence and calls    | durable user status/DND preferences, ephemeral presence and typing, call lifecycle, and ephemeral WebRTC signaling                        |
+| Sync                  | state, paginated server/chat differences, consumer acknowledgement, compaction/reset, and SSE hints                                       |
+| Operations            | audit logs, access telemetry, bans, reports/actions, data-export jobs, backup records, retention runs, and server/user administration     |
+| Integrations          | bots, scoped API credentials, credential-authenticated posting, incoming/outgoing webhooks, slash commands, and delivery queues           |
+| Automation            | scheduled messages plus schedule, durable event, authenticated webhook, outgoing-webhook, bot-message, and moderation automations         |
 
-Channels are `public_channel` or `private_channel`; DMs have exactly two fixed
-members. Public channels can be discovered and read by every active server
-member, but posting requires joining. Private channels and DMs require current
-membership. The first active profile is a server administrator. Administrators
-can change the server profile and user titles/roles, inspect durable last-access
-times, revoke all sessions by banning a user, soft-delete and anonymize users,
-and send audited automated messages.
+Channels are `public_channel` or `private_channel`. Direct chats support both
+exact two-user DMs and membership-exact group DMs. Public channels can be
+discovered and read by every active server member, but posting requires joining.
+Private channels and DMs require current membership. Channel owners remain
+canonical through leave, removal, role changes, and account deletion. The first
+active profile is a server administrator. Administrators can change the server
+profile and retention defaults, manage user titles/roles, inspect durable
+last-access times, ban or delete users, moderate content and files, and send
+audited automated messages.
 
 `POST /v0/files/upload` streams one file to storage and returns a stable CUID2
-file ID. JPEG, PNG, WebP, GIF, MP4, and WebM signatures are recognized; other
-uploads are safe opaque files. Image dimensions and ThumbHash are recorded when
-available. File downloads support byte ranges for video playback. A file is
-visible to its uploader, as a public profile image, or through at least one live
-message the requester can currently read. Forwarding creates another attachment
-reference in the destination chat, so it grants destination members access
-without changing the file to globally public. Deleting/expiring the last visible
-message reference removes that derived access. The files directory uses the same
-query and therefore cannot leak private-channel or DM attachments.
+file ID. Large clients use `createUpload`, ordered `appendUpload` calls, and
+`completeUpload`; completion is replay-safe across a process crash. JPEG, PNG,
+WebP, GIF, MP4, and WebM signatures are recognized, metadata is probed with
+bounded work, previews/posters are tracked as derivatives, and downloads support
+byte ranges. Storage and malware scanning are provider interfaces. Quota is
+reserved while bytes are staged, rejected content is quarantined, scan results
+are durable, and periodic maintenance releases abandoned reservations and
+staging artifacts.
+
+A file is visible to its uploader, through an explicit unexpired user/chat/server
+grant, as a public profile or custom-emoji asset, or through a live message the
+requester can currently read. Forwarding creates a destination attachment grant
+without promoting the file globally. Deleting or expiring the last visible
+message reference removes that derived access. The files directory and previews
+use the same authorization query, so private-channel and DM attachments do not
+leak.
 
 Message sends accept an optional `clientMutationId`; retries by the same user in
 the same chat return the originally committed message. A send may contain text,
 attachment file IDs, `quotedMessageId`, `threadRootMessageId`, and a bounded
 self-destruction duration. Deletion and expiry leave syncable tombstones rather
-than hard-deleting message identity.
+than hard-deleting message identity, remove searchable/revision plaintext, and
+recompute thread projections. `after_read` destruction uses a send-time receipt
+roster, so users who join later cannot block expiry.
+
+HTTP write actions also accept `Idempotency-Key`. Keys are isolated by the
+authenticated principal and concrete action path, conflicting payload reuse is
+rejected, and completed responses survive restart. Request limiting and realtime
+fanout use local adapter implementations; Redis-backed implementations can be
+added without making process-local state authoritative.
 
 ## Sync protocol
 
@@ -178,6 +197,10 @@ by a Redis adapter and is allowed to drop, duplicate, reorder, or coalesce event
 4. The client advances its common cursor in the same local transaction that
    stores pending target `pts` values. It advances a chat cursor only with the
    corresponding projections/tombstones. Duplicate projections are safe.
+5. `POST /v0/sync/acknowledge` records a per-user, per-device durable consumer
+   cursor. Compaction honors active acknowledgements and retention windows. A
+   cursor older than retained history receives an explicit reset with the
+   minimum recoverable sequence rather than an incomplete difference.
 
 For a chat update with `ptsCount`, clients use the Telegram rule:
 

@@ -131,6 +131,10 @@ export class Database {
         this.accessTouches.clear();
         if (this.ownsClient) this.client.close();
     }
+    /** Package-internal shared connection for durable backend extensions. */
+    extensionClient(): Client {
+        return this.client;
+    }
 
     async createPasswordAccount(email: string, passwordHash: string): Promise<Account> {
         const account = await first(
@@ -355,24 +359,81 @@ export class Database {
             : undefined;
     }
 
-    async createFile(file: StoredFile): Promise<void> {
-        await this.db.run(
-            sql`INSERT INTO files (id, user_id, uploaded_by_user_id, is_public, storage_name, content_type, size, width, height, thumbhash, kind, original_name, duration_ms) VALUES (${file.id}, ${file.userId}, ${file.uploadedByUserId}, ${file.isPublic ? 1 : 0}, ${file.storageName}, ${file.contentType}, ${file.size}, ${file.width}, ${file.height}, ${file.thumbhash}, ${file.kind}, ${file.originalName ?? null}, ${file.durationMs ?? null})`,
-        );
+    async createFile(
+        file: StoredFile,
+        scan: { status: "clean" | "failed" | "skipped"; result?: unknown } = {
+            status: "skipped",
+        },
+    ): Promise<void> {
+        await this.db.transaction(async (tx) => {
+            await tx.run(
+                sql`INSERT INTO files (id, user_id, uploaded_by_user_id, is_public, storage_name, content_type, size, width, height, thumbhash, kind, original_name, duration_ms, scan_status, scanned_at, scan_result_json) VALUES (${file.id}, ${file.userId}, ${file.uploadedByUserId}, ${file.isPublic ? 1 : 0}, ${file.storageName}, ${file.contentType}, ${file.size}, ${file.width}, ${file.height}, ${file.thumbhash}, ${file.kind}, ${file.originalName ?? null}, ${file.durationMs ?? null}, ${scan.status}, CURRENT_TIMESTAMP, ${scan.result === undefined ? null : JSON.stringify(scan.result)})`,
+            );
+            await tx.run(
+                sql`INSERT INTO file_scan_events (id, file_id, scanner, status, result_json) VALUES (${createId()}, ${file.id}, 'upload_policy', ${scan.status}, ${scan.result === undefined ? null : JSON.stringify(scan.result)})`,
+            );
+        });
     }
     async findFileUploadedBy(id: string, userId: string): Promise<StoredFile | undefined> {
         return mapFirst(
             this.db.all<FileRow>(
-                sql`SELECT ${sql.raw(FILE_COLUMNS)} FROM files WHERE id = ${id} AND uploaded_by_user_id = ${userId}`,
+                sql`SELECT ${sql.raw(FILE_COLUMNS)} FROM files WHERE id = ${id} AND uploaded_by_user_id = ${userId} AND deleted_at IS NULL AND upload_status = 'complete' AND scan_status != 'infected'`,
             ),
             asFile,
         );
     }
     async findFile(id: string): Promise<StoredFile | undefined> {
         return mapFirst(
-            this.db.all<FileRow>(sql`SELECT ${sql.raw(FILE_COLUMNS)} FROM files WHERE id = ${id}`),
+            this.db.all<FileRow>(
+                sql`SELECT ${sql.raw(FILE_COLUMNS)} FROM files WHERE id = ${id} AND deleted_at IS NULL AND upload_status = 'complete' AND scan_status != 'infected'`,
+            ),
             asFile,
         );
+    }
+    async listStoredFiles(): Promise<StoredFile[]> {
+        return (
+            await this.db.all<FileRow>(
+                sql`SELECT ${sql.raw(FILE_COLUMNS)} FROM files WHERE deleted_at IS NULL AND upload_status = 'complete' AND scan_status != 'infected' ORDER BY id`,
+            )
+        ).map(asFile);
+    }
+    async deleteOwnedUnreferencedFile(
+        id: string,
+        userId: string,
+        reason?: string,
+    ): Promise<"deleted" | "not_found" | "in_use"> {
+        return this.db.transaction(async (tx) => {
+            const file = await first(
+                tx.all<{ id: string }>(
+                    sql`SELECT id FROM files WHERE id = ${id} AND uploaded_by_user_id = ${userId} AND deleted_at IS NULL`,
+                ),
+            );
+            if (!file) return "not_found";
+            const reference = await first(
+                tx.all<{ found: number }>(
+                    sql`SELECT 1 AS found WHERE
+                        EXISTS (SELECT 1 FROM message_attachments ma JOIN messages m ON m.id = ma.message_id WHERE ma.file_id = ${id} AND m.deleted_at IS NULL)
+                        OR EXISTS (SELECT 1 FROM scheduled_message_attachments WHERE file_id = ${id})
+                        OR EXISTS (SELECT 1 FROM custom_emojis e WHERE e.file_id = ${id} AND e.deleted_at IS NULL)
+                        OR EXISTS (SELECT 1 FROM users u WHERE u.photo_file_id = ${id} AND u.deleted_at IS NULL)
+                        OR EXISTS (SELECT 1 FROM chats c WHERE c.photo_file_id = ${id} AND c.deleted_at IS NULL)
+                        OR EXISTS (SELECT 1 FROM server_settings s WHERE s.photo_file_id = ${id})
+                        OR EXISTS (SELECT 1 FROM bot_identities b WHERE b.photo_file_id = ${id} AND b.deleted_at IS NULL)
+                        OR EXISTS (SELECT 1 FROM chat_bookmarks WHERE file_id = ${id})
+                        OR EXISTS (SELECT 1 FROM user_bookmarks WHERE file_id = ${id})
+                        OR EXISTS (SELECT 1 FROM file_access_grants WHERE file_id = ${id})
+                        OR EXISTS (SELECT 1 FROM data_export_jobs WHERE output_file_id = ${id} AND status NOT IN ('cancelled', 'expired'))
+                        OR EXISTS (SELECT 1 FROM file_derivatives d WHERE d.source_file_id = ${id} OR d.derived_file_id = ${id})
+                        OR EXISTS (SELECT 1 FROM files child WHERE child.preview_file_id = ${id} OR child.thumbnail_file_id = ${id})
+                        OR EXISTS (SELECT 1 FROM files parent WHERE parent.id = ${id} AND (parent.preview_file_id IS NOT NULL OR parent.thumbnail_file_id IS NOT NULL))`,
+                ),
+            );
+            if (reference) return "in_use";
+            await tx.run(
+                sql`UPDATE files SET deleted_at = CURRENT_TIMESTAMP, deleted_by_user_id = ${userId}, delete_reason = ${reason ?? null} WHERE id = ${id} AND deleted_at IS NULL`,
+            );
+            return "deleted";
+        });
     }
     async setUserPhoto(userId: string, fileId: string): Promise<boolean> {
         return this.db.transaction(async (tx) => {

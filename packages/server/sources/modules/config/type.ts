@@ -18,7 +18,35 @@ export interface ServerConfig {
         trustedProxyHops: number;
     };
     database: { url: string; authTokenEnv?: string };
-    files: { directory: string; signedUrlExpirySeconds: number; maxUploadBytes: number };
+    files: {
+        provider: "local";
+        directory: string;
+        signedUrlExpirySeconds: number;
+        maxUploadBytes: number;
+        resumableChunkBytes: number;
+        perUserQuotaBytes: number;
+        serverQuotaBytes: number;
+        incompleteUploadExpirySeconds: number;
+        quarantineRetentionSeconds: number;
+        malwareScannerCommand?: string;
+        malwareScannerArguments: string[];
+        malwareScanTimeoutSeconds: number;
+        malwareScanFailureMode: "allow" | "deny";
+    };
+    security: {
+        integrationSecretEnv: string;
+        rateLimit: {
+            enabled: boolean;
+            readsPerMinute: number;
+            writesPerMinute: number;
+            authPerMinute: number;
+        };
+        idempotency: {
+            enabled: boolean;
+            leaseSeconds: number;
+            retentionSeconds: number;
+        };
+    };
     jwt: {
         issuer: string;
         audience: string;

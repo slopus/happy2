@@ -50,8 +50,13 @@ export function registerCollaborationRoutes(
         "/v0/chats/:chatId/members",
         authenticated(auth, async (request, _reply, userId) => {
             emptyQuery(request);
+            const memberships = await repository.listChatMemberships(
+                userId,
+                pathId(request, "chatId"),
+            );
             return {
-                users: await repository.listChatMembers(userId, pathId(request, "chatId")),
+                users: memberships.map(({ user }) => user),
+                memberships,
             };
         }),
     );
@@ -89,6 +94,45 @@ export function registerCollaborationRoutes(
             return { root, ...result };
         }),
     );
+    app.get(
+        "/v0/threads",
+        authenticated(auth, async (request, _reply, userId) => {
+            const query = requestQuery(request, ["before", "unreadOnly", "limit"]);
+            return repository.listMyThreads({
+                userId,
+                before: optionalQueryString(query, "before", MAX_ID_LENGTH),
+                unreadOnly: optionalQueryBoolean(query, "unreadOnly"),
+                limit: queryLimit(query, "limit", 50, 100),
+            });
+        }),
+    );
+    app.get(
+        "/v0/notifications",
+        authenticated(auth, async (request, _reply, userId) => {
+            const query = requestQuery(request, ["before", "unreadOnly", "limit"]);
+            return repository.listNotifications({
+                userId,
+                before: optionalQueryString(query, "before", MAX_ID_LENGTH),
+                unreadOnly: optionalQueryBoolean(query, "unreadOnly"),
+                limit: queryLimit(query, "limit", 50, 100),
+            });
+        }),
+    );
+    app.post(
+        "/v0/notifications/markRead",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, ["notificationIds", "all"]);
+            const result = await repository.markNotificationsRead({
+                actorUserId: userId,
+                notificationIds: has(body, "notificationIds")
+                    ? idArrayField(body, "notificationIds", 500, true)
+                    : undefined,
+                all: has(body, "all") ? booleanField(body, "all") : undefined,
+            });
+            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
+            return { sync: result.hint };
+        }),
+    );
 
     app.post(
         "/v0/chats/createDirectMessage",
@@ -99,6 +143,25 @@ export function registerCollaborationRoutes(
             if (result.hint)
                 await publishHints(request, pubsub, [result.hint], {
                     userIds: [userId, otherUserId],
+                });
+            return reply.code(result.hint ? 201 : 200).send({
+                chat: result.chat,
+                sync: result.hint,
+            });
+        }),
+    );
+    app.post(
+        "/v0/chats/createGroupDirectMessage",
+        authenticated(auth, async (request, reply, userId) => {
+            const body = requestBody(request, ["userIds", "name"]);
+            const result = await repository.createGroupDirectMessage({
+                actorUserId: userId,
+                userIds: idArrayField(body, "userIds", 49, false),
+                name: has(body, "name") ? trimmedString(body, "name", 100) : undefined,
+            });
+            if (result.hint)
+                await publishHints(request, pubsub, [result.hint], {
+                    userIds: result.memberUserIds,
                 });
             return reply.code(result.hint ? 201 : 200).send({
                 chat: result.chat,
@@ -137,6 +200,132 @@ export function registerCollaborationRoutes(
             );
             await publishHints(request, pubsub, [result.hint]);
             return { chat: result.chat, sync: result.hint };
+        }),
+    );
+    app.post(
+        "/v0/chats/:chatId/updateChannel",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, [
+                "name",
+                "slug",
+                "topic",
+                "kind",
+                "photoFileId",
+                "isListed",
+            ]);
+            if (Object.keys(body).length === 0)
+                throw new InvalidRequest("At least one channel field is required");
+            const result = await repository.updateChannel({
+                actorUserId: userId,
+                chatId: pathId(request, "chatId"),
+                name: has(body, "name") ? trimmedString(body, "name", 100) : undefined,
+                slug: has(body, "slug") ? channelSlug(body) : undefined,
+                topic: has(body, "topic")
+                    ? body.topic === null
+                        ? null
+                        : (nullableTrimmedString(body, "topic", 500) ?? null)
+                    : undefined,
+                kind: optionalEnumField(body, "kind", [
+                    "public_channel",
+                    "private_channel",
+                ] as const),
+                photoFileId: has(body, "photoFileId")
+                    ? body.photoFileId === null
+                        ? null
+                        : id(body.photoFileId, "photoFileId")
+                    : undefined,
+                isListed: has(body, "isListed") ? booleanField(body, "isListed") : undefined,
+            });
+            await publishHints(request, pubsub, [result.hint], {
+                server: result.chat.kind === "public_channel",
+            });
+            return { chat: result.chat, sync: result.hint };
+        }),
+    );
+    app.post(
+        "/v0/chats/:chatId/updatePolicies",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, [
+                "retentionMode",
+                "retentionSeconds",
+                "defaultExpiryMode",
+                "defaultSelfDestructSeconds",
+                "defaultAfterReadScope",
+            ]);
+            if (Object.keys(body).length === 0)
+                throw new InvalidRequest("At least one policy field is required");
+            const result = await repository.updateChannelPolicies({
+                actorUserId: userId,
+                chatId: pathId(request, "chatId"),
+                retentionMode: optionalEnumField(body, "retentionMode", [
+                    "inherit",
+                    "forever",
+                    "duration",
+                ] as const),
+                retentionSeconds: optionalNullablePositiveIntegerField(
+                    body,
+                    "retentionSeconds",
+                    MAX_SELF_DESTRUCT_SECONDS * 100,
+                ),
+                defaultExpiryMode: optionalEnumField(body, "defaultExpiryMode", [
+                    "none",
+                    "after_send",
+                    "after_read",
+                ] as const),
+                defaultSelfDestructSeconds: optionalNullablePositiveIntegerField(
+                    body,
+                    "defaultSelfDestructSeconds",
+                    MAX_SELF_DESTRUCT_SECONDS,
+                ),
+                defaultAfterReadScope: optionalEnumField(body, "defaultAfterReadScope", [
+                    "any_reader",
+                    "all_readers",
+                ] as const),
+            });
+            await publishHints(request, pubsub, [result.hint]);
+            return { chat: result.chat, sync: result.hint };
+        }),
+    );
+    for (const [path, archived] of [
+        ["archiveChannel", true],
+        ["unarchiveChannel", false],
+    ] as const)
+        app.post(
+            `/v0/chats/:chatId/${path}`,
+            authenticated(auth, async (request, _reply, userId) => {
+                const body =
+                    request.body === undefined || request.body === null
+                        ? {}
+                        : requestBody(request, ["reason"]);
+                const result = await repository.setChannelArchived({
+                    actorUserId: userId,
+                    chatId: pathId(request, "chatId"),
+                    archived,
+                    reason: has(body, "reason")
+                        ? (nullableTrimmedString(body, "reason", 500) ?? undefined)
+                        : undefined,
+                });
+                await publishHints(request, pubsub, [result.hint], {
+                    server: result.chat.kind === "public_channel",
+                });
+                return { chat: result.chat, sync: result.hint };
+            }),
+        );
+    app.post(
+        "/v0/chats/:chatId/deleteChannel",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, ["reason"]);
+            const result = await repository.deleteChannel({
+                actorUserId: userId,
+                chatId: pathId(request, "chatId"),
+                reason: has(body, "reason")
+                    ? (nullableTrimmedString(body, "reason", 500) ?? undefined)
+                    : undefined,
+            });
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: result.memberUserIds,
+            });
+            return { sync: result.hint };
         }),
     );
     app.post(
@@ -187,6 +376,21 @@ export function registerCollaborationRoutes(
         }),
     );
     app.post(
+        "/v0/chats/:chatId/setMemberRole",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, ["userId", "role"]);
+            const targetUserId = idField(body, "userId");
+            const result = await repository.setChannelMemberRole({
+                actorUserId: userId,
+                chatId: pathId(request, "chatId"),
+                userId: targetUserId,
+                role: enumField(body, "role", ["owner", "admin", "member"] as const),
+            });
+            await publishHints(request, pubsub, [result.hint], { userIds: [targetUserId] });
+            return { sync: result.hint };
+        }),
+    );
+    app.post(
         "/v0/chats/:chatId/setStar",
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["starred"]);
@@ -197,6 +401,50 @@ export function registerCollaborationRoutes(
             );
             await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
             return { sync: result.hint };
+        }),
+    );
+    app.post(
+        "/v0/chats/:chatId/markRead",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, ["messageId"]);
+            const result = await repository.markChatRead({
+                actorUserId: userId,
+                chatId: pathId(request, "chatId"),
+                messageId: optionalIdField(body, "messageId"),
+            });
+            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
+            return { chat: result.chat, sync: result.hint };
+        }),
+    );
+    app.post(
+        "/v0/chats/:chatId/updateNotificationPreferences",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, [
+                "notificationLevel",
+                "mutedUntil",
+                "notifyThreadReplies",
+                "showMessagePreviews",
+            ]);
+            if (Object.keys(body).length === 0)
+                throw new InvalidRequest("At least one preference is required");
+            const result = await repository.setChatNotificationPreferences({
+                actorUserId: userId,
+                chatId: pathId(request, "chatId"),
+                notificationLevel: optionalEnumField(body, "notificationLevel", [
+                    "all",
+                    "mentions",
+                    "none",
+                ] as const),
+                mutedUntil: optionalNullableDateField(body, "mutedUntil"),
+                notifyThreadReplies: has(body, "notifyThreadReplies")
+                    ? booleanField(body, "notifyThreadReplies")
+                    : undefined,
+                showMessagePreviews: has(body, "showMessagePreviews")
+                    ? booleanField(body, "showMessagePreviews")
+                    : undefined,
+            });
+            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
+            return { chat: result.chat, sync: result.hint };
         }),
     );
     app.post(
@@ -220,7 +468,9 @@ export function registerCollaborationRoutes(
                 "attachmentFileIds",
                 "quotedMessageId",
                 "threadRootMessageId",
+                "expiryMode",
                 "selfDestructSeconds",
+                "afterReadScope",
                 "clientMutationId",
             ]);
             const attachmentFileIds = optionalIdArrayField(
@@ -229,6 +479,11 @@ export function registerCollaborationRoutes(
                 MAX_ATTACHMENTS,
             );
             const text = messageText(body, attachmentFileIds?.length ?? 0);
+            const selfDestructSeconds = optionalPositiveIntegerField(
+                body,
+                "selfDestructSeconds",
+                MAX_SELF_DESTRUCT_SECONDS,
+            );
             const result = await repository.sendMessage({
                 actorUserId: userId,
                 chatId: pathId(request, "chatId"),
@@ -236,7 +491,17 @@ export function registerCollaborationRoutes(
                 attachmentFileIds,
                 quotedMessageId: optionalIdField(body, "quotedMessageId"),
                 threadRootMessageId: optionalIdField(body, "threadRootMessageId"),
-                expiresAt: selfDestructExpiry(body),
+                expiryMode:
+                    optionalEnumField(body, "expiryMode", [
+                        "none",
+                        "after_send",
+                        "after_read",
+                    ] as const) ?? (selfDestructSeconds ? "after_send" : undefined),
+                selfDestructSeconds,
+                afterReadScope: optionalEnumField(body, "afterReadScope", [
+                    "any_reader",
+                    "all_readers",
+                ] as const),
                 clientMutationId: optionalTokenField(body, "clientMutationId"),
             });
             await publishHints(request, pubsub, [result.hint]);
@@ -252,13 +517,20 @@ export function registerCollaborationRoutes(
                 "text",
                 "attachmentFileIds",
                 "quotedMessageId",
+                "expiryMode",
                 "selfDestructSeconds",
+                "afterReadScope",
                 "clientMutationId",
             ]);
             const attachmentFileIds = optionalIdArrayField(
                 body,
                 "attachmentFileIds",
                 MAX_ATTACHMENTS,
+            );
+            const selfDestructSeconds = optionalPositiveIntegerField(
+                body,
+                "selfDestructSeconds",
+                MAX_SELF_DESTRUCT_SECONDS,
             );
             const result = await repository.sendMessage({
                 actorUserId: userId,
@@ -267,11 +539,56 @@ export function registerCollaborationRoutes(
                 attachmentFileIds,
                 quotedMessageId: optionalIdField(body, "quotedMessageId"),
                 threadRootMessageId: rootMessageId,
-                expiresAt: selfDestructExpiry(body),
+                expiryMode:
+                    optionalEnumField(body, "expiryMode", [
+                        "none",
+                        "after_send",
+                        "after_read",
+                    ] as const) ?? (selfDestructSeconds ? "after_send" : undefined),
+                selfDestructSeconds,
+                afterReadScope: optionalEnumField(body, "afterReadScope", [
+                    "any_reader",
+                    "all_readers",
+                ] as const),
                 clientMutationId: optionalTokenField(body, "clientMutationId"),
             });
             await publishHints(request, pubsub, [result.hint]);
             return reply.code(201).send({ message: result.message, sync: result.hint });
+        }),
+    );
+    app.post(
+        "/v0/messages/:messageId/updateThreadSubscription",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, ["subscribed", "notificationLevel"]);
+            const selected = await repository.getMessage(userId, pathId(request, "messageId"));
+            const rootMessageId = selected.threadRootMessageId ?? selected.id;
+            const result = await repository.setThreadSubscription({
+                actorUserId: userId,
+                threadRootMessageId: rootMessageId,
+                subscribed: booleanField(body, "subscribed"),
+                notificationLevel: optionalEnumField(body, "notificationLevel", [
+                    "all",
+                    "mentions",
+                    "none",
+                ] as const),
+            });
+            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
+            return { sync: result.hint };
+        }),
+    );
+    app.post(
+        "/v0/messages/:messageId/markThreadRead",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, ["throughMessageId"]);
+            const selected = await repository.getMessage(userId, pathId(request, "messageId"));
+            const rootMessageId = selected.threadRootMessageId ?? selected.id;
+            const result = await repository.markThreadRead({
+                actorUserId: userId,
+                threadRootMessageId: rootMessageId,
+                messageId: optionalIdField(body, "throughMessageId"),
+            });
+            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
+            return { sync: result.hint };
         }),
     );
     app.post(
@@ -281,6 +598,39 @@ export function registerCollaborationRoutes(
             const result = await repository.deleteMessage(userId, pathId(request, "messageId"));
             await publishHints(request, pubsub, [result.hint]);
             return { message: result.message, sync: result.hint };
+        }),
+    );
+    app.post(
+        "/v0/messages/:messageId/editMessage",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, ["text", "reason", "expectedRevision"]);
+            const result = await repository.editMessage({
+                actorUserId: userId,
+                messageId: pathId(request, "messageId"),
+                text: messageText(body, 0),
+                reason: has(body, "reason")
+                    ? (nullableTrimmedString(body, "reason", 500) ?? undefined)
+                    : undefined,
+                expectedRevision: optionalPositiveIntegerField(
+                    body,
+                    "expectedRevision",
+                    Number.MAX_SAFE_INTEGER,
+                ),
+            });
+            await publishHints(request, pubsub, [result.hint]);
+            return { message: result.message, sync: result.hint };
+        }),
+    );
+    app.get(
+        "/v0/messages/:messageId/revisions",
+        authenticated(auth, async (request, _reply, userId) => {
+            emptyQuery(request);
+            return {
+                revisions: await repository.listMessageRevisions(
+                    userId,
+                    pathId(request, "messageId"),
+                ),
+            };
         }),
     );
     app.post(
@@ -325,6 +675,100 @@ export function registerCollaborationRoutes(
             return { message: result.message, sync: result.hint };
         }),
     );
+    app.post(
+        "/v0/messages/:messageId/pinMessage",
+        authenticated(auth, async (request, _reply, userId) => {
+            emptyBody(request);
+            const result = await repository.setMessagePinned({
+                actorUserId: userId,
+                messageId: pathId(request, "messageId"),
+                pinned: true,
+            });
+            await publishHints(request, pubsub, [result.hint]);
+            return { sync: result.hint };
+        }),
+    );
+    app.post(
+        "/v0/messages/:messageId/unpinMessage",
+        authenticated(auth, async (request, _reply, userId) => {
+            emptyBody(request);
+            const result = await repository.setMessagePinned({
+                actorUserId: userId,
+                messageId: pathId(request, "messageId"),
+                pinned: false,
+            });
+            await publishHints(request, pubsub, [result.hint]);
+            return { sync: result.hint };
+        }),
+    );
+    app.get(
+        "/v0/chats/:chatId/pins",
+        authenticated(auth, async (request, _reply, userId) => {
+            emptyQuery(request);
+            return {
+                pins: await repository.listChatPins(userId, pathId(request, "chatId")),
+            };
+        }),
+    );
+    app.get(
+        "/v0/chats/:chatId/bookmarks",
+        authenticated(auth, async (request, _reply, userId) => {
+            emptyQuery(request);
+            return {
+                bookmarks: await repository.listChatBookmarks(userId, pathId(request, "chatId")),
+            };
+        }),
+    );
+    app.post(
+        "/v0/chats/:chatId/createBookmark",
+        authenticated(auth, async (request, reply, userId) => {
+            const body = requestBody(request, [
+                "kind",
+                "title",
+                "url",
+                "messageId",
+                "fileId",
+                "emoji",
+            ]);
+            const kind = enumField(body, "kind", ["link", "message", "file"] as const);
+            const url = has(body, "url") ? httpUrlField(body, "url") : undefined;
+            const messageId = optionalIdField(body, "messageId");
+            const fileId = optionalIdField(body, "fileId");
+            if (
+                (kind === "link" && (!url || messageId || fileId)) ||
+                (kind === "message" && (!messageId || url || fileId)) ||
+                (kind === "file" && (!fileId || url || messageId))
+            )
+                throw new InvalidRequest("Bookmark target does not match its kind");
+            const result = await repository.createChatBookmark({
+                actorUserId: userId,
+                chatId: pathId(request, "chatId"),
+                kind,
+                title: trimmedString(body, "title", 200),
+                url,
+                messageId,
+                fileId,
+                emoji: has(body, "emoji")
+                    ? (nullableTrimmedString(body, "emoji", 32) ?? undefined)
+                    : undefined,
+            });
+            await publishHints(request, pubsub, [result.hint]);
+            return reply.code(201).send({ bookmark: result.bookmark, sync: result.hint });
+        }),
+    );
+    app.post(
+        "/v0/chats/:chatId/deleteBookmark",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, ["bookmarkId"]);
+            const result = await repository.deleteChatBookmark({
+                actorUserId: userId,
+                chatId: pathId(request, "chatId"),
+                bookmarkId: idField(body, "bookmarkId"),
+            });
+            await publishHints(request, pubsub, [result.hint]);
+            return { sync: result.hint };
+        }),
+    );
 
     app.get(
         "/v0/contacts",
@@ -334,6 +778,7 @@ export function registerCollaborationRoutes(
             return {
                 users,
                 presence: await pubsub.getPresenceSnapshot(users.map((user) => user.id)),
+                statuses: await repository.listPresenceSettings(users.map((user) => user.id)),
             };
         }),
     );
@@ -345,6 +790,7 @@ export function registerCollaborationRoutes(
             return {
                 users,
                 presence: await pubsub.getPresenceSnapshot(users.map((user) => user.id)),
+                statuses: await repository.listPresenceSettings(users.map((user) => user.id)),
             };
         }),
     );
@@ -364,7 +810,97 @@ export function registerCollaborationRoutes(
                 channels,
                 customEmoji,
                 presence: await pubsub.getPresenceSnapshot(users.map((user) => user.id)),
+                statuses: await repository.listPresenceSettings(users.map((user) => user.id)),
             };
+        }),
+    );
+    app.get(
+        "/v0/presence",
+        authenticated(auth, async (request) => {
+            emptyQuery(request);
+            const users = await repository.listContacts();
+            return {
+                presence: await pubsub.getPresenceSnapshot(users.map((user) => user.id)),
+                statuses: await repository.listPresenceSettings(users.map((user) => user.id)),
+            };
+        }),
+    );
+    app.post(
+        "/v0/me/updateStatus",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, [
+                "availability",
+                "customStatusText",
+                "customStatusEmoji",
+                "statusExpiresAt",
+                "dndUntil",
+            ]);
+            if (Object.keys(body).length === 0)
+                throw new InvalidRequest("At least one presence field is required");
+            const result = await repository.updatePresenceSettings({
+                actorUserId: userId,
+                availability: optionalEnumField(body, "availability", [
+                    "automatic",
+                    "online",
+                    "away",
+                    "dnd",
+                ] as const),
+                customStatusText: nullableStringUpdate(body, "customStatusText", 200),
+                customStatusEmoji: nullableStringUpdate(body, "customStatusEmoji", 32),
+                statusExpiresAt: optionalNullableDateField(body, "statusExpiresAt"),
+                dndUntil: optionalNullableDateField(body, "dndUntil"),
+            });
+            await publishHints(request, pubsub, [result.hint], { server: true });
+            return { status: result.presence, sync: result.hint };
+        }),
+    );
+    app.get(
+        "/v0/me/notificationPreferences",
+        authenticated(auth, async (request, _reply, userId) => {
+            emptyQuery(request);
+            return { preferences: await repository.getNotificationPreferences(userId) };
+        }),
+    );
+    app.post(
+        "/v0/me/updateNotificationPreferences",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, [
+                "directMessages",
+                "mentions",
+                "threadReplies",
+                "reactions",
+                "calls",
+                "emailNotifications",
+                "desktopNotifications",
+                "dndStartMinutes",
+                "dndEndMinutes",
+                "timezone",
+            ]);
+            if (Object.keys(body).length === 0)
+                throw new InvalidRequest("At least one notification preference is required");
+            const result = await repository.updateNotificationPreferences({
+                actorUserId: userId,
+                directMessages: optionalEnumField(body, "directMessages", ["all", "none"] as const),
+                mentions: optionalEnumField(body, "mentions", ["all", "none"] as const),
+                threadReplies: optionalEnumField(body, "threadReplies", [
+                    "all",
+                    "mentions",
+                    "none",
+                ] as const),
+                reactions: optionalEnumField(body, "reactions", ["all", "none"] as const),
+                calls: optionalEnumField(body, "calls", ["all", "none"] as const),
+                emailNotifications: has(body, "emailNotifications")
+                    ? booleanField(body, "emailNotifications")
+                    : undefined,
+                desktopNotifications: has(body, "desktopNotifications")
+                    ? booleanField(body, "desktopNotifications")
+                    : undefined,
+                dndStartMinutes: optionalNullableMinute(body, "dndStartMinutes"),
+                dndEndMinutes: optionalNullableMinute(body, "dndEndMinutes"),
+                timezone: nullableStringUpdate(body, "timezone", 100),
+            });
+            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
+            return { preferences: result.preferences, sync: result.hint };
         }),
     );
     app.get(
@@ -377,16 +913,15 @@ export function registerCollaborationRoutes(
     app.get(
         "/v0/search",
         authenticated(auth, async (request, _reply, userId) => {
-            const query = requestQuery(request, ["q", "limit"]);
+            const query = requestQuery(request, ["q", "cursor", "limit"]);
             const search = queryString(query, "q", 200);
             if (search.trim().length === 0) throw new InvalidRequest("Search query is required");
-            return {
-                results: await repository.search(
-                    userId,
-                    search.trim(),
-                    queryLimit(query, "limit", 20, 50),
-                ),
-            };
+            return repository.searchPage({
+                userId,
+                query: search.trim(),
+                cursor: optionalQueryString(query, "cursor", 1_024),
+                limit: queryLimit(query, "limit", 20, 50),
+            });
         }),
     );
     app.get(
@@ -399,6 +934,82 @@ export function registerCollaborationRoutes(
                 before: optionalQueryString(query, "before", 64),
                 limit: queryLimit(query, "limit", 50, 100),
             });
+        }),
+    );
+
+    app.get(
+        "/v0/calls",
+        authenticated(auth, async (request, _reply, userId) => {
+            const query = requestQuery(request, ["chatId", "limit"]);
+            return {
+                calls: await repository.listCalls({
+                    userId,
+                    chatId: optionalQueryString(query, "chatId", MAX_ID_LENGTH),
+                    limit: queryLimit(query, "limit", 50, 100),
+                }),
+            };
+        }),
+    );
+    app.get(
+        "/v0/calls/:callId",
+        authenticated(auth, async (request, _reply, userId) => {
+            emptyQuery(request);
+            return { call: await repository.getCall(userId, pathId(request, "callId")) };
+        }),
+    );
+    app.post(
+        "/v0/chats/:chatId/createCall",
+        authenticated(auth, async (request, reply, userId) => {
+            const body = requestBody(request, ["kind", "invitedUserIds"]);
+            const result = await repository.createCall({
+                actorUserId: userId,
+                chatId: pathId(request, "chatId"),
+                kind: enumField(body, "kind", ["audio", "video"] as const),
+                invitedUserIds: has(body, "invitedUserIds")
+                    ? idArrayField(body, "invitedUserIds", 50, false)
+                    : undefined,
+            });
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [userId, ...result.invitedUserIds],
+            });
+            return reply.code(201).send({ call: result.call, sync: result.hint });
+        }),
+    );
+    for (const [path, action] of [
+        ["joinCall", "join"],
+        ["declineCall", "decline"],
+        ["leaveCall", "leave"],
+    ] as const)
+        app.post(
+            `/v0/calls/:callId/${path}`,
+            authenticated(auth, async (request, _reply, userId) => {
+                emptyBody(request);
+                const result = await repository.updateCallParticipation({
+                    actorUserId: userId,
+                    callId: pathId(request, "callId"),
+                    action,
+                });
+                await publishHints(request, pubsub, [result.hint], {
+                    userIds: result.call.participants.map((participant) => participant.userId),
+                });
+                return { call: result.call, sync: result.hint };
+            }),
+        );
+    app.post(
+        "/v0/calls/:callId/endCall",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, ["reason"]);
+            const result = await repository.endCall({
+                actorUserId: userId,
+                callId: pathId(request, "callId"),
+                reason: has(body, "reason")
+                    ? (nullableTrimmedString(body, "reason", 200) ?? undefined)
+                    : undefined,
+            });
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: result.call.participants.map((participant) => participant.userId),
+            });
+            return { call: result.call, sync: result.hint };
         }),
     );
 
@@ -524,8 +1135,14 @@ export function registerCollaborationRoutes(
     app.post(
         "/v0/admin/updateServer",
         authenticated(auth, async (request, _reply, actorUserId) => {
-            const body = requestBody(request, ["name", "title", "photoFileId"]);
-            if (!has(body, "name") && !has(body, "title") && !has(body, "photoFileId"))
+            const body = requestBody(request, [
+                "name",
+                "title",
+                "photoFileId",
+                "defaultRetentionMode",
+                "defaultRetentionSeconds",
+            ]);
+            if (Object.keys(body).length === 0)
                 throw new InvalidRequest("At least one server field is required");
             const result = await repository.updateServerProfile({
                 actorUserId,
@@ -538,6 +1155,15 @@ export function registerCollaborationRoutes(
                         ? null
                         : id(body.photoFileId, "photoFileId")
                     : undefined,
+                defaultRetentionMode: optionalEnumField(body, "defaultRetentionMode", [
+                    "forever",
+                    "duration",
+                ] as const),
+                defaultRetentionSeconds: optionalNullablePositiveIntegerField(
+                    body,
+                    "defaultRetentionSeconds",
+                    MAX_SELF_DESTRUCT_SECONDS * 100,
+                ),
             });
             await publishHints(request, pubsub, [result.hint], { server: true });
             return { server: result.server, sync: result.hint };
@@ -550,6 +1176,7 @@ export function registerCollaborationRoutes(
                 "chatId",
                 "text",
                 "attachmentFileIds",
+                "botId",
                 "clientMutationId",
             ]);
             const attachmentFileIds = optionalIdArrayField(
@@ -562,6 +1189,7 @@ export function registerCollaborationRoutes(
                 chatId: idField(body, "chatId"),
                 text: messageText(body, attachmentFileIds?.length ?? 0),
                 attachmentFileIds,
+                botId: optionalIdField(body, "botId"),
                 clientMutationId: optionalTokenField(body, "clientMutationId"),
             });
             await publishHints(request, pubsub, [result.hint]);
@@ -824,19 +1452,26 @@ function optionalTokenField(body: Record<string, unknown>, key: string): string 
     return value;
 }
 
-function selfDestructExpiry(body: Record<string, unknown>): string | undefined {
-    if (!has(body, "selfDestructSeconds")) return undefined;
-    const seconds = body.selfDestructSeconds;
-    if (
-        typeof seconds !== "number" ||
-        !Number.isSafeInteger(seconds) ||
-        seconds < 1 ||
-        seconds > MAX_SELF_DESTRUCT_SECONDS
-    )
-        throw new InvalidRequest(
-            `selfDestructSeconds must be an integer between 1 and ${MAX_SELF_DESTRUCT_SECONDS}`,
-        );
-    return new Date(Date.now() + seconds * 1_000).toISOString();
+function optionalPositiveIntegerField(
+    body: Record<string, unknown>,
+    key: string,
+    maximum: number,
+): number | undefined {
+    if (!has(body, key)) return undefined;
+    const value = body[key];
+    if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > maximum)
+        throw new InvalidRequest(`${key} must be an integer between 1 and ${maximum}`);
+    return value;
+}
+
+function optionalNullablePositiveIntegerField(
+    body: Record<string, unknown>,
+    key: string,
+    maximum: number,
+): number | null | undefined {
+    if (!has(body, key)) return undefined;
+    if (body[key] === null) return null;
+    return optionalPositiveIntegerField(body, key, maximum);
 }
 
 function reactionBody(request: FastifyRequest): { emoji?: string; customEmojiId?: string } {
@@ -929,6 +1564,59 @@ function optionalQueryEnum<const T extends readonly string[]>(
     if (typeof value !== "string" || !values.includes(value))
         throw new InvalidRequest(`${key} must be one of: ${values.join(", ")}`);
     return value as T[number];
+}
+
+function optionalQueryBoolean(query: Record<string, unknown>, key: string): boolean | undefined {
+    if (!has(query, key)) return undefined;
+    if (query[key] !== "true" && query[key] !== "false")
+        throw new InvalidRequest(`${key} must be true or false`);
+    return query[key] === "true";
+}
+
+function optionalNullableDateField(
+    body: Record<string, unknown>,
+    key: string,
+): string | null | undefined {
+    if (!has(body, key)) return undefined;
+    if (body[key] === null) return null;
+    if (typeof body[key] !== "string" || !Number.isFinite(Date.parse(body[key])))
+        throw new InvalidRequest(`${key} must be an ISO date-time or null`);
+    return new Date(body[key]).toISOString();
+}
+
+function nullableStringUpdate(
+    body: Record<string, unknown>,
+    key: string,
+    maximum: number,
+): string | null | undefined {
+    if (!has(body, key)) return undefined;
+    if (body[key] === null) return null;
+    return nullableTrimmedString(body, key, maximum) ?? null;
+}
+
+function optionalNullableMinute(
+    body: Record<string, unknown>,
+    key: string,
+): number | null | undefined {
+    if (!has(body, key)) return undefined;
+    if (body[key] === null) return null;
+    const value = body[key];
+    if (!Number.isSafeInteger(value) || (value as number) < 0 || (value as number) >= 1_440)
+        throw new InvalidRequest(`${key} must be an integer from 0 through 1439 or null`);
+    return value as number;
+}
+
+function httpUrlField(body: Record<string, unknown>, key: string): string {
+    const value = trimmedString(body, key, 2_048);
+    let parsed: URL;
+    try {
+        parsed = new URL(value);
+    } catch {
+        throw new InvalidRequest(`${key} must be a valid URL`);
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:")
+        throw new InvalidRequest(`${key} must use http or https`);
+    return parsed.toString();
 }
 
 function hasControlCharacters(value: string, allowLineBreaks = false): boolean {

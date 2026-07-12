@@ -16,10 +16,39 @@ url = "file:rigged.db"
 
 [files]
 # Keep this outside the published package/image in production.
+provider = "local"
 directory = "files"
 signed_url_expiry_seconds = 300
 # Generic chat attachments are streamed to disk. Keep this aligned with proxy limits.
 max_upload_bytes = 536870912
+# Resumable uploads persist their offset across reconnects and restarts.
+resumable_chunk_bytes = 8388608
+# Zero disables a quota. Values include generated previews and thumbnails.
+per_user_quota_bytes = 5368709120
+server_quota_bytes = 107374182400
+incomplete_upload_expiry_seconds = 86400
+quarantine_retention_seconds = 2592000
+# Optional scanner executable. It runs without a shell; {path} is replaced in
+# each argument, or appended when no argument contains the placeholder.
+# malware_scanner_command = "/usr/local/bin/clamscan"
+# malware_scanner_arguments = ["--no-summary", "{path}"]
+malware_scan_timeout_seconds = 120
+# "deny" quarantines files when the scanner is unavailable; "allow" fails open.
+malware_scan_failure_mode = "deny"
+
+[security]
+integration_secret_env = "RIGGED_INTEGRATION_SECRET"
+
+[security.rate_limit]
+enabled = true
+reads_per_minute = 1200
+writes_per_minute = 300
+auth_per_minute = 30
+
+[security.idempotency]
+enabled = true
+lease_seconds = 30
+retention_seconds = 86400
 
 [jwt]
 issuer = "https://rigged.example.com"

@@ -63,6 +63,24 @@ export function registerSyncRoutes(
         }
     });
 
+    app.post("/v0/sync/acknowledge", async (request, reply) => {
+        const current = await auth.authenticate(request);
+        if (!current) return unauthorized(reply);
+        try {
+            const body = object(request.body, "body");
+            const state = object(body.state, "state");
+            await repository.acknowledgeSyncConsumer({
+                userId: current.user.id,
+                deviceId: id(body.deviceId, "deviceId"),
+                generation: id(state.generation, "state.generation"),
+                sequence: sequence(state.sequence, "state.sequence"),
+            });
+            return reply.code(202).send({ accepted: true });
+        } catch (error) {
+            return handledError(reply, error) ?? Promise.reject(error);
+        }
+    });
+
     app.post("/v0/chats/:chatId/getDifference", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return unauthorized(reply);
@@ -163,14 +181,15 @@ export function registerSyncRoutes(
             const recipientUserId = id(body.recipientUserId, "recipientUserId");
             if (recipientUserId === current.user.id)
                 throw new RequestValidationError("recipientUserId must identify another user");
-            if (!(await repository.canPostToChat(current.user.id, chatId))) {
-                return (await repository.canAccessChat(current.user.id, chatId))
-                    ? reply.code(403).send({ error: "forbidden" })
-                    : reply.code(404).send({ error: "not_found" });
-            }
-            const members = await repository.listChatMembers(current.user.id, chatId);
-            if (!members.some((member) => member.id === recipientUserId))
-                return reply.code(404).send({ error: "recipient_not_found" });
+            if (
+                !(await repository.canSignalCall({
+                    userId: current.user.id,
+                    callId,
+                    chatId,
+                    recipientUserId,
+                }))
+            )
+                return reply.code(404).send({ error: "call_or_recipient_not_found" });
             const event: CallSignalEvent = {
                 type: "call.signal",
                 callId,

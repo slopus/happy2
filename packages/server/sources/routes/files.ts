@@ -1,10 +1,22 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyBaseLogger, FastifyInstance, FastifyReply } from "fastify";
 import type { AuthService } from "../modules/auth/service.js";
 import type { TokenService } from "../modules/auth/tokens.js";
 import type { ServerConfig } from "../modules/config/type.js";
-import type { Database } from "../modules/database.js";
+import type { Database, StoredFile } from "../modules/database.js";
 import type { CollaborationRepository } from "../modules/collaboration/repository.js";
-import { FileStorage, InvalidUploadError } from "../modules/files/storage.js";
+import {
+    FileQuotaExceededError,
+    FileStorage,
+    InvalidUploadError,
+    UploadRejectedError,
+} from "../modules/files/storage.js";
+import {
+    UploadIncompleteError,
+    UploadLimitError,
+    UploadNotFoundError,
+    UploadOffsetError,
+    type ResumableUpload,
+} from "../modules/files/provider.js";
 
 export function registerFileRoutes(
     app: FastifyInstance,
@@ -37,8 +49,10 @@ export function registerFileRoutes(
                 await readLimited(upload.file, 10 * 1024 * 1024),
                 visibility === "public",
             );
-            return reply.code(201).send({ file: fileResponse(file) });
+            return reply.code(201).send({ file: await fileResponse(files, file, false) });
         } catch (error) {
+            if (error instanceof FileQuotaExceededError || error instanceof UploadRejectedError)
+                return sendUploadError(reply, request.log, error);
             if (error instanceof InvalidUploadError)
                 return reply.code(400).send({ error: "invalid_avatar", message: error.message });
             request.log.error({ err: error }, "Avatar upload failed");
@@ -68,15 +82,133 @@ export function registerFileRoutes(
                     filename: upload.filename,
                     contentType: upload.mimetype,
                 });
-                return reply.code(201).send({ file: fileResponse(file) });
+                return reply.code(201).send({ file: await fileResponse(files, file, true) });
             } catch (error) {
-                if (error instanceof InvalidUploadError)
-                    return reply.code(400).send({ error: "invalid_file", message: error.message });
-                request.log.error({ err: error }, "File upload failed");
-                return reply.code(500).send({ error: "internal_server_error" });
+                return sendUploadError(reply, request.log, error);
             }
         });
+        app.post("/v0/files/createUpload", async (request, reply) => {
+            const current = await auth.authenticate(request);
+            if (!current) return reply.code(401).send({ error: "unauthorized" });
+            const body = request.body as
+                | { filename?: unknown; contentType?: unknown; size?: unknown }
+                | undefined;
+            if (
+                (body?.filename !== undefined && typeof body.filename !== "string") ||
+                (body?.contentType !== undefined && typeof body.contentType !== "string") ||
+                typeof body?.size !== "number"
+            )
+                return reply.code(400).send({ error: "invalid_upload_request" });
+            try {
+                const upload = await files.createResumableUpload(current.user, {
+                    filename: body.filename,
+                    contentType: body.contentType,
+                    size: body.size,
+                });
+                return reply.code(201).send({ upload: uploadResponse(upload) });
+            } catch (error) {
+                return sendUploadError(reply, request.log, error);
+            }
+        });
+        app.get("/v0/files/:uploadId/uploadState", async (request, reply) => {
+            const current = await auth.authenticate(request);
+            if (!current) return reply.code(401).send({ error: "unauthorized" });
+            const uploadId = (request.params as { uploadId?: string }).uploadId;
+            const upload = uploadId
+                ? await files.resumableUploadState(current.user.id, uploadId)
+                : undefined;
+            return upload
+                ? { upload: uploadResponse(upload) }
+                : reply.code(404).send({ error: "not_found" });
+        });
+        app.post("/v0/files/:uploadId/appendUpload", async (request, reply) => {
+            const current = await auth.authenticate(request);
+            if (!current) return reply.code(401).send({ error: "unauthorized" });
+            const uploadId = (request.params as { uploadId?: string }).uploadId;
+            const offset = parseUploadOffset(request.headers["upload-offset"]);
+            if (!uploadId || offset === undefined)
+                return reply.code(400).send({ error: "upload_offset_required" });
+            try {
+                const part = await request.file();
+                if (!part) return reply.code(400).send({ error: "file_required" });
+                const upload = await files.appendResumableUpload(
+                    current.user.id,
+                    uploadId,
+                    offset,
+                    part.file,
+                );
+                return upload
+                    ? { upload: uploadResponse(upload) }
+                    : reply.code(404).send({ error: "not_found" });
+            } catch (error) {
+                if (error instanceof UploadOffsetError)
+                    return reply
+                        .code(409)
+                        .header("upload-offset", String(error.actualOffset))
+                        .send({ error: "upload_offset_mismatch", offset: error.actualOffset });
+                if (error instanceof UploadLimitError)
+                    return reply.code(400).send({ error: "invalid_upload_chunk" });
+                return sendUploadError(reply, request.log, error);
+            }
+        });
+        app.post("/v0/files/:uploadId/completeUpload", async (request, reply) => {
+            const current = await auth.authenticate(request);
+            if (!current) return reply.code(401).send({ error: "unauthorized" });
+            const uploadId = (request.params as { uploadId?: string }).uploadId;
+            if (!uploadId) return reply.code(404).send({ error: "not_found" });
+            try {
+                const file = await files.completeResumableUpload(current.user, uploadId);
+                return file
+                    ? reply.code(201).send({ file: await fileResponse(files, file, true) })
+                    : reply.code(404).send({ error: "not_found" });
+            } catch (error) {
+                if (error instanceof UploadIncompleteError)
+                    return reply.code(409).send({
+                        error: "upload_incomplete",
+                        offset: error.actualOffset,
+                        size: error.expectedSize,
+                    });
+                return sendUploadError(reply, request.log, error);
+            }
+        });
+        app.post("/v0/files/:uploadId/cancelUpload", async (request, reply) => {
+            const current = await auth.authenticate(request);
+            if (!current) return reply.code(401).send({ error: "unauthorized" });
+            const uploadId = (request.params as { uploadId?: string }).uploadId;
+            return uploadId && (await files.cancelResumableUpload(current.user.id, uploadId))
+                ? { cancelled: true }
+                : reply.code(404).send({ error: "not_found" });
+        });
     }
+    app.post("/v0/files/:fileId/deleteFile", async (request, reply) => {
+        const current = await auth.authenticate(request);
+        if (!current) return reply.code(401).send({ error: "unauthorized" });
+        const fileId = (request.params as { fileId?: string }).fileId;
+        if (!fileId) return reply.code(404).send({ error: "not_found" });
+        const body = (request.body ?? {}) as { reason?: unknown };
+        if (
+            !body ||
+            typeof body !== "object" ||
+            Array.isArray(body) ||
+            Object.keys(body).some((key) => key !== "reason") ||
+            (body.reason !== undefined &&
+                (typeof body.reason !== "string" || body.reason.length > 500))
+        )
+            return reply.code(400).send({ error: "invalid_request" });
+        const file = await database.findFileUploadedBy(fileId, current.user.id);
+        if (!file) return reply.code(404).send({ error: "not_found" });
+        const result = await database.deleteOwnedUnreferencedFile(
+            fileId,
+            current.user.id,
+            typeof body.reason === "string" ? body.reason : undefined,
+        );
+        if (result === "not_found") return reply.code(404).send({ error: "not_found" });
+        if (result === "in_use") return reply.code(409).send({ error: "file_in_use" });
+        await files.deleteStoredFile(file).catch((error: unknown) => {
+            request.log.error({ err: error, fileId }, "Deleted file storage cleanup failed");
+        });
+        return { deleted: true };
+    });
     app.post("/v0/files/:fileId/createSignedUrl", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return reply.code(401).send({ error: "unauthorized" });
@@ -139,12 +271,47 @@ export function registerFileRoutes(
                 .code(206)
                 .header("content-range", `bytes ${range.start}-${range.end}/${file.size}`)
                 .header("content-length", String(range.end - range.start + 1));
-            return response.send(files.createReadStream(file, range));
+            return response.send(files.open(file, range));
         }
-        return response
-            .header("content-length", String(file.size))
-            .send(files.createReadStream(file));
+        return response.header("content-length", String(file.size)).send(files.open(file));
     });
+    for (const variant of ["thumbnail", "preview"] as const) {
+        app.get(`/v0/files/:fileId/${variant}`, async (request, reply) => {
+            const fileId = (request.params as { fileId?: string }).fileId;
+            const token = (request.query as { token?: string }).token;
+            if (!fileId) return reply.code(404).send({ error: "not_found" });
+            const file = await database.findFile(fileId);
+            if (!file) return reply.code(404).send({ error: "not_found" });
+            if (token) {
+                try {
+                    if ((await tokens.verifyFileUrlToken(token)) !== fileId)
+                        return reply.code(401).send({ error: "invalid_file_url" });
+                } catch {
+                    return reply.code(401).send({ error: "invalid_file_url" });
+                }
+            } else {
+                const current = await auth.authenticate(request);
+                if (!current) return reply.code(401).send({ error: "unauthorized" });
+                const accessible =
+                    file.isPublic ||
+                    file.uploadedByUserId === current.user.id ||
+                    (collaboration
+                        ? await collaboration.canAccessFile(current.user.id, file.id)
+                        : false);
+                if (!accessible) return reply.code(404).send({ error: "not_found" });
+            }
+            const asset = await files.variant(file, variant);
+            return asset
+                ? reply
+                      .type(asset.contentType)
+                      .header("content-length", String(asset.size))
+                      .header("cache-control", "private, max-age=300")
+                      .header("x-content-type-options", "nosniff")
+                      .header("content-disposition", "inline")
+                      .send(asset.stream)
+                : reply.code(404).send({ error: "not_found" });
+        });
+    }
 }
 
 function encodeFilename(value: string): string {
@@ -210,18 +377,8 @@ async function readLimited(
     }
     return Buffer.concat(chunks, size);
 }
-function fileResponse(file: {
-    id: string;
-    isPublic: boolean;
-    contentType: string;
-    size: number;
-    width: number;
-    height: number;
-    thumbhash: string;
-    kind: "file" | "photo" | "video" | "gif";
-    originalName?: string;
-    durationMs?: number;
-}) {
+async function fileResponse(files: FileStorage, file: StoredFile, includeVariants: boolean) {
+    const variants = includeVariants ? await files.variantSizes(file) : {};
     return {
         id: file.id,
         isPublic: file.isPublic,
@@ -233,5 +390,41 @@ function fileResponse(file: {
         kind: file.kind,
         originalName: file.originalName,
         durationMs: file.durationMs,
+        thumbnailUrl:
+            variants.thumbnail === undefined ? undefined : `/v0/files/${file.id}/thumbnail`,
+        previewUrl: variants.preview === undefined ? undefined : `/v0/files/${file.id}/preview`,
     };
+}
+
+function uploadResponse(upload: ResumableUpload) {
+    return {
+        id: upload.id,
+        filename: upload.filename,
+        contentType: upload.contentType,
+        size: upload.size,
+        offset: upload.offset,
+        createdAt: upload.createdAt,
+        updatedAt: upload.updatedAt,
+    };
+}
+
+function parseUploadOffset(value: string | string[] | undefined): number | undefined {
+    const parsed = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : Number.NaN;
+    return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function sendUploadError(reply: FastifyReply, log: FastifyBaseLogger, error: unknown) {
+    if (error instanceof UploadNotFoundError) return reply.code(404).send({ error: "not_found" });
+    if (error instanceof FileQuotaExceededError)
+        return reply.code(413).send({
+            error: "file_quota_exceeded",
+            scope: error.scope,
+            limit: error.limit,
+        });
+    if (error instanceof UploadRejectedError)
+        return reply.code(422).send({ error: "upload_rejected" });
+    if (error instanceof InvalidUploadError)
+        return reply.code(400).send({ error: "invalid_file", message: error.message });
+    log.error({ err: error }, "File upload failed");
+    return reply.code(500).send({ error: "internal_server_error" });
 }

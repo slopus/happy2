@@ -65,7 +65,8 @@ export async function initializeManagedEnvironment(
         !process.env.RIGGED_JWT_PRIVATE_KEY &&
         !process.env.RIGGED_JWT_PRIVATE_KEY_B64;
     const needsPepper = config.auth.password.enabled && !process.env.RIGGED_PASSWORD_PEPPER;
-    if (!needsJwt && !needsPepper) return;
+    const needsIntegrationSecret = !process.env[config.security.integrationSecretEnv];
+    if (!needsJwt && !needsPepper && !needsIntegrationSecret) return;
 
     await withLock(envPath, async () => {
         await loadEnv(envPath);
@@ -86,6 +87,8 @@ export async function initializeManagedEnvironment(
         }
         if (config.auth.password.enabled && !process.env.RIGGED_PASSWORD_PEPPER)
             values.RIGGED_PASSWORD_PEPPER = randomBytes(32).toString("base64url");
+        if (!process.env[config.security.integrationSecretEnv])
+            values[config.security.integrationSecretEnv] = randomBytes(32).toString("base64url");
         if (Object.keys(values).length) {
             await appendManaged(envPath, values);
             Object.assign(process.env, values);

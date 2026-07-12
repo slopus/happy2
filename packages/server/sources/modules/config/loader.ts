@@ -32,6 +32,13 @@ function integer(value: unknown, path: string, fallback?: number): number {
     return value;
 }
 
+function strings(value: unknown, path: string, fallback: string[] = []): string[] {
+    if (value === undefined) return fallback;
+    if (!Array.isArray(value) || !value.every((item) => typeof item === "string"))
+        throw new Error(`${path} must be a string array`);
+    return [...value];
+}
+
 export function parseConfig(input: string): ServerConfig {
     const root = table(parse(input), "config");
     const server = table(root.server, "server");
@@ -45,6 +52,9 @@ export function parseConfig(input: string): ServerConfig {
 
     const database = table(root.database, "database");
     const files = table(root.files ?? {}, "files");
+    const fileProvider = string(files.provider, "files.provider", true) ?? "local";
+    if (fileProvider !== "local")
+        throw new Error("files.provider must be local in this server build");
     const signedUrlExpirySeconds = integer(
         files.signed_url_expiry_seconds,
         "files.signed_url_expiry_seconds",
@@ -59,6 +69,75 @@ export function parseConfig(input: string): ServerConfig {
     );
     if (maxUploadBytes < 1024 || maxUploadBytes > 2 * 1024 * 1024 * 1024)
         throw new Error("files.max_upload_bytes must be between 1 KiB and 2 GiB");
+    const resumableChunkBytes = integer(
+        files.resumable_chunk_bytes,
+        "files.resumable_chunk_bytes",
+        8 * 1024 * 1024,
+    );
+    if (resumableChunkBytes < 64 * 1024 || resumableChunkBytes > 64 * 1024 * 1024)
+        throw new Error("files.resumable_chunk_bytes must be between 64 KiB and 64 MiB");
+    const perUserQuotaBytes = quota(files.per_user_quota_bytes, "files.per_user_quota_bytes");
+    const serverQuotaBytes = quota(files.server_quota_bytes, "files.server_quota_bytes");
+    const incompleteUploadExpirySeconds = integer(
+        files.incomplete_upload_expiry_seconds,
+        "files.incomplete_upload_expiry_seconds",
+        24 * 60 * 60,
+    );
+    if (incompleteUploadExpirySeconds < 60 || incompleteUploadExpirySeconds > 30 * 24 * 60 * 60)
+        throw new Error("files.incomplete_upload_expiry_seconds must be between 60 and 2592000");
+    const quarantineRetentionSeconds = integer(
+        files.quarantine_retention_seconds,
+        "files.quarantine_retention_seconds",
+        30 * 24 * 60 * 60,
+    );
+    if (quarantineRetentionSeconds < 0 || quarantineRetentionSeconds > 365 * 24 * 60 * 60)
+        throw new Error("files.quarantine_retention_seconds must be between 0 and 31536000");
+    const malwareScanTimeoutSeconds = integer(
+        files.malware_scan_timeout_seconds,
+        "files.malware_scan_timeout_seconds",
+        120,
+    );
+    if (malwareScanTimeoutSeconds < 1 || malwareScanTimeoutSeconds > 3600)
+        throw new Error("files.malware_scan_timeout_seconds must be between 1 and 3600");
+    const malwareScanFailureMode =
+        string(files.malware_scan_failure_mode, "files.malware_scan_failure_mode", true) ?? "deny";
+    if (malwareScanFailureMode !== "allow" && malwareScanFailureMode !== "deny")
+        throw new Error("files.malware_scan_failure_mode must be allow or deny");
+    const security = table(root.security ?? {}, "security");
+    const rateLimit = table(security.rate_limit ?? {}, "security.rate_limit");
+    const idempotency = table(security.idempotency ?? {}, "security.idempotency");
+    const readsPerMinute = boundedPositiveInteger(
+        rateLimit.reads_per_minute,
+        "security.rate_limit.reads_per_minute",
+        1_200,
+        1_000_000,
+    );
+    const writesPerMinute = boundedPositiveInteger(
+        rateLimit.writes_per_minute,
+        "security.rate_limit.writes_per_minute",
+        300,
+        1_000_000,
+    );
+    const authPerMinute = boundedPositiveInteger(
+        rateLimit.auth_per_minute,
+        "security.rate_limit.auth_per_minute",
+        30,
+        1_000_000,
+    );
+    const idempotencyLeaseSeconds = boundedPositiveInteger(
+        idempotency.lease_seconds,
+        "security.idempotency.lease_seconds",
+        30,
+        3_600,
+    );
+    const idempotencyRetentionSeconds = boundedPositiveInteger(
+        idempotency.retention_seconds,
+        "security.idempotency.retention_seconds",
+        86_400,
+        31_536_000,
+    );
+    if (idempotencyRetentionSeconds < idempotencyLeaseSeconds)
+        throw new Error("security.idempotency.retention_seconds must be at least lease_seconds");
     const jwt = table(root.jwt, "jwt");
     const expiryDays = integer(jwt.expiry_days, "jwt.expiry_days", 30);
     if (expiryDays < 1 || expiryDays > 90)
@@ -121,9 +200,42 @@ export function parseConfig(input: string): ServerConfig {
             authTokenEnv: string(database.auth_token_env, "database.auth_token_env", true),
         },
         files: {
+            provider: fileProvider,
             directory: string(files.directory, "files.directory", true) ?? "files",
             signedUrlExpirySeconds,
             maxUploadBytes,
+            resumableChunkBytes,
+            perUserQuotaBytes,
+            serverQuotaBytes,
+            incompleteUploadExpirySeconds,
+            quarantineRetentionSeconds,
+            malwareScannerCommand: string(
+                files.malware_scanner_command,
+                "files.malware_scanner_command",
+                true,
+            ),
+            malwareScannerArguments: strings(
+                files.malware_scanner_arguments,
+                "files.malware_scanner_arguments",
+            ),
+            malwareScanTimeoutSeconds,
+            malwareScanFailureMode,
+        },
+        security: {
+            integrationSecretEnv:
+                string(security.integration_secret_env, "security.integration_secret_env", true) ??
+                "RIGGED_INTEGRATION_SECRET",
+            rateLimit: {
+                enabled: boolean(rateLimit.enabled, "security.rate_limit.enabled", true),
+                readsPerMinute,
+                writesPerMinute,
+                authPerMinute,
+            },
+            idempotency: {
+                enabled: boolean(idempotency.enabled, "security.idempotency.enabled", true),
+                leaseSeconds: idempotencyLeaseSeconds,
+                retentionSeconds: idempotencyRetentionSeconds,
+            },
         },
         jwt: {
             issuer: string(jwt.issuer, "jwt.issuer")!,
@@ -146,6 +258,24 @@ export function parseConfig(input: string): ServerConfig {
             oidc,
         },
     };
+}
+
+function quota(value: unknown, path: string): number {
+    const result = integer(value, path, 0);
+    if (!Number.isSafeInteger(result) || result < 0)
+        throw new Error(`${path} must be zero or a positive safe integer`);
+    return result;
+}
+
+function boundedPositiveInteger(
+    value: unknown,
+    path: string,
+    fallback: number,
+    maximum: number,
+): number {
+    const result = integer(value, path, fallback);
+    if (result < 1 || result > maximum) throw new Error(`${path} must be between 1 and ${maximum}`);
+    return result;
 }
 
 export async function loadConfig(path: string): Promise<ServerConfig> {

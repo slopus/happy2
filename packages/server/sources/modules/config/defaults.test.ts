@@ -8,5 +8,11 @@ describe("configless defaults", () => {
         expect(config.database.url).toBe("file:rigged.db");
         expect(config.auth.password).toEqual({ enabled: true, signupEnabled: true });
         expect(config.auth.magicLink.enabled).toBe(false);
+        expect(config.files).toMatchObject({
+            provider: "local",
+            resumableChunkBytes: 8 * 1024 * 1024,
+            perUserQuotaBytes: 0,
+            malwareScanFailureMode: "deny",
+        });
     });
 });

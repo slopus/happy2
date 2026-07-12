@@ -51,4 +51,35 @@ enabled = true
 `),
         ).toThrow("redirect_url");
     });
+
+    it("loads file pipeline limits and scanner policy", () => {
+        const config = parseConfig(`${base}
+[files]
+provider = "local"
+resumable_chunk_bytes = 1048576
+per_user_quota_bytes = 5368709120
+server_quota_bytes = 107374182400
+malware_scanner_command = "/usr/bin/scanner"
+malware_scanner_arguments = ["--quiet", "{path}"]
+malware_scan_failure_mode = "allow"
+`);
+        expect(config.files).toMatchObject({
+            provider: "local",
+            resumableChunkBytes: 1048576,
+            perUserQuotaBytes: 5368709120,
+            serverQuotaBytes: 107374182400,
+            malwareScannerCommand: "/usr/bin/scanner",
+            malwareScannerArguments: ["--quiet", "{path}"],
+            malwareScanFailureMode: "allow",
+        });
+    });
+
+    it("rejects unsafe file pipeline limits", () => {
+        expect(() =>
+            parseConfig(`${base}
+[files]
+resumable_chunk_bytes = 1
+`),
+        ).toThrow("resumable_chunk_bytes");
+    });
 });
