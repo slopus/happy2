@@ -2,6 +2,7 @@ node_modules
 .context
 dist
 coverage
+.vitest-attachments
 .DS_Store
 .env
 .env.*

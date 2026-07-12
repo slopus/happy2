@@ -1,0 +1,140 @@
+@font-face {
+    font-family: "Rigged Manrope";
+    font-style: normal;
+    font-display: block;
+    font-weight: 200 800;
+    src: url("@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2")
+        format("woff2-variations");
+}
+
+.rigged-box,
+.rigged-button {
+    box-sizing: border-box;
+}
+
+.rigged-box {
+    display: block;
+}
+
+.rigged-button {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    margin: 0;
+    font-family: "Rigged Manrope", sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        border-color 120ms ease,
+        color 120ms ease;
+}
+
+.rigged-button[data-size="small"] {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+}
+
+.rigged-button[data-size="medium"] {
+    height: 36px;
+    padding: 0 14px;
+}
+
+.rigged-button[data-size="large"] {
+    height: 44px;
+    padding: 0 18px;
+    font-size: 14px;
+}
+
+.rigged-button[data-variant="primary"] {
+    background: #29262d;
+    color: #fffdf8;
+}
+
+.rigged-button[data-variant="primary"]:hover:not(:disabled) {
+    background: #453f4b;
+}
+
+.rigged-button[data-variant="secondary"] {
+    border-color: #cec8d2;
+    background: #f7f4f1;
+    color: #38333c;
+}
+
+.rigged-button[data-variant="secondary"]:hover:not(:disabled) {
+    border-color: #aaa1b0;
+    background: #eee9ed;
+}
+
+.rigged-button[data-variant="ghost"] {
+    background: transparent;
+    color: #514958;
+}
+
+.rigged-button[data-variant="ghost"]:hover:not(:disabled) {
+    background: #eee9ed;
+}
+
+.rigged-button:focus-visible {
+    outline: 2px solid #76518d;
+    outline-offset: 2px;
+}
+
+.rigged-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
+.rigged-button__content {
+    display: block;
+    flex: none;
+    transform: translateY(var(--rigged-button-optical-y));
+}
+
+.rigged-button[data-size="small"] .rigged-button__content {
+    --rigged-button-optical-y: 0.5px;
+}
+
+.rigged-button[data-size="medium"] .rigged-button__content {
+    --rigged-button-optical-y: 0px;
+}
+
+.rigged-button[data-size="large"] .rigged-button__content {
+    --rigged-button-optical-y: 0px;
+}
+
+@-moz-document url-prefix() {
+    .rigged-button[data-size="small"] .rigged-button__content {
+        --rigged-button-optical-y: 0px;
+    }
+
+    .rigged-button[data-size="medium"] .rigged-button__content {
+        --rigged-button-optical-y: -0.5px;
+    }
+
+    .rigged-button[data-size="large"] .rigged-button__content {
+        --rigged-button-optical-y: 0px;
+    }
+}
+
+@supports (font: -apple-system-body) {
+    .rigged-button[data-size="small"] .rigged-button__content {
+        --rigged-button-optical-y: 0px;
+    }
+
+    .rigged-button[data-size="medium"] .rigged-button__content {
+        --rigged-button-optical-y: 0px;
+    }
+
+    .rigged-button[data-size="large"] .rigged-button__content {
+        --rigged-button-optical-y: -0.5px;
+    }
+}
