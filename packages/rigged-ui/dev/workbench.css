@@ -358,6 +358,19 @@ select {
     top: 4px;
 }
 
+.dimensioned-avatar {
+    position: relative;
+    display: grid;
+    min-width: 92px;
+    place-items: center;
+    padding-top: 24px;
+}
+
+.dimensioned-avatar > .dimension-rule {
+    position: absolute;
+    top: 5px;
+}
+
 .height-callout {
     position: absolute;
     left: calc(100% + 8px);
@@ -452,6 +465,34 @@ select {
 .full-width-demo .dimension-rule {
     position: absolute;
     top: 0;
+}
+
+.avatar-sheet {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 48px;
+    margin-top: 18px;
+    border: 1px solid #b9dded;
+    background: #f7f6f1;
+    padding: 28px;
+    box-shadow: 7px 7px 0 rgb(2 31 54 / 0.2);
+}
+
+.avatar-form-row {
+    display: flex;
+    align-items: center;
+    gap: 64px;
+}
+
+.avatar-form-row > div {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+}
+
+.avatar-form-row code {
+    color: #688493;
+    font-size: 8px;
 }
 
 .box-plans {

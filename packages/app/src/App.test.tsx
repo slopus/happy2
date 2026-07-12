@@ -183,13 +183,13 @@ describe("App", () => {
         expect(getAllByText("@Patch").length).toBeGreaterThan(0);
     });
 
-    it("uses round human avatars and rounded rectangular bot avatars", () => {
+    it("wires human and bot avatar variants", () => {
         const { container } = render(() => <App />);
-        const human = container.querySelector('[data-avatar-type="human"]');
-        const bot = container.querySelector('[data-avatar-type="bot"]');
+        const human = container.querySelector('[data-rigged-ui="avatar"][data-type="human"]');
+        const bot = container.querySelector('[data-rigged-ui="avatar"][data-type="bot"]');
 
-        expect(human?.classList.contains("rounded-full")).toBe(true);
-        expect(bot?.classList.contains("rounded-[7px]")).toBe(true);
+        expect(human).toBeTruthy();
+        expect(bot).toBeTruthy();
     });
 
     it("expands and reviews an inline agent run", () => {

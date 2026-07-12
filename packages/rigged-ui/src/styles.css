@@ -7,9 +7,85 @@
         format("woff2-variations");
 }
 
+.rigged-avatar,
 .rigged-box,
 .rigged-button {
     box-sizing: border-box;
+}
+
+.rigged-avatar {
+    position: relative;
+    display: grid;
+    flex: none;
+    place-items: center;
+    border: 1px solid rgb(255 255 255 / 0.55);
+    border-radius: 999px;
+    background: #75637d;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28);
+    color: #ffffff;
+    font-family: "Rigged Manrope", sans-serif;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.rigged-avatar[data-type="bot"] {
+    border-color: rgb(0 0 0 / 0.15);
+    border-radius: 7px;
+}
+
+.rigged-avatar[data-size="xs"] {
+    width: 18px;
+    height: 18px;
+    font-size: 7px;
+}
+
+.rigged-avatar[data-size="sm"] {
+    width: 36px;
+    height: 36px;
+    font-size: 10px;
+}
+
+.rigged-avatar[data-size="md"] {
+    width: 40px;
+    height: 40px;
+    font-size: 10px;
+}
+
+.rigged-avatar__image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    object-fit: cover;
+}
+
+.rigged-avatar__initials {
+    display: block;
+    transform: translate(var(--rigged-avatar-optical-x, 0.5px), var(--rigged-avatar-optical-y, 0));
+}
+
+.rigged-avatar__presence {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 8px;
+    height: 8px;
+    box-sizing: border-box;
+    border: 1px solid #ffffff;
+    border-radius: 999px;
+    background: #36ae5f;
+}
+
+@-moz-document url-prefix() {
+    .rigged-avatar__initials {
+        --rigged-avatar-optical-x: 0;
+    }
+}
+
+@supports (font: -apple-system-body) {
+    .rigged-avatar[data-size="xs"] .rigged-avatar__initials {
+        --rigged-avatar-optical-y: 0.5px;
+    }
 }
 
 .rigged-box {

@@ -1,5 +1,5 @@
 import { createSignal, For } from "solid-js";
-import { Avatar } from "./Avatar";
+import { Avatar } from "rigged-ui";
 
 export type AgentSidebarView =
     | "agent-forge"

@@ -1,11 +1,12 @@
 import { createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { render } from "solid-js/web";
-import { Box, Button, type ButtonSize, type ButtonVariant } from "../src";
+import { Avatar, Box, Button, type AvatarSize, type ButtonSize, type ButtonVariant } from "../src";
 import "./workbench.css";
 
-type ComponentId = "box" | "button";
+type ComponentId = "avatar" | "box" | "button";
 
 const components: Array<{ id: ComponentId; label: string; number: string }> = [
+    { id: "avatar", label: "Avatar", number: "C-003" },
     { id: "button", label: "Button", number: "C-002" },
     { id: "box", label: "Box", number: "C-001" },
 ];
@@ -95,6 +96,75 @@ function ButtonPage() {
                 <div class="full-width-demo">
                     <DimensionRule label="container width" />
                     <Button fullWidth>Full width</Button>
+                </div>
+            </section>
+        </ComponentPage>
+    );
+}
+
+function AvatarPage() {
+    const sizes: Array<{ dimension: number; size: AvatarSize }> = [
+        { size: "xs", dimension: 18 },
+        { size: "sm", dimension: 36 },
+        { size: "md", dimension: 40 },
+    ];
+
+    return (
+        <ComponentPage
+            number="C-003"
+            title="Avatar"
+            summary="A prop-driven identity mark with fixed geometry and measured optical alignment."
+        >
+            <section class="specimen-grid specimen-grid--sizes" aria-label="Avatar size specimens">
+                <For each={sizes}>
+                    {(item, index) => (
+                        <Specimen
+                            number={`03.${index() + 1}`}
+                            label={`${item.size} / human`}
+                            detail={`${item.dimension} × ${item.dimension}`}
+                        >
+                            <div class="dimensioned-avatar">
+                                <DimensionRule label={`${item.dimension}px`} />
+                                <Avatar
+                                    initials="ST"
+                                    size={item.size}
+                                    online={item.size === "sm"}
+                                    style={{
+                                        background:
+                                            "linear-gradient(145deg, #3ca8a4, #4b5fb0 52%, #d14c78)",
+                                    }}
+                                />
+                            </div>
+                        </Specimen>
+                    )}
+                </For>
+            </section>
+
+            <section class="avatar-sheet" aria-labelledby="avatar-forms-title">
+                <div class="sheet-heading">
+                    <span>03.4</span>
+                    <div>
+                        <h2 id="avatar-forms-title">Identity forms</h2>
+                        <p>Human, agent, presence, and image content share one measured shell.</p>
+                    </div>
+                </div>
+                <div class="avatar-form-row">
+                    <div>
+                        <Avatar
+                            initials="MC"
+                            style={{ background: "linear-gradient(145deg, #cf7548, #e9a752)" }}
+                            online
+                        />
+                        <code>human / online</code>
+                    </div>
+                    <div>
+                        <Avatar
+                            initials="F"
+                            type="bot"
+                            style={{ background: "linear-gradient(145deg, #ef566d, #8056c7)" }}
+                        />
+                        <code>bot</code>
+                    </div>
                 </div>
             </section>
         </ComponentPage>
@@ -219,8 +289,15 @@ function Workbench() {
                 </label>
             </header>
             <div class="blueprint-field">
-                <Show when={active() === "button"} fallback={<BoxPage />}>
-                    <ButtonPage />
+                <Show
+                    when={active() === "avatar"}
+                    fallback={
+                        <Show when={active() === "button"} fallback={<BoxPage />}>
+                            <ButtonPage />
+                        </Show>
+                    }
+                >
+                    <AvatarPage />
                 </Show>
             </div>
         </div>

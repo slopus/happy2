@@ -17,6 +17,7 @@
         "clean": "rm -rf dist coverage"
     },
     "dependencies": {
+        "rigged-ui": "workspace:*",
         "solid-js": "^1.9.14"
     },
     "devDependencies": {

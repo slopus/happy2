@@ -1,7 +1,7 @@
 import { createEffect, For } from "solid-js";
 import { AgentRunCard, type AgentRun } from "./AgentRunCard";
 import { ApprovalRequestCard, type ApprovalRequest } from "./ApprovalRequestCard";
-import { Avatar, type AvatarType } from "./Avatar";
+import { Avatar, type AvatarType } from "rigged-ui";
 import { ContextChips, type ContextItem } from "./ContextPicker";
 import { DecisionCard, type Decision } from "./DecisionCard";
 import { DelegationReceipt, type Delegation } from "./ExecutionScope";

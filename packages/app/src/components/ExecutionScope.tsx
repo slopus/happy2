@@ -1,5 +1,5 @@
 import type { MentionableAgent } from "./AgentMentionPicker";
-import { Avatar } from "./Avatar";
+import { Avatar } from "rigged-ui";
 
 export type ExecutionMode = "discuss" | "implement" | "plan" | "verify";
 

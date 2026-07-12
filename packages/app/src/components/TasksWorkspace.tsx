@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
-import { Avatar, type AvatarType } from "./Avatar";
+import { Avatar, type AvatarType } from "rigged-ui";
 import type { TaskCounts, TaskView } from "./TasksSidebar";
 
 type TaskStatus = "complete" | "in-progress" | "planned" | "review";

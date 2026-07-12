@@ -1,6 +1,6 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import type { AgentSidebarView } from "./AgentsSidebar";
-import { Avatar } from "./Avatar";
+import { Avatar } from "rigged-ui";
 
 type AgentId = "forge" | "patch" | "scout";
 type RunState = "complete" | "paused" | "queued" | "review" | "running";

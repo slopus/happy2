@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { Avatar } from "./Avatar";
+import { Avatar } from "rigged-ui";
 
 type SidebarSectionIcon = "apps" | "channels" | "messages" | "star";
 

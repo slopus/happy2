@@ -1,5 +1,5 @@
 import type { JSX, ParentProps } from "solid-js";
-import { Avatar } from "./Avatar";
+import { Avatar } from "rigged-ui";
 
 type FeatureIconName = "home" | "agents" | "tasks" | "files" | "more";
 

@@ -1,4 +1,4 @@
-import { Avatar } from "./Avatar";
+import { Avatar } from "rigged-ui";
 
 export type MentionableAgent = {
     avatarClass: string;
