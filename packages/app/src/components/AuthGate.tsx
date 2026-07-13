@@ -1,4 +1,5 @@
 import { Match, Show, Switch, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import { createClientState, type ClientState } from "rigged-state";
 import {
     AuthScreen,
     Banner,
@@ -7,15 +8,14 @@ import {
     WindowDragRegion,
     onboardingBackgroundUrl,
 } from "rigged-ui";
-import {
-    createServerClient,
-    ServerError,
-    type AuthMethods,
-    type ServerClient,
-    type User,
-} from "../server";
+import { createServerClient, ServerError, type AuthMethods, type User } from "../server";
+import { createAuthenticatedTransport } from "../stateTransport";
 
-export type AuthSession = { client: ServerClient; token: string; user: User };
+export type AuthSession = {
+    state: ClientState;
+    user: User;
+    updateUser: (user: User) => void;
+};
 type AuthGateProps = {
     serverUrl: string;
     children: (session: AuthSession) => JSX.Element;
@@ -29,6 +29,7 @@ export function AuthGate(props: AuthGateProps) {
     const [mode, setMode] = createSignal<Mode>("loading");
     const [methods, setMethods] = createSignal<AuthMethods>();
     const [user, setUser] = createSignal<User>();
+    const [state, setState] = createSignal<ClientState>();
     const [isRegistering, setIsRegistering] = createSignal(false);
     const [email, setEmail] = createSignal("");
     const [password, setPassword] = createSignal("");
@@ -46,12 +47,17 @@ export function AuthGate(props: AuthGateProps) {
         localStorage.setItem(tokenKey, value);
         setLoadingMessage("Loading your profile.");
         setMode("loading");
+        const nextState = createClientState(createAuthenticatedTransport(props.serverUrl, value));
         try {
             const response = await client.me(value);
-            const profile = await loadAvatar(response.user, value);
+            await nextState.start();
+            const profile = await loadAvatar(response.user, nextState);
+            state()?.stop();
+            setState(nextState);
             setUser(profile);
             setMode("ready");
         } catch (reason) {
+            nextState.stop();
             if (!(reason instanceof ServerError) || reason.status !== 401) throw reason;
             if (allowRefresh) {
                 try {
@@ -68,17 +74,19 @@ export function AuthGate(props: AuthGateProps) {
             setMode("onboarding");
         }
     }
-    async function loadAvatar(profile: User, value: string): Promise<User> {
+    async function loadAvatar(profile: User, model: ClientState): Promise<User> {
         if (!profile.photoFileId) return profile;
         try {
             if (avatarUrl) URL.revokeObjectURL(avatarUrl);
-            avatarUrl = await client.avatar(profile.photoFileId, value);
+            const contents = await model.execute("downloadFile", { fileId: profile.photoFileId });
+            avatarUrl = URL.createObjectURL(new Blob([contents]));
             return { ...profile, avatarUrl };
         } catch {
             return profile;
         }
     }
     onCleanup(() => {
+        state()?.stop();
         if (avatarUrl) URL.revokeObjectURL(avatarUrl);
     });
     onMount(async () => {
@@ -116,12 +124,8 @@ export function AuthGate(props: AuthGateProps) {
         setPending(true);
         setError(undefined);
         try {
-            const response = await client.createProfile(
-                { firstName: firstName(), username: username() },
-                saved,
-            );
-            setUser(response.user);
-            setMode("ready");
+            await client.createProfile({ firstName: firstName(), username: username() }, saved);
+            await resolveSession(saved, false);
         } catch (reason) {
             setError(message(reason));
         } finally {
@@ -283,7 +287,13 @@ export function AuthGate(props: AuthGateProps) {
         <Show
             when={
                 mode() === "ready" && user() && token()
-                    ? { client, token: token()!, user: user()! }
+                    ? state()
+                        ? {
+                              state: state()!,
+                              user: user()!,
+                              updateUser: setUser,
+                          }
+                        : undefined
                     : undefined
             }
             fallback={gate}

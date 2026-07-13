@@ -1,10 +1,10 @@
-import { createSignal } from "solid-js";
+import { Show, createSignal, onCleanup, onMount } from "solid-js";
 import {
+    Banner,
     Box,
     EmptyState,
     FormRow,
     ProfileCard,
-    Select,
     SegmentedControl,
     StatusPicker,
     Switch,
@@ -13,7 +13,6 @@ import {
     type ProfileCardProps,
     type ProfileStatus,
     type SegmentedControlSegment,
-    type SelectOption,
 } from "rigged-ui";
 import { type AuthSession } from "../components/AuthGate";
 import { featureEmptyStates, type NotificationPreference, type SettingsState } from "../mockData";
@@ -40,22 +39,10 @@ const themeSegments: SegmentedControlSegment[] = [
     { value: "dark", label: "Dark" },
 ];
 
-const languageOptions: SelectOption[] = [
-    { value: "en", label: "English" },
-    { value: "es", label: "Español" },
-    { value: "fr", label: "Français" },
-    { value: "de", label: "Deutsch" },
-    { value: "ja", label: "日本語" },
-];
-
 /**
- * You / Settings feature area — a live/mock profile summary (ProfileCard), an
- * availability + custom-status editor (StatusPicker), and a settings form built
- * from FormRow + TextField/Select/Switch/SegmentedControl. Profile identity is
- * wired to the authenticated session when present (name, @username, avatar,
- * email) and falls back to the representative mock profile otherwise; the
- * notification and appearance preferences are local-only mock state.
- * TODO(server): persist profile + preference edits once server.ts exposes them.
+ * You / Settings feature area. Authenticated profile, presence, status, and
+ * notification changes autosave through rigged-state; unsupported device-only
+ * presentation preferences remain local in the unauthenticated showcase.
  */
 export function SettingsView(props: SettingsViewProps) {
     const user = props.session?.user;
@@ -74,8 +61,6 @@ export function SettingsView(props: SettingsViewProps) {
     const [handle, setHandle] = createSignal(user?.username ?? props.profile.username);
     const [title, setTitle] = createSignal(props.profile.title ?? "");
     const [email, setEmail] = createSignal(user?.email ?? props.settings.email);
-    const [language, setLanguage] = createSignal(props.settings.language);
-
     const [availability, setAvailability] = createSignal<Availability>(props.availability);
     const [statusEmoji, setStatusEmoji] = createSignal(props.status.emoji ?? "");
     const [statusText, setStatusText] = createSignal(props.status.text ?? "");
@@ -83,9 +68,20 @@ export function SettingsView(props: SettingsViewProps) {
     const [notify, setNotify] = createSignal<NotificationPreference>(
         props.settings.notificationPreference,
     );
-    const [sounds, setSounds] = createSignal(props.settings.soundsEnabled);
-    const [digest, setDigest] = createSignal(props.settings.emailDigest);
+    const [desktopNotifications, setDesktopNotifications] = createSignal(
+        props.settings.soundsEnabled,
+    );
+    const [emailNotifications, setEmailNotifications] = createSignal(props.settings.emailDigest);
     const [theme, setTheme] = createSignal<SettingsState["theme"]>(props.settings.theme);
+    const [saveError, setSaveError] = createSignal<string>();
+    const [initialized, setInitialized] = createSignal(!props.session);
+    let profileTimer: ReturnType<typeof setTimeout> | undefined;
+    let statusTimer: ReturnType<typeof setTimeout> | undefined;
+    let preferencesTimer: ReturnType<typeof setTimeout> | undefined;
+    let profileSaving = false;
+    let statusSaving = false;
+    let preferencesSaving = false;
+    let disposed = false;
 
     const initials = () => {
         const parts = name().trim().split(/\s+/).filter(Boolean);
@@ -98,7 +94,178 @@ export function SettingsView(props: SettingsViewProps) {
     const clearStatus = () => {
         setStatusText("");
         setStatusEmoji("");
+        queueStatusSave();
     };
+
+    const currentProfileFingerprint = () => JSON.stringify([name(), handle(), email()]);
+    const currentStatusFingerprint = () =>
+        JSON.stringify([availability(), statusEmoji(), statusText()]);
+    const currentPreferencesFingerprint = () =>
+        JSON.stringify([notify(), desktopNotifications(), emailNotifications()]);
+
+    function queueProfileSave() {
+        if (!props.session || disposed) return;
+        if (profileTimer) clearTimeout(profileTimer);
+        profileTimer = setTimeout(() => {
+            profileTimer = undefined;
+            if (initialized()) void saveProfile();
+            else queueProfileSave();
+        }, 400);
+    }
+
+    function queueStatusSave() {
+        if (!props.session || disposed) return;
+        if (statusTimer) clearTimeout(statusTimer);
+        statusTimer = setTimeout(() => {
+            statusTimer = undefined;
+            if (initialized()) void saveStatus();
+            else queueStatusSave();
+        }, 400);
+    }
+
+    function queuePreferencesSave() {
+        if (!props.session || disposed) return;
+        if (preferencesTimer) clearTimeout(preferencesTimer);
+        preferencesTimer = setTimeout(() => {
+            preferencesTimer = undefined;
+            if (initialized()) void savePreferences();
+            else queuePreferencesSave();
+        }, 400);
+    }
+
+    async function saveProfile() {
+        const session = props.session;
+        if (!session) return;
+        const fingerprint = currentProfileFingerprint();
+        const parts = name().trim().split(/\s+/).filter(Boolean);
+        const firstName = parts.shift();
+        const username = handle().trim().toLowerCase();
+        if (!firstName) {
+            setSaveError("Display name must include a first name.");
+            return;
+        }
+        if (!/^[a-z0-9][a-z0-9_-]{2,31}$/.test(username)) {
+            setSaveError(
+                "Username must be 3–32 lowercase letters, numbers, underscores, or hyphens.",
+            );
+            return;
+        }
+        if (profileSaving) return;
+        profileSaving = true;
+        try {
+            const result = await session.state.execute("updateProfile", {
+                firstName,
+                lastName: parts.join(" ") || null,
+                username,
+                email: email().trim() || null,
+                phone: session.user.phone ?? null,
+            });
+            if (disposed) return;
+            session.updateUser({ ...result.user, avatarUrl: session.user.avatarUrl });
+            setSaveError(undefined);
+        } catch (reason) {
+            if (!disposed) setSaveError(errorMessage(reason));
+        } finally {
+            profileSaving = false;
+            if (currentProfileFingerprint() !== fingerprint) queueProfileSave();
+        }
+    }
+
+    async function saveStatus() {
+        const session = props.session;
+        if (!session) return;
+        const fingerprint = currentStatusFingerprint();
+        if (statusSaving) return;
+        statusSaving = true;
+        try {
+            await session.state.execute("updateStatus", {
+                availability: availability(),
+                customStatusEmoji: statusEmoji().trim() || null,
+                customStatusText: statusText().trim() || null,
+            });
+            if (disposed) return;
+            setSaveError(undefined);
+        } catch (reason) {
+            if (!disposed) setSaveError(errorMessage(reason));
+        } finally {
+            statusSaving = false;
+            if (currentStatusFingerprint() !== fingerprint) queueStatusSave();
+        }
+    }
+
+    async function savePreferences() {
+        const session = props.session;
+        if (!session) return;
+        const fingerprint = currentPreferencesFingerprint();
+        const level = notify();
+        if (preferencesSaving) return;
+        preferencesSaving = true;
+        try {
+            await session.state.execute("updateNotificationPreferences", {
+                directMessages: level === "all" ? "all" : "none",
+                mentions: level === "none" ? "none" : "all",
+                threadReplies: level,
+                desktopNotifications: desktopNotifications(),
+                emailNotifications: emailNotifications(),
+            });
+            if (disposed) return;
+            setSaveError(undefined);
+        } catch (reason) {
+            if (!disposed) setSaveError(errorMessage(reason));
+        } finally {
+            preferencesSaving = false;
+            if (currentPreferencesFingerprint() !== fingerprint) queuePreferencesSave();
+        }
+    }
+
+    onMount(async () => {
+        const session = props.session;
+        if (!session) return;
+        const statusBeforeLoad = currentStatusFingerprint();
+        const preferencesBeforeLoad = currentPreferencesFingerprint();
+        try {
+            const [contacts, presence, preferences] = await Promise.all([
+                session.state.execute("getContacts"),
+                session.state.execute("getPresence"),
+                session.state.execute("getNotificationPreferences"),
+            ]);
+            if (disposed) return;
+            const current = contacts.users.find((item) => item.id === session.user.id);
+            const currentStatus = presence.statuses.find((item) => item.userId === session.user.id);
+            if (current?.title) setTitle(current.title);
+            const statusChangedWhileLoading = currentStatusFingerprint() !== statusBeforeLoad;
+            if (currentStatus && !statusChangedWhileLoading) {
+                setAvailability(currentStatus.availability);
+                setStatusEmoji(currentStatus.customStatusEmoji ?? "");
+                setStatusText(currentStatus.customStatusText ?? "");
+            }
+            const value = preferences.preferences;
+            const preferencesChangedWhileLoading =
+                currentPreferencesFingerprint() !== preferencesBeforeLoad;
+            if (!preferencesChangedWhileLoading) {
+                setNotify(
+                    value.directMessages === "all" && value.threadReplies === "all"
+                        ? "all"
+                        : value.mentions === "all" || value.threadReplies === "mentions"
+                          ? "mentions"
+                          : "none",
+                );
+                setDesktopNotifications(value.desktopNotifications);
+                setEmailNotifications(value.emailNotifications);
+            }
+        } catch (reason) {
+            if (!disposed) setSaveError(errorMessage(reason));
+        } finally {
+            if (!disposed) setInitialized(true);
+        }
+    });
+
+    onCleanup(() => {
+        disposed = true;
+        if (profileTimer) clearTimeout(profileTimer);
+        if (statusTimer) clearTimeout(statusTimer);
+        if (preferencesTimer) clearTimeout(preferencesTimer);
+    });
 
     return (
         <Box
@@ -123,6 +290,13 @@ export function SettingsView(props: SettingsViewProps) {
                     "max-width": "640px",
                 }}
             >
+                <Show when={saveError()}>
+                    {(message) => (
+                        <Banner tone="danger" title="Changes were not saved">
+                            {message()}
+                        </Banner>
+                    )}
+                </Show>
                 <ProfileCard
                     imageUrl={imageUrl}
                     initials={initials()}
@@ -140,10 +314,15 @@ export function SettingsView(props: SettingsViewProps) {
 
                 <StatusPicker
                     availability={availability()}
-                    expiresLabel={hasStatus() ? "Clears in 2 hours" : undefined}
-                    onAvailabilityChange={setAvailability}
+                    onAvailabilityChange={(value) => {
+                        setAvailability(value);
+                        queueStatusSave();
+                    }}
                     onClearStatus={clearStatus}
-                    onStatusTextChange={setStatusText}
+                    onStatusTextChange={(value) => {
+                        setStatusText(value);
+                        queueStatusSave();
+                    }}
                     statusEmoji={statusEmoji() || undefined}
                     statusText={statusText()}
                 />
@@ -155,7 +334,10 @@ export function SettingsView(props: SettingsViewProps) {
                                 <TextField
                                     fullWidth
                                     id="settings-name"
-                                    onValueChange={setName}
+                                    onValueChange={(value) => {
+                                        setName(value);
+                                        queueProfileSave();
+                                    }}
                                     size="small"
                                     value={name()}
                                 />
@@ -172,7 +354,10 @@ export function SettingsView(props: SettingsViewProps) {
                                     fullWidth
                                     id="settings-username"
                                     leadingIcon="at"
-                                    onValueChange={setHandle}
+                                    onValueChange={(value) => {
+                                        setHandle(value);
+                                        queueProfileSave();
+                                    }}
                                     size="small"
                                     value={handle()}
                                 />
@@ -186,6 +371,7 @@ export function SettingsView(props: SettingsViewProps) {
                         control={
                             <Box width={260}>
                                 <TextField
+                                    disabled={Boolean(props.session)}
                                     fullWidth
                                     id="settings-title"
                                     onValueChange={setTitle}
@@ -195,7 +381,11 @@ export function SettingsView(props: SettingsViewProps) {
                                 />
                             </Box>
                         }
-                        description="Role or team shown next to your name"
+                        description={
+                            props.session
+                                ? "Managed by workspace administrators"
+                                : "Role or team shown next to your name"
+                        }
                         htmlFor="settings-title"
                         label="Title"
                     />
@@ -205,7 +395,10 @@ export function SettingsView(props: SettingsViewProps) {
                                 <TextField
                                     fullWidth
                                     id="settings-email"
-                                    onValueChange={setEmail}
+                                    onValueChange={(value) => {
+                                        setEmail(value);
+                                        queueProfileSave();
+                                    }}
                                     size="small"
                                     type="email"
                                     value={email()}
@@ -216,28 +409,16 @@ export function SettingsView(props: SettingsViewProps) {
                         htmlFor="settings-email"
                         label="Email"
                     />
-                    <FormRow
-                        control={
-                            <Select
-                                id="settings-language"
-                                onValueChange={setLanguage}
-                                options={languageOptions}
-                                size="small"
-                                value={language()}
-                                width={200}
-                            />
-                        }
-                        description="Interface language on this device"
-                        htmlFor="settings-language"
-                        label="Language"
-                    />
                 </Box>
 
                 <Box>
                     <FormRow
                         control={
                             <SegmentedControl
-                                onChange={(value) => setNotify(value as NotificationPreference)}
+                                onChange={(value) => {
+                                    setNotify(value as NotificationPreference);
+                                    queuePreferencesSave();
+                                }}
                                 segments={notifySegments}
                                 size="small"
                                 value={notify()}
@@ -249,39 +430,51 @@ export function SettingsView(props: SettingsViewProps) {
                     <FormRow
                         control={
                             <Switch
-                                aria-label="Notification sounds"
-                                checked={sounds()}
-                                onChange={setSounds}
+                                aria-label="Desktop notifications"
+                                checked={desktopNotifications()}
+                                onChange={(value) => {
+                                    setDesktopNotifications(value);
+                                    queuePreferencesSave();
+                                }}
                             />
                         }
-                        description="Play a sound for new messages and mentions"
-                        label="Notification sounds"
+                        description="Show notifications for new messages and mentions on this device"
+                        label="Desktop notifications"
                     />
                     <FormRow
                         control={
                             <Switch
-                                aria-label="Weekly email digest"
-                                checked={digest()}
-                                onChange={setDigest}
+                                aria-label="Email notifications"
+                                checked={emailNotifications()}
+                                onChange={(value) => {
+                                    setEmailNotifications(value);
+                                    queuePreferencesSave();
+                                }}
                             />
                         }
-                        description="A Monday summary of what you missed"
-                        label="Weekly email digest"
+                        description="Allow account and activity notifications by email"
+                        label="Email notifications"
                     />
-                    <FormRow
-                        control={
-                            <SegmentedControl
-                                onChange={(value) => setTheme(value as SettingsState["theme"])}
-                                segments={themeSegments}
-                                size="small"
-                                value={theme()}
-                            />
-                        }
-                        description="Match your system theme or force dark"
-                        label="Appearance"
-                    />
+                    <Show when={!props.session}>
+                        <FormRow
+                            control={
+                                <SegmentedControl
+                                    onChange={(value) => setTheme(value as SettingsState["theme"])}
+                                    segments={themeSegments}
+                                    size="small"
+                                    value={theme()}
+                                />
+                            }
+                            description="Match your system theme or force dark"
+                            label="Appearance"
+                        />
+                    </Show>
                 </Box>
             </Box>
         </Box>
     );
+}
+
+function errorMessage(reason: unknown): string {
+    return reason instanceof Error ? reason.message : "Something went wrong.";
 }

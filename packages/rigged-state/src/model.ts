@@ -726,6 +726,7 @@ function optimisticMessage(
         changePts: "0",
         kind: "user",
         text: input.text ?? "",
+        threadRootMessageId: input.threadRootMessageId,
         threadReplyCount: 0,
         revision: 1,
         mentions: [],

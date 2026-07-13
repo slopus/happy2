@@ -254,6 +254,7 @@ export interface SendMessageInput {
     readonly text?: string;
     readonly attachmentFileIds?: readonly string[];
     readonly quotedMessageId?: string;
+    readonly threadRootMessageId?: string;
     readonly expiryMode?: ExpiryMode;
     readonly selfDestructSeconds?: number;
     readonly afterReadScope?: "any_reader" | "all_readers";

@@ -5,6 +5,7 @@ import {
     Match,
     onCleanup,
     onMount,
+    Show,
     Switch,
     type JSX,
 } from "solid-js";
@@ -13,21 +14,36 @@ import {
     AgentRunCard,
     AppShell,
     ApprovalCard,
+    Box,
+    Button,
     ChannelHeader,
     Composer,
     ContextChips,
     DayDivider,
     DiffSnippet,
     EventCard,
+    FormRow,
     Message,
     MessageList,
+    Modal,
     ProfileCard,
+    Select,
     Sidebar,
+    TextField,
     type ApprovalResolution,
     type ContextItem,
     type SidebarSection,
+    type SelectOption,
     type ToneName,
 } from "rigged-ui";
+import type {
+    ChatSummary,
+    FileSummary,
+    MessageSummary,
+    PresenceSnapshot,
+    UploadedFile,
+    UserSummary,
+} from "rigged-state";
 import { type AuthSession } from "../components/AuthGate";
 import {
     chatSections,
@@ -42,14 +58,6 @@ import {
     type ThreadDivider,
     type ThreadMessage,
 } from "../mockData";
-import type {
-    ChatSummary,
-    FileSummary,
-    MessageSummary,
-    PresenceSnapshot,
-    UploadedFile,
-    UserSummary,
-} from "../server";
 
 export type ChatViewProps = {
     platform?: "desktop" | "web";
@@ -71,6 +79,29 @@ const asMessage = (entry: WorkspaceEntry): LiveThreadMessage | undefined =>
     entry.kind === "message" ? entry : undefined;
 
 const tones: ToneName[] = ["violet", "ember", "mint", "ocean", "rose", "amber", "slate"];
+const channelKindOptions: SelectOption[] = [
+    { value: "public_channel", label: "Public channel" },
+    { value: "private_channel", label: "Private channel" },
+];
+const overlayStyle: JSX.CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    "align-items": "center",
+    "justify-content": "center",
+    padding: "24px",
+    "z-index": 30,
+};
+const modalStackStyle: JSX.CSSProperties = {
+    display: "flex",
+    "flex-direction": "column",
+    gap: "8px",
+};
+const modalActionsStyle: JSX.CSSProperties = {
+    display: "flex",
+    "align-items": "center",
+    gap: "8px",
+};
 
 function toneFor(id: string): ToneName {
     let hash = 0;
@@ -106,8 +137,13 @@ function dayLabel(value: string): string {
     }).format(date);
 }
 
-function toThreadMessage(message: MessageSummary): LiveThreadMessage {
-    const sender = message.sender;
+function toThreadMessage(
+    message: MessageSummary,
+    currentUser?: Pick<UserSummary, "id" | "firstName" | "lastName">,
+): LiveThreadMessage {
+    const sender =
+        message.sender ??
+        (message.id.startsWith("local:") && currentUser ? currentUser : undefined);
     const deleted = Boolean(message.deletedAt);
     return {
         kind: "message",
@@ -131,7 +167,10 @@ function toThreadMessage(message: MessageSummary): LiveThreadMessage {
     };
 }
 
-function toEntries(messages: MessageSummary[]): WorkspaceEntry[] {
+function toEntries(
+    messages: readonly MessageSummary[],
+    currentUser?: Pick<UserSummary, "id" | "firstName" | "lastName">,
+): WorkspaceEntry[] {
     const result: WorkspaceEntry[] = [];
     let previousDay = "";
     for (const message of messages) {
@@ -145,7 +184,7 @@ function toEntries(messages: MessageSummary[]): WorkspaceEntry[] {
             });
             previousDay = date;
         }
-        result.push(toThreadMessage(message));
+        result.push(toThreadMessage(message, currentUser));
     }
     return result;
 }
@@ -176,12 +215,17 @@ export function ChatView(props: ChatViewProps) {
         Record<string, ApprovalResolution>
     >({});
     const [toggledReactions, setToggledReactions] = createSignal<Record<string, boolean>>({});
+    const [createOpen, setCreateOpen] = createSignal(false);
+    const [newChannelName, setNewChannelName] = createSignal("");
+    const [newChannelSlug, setNewChannelSlug] = createSignal("");
+    const [channelSlugEdited, setChannelSlugEdited] = createSignal(false);
+    const [newChannelKind, setNewChannelKind] = createSignal<"public_channel" | "private_channel">(
+        "public_channel",
+    );
     let fileInput: HTMLInputElement | undefined;
     let requestNumber = 0;
-    let realtimeCleanup: (() => void) | undefined;
-    let realtimeRetry: ReturnType<typeof setTimeout> | undefined;
-    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
-    let typingTimer: ReturnType<typeof setTimeout> | undefined;
+    let workspaceRequestNumber = 0;
+    const stateCleanups: Array<() => void> = [];
     let sentTyping = false;
 
     const busy = () => busyCount() > 0;
@@ -189,6 +233,7 @@ export function ChatView(props: ChatViewProps) {
     const finishBusy = () => setBusyCount((count) => Math.max(0, count - 1));
 
     const user = () => props.session?.user;
+    const state = () => props.session?.state;
     const userName = () => user()?.firstName ?? "Steve";
     const userInitials = () => user()?.firstName.slice(0, 2).toUpperCase() ?? "ST";
     const activeChat = () => serverChats().find((chat) => chat.id === activeConversationId());
@@ -330,32 +375,42 @@ export function ChatView(props: ChatViewProps) {
     }
 
     async function refreshWorkspace(preferredChatId = activeConversationId()) {
-        const session = props.session;
-        if (!session) return;
+        const model = state();
+        if (!model || !props.session) return;
+        const currentWorkspaceRequest = ++workspaceRequestNumber;
         try {
-            const [chatResponse, contactResponse] = await Promise.all([
-                session.client.chats(session.token),
-                session.client.contacts(session.token),
+            const [contactResponse, directoryResponse] = await Promise.all([
+                model.execute("getContacts"),
+                model.execute("getDirectoryChannels"),
             ]);
-            const chats = chatResponse.chats;
+            const chatsById = new Map(
+                directoryResponse.channels.map((chat) => [chat.id, chat] as const),
+            );
+            for (const chat of model.get().chats) chatsById.set(chat.id, chat);
+            const chats = [...chatsById.values()];
             const peers: Record<string, UserSummary> = {};
             await Promise.all(
                 chats
                     .filter((chat) => chat.kind === "dm")
                     .map(async (chat) => {
-                        const response = await session.client.chatMembers(chat.id, session.token);
-                        const peer = response.users.find((item) => item.id !== session.user.id);
+                        const response = await model.execute("getChatMembers", {
+                            chatId: chat.id,
+                        });
+                        const peer = response.users.find(
+                            (item) => item.id !== props.session!.user.id,
+                        );
                         if (peer) peers[chat.id] = peer;
                     }),
             );
             const snapshots = Object.fromEntries(
                 contactResponse.presence.map((item) => [item.userId, item]),
             );
+            if (currentWorkspaceRequest !== workspaceRequestNumber) return;
             setServerChats(chats);
-            setContacts(contactResponse.users);
+            setContacts([...contactResponse.users]);
             setDmPeers(peers);
             setPresence(snapshots);
-            applyNavigation(chats, contactResponse.users, peers, snapshots);
+            applyNavigation(chats, [...contactResponse.users], peers, snapshots);
 
             const nextChatId = chats.some((chat) => chat.id === preferredChatId)
                 ? preferredChatId
@@ -370,25 +425,25 @@ export function ChatView(props: ChatViewProps) {
     }
 
     async function loadConversation(chatId: string, rootMessageId?: string) {
-        const session = props.session;
-        if (!session || !chatId) return;
+        const model = state();
+        if (!model || !chatId) return;
         const currentRequest = ++requestNumber;
         startBusy();
         try {
-            const membersPromise = session.client.chatMembers(chatId, session.token);
+            const membersPromise = model.execute("getChatMembers", { chatId });
             let messages: MessageSummary[];
             if (rootMessageId) {
-                const history = await session.client.thread(rootMessageId, session.token, {
+                const history = await model.execute("getThread", {
+                    messageId: rootMessageId,
                     limit: 100,
                 });
-                messages = [history.root, ...history.messages];
+                messages = [history.root, ...history.messages] as MessageSummary[];
             } else {
-                messages = (await session.client.messages(chatId, session.token, { limit: 100 }))
-                    .messages;
+                messages = (await model.loadMessages(chatId)).map((item) => item.message);
             }
             const members = await membersPromise;
             if (currentRequest !== requestNumber) return;
-            setEntries(toEntries(messages));
+            setEntries(toEntries(messages, user()));
             setConversationData((current) => ({
                 ...current,
                 [chatId]: {
@@ -409,6 +464,8 @@ export function ChatView(props: ChatViewProps) {
     }
 
     async function selectConversation(id: string) {
+        // A direct user selection wins over any workspace refresh already in flight.
+        workspaceRequestNumber += 1;
         setDraft("");
         setPendingFiles([]);
         setThreadRootId(undefined);
@@ -417,14 +474,13 @@ export function ChatView(props: ChatViewProps) {
             return;
         }
         await stopTyping();
+        const model = state();
+        if (!model) return;
         if (id.startsWith("contact:")) {
             startBusy();
             try {
-                const response = await props.session.client.createDirectMessage(
-                    id.slice("contact:".length),
-                    props.session.token,
-                );
-                await refreshWorkspace(response.chat.id);
+                const chat = await model.createDirectMessage(id.slice("contact:".length));
+                await refreshWorkspace(chat.id);
             } catch (reason) {
                 setStatusHint(errorMessage(reason));
             } finally {
@@ -437,26 +493,54 @@ export function ChatView(props: ChatViewProps) {
     }
 
     async function createChannel() {
-        const session = props.session;
-        if (!session) return;
-        const name = window.prompt("Channel name")?.trim();
+        const model = state();
+        if (!model) return;
+        const name = newChannelName().trim();
         if (!name) return;
-        const slug = name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-|-$/g, "")
-            .slice(0, 64);
+        const slug = channelSlug(newChannelSlug() || name);
         if (!slug) {
             setStatusHint("Channel names need at least one letter or number.");
             return;
         }
         startBusy();
         try {
-            const response = await session.client.createChannel(
-                { kind: "public_channel", name, slug },
-                session.token,
-            );
-            await refreshWorkspace(response.chat.id);
+            const chat = await model.createChannel({ kind: newChannelKind(), name, slug });
+            setCreateOpen(false);
+            setNewChannelName("");
+            setNewChannelSlug("");
+            setChannelSlugEdited(false);
+            await refreshWorkspace(chat.id);
+        } catch (reason) {
+            setStatusHint(errorMessage(reason));
+        } finally {
+            finishBusy();
+        }
+    }
+
+    async function joinActiveChannel() {
+        const model = state();
+        const chat = activeChat();
+        if (!model || !chat) return;
+        startBusy();
+        try {
+            await model.joinChat(chat.id);
+            await refreshWorkspace(chat.id);
+        } catch (reason) {
+            setStatusHint(errorMessage(reason));
+        } finally {
+            finishBusy();
+        }
+    }
+
+    async function leaveActiveChannel() {
+        const model = state();
+        const chat = activeChat();
+        if (!model || !chat) return;
+        startBusy();
+        try {
+            await model.execute("leaveChat", { chatId: chat.id });
+            await model.execute("getChats");
+            await refreshWorkspace();
         } catch (reason) {
             setStatusHint(errorMessage(reason));
         } finally {
@@ -466,21 +550,21 @@ export function ChatView(props: ChatViewProps) {
 
     function updateDraft(value: string) {
         setDraft(value);
-        const session = props.session;
+        const model = state();
         const chatId = activeConversationId();
-        if (!session || !chatId) return;
+        if (!model || !chatId) return;
         const active = value.trim().length > 0;
         if (active === sentTyping) return;
         sentTyping = active;
-        void session.client.setTyping(chatId, active, session.token).catch(() => undefined);
+        model.setTyping(chatId, active);
     }
 
     async function stopTyping() {
-        const session = props.session;
+        const model = state();
         const chatId = activeConversationId();
-        if (!session || !chatId || !sentTyping) return;
+        if (!model || !chatId || !sentTyping) return;
         sentTyping = false;
-        await session.client.setTyping(chatId, false, session.token).catch(() => undefined);
+        model.setTyping(chatId, false);
     }
 
     async function sendMessage() {
@@ -504,15 +588,16 @@ export function ChatView(props: ChatViewProps) {
             return;
         }
         const chatId = activeConversationId();
+        const model = state();
         const attachments = pendingFiles();
-        if (!chatId || (!body && attachments.length === 0)) return;
+        if (!model || !chatId || (!body && attachments.length === 0)) return;
         startBusy();
         try {
             const chat = activeChat();
             if (chat?.kind === "public_channel" && !chat.membershipRole) {
-                const joined = await props.session.client.joinChat(chatId, props.session.token);
+                const joined = await model.joinChat(chatId);
                 setServerChats((current) =>
-                    current.map((item) => (item.id === joined.chat.id ? joined.chat : item)),
+                    current.map((item) => (item.id === joined.id ? joined : item)),
                 );
             }
             const input = {
@@ -520,29 +605,13 @@ export function ChatView(props: ChatViewProps) {
                 attachmentFileIds: attachments.map((file) => file.id),
                 clientMutationId: mutationId(),
             };
-            const response = threadRootId()
-                ? await props.session.client.sendThreadMessage(
-                      threadRootId()!,
-                      input,
-                      props.session.token,
-                  )
-                : await props.session.client.sendMessage(chatId, input, props.session.token);
+            model.sendMessage(chatId, {
+                ...input,
+                threadRootMessageId: threadRootId(),
+            });
             setDraft("");
             setPendingFiles([]);
             await stopTyping();
-            setEntries((current) => {
-                const messages = current
-                    .filter((entry): entry is LiveThreadMessage => entry.kind === "message")
-                    .flatMap((entry) => (entry.serverMessage ? [entry.serverMessage] : []))
-                    .filter((message) => message.id !== response.message.id);
-                messages.push(response.message);
-                messages.sort(
-                    (left, right) =>
-                        Number(left.sequence) - Number(right.sequence) ||
-                        left.createdAt.localeCompare(right.createdAt),
-                );
-                return toEntries(messages);
-            });
             setStatusHint(undefined);
         } catch (reason) {
             setStatusHint(errorMessage(reason));
@@ -552,7 +621,8 @@ export function ChatView(props: ChatViewProps) {
     }
 
     async function toggleReaction(message: LiveThreadMessage, emoji: string) {
-        if (!props.session || !message.serverMessage) {
+        const model = state();
+        if (!model || !message.serverMessage) {
             setToggledReactions((current) => ({
                 ...current,
                 [`${message.id}:${emoji}`]: !current[`${message.id}:${emoji}`],
@@ -564,12 +634,12 @@ export function ChatView(props: ChatViewProps) {
         );
         try {
             const response = active
-                ? await props.session.client.removeReaction(message.id, emoji, props.session.token)
-                : await props.session.client.addReaction(message.id, emoji, props.session.token);
+                ? await model.execute("removeReaction", { messageId: message.id, emoji })
+                : await model.execute("addReaction", { messageId: message.id, emoji });
             setEntries((current) =>
                 current.map((entry) =>
                     entry.kind === "message" && entry.id === message.id
-                        ? toThreadMessage(response.message)
+                        ? toThreadMessage(response.message, user())
                         : entry,
                 ),
             );
@@ -579,16 +649,19 @@ export function ChatView(props: ChatViewProps) {
     }
 
     async function uploadFiles(files: FileList | null) {
-        if (!props.session || !files?.length) return;
+        const model = state();
+        if (!model || !files?.length) return;
         startBusy();
         setStatusHint(
             `Uploading ${files.length === 1 ? files[0]!.name : `${files.length} files`}…`,
         );
         try {
             const uploaded = await Promise.all(
-                Array.from(files).map((file) =>
-                    props.session!.client.uploadFile(file, props.session!.token),
-                ),
+                Array.from(files).map((file) => {
+                    const body = new FormData();
+                    body.set("file", file, file.name);
+                    return model.execute("uploadFile", { body });
+                }),
             );
             setPendingFiles((current) => [...current, ...uploaded.map((item) => item.file)]);
             setStatusHint(undefined);
@@ -619,11 +692,12 @@ export function ChatView(props: ChatViewProps) {
 
     async function downloadFile(file: FileSummary, event: MouseEvent) {
         event.preventDefault();
-        if (!props.session) return;
+        const model = state();
+        if (!model) return;
         const download = window.open("about:blank", "_blank");
         if (download) download.opener = null;
         try {
-            const response = await props.session.client.createFileUrl(file.id, props.session.token);
+            const response = await model.execute("createFileSignedUrl", { fileId: file.id });
             if (download) download.location.replace(response.signedUrl.url);
             else {
                 const link = document.createElement("a");
@@ -638,232 +712,325 @@ export function ChatView(props: ChatViewProps) {
         }
     }
 
-    function scheduleRefresh() {
-        if (refreshTimer) clearTimeout(refreshTimer);
-        refreshTimer = setTimeout(() => void refreshWorkspace(), 80);
-    }
-
-    function connectRealtime() {
-        const session = props.session;
-        if (!session) return;
-        realtimeCleanup?.();
-        realtimeCleanup = session.client.subscribe(
-            session.token,
-            (event) => {
-                if (event.type === "sync") scheduleRefresh();
-                if (event.type === "presence") {
-                    setPresence((current) => ({
-                        ...current,
-                        [event.snapshot.userId]: event.snapshot,
-                    }));
-                    applyNavigation(serverChats(), contacts(), dmPeers(), {
-                        ...presence(),
-                        [event.snapshot.userId]: event.snapshot,
-                    });
-                }
-                if (event.type === "typing" && event.userId !== session.user.id) {
-                    if (typingTimer) clearTimeout(typingTimer);
-                    setTypingUser(
-                        event.active ? { chatId: event.chatId, userId: event.userId } : undefined,
-                    );
-                    if (event.active) {
-                        typingTimer = setTimeout(() => setTypingUser(undefined), 10_000);
-                    }
-                }
-            },
-            () => {
-                realtimeRetry = setTimeout(connectRealtime, 2_000);
-            },
-        );
-    }
-
     onMount(() => {
-        if (!props.session) return;
+        const model = state();
+        if (!model || !props.session) return;
         void refreshWorkspace();
-        connectRealtime();
+        stateCleanups.push(
+            model.subscribe("chats", () => void refreshWorkspace()),
+            model.subscribe("messages", (event) => {
+                if (event.chatId !== activeConversationId()) return;
+                const root = threadRootId();
+                const messages = (model.get().messagesByChat[event.chatId] ?? [])
+                    .map((item) => item.message)
+                    .filter((message) =>
+                        root
+                            ? message.id === root || message.threadRootMessageId === root
+                            : !message.threadRootMessageId,
+                    );
+                setEntries(toEntries(messages, user()));
+            }),
+            model.subscribe("presence", () => {
+                const snapshots = Object.fromEntries(
+                    model.get().presence.map((item) => [item.userId, item]),
+                );
+                setPresence(snapshots);
+                applyNavigation(serverChats(), contacts(), dmPeers(), snapshots);
+            }),
+            model.subscribe("typing", (event) => {
+                if (event.userId === props.session!.user.id) return;
+                setTypingUser(
+                    event.active ? { chatId: event.chatId, userId: event.userId } : undefined,
+                );
+            }),
+            model.subscribe("background-error", (event) => setStatusHint(event.error.message)),
+        );
     });
     onCleanup(() => {
-        realtimeCleanup?.();
-        if (realtimeRetry) clearTimeout(realtimeRetry);
-        if (refreshTimer) clearTimeout(refreshTimer);
-        if (typingTimer) clearTimeout(typingTimer);
+        workspaceRequestNumber += 1;
+        requestNumber += 1;
+        for (const cleanup of stateCleanups) cleanup();
         void stopTyping();
     });
 
     return (
-        <AppShell
-            titleBar={props.titleBar}
-            rail={props.rail}
-            sidebar={
-                <Sidebar
-                    activeItemId={activeConversationId()}
-                    footer={
-                        <ProfileCard
-                            imageUrl={user()?.avatarUrl}
-                            initials={userInitials()}
-                            name={userName()}
-                            presence="online"
-                            size="compact"
-                            tone="brand"
-                            username={user()?.username ?? "you"}
-                        />
+        <>
+            <AppShell
+                titleBar={props.titleBar}
+                rail={props.rail}
+                sidebar={
+                    <Sidebar
+                        activeItemId={activeConversationId()}
+                        footer={
+                            <ProfileCard
+                                imageUrl={user()?.avatarUrl}
+                                initials={userInitials()}
+                                name={userName()}
+                                presence="online"
+                                size="compact"
+                                tone="brand"
+                                username={user()?.username ?? "you"}
+                            />
+                        }
+                        onItemSelect={(id) => void selectConversation(id)}
+                        onSectionAction={(sectionId) => {
+                            if (sectionId === "channels") setCreateOpen(true);
+                        }}
+                        sections={filteredSidebar()}
+                        title={user() ? `${user()!.firstName}’s Rigged` : "Rigged"}
+                    />
+                }
+                panel={
+                    !connected ? (
+                        <AgentDesk done={deskDone} queued={deskQueued} running={deskRunning} />
+                    ) : undefined
+                }
+            >
+                <ChannelHeader
+                    actions={
+                        <Show when={connected && activeChat()?.kind !== "dm" && activeChat()}>
+                            {(chat) => (
+                                <Button
+                                    disabled={busy()}
+                                    onClick={() =>
+                                        void (chat().membershipRole
+                                            ? leaveActiveChannel()
+                                            : joinActiveChannel())
+                                    }
+                                    size="small"
+                                    variant={chat().membershipRole ? "ghost" : "secondary"}
+                                >
+                                    {chat().membershipRole ? "Leave" : "Join"}
+                                </Button>
+                            )}
+                        </Show>
                     }
-                    onItemSelect={(id) => void selectConversation(id)}
-                    onSectionAction={(sectionId) => {
-                        if (sectionId === "channels") void createChannel();
-                    }}
-                    sections={filteredSidebar()}
-                    title={user() ? `${user()!.firstName}’s Rigged` : "Rigged"}
+                    agentCount={conversation().agentCount}
+                    icon={conversation().icon}
+                    memberCount={conversation().memberCount}
+                    members={conversation().members}
+                    title={conversation().title}
+                    topic={conversation().topic}
                 />
-            }
-            panel={
-                !connected ? (
-                    <AgentDesk done={deskDone} queued={deskQueued} running={deskRunning} />
-                ) : undefined
-            }
-        >
-            <ChannelHeader
-                agentCount={conversation().agentCount}
-                icon={conversation().icon}
-                memberCount={conversation().memberCount}
-                members={conversation().members}
-                title={conversation().title}
-                topic={conversation().topic}
-            />
-            <MessageList intro={conversation().intro}>
-                <For each={conversationEntries()}>
-                    {(entry) => (
-                        <Switch>
-                            <Match when={asDivider(entry)}>
-                                {(divider) => <DayDivider label={divider().label} />}
-                            </Match>
-                            <Match when={asMessage(entry)}>
-                                {(message) => {
-                                    const item = message();
-                                    const attachment = item.attachment;
-                                    return (
-                                        <Message
-                                            agent={item.agent}
-                                            author={item.author}
-                                            body={item.body}
-                                            initials={item.initials}
-                                            onReactionSelect={(emoji) =>
-                                                void toggleReaction(item, emoji)
-                                            }
-                                            onReplySelect={() => openThread(item)}
-                                            reactions={reactionsFor(item)}
-                                            replyCount={item.replyCount}
-                                            time={item.time}
-                                            tone={item.tone}
-                                        >
-                                            <For each={item.serverMessage?.attachments}>
-                                                {(file) => (
-                                                    <a
-                                                        aria-label={`Download ${file.originalName ?? "attachment"}`}
-                                                        href="#"
-                                                        onClick={(event) =>
-                                                            void downloadFile(file, event)
-                                                        }
-                                                    >
-                                                        <ContextChips
-                                                            items={[
-                                                                {
-                                                                    id: file.id,
-                                                                    kind: "file",
-                                                                    label:
-                                                                        file.originalName ??
-                                                                        "Attachment",
-                                                                    detail: formatBytes(file.size),
-                                                                },
-                                                            ]}
-                                                            readOnly
-                                                        />
-                                                    </a>
-                                                )}
-                                            </For>
-                                            {attachment?.kind === "run" && (
-                                                <AgentRunCard
-                                                    actions={attachment.actions}
-                                                    expanded={expandedRuns()[item.id] ?? false}
-                                                    onExpandedChange={(expanded) =>
-                                                        setExpandedRuns((current) => ({
-                                                            ...current,
-                                                            [item.id]: expanded,
-                                                        }))
-                                                    }
-                                                    run={attachment.run}
-                                                >
-                                                    {attachment.diff && (
-                                                        <DiffSnippet
-                                                            file={attachment.diff.file}
-                                                            lines={attachment.diff.lines}
-                                                            stats={attachment.diff.stats}
-                                                        />
+                <MessageList intro={conversation().intro}>
+                    <For each={conversationEntries()}>
+                        {(entry) => (
+                            <Switch>
+                                <Match when={asDivider(entry)}>
+                                    {(divider) => <DayDivider label={divider().label} />}
+                                </Match>
+                                <Match when={asMessage(entry)}>
+                                    {(message) => {
+                                        const item = message();
+                                        const attachment = item.attachment;
+                                        return (
+                                            <Message
+                                                agent={item.agent}
+                                                author={item.author}
+                                                body={item.body}
+                                                initials={item.initials}
+                                                onReactionSelect={(emoji) =>
+                                                    void toggleReaction(item, emoji)
+                                                }
+                                                onReplySelect={() => openThread(item)}
+                                                reactions={reactionsFor(item)}
+                                                replyCount={item.replyCount}
+                                                time={item.time}
+                                                tone={item.tone}
+                                            >
+                                                <For each={item.serverMessage?.attachments}>
+                                                    {(file) => (
+                                                        <a
+                                                            aria-label={`Download ${file.originalName ?? "attachment"}`}
+                                                            href="#"
+                                                            onClick={(event) =>
+                                                                void downloadFile(file, event)
+                                                            }
+                                                        >
+                                                            <ContextChips
+                                                                items={[
+                                                                    {
+                                                                        id: file.id,
+                                                                        kind: "file",
+                                                                        label:
+                                                                            file.originalName ??
+                                                                            "Attachment",
+                                                                        detail: formatBytes(
+                                                                            file.size,
+                                                                        ),
+                                                                    },
+                                                                ]}
+                                                                readOnly
+                                                            />
+                                                        </a>
                                                     )}
-                                                </AgentRunCard>
-                                            )}
-                                            {attachment?.kind === "approval" && (
-                                                <ApprovalCard
-                                                    expanded={expandedApprovals()[item.id] ?? false}
-                                                    onExpandedChange={(expanded) =>
-                                                        setExpandedApprovals((current) => ({
-                                                            ...current,
-                                                            [item.id]: expanded,
-                                                        }))
-                                                    }
-                                                    onResolutionChange={(resolution) =>
-                                                        setApprovalResolutions((current) => ({
-                                                            ...current,
-                                                            [item.id]: resolution,
-                                                        }))
-                                                    }
-                                                    request={attachment.request}
-                                                    resolution={
-                                                        approvalResolutions()[item.id] ?? "pending"
-                                                    }
-                                                />
-                                            )}
-                                            {attachment?.kind === "event" && (
-                                                <EventCard
-                                                    badge={attachment.event.badge}
-                                                    from={attachment.event.from}
-                                                    icon={attachment.event.icon}
-                                                    meta={attachment.event.meta}
-                                                    time={attachment.event.time}
-                                                    title={attachment.event.title}
-                                                    to={attachment.event.to}
-                                                />
-                                            )}
-                                        </Message>
-                                    );
-                                }}
-                            </Match>
-                        </Switch>
-                    )}
-                </For>
-            </MessageList>
-            <input
-                hidden
-                multiple
-                onChange={(event) => void uploadFiles(event.currentTarget.files)}
-                ref={(element) => (fileInput = element)}
-                type="file"
-            />
-            <Composer
-                agents={connected ? [] : mentionableAgents}
-                contextItems={composerContext()}
-                disabled={busy() || (connected && !activeConversationId())}
-                hint={liveComposerHint()}
-                onAttachFile={connected ? () => fileInput?.click() : undefined}
-                onContextRemove={removeContext}
-                onSend={() => void sendMessage()}
-                onValueChange={updateDraft}
-                placeholder={conversation().composerPlaceholder}
-                sendEnabled={draft().trim().length > 0 || pendingFiles().length > 0}
-                style={{ margin: "0 20px 16px" }}
-                value={draft()}
-            />
-        </AppShell>
+                                                </For>
+                                                {attachment?.kind === "run" && (
+                                                    <AgentRunCard
+                                                        actions={attachment.actions}
+                                                        expanded={expandedRuns()[item.id] ?? false}
+                                                        onExpandedChange={(expanded) =>
+                                                            setExpandedRuns((current) => ({
+                                                                ...current,
+                                                                [item.id]: expanded,
+                                                            }))
+                                                        }
+                                                        run={attachment.run}
+                                                    >
+                                                        {attachment.diff && (
+                                                            <DiffSnippet
+                                                                file={attachment.diff.file}
+                                                                lines={attachment.diff.lines}
+                                                                stats={attachment.diff.stats}
+                                                            />
+                                                        )}
+                                                    </AgentRunCard>
+                                                )}
+                                                {attachment?.kind === "approval" && (
+                                                    <ApprovalCard
+                                                        expanded={
+                                                            expandedApprovals()[item.id] ?? false
+                                                        }
+                                                        onExpandedChange={(expanded) =>
+                                                            setExpandedApprovals((current) => ({
+                                                                ...current,
+                                                                [item.id]: expanded,
+                                                            }))
+                                                        }
+                                                        onResolutionChange={(resolution) =>
+                                                            setApprovalResolutions((current) => ({
+                                                                ...current,
+                                                                [item.id]: resolution,
+                                                            }))
+                                                        }
+                                                        request={attachment.request}
+                                                        resolution={
+                                                            approvalResolutions()[item.id] ??
+                                                            "pending"
+                                                        }
+                                                    />
+                                                )}
+                                                {attachment?.kind === "event" && (
+                                                    <EventCard
+                                                        badge={attachment.event.badge}
+                                                        from={attachment.event.from}
+                                                        icon={attachment.event.icon}
+                                                        meta={attachment.event.meta}
+                                                        time={attachment.event.time}
+                                                        title={attachment.event.title}
+                                                        to={attachment.event.to}
+                                                    />
+                                                )}
+                                            </Message>
+                                        );
+                                    }}
+                                </Match>
+                            </Switch>
+                        )}
+                    </For>
+                </MessageList>
+                <input
+                    hidden
+                    multiple
+                    onChange={(event) => void uploadFiles(event.currentTarget.files)}
+                    ref={(element) => (fileInput = element)}
+                    type="file"
+                />
+                <Composer
+                    agents={connected ? [] : mentionableAgents}
+                    contextItems={composerContext()}
+                    disabled={busy() || (connected && !activeConversationId())}
+                    hint={liveComposerHint()}
+                    onAttachFile={connected ? () => fileInput?.click() : undefined}
+                    onContextRemove={removeContext}
+                    onSend={() => void sendMessage()}
+                    onValueChange={updateDraft}
+                    placeholder={conversation().composerPlaceholder}
+                    sendEnabled={draft().trim().length > 0 || pendingFiles().length > 0}
+                    style={{ margin: "0 20px 16px" }}
+                    value={draft()}
+                />
+            </AppShell>
+            <Show when={createOpen()}>
+                <Box onClick={() => setCreateOpen(false)} style={overlayStyle}>
+                    <Box onClick={(event) => event.stopPropagation()}>
+                        <Modal
+                            footer={
+                                <Box style={modalActionsStyle}>
+                                    <Button onClick={() => setCreateOpen(false)} variant="ghost">
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        disabled={busy() || !newChannelName().trim()}
+                                        icon="plus"
+                                        onClick={() => void createChannel()}
+                                    >
+                                        Create channel
+                                    </Button>
+                                </Box>
+                            }
+                            icon="hash"
+                            onClose={() => setCreateOpen(false)}
+                            size="small"
+                            title="Create channel"
+                        >
+                            <Box style={modalStackStyle}>
+                                <FormRow
+                                    control={
+                                        <TextField
+                                            fullWidth
+                                            onValueChange={(value) => {
+                                                setNewChannelName(value);
+                                                if (!channelSlugEdited())
+                                                    setNewChannelSlug(channelSlug(value));
+                                            }}
+                                            placeholder="e.g. Product launch"
+                                            value={newChannelName()}
+                                        />
+                                    }
+                                    description="Shown in the channel list."
+                                    label="Name"
+                                    layout="stacked"
+                                />
+                                <FormRow
+                                    control={
+                                        <TextField
+                                            fullWidth
+                                            onValueChange={(value) => {
+                                                setChannelSlugEdited(true);
+                                                setNewChannelSlug(channelSlug(value));
+                                            }}
+                                            placeholder="product-launch"
+                                            value={newChannelSlug()}
+                                        />
+                                    }
+                                    description="Used for mentions and channel links."
+                                    label="Slug"
+                                    layout="stacked"
+                                />
+                                <FormRow
+                                    control={
+                                        <Select
+                                            fullWidth
+                                            onValueChange={(value) =>
+                                                setNewChannelKind(
+                                                    value as "public_channel" | "private_channel",
+                                                )
+                                            }
+                                            options={channelKindOptions}
+                                            value={newChannelKind()}
+                                        />
+                                    }
+                                    description="Public channels are discoverable by everyone."
+                                    label="Visibility"
+                                    layout="stacked"
+                                />
+                            </Box>
+                        </Modal>
+                    </Box>
+                </Box>
+            </Show>
+        </>
     );
 }
 
@@ -875,6 +1042,15 @@ function formatBytes(size: number): string {
 
 function mutationId(): string {
     return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+}
+
+function channelSlug(value: string): string {
+    return value
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 64);
 }
 
 function errorMessage(reason: unknown): string {

@@ -1,4 +1,5 @@
 import { createSignal, onMount, Show } from "solid-js";
+import type { FileSummary } from "rigged-state";
 import {
     Box,
     EmptyState,
@@ -11,7 +12,6 @@ import {
 } from "rigged-ui";
 import { type AuthSession } from "../components/AuthGate";
 import { featureEmptyStates } from "../mockData";
-import { type FileSummary } from "../server";
 
 export type FilesViewProps = {
     items: MediaItem[];
@@ -30,8 +30,8 @@ const kindFilters: { id: string; kind?: MediaKind; label: string }[] = [
 
 /**
  * Files feature area — a MediaGallery grid with a Toolbar (name search) and a
- * kind-filter Tabs row. When a session exists the grid is driven by live
- * `/v0/files`; otherwise it renders the mock gallery. File previews fall back to
+ * kind-filter Tabs row. When a session exists the grid is driven by rigged-state;
+ * otherwise it renders the mock gallery. File previews fall back to
  * their kind glyph so the grid never loads a network image.
  */
 export function FilesView(props: FilesViewProps) {
@@ -43,8 +43,8 @@ export function FilesView(props: FilesViewProps) {
     onMount(() => {
         const session = props.session;
         if (!session) return;
-        void session.client
-            .files(session.token, { limit: 60 })
+        void session.state
+            .execute("getFiles", { limit: 60 })
             .then((response) => setLiveItems(response.files.map(toMediaItem)))
             // TODO(server): surface a load error banner once the shell exposes one.
             .catch(() => setLiveItems([]));

@@ -87,12 +87,21 @@ describe("client mutations", () => {
         state.subscribe("messages", events);
         await state.start();
 
-        expect(state.sendMessage("chat-1", { text: "optimistic" })).toBeUndefined();
+        expect(
+            state.sendMessage("chat-1", {
+                text: "optimistic",
+                threadRootMessageId: "root-message",
+            }),
+        ).toBeUndefined();
         expect(state.get().messagesByChat["chat-1"]).toMatchObject([
             {
                 delivery: "sending",
                 clientMutationId: "mutation-1",
-                message: { id: "local:mutation-1", text: "optimistic" },
+                message: {
+                    id: "local:mutation-1",
+                    text: "optimistic",
+                    threadRootMessageId: "root-message",
+                },
             },
         ]);
 
@@ -105,7 +114,10 @@ describe("client mutations", () => {
         ]);
         const posts = server.requests.filter((request) => request.method === "POST");
         expect(posts).toHaveLength(2);
-        expect(posts[0]?.body).toMatchObject({ clientMutationId: "mutation-1" });
+        expect(posts[0]?.body).toMatchObject({
+            clientMutationId: "mutation-1",
+            threadRootMessageId: "root-message",
+        });
         expect(posts.map((request) => request.headers?.["idempotency-key"])).toEqual([
             "mutation-1",
             "mutation-1",

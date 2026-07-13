@@ -26,6 +26,7 @@ import type {
     MessageRevision,
     ModerationAction,
     ModerationReport,
+    NotificationPreferences,
     ResumableUploadSummary,
     RetentionRun,
     ScheduledMessageSummary,
@@ -701,7 +702,14 @@ export interface KnownBackendResults {
     getChatBookmarks: { readonly bookmarks: readonly ChatBookmarkSummary[] };
     getContacts: DirectoryUsersResult;
     getDirectoryUsers: DirectoryUsersResult;
+    getDirectoryChannels: { readonly channels: readonly ChatSummary[] };
     getPresence: Pick<DirectoryUsersResult, "presence" | "statuses">;
+    updateStatus: { readonly status: PresenceSettingsSummary; readonly sync: unknown };
+    getNotificationPreferences: { readonly preferences: NotificationPreferences };
+    updateNotificationPreferences: {
+        readonly preferences: NotificationPreferences;
+        readonly sync: unknown;
+    };
     getFiles: { readonly files: readonly FileSummary[]; readonly nextCursor?: string };
     getCalls: { readonly calls: readonly CallSummary[] };
     getCall: { readonly call: CallSummary };
@@ -749,6 +757,9 @@ export interface KnownBackendResults {
     createUpload: { readonly upload: ResumableUploadSummary };
     getUploadState: { readonly upload: ResumableUploadSummary };
     completeUpload: { readonly file: UploadedFile };
+    createFileSignedUrl: {
+        readonly signedUrl: { readonly url: string; readonly expiresAt: string };
+    };
     createBot: { readonly bot: BotSummary; readonly sync: unknown };
     updateBot: { readonly bot: BotSummary; readonly sync: unknown };
     createIntegration: { readonly integration: IntegrationSummary; readonly sync: unknown };

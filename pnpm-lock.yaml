@@ -23,6 +23,9 @@ importers:
 
   packages/app:
     dependencies:
+      rigged-state:
+        specifier: workspace:*
+        version: link:../rigged-state
       rigged-ui:
         specifier: workspace:*
         version: link:../rigged-ui
