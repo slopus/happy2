@@ -80,6 +80,7 @@ export function MessagePage() {
                         author="Codex"
                         body="Fix is up — moved token registration behind the handshake promise and added a cold-start retry."
                         initials="CX"
+                        onReactionAdd={() => {}}
                         reactions={[
                             { count: 3, emoji: "🎉" },
                             { count: 2, emoji: "🚀" },
@@ -173,9 +174,64 @@ export function MessagePage() {
             </Specimen>
 
             <Specimen
+                detail="Hover/focus toolbar · reaction picker trigger · start thread · real supplied overflow actions"
+                label="Message — hover actions"
+                number="05"
+                stage="app"
+            >
+                {channelFrame(
+                    <Message
+                        actionsVisible
+                        author="Sasha K."
+                        body="Review is green. I left one note on the retry boundary."
+                        menuItems={[
+                            { kind: "item", id: "copy-link", icon: "link", label: "Copy link" },
+                            { kind: "item", id: "edit", icon: "edit", label: "Edit message" },
+                        ]}
+                        onMenuSelect={() => {}}
+                        onReactionSelect={() => {}}
+                        onReplySelect={() => {}}
+                        reactionOptions={[
+                            { char: "👍", id: "👍", name: "Thumbs up" },
+                            { char: "🎉", id: "🎉", name: "Celebrate" },
+                            { char: "✅", id: "✅", name: "Done" },
+                        ]}
+                        time="10:55"
+                        tone="ocean"
+                    />,
+                )}
+            </Specimen>
+
+            <Specimen
+                detail="Consecutive author grouping removes repeated identity; sending changes opacity only and preserves every box"
+                label="Message — grouped + sending"
+                number="06"
+                stage="app"
+            >
+                {channelFrame(
+                    <>
+                        <Message
+                            author="Maya Johnson"
+                            body="The release note is ready to publish."
+                            time="11:02"
+                            tone="amber"
+                        />
+                        <Message
+                            author="Maya Johnson"
+                            body="Waiting for the final server acknowledgement."
+                            deliveryState="sending"
+                            grouped
+                            time="11:03"
+                        />
+                    </>,
+                )}
+                <DimensionRule label="identical row geometry before / during delivery" />
+            </Specimen>
+
+            <Specimen
                 detail="11/700 mono uppercase pill (inset bg, radius 999) between hairline segments"
                 label="DayDivider"
-                number="05"
+                number="07"
                 stage="app"
             >
                 <div style={column}>
@@ -193,7 +249,7 @@ export function MessagePage() {
             <Specimen
                 detail="Sparse history bottom-anchors against the 12px padding; intro block leads the chronology"
                 label="MessageList — bottom anchor + intro"
-                number="06"
+                number="08"
                 stage="app"
             >
                 <div style={column}>
@@ -228,7 +284,7 @@ export function MessagePage() {
             <Specimen
                 detail="Overflowing history mounts scrolled to the newest message and follows appended content unless the reader scrolls up"
                 label="MessageList — long history"
-                number="07"
+                number="09"
                 stage="app"
             >
                 {channelFrame(

@@ -47,13 +47,17 @@ const groups: SearchResultGroup[] = [
             },
         ],
     },
+    {
+        type: "file",
+        results: [{ id: "launch-brief", title: "launch-brief.pdf", meta: "PDF · 2.4 MB" }],
+    },
 ];
 
 export function SearchResultsPage() {
     return (
         <ComponentPage
             number="C-036"
-            summary="Grouped unified search: message / channel / user rows with query highlight."
+            summary="Grouped unified search: message / channel / user / file rows with query highlight."
             title="Search results"
         >
             <div class="specimen-grid">
@@ -83,6 +87,7 @@ export function SearchResultsPage() {
                         <SearchResults groups={[groups[0]!]} onSelect={() => {}} query="launch" />
                         <SearchResults groups={[groups[1]!]} onSelect={() => {}} query="jun" />
                         <SearchResults groups={[groups[2]!]} onSelect={() => {}} query="launch" />
+                        <SearchResults groups={[groups[3]!]} onSelect={() => {}} query="launch" />
                     </div>
                 </Specimen>
 

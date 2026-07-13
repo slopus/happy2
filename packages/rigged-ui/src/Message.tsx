@@ -1,7 +1,20 @@
-import { children, For, onCleanup, onMount, Show, splitProps, type JSX } from "solid-js";
+import {
+    children,
+    createEffect,
+    createSignal,
+    For,
+    onCleanup,
+    onMount,
+    Show,
+    splitProps,
+    type JSX,
+} from "solid-js";
 import { Avatar, type ToneName } from "./Avatar";
 import { Badge, ReactionChip } from "./Badge";
+import { Button } from "./Button";
+import { EmojiPicker, type EmojiItem } from "./EmojiPicker";
 import { Icon } from "./Icon";
+import { Menu, type MenuItem } from "./Menu";
 
 export type MessageSegment =
     | { kind: "text"; text: string }
@@ -15,7 +28,11 @@ export type MessageReaction = {
     emoji: string;
 };
 
+export type MessageDeliveryState = "failed" | "sending" | "sent";
+
 export type MessageProps = Omit<JSX.HTMLAttributes<HTMLDivElement>, "style"> & {
+    /** Keeps a backed toolbar visible without hover (controlled/blueprint state). */
+    actionsVisible?: boolean;
     /** Author is an agent → accent AGENT badge next to the name. */
     agent?: boolean;
     author: string;
@@ -24,12 +41,21 @@ export type MessageProps = Omit<JSX.HTMLAttributes<HTMLDivElement>, "style"> & {
     children?: JSX.Element;
     /** Follow-up message: no avatar/author row, time sits in the gutter. */
     compact?: boolean;
+    /** Delivery styling that never inserts or removes layout. */
+    deliveryState?: MessageDeliveryState;
+    /** Consecutive message from the same author. Preferred over `compact`. */
+    grouped?: boolean;
     imageUrl?: string;
     initials?: string;
+    /** Real actions for the overflow menu. No menu button renders when empty. */
+    menuItems?: MenuItem[];
+    onMenuSelect?: (id: string) => void;
     onReactionAdd?: () => void;
     onReactionSelect?: (emoji: string) => void;
     onReplySelect?: () => void;
     reactions?: MessageReaction[];
+    /** Emoji available in the hover reaction picker. IDs are passed to `onReactionSelect`. */
+    reactionOptions?: EmojiItem[];
     replyCount?: number;
     style?: JSX.CSSProperties;
     time: string;
@@ -78,38 +104,133 @@ function renderSegment(segment: MessageSegment): JSX.Element {
 export function Message(props: MessageProps) {
     const [local, rest] = splitProps(props, [
         "agent",
+        "actionsVisible",
         "author",
         "body",
         "children",
         "class",
         "compact",
+        "deliveryState",
+        "grouped",
         "imageUrl",
         "initials",
+        "menuItems",
+        "onMenuSelect",
         "onReactionAdd",
         "onReactionSelect",
         "onReplySelect",
         "reactions",
+        "reactionOptions",
         "replyCount",
         "style",
         "time",
         "tone",
     ]);
     const attachments = children(() => local.children);
+    const [menuOpen, setMenuOpen] = createSignal(false);
+    const [reactionOpen, setReactionOpen] = createSignal(false);
+    const [reactionQuery, setReactionQuery] = createSignal("");
+    const [popoverStyle, setPopoverStyle] = createSignal<JSX.CSSProperties>({});
+    let root: HTMLDivElement | undefined;
     const segments = (): MessageSegment[] =>
         typeof local.body === "string" ? [{ kind: "text", text: local.body }] : local.body;
+    const grouped = () => local.grouped || local.compact;
+    const deliveryState = () => local.deliveryState ?? "sent";
+    const hasReactionAction = () =>
+        Boolean(local.onReactionAdd) ||
+        Boolean(local.onReactionSelect && local.reactionOptions?.length);
+    const hasMenuAction = () =>
+        Boolean(local.onMenuSelect) &&
+        Boolean(local.menuItems?.some((item) => item.kind === "item"));
+    const hasActions = () =>
+        deliveryState() !== "sending" &&
+        (hasReactionAction() || Boolean(local.onReplySelect) || hasMenuAction());
+    const filteredReactionOptions = () => {
+        const query = reactionQuery().trim().toLocaleLowerCase();
+        if (!query) return local.reactionOptions ?? [];
+        return (local.reactionOptions ?? []).filter((emoji) =>
+            emoji.name.toLocaleLowerCase().includes(query),
+        );
+    };
+
+    const closePopovers = () => {
+        setMenuOpen(false);
+        setReactionOpen(false);
+    };
+
+    const menuHeight = () =>
+        12 +
+        (local.menuItems ?? []).reduce((height, item) => {
+            if (item.kind === "item") return height + 32;
+            if (item.kind === "label") return height + 24;
+            return height + 11;
+        }, 0);
+
+    const placePopover = (width: number, height: number) => {
+        const bounds = root?.getBoundingClientRect();
+        if (!bounds) return;
+        const edge = 8;
+        const left = Math.max(edge, Math.min(bounds.right - 20 - width, innerWidth - width - edge));
+        const below = bounds.top + 40;
+        const above = bounds.top - height - 4;
+        const top =
+            below + height <= innerHeight - edge
+                ? below
+                : above >= edge
+                  ? above
+                  : Math.max(edge, innerHeight - height - edge);
+        setPopoverStyle({ left: `${Math.round(left)}px`, top: `${Math.round(top)}px` });
+    };
+
+    const toggleReactionPicker = () => {
+        setMenuOpen(false);
+        if (local.reactionOptions?.length) {
+            placePopover(234, 62 + Math.ceil(local.reactionOptions.length / 6) * 36);
+            setReactionOpen((open) => !open);
+            setReactionQuery("");
+        }
+        local.onReactionAdd?.();
+    };
+
+    createEffect(() => {
+        if (!menuOpen() && !reactionOpen()) return;
+        const onPointerDown = (event: PointerEvent) => {
+            if (!root?.contains(event.target as Node)) {
+                closePopovers();
+            }
+        };
+        const onViewportChange = () => closePopovers();
+        document.addEventListener("pointerdown", onPointerDown);
+        document.addEventListener("scroll", onViewportChange, true);
+        window.addEventListener("resize", onViewportChange);
+        onCleanup(() => {
+            document.removeEventListener("pointerdown", onPointerDown);
+            document.removeEventListener("scroll", onViewportChange, true);
+            window.removeEventListener("resize", onViewportChange);
+        });
+    });
 
     return (
         <div
             {...rest}
             class={["rigged-message", local.class].filter(Boolean).join(" ")}
             data-agent={local.agent ? "" : undefined}
-            data-compact={local.compact ? "" : undefined}
+            data-actions-visible={local.actionsVisible ? "" : undefined}
+            data-compact={grouped() ? "" : undefined}
+            data-delivery-state={deliveryState()}
+            data-grouped={grouped() ? "" : undefined}
+            data-has-actions={hasActions() ? "" : undefined}
             data-rigged-ui="message"
+            aria-busy={deliveryState() === "sending" ? "true" : undefined}
+            onKeyDown={(event) => {
+                if (event.key === "Escape") closePopovers();
+            }}
+            ref={(element) => (root = element)}
             style={local.style}
         >
             <div class="rigged-message__gutter" data-rigged-ui="message-gutter">
                 <Show
-                    when={!local.compact}
+                    when={!grouped()}
                     fallback={
                         <span
                             class="rigged-message__gutter-time"
@@ -129,7 +250,7 @@ export function Message(props: MessageProps) {
                 </Show>
             </div>
             <div class="rigged-message__content" data-rigged-ui="message-content">
-                <Show when={!local.compact}>
+                <Show when={!grouped()}>
                     <div class="rigged-message__meta" data-rigged-ui="message-meta">
                         <span class="rigged-message__author" data-rigged-ui="message-author">
                             {local.author}
@@ -162,15 +283,19 @@ export function Message(props: MessageProps) {
                                 />
                             )}
                         </For>
-                        <button
-                            aria-label="Add reaction"
-                            class="rigged-message__react-add"
-                            data-rigged-ui="message-react-add"
-                            onClick={() => local.onReactionAdd?.()}
-                            type="button"
-                        >
-                            <Icon name="smile" size={14} />
-                        </button>
+                        <Show when={hasReactionAction()}>
+                            <button
+                                aria-expanded={reactionOpen()}
+                                aria-haspopup={local.reactionOptions?.length ? "dialog" : undefined}
+                                aria-label="Add reaction"
+                                class="rigged-message__react-add"
+                                data-rigged-ui="message-react-add"
+                                onClick={toggleReactionPicker}
+                                type="button"
+                            >
+                                <Icon name="smile" size={14} />
+                            </button>
+                        </Show>
                     </div>
                 </Show>
                 <Show when={local.replyCount}>
@@ -186,6 +311,87 @@ export function Message(props: MessageProps) {
                     )}
                 </Show>
             </div>
+            <Show when={hasActions()}>
+                <div class="rigged-message__actions" data-rigged-ui="message-actions">
+                    <Show when={hasReactionAction()}>
+                        <Button
+                            aria-expanded={reactionOpen()}
+                            aria-haspopup={local.reactionOptions?.length ? "dialog" : undefined}
+                            aria-label="Add reaction"
+                            class="rigged-message__action"
+                            icon="smile"
+                            iconOnly
+                            onClick={toggleReactionPicker}
+                            size="small"
+                            variant="ghost"
+                        />
+                    </Show>
+                    <Show when={local.onReplySelect}>
+                        <Button
+                            aria-label={local.replyCount ? "Open thread" : "Start thread"}
+                            class="rigged-message__action"
+                            icon="thread"
+                            iconOnly
+                            onClick={() => local.onReplySelect?.()}
+                            size="small"
+                            variant="ghost"
+                        />
+                    </Show>
+                    <Show when={hasMenuAction()}>
+                        <Button
+                            aria-expanded={menuOpen()}
+                            aria-haspopup="menu"
+                            aria-label="More message actions"
+                            class="rigged-message__action"
+                            icon="more"
+                            iconOnly
+                            onClick={() => {
+                                setReactionOpen(false);
+                                placePopover(196, menuHeight());
+                                setMenuOpen((open) => !open);
+                            }}
+                            size="small"
+                            variant="ghost"
+                        />
+                    </Show>
+                </div>
+                <Show when={reactionOpen() && local.reactionOptions?.length}>
+                    <div
+                        class="rigged-message__popover rigged-message__popover--reaction"
+                        data-rigged-ui="message-reaction-popover"
+                        style={popoverStyle()}
+                    >
+                        <EmojiPicker
+                            columns={6}
+                            emoji={filteredReactionOptions()}
+                            onQueryChange={setReactionQuery}
+                            onSelect={(id) => {
+                                local.onReactionSelect?.(id);
+                                closePopovers();
+                            }}
+                            query={reactionQuery()}
+                        />
+                    </div>
+                </Show>
+                <Show when={menuOpen() && local.menuItems}>
+                    {(items) => (
+                        <div
+                            class="rigged-message__popover rigged-message__popover--menu"
+                            data-rigged-ui="message-menu-popover"
+                            style={popoverStyle()}
+                        >
+                            <Menu
+                                items={items()}
+                                onSelect={(id) => {
+                                    local.onMenuSelect?.(id);
+                                    closePopovers();
+                                }}
+                                width={196}
+                            />
+                        </div>
+                    )}
+                </Show>
+            </Show>
         </div>
     );
 }

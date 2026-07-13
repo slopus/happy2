@@ -19,6 +19,7 @@
 /* ---- Message ---------------------------------------------------------- */
 
 .rigged-message {
+    position: relative;
     display: grid;
     grid-template-columns: 36px 1fr;
     column-gap: 12px;
@@ -31,6 +32,25 @@
 
 .rigged-message:hover {
     background: var(--rg-bg-hover);
+}
+
+/* Sending changes paint only: author, avatar, body, attachments, and reactions
+ * keep their exact geometry while the optimistic row waits for confirmation. */
+.rigged-message__gutter,
+.rigged-message__content {
+    transition:
+        color 120ms ease,
+        opacity 120ms ease;
+}
+
+.rigged-message[data-delivery-state="sending"] .rigged-message__gutter,
+.rigged-message[data-delivery-state="sending"] .rigged-message__content {
+    opacity: 0.56;
+}
+
+.rigged-message[data-delivery-state="failed"] .rigged-message__content {
+    color: var(--rg-text-secondary);
+    opacity: 0.78;
 }
 
 .rigged-message__gutter {
@@ -205,6 +225,61 @@
     outline: var(--rg-focus-ring);
     outline-offset: 2px;
     border-radius: 4px;
+}
+
+/* ---- Hover actions ---------------------------------------------------- */
+
+.rigged-message__actions {
+    position: absolute;
+    z-index: 2;
+    top: 4px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    padding: 2px;
+    background: var(--rg-bg-raised);
+    border: 1px solid var(--rg-border-strong);
+    border-radius: var(--rg-radius-sm);
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.32);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-2px);
+    transition:
+        opacity 100ms ease,
+        transform 100ms ease;
+}
+
+.rigged-message:hover > .rigged-message__actions,
+.rigged-message:focus-within > .rigged-message__actions,
+.rigged-message[data-actions-visible] > .rigged-message__actions {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+/* The 28px buttons are 3px inside the toolbar border box. At the occupied
+ * outer corners their 3px curve is the true parallel of the 6px toolbar. */
+.rigged-message__action.rigged-button:first-child {
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
+}
+
+.rigged-message__action.rigged-button:last-child {
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+}
+
+.rigged-message__popover {
+    position: fixed;
+    z-index: 30;
+}
+
+.rigged-message__popover--reaction {
+    width: 234px;
+}
+
+.rigged-message__popover--menu {
+    width: 196px;
 }
 
 /* ---- MessageList ------------------------------------------------------ */

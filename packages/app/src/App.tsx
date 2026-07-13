@@ -1,39 +1,23 @@
 import { createSignal, Match, Show, Switch, type JSX } from "solid-js";
-import { AppShell, Avatar, Rail, TitleBar } from "rigged-ui";
+import { AppShell, Avatar, Rail, TitleBar, type RailItem, type SearchResultType } from "rigged-ui";
 import { AuthGate, type AuthSession } from "./components/AuthGate";
-import {
-    adminUsers,
-    automations,
-    callHistory,
-    callParticipants,
-    homeStats,
-    incomingCallParticipants,
-    integrations,
-    mediaItems,
-    moderationReports,
-    notifications,
-    profile,
-    profileAvailability,
-    profileStatus,
-    railItems,
-    searchResults,
-    settings,
-    threads,
-} from "./mockData";
+import { profile, profileAvailability, profileStatus, settings } from "./mockData";
 import { AdminView } from "./views/AdminView";
-import { CallsView } from "./views/CallsView";
 import { ChatView } from "./views/ChatView";
 import { FilesView } from "./views/FilesView";
-import { HomeView } from "./views/HomeView";
-import { InboxView } from "./views/InboxView";
 import { SearchOverlay } from "./views/SearchOverlay";
 import { SettingsView } from "./views/SettingsView";
-import { ThreadsView } from "./views/ThreadsView";
 
 type AppProps = {
     platform?: "desktop" | "web";
     serverUrl?: string;
 };
+
+const railItems: RailItem[] = [
+    { id: "chat", icon: "chat", label: "Chat" },
+    { id: "files", icon: "files", label: "Files" },
+    { id: "admin", icon: "shield", label: "Admin" },
+];
 
 /**
  * The application shell: owns the active-rail-feature and the shared TitleBar
@@ -79,84 +63,52 @@ function Shell(props: AppProps & { session?: AuthSession }) {
         />
     );
 
-    /* Shared shell for the feature views that don't own their own layout. A live
-     * TitleBar search value swaps the feature content for the search overlay so
-     * every rail area (except chat, which filters its own sidebar) exposes the
-     * shared SearchResults panel. */
-    const FeatureShell = (shellProps: { children: JSX.Element }) => (
+    /* Shared shell for feature views and global search. A live TitleBar search
+     * value replaces the current feature with one real, workspace-wide result
+     * surface, including when the user starts searching from Chat. */
+    const selectSearchResult = (type: SearchResultType) => {
+        setSearch("");
+        setActiveFeatureId(type === "file" ? "files" : "chat");
+    };
+
+    const FeatureShell = (shellProps: { children?: JSX.Element }) => (
         <AppShell rail={rail()} titleBar={titleBar()}>
-            <Show fallback={shellProps.children} when={search().trim()}>
+            <Show fallback={shellProps.children ?? null} when={search().trim()}>
                 <SearchOverlay
-                    groups={searchResults}
-                    onClose={() => setSearch("")}
+                    onSelect={selectSearchResult}
                     query={search()}
+                    session={props.session}
                 />
             </Show>
         </AppShell>
     );
 
     return (
-        <Switch
-            fallback={
-                <FeatureShell>
-                    <HomeView
-                        notifications={notifications}
-                        session={props.session}
-                        stats={homeStats}
-                    />
-                </FeatureShell>
-            }
-        >
+        <Switch fallback={null}>
             <Match when={activeFeatureId() === "chat"}>
-                <ChatView
-                    platform={props.platform}
-                    rail={rail()}
-                    search={search}
-                    session={props.session}
-                    titleBar={titleBar()}
-                />
-            </Match>
-            <Match when={activeFeatureId() === "home"}>
-                <FeatureShell>
-                    <HomeView
-                        notifications={notifications}
-                        session={props.session}
-                        stats={homeStats}
-                    />
-                </FeatureShell>
-            </Match>
-            <Match when={activeFeatureId() === "activity"}>
-                <FeatureShell>
-                    <InboxView notifications={notifications} />
-                </FeatureShell>
-            </Match>
-            <Match when={activeFeatureId() === "threads"}>
-                <FeatureShell>
-                    <ThreadsView threads={threads} />
-                </FeatureShell>
+                <Show
+                    fallback={
+                        <ChatView
+                            platform={props.platform}
+                            rail={rail()}
+                            search={search}
+                            session={props.session}
+                            titleBar={titleBar()}
+                        />
+                    }
+                    when={search().trim()}
+                >
+                    <FeatureShell />
+                </Show>
             </Match>
             <Match when={activeFeatureId() === "files"}>
                 <FeatureShell>
-                    <FilesView items={mediaItems} session={props.session} />
-                </FeatureShell>
-            </Match>
-            <Match when={activeFeatureId() === "calls"}>
-                <FeatureShell>
-                    <CallsView
-                        history={callHistory}
-                        incoming={incomingCallParticipants}
-                        participants={callParticipants}
-                    />
+                    <FilesView session={props.session} />
                 </FeatureShell>
             </Match>
             <Match when={activeFeatureId() === "admin"}>
                 <FeatureShell>
-                    <AdminView
-                        automations={automations}
-                        integrations={integrations}
-                        reports={moderationReports}
-                        users={adminUsers}
-                    />
+                    <AdminView session={props.session} />
                 </FeatureShell>
             </Match>
             <Match when={activeFeatureId() === "you"}>

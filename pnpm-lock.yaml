@@ -32,6 +32,9 @@ importers:
       solid-js:
         specifier: ^1.9.14
         version: 1.9.14
+      thumbhash:
+        specifier: ^0.1.1
+        version: 0.1.1
     devDependencies:
       '@solidjs/testing-library':
         specifier: ^0.8.10

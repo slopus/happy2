@@ -2,7 +2,7 @@ import "./styles.css";
 import { createSignal, For, type JSX } from "solid-js";
 import { expect, it } from "vitest";
 import { DayDivider, Message, MessageList } from "./Message";
-import { createRenderer, type RenderedElement } from "./testing";
+import { assertParallelRoundedCorners, createRenderer, type RenderedElement } from "./testing";
 
 /* Fixtures render on the app surface color so screenshots are representative. */
 function stage(testid: string, children: JSX.Element) {
@@ -358,6 +358,213 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     await view.screenshot("Message.test");
 });
 
+it("exposes real hover actions and keeps grouped sending geometry stable", async () => {
+    const view = createRenderer();
+    const reactions: string[] = [];
+    const menuSelections: string[] = [];
+    let threadStarts = 0;
+
+    const messageMenu = [
+        { kind: "item" as const, id: "copy-link", icon: "link" as const, label: "Copy link" },
+        { kind: "item" as const, id: "edit", icon: "edit" as const, label: "Edit message" },
+    ];
+    const reactionOptions = [
+        { char: "👍", id: "👍", name: "Thumbs up" },
+        { char: "🎉", id: "🎉", name: "Celebrate" },
+        { char: "✅", id: "✅", name: "Done" },
+    ];
+
+    view.render(
+        () =>
+            stage(
+                "actions",
+                <Message
+                    actionsVisible
+                    author="Sasha K."
+                    body="Review is green."
+                    menuItems={messageMenu}
+                    onMenuSelect={(id) => menuSelections.push(id)}
+                    onReactionSelect={(id) => reactions.push(id)}
+                    onReplySelect={() => (threadStarts += 1)}
+                    reactionOptions={reactionOptions}
+                    time="10:55"
+                    tone="ocean"
+                />,
+            ),
+        { width: 560, height: 260 },
+    );
+    view.render(
+        () =>
+            stage(
+                "actionless",
+                <Message
+                    author="Sasha K."
+                    body="No handlers means no controls."
+                    menuItems={messageMenu}
+                    reactionOptions={reactionOptions}
+                    time="10:56"
+                />,
+            ),
+        { width: 560, height: 70 },
+    );
+    view.render(
+        () =>
+            stage(
+                "grouped-sent",
+                <Message
+                    author="Maya Johnson"
+                    body="Waiting for acknowledgement."
+                    grouped
+                    time="11:03"
+                />,
+            ),
+        { width: 560, height: 48 },
+    );
+    view.render(
+        () =>
+            stage(
+                "grouped-sending",
+                <Message
+                    author="Maya Johnson"
+                    body="Waiting for acknowledgement."
+                    deliveryState="sending"
+                    grouped
+                    onReplySelect={() => {}}
+                    time="11:03"
+                />,
+            ),
+        { width: 560, height: 48 },
+    );
+    await view.ready();
+
+    /* A message only exposes controls backed by callbacks and supplied data. */
+    expect(
+        view.container.querySelector(
+            '[data-testid="actionless"] [data-rigged-ui="message-actions"]',
+        ),
+    ).toBeNull();
+    const toolbar = view.$('[data-testid="actions"] [data-rigged-ui="message-actions"]');
+    expect(toolbar.bounds()).toEqual({ x: 450, y: 4, width: 90, height: 34 });
+    expect(
+        toolbar.computedStyles([
+            "background-color",
+            "border-radius",
+            "display",
+            "opacity",
+            "padding-bottom",
+            "padding-left",
+            "padding-right",
+            "padding-top",
+            "pointer-events",
+            "position",
+        ]),
+    ).toEqual({
+        "background-color": "rgb(36, 34, 43)",
+        "border-radius": "6px",
+        display: "flex",
+        opacity: "1",
+        "padding-bottom": "2px",
+        "padding-left": "2px",
+        "padding-right": "2px",
+        "padding-top": "2px",
+        "pointer-events": "auto",
+        position: "absolute",
+    });
+    const actionButtons = toolbar.element.querySelectorAll<HTMLButtonElement>(
+        '[data-rigged-ui="button"]',
+    );
+    expect(actionButtons.length).toBe(3);
+    expect(Array.from(actionButtons, (button) => button.getAttribute("aria-label"))).toEqual([
+        "Add reaction",
+        "Start thread",
+        "More message actions",
+    ]);
+    for (const button of actionButtons) {
+        expect(button.getBoundingClientRect().width).toBe(28);
+        expect(button.getBoundingClientRect().height).toBe(28);
+    }
+
+    /* Thread callback and the picker/menu popovers perform actual selections. */
+    actionButtons[1]?.click();
+    expect(threadStarts).toBe(1);
+    actionButtons[0]?.click();
+    await nextFrame();
+    const picker = view.$('[data-testid="actions"] [data-rigged-ui="emoji-picker"]');
+    assertParallelRoundedCorners(view.container);
+    expect(picker.bounds().width).toBe(234);
+    expect(picker.bounds().y).toBe(40);
+    expect(actionButtons[0]?.getAttribute("aria-expanded")).toBe("true");
+    await view.screenshot("MessageReactionPicker.test");
+    const celebrate = view.$('[data-testid="actions"] [data-emoji-id="🎉"]');
+    (celebrate.element as HTMLButtonElement).click();
+    expect(reactions).toEqual(["🎉"]);
+    expect(
+        view.container.querySelector('[data-testid="actions"] [data-rigged-ui="emoji-picker"]'),
+    ).toBeNull();
+
+    actionButtons[2]?.click();
+    await nextFrame();
+    const menu = view.$('[data-testid="actions"] [data-rigged-ui="menu"]');
+    assertParallelRoundedCorners(view.container);
+    expect(menu.bounds().width).toBe(196);
+    expect(actionButtons[2]?.getAttribute("aria-expanded")).toBe("true");
+    const edit = view.$('[data-testid="actions"] [data-item-id="edit"]');
+    (edit.element as HTMLButtonElement).click();
+    expect(menuSelections).toEqual(["edit"]);
+    expect(
+        view.container.querySelector('[data-testid="actions"] [data-rigged-ui="menu"]'),
+    ).toBeNull();
+
+    /* Escape and an outside pointer both dismiss without selecting an action. */
+    actionButtons[2]?.click();
+    actionButtons[2]?.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
+    expect(
+        view.container.querySelector('[data-testid="actions"] [data-rigged-ui="menu"]'),
+    ).toBeNull();
+    actionButtons[2]?.click();
+    document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    expect(
+        view.container.querySelector('[data-testid="actions"] [data-rigged-ui="menu"]'),
+    ).toBeNull();
+
+    /* Grouping suppresses repeated identity while retaining the shared gutter. */
+    for (const testid of ["grouped-sent", "grouped-sending"] as const) {
+        const root = view.$(`[data-testid="${testid}"] [data-rigged-ui="message"]`);
+        expect(root.element.hasAttribute("data-grouped")).toBe(true);
+        expect(
+            root.element.querySelector('[data-rigged-ui="avatar"]'),
+            `${testid} avatar`,
+        ).toBeNull();
+        expect(
+            root.element.querySelector('[data-rigged-ui="message-meta"]'),
+            `${testid} meta`,
+        ).toBeNull();
+        expect(
+            root.element.querySelector('[data-rigged-ui="message-gutter-time"]'),
+            `${testid} gutter time`,
+        ).not.toBeNull();
+    }
+
+    /* Delivery paint changes without moving or resizing any row part. */
+    const sentRoot = view.$('[data-testid="grouped-sent"] [data-rigged-ui="message"]');
+    const sendingRoot = view.$('[data-testid="grouped-sending"] [data-rigged-ui="message"]');
+    const sentContent = view.$('[data-testid="grouped-sent"] [data-rigged-ui="message-content"]');
+    const sendingContent = view.$(
+        '[data-testid="grouped-sending"] [data-rigged-ui="message-content"]',
+    );
+    expect(sendingRoot.bounds()).toEqual(sentRoot.bounds());
+    expect(sendingContent.bounds()).toEqual(sentContent.bounds());
+    expect(sendingRoot.element.getAttribute("aria-busy")).toBe("true");
+    expect(sentContent.computedStyle("opacity")).toBe("1");
+    expect(sendingContent.computedStyle("opacity")).toBe("0.56");
+    expect(
+        sendingRoot.element.querySelector('[data-rigged-ui="message-actions"]'),
+        "actions remain unavailable before the message is durable",
+    ).toBeNull();
+
+    await view.screenshot("MessageActions.test");
+});
+
 it("centers painted ink optically in every Message text-in-a-box part", async () => {
     const view = createRenderer();
 
@@ -409,6 +616,7 @@ it("centers painted ink optically in every Message text-in-a-box part", async ()
                     <Message
                         author="Sasha K."
                         body="shipping"
+                        onReactionAdd={() => {}}
                         reactions={[{ count: 2, emoji: "👍" }]}
                         time="11:02"
                         tone="ocean"

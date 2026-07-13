@@ -1,7 +1,9 @@
-import { createSignal, onMount, Show } from "solid-js";
+import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { FileSummary } from "rigged-state";
+import { thumbHashToDataURL } from "thumbhash";
 import {
     Box,
+    Banner,
     EmptyState,
     MediaGallery,
     type MediaItem,
@@ -14,7 +16,8 @@ import { type AuthSession } from "../components/AuthGate";
 import { featureEmptyStates } from "../mockData";
 
 export type FilesViewProps = {
-    items: MediaItem[];
+    /** Legacy preview data is deliberately ignored; production files are state-backed. */
+    items?: MediaItem[];
     session?: AuthSession;
     onOpen?: (id: string) => void;
 };
@@ -31,27 +34,79 @@ const kindFilters: { id: string; kind?: MediaKind; label: string }[] = [
 /**
  * Files feature area — a MediaGallery grid with a Toolbar (name search) and a
  * kind-filter Tabs row. When a session exists the grid is driven by rigged-state;
- * otherwise it renders the mock gallery. File previews fall back to
- * their kind glyph so the grid never loads a network image.
+ * otherwise it renders an honest disconnected state. Selecting a file downloads
+ * its authenticated bytes rather than presenting a dead gallery button.
  */
 export function FilesView(props: FilesViewProps) {
-    const connected = Boolean(props.session);
-    const [liveItems, setLiveItems] = createSignal<MediaItem[]>();
+    const [liveFiles, setLiveFiles] = createSignal<readonly FileSummary[]>();
+    const [previewUrls, setPreviewUrls] = createSignal<Record<string, string>>({});
+    const [loadError, setLoadError] = createSignal<string>();
+    const [downloadState, setDownloadState] = createSignal<{
+        id?: string;
+        error?: string;
+    }>({});
     const [filter, setFilter] = createSignal("all");
     const [query, setQuery] = createSignal("");
 
+    let disposed = false;
+    const objectUrls = new Set<string>();
     onMount(() => {
         const session = props.session;
         if (!session) return;
         void session.state
             .execute("getFiles", { limit: 60 })
-            .then((response) => setLiveItems(response.files.map(toMediaItem)))
-            // TODO(server): surface a load error banner once the shell exposes one.
-            .catch(() => setLiveItems([]));
+            .then((response) => {
+                if (disposed) return;
+                setLiveFiles(response.files);
+                setPreviewUrls(
+                    Object.fromEntries(
+                        response.files.flatMap((file) => {
+                            const placeholder = thumbhashUrl(file.thumbhash);
+                            return placeholder ? [[file.id, placeholder]] : [];
+                        }),
+                    ),
+                );
+                for (const file of response.files) {
+                    if (file.kind !== "file") void loadPreview(session, file);
+                }
+            })
+            .catch((reason: unknown) => {
+                if (!disposed)
+                    setLoadError(
+                        reason instanceof Error ? reason.message : "Files could not load.",
+                    );
+            });
+    });
+    onCleanup(() => {
+        disposed = true;
+        for (const url of objectUrls) URL.revokeObjectURL(url);
+        objectUrls.clear();
     });
 
-    const source = () => (connected ? (liveItems() ?? []) : props.items);
-    const loading = () => connected && liveItems() === undefined;
+    async function loadPreview(session: AuthSession, file: FileSummary) {
+        try {
+            let contents: ArrayBuffer;
+            try {
+                contents = await session.state.execute("downloadFileThumbnail", {
+                    fileId: file.id,
+                });
+            } catch {
+                contents = await session.state.execute("downloadFilePreview", {
+                    fileId: file.id,
+                });
+            }
+            if (disposed) return;
+            const url = URL.createObjectURL(new Blob([contents], { type: "image/webp" }));
+            objectUrls.add(url);
+            setPreviewUrls((current) => ({ ...current, [file.id]: url }));
+        } catch {
+            // Keep the decoded thumbhash (or the gallery's type glyph) as fallback.
+        }
+    }
+
+    const source = () =>
+        (liveFiles() ?? []).map((file) => toMediaItem(file, previewUrls()[file.id]));
+    const loading = () => Boolean(props.session) && liveFiles() === undefined && !loadError();
     const activeKind = () => kindFilters.find((entry) => entry.id === filter())?.kind;
 
     const filtered = () => {
@@ -81,21 +136,67 @@ export function FilesView(props: FilesViewProps) {
         return activeKind() || query().trim() ? `${shown} of ${total} ${noun}` : `${total} ${noun}`;
     };
 
+    async function openFile(id: string) {
+        if (props.onOpen) return props.onOpen(id);
+        const session = props.session;
+        const file = liveFiles()?.find((item) => item.id === id);
+        if (!session || !file) return;
+        setDownloadState({ id });
+        try {
+            const contents = await session.state.execute("downloadFile", { fileId: id });
+            if (disposed) return;
+            const url = URL.createObjectURL(new Blob([contents], { type: file.contentType }));
+            const anchor = document.createElement("a");
+            anchor.href = url;
+            anchor.download = file.originalName ?? "download";
+            anchor.click();
+            setTimeout(() => URL.revokeObjectURL(url), 0);
+            setDownloadState({});
+        } catch (reason) {
+            if (!disposed)
+                setDownloadState({
+                    error:
+                        reason instanceof Error ? reason.message : "The file could not download.",
+                });
+        }
+    }
+
     const empty = featureEmptyStates["files"]!;
 
     return (
         <Show
             fallback={
-                <EmptyState
-                    description={
-                        loading() ? "Fetching shared files from your workspace." : empty.description
+                <Show
+                    when={!loadError()}
+                    fallback={
+                        <Banner tone="danger" title="Files unavailable">
+                            {loadError()!}
+                        </Banner>
                     }
-                    icon={empty.icon}
-                    title={loading() ? "Loading files…" : empty.title}
-                />
+                >
+                    <EmptyState
+                        description={
+                            loading()
+                                ? "Fetching shared files from your workspace."
+                                : props.session
+                                  ? empty.description
+                                  : "Connect to a workspace to browse shared files."
+                        }
+                        icon={empty.icon}
+                        title={loading() ? "Loading files…" : "No shared files"}
+                    />
+                </Show>
             }
             when={source().length > 0}
         >
+            <Show when={downloadState().id || downloadState().error}>
+                <Banner
+                    tone={downloadState().error ? "danger" : "info"}
+                    title={downloadState().error ? "Download failed" : "Preparing download…"}
+                >
+                    {downloadState().error ?? "Retrieving the original file securely."}
+                </Banner>
+            </Show>
             <Toolbar
                 search={{
                     onChange: setQuery,
@@ -117,21 +218,35 @@ export function FilesView(props: FilesViewProps) {
                         />
                     }
                     items={filtered()}
-                    onOpen={props.onOpen}
+                    onOpen={(id) => void openFile(id)}
                 />
             </Box>
         </Show>
     );
 }
 
-function toMediaItem(file: FileSummary): MediaItem {
+function toMediaItem(file: FileSummary, thumbnailUrl?: string): MediaItem {
     return {
         duration: file.durationMs === undefined ? undefined : formatDuration(file.durationMs),
         id: file.id,
         kind: file.kind,
         name: file.originalName,
         size: formatBytes(file.size),
+        thumbnailUrl,
     };
+}
+
+function thumbhashUrl(value?: string): string | undefined {
+    if (!value) return undefined;
+    try {
+        const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
+        const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+        return thumbHashToDataURL(
+            Uint8Array.from(atob(padded), (character) => character.charCodeAt(0)),
+        );
+    } catch {
+        return undefined;
+    }
 }
 
 function formatBytes(size: number): string {

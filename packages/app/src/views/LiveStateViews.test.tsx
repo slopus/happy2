@@ -82,6 +82,7 @@ describe("live views use rigged-state", () => {
 
         await waitFor(() => expect(view.getByRole("button", { name: "Add channel" })).toBeTruthy());
         fireEvent.click(view.getByRole("button", { name: "Add channel" }));
+        fireEvent.click(view.getByRole("button", { name: "Create channel" }));
         fireEvent.input(view.getByPlaceholderText("e.g. Product launch"), {
             target: { value: "Product" },
         });
@@ -96,19 +97,31 @@ describe("live views use rigged-state", () => {
             expect(state.get().chats.some(({ id }) => id === "created")).toBe(true),
         );
 
-        fireEvent.click(view.container.querySelector('[data-item-id="discoverable"]')!);
-        await waitFor(() =>
-            expect((view.getByRole("button", { name: "Join" }) as HTMLButtonElement).disabled).toBe(
-                false,
-            ),
-        );
-        fireEvent.click(view.getByRole("button", { name: "Join" }));
+        fireEvent.click(view.getByRole("button", { name: "Add channel" }));
+        fireEvent.click(view.getByRole("menuitem", { name: "Discoverable" }));
         await waitFor(() =>
             expect(
-                (view.getByRole("button", { name: "Leave" }) as HTMLButtonElement).disabled,
-            ).toBe(false),
+                view.container.querySelector('[data-rigged-ui="channel-header-title"]')
+                    ?.textContent,
+            ).toContain("Discoverable"),
         );
-        fireEvent.click(view.getByRole("button", { name: "Leave" }));
+        const actionButton = (label: string) =>
+            Array.from(
+                view.container.querySelectorAll<HTMLButtonElement>(
+                    '[data-rigged-ui="channel-header-actions"] button',
+                ),
+            ).find((button) => button.textContent?.trim() === label);
+        expect(
+            Array.from(
+                view.container.querySelectorAll<HTMLButtonElement>(
+                    '[data-rigged-ui="channel-header-actions"] button',
+                ),
+            ).map((button) => button.textContent?.trim()),
+        ).toEqual(["", "Join"]);
+        await waitFor(() => expect(actionButton("Join")?.disabled).toBe(false));
+        fireEvent.click(actionButton("Join")!);
+        await waitFor(() => expect(actionButton("Leave")?.disabled).toBe(false));
+        fireEvent.click(actionButton("Leave")!);
         await waitFor(() =>
             expect(
                 server.requests.some(
@@ -117,10 +130,14 @@ describe("live views use rigged-state", () => {
                 ),
             ).toBe(true),
         );
+        await waitFor(() => {
+            expect(view.container.querySelector('[data-item-id="discoverable"]')).toBeNull();
+            expect(view.getByText("Your Rigged")).toBeTruthy();
+        });
         state.stop();
     });
 
-    it("autosaves profile, status, and notification changes on the You screen", async () => {
+    it("autosaves ordinary settings but requires confirmation for a username change", async () => {
         const server = baseServer([]);
         server.respond(
             "GET",
@@ -194,6 +211,7 @@ describe("live views use rigged-state", () => {
         fireEvent.input(view.getByDisplayValue("Ada Lovelace"), {
             target: { value: "Ada Byron" },
         });
+        expect(view.getByText("Saving changes…")).toBeTruthy();
         await waitFor(
             () =>
                 expect(
@@ -205,7 +223,31 @@ describe("live views use rigged-state", () => {
                 ).toBe(true),
             { timeout: 1_500 },
         );
-        expect(updateUser).toHaveBeenCalled();
+        await waitFor(() => expect(updateUser).toHaveBeenCalled());
+
+        fireEvent.input(view.getByDisplayValue("ada"), {
+            target: { value: "ada_byron" },
+        });
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        expect(
+            server.requests.some(
+                ({ path, body }) =>
+                    path === "/v0/me/updateProfile" &&
+                    (body as { username?: string }).username === "ada_byron",
+            ),
+        ).toBe(false);
+        fireEvent.click(view.getByRole("button", { name: "Confirm username" }));
+        expect(view.getByRole("dialog", { name: "Confirm username change" })).toBeTruthy();
+        fireEvent.click(view.getByRole("button", { name: "Change username" }));
+        await waitFor(() =>
+            expect(
+                server.requests.some(
+                    ({ path, body }) =>
+                        path === "/v0/me/updateProfile" &&
+                        (body as { username?: string }).username === "ada_byron",
+                ),
+            ).toBe(true),
+        );
 
         fireEvent.click(view.getByRole("button", { name: "Away" }));
         fireEvent.click(view.getByRole("switch", { name: "Desktop notifications" }));
@@ -228,6 +270,156 @@ describe("live views use rigged-state", () => {
                 ).toBe(true);
             },
             { timeout: 1_500 },
+        );
+        state.stop();
+    });
+
+    it("groups messages and backs channel details, reactions, and threads with real actions", async () => {
+        const joined = chat({
+            id: "joined",
+            membershipRole: "owner",
+            name: "Joined",
+            slug: "joined",
+            topic: "Old topic",
+        });
+        const root = sentMessage("Root note", {
+            id: "root",
+            threadReplyCount: 1,
+        });
+        const followUp = sentMessage("Follow-up note", {
+            id: "follow-up",
+            sequence: "2",
+            changePts: "2",
+            createdAt: "2026-01-01T00:01:00.000Z",
+        });
+        const reply = sentMessage("Existing reply", {
+            id: "reply",
+            sequence: "3",
+            changePts: "3",
+            threadRootMessageId: "root",
+        });
+        const server = baseServer([joined]);
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, { users: [userSummary()], presence: [], statuses: [] }),
+        );
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            "/v0/chats/joined/members",
+            jsonResponse(200, { users: [userSummary()], memberships: [] }),
+        );
+        server.respond(
+            "GET",
+            (path) => path.includes("/v0/chats/joined/messages?limit=100"),
+            jsonResponse(200, { messages: [root, followUp], chatPts: "2", hasMore: false }),
+        );
+        server.respond(
+            "GET",
+            "/v0/messages/root/thread?limit=100",
+            jsonResponse(200, {
+                root,
+                messages: [reply],
+                chatPts: "3",
+                hasMore: false,
+            }),
+        );
+        server.respond(
+            "POST",
+            "/v0/messages/root/sendThreadMessage",
+            jsonResponse(201, { message: sentMessage("New reply", { id: "new-reply" }) }),
+        );
+        server.respond(
+            "POST",
+            "/v0/messages/root/addReaction",
+            jsonResponse(200, {
+                message: sentMessage("Root note", {
+                    id: "root",
+                    threadReplyCount: 1,
+                    reactions: [
+                        {
+                            key: "🚀",
+                            emoji: "🚀",
+                            count: 1,
+                            reacted: true,
+                            userIds: [currentUser.id],
+                        },
+                    ],
+                }),
+            }),
+        );
+        server.respond(
+            "POST",
+            "/v0/chats/joined/updateChannel",
+            jsonResponse(200, {
+                chat: { ...joined, name: "Renamed", topic: "New topic" },
+            }),
+        );
+
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        await waitFor(() => expect(view.getByText("Follow-up note")).toBeTruthy());
+        const messages = view.container.querySelectorAll('[data-rigged-ui="message"]');
+        expect(messages).toHaveLength(2);
+        expect(messages[1]?.hasAttribute("data-grouped")).toBe(true);
+
+        const rootMessage = view.getByText("Root note").closest('[data-rigged-ui="message"]')!;
+        fireEvent.click(rootMessage.querySelector('[aria-label="Open thread"]')!);
+        await waitFor(() => expect(view.getByTestId("thread-panel")).toBeTruthy());
+        await waitFor(() => expect(view.getByText("Existing reply")).toBeTruthy());
+        const threadComposer = view.getByPlaceholderText("Reply…");
+        fireEvent.input(threadComposer, { target: { value: "New reply" } });
+        fireEvent.keyDown(threadComposer, { key: "Enter" });
+        await waitFor(() =>
+            expect(
+                server.requests.some(
+                    ({ path, body }) =>
+                        path === "/v0/messages/root/sendThreadMessage" &&
+                        (body as { text?: string }).text === "New reply",
+                ),
+            ).toBe(true),
+        );
+
+        const refreshedRootMessage = view
+            .getAllByText("Root note")[0]!
+            .closest('[data-rigged-ui="message"]')!;
+        fireEvent.click(refreshedRootMessage.querySelector('[aria-label="Add reaction"]')!);
+        fireEvent.click(view.getByRole("button", { name: "rocket" }));
+        await waitFor(() =>
+            expect(
+                server.requests.some(
+                    ({ path, body }) =>
+                        path === "/v0/messages/root/addReaction" &&
+                        (body as { emoji?: string }).emoji === "🚀",
+                ),
+            ).toBe(true),
+        );
+
+        fireEvent.click(view.getByRole("button", { name: "Channel details" }));
+        await waitFor(() => expect(view.getByTestId("channel-info-panel")).toBeTruthy());
+        fireEvent.input(view.getByDisplayValue("Joined"), { target: { value: "Renamed" } });
+        fireEvent.input(view.getByDisplayValue("Old topic"), { target: { value: "New topic" } });
+        const saveButton = await waitFor(() => view.getByRole("button", { name: "Save changes" }));
+        fireEvent.click(saveButton);
+        await waitFor(() =>
+            expect(
+                server.requests.some(
+                    ({ path, body }) =>
+                        path === "/v0/chats/joined/updateChannel" &&
+                        (body as { name?: string }).name === "Renamed" &&
+                        (body as { topic?: string }).topic === "New topic",
+                ),
+            ).toBe(true),
         );
         state.stop();
     });
@@ -270,6 +462,7 @@ describe("live views use rigged-state", () => {
         const textarea = (await waitFor(() => {
             const field = view.getByPlaceholderText("Message #joined") as HTMLTextAreaElement;
             expect(field.disabled).toBe(false);
+            expect(field.readOnly).toBe(false);
             return field;
         })) as HTMLTextAreaElement;
 
@@ -345,7 +538,7 @@ function userSummary(): UserSummary & ClientUser {
     return { ...currentUser, role: "admin" };
 }
 
-function sentMessage(text: string): MessageSummary {
+function sentMessage(text: string, overrides: Partial<MessageSummary> = {}): MessageSummary {
     return {
         id: "message-1",
         chatId: "joined",
@@ -362,5 +555,6 @@ function sentMessage(text: string): MessageSummary {
         receipts: [],
         expiryMode: "none",
         createdAt: "2026-01-01T00:00:00.000Z",
+        ...overrides,
     };
 }

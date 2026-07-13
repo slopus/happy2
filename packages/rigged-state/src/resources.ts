@@ -1,4 +1,4 @@
-import type { MessageSummary } from "./types.js";
+import type { ChatSummary, MessageSummary, UserSummary } from "./types.js";
 
 export interface ClientUser {
     readonly id: string;
@@ -9,6 +9,15 @@ export interface ClientUser {
     readonly phone?: string;
     readonly photoFileId?: string;
 }
+
+export interface AdminUserSummary extends UserSummary {
+    readonly lastAccessAt?: string;
+}
+
+export type SearchResultSummary =
+    | { readonly type: "message"; readonly score: number; readonly message: MessageSummary }
+    | { readonly type: "channel"; readonly score: number; readonly channel: ChatSummary }
+    | { readonly type: "user"; readonly score: number; readonly user: UserSummary };
 
 export interface NotificationPreferences {
     readonly directMessages: "all" | "none";

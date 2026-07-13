@@ -3,7 +3,7 @@ import { Avatar, type ToneName } from "./Avatar";
 import { Icon, type IconName } from "./Icon";
 import type { MessageSegment } from "./Message";
 
-export type SearchResultType = "message" | "channel" | "user";
+export type SearchResultType = "message" | "channel" | "user" | "file";
 export type SearchResultAvatar = { initials: string; tone?: ToneName; imageUrl?: string };
 export type SearchResultItem = {
     id: string;
@@ -26,12 +26,14 @@ export type SearchResultsProps = {
 
 const groupLabels: Record<SearchResultType, string> = {
     channel: "Channels",
+    file: "Files",
     user: "People",
     message: "Messages",
 };
 
 const defaultIcons: Record<SearchResultType, IconName> = {
     channel: "hash",
+    file: "doc",
     user: "at",
     message: "chat",
 };

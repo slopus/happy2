@@ -140,25 +140,19 @@ describe("App", () => {
         expect(getByText("Approved — Forge can proceed")).toBeTruthy();
     });
 
-    it("routes each rail id to its composed feature view", () => {
-        const { container } = render(() => <App />);
+    it("exposes only the implemented Chat, Files, and Admin rail destinations", () => {
+        const { container, getByText } = render(() => <App />);
 
         // Chat is the default rail area and owns the channel header.
         expect(container.querySelector('[data-rigged-ui="channel-header"]')).toBeTruthy();
 
-        // Each rail id maps to a real FeatureView; assert a representative
-        // rigged-ui hook that only its composed screen renders.
-        const cases: [id: string, hook: string][] = [
-            ["home", "stat-tile"],
-            ["activity", "notification-list"],
-            ["files", "media-gallery"],
-            ["calls", "call-panel"],
-            ["admin", "tabs"],
-        ];
-        for (const [id, hook] of cases) {
-            fireEvent.click(railItem(container, id));
-            expect(container.querySelector(`[data-rigged-ui="${hook}"]`)).toBeTruthy();
-        }
+        expect(container.querySelectorAll('[data-rigged-ui="rail-item"]')).toHaveLength(3);
+
+        fireEvent.click(railItem(container, "files"));
+        expect(getByText("No shared files")).toBeTruthy();
+
+        fireEvent.click(railItem(container, "admin"));
+        expect(getByText("Admin requires a workspace")).toBeTruthy();
 
         // Returning to chat restores the live workspace.
         fireEvent.click(railItem(container, "chat"));
@@ -166,20 +160,17 @@ describe("App", () => {
     });
 
     it("opens the profile from the rail avatar instead of a You destination", () => {
-        const { container, getByRole } = render(() => <App />);
+        const { container, getByRole, getByText } = render(() => <App />);
 
         expect(
             container.querySelector('[data-rigged-ui="rail-item"][data-item-id="you"]'),
         ).toBeNull();
         fireEvent.click(getByRole("button", { name: "Open profile" }));
-        expect(container.querySelector('[data-rigged-ui="profile-card"]')).toBeTruthy();
+        expect(getByText("Profile requires a workspace")).toBeTruthy();
     });
 
-    it("swaps a feature view for the search overlay while searching", () => {
-        const { container } = render(() => <App />);
-
-        fireEvent.click(railItem(container, "home"));
-        expect(container.querySelector('[data-rigged-ui="stat-tile"]')).toBeTruthy();
+    it("does not substitute mock results when workspace search is disconnected", () => {
+        const { container, getByText } = render(() => <App />);
 
         const search = container.querySelector<HTMLInputElement>(
             '[data-rigged-ui="search-field-input"]',
@@ -187,12 +178,15 @@ describe("App", () => {
         if (!search) throw new Error("search field not found");
 
         fireEvent.input(search, { target: { value: "launch" } });
-        expect(container.querySelector('[data-rigged-ui="search-results"]')).toBeTruthy();
-        expect(container.querySelector('[data-rigged-ui="stat-tile"]')).toBeNull();
-
-        fireEvent.input(search, { target: { value: "" } });
+        expect(getByText("Search unavailable")).toBeTruthy();
         expect(container.querySelector('[data-rigged-ui="search-results"]')).toBeNull();
-        expect(container.querySelector('[data-rigged-ui="stat-tile"]')).toBeTruthy();
+
+        const activeSearch = container.querySelector<HTMLInputElement>(
+            '[data-rigged-ui="search-field-input"]',
+        );
+        if (!activeSearch) throw new Error("active search field not found");
+        fireEvent.input(activeSearch, { target: { value: "" } });
+        expect(container.querySelector('[data-rigged-ui="channel-header"]')).toBeTruthy();
     });
 
     it("expands and collapses an agent run card", () => {

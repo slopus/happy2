@@ -6,6 +6,7 @@ import {
     type ContextItem,
     type MentionableAgent,
 } from "../../src/Composer";
+import type { EmojiItem } from "../../src/EmojiPicker";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
 
 const AGENTS: MentionableAgent[] = [
@@ -41,16 +42,41 @@ const CONTEXT_ITEMS: ContextItem[] = [
     { id: "thread-1", kind: "thread", label: "#eng-core" },
 ];
 
+const EMOJI: EmojiItem[] = [
+    { char: "👍", id: "thumbsup", name: "thumbs up" },
+    { char: "🎉", id: "tada", name: "tada" },
+    { char: "🚀", id: "rocket", name: "rocket" },
+    { char: "✅", id: "check", name: "check mark" },
+    { char: "🔥", id: "fire", name: "fire" },
+    { char: "❤️", id: "heart", name: "heart" },
+    { char: "👀", id: "eyes", name: "eyes" },
+    { char: "🙏", id: "pray", name: "folded hands" },
+];
+
 const noop = () => {};
 
 function Playground() {
+    let nextAttachmentId = 0;
     const [value, setValue] = createSignal("");
     const [items, setItems] = createSignal<ContextItem[]>(CONTEXT_ITEMS);
     return (
         <Composer
             agents={AGENTS}
+            attachmentMultiple
             contextItems={items()}
+            emoji={EMOJI}
             hint="Enter to send · @ to hand off to an agent"
+            onAttachmentsSelect={(files) =>
+                setItems([
+                    ...items(),
+                    ...files.map((file) => ({
+                        detail: `${Math.max(1, Math.round(file.size / 1024))} KB`,
+                        id: `file-${nextAttachmentId++}-${file.name}`,
+                        kind: "file" as const,
+                        label: file.name,
+                    })),
+                ])
+            }
             onContextRemove={(id) => setItems(items().filter((item) => item.id !== id))}
             onSend={() => setValue("")}
             onValueChange={setValue}
@@ -64,12 +90,12 @@ export function ComposerPage() {
     return (
         <ComponentPage
             number="C-017"
-            summary="Message composer with auto-growing textarea, context chips, toolbar actions, and an @-triggered agent mention picker."
+            summary="Message composer with auto-growing text, capability-driven file/mention/emoji actions, stable sending feedback, and retained focus."
             title="Composer"
         >
             <div class="specimen-grid">
                 <Specimen
-                    detail="80px single-line card · 40px toolbar · send disabled while empty"
+                    detail="80px single-line card · capability actions hidden · send disabled while empty"
                     label="Default"
                     number="CP-01"
                     stage="app"
@@ -198,13 +224,34 @@ export function ComposerPage() {
                     </div>
                 </Specimen>
                 <Specimen
-                    detail="live: type, Shift+Enter for newline, @ opens the picker"
+                    detail="live: files, mentions, emoji, Enter-to-send, and retained focus"
                     label="Playground"
                     number="CP-07"
                     stage="app"
                 >
                     <div style={{ width: "640px", padding: "260px 20px 24px" }}>
                         <Playground />
+                    </div>
+                </Specimen>
+            </div>
+
+            <div class="specimen-grid">
+                <Specimen
+                    detail="same 80px geometry · draft stays visible · actions become inert"
+                    label="Sending"
+                    number="CP-08"
+                    stage="app"
+                >
+                    <div style={{ width: "640px", padding: "24px 20px" }}>
+                        <Composer
+                            agents={AGENTS}
+                            emoji={EMOJI}
+                            onAttachFile={noop}
+                            onSend={noop}
+                            onValueChange={noop}
+                            pending
+                            value="Shipping the message…"
+                        />
                     </div>
                 </Specimen>
             </div>

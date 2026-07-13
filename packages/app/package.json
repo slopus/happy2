@@ -19,7 +19,8 @@
     "dependencies": {
         "rigged-state": "workspace:*",
         "rigged-ui": "workspace:*",
-        "solid-js": "^1.9.14"
+        "solid-js": "^1.9.14",
+        "thumbhash": "^0.1.1"
     },
     "devDependencies": {
         "@solidjs/testing-library": "^0.8.10",

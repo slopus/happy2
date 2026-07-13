@@ -15,6 +15,7 @@ import type {
 } from "./types.js";
 import type {
     AccountBan,
+    AdminUserSummary,
     ApiCredentialSummary,
     AuditLogEntry,
     AutomationSummary,
@@ -29,6 +30,7 @@ import type {
     NotificationPreferences,
     ResumableUploadSummary,
     RetentionRun,
+    SearchResultSummary,
     ScheduledMessageSummary,
     SlashCommandSummary,
     UploadedFile,
@@ -703,6 +705,7 @@ export interface KnownBackendResults {
     getContacts: DirectoryUsersResult;
     getDirectoryUsers: DirectoryUsersResult;
     getDirectoryChannels: { readonly channels: readonly ChatSummary[] };
+    search: { readonly results: readonly SearchResultSummary[]; readonly nextCursor?: string };
     getPresence: Pick<DirectoryUsersResult, "presence" | "statuses">;
     updateStatus: { readonly status: PresenceSettingsSummary; readonly sync: unknown };
     getNotificationPreferences: { readonly preferences: NotificationPreferences };
@@ -711,6 +714,8 @@ export interface KnownBackendResults {
         readonly sync: unknown;
     };
     getFiles: { readonly files: readonly FileSummary[]; readonly nextCursor?: string };
+    getAdminUsers: { readonly users: readonly AdminUserSummary[] };
+    updateAdminUser: { readonly user: AdminUserSummary; readonly sync?: unknown };
     getCalls: { readonly calls: readonly CallSummary[] };
     getCall: { readonly call: CallSummary };
     getMessageRevisions: { readonly revisions: readonly MessageRevision[] };

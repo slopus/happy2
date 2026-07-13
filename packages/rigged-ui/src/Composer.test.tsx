@@ -6,7 +6,9 @@ import "./styles/avatar.css";
 import "./styles/badge.css";
 import "./styles/button.css";
 import "./styles/composer.css";
+import "./styles/emoji-picker.css";
 import "./styles/icon.css";
+import "./styles/text-field.css";
 import {
     Composer,
     ContextChips,
@@ -14,6 +16,7 @@ import {
     type ContextItem,
     type MentionableAgent,
 } from "./Composer";
+import type { EmojiItem } from "./EmojiPicker";
 import { createRenderer } from "./testing";
 
 const uiFont = () =>
@@ -55,6 +58,17 @@ const contextItems: ContextItem[] = [
     { detail: "src/auth", id: "file-1", kind: "file", label: "refresh.ts" },
     { id: "run-1", kind: "run", label: "fix/auth-flake" },
     { id: "thread-1", kind: "thread", label: "#eng-core" },
+];
+
+const emoji: EmojiItem[] = [
+    { char: "👍", id: "thumbsup", name: "thumbs up" },
+    { char: "🎉", id: "tada", name: "tada" },
+    { char: "🚀", id: "rocket", name: "rocket" },
+    { char: "✅", id: "check", name: "check mark" },
+    { char: "🔥", id: "fire", name: "fire" },
+    { char: "❤️", id: "heart", name: "heart" },
+    { char: "👀", id: "eyes", name: "eyes" },
+    { char: "🙏", id: "pray", name: "folded hands" },
 ];
 
 type View = ReturnType<typeof createRenderer>;
@@ -141,8 +155,10 @@ async function differentialDrift(view: View, boxSelector: string) {
 function Harness(props: {
     agents?: MentionableAgent[];
     disabled?: boolean;
+    emoji?: EmojiItem[];
     initial?: string;
     onMention?: (agent: MentionableAgent) => void;
+    onEmoji?: (emoji: EmojiItem) => void;
     onSend?: (value: string) => void;
     spacerTop?: number;
     testid: string;
@@ -154,6 +170,8 @@ function Harness(props: {
                 agents={props.agents}
                 data-testid={props.testid}
                 disabled={props.disabled}
+                emoji={props.emoji}
+                onEmojiSelect={props.onEmoji}
                 onMentionSelect={props.onMention}
                 onSend={() => props.onSend?.(value())}
                 onValueChange={setValue}
@@ -169,8 +187,11 @@ it("holds Composer geometry, colors, and typography", async () => {
         .render(
             () => (
                 <Composer
+                    agents={agents}
                     data-testid="composer-default"
+                    emoji={emoji}
                     hint="Enter to send · @ agents"
+                    onAttachFile={noop}
                     onSend={noop}
                     onValueChange={noop}
                     placeholder="Message #launch-week"
@@ -245,6 +266,21 @@ it("holds Composer geometry, colors, and typography", async () => {
                     onSend={noop}
                     onValueChange={noop}
                     value="Draft on hold"
+                />
+            ),
+            { width: 600, height: 140, padding: 20 },
+        )
+        .render(
+            () => (
+                <Composer
+                    agents={agents}
+                    data-testid="composer-pending"
+                    emoji={emoji}
+                    onAttachFile={noop}
+                    onSend={noop}
+                    onValueChange={noop}
+                    pending
+                    value="Draft is sending"
                 />
             ),
             { width: 600, height: 140, padding: 20 },
@@ -342,7 +378,7 @@ it("holds Composer geometry, colors, and typography", async () => {
     expect(Math.abs(ghostDrift - 0.8)).toBeLessThanOrEqual(0.4);
     expect(Math.abs(draftDrift - ghostDrift)).toBeLessThanOrEqual(0.25);
 
-    // Toolbar: 40px lane with five 28px ghost actions on a 30px pitch.
+    // Toolbar: 40px lane with only the three backed, 28px actions on a 30px pitch.
     const toolbar = view.$('[data-testid="composer-default"] [data-rigged-ui="composer-toolbar"]');
     expect(toolbar.bounds()).toEqual({ x: 21, y: 59, width: 558, height: 40 });
     const rootRect = root.element.getBoundingClientRect();
@@ -351,13 +387,11 @@ it("holds Composer geometry, colors, and typography", async () => {
             '[data-testid="composer-default"] [data-rigged-ui="composer-actions"] > button',
         ),
     );
-    expect(actionButtons.length).toBe(5);
+    expect(actionButtons.length).toBe(3);
     expect(actionButtons.map((button) => button.getAttribute("aria-label"))).toEqual([
-        "Add",
-        "Mention an agent",
-        "Add emoji",
         "Attach file",
-        "Record audio",
+        "Mention someone",
+        "Add emoji",
     ]);
     actionButtons.forEach((button, index) => {
         const rect = button.getBoundingClientRect();
@@ -369,7 +403,7 @@ it("holds Composer geometry, colors, and typography", async () => {
 
     // Every toolbar glyph is optically centered in its 28px ghost square
     // (raw measured drift ≤ 0.13px in all three engines — no corrections).
-    for (const label of ["Add", "Mention an agent", "Add emoji", "Attach file", "Record audio"]) {
+    for (const label of ["Attach file", "Mention someone", "Add emoji"]) {
         const buttonSelector = `[data-testid="composer-default"] [aria-label="${label}"]`;
         const drift = await centroidDrift(view, buttonSelector, `${buttonSelector} svg`);
         expect(Math.abs(drift.dx), `${label} dx`).toBeLessThanOrEqual(0.4);
@@ -405,6 +439,7 @@ it("holds Composer geometry, colors, and typography", async () => {
     expect(sendFilled.computedStyle("opacity")).toBe("1");
     const sendSelector = '[data-testid="composer-filled"] .rigged-composer__send';
     const sendInk = await inkSpan(view, sendSelector, `${sendSelector} svg`);
+    expect(view.$(`${sendSelector} svg`).bounds()).toMatchObject({ width: 16, height: 16 });
     expect(Math.abs(sendInk.top - (28 - sendInk.bottom))).toBeLessThanOrEqual(0.5);
     expect(Math.abs(sendInk.left - (28 - sendInk.right))).toBeLessThanOrEqual(0.5);
 
@@ -488,25 +523,75 @@ it("holds Composer geometry, colors, and typography", async () => {
         ).disabled,
     ).toBe(true);
 
+    // Pending preserves the full 80px layout and visible draft while making
+    // every mutation affordance inert; readOnly retains textarea focus.
+    const pendingRoot = view.$('[data-testid="composer-pending"]');
+    const pendingArea = view.$(
+        '[data-testid="composer-pending"] [data-rigged-ui="composer-textarea"]',
+    );
+    expect(pendingRoot.bounds()).toEqual({ x: 20, y: 20, width: 560, height: 80 });
+    expect(pendingRoot.element.getAttribute("aria-busy")).toBe("true");
+    expect((pendingArea.element as HTMLTextAreaElement).readOnly).toBe(true);
+    expect(pendingArea.computedStyles(["color", "opacity", "cursor"])).toEqual({
+        color: "rgb(165, 160, 176)",
+        cursor: "wait",
+        opacity: "0.64",
+    });
+    expect(
+        Array.from(
+            view.container.querySelectorAll<HTMLButtonElement>(
+                '[data-testid="composer-pending"] button',
+            ),
+        ).every((button) => button.disabled),
+    ).toBe(true);
+
     await view.screenshot("Composer.test");
 });
 
-it("forwards the existing attachment action and permits attachment-only sends", async () => {
+it("exposes only backed actions and handles host-owned and native attachments", async () => {
     let attachments = 0;
     let sends = 0;
-    const view = createRenderer().render(
-        () => (
-            <Composer
-                data-testid="composer-attachment"
-                onAttachFile={() => (attachments += 1)}
-                onSend={() => (sends += 1)}
-                onValueChange={() => {}}
-                sendEnabled
-                value=""
-            />
-        ),
-        { width: 600, height: 140, padding: 20 },
-    );
+    const selected: File[][] = [];
+    const view = createRenderer()
+        .render(
+            () => (
+                <Composer
+                    data-testid="composer-attachment"
+                    onAttachFile={() => (attachments += 1)}
+                    onSend={() => (sends += 1)}
+                    onValueChange={() => {}}
+                    sendEnabled
+                    value=""
+                />
+            ),
+            { width: 600, height: 140, padding: 20 },
+        )
+        .render(
+            () => (
+                <Composer
+                    attachmentAccept="image/*"
+                    attachmentMultiple
+                    data-testid="composer-native-attachment"
+                    onAttachmentsSelect={(files) => selected.push(files)}
+                    onSend={() => {}}
+                    onValueChange={() => {}}
+                    value=""
+                />
+            ),
+            { width: 600, height: 140, padding: 20 },
+        )
+        .render(
+            () => (
+                <Composer
+                    data-testid="composer-actionless"
+                    onSend={() => {}}
+                    onValueChange={() => {}}
+                    value=""
+                />
+            ),
+            { width: 600, height: 140, padding: 20 },
+        );
+    await view.ready();
 
     const attach = view.container.querySelector<HTMLButtonElement>(
         '[data-testid="composer-attachment"] [aria-label="Attach file"]',
@@ -519,6 +604,93 @@ it("forwards the existing attachment action and permits attachment-only sends", 
     await userEvent.click(send);
     expect(attachments).toBe(1);
     expect(sends).toBe(1);
+
+    const input = view.container.querySelector<HTMLInputElement>(
+        '[data-testid="composer-native-attachment"] input[type="file"]',
+    )!;
+    expect(input.accept).toBe("image/*");
+    expect(input.multiple).toBe(true);
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(["one"], "one.png", { type: "image/png" }));
+    transfer.items.add(new File(["two"], "two.png", { type: "image/png" }));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(selected.map((files) => files.map((file) => file.name))).toEqual([
+        ["one.png", "two.png"],
+    ]);
+    expect(input.value).toBe("");
+
+    expect(
+        view.container.querySelectorAll(
+            '[data-testid="composer-actionless"] [data-rigged-ui="composer-actions"] button',
+        ).length,
+    ).toBe(0);
+});
+
+it("searches and inserts emoji at the saved caret without dropping composer focus", async () => {
+    const selected: string[] = [];
+    const view = createRenderer().render(
+        () => (
+            <Harness
+                emoji={emoji}
+                initial="Ship now"
+                onEmoji={(item) => selected.push(item.id)}
+                spacerTop={160}
+                testid="composer-emoji"
+            />
+        ),
+        { width: 620, height: 300, padding: 20 },
+    );
+    await view.ready();
+
+    const textarea = view.container.querySelector<HTMLTextAreaElement>(
+        '[data-testid="composer-emoji"] [data-rigged-ui="composer-textarea"]',
+    )!;
+    await userEvent.click(textarea);
+    textarea.setSelectionRange(5, 5);
+    textarea.dispatchEvent(new Event("select", { bubbles: true }));
+
+    const trigger = view.container.querySelector<HTMLButtonElement>(
+        '[data-testid="composer-emoji"] [aria-label="Add emoji"]',
+    )!;
+    await userEvent.click(trigger);
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    const dialog = view.container.querySelector<HTMLElement>(
+        '[data-testid="composer-emoji"] [data-rigged-ui="composer-emoji-popover"]',
+    )!;
+    expect(dialog.getAttribute("role")).toBe("dialog");
+    const search = dialog.querySelector<HTMLInputElement>('input[type="search"]')!;
+    expect(document.activeElement).toBe(search);
+    await userEvent.keyboard("rock");
+    const cells = dialog.querySelectorAll<HTMLElement>('[data-rigged-ui="emoji-picker-cell"]');
+    expect(cells.length).toBe(1);
+    expect(cells[0]?.getAttribute("data-emoji-id")).toBe("rocket");
+
+    await userEvent.click(cells[0]!);
+    expect(textarea.value).toBe("Ship 🚀now");
+    expect(selected).toEqual(["rocket"]);
+    expect(document.activeElement).toBe(textarea);
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+
+    await userEvent.click(trigger);
+    expect(
+        view.container.querySelectorAll(
+            '[data-testid="composer-emoji"] [data-rigged-ui="emoji-picker-cell"]',
+        ).length,
+    ).toBe(8);
+    const reopenedSearch = view.container.querySelector<HTMLInputElement>(
+        '[data-testid="composer-emoji"] [data-rigged-ui="emoji-picker"] input',
+    )!;
+    await userEvent.click(reopenedSearch);
+    await userEvent.keyboard("{Escape}");
+    expect(
+        view.container.querySelector(
+            '[data-testid="composer-emoji"] [data-rigged-ui="composer-emoji-popover"]',
+        ),
+    ).toBeNull();
+    expect(document.activeElement).toBe(textarea);
+    await userEvent.click(trigger);
+    await view.screenshot("Composer.emoji.test");
 });
 
 it("holds ContextChips and MentionPicker geometry and colors", async () => {
@@ -810,7 +982,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         "font-weight": "700",
         "text-transform": "uppercase",
     });
-    expect(header.element.textContent).toBe("Agents");
+    expect(header.element.textContent).toBe("Mentions");
     const headerDrift = await centroidDrift(
         view,
         '[data-testid="picker"] [data-rigged-ui="mention-picker-header"]',
@@ -950,7 +1122,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     expect(picked).toEqual(["triage"]);
     const empty = view.$('[data-testid="picker-empty"] [data-rigged-ui="mention-picker-empty"]');
     expect(empty.bounds().height).toBe(44);
-    expect(empty.element.textContent).toContain("No agents match");
+    expect(empty.element.textContent).toContain("No mentions match");
     expect((await empty.visibleMetrics()).pixelCount).toBeGreaterThan(0);
     expect(
         view.container.querySelectorAll(
@@ -964,6 +1136,21 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
 it("handles typing, sending, and mention picking", async () => {
     const sends: string[] = [];
     const mentions: string[] = [];
+    let releaseBusy = () => {};
+    const BusyHarness = () => {
+        const [busy, setBusy] = createSignal(false);
+        const [value, setValue] = createSignal("Wait for it");
+        releaseBusy = () => setBusy(false);
+        return (
+            <Composer
+                data-testid="composer-busy"
+                disabled={busy()}
+                onSend={() => setBusy(true)}
+                onValueChange={setValue}
+                value={value()}
+            />
+        );
+    };
     const view = createRenderer()
         .render(() => <Harness onSend={(value) => sends.push(value)} testid="composer-typing" />, {
             width: 600,
@@ -1008,7 +1195,8 @@ it("handles typing, sending, and mention picking", async () => {
                 />
             ),
             { width: 620, height: 360, padding: 20 },
-        );
+        )
+        .render(() => <BusyHarness />, { width: 600, height: 140, padding: 20 });
     await view.ready();
 
     const textareaOf = (testid: string) =>
@@ -1042,6 +1230,7 @@ it("handles typing, sending, and mention picking", async () => {
     await userEvent.keyboard("{Enter}");
     expect(sends).toEqual(["Ship it"]);
     expect(typing.value).toBe("Ship it");
+    expect(document.activeElement).toBe(typing);
 
     // Shift+Enter inserts a newline and grows the textarea; nothing is sent.
     await userEvent.keyboard("{Shift>}{Enter}{/Shift}");
@@ -1053,6 +1242,18 @@ it("handles typing, sending, and mention picking", async () => {
     // Clicking send reports the current draft.
     await userEvent.click(typingSend);
     expect(sends).toEqual(["Ship it", "Ship it\ndone"]);
+    expect(document.activeElement).toBe(typing);
+
+    // If the host temporarily disables the composer during a send, focus is
+    // restored as soon as the busy state clears rather than being lost.
+    const busyArea = textareaOf("composer-busy");
+    await userEvent.click(busyArea);
+    await userEvent.keyboard("{Enter}");
+    expect(busyArea.disabled).toBe(true);
+    releaseBusy();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(busyArea.disabled).toBe(false);
+    expect(document.activeElement).toBe(busyArea);
 
     // "@" at a word boundary opens the picker anchored above the composer.
     const mention = textareaOf("composer-mention");
@@ -1119,7 +1320,7 @@ it("handles typing, sending, and mention picking", async () => {
 
     // The @ toolbar action inserts "@" and opens the picker; a row click picks.
     const atButton = view.container.querySelector(
-        '[data-testid="composer-at"] [aria-label="Mention an agent"]',
+        '[data-testid="composer-at"] [aria-label="Mention someone"]',
     ) as HTMLButtonElement;
     await userEvent.click(atButton);
     expect(textareaOf("composer-at").value).toBe("@");

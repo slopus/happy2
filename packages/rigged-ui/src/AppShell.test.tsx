@@ -33,7 +33,7 @@ function slot(testid: string, style: JSX.CSSProperties = {}) {
 
 const titleBarSlot = (testid: string) => slot(testid, { background: "#131217", height: "38px" });
 const railSlot = (testid: string) => slot(testid, { background: "#131217", width: "76px" });
-const sidebarSlot = (testid: string) => slot(testid, { background: "#17161c", width: "288px" });
+const sidebarSlot = (testid: string) => slot(testid, { background: "#131217", width: "288px" });
 
 const cardStyles = [
     "background-color",
@@ -120,6 +120,21 @@ async function capturePixels(element: Element) {
         },
         width: data.width,
     };
+}
+
+async function expectRightEdgeDivider(part: RenderedElement<Element>, label: string) {
+    const pixels = await capturePixels(part.element);
+    const from = Math.round(pixels.height * 0.25);
+    const to = Math.round(pixels.height * 0.75);
+    const columnAverage = (x: number) => {
+        let sum = 0;
+        for (let y = from; y < to; y += 1) sum += pixels.luminance(x, y);
+        return sum / (to - from);
+    };
+    const edge = (columnAverage(pixels.width - 1) + columnAverage(pixels.width - 2)) / 2;
+    const interior = (columnAverage(pixels.width - 5) + columnAverage(pixels.width - 6)) / 2;
+    expect(edge, `${label}: rendered divider`).toBeGreaterThan(interior + 8);
+    expect(interior, `${label}: opaque sidebar fill`).toBeGreaterThan(15);
 }
 
 /*
@@ -235,7 +250,7 @@ async function expectCardHairline(card: RenderedElement<Element>, label: string)
         expect(profile.outer, detail).toBeGreaterThan(34);
         expect(profile.outer, detail).toBeLessThan(47);
         expect(profile.outer, detail).toBeGreaterThan(profile.inner + 5);
-        expect(profile.inner, `${detail} (interior not blank)`).toBeGreaterThan(23);
+        expect(profile.inner, `${detail} (interior not blank)`).toBeGreaterThan(18);
         expect(profile.inner, `${detail} (interior not blank)`).toBeLessThan(35);
     }
 
@@ -343,12 +358,18 @@ it("holds the inset main and panel card geometry at the 1024×704 window contrac
         width: 76,
         height: 666,
     });
-    expect(view.$('[data-rigged-ui="app-shell-sidebar"]').bounds()).toEqual({
+    const sidebar = view.$('[data-rigged-ui="app-shell-sidebar"]');
+    expect(sidebar.bounds()).toEqual({
         x: 77,
         y: 39,
         width: 288,
         height: 656,
     });
+    expect(sidebar.computedStyles(["background-color", "position"])).toEqual({
+        "background-color": "rgb(19, 18, 23)",
+        position: "relative",
+    });
+    await expectRightEdgeDivider(sidebar, "sidebar/workspace separator");
 
     // The content region begins immediately after the rail. Top and left are
     // flush; right, bottom, and the optional card gap keep the 8px rhythm.

@@ -67,11 +67,11 @@ export function AppShellPage() {
     return (
         <ComponentPage
             number="C-010"
-            summary="Window composition: chrome base, 38px title bar row, rail | main card with no top/left inset, an 8px right/bottom inset, and a macOS-matched 8px radius."
+            summary="Window composition: chrome base, 38px title bar row, rail | main card with no top/left inset, an 8px right/bottom inset, a macOS-matched 8px radius, and a darker sidebar lane separated by an inset hairline."
             title="AppShell"
         >
             <Specimen
-                detail="rail 76px · no top/left inset · 8px right/bottom + panel gap · radius 8px · sidebar + workspace share the card"
+                detail="rail 76px · no top/left inset · 8px right/bottom + panel gap · radius 8px · darker sidebar + inset separator share the card with workspace"
                 label="Full composition with panel"
                 number="01"
                 stage="chrome"

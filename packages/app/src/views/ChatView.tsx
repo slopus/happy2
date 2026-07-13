@@ -21,16 +21,20 @@ import {
     ContextChips,
     DayDivider,
     DiffSnippet,
+    EmptyState,
     EventCard,
     FormRow,
     Message,
     MessageList,
+    Menu,
     Modal,
     Select,
     Sidebar,
     TextField,
+    Toolbar,
     type ApprovalResolution,
     type ContextItem,
+    type MenuItem,
     type SidebarSection,
     type SelectOption,
     type ToneName,
@@ -51,6 +55,7 @@ import {
     deskDone,
     deskQueued,
     deskRunning,
+    emojiItems,
     initialEntries,
     mentionableAgents,
     type Conversation,
@@ -99,6 +104,26 @@ const modalStackStyle: JSX.CSSProperties = {
 const modalActionsStyle: JSX.CSSProperties = {
     display: "flex",
     "align-items": "center",
+    gap: "8px",
+};
+const panelColumnStyle: JSX.CSSProperties = {
+    display: "flex",
+    "flex-direction": "column",
+    height: "100%",
+    "min-height": "0",
+};
+const panelBodyStyle: JSX.CSSProperties = {
+    display: "flex",
+    flex: "1 1 0%",
+    "flex-direction": "column",
+    gap: "12px",
+    "min-height": "0",
+    overflow: "auto",
+    padding: "16px",
+};
+const panelFooterStyle: JSX.CSSProperties = {
+    display: "flex",
+    "justify-content": "flex-end",
     gap: "8px",
 };
 
@@ -188,6 +213,11 @@ function toEntries(
     return result;
 }
 
+function groupedWithPrevious(entries: WorkspaceEntry[], index: number, message: LiveThreadMessage) {
+    const previous = entries[index - 1];
+    return previous?.kind === "message" && previous.author === message.author;
+}
+
 export function ChatView(props: ChatViewProps) {
     const connected = Boolean(props.session);
     const [activeConversationId, setActiveConversationId] = createSignal(
@@ -204,6 +234,9 @@ export function ChatView(props: ChatViewProps) {
     const [dmPeers, setDmPeers] = createSignal<Record<string, UserSummary>>({});
     const [presence, setPresence] = createSignal<Record<string, PresenceSnapshot>>({});
     const [threadRootId, setThreadRootId] = createSignal<string>();
+    const [threadEntries, setThreadEntries] = createSignal<WorkspaceEntry[]>([]);
+    const [threadDraft, setThreadDraft] = createSignal("");
+    const [panelMode, setPanelMode] = createSignal<"channel" | "thread">();
     const [pendingFiles, setPendingFiles] = createSignal<UploadedFile[]>([]);
     const [busyCount, setBusyCount] = createSignal(0);
     const [statusHint, setStatusHint] = createSignal<string>();
@@ -215,6 +248,10 @@ export function ChatView(props: ChatViewProps) {
     >({});
     const [toggledReactions, setToggledReactions] = createSignal<Record<string, boolean>>({});
     const [createOpen, setCreateOpen] = createSignal(false);
+    const [directoryOpen, setDirectoryOpen] = createSignal(false);
+    const [manualEmptySelection, setManualEmptySelection] = createSignal(false);
+    const [channelNameDraft, setChannelNameDraft] = createSignal("");
+    const [channelTopicDraft, setChannelTopicDraft] = createSignal("");
     const [newChannelName, setNewChannelName] = createSignal("");
     const [newChannelSlug, setNewChannelSlug] = createSignal("");
     const [channelSlugEdited, setChannelSlugEdited] = createSignal(false);
@@ -236,6 +273,31 @@ export function ChatView(props: ChatViewProps) {
     const userName = () => user()?.firstName ?? "Steve";
     const userInitials = () => user()?.firstName.slice(0, 2).toUpperCase() ?? "ST";
     const activeChat = () => serverChats().find((chat) => chat.id === activeConversationId());
+    const directoryChannels = () =>
+        serverChats().filter((chat) => chat.kind !== "dm" && !chat.membershipRole);
+    const directoryItems = createMemo<MenuItem[]>(() =>
+        directoryChannels().map((chat) => ({
+            id: chat.id,
+            icon: "hash",
+            kind: "item",
+            label: chat.name ?? chat.slug ?? "Untitled channel",
+        })),
+    );
+    const canEditChannel = () => {
+        const role = activeChat()?.membershipRole;
+        return role === "owner" || role === "admin";
+    };
+    const threadRoot = () =>
+        threadEntries().find((entry): entry is LiveThreadMessage => entry.kind === "message");
+    const mentionCandidates = () =>
+        connected
+            ? contacts().map((contact) => ({
+                  id: contact.id,
+                  initials: initials(contact),
+                  name: fullName(contact),
+                  tone: toneFor(contact.id),
+              }))
+            : mentionableAgents;
     const conversation = () =>
         conversationData()[activeConversationId()] ?? {
             id: "empty",
@@ -261,24 +323,14 @@ export function ChatView(props: ChatViewProps) {
             }))
             .filter((section) => section.items.length > 0);
     });
-    const composerContext = createMemo<ContextItem[]>(() => [
-        ...(threadRootId()
-            ? [
-                  {
-                      id: `thread:${threadRootId()}`,
-                      kind: "thread" as const,
-                      label: "Thread",
-                      detail: "Replying in thread",
-                  },
-              ]
-            : []),
-        ...pendingFiles().map((file) => ({
+    const composerContext = createMemo<ContextItem[]>(() =>
+        pendingFiles().map((file) => ({
             id: `file:${file.id}`,
             kind: "file" as const,
             label: file.originalName ?? "Attachment",
             detail: formatBytes(file.size),
         })),
-    ]);
+    );
     const liveComposerHint = () => {
         const typing = typingUser();
         if (typing?.chatId === activeConversationId()) {
@@ -306,7 +358,7 @@ export function ChatView(props: ChatViewProps) {
             const peer = peers[chat.id];
             if (peer) dmByUserId.set(peer.id, chat);
         }
-        const channels = chats.filter((chat) => chat.kind !== "dm");
+        const channels = chats.filter((chat) => chat.kind !== "dm" && chat.membershipRole);
         const directMessages = users.filter(
             (item) => item.id !== user()?.id && dmByUserId.has(item.id),
         );
@@ -316,14 +368,13 @@ export function ChatView(props: ChatViewProps) {
                 label: "Channels",
                 action: { icon: "plus", label: "Add channel" },
                 empty: {
-                    actionLabel: "Create a channel",
-                    description: "No channels yet. Create one for your team.",
+                    actionLabel: "Browse channels",
+                    description: "No joined channels. Browse the directory or create one.",
                 },
                 items: channels.map((chat) => ({
                     id: chat.id,
                     kind: "channel" as const,
                     label: chat.name ?? chat.slug ?? "Untitled channel",
-                    meta: chat.membershipRole ? undefined : "join",
                 })),
             },
             {
@@ -422,11 +473,14 @@ export function ChatView(props: ChatViewProps) {
             setPresence(snapshots);
             applyNavigation(chats, [...contactResponse.users], peers, snapshots);
 
-            const nextChatId = chats.some((chat) => chat.id === preferredChatId)
-                ? preferredChatId
-                : (chats.find((chat) => chat.membershipRole)?.id ?? chats[0]?.id ?? "");
+            const preferredChat = chats.find((chat) => chat.id === preferredChatId);
+            const nextChatId = manualEmptySelection()
+                ? ""
+                : preferredChat && (preferredChat.kind === "dm" || preferredChat.membershipRole)
+                  ? preferredChat.id
+                  : (chats.find((chat) => chat.kind === "dm" || chat.membershipRole)?.id ?? "");
             setActiveConversationId(nextChatId);
-            if (nextChatId) await loadConversation(nextChatId, threadRootId());
+            if (nextChatId) await loadConversation(nextChatId);
             else setEntries([]);
             setStatusHint(undefined);
         } catch (reason) {
@@ -434,23 +488,14 @@ export function ChatView(props: ChatViewProps) {
         }
     }
 
-    async function loadConversation(chatId: string, rootMessageId?: string) {
+    async function loadConversation(chatId: string) {
         const model = state();
         if (!model || !chatId) return;
         const currentRequest = ++requestNumber;
         startBusy();
         try {
             const membersPromise = model.execute("getChatMembers", { chatId });
-            let messages: MessageSummary[];
-            if (rootMessageId) {
-                const history = await model.execute("getThread", {
-                    messageId: rootMessageId,
-                    limit: 100,
-                });
-                messages = [history.root, ...history.messages] as MessageSummary[];
-            } else {
-                messages = (await model.loadMessages(chatId)).map((item) => item.message);
-            }
+            const messages = (await model.loadMessages(chatId)).map((item) => item.message);
             const members = await membersPromise;
             if (currentRequest !== requestNumber) return;
             setEntries(toEntries(messages, user()));
@@ -476,9 +521,12 @@ export function ChatView(props: ChatViewProps) {
     async function selectConversation(id: string) {
         // A direct user selection wins over any workspace refresh already in flight.
         workspaceRequestNumber += 1;
+        setManualEmptySelection(false);
         setDraft("");
         setPendingFiles([]);
         setThreadRootId(undefined);
+        setThreadEntries([]);
+        setPanelMode(undefined);
         if (!props.session) {
             setActiveConversationId(id);
             return;
@@ -515,6 +563,7 @@ export function ChatView(props: ChatViewProps) {
         startBusy();
         try {
             const chat = await model.createChannel({ kind: newChannelKind(), name, slug });
+            setManualEmptySelection(false);
             setCreateOpen(false);
             setNewChannelName("");
             setNewChannelSlug("");
@@ -534,6 +583,7 @@ export function ChatView(props: ChatViewProps) {
         startBusy();
         try {
             await model.joinChat(chat.id);
+            setManualEmptySelection(false);
             await refreshWorkspace(chat.id);
         } catch (reason) {
             setStatusHint(errorMessage(reason));
@@ -546,12 +596,21 @@ export function ChatView(props: ChatViewProps) {
         const model = state();
         const chat = activeChat();
         if (!model || !chat) return;
+        setManualEmptySelection(true);
+        setActiveConversationId("");
+        setEntries([]);
+        setThreadRootId(undefined);
+        setThreadEntries([]);
+        setPanelMode(undefined);
         startBusy();
         try {
             await model.execute("leaveChat", { chatId: chat.id });
             await model.execute("getChats");
-            await refreshWorkspace();
+            await refreshWorkspace("");
         } catch (reason) {
+            setManualEmptySelection(false);
+            setActiveConversationId(chat.id);
+            await refreshWorkspace(chat.id);
             setStatusHint(errorMessage(reason));
         } finally {
             finishBusy();
@@ -635,10 +694,7 @@ export function ChatView(props: ChatViewProps) {
                 attachmentFileIds: attachments.map((file) => file.id),
                 clientMutationId: mutationId(),
             };
-            model.sendMessage(chatId, {
-                ...input,
-                threadRootMessageId: threadRootId(),
-            });
+            model.sendMessage(chatId, input);
             setDraft("");
             setPendingFiles([]);
             await stopTyping();
@@ -651,21 +707,28 @@ export function ChatView(props: ChatViewProps) {
     }
 
     async function toggleReaction(message: LiveThreadMessage, emoji: string) {
+        const resolvedEmoji = emojiItems.find((item) => item.id === emoji)?.char ?? emoji;
         const model = state();
         if (!model || !message.serverMessage) {
             setToggledReactions((current) => ({
                 ...current,
-                [`${message.id}:${emoji}`]: !current[`${message.id}:${emoji}`],
+                [`${message.id}:${resolvedEmoji}`]: !current[`${message.id}:${resolvedEmoji}`],
             }));
             return;
         }
         const active = message.serverMessage.reactions.some(
-            (reaction) => reaction.emoji === emoji && reaction.reacted,
+            (reaction) => reaction.emoji === resolvedEmoji && reaction.reacted,
         );
         try {
             const response = active
-                ? await model.execute("removeReaction", { messageId: message.id, emoji })
-                : await model.execute("addReaction", { messageId: message.id, emoji });
+                ? await model.execute("removeReaction", {
+                      messageId: message.id,
+                      emoji: resolvedEmoji,
+                  })
+                : await model.execute("addReaction", {
+                      messageId: message.id,
+                      emoji: resolvedEmoji,
+                  });
             setEntries((current) =>
                 current.map((entry) =>
                     entry.kind === "message" && entry.id === message.id
@@ -673,6 +736,61 @@ export function ChatView(props: ChatViewProps) {
                         : entry,
                 ),
             );
+            setThreadEntries((current) =>
+                current.map((entry) =>
+                    entry.kind === "message" && entry.id === message.id
+                        ? toThreadMessage(response.message, user())
+                        : entry,
+                ),
+            );
+        } catch (reason) {
+            setStatusHint(errorMessage(reason));
+        }
+    }
+
+    function messageMenuItems(message: LiveThreadMessage): MenuItem[] {
+        if (!message.serverMessage || message.serverMessage.deletedAt) return [];
+        const own = message.serverMessage.sender?.id === user()?.id;
+        return [
+            { icon: "doc", id: "copy", kind: "item", label: "Copy text" },
+            ...(own
+                ? ([
+                      { icon: "edit", id: "edit", kind: "item", label: "Edit message" },
+                      { kind: "separator" },
+                      {
+                          danger: true,
+                          icon: "close",
+                          id: "delete",
+                          kind: "item",
+                          label: "Delete message",
+                      },
+                  ] satisfies MenuItem[])
+                : []),
+        ];
+    }
+
+    async function handleMessageMenu(message: LiveThreadMessage, action: string) {
+        const model = state();
+        if (!message.serverMessage) return;
+        try {
+            if (action === "copy") {
+                await navigator.clipboard?.writeText(message.serverMessage.text);
+                return;
+            }
+            if (!model || message.serverMessage.sender?.id !== user()?.id) return;
+            if (action === "edit") {
+                const text = window.prompt("Edit message", message.serverMessage.text)?.trim();
+                if (!text || text === message.serverMessage.text) return;
+                await model.execute("editMessage", {
+                    expectedRevision: message.serverMessage.revision,
+                    messageId: message.id,
+                    text,
+                });
+                return;
+            }
+            if (action === "delete" && window.confirm("Delete this message?")) {
+                await model.execute("deleteMessage", { messageId: message.id });
+            }
         } catch (reason) {
             setStatusHint(errorMessage(reason));
         }
@@ -706,18 +824,110 @@ export function ChatView(props: ChatViewProps) {
     function removeContext(id: string) {
         if (id.startsWith("file:")) {
             setPendingFiles((current) => current.filter((file) => `file:${file.id}` !== id));
-            return;
         }
-        if (id.startsWith("thread:")) {
-            setThreadRootId(undefined);
-            void loadConversation(activeConversationId());
+    }
+
+    async function loadThread(messageId: string) {
+        const model = state();
+        if (!model) return;
+        startBusy();
+        try {
+            const history = await model.execute("getThread", { messageId, limit: 100 });
+            setThreadEntries(toEntries([history.root, ...history.messages], user()));
+            setStatusHint(undefined);
+        } catch (reason) {
+            setStatusHint(errorMessage(reason));
+        } finally {
+            finishBusy();
         }
     }
 
     function openThread(message: LiveThreadMessage) {
-        if (!props.session || !message.serverMessage) return;
         setThreadRootId(message.id);
-        void loadConversation(activeConversationId(), message.id);
+        setPanelMode("thread");
+        setThreadDraft("");
+        if (!props.session || !message.serverMessage) {
+            setThreadEntries([message]);
+            return;
+        }
+        void loadThread(message.id);
+    }
+
+    async function sendThreadReply() {
+        const body = threadDraft().trim();
+        const rootId = threadRootId();
+        if (!body || !rootId) return;
+        const model = state();
+        if (!model) {
+            setThreadEntries((current) => [
+                ...current,
+                {
+                    body,
+                    conversationId: activeConversationId(),
+                    id: `thread-local-${current.length}`,
+                    initials: userInitials(),
+                    kind: "message",
+                    author: userName(),
+                    time: "Now",
+                    tone: "brand",
+                },
+            ]);
+            setThreadDraft("");
+            return;
+        }
+        startBusy();
+        try {
+            await model.execute("sendThreadMessage", {
+                clientMutationId: mutationId(),
+                messageId: rootId,
+                text: body,
+            });
+            setThreadDraft("");
+            await loadThread(rootId);
+        } catch (reason) {
+            setStatusHint(errorMessage(reason));
+        } finally {
+            finishBusy();
+        }
+    }
+
+    function openChannelInfo() {
+        const chat = activeChat();
+        if (!chat || chat.kind === "dm") return;
+        setChannelNameDraft(chat.name ?? "");
+        setChannelTopicDraft(chat.topic ?? "");
+        setPanelMode("channel");
+    }
+
+    async function saveChannelInfo() {
+        const model = state();
+        const chat = activeChat();
+        const name = channelNameDraft().trim();
+        if (!model || !chat || !name || !canEditChannel()) return;
+        startBusy();
+        try {
+            await model.execute("updateChannel", {
+                chatId: chat.id,
+                name,
+                topic: channelTopicDraft().trim() || null,
+            });
+            await model.execute("getChats");
+            await refreshWorkspace(chat.id);
+            setStatusHint("Channel details saved.");
+        } catch (reason) {
+            setStatusHint(errorMessage(reason));
+        } finally {
+            finishBusy();
+        }
+    }
+
+    function previewDirectoryChannel(id: string) {
+        workspaceRequestNumber += 1;
+        setManualEmptySelection(false);
+        setDirectoryOpen(false);
+        setPanelMode(undefined);
+        setActiveConversationId(id);
+        void loadConversation(id);
     }
 
     async function downloadFile(file: FileSummary, event: MouseEvent) {
@@ -750,15 +960,12 @@ export function ChatView(props: ChatViewProps) {
             model.subscribe("chats", () => void refreshWorkspace()),
             model.subscribe("messages", (event) => {
                 if (event.chatId !== activeConversationId()) return;
-                const root = threadRootId();
                 const messages = (model.get().messagesByChat[event.chatId] ?? [])
                     .map((item) => item.message)
-                    .filter((message) =>
-                        root
-                            ? message.id === root || message.threadRootMessageId === root
-                            : !message.threadRootMessageId,
-                    );
+                    .filter((message) => !message.threadRootMessageId);
                 setEntries(toEntries(messages, user()));
+                const root = threadRootId();
+                if (root) void loadThread(root);
             }),
             model.subscribe("presence", () => {
                 const snapshots = Object.fromEntries(
@@ -794,7 +1001,7 @@ export function ChatView(props: ChatViewProps) {
                         onCompose={() => void startDirectMessage()}
                         onItemSelect={(id) => void selectConversation(id)}
                         onSectionAction={(sectionId) => {
-                            if (sectionId === "channels") setCreateOpen(true);
+                            if (sectionId === "channels") setDirectoryOpen(true);
                             if (sectionId === "dms") void startDirectMessage();
                         }}
                         sections={filteredSidebar()}
@@ -804,27 +1011,168 @@ export function ChatView(props: ChatViewProps) {
                 panel={
                     !connected ? (
                         <AgentDesk done={deskDone} queued={deskQueued} running={deskRunning} />
+                    ) : panelMode() === "thread" ? (
+                        <Box data-testid="thread-panel" style={panelColumnStyle}>
+                            <Toolbar
+                                subtitle={threadRoot()?.author}
+                                title="Thread"
+                                trailing={
+                                    <Button
+                                        aria-label="Close thread"
+                                        icon="close"
+                                        iconOnly
+                                        onClick={() => {
+                                            setThreadRootId(undefined);
+                                            setThreadEntries([]);
+                                            setPanelMode(undefined);
+                                        }}
+                                        size="small"
+                                        variant="ghost"
+                                    />
+                                }
+                            />
+                            <MessageList
+                                intro={{ title: "Thread", description: "No replies yet." }}
+                            >
+                                <For each={threadEntries()}>
+                                    {(entry, index) => (
+                                        <Show when={asMessage(entry)}>
+                                            {(message) => (
+                                                <Message
+                                                    author={message().author}
+                                                    body={message().body}
+                                                    deliveryState={
+                                                        message().id.startsWith("local:")
+                                                            ? "sending"
+                                                            : "sent"
+                                                    }
+                                                    grouped={groupedWithPrevious(
+                                                        threadEntries(),
+                                                        index(),
+                                                        message(),
+                                                    )}
+                                                    initials={message().initials}
+                                                    menuItems={messageMenuItems(message())}
+                                                    onMenuSelect={(action) =>
+                                                        void handleMessageMenu(message(), action)
+                                                    }
+                                                    onReactionSelect={(emoji) =>
+                                                        void toggleReaction(message(), emoji)
+                                                    }
+                                                    reactionOptions={emojiItems}
+                                                    reactions={reactionsFor(message())}
+                                                    time={message().time}
+                                                    tone={message().tone}
+                                                />
+                                            )}
+                                        </Show>
+                                    )}
+                                </For>
+                            </MessageList>
+                            <Composer
+                                emoji={emojiItems}
+                                hint="Reply in thread"
+                                mentions={mentionCandidates()}
+                                onSend={() => void sendThreadReply()}
+                                onValueChange={setThreadDraft}
+                                pending={busy()}
+                                placeholder="Reply…"
+                                sendEnabled={threadDraft().trim().length > 0}
+                                style={{ margin: "0 12px 12px" }}
+                                value={threadDraft()}
+                            />
+                        </Box>
+                    ) : panelMode() === "channel" ? (
+                        <Box data-testid="channel-info-panel" style={panelColumnStyle}>
+                            <Toolbar
+                                subtitle={
+                                    canEditChannel() ? "Edit channel details" : "Channel details"
+                                }
+                                title={activeChat()?.name ?? "Channel"}
+                                trailing={
+                                    <Button
+                                        aria-label="Close channel details"
+                                        icon="close"
+                                        iconOnly
+                                        onClick={() => setPanelMode(undefined)}
+                                        size="small"
+                                        variant="ghost"
+                                    />
+                                }
+                            />
+                            <Box style={panelBodyStyle}>
+                                <FormRow
+                                    control={
+                                        <TextField
+                                            disabled={!canEditChannel()}
+                                            fullWidth
+                                            onValueChange={setChannelNameDraft}
+                                            value={channelNameDraft()}
+                                        />
+                                    }
+                                    description="Shown in the channel header and sidebar."
+                                    label="Name"
+                                    layout="stacked"
+                                />
+                                <FormRow
+                                    control={
+                                        <TextField
+                                            disabled={!canEditChannel()}
+                                            fullWidth
+                                            onValueChange={setChannelTopicDraft}
+                                            placeholder="What is this channel for?"
+                                            value={channelTopicDraft()}
+                                        />
+                                    }
+                                    description="The channel topic and about text."
+                                    label="About"
+                                    layout="stacked"
+                                />
+                                <Show when={canEditChannel()}>
+                                    <Box style={panelFooterStyle}>
+                                        <Button
+                                            disabled={busy() || !channelNameDraft().trim()}
+                                            onClick={() => void saveChannelInfo()}
+                                        >
+                                            {busy() ? "Saving…" : "Save changes"}
+                                        </Button>
+                                    </Box>
+                                </Show>
+                            </Box>
+                        </Box>
                     ) : undefined
                 }
             >
                 <ChannelHeader
                     actions={
-                        <Show when={connected && activeChat()?.kind !== "dm" && activeChat()}>
-                            {(chat) => (
-                                <Button
-                                    disabled={busy()}
-                                    onClick={() =>
-                                        void (chat().membershipRole
-                                            ? leaveActiveChannel()
-                                            : joinActiveChannel())
-                                    }
-                                    size="small"
-                                    variant={chat().membershipRole ? "ghost" : "secondary"}
-                                >
-                                    {chat().membershipRole ? "Leave" : "Join"}
-                                </Button>
-                            )}
-                        </Show>
+                        <>
+                            <Show when={connected && activeChat()?.kind !== "dm" && activeChat()}>
+                                {(chat) => (
+                                    <>
+                                        <Button
+                                            aria-label="Channel details"
+                                            icon="settings"
+                                            iconOnly
+                                            onClick={openChannelInfo}
+                                            size="small"
+                                            variant="ghost"
+                                        />
+                                        <Button
+                                            disabled={busy()}
+                                            onClick={() =>
+                                                void (chat().membershipRole
+                                                    ? leaveActiveChannel()
+                                                    : joinActiveChannel())
+                                            }
+                                            size="small"
+                                            variant={chat().membershipRole ? "ghost" : "secondary"}
+                                        >
+                                            {chat().membershipRole ? "Leave" : "Join"}
+                                        </Button>
+                                    </>
+                                )}
+                            </Show>
+                        </>
                     }
                     agentCount={conversation().agentCount}
                     icon={conversation().icon}
@@ -835,7 +1183,7 @@ export function ChatView(props: ChatViewProps) {
                 />
                 <MessageList intro={conversation().intro}>
                     <For each={conversationEntries()}>
-                        {(entry) => (
+                        {(entry, index) => (
                             <Switch>
                                 <Match when={asDivider(entry)}>
                                     {(divider) => <DayDivider label={divider().label} />}
@@ -849,11 +1197,26 @@ export function ChatView(props: ChatViewProps) {
                                                 agent={item.agent}
                                                 author={item.author}
                                                 body={item.body}
+                                                deliveryState={
+                                                    item.id.startsWith("local:")
+                                                        ? "sending"
+                                                        : "sent"
+                                                }
+                                                grouped={groupedWithPrevious(
+                                                    conversationEntries(),
+                                                    index(),
+                                                    item,
+                                                )}
                                                 initials={item.initials}
+                                                menuItems={messageMenuItems(item)}
+                                                onMenuSelect={(action) =>
+                                                    void handleMessageMenu(item, action)
+                                                }
                                                 onReactionSelect={(emoji) =>
                                                     void toggleReaction(item, emoji)
                                                 }
                                                 onReplySelect={() => openThread(item)}
+                                                reactionOptions={emojiItems}
                                                 reactions={reactionsFor(item)}
                                                 replyCount={item.replyCount}
                                                 time={item.time}
@@ -958,20 +1321,74 @@ export function ChatView(props: ChatViewProps) {
                     type="file"
                 />
                 <Composer
-                    agents={connected ? [] : mentionableAgents}
                     contextItems={composerContext()}
-                    disabled={busy() || (connected && !activeConversationId())}
+                    disabled={connected && !activeConversationId()}
+                    emoji={emojiItems}
                     hint={liveComposerHint()}
+                    mentions={mentionCandidates()}
                     onAttachFile={connected ? () => fileInput?.click() : undefined}
                     onContextRemove={removeContext}
                     onSend={() => void sendMessage()}
                     onValueChange={updateDraft}
+                    pending={busy()}
                     placeholder={conversation().composerPlaceholder}
                     sendEnabled={draft().trim().length > 0 || pendingFiles().length > 0}
                     style={{ margin: "0 20px 16px" }}
                     value={draft()}
                 />
             </AppShell>
+            <Show when={directoryOpen()}>
+                <Box onClick={() => setDirectoryOpen(false)} style={overlayStyle}>
+                    <Box onClick={(event) => event.stopPropagation()}>
+                        <Modal
+                            footer={
+                                <Box style={modalActionsStyle}>
+                                    <Button
+                                        onClick={() => {
+                                            setDirectoryOpen(false);
+                                            setCreateOpen(true);
+                                        }}
+                                        variant="secondary"
+                                    >
+                                        Create channel
+                                    </Button>
+                                    <Button onClick={() => setDirectoryOpen(false)}>Done</Button>
+                                </Box>
+                            }
+                            icon="hash"
+                            onClose={() => setDirectoryOpen(false)}
+                            size="small"
+                            title="Channel directory"
+                        >
+                            <Show
+                                fallback={
+                                    <EmptyState
+                                        action={{
+                                            icon: "plus",
+                                            label: "Create channel",
+                                            onClick: () => {
+                                                setDirectoryOpen(false);
+                                                setCreateOpen(true);
+                                            },
+                                        }}
+                                        description="There are no public channels waiting to be joined."
+                                        icon="hash"
+                                        size="inline"
+                                        title="No channels to join"
+                                    />
+                                }
+                                when={directoryItems().length > 0}
+                            >
+                                <Menu
+                                    items={directoryItems()}
+                                    onSelect={previewDirectoryChannel}
+                                    width={328}
+                                />
+                            </Show>
+                        </Modal>
+                    </Box>
+                </Box>
+            </Show>
             <Show when={createOpen()}>
                 <Box onClick={() => setCreateOpen(false)} style={overlayStyle}>
                     <Box onClick={(event) => event.stopPropagation()}>

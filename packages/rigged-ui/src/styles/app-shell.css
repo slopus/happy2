@@ -76,6 +76,20 @@
     align-items: stretch;
     flex: none;
     min-height: 0;
+    background: var(--rg-bg-chrome);
+    position: relative;
+}
+
+.rigged-app-shell__sidebar::after {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--rg-border);
+    content: "";
+    pointer-events: none;
 }
 
 .rigged-app-shell__workspace {

@@ -388,6 +388,16 @@ it("renders the empty state and rich message snippets", async () => {
                             },
                         ],
                     },
+                    {
+                        type: "file",
+                        results: [
+                            {
+                                id: "file-1",
+                                title: "launch-brief.pdf",
+                                meta: "PDF · 2.4 MB",
+                            },
+                        ],
+                    },
                 ]}
                 query="launch"
             />
@@ -425,6 +435,20 @@ it("renders the empty state and rich message snippets", async () => {
 
     const richRow = view.$('[data-testid="rich"] [data-item-id="rich-1"]');
     expect(richRow.bounds().height).toBe(44);
+    const fileRow = view.$('[data-testid="rich"] [data-item-id="file-1"]');
+    expect(fileRow.bounds().height).toBe(44);
+    expect(
+        view.$(
+            '[data-testid="rich"] [data-type="file"] [data-rigged-ui="search-results-group-label"]',
+        ).element.textContent,
+    ).toBe("Files");
+    expect(
+        view
+            .$(
+                '[data-testid="rich"] [data-item-id="file-1"] [data-rigged-ui="search-results-row-glyph"] svg',
+            )
+            .element.getAttribute("data-name"),
+    ).toBe("doc");
 
     const mention = view.$('[data-testid="rich"] [data-rigged-ui="search-results-mention"]');
     expect(mention.element.textContent).toBe("@maya");
