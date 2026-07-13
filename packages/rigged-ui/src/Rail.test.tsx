@@ -104,6 +104,7 @@ async function anchoredCenter(
 }
 
 it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, async () => {
+    const onFooterSelect = vi.fn();
     const onItemSelect = vi.fn();
     const view = createRenderer();
 
@@ -119,7 +120,9 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
                     activeItemId="agents"
                     data-testid="rail-main"
                     footer={<Avatar initials="SK" online size="md" tone="mint" />}
+                    footerLabel="Open profile"
                     items={items}
+                    onFooterSelect={onFooterSelect}
                     onItemSelect={onItemSelect}
                 />
                 <div style={{ "padding-left": "0px", height: "100%" }}>
@@ -226,13 +229,30 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
         height: 560,
     });
 
-    /* No brand is rendered by default. A supplied brand still occupies the
-     * optional centered slot without restoring the removed R mark. */
+    /* The generated happy otter is the default 34px brand mark. It occupies
+     * the former R slot without restoring any text glyph. */
+    const brandImage = view.$('[data-testid="rail-main"] [data-rigged-ui="rail-brand-image"]');
+    const brandImageElement = brandImage.element as HTMLImageElement;
+    await brandImageElement.decode();
+    expect(brandImage.element.tagName).toBe("IMG");
+    expect(brandImage.bounds()).toEqual({ x: 21, y: 10, width: 34, height: 34 });
+    expect(brandImage.computedStyles(["display", "height", "object-fit", "width"])).toEqual({
+        display: "block",
+        height: "34px",
+        "object-fit": "contain",
+        width: "34px",
+    });
+    expect(brandImageElement.complete).toBe(true);
+    expect(brandImageElement.naturalWidth).toBe(128);
+    expect(brandImage.element.getAttribute("alt")).toBe("");
+    expect(brandImage.element.getAttribute("aria-hidden")).toBe("true");
+    expect(document.querySelectorAll('[data-rigged-ui="rail-brand-glyph"]')).toHaveLength(0);
+
+    /* Supplied brand content replaces the otter inside the same centered slot. */
     expect(
-        document.querySelectorAll('[data-testid="rail-main"] [data-rigged-ui="rail-brand"]'),
-    ).toHaveLength(0);
-    expect(
-        document.querySelectorAll('[data-testid="rail-brand"] [data-rigged-ui="rail-brand"]'),
+        document.querySelectorAll(
+            '[data-testid="rail-custom"] [data-rigged-ui="rail-brand-image"]',
+        ),
     ).toHaveLength(0);
     expect(view.$('[data-testid="rail-custom"] [data-testid="custom-brand"]').bounds().width).toBe(
         34,
@@ -251,9 +271,9 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     const active = view.$('[data-testid="rail-main"] [data-item-id="agents"]');
 
     expect(inbox.element.tagName).toBe("BUTTON");
-    /* With no default brand, items start at the 10px top inset. */
-    expect(inbox.bounds()).toEqual({ x: 8, y: 10, width: 60, height: 52 });
-    expect(chat.bounds()).toEqual({ x: 8, y: 66, width: 60, height: 52 });
+    /* Items start after the 34px otter mark and its 12px gap. */
+    expect(inbox.bounds()).toEqual({ x: 8, y: 56, width: 60, height: 52 });
+    expect(chat.bounds()).toEqual({ x: 8, y: 112, width: 60, height: 52 });
     expect(
         inbox.computedStyles([
             "background-color",
@@ -437,6 +457,10 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     const footer = view.$('[data-testid="rail-main"] [data-rigged-ui="rail-footer"]');
     const footerBounds = footer.bounds();
     expect(footerBounds.y + footerBounds.height).toBe(420 - 20);
+    const footerAction = view.$('[data-testid="rail-main"] [data-rigged-ui="rail-footer-action"]');
+    expect(footerAction.element.tagName).toBe("BUTTON");
+    expect(footerAction.element.getAttribute("aria-label")).toBe("Open profile");
+    expect(footerAction.bounds()).toEqual({ x: 20, y: 364, width: 36, height: 36 });
     const footerAvatar = view.$('[data-testid="rail-main"] [data-rigged-ui="avatar"]');
     expect(footerAvatar.bounds().width).toBe(36);
     const avatarBounds = footerAvatar.bounds();
@@ -449,6 +473,9 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
         document.querySelectorAll('[data-testid="rail-custom"] [data-rigged-ui="rail-footer"]')
             .length,
     ).toBe(0);
+
+    (footerAction.element as HTMLButtonElement).click();
+    expect(onFooterSelect).toHaveBeenCalledTimes(1);
 
     /* ---- Selection callback -------------------------------------------------- */
 

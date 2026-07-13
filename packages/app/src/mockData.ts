@@ -41,7 +41,6 @@ export const railItems: RailItem[] = [
     { id: "files", icon: "files", label: "Files" },
     { id: "calls", icon: "mic", label: "Calls" },
     { id: "admin", icon: "shield", label: "Admin" },
-    { id: "you", icon: "at", label: "You" },
 ];
 
 export type FeatureEmptyState = {

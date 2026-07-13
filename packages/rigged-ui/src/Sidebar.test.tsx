@@ -585,6 +585,93 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     await view.screenshot("Sidebar.test");
 }, 120_000);
 
+it("renders actionable guidance for empty sections", async () => {
+    const compose: string[] = [];
+    const sectionActions: string[] = [];
+    const view = createRenderer().render(
+        () => (
+            <Sidebar
+                activeItemId=""
+                data-testid="empty"
+                onCompose={() => compose.push("compose")}
+                onItemSelect={() => {}}
+                onSectionAction={(id) => sectionActions.push(id)}
+                sections={[
+                    {
+                        action: { icon: "plus", label: "Add channel" },
+                        empty: {
+                            actionLabel: "Create a channel",
+                            description: "No channels yet. Create one for your team.",
+                        },
+                        id: "channels",
+                        items: [],
+                        label: "Channels",
+                    },
+                    {
+                        action: { icon: "edit", label: "New message" },
+                        empty: {
+                            actionLabel: "Start a conversation",
+                            description: "No direct messages yet. Say hello to a teammate.",
+                        },
+                        id: "dms",
+                        items: [],
+                        label: "Direct messages",
+                    },
+                ]}
+                title="Empty workspace"
+            />
+        ),
+        { width: 320, height: 360 },
+    );
+    await view.ready();
+
+    expect(
+        document.querySelectorAll('[data-testid="empty"] [data-rigged-ui="sidebar-section-empty"]'),
+    ).toHaveLength(2);
+    const channelsEmpty = view.$(
+        '[data-testid="empty"] [data-section-id="channels"] [data-rigged-ui="sidebar-section-empty"]',
+    );
+    expect(
+        channelsEmpty.computedStyles([
+            "align-items",
+            "display",
+            "padding-bottom",
+            "padding-left",
+            "padding-right",
+            "padding-top",
+        ]),
+    ).toEqual({
+        "align-items": "flex-start",
+        display: "flex",
+        "padding-bottom": "10px",
+        "padding-left": "10px",
+        "padding-right": "10px",
+        "padding-top": "6px",
+    });
+    expect(channelsEmpty.element.textContent).toContain("No channels yet");
+
+    const buttons = Array.from(
+        document.querySelectorAll<HTMLButtonElement>(
+            '[data-testid="empty"] [data-rigged-ui="sidebar-section-empty"] button',
+        ),
+    );
+    expect(buttons.map((button) => button.textContent?.trim())).toEqual([
+        "Create a channel",
+        "Start a conversation",
+    ]);
+    buttons.forEach((button) => button.click());
+    expect(sectionActions).toEqual(["channels", "dms"]);
+
+    const composeButton = document.querySelector<HTMLButtonElement>(
+        '[data-testid="empty"] [aria-label="New message"]',
+    );
+    expect(composeButton).not.toBeNull();
+    composeButton!.click();
+    expect(compose).toEqual(["compose"]);
+
+    await view.screenshot("Sidebar.empty.test");
+});
+
 /*
  * Active-state optical coverage for the four kinds the main fixture does not
  * activate (it activates a view row). The active treatment bumps the label to

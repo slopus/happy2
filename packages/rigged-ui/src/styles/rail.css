@@ -2,8 +2,9 @@
  * Rail — the 76px feature rail on the far left of the window chrome.
  *
  * Contract: 76px wide, fills its parent's height, transparent over the window
- * chrome. Column: optional brand slot, 60×52 icon+label item buttons, footer
- * slot pinned with equal 20px left/right/bottom clearance.
+ * chrome. Column: 34px otter brand mark (replaceable via the brand slot),
+ * 60×52 icon+label item buttons, footer slot pinned with equal 20px
+ * left/right/bottom clearance.
  */
 
 .rigged-rail,
@@ -34,6 +35,16 @@
     flex: none;
     justify-content: center;
     margin-bottom: 12px;
+}
+
+.rigged-rail__brand-image {
+    display: block;
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    -webkit-user-drag: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 /* ---- Items ------------------------------------------------------------ */
@@ -134,4 +145,24 @@
     align-items: center;
     margin-top: auto;
     padding-top: 10px;
+}
+
+.rigged-rail__footer-action {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: var(--rg-radius-pill);
+    appearance: none;
+    cursor: pointer;
+}
+
+.rigged-rail__footer-action:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: 2px;
 }

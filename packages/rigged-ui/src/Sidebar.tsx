@@ -19,6 +19,7 @@ export type SidebarItem = {
 
 export type SidebarSection = {
     action?: { icon: IconName; label: string };
+    empty?: { actionLabel: string; description: string };
     id: string;
     items: SidebarItem[];
     label?: string;
@@ -26,7 +27,9 @@ export type SidebarSection = {
 
 export type SidebarProps = Omit<JSX.HTMLAttributes<HTMLElement>, "style"> & {
     activeItemId: string;
+    composeLabel?: string;
     footer?: JSX.Element;
+    onCompose?: () => void;
     onItemSelect: (id: string) => void;
     onSectionAction?: (sectionId: string) => void;
     sections: SidebarSection[];
@@ -107,13 +110,15 @@ function SidebarRow(props: { active: boolean; item: SidebarItem; onSelect: (id: 
 /**
  * C-009 Sidebar — 288px navigation column on the chrome surface. Header with
  * workspace title, scrollable sectioned rows (views, channels, people, agents,
- * actions), and a pinned footer slot for the current-user row.
+ * actions), actionable empty-section guidance, and an optional pinned footer.
  */
 export function Sidebar(props: SidebarProps) {
     const [local, rest] = splitProps(props, [
         "activeItemId",
         "class",
+        "composeLabel",
         "footer",
+        "onCompose",
         "onItemSelect",
         "onSectionAction",
         "sections",
@@ -146,10 +151,11 @@ export function Sidebar(props: SidebarProps) {
                     </Show>
                 </div>
                 <Button
-                    aria-label="New message"
+                    aria-label={local.composeLabel ?? "New message"}
                     class="rigged-sidebar__compose"
                     icon="edit"
                     iconOnly
+                    onClick={local.onCompose}
                     size="small"
                     variant="ghost"
                 />
@@ -197,6 +203,30 @@ export function Sidebar(props: SidebarProps) {
                                     />
                                 )}
                             </For>
+                            <Show when={section.items.length === 0 ? section.empty : undefined}>
+                                {(empty) => (
+                                    <div
+                                        class="rigged-sidebar__empty"
+                                        data-rigged-ui="sidebar-section-empty"
+                                    >
+                                        <span
+                                            class="rigged-sidebar__empty-description"
+                                            data-rigged-ui="sidebar-section-empty-description"
+                                        >
+                                            {empty().description}
+                                        </span>
+                                        <Button
+                                            class="rigged-sidebar__empty-action"
+                                            icon={section.action?.icon ?? "plus"}
+                                            onClick={() => local.onSectionAction?.(section.id)}
+                                            size="small"
+                                            variant="secondary"
+                                        >
+                                            {empty().actionLabel}
+                                        </Button>
+                                    </div>
+                                )}
+                            </Show>
                         </section>
                     )}
                 </For>

@@ -43,7 +43,21 @@ describe("App", () => {
         expect(sidebar?.parentElement).toBe(main);
         expect(workspace?.parentElement).toBe(main);
         expect(sidebar?.nextElementSibling).toBe(workspace);
-        expect(container.querySelector('[data-rigged-ui="rail-brand"]')).toBeNull();
+        expect(container.querySelector('[data-rigged-ui="rail-brand-image"]')).toBeTruthy();
+        expect(container.querySelector('[data-rigged-ui="rail-brand-glyph"]')).toBeNull();
+        expect(
+            container.querySelector('[data-rigged-ui="app-shell-rail"] [data-rigged-ui="avatar"]'),
+        ).toBeTruthy();
+        expect(
+            container.querySelector(
+                '[data-rigged-ui="app-shell-sidebar"] [data-rigged-ui="profile-card"]',
+            ),
+        ).toBeNull();
+        expect(
+            container.querySelector(
+                '[data-rigged-ui="app-shell-sidebar"] [data-rigged-ui="sidebar-footer"]',
+            ),
+        ).toBeNull();
         expect(queryByRole("button", { name: "History" })).toBeNull();
         expect(queryByRole("button", { name: "Settings" })).toBeNull();
     });
@@ -140,7 +154,6 @@ describe("App", () => {
             ["files", "media-gallery"],
             ["calls", "call-panel"],
             ["admin", "tabs"],
-            ["you", "profile-card"],
         ];
         for (const [id, hook] of cases) {
             fireEvent.click(railItem(container, id));
@@ -150,6 +163,16 @@ describe("App", () => {
         // Returning to chat restores the live workspace.
         fireEvent.click(railItem(container, "chat"));
         expect(container.querySelector('[data-rigged-ui="channel-header"]')).toBeTruthy();
+    });
+
+    it("opens the profile from the rail avatar instead of a You destination", () => {
+        const { container, getByRole } = render(() => <App />);
+
+        expect(
+            container.querySelector('[data-rigged-ui="rail-item"][data-item-id="you"]'),
+        ).toBeNull();
+        fireEvent.click(getByRole("button", { name: "Open profile" }));
+        expect(container.querySelector('[data-rigged-ui="profile-card"]')).toBeTruthy();
     });
 
     it("swaps a feature view for the search overlay while searching", () => {

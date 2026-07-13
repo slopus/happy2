@@ -26,7 +26,6 @@ import {
     Message,
     MessageList,
     Modal,
-    ProfileCard,
     Select,
     Sidebar,
     TextField,
@@ -308,12 +307,18 @@ export function ChatView(props: ChatViewProps) {
             if (peer) dmByUserId.set(peer.id, chat);
         }
         const channels = chats.filter((chat) => chat.kind !== "dm");
-        const directMessages = users.filter((item) => item.id !== user()?.id);
+        const directMessages = users.filter(
+            (item) => item.id !== user()?.id && dmByUserId.has(item.id),
+        );
         setSidebar([
             {
                 id: "channels",
                 label: "Channels",
                 action: { icon: "plus", label: "Add channel" },
+                empty: {
+                    actionLabel: "Create a channel",
+                    description: "No channels yet. Create one for your team.",
+                },
                 items: channels.map((chat) => ({
                     id: chat.id,
                     kind: "channel" as const,
@@ -324,6 +329,11 @@ export function ChatView(props: ChatViewProps) {
             {
                 id: "dms",
                 label: "Direct messages",
+                action: { icon: "edit", label: "New message" },
+                empty: {
+                    actionLabel: "Start a conversation",
+                    description: "No direct messages yet. Say hello to a teammate.",
+                },
                 items: directMessages.map((contact) => {
                     const chat = dmByUserId.get(contact.id);
                     return {
@@ -548,6 +558,26 @@ export function ChatView(props: ChatViewProps) {
         }
     }
 
+    async function startDirectMessage() {
+        const teammates = contacts().filter((contact) => contact.id !== user()?.id);
+        if (teammates.length === 0) {
+            setStatusHint("No teammates are available to message yet.");
+            return;
+        }
+        const query = window.prompt("Message teammate by name or username")?.trim().toLowerCase();
+        if (!query) return;
+        const teammate = teammates.find(
+            (contact) =>
+                fullName(contact).toLowerCase() === query ||
+                contact.username.toLowerCase() === query,
+        );
+        if (!teammate) {
+            setStatusHint("No teammate matched that name or username.");
+            return;
+        }
+        await selectConversation(`contact:${teammate.id}`);
+    }
+
     function updateDraft(value: string) {
         setDraft(value);
         const model = state();
@@ -761,20 +791,11 @@ export function ChatView(props: ChatViewProps) {
                 sidebar={
                     <Sidebar
                         activeItemId={activeConversationId()}
-                        footer={
-                            <ProfileCard
-                                imageUrl={user()?.avatarUrl}
-                                initials={userInitials()}
-                                name={userName()}
-                                presence="online"
-                                size="compact"
-                                tone="brand"
-                                username={user()?.username ?? "you"}
-                            />
-                        }
+                        onCompose={() => void startDirectMessage()}
                         onItemSelect={(id) => void selectConversation(id)}
                         onSectionAction={(sectionId) => {
                             if (sectionId === "channels") setCreateOpen(true);
+                            if (sectionId === "dms") void startDirectMessage();
                         }}
                         sections={filteredSidebar()}
                         title={user() ? `${user()!.firstName}’s Rigged` : "Rigged"}

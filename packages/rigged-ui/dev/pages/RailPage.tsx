@@ -23,7 +23,7 @@ export function RailPage() {
     return (
         <ComponentPage
             number="C-008"
-            summary="The 76px feature rail: icon+label destinations with unread badges, an optional brand slot, and a footer avatar with equal side/bottom clearance."
+            summary="The 76px feature rail: happy otter brand, icon+label destinations with unread badges, a replaceable brand slot, and a footer avatar with equal side/bottom clearance."
             title="Rail"
         >
             <Specimen
@@ -37,7 +37,9 @@ export function RailPage() {
                         <Rail
                             activeItemId={activeId()}
                             footer={<Avatar initials="SK" online size="sm" tone="mint" />}
+                            footerLabel="Open profile"
                             items={items}
+                            onFooterSelect={() => setActiveId("profile")}
                             onItemSelect={setActiveId}
                         />
                     </div>
@@ -50,6 +52,7 @@ export function RailPage() {
                         }}
                     >
                         <DimensionRule label="76 px wide" />
+                        <DimensionRule label="otter brand 34 × 34" />
                         <DimensionRule label="items 60 × 52 · radius 8" />
                         <DimensionRule label="icon 20 px + label 10/700" />
                         <DimensionRule label="footer avatar · 20 px left / right / bottom" />
@@ -93,7 +96,7 @@ export function RailPage() {
             </Specimen>
 
             <Specimen
-                detail="optional brand slot appears only when supplied · footer slot holds the profile avatar"
+                detail="custom brand content replaces the default otter · footer slot holds the profile avatar"
                 label="Slots"
                 number="03"
                 stage="chrome"

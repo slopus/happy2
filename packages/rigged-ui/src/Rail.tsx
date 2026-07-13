@@ -1,4 +1,5 @@
 import { For, Show, splitProps, type JSX } from "solid-js";
+import { happyOtterLogoUrl } from "./assets";
 import { CountBadge } from "./Badge";
 import { Icon, type IconName } from "./Icon";
 
@@ -13,15 +14,17 @@ export type RailProps = Omit<JSX.HTMLAttributes<HTMLElement>, "style"> & {
     activeItemId: string;
     brand?: JSX.Element;
     footer?: JSX.Element;
+    footerLabel?: string;
     items: RailItem[];
+    onFooterSelect?: () => void;
     onItemSelect: (id: string) => void;
     style?: JSX.CSSProperties;
 };
 
 /**
- * The 76px feature rail: optional brand slot, icon+label destinations, and a
- * footer slot (profile avatar) pinned to the bottom. Navigation only — the app
- * shell composes it next to the main content panel.
+ * The 76px feature rail: happy otter brand mark (replaceable through the brand
+ * slot), icon+label destinations, and a footer slot pinned to the bottom.
+ * Navigation only — the app shell composes it next to the main content panel.
  */
 export function Rail(props: RailProps) {
     const [local, rest] = splitProps(props, [
@@ -29,7 +32,9 @@ export function Rail(props: RailProps) {
         "brand",
         "class",
         "footer",
+        "footerLabel",
         "items",
+        "onFooterSelect",
         "onItemSelect",
         "style",
     ]);
@@ -41,11 +46,23 @@ export function Rail(props: RailProps) {
             data-rigged-ui="rail"
             style={local.style}
         >
-            <Show when={local.brand}>
-                <div class="rigged-rail__brand" data-rigged-ui="rail-brand">
+            <div class="rigged-rail__brand" data-rigged-ui="rail-brand">
+                <Show
+                    fallback={
+                        <img
+                            alt=""
+                            aria-hidden="true"
+                            class="rigged-rail__brand-image"
+                            data-rigged-ui="rail-brand-image"
+                            draggable={false}
+                            src={happyOtterLogoUrl}
+                        />
+                    }
+                    when={local.brand}
+                >
                     {local.brand}
-                </div>
-            </Show>
+                </Show>
+            </div>
             <div class="rigged-rail__items" data-rigged-ui="rail-items">
                 <For each={local.items}>
                     {(item) => (
@@ -80,7 +97,19 @@ export function Rail(props: RailProps) {
             </div>
             <Show when={local.footer}>
                 <div class="rigged-rail__footer" data-rigged-ui="rail-footer">
-                    {local.footer}
+                    <Show fallback={local.footer} when={local.onFooterSelect}>
+                        {(onSelect) => (
+                            <button
+                                aria-label={local.footerLabel}
+                                class="rigged-rail__footer-action"
+                                data-rigged-ui="rail-footer-action"
+                                onClick={onSelect()}
+                                type="button"
+                            >
+                                {local.footer}
+                            </button>
+                        )}
+                    </Show>
                 </div>
             </Show>
         </nav>

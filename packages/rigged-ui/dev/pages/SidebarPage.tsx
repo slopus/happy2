@@ -192,7 +192,7 @@ export function SidebarPage() {
     return (
         <ComponentPage
             number="C-009"
-            summary="288px workspace navigation column — header with workspace switcher, sectioned rows for views, channels, people, agents, and actions, pinned current-user footer."
+            summary="288px workspace navigation column — header with workspace switcher, sectioned rows for views, channels, people, agents, and actions, actionable empty states, and an optional footer."
             title="Sidebar"
         >
             <Specimen
@@ -277,6 +277,49 @@ export function SidebarPage() {
                         />
                     </Frame>
                     <DimensionRule label="header 52 px · body x-pad 8 px" />
+                </div>
+            </Specimen>
+
+            <Specimen
+                detail="Empty sections keep their heading, explain what is missing, and expose a full text action"
+                label="Empty channels and direct messages"
+                number="04"
+                stage="app"
+            >
+                <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <Frame height={320}>
+                        <Sidebar
+                            activeItemId=""
+                            onCompose={() => {}}
+                            onItemSelect={() => {}}
+                            onSectionAction={() => {}}
+                            sections={[
+                                {
+                                    action: { icon: "plus", label: "Add channel" },
+                                    empty: {
+                                        actionLabel: "Create a channel",
+                                        description: "No channels yet. Create one for your team.",
+                                    },
+                                    id: "channels",
+                                    items: [],
+                                    label: "Channels",
+                                },
+                                {
+                                    action: { icon: "edit", label: "New message" },
+                                    empty: {
+                                        actionLabel: "Start a conversation",
+                                        description:
+                                            "No direct messages yet. Say hello to a teammate.",
+                                    },
+                                    id: "dms",
+                                    items: [],
+                                    label: "Direct messages",
+                                },
+                            ]}
+                            title="Empty workspace"
+                        />
+                    </Frame>
+                    <DimensionRule label="empty copy 11/16 · action 28 px" />
                 </div>
             </Specimen>
         </ComponentPage>

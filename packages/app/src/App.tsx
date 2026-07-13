@@ -63,7 +63,9 @@ function Shell(props: AppProps & { session?: AuthSession }) {
                     tone="brand"
                 />
             }
+            footerLabel="Open profile"
             items={railItems}
+            onFooterSelect={() => setActiveFeatureId("you")}
             onItemSelect={setActiveFeatureId}
         />
     );
