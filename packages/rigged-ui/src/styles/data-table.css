@@ -51,12 +51,11 @@
 }
 
 .rigged-data-table__head-label {
-    display: inline-block;
+    display: block;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    vertical-align: middle;
 }
 
 /* Body ------------------------------------------------------------------ */
@@ -83,12 +82,11 @@
 }
 
 .rigged-data-table__cell {
-    display: inline-block;
+    display: block;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    vertical-align: middle;
 }
 
 /* Alignment ------------------------------------------------------------- */
