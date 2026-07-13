@@ -143,8 +143,43 @@
     flex: none;
     flex-direction: column;
     align-items: center;
+    gap: 14px;
     margin-top: auto;
     padding-top: 10px;
+}
+
+/* Primary create action — a 40px accent disc pinned above the profile. */
+.rigged-rail__primary {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    padding: 0;
+    background: var(--rg-accent);
+    border: 0;
+    border-radius: var(--rg-radius-pill);
+    color: var(--rg-text-on-accent);
+    appearance: none;
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        transform 120ms ease;
+}
+
+.rigged-rail__primary:hover {
+    background: var(--rg-accent-strong);
+}
+
+.rigged-rail__primary:active {
+    transform: scale(0.94);
+}
+
+.rigged-rail__primary:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: 2px;
 }
 
 .rigged-rail__footer-action {

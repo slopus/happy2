@@ -10,6 +10,12 @@ export type RailItem = {
     label: string;
 };
 
+export type RailPrimaryAction = {
+    icon?: IconName;
+    label: string;
+    onSelect: () => void;
+};
+
 export type RailProps = Omit<JSX.HTMLAttributes<HTMLElement>, "style"> & {
     activeItemId: string;
     brand?: JSX.Element;
@@ -18,6 +24,8 @@ export type RailProps = Omit<JSX.HTMLAttributes<HTMLElement>, "style"> & {
     items: RailItem[];
     onFooterSelect?: () => void;
     onItemSelect: (id: string) => void;
+    /** Prominent accent action (usually "+") pinned above the footer profile. */
+    primaryAction?: RailPrimaryAction;
     style?: JSX.CSSProperties;
 };
 
@@ -36,6 +44,7 @@ export function Rail(props: RailProps) {
         "items",
         "onFooterSelect",
         "onItemSelect",
+        "primaryAction",
         "style",
     ]);
 
@@ -95,20 +104,35 @@ export function Rail(props: RailProps) {
                     )}
                 </For>
             </div>
-            <Show when={local.footer}>
+            <Show when={local.primaryAction || local.footer}>
                 <div class="rigged-rail__footer" data-rigged-ui="rail-footer">
-                    <Show fallback={local.footer} when={local.onFooterSelect}>
-                        {(onSelect) => (
+                    <Show when={local.primaryAction}>
+                        {(action) => (
                             <button
-                                aria-label={local.footerLabel}
-                                class="rigged-rail__footer-action"
-                                data-rigged-ui="rail-footer-action"
-                                onClick={onSelect()}
+                                aria-label={action().label}
+                                class="rigged-rail__primary"
+                                data-rigged-ui="rail-primary"
+                                onClick={() => action().onSelect()}
                                 type="button"
                             >
-                                {local.footer}
+                                <Icon name={action().icon ?? "plus"} size={20} />
                             </button>
                         )}
+                    </Show>
+                    <Show when={local.footer}>
+                        <Show fallback={local.footer} when={local.onFooterSelect}>
+                            {(onSelect) => (
+                                <button
+                                    aria-label={local.footerLabel}
+                                    class="rigged-rail__footer-action"
+                                    data-rigged-ui="rail-footer-action"
+                                    onClick={onSelect()}
+                                    type="button"
+                                >
+                                    {local.footer}
+                                </button>
+                            )}
+                        </Show>
                     </Show>
                 </div>
             </Show>

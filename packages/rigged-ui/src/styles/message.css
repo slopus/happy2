@@ -34,6 +34,14 @@
     background: var(--rg-bg-hover);
 }
 
+/* Consecutive (grouped) messages tighten into one turn: symmetric, smaller
+   vertical padding than a fresh author group, so a run of follow-ups reads as
+   one block and the single line of body text stays centered in its hover row. */
+.rigged-message[data-grouped] {
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
 /* Sending changes paint only: author, avatar, body, attachments, and reactions
  * keep their exact geometry while the optimistic row waits for confirmation. */
 .rigged-message__gutter,
@@ -60,6 +68,12 @@
     min-width: 0;
 }
 
+/*
+ * Grouped follow-ups hide their gutter time until the row is hovered or focused
+ * (only the first message of a group shows its time inline, always). The time
+ * stays right-aligned in the 36px gutter, so it keeps the full 12px gutter→body
+ * gap and never runs into the message text.
+ */
 .rigged-message__gutter-time {
     display: block;
     font-family: var(--rg-font-mono);
@@ -68,11 +82,21 @@
     line-height: 22px; /* sits on the first body line */
     color: var(--rg-text-muted);
     white-space: nowrap;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
     /* Measured (all engines): the 11px mono baseline lands 1px above the 15px
        body baseline when both ride a 22px line (different ascent metrics split
        the half-leading differently). Drop it onto the body baseline. */
     position: relative;
     top: 1px;
+    opacity: 0;
+    transition: opacity 100ms ease;
+}
+
+.rigged-message:hover .rigged-message__gutter-time,
+.rigged-message:focus-within .rigged-message__gutter-time,
+.rigged-message[data-actions-visible] .rigged-message__gutter-time {
+    opacity: 1;
 }
 
 .rigged-message__content {
@@ -155,6 +179,85 @@
 .rigged-message__attachments {
     margin-top: 8px;
     min-width: 0;
+}
+
+/* A photo- or file-only message (no text body) drops the 8px body gap so the
+   media/attachment sits flush under the author/gutter line instead of adding a
+   phantom empty text line's worth of height. */
+.rigged-message:not([data-has-body]) .rigged-message__media,
+.rigged-message:not([data-has-body]) .rigged-message__attachments {
+    margin-top: 0;
+}
+
+/* ---- Inline photo attachments ----------------------------------------- */
+
+.rigged-message__media {
+    display: grid;
+    gap: 4px;
+    margin-top: 8px;
+    max-width: 420px;
+    min-width: 0;
+}
+
+.rigged-message__media[data-count="1"] {
+    grid-template-columns: minmax(0, max-content);
+}
+
+.rigged-message__media[data-count="2"],
+.rigged-message__media[data-count="3"],
+.rigged-message__media[data-count="4"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rigged-message__media-item {
+    display: block;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+    background: var(--rg-bg-inset);
+    border: 1px solid var(--rg-border);
+    border-radius: 8px;
+    appearance: none;
+    cursor: zoom-in;
+    transition: border-color 120ms ease;
+}
+
+.rigged-message__media[data-count="2"] .rigged-message__media-item,
+.rigged-message__media[data-count="3"] .rigged-message__media-item,
+.rigged-message__media[data-count="4"] .rigged-message__media-item {
+    aspect-ratio: 1 / 1;
+}
+
+.rigged-message__media-item:hover {
+    border-color: var(--rg-border-strong);
+}
+
+.rigged-message__media-item:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: 2px;
+}
+
+/* A fixed box (grid squares, or a lone photo with known dimensions) fills its
+   reserved space so the layout never reflows when the image loads. */
+.rigged-message__media-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    -webkit-user-drag: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* A lone photo with no dimension metadata sizes to its natural aspect, capped —
+   it may reflow once on load, which is why callers should pass width/height. */
+.rigged-message__media[data-count="1"]
+    .rigged-message__media-item:not([data-fixed])
+    .rigged-message__media-image {
+    width: auto;
+    height: auto;
+    max-width: 380px;
+    max-height: 320px;
 }
 
 .rigged-message__reactions {

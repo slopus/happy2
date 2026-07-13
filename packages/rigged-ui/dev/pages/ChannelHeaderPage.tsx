@@ -1,5 +1,7 @@
+import { createSignal } from "solid-js";
 import { Button } from "../../src/Button";
-import { ChannelHeader, type ChannelMember } from "../../src/ChannelHeader";
+import { ChannelHeader } from "../../src/ChannelHeader";
+import type { MenuItem } from "../../src/Menu";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
 
 const column: Record<string, string> = {
@@ -8,32 +10,36 @@ const column: Record<string, string> = {
     gap: "14px",
 };
 
-const crew: ChannelMember[] = [
-    { initials: "MJ", tone: "amber" },
-    { initials: "SK", tone: "mint" },
-    { initials: "CX", tone: "ember", type: "agent" },
-    { initials: "LP", tone: "ocean" },
+const menuItems: MenuItem[] = [
+    { kind: "item", id: "details", icon: "eye", label: "Channel details" },
+    { kind: "item", id: "copy", icon: "link", label: "Copy link" },
+    { kind: "item", id: "star", icon: "star", label: "Star channel" },
+    { kind: "separator" },
+    { kind: "item", id: "edit", icon: "settings", label: "Edit settings" },
+    { kind: "separator" },
+    { kind: "item", id: "leave", icon: "close", label: "Leave channel", danger: true },
 ];
 
 function actions() {
     return (
         <>
             <Button aria-label="Notifications" icon="bell" iconOnly size="small" variant="ghost" />
-            <Button aria-label="Members" icon="users" iconOnly size="small" variant="ghost" />
-            <Button aria-label="More" icon="more" iconOnly size="small" variant="ghost" />
+            <Button aria-label="Search" icon="search" iconOnly size="small" variant="ghost" />
         </>
     );
 }
 
 export function ChannelHeaderPage() {
+    const [starred, setStarred] = createSignal(true);
+
     return (
         <ComponentPage
             number="C-011"
-            summary="52px context strip across the top of the main surface: channel identity and topic on the left, membership facepile, agent chip, and actions on the right."
+            summary="52px context strip across the top of the main surface, modeled on Slack: star toggle, clickable channel title, truncating topic, a member-count pill, agent chip, actions, and an overflow menu."
             title="ChannelHeader"
         >
             <Specimen
-                detail="52px high · 16px x-pad · bottom hairline · facepile + count + agent chip + actions"
+                detail="star · clickable title · topic · member pill · agent chip · actions · ⋮ menu"
                 label="Full channel header"
                 number="01"
                 stage="app"
@@ -44,12 +50,17 @@ export function ChannelHeaderPage() {
                             actions={actions()}
                             agentCount={3}
                             memberCount={12}
-                            members={crew}
+                            menuItems={menuItems}
+                            onMembersClick={() => {}}
+                            onMenuSelect={() => {}}
+                            onStarToggle={() => setStarred((value) => !value)}
+                            onTitleClick={() => {}}
+                            starred={starred()}
                             title="launch-week"
                             topic="Ship mobile v2 by Fri"
                         />
                     </div>
-                    <DimensionRule label="52 px high · 16 px x-pad" />
+                    <DimensionRule label="52 px high · 16 px x-pad · click title / members / ⋮" />
                 </div>
             </Specimen>
 
@@ -63,7 +74,8 @@ export function ChannelHeaderPage() {
                     <ChannelHeader
                         agentCount={2}
                         memberCount={24}
-                        members={crew.slice(0, 3)}
+                        onMembersClick={() => {}}
+                        onTitleClick={() => {}}
                         title="eng-core"
                         topic="Runtime, infra, and the auth stack"
                     />
@@ -77,7 +89,7 @@ export function ChannelHeaderPage() {
             </Specimen>
 
             <Specimen
-                detail="Title only — every right-side part is optional"
+                detail="Title only — every star / member / action / menu part is optional"
                 label="Minimal"
                 number="03"
                 stage="app"
@@ -98,7 +110,11 @@ export function ChannelHeaderPage() {
                         <ChannelHeader
                             agentCount={1}
                             memberCount={9}
-                            members={crew.slice(0, 2)}
+                            menuItems={menuItems}
+                            onMembersClick={() => {}}
+                            onMenuSelect={() => {}}
+                            onStarToggle={() => {}}
+                            onTitleClick={() => {}}
                             title="support-fires"
                             topic="Escalations, refunds, and the weekly pager review that never seems to end"
                         />
@@ -108,26 +124,33 @@ export function ChannelHeaderPage() {
             </Specimen>
 
             <Specimen
-                detail="Up to 3 xs avatars, -6px overlap, app-bg gap ring + hairline"
-                label="Facepile density"
+                detail="Member pill is a button when onMembersClick is set; singular vs plural label"
+                label="Member counter"
                 number="05"
                 stage="app"
             >
                 <div style={{ ...column, width: "560px" }}>
-                    <ChannelHeader memberCount={2} members={crew.slice(0, 1)} title="one" />
-                    <ChannelHeader memberCount={5} members={crew.slice(0, 2)} title="two" />
-                    <ChannelHeader memberCount={31} members={crew} title="clamped-at-three" />
+                    <ChannelHeader memberCount={1} onMembersClick={() => {}} title="one" />
+                    <ChannelHeader memberCount={128} onMembersClick={() => {}} title="crowd" />
+                    <ChannelHeader memberCount={31} title="read-only-count" />
                 </div>
             </Specimen>
 
             <Specimen
-                detail="Ghost icon buttons compose into the actions slot, pinned to the right edge"
-                label="Actions slot"
+                detail="Ghost icon buttons compose into the actions slot; ⋮ opens the overflow menu"
+                label="Actions + menu"
                 number="06"
                 stage="app"
             >
                 <div style={{ width: "640px" }}>
-                    <ChannelHeader actions={actions()} title="incidents" topic="Sev-1 war room" />
+                    <ChannelHeader
+                        actions={actions()}
+                        menuItems={menuItems}
+                        onMenuSelect={() => {}}
+                        onStarToggle={() => {}}
+                        title="incidents"
+                        topic="Sev-1 war room"
+                    />
                 </div>
             </Specimen>
         </ComponentPage>

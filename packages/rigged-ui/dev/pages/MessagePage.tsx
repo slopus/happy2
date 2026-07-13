@@ -1,5 +1,6 @@
 import type { JSX } from "solid-js";
 import { DiffSnippet } from "../../src/DiffSnippet";
+import { FileAttachment } from "../../src/FileAttachment";
 import { DayDivider, Message, MessageList } from "../../src/Message";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
 
@@ -8,6 +9,16 @@ const column: Record<string, string> = {
     "flex-direction": "column",
     gap: "14px",
 };
+
+/* Screenshot-safe inline artwork so the blueprint never loads a network asset. */
+function demoImage(width: number, height: number, from: string, to: string): string {
+    const svg =
+        `<svg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}'>` +
+        `<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>` +
+        `<stop offset='0' stop-color='${from}'/><stop offset='1' stop-color='${to}'/>` +
+        `</linearGradient></defs><rect width='100%' height='100%' fill='url(#g)'/></svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
 
 /* Messages are full-bleed rows; specimens frame them in an app-surface card. */
 function channelFrame(children: JSX.Element, height?: string) {
@@ -139,9 +150,84 @@ export function MessagePage() {
             </Specimen>
 
             <Specimen
-                detail="compact: no avatar/author row — 11px mono time in the 36px gutter, body stays on the content column"
-                label="Message — compact follow-ups"
+                detail="Inline photos render below the body as a clickable grid; click opens a web-modal lightbox"
+                label="Message — photo attachments"
                 number="04"
+                stage="app"
+            >
+                <div style={column}>
+                    {channelFrame(
+                        <Message
+                            author="Nora Kim"
+                            body="Device farm came back green across the board 🎉"
+                            images={[
+                                {
+                                    id: "p1",
+                                    alt: "Device farm results",
+                                    height: 400,
+                                    url: demoImage(640, 400, "#8b7cf7", "#f472b6"),
+                                    width: 640,
+                                },
+                            ]}
+                            onImageOpen={() => {}}
+                            time="11:14"
+                            tone="rose"
+                        />,
+                    )}
+                    {channelFrame(
+                        <Message
+                            author="Nora Kim"
+                            body=""
+                            grouped
+                            images={[
+                                {
+                                    id: "p0",
+                                    alt: "Release dashboard",
+                                    height: 420,
+                                    url: demoImage(760, 420, "#a89bff", "#f472b6"),
+                                    width: 760,
+                                },
+                            ]}
+                            onImageOpen={() => {}}
+                            time="11:14"
+                        />,
+                    )}
+                    {channelFrame(
+                        <Message
+                            author="Nora Kim"
+                            body="And the before/after grid for the settings redesign:"
+                            images={[
+                                { id: "g1", url: demoImage(400, 400, "#60a5fa", "#34d399") },
+                                { id: "g2", url: demoImage(400, 400, "#fbbf24", "#f87171") },
+                                { id: "g3", url: demoImage(400, 400, "#a89bff", "#8b7cf7") },
+                            ]}
+                            onImageOpen={() => {}}
+                            time="11:15"
+                            tone="rose"
+                        />,
+                    )}
+                    {channelFrame(
+                        <Message
+                            author="Nora Kim"
+                            body="Deck and the standalone build are attached:"
+                            time="11:16"
+                            tone="rose"
+                        >
+                            <FileAttachment
+                                name="Relay Flagship (standalone).html"
+                                onOpen={() => {}}
+                                size="283 KB"
+                            />
+                        </Message>,
+                    )}
+                    <DimensionRule label="single ≤ 380 × 320 (aspect from metadata) · grid squares · media-only sits flush" />
+                </div>
+            </Specimen>
+
+            <Specimen
+                detail="compact: no avatar/author row — the 11px mono time hides until hover (shown here), right-aligned in the 36px gutter with a 12px gap to the body"
+                label="Message — compact follow-ups"
+                number="05"
                 stage="app"
             >
                 {channelFrame(
@@ -154,12 +240,14 @@ export function MessagePage() {
                             tone="ember"
                         />
                         <Message
+                            actionsVisible
                             compact
                             author="Claude"
                             body="Handing the fix to Codex and I'll draft release notes in parallel."
                             time="10:44"
                         />
                         <Message
+                            actionsVisible
                             compact
                             author="Claude"
                             body={[
@@ -176,7 +264,7 @@ export function MessagePage() {
             <Specimen
                 detail="Hover/focus toolbar · reaction picker trigger · start thread · real supplied overflow actions"
                 label="Message — hover actions"
-                number="05"
+                number="06"
                 stage="app"
             >
                 {channelFrame(
@@ -205,7 +293,7 @@ export function MessagePage() {
             <Specimen
                 detail="Consecutive author grouping removes repeated identity; sending changes opacity only and preserves every box"
                 label="Message — grouped + sending"
-                number="06"
+                number="07"
                 stage="app"
             >
                 {channelFrame(
@@ -231,7 +319,7 @@ export function MessagePage() {
             <Specimen
                 detail="11/700 mono uppercase pill (inset bg, radius 999) between hairline segments"
                 label="DayDivider"
-                number="07"
+                number="08"
                 stage="app"
             >
                 <div style={column}>
@@ -249,7 +337,7 @@ export function MessagePage() {
             <Specimen
                 detail="Sparse history bottom-anchors against the 12px padding; intro block leads the chronology"
                 label="MessageList — bottom anchor + intro"
-                number="08"
+                number="09"
                 stage="app"
             >
                 <div style={column}>
@@ -284,7 +372,7 @@ export function MessagePage() {
             <Specimen
                 detail="Overflowing history mounts scrolled to the newest message and follows appended content unless the reader scrolls up"
                 label="MessageList — long history"
-                number="09"
+                number="10"
                 stage="app"
             >
                 {channelFrame(

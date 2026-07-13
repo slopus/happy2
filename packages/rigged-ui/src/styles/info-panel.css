@@ -1,0 +1,83 @@
+/*
+ * C-047 InfoPanel — channel/user detail side panel.
+ *
+ * A column that fills the panel region: a 52px surface header (shared with
+ * ChannelHeader / ThreadPanel), then a scrolling body of stacked blocks —
+ * person ProfileCard or read-only channel About, a caller body slot, and a
+ * labeled member roster. Colors and type are theme tokens only.
+ */
+
+.rigged-info-panel,
+.rigged-info-panel *,
+.rigged-info-panel__body {
+    box-sizing: border-box;
+}
+
+.rigged-info-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+    color: var(--rg-text);
+}
+
+.rigged-info-panel__header {
+    flex: none;
+}
+
+.rigged-info-panel__body {
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 0;
+    padding: 16px;
+    overflow: auto;
+}
+
+/* ---- Read-only channel About ----------------------------------------- */
+
+.rigged-info-panel__about {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    background: var(--rg-bg-inset);
+    border: 1px solid var(--rg-border);
+    border-radius: var(--rg-radius-md);
+}
+
+.rigged-info-panel__about-label {
+    color: var(--rg-text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+}
+
+.rigged-info-panel__about-text {
+    color: var(--rg-text-secondary);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 20px;
+}
+
+/* ---- Member roster --------------------------------------------------- */
+
+.rigged-info-panel__members {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.rigged-info-panel__section-label {
+    color: var(--rg-text-muted);
+    font-family: var(--rg-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    line-height: 16px;
+    text-transform: uppercase;
+}

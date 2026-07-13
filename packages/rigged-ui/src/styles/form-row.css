@@ -21,16 +21,24 @@
     gap: 24px;
 }
 
+/* Stacked rows read as a form field: left-aligned text with a full-width
+   control below it. `align` only tunes inline vertical centering, so it is
+   deliberately ignored here (a centered label + narrow control looks broken). */
 .rigged-form-row[data-layout="stacked"] {
     flex-direction: column;
+    align-items: flex-start;
     gap: 12px;
 }
 
-.rigged-form-row[data-align="center"] {
+.rigged-form-row[data-layout="stacked"] .rigged-form-row__control {
+    align-self: stretch;
+}
+
+.rigged-form-row[data-layout="inline"][data-align="center"] {
     align-items: center;
 }
 
-.rigged-form-row[data-align="start"] {
+.rigged-form-row[data-layout="inline"][data-align="start"] {
     align-items: flex-start;
 }
 

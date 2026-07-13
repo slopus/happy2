@@ -81,11 +81,21 @@ Current reference dimensions are:
 | Standard sidebar          | 288 px wide                    |
 | Main content shell inset  | 0 top/left · 8 px right/bottom |
 | Main content shell radius | 8 px (macOS window match)      |
+| Surface header row        | 52 px high                     |
+| Section toolbar           | 48 px high                     |
 | Small button              | 28 px high                     |
 | Medium button             | 36 px high                     |
 | Large button              | 44 px high                     |
 | Blueprint toolbar         | 42 px high                     |
 | Blueprint specimen grid   | 16 px minor / 80 px major      |
+
+The **surface header row** is the 52 px context strip at the top of a main
+surface or a side panel: `ChannelHeader`, `InfoPanel`, and `ThreadPanel` all use
+it so the chat header and its side panels line up on one baseline. The reusable
+`SURFACE_HEADER_HEIGHT` constant is the single source of truth; a panel that
+composes `Toolbar` for its header passes this height. The bare `Toolbar` default
+(48 px) is the lighter **section toolbar** used inside a page body (admin tables,
+settings sections), not at the top of a surface.
 
 These are defaults and existing contracts, not permission to make every layout
 fixed-size. Components may accept explicit numeric or percentage dimensions
@@ -97,6 +107,23 @@ Do not make dimensions accidental. If a component promises a size, its border,
 padding, content, and `box-sizing` must resolve to that size. Test fixed,
 content-sized, percentage, full-width, nested, and constrained-container cases
 as applicable.
+
+## Layout with flexbox
+
+Use flexbox for layout almost all of the time. It is the default tool for every
+row, column, toolbar, list, stack, and centered box in the system. Reach for
+another mechanism only when the layout genuinely cannot be expressed with
+flexbox at all — a true two-dimensional grid of related tracks (a real media
+grid, a data table's cells) is the main legitimate case for CSS Grid. Even then,
+prefer flexbox for the one-dimensional parts.
+
+Do not use floats, `inline-block` spacing hacks, layout tables, or manual
+absolute positioning for layouts that flexbox handles; absolute positioning is
+reserved for overlays, popovers, and badges that intentionally leave the flow.
+Do not reach for Grid merely to center a single child — a one-item flex container
+(`display: flex; align-items: center; justify-content: center`) is the standard
+centering box. When a reviewer sees a non-flex layout, the component must justify
+why flexbox was not possible.
 
 ## Nested rounded corners
 

@@ -28,6 +28,30 @@ export type MessageReaction = {
     emoji: string;
 };
 
+export type MessageImage = {
+    id: string;
+    url: string;
+    alt?: string;
+    /** Intrinsic pixel dimensions — reserve a stable box before the image loads. */
+    width?: number;
+    height?: number;
+};
+
+const MEDIA_SINGLE_MAX_W = 380;
+const MEDIA_SINGLE_MAX_H = 320;
+
+/**
+ * Inline box for a lone photo with known dimensions: an aspect-ratio plus a
+ * capped width reserves the exact layout up front so nothing reflows when the
+ * image finishes loading. Multi-image tiles are square via CSS and need none.
+ */
+function mediaItemStyle(image: MessageImage, count: number): JSX.CSSProperties | undefined {
+    if (count !== 1 || !image.width || !image.height) return undefined;
+    const ratio = image.width / image.height;
+    const width = Math.round(Math.min(image.width, MEDIA_SINGLE_MAX_W, MEDIA_SINGLE_MAX_H * ratio));
+    return { width: `${width}px`, "aspect-ratio": `${image.width} / ${image.height}` };
+}
+
 export type MessageDeliveryState = "failed" | "sending" | "sent";
 
 export type MessageProps = Omit<JSX.HTMLAttributes<HTMLDivElement>, "style"> & {
@@ -45,7 +69,15 @@ export type MessageProps = Omit<JSX.HTMLAttributes<HTMLDivElement>, "style"> & {
     deliveryState?: MessageDeliveryState;
     /** Consecutive message from the same author. Preferred over `compact`. */
     grouped?: boolean;
+    /** Compact time for the grouped gutter (e.g. "12:55") so a wide 12-hour
+     * "12:55 AM" — fine inline on the first message — still fits the 36px gutter.
+     * Defaults to `time`. */
+    gutterTime?: string;
     imageUrl?: string;
+    /** Inline photo attachments rendered as a clickable thumbnail grid. */
+    images?: MessageImage[];
+    /** Opens an image (by id) — wire to a web-modal lightbox, never a new tab. */
+    onImageOpen?: (id: string) => void;
     initials?: string;
     /** Real actions for the overflow menu. No menu button renders when empty. */
     menuItems?: MenuItem[];
@@ -112,7 +144,10 @@ export function Message(props: MessageProps) {
         "compact",
         "deliveryState",
         "grouped",
+        "gutterTime",
         "imageUrl",
+        "images",
+        "onImageOpen",
         "initials",
         "menuItems",
         "onMenuSelect",
@@ -220,6 +255,7 @@ export function Message(props: MessageProps) {
             data-delivery-state={deliveryState()}
             data-grouped={grouped() ? "" : undefined}
             data-has-actions={hasActions() ? "" : undefined}
+            data-has-body={local.body ? "" : undefined}
             data-rigged-ui="message"
             aria-busy={deliveryState() === "sending" ? "true" : undefined}
             onKeyDown={(event) => {
@@ -236,7 +272,7 @@ export function Message(props: MessageProps) {
                             class="rigged-message__gutter-time"
                             data-rigged-ui="message-gutter-time"
                         >
-                            {local.time}
+                            {local.gutterTime ?? local.time}
                         </span>
                     }
                 >
@@ -263,9 +299,44 @@ export function Message(props: MessageProps) {
                         </span>
                     </div>
                 </Show>
-                <div class="rigged-message__body" data-rigged-ui="message-body">
-                    <For each={segments()}>{(segment) => renderSegment(segment)}</For>
-                </div>
+                <Show when={local.body}>
+                    <div class="rigged-message__body" data-rigged-ui="message-body">
+                        <For each={segments()}>{(segment) => renderSegment(segment)}</For>
+                    </div>
+                </Show>
+                <Show when={local.images && local.images.length > 0}>
+                    <div
+                        class="rigged-message__media"
+                        data-count={Math.min(local.images!.length, 4)}
+                        data-rigged-ui="message-media"
+                    >
+                        <For each={local.images!.slice(0, 4)}>
+                            {(image) => (
+                                <button
+                                    aria-label={image.alt ? `Open ${image.alt}` : "Open image"}
+                                    class="rigged-message__media-item"
+                                    data-fixed={image.width && image.height ? "" : undefined}
+                                    data-media-id={image.id}
+                                    data-rigged-ui="message-media-item"
+                                    onClick={() => local.onImageOpen?.(image.id)}
+                                    style={mediaItemStyle(image, Math.min(local.images!.length, 4))}
+                                    type="button"
+                                >
+                                    <img
+                                        alt={image.alt ?? ""}
+                                        class="rigged-message__media-image"
+                                        data-rigged-ui="message-media-image"
+                                        draggable={false}
+                                        height={image.height}
+                                        loading="lazy"
+                                        src={image.url}
+                                        width={image.width}
+                                    />
+                                </button>
+                            )}
+                        </For>
+                    </div>
+                </Show>
                 <Show when={attachments()}>
                     <div class="rigged-message__attachments" data-rigged-ui="message-attachments">
                         {attachments()}

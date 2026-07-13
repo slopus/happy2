@@ -298,7 +298,9 @@ export function SidebarPage() {
                                     action: { icon: "plus", label: "Add channel" },
                                     empty: {
                                         actionLabel: "Create a channel",
-                                        description: "No channels yet. Create one for your team.",
+                                        description: "Channels keep your team's work in one place.",
+                                        icon: "hash",
+                                        title: "No channels yet",
                                     },
                                     id: "channels",
                                     items: [],
@@ -308,8 +310,9 @@ export function SidebarPage() {
                                     action: { icon: "edit", label: "New message" },
                                     empty: {
                                         actionLabel: "Start a conversation",
-                                        description:
-                                            "No direct messages yet. Say hello to a teammate.",
+                                        description: "Message a teammate to start a direct chat.",
+                                        icon: "chat",
+                                        title: "No direct messages",
                                     },
                                     id: "dms",
                                     items: [],

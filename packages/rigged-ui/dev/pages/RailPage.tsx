@@ -41,6 +41,7 @@ export function RailPage() {
                             items={items}
                             onFooterSelect={() => setActiveId("profile")}
                             onItemSelect={setActiveId}
+                            primaryAction={{ icon: "plus", label: "Create", onSelect: () => {} }}
                         />
                     </div>
                     <div
@@ -55,6 +56,7 @@ export function RailPage() {
                         <DimensionRule label="otter brand 34 × 34" />
                         <DimensionRule label="items 60 × 52 · radius 8" />
                         <DimensionRule label="icon 20 px + label 10/700" />
+                        <DimensionRule label="primary + disc 40 × 40 · accent" />
                         <DimensionRule label="footer avatar · 20 px left / right / bottom" />
                     </div>
                 </div>

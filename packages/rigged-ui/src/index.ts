@@ -64,11 +64,13 @@ export {
     Message,
     MessageList,
     type MessageDeliveryState,
+    type MessageImage,
     type MessageListProps,
     type MessageProps,
     type MessageReaction,
     type MessageSegment,
 } from "./Message";
+export { Lightbox, type LightboxProps } from "./Lightbox";
 export { Rail, type RailItem, type RailProps } from "./Rail";
 export { Sidebar, type SidebarItem, type SidebarProps, type SidebarSection } from "./Sidebar";
 export {
@@ -105,6 +107,13 @@ export { type TabItem, Tabs, type TabsProps, type TabsSize } from "./Tabs";
 export { Toolbar, type ToolbarProps, type ToolbarSearch } from "./Toolbar";
 export { Menu, type MenuItem, type MenuProps } from "./Menu";
 export { Modal, type ModalProps, type ModalSize, type ModalTone } from "./Modal";
+export {
+    InfoPanel,
+    type InfoPanelProfile,
+    type InfoPanelProps,
+    SURFACE_HEADER_HEIGHT,
+} from "./InfoPanel";
+export { ThreadPanel, type ThreadPanelProps } from "./ThreadPanel";
 export { FormRow, type FormRowAlign, type FormRowLayout, type FormRowProps } from "./FormRow";
 export {
     DataTable,
@@ -161,6 +170,11 @@ export {
     type MediaItem,
     type MediaKind,
 } from "./MediaGallery";
+export {
+    FileAttachment,
+    type FileAttachmentKind,
+    type FileAttachmentProps,
+} from "./FileAttachment";
 export {
     type MemberItem,
     MemberList,

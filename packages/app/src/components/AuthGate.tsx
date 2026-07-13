@@ -23,6 +23,14 @@ type AuthGateProps = {
 };
 type Mode = "loading" | "sign-in" | "onboarding" | "ready" | "unavailable";
 const tokenKey = "rigged.session-token";
+/* The <form> is a single child of the AuthScreen form slot, so the slot's gap
+   can't reach its fields — space them here so the last field never butts up
+   against the submit button. */
+const formStyle: JSX.CSSProperties = {
+    display: "flex",
+    "flex-direction": "column",
+    gap: "14px",
+};
 
 export function AuthGate(props: AuthGateProps) {
     const client = createServerClient(props.serverUrl);
@@ -218,7 +226,7 @@ export function AuthGate(props: AuthGateProps) {
                         </Button>
                     </Match>
                     <Match when={isPasswordSignIn()}>
-                        <form onSubmit={submitCredentials}>
+                        <form onSubmit={submitCredentials} style={formStyle}>
                             <TextField
                                 autocomplete="email"
                                 fullWidth
@@ -250,7 +258,7 @@ export function AuthGate(props: AuthGateProps) {
                         </form>
                     </Match>
                     <Match when={mode() === "onboarding"}>
-                        <form onSubmit={submitProfile}>
+                        <form onSubmit={submitProfile} style={formStyle}>
                             <TextField
                                 autocomplete="given-name"
                                 fullWidth

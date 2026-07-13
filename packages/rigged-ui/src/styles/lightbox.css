@@ -1,0 +1,114 @@
+/*
+ * C-046 Lightbox — full image preview inside a web modal.
+ *
+ * Like Modal, the root .rigged-lightbox is a transparent centering layer (no
+ * scrim / no fixed positioning) so it renders as a screenshot-safe specimen; a
+ * consuming app portals it over its own backdrop. The measured card is the
+ * inner .rigged-lightbox__dialog: a raised surface with a 14px shell radius, a
+ * strong hairline, an elevated shadow, an optional caption/actions header, and
+ * a contained image on the code surface. The dialog shrinks to the image's
+ * natural size, capped by the frame's max-width / max-height.
+ */
+
+.rigged-lightbox,
+.rigged-lightbox__dialog,
+.rigged-lightbox__header,
+.rigged-lightbox__caption,
+.rigged-lightbox__tools,
+.rigged-lightbox__frame,
+.rigged-lightbox__image {
+    box-sizing: border-box;
+}
+
+.rigged-lightbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    color: var(--rg-text);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+}
+
+.rigged-lightbox__dialog {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    max-width: 880px;
+    overflow: hidden;
+    background: var(--rg-bg-raised);
+    border: 1px solid var(--rg-border-strong);
+    border-radius: var(--rg-radius-shell);
+    box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
+}
+
+/* ---- Header ---------------------------------------------------------- */
+
+.rigged-lightbox__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    padding: 10px 12px 10px 16px;
+    border-bottom: 1px solid var(--rg-border);
+}
+
+.rigged-lightbox__caption {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+}
+
+.rigged-lightbox__caption-title {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--rg-text);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rigged-lightbox__caption-detail {
+    flex: none;
+    color: var(--rg-text-muted);
+    font-family: var(--rg-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 20px;
+    white-space: nowrap;
+}
+
+.rigged-lightbox__tools {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ---- Frame ----------------------------------------------------------- */
+
+.rigged-lightbox__frame {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    max-height: 620px;
+    background: var(--rg-bg-code);
+}
+
+.rigged-lightbox__image {
+    display: block;
+    max-width: 100%;
+    max-height: 620px;
+    object-fit: contain;
+    -webkit-user-drag: none;
+    -webkit-user-select: none;
+    user-select: none;
+}

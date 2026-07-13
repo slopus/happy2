@@ -118,6 +118,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
             stage(
                 "m3",
                 <Message
+                    actionsVisible
                     compact
                     author="Claude"
                     body={[
@@ -594,6 +595,7 @@ it("centers painted ink optically in every Message text-in-a-box part", async ()
             stage(
                 "o2",
                 <Message
+                    actionsVisible
                     compact
                     author="Claude"
                     body="all checks came in clean here"
@@ -955,4 +957,144 @@ it("follows the newest content in MessageList unless the reader scrolled up", as
     ]);
     await nextFrame();
     expect(atBottom(), "follows again after returning to bottom").toBe(true);
+});
+
+it("reveals the grouped gutter time on hover, tightens grouped rows, and lays out media without a text body", async () => {
+    const view = createRenderer();
+    const photo = (w: number, h: number) =>
+        `data:image/svg+xml;utf8,${encodeURIComponent(
+            `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}'><rect width='100%' height='100%' fill='rgb(139,124,247)'/></svg>`,
+        )}`;
+
+    view.render(
+        () => stage("g-hidden", <Message compact author="Ada" body="ok" time="12:55 AM" />),
+        {
+            width: 480,
+            height: 60,
+        },
+    );
+    view.render(
+        () =>
+            stage(
+                "g-shown",
+                <Message
+                    actionsVisible
+                    compact
+                    author="Ada"
+                    body="ok"
+                    gutterTime="12:55"
+                    time="12:55 AM"
+                />,
+            ),
+        { width: 480, height: 60 },
+    );
+    view.render(() => stage("first", <Message author="Ada Lovelace" body="ok" time="12:55 AM" />), {
+        width: 480,
+        height: 80,
+    });
+    view.render(
+        () =>
+            stage(
+                "photo-only",
+                <Message
+                    author="Ada"
+                    body=""
+                    images={[
+                        { id: "p", url: photo(760, 420), alt: "shot", width: 760, height: 420 },
+                    ]}
+                    onImageOpen={() => {}}
+                    time="11:14"
+                />,
+            ),
+        { width: 480, height: 320 },
+    );
+    view.render(
+        () =>
+            stage(
+                "photo-text",
+                <Message
+                    author="Ada"
+                    body="look"
+                    images={[
+                        { id: "pt", url: photo(760, 420), alt: "shot", width: 760, height: 420 },
+                    ]}
+                    onImageOpen={() => {}}
+                    time="11:14"
+                />,
+            ),
+        { width: 480, height: 360 },
+    );
+    await view.ready();
+
+    /* Grouped gutter time: hidden by default, revealed on hover / forced actions. */
+    const hidden = view.$('[data-testid="g-hidden"] [data-rigged-ui="message-gutter-time"]');
+    expect(hidden.computedStyle("opacity"), "grouped time hidden by default").toBe("0");
+    const shown = view.$('[data-testid="g-shown"] [data-rigged-ui="message-gutter-time"]');
+    expect(shown.computedStyle("opacity"), "grouped time revealed").toBe("1");
+
+    /* The compact gutter time ("12:55", not the wide "12:55 AM") fits the 36px
+       gutter and keeps the full 12px gutter gap to the body — never touching it. */
+    expect(shown.element.textContent).toBe("12:55");
+    expect(shown.bounds().width, "compact gutter time fits the gutter").toBeLessThanOrEqual(40);
+    const shownRoot = view.$('[data-testid="g-shown"] [data-rigged-ui="message"]');
+    const shownBody = view.$('[data-testid="g-shown"] [data-rigged-ui="message-body"]');
+    const timeRight = shown.bounds().x + shown.bounds().width;
+    expect(shownBody.bounds().x - timeRight, "gutter time → body gap").toBeGreaterThanOrEqual(8);
+    expect(shown.bounds().x, "gutter time stays within the row").toBeGreaterThanOrEqual(
+        shownRoot.bounds().x,
+    );
+
+    /* First message: inline time, always visible; no separate gutter time. */
+    const firstTime = view.$('[data-testid="first"] [data-rigged-ui="message-time"]');
+    expect(firstTime.computedStyle("opacity")).toBe("1");
+    expect(
+        view.container.querySelector(
+            '[data-testid="first"] [data-rigged-ui="message-gutter-time"]',
+        ),
+    ).toBeNull();
+
+    /* Grouped rows tighten symmetrically (2px top and bottom) so a run of
+       follow-ups reads as one block and the single line of text stays centered
+       in its hover row; a fresh author group keeps the standard 6px. */
+    const groupedRoot = view.$('[data-testid="g-hidden"] [data-rigged-ui="message"]');
+    expect(groupedRoot.computedStyle("padding-top")).toBe("2px");
+    expect(groupedRoot.computedStyle("padding-bottom")).toBe("2px");
+    expect(
+        view.$('[data-testid="first"] [data-rigged-ui="message"]').computedStyle("padding-top"),
+    ).toBe("6px");
+
+    /* Body line-height contract, guarded against regression. */
+    expect(shownBody.computedStyle("line-height")).toBe("22px");
+
+    /* Photo-only message: no body element and the media sits flush (no phantom gap). */
+    expect(
+        view.container.querySelector('[data-testid="photo-only"] [data-rigged-ui="message-body"]'),
+    ).toBeNull();
+    expect(
+        view
+            .$('[data-testid="photo-only"] [data-rigged-ui="message-media"]')
+            .computedStyle("margin-top"),
+        "media flush without a body",
+    ).toBe("0px");
+    expect(
+        view
+            .$('[data-testid="photo-text"] [data-rigged-ui="message-media"]')
+            .computedStyle("margin-top"),
+        "media keeps its gap under a body",
+    ).toBe("8px");
+
+    /* A single photo with metadata reserves a stable, aspect-correct box. */
+    const item = view.$('[data-testid="photo-only"] [data-rigged-ui="message-media-item"]');
+    expect(item.element.hasAttribute("data-fixed"), "fixed box from metadata").toBe(true);
+    const box = item.bounds();
+    expect(
+        Math.abs(box.width / box.height - 760 / 420),
+        "box keeps the source aspect",
+    ).toBeLessThanOrEqual(0.03);
+    expect(box.width, "box width is capped").toBeLessThanOrEqual(380);
+    expect(
+        view
+            .$('[data-testid="photo-only"] [data-rigged-ui="message-media-image"]')
+            .computedStyle("object-fit"),
+    ).toBe("cover");
 });

@@ -1,4 +1,5 @@
 import {
+    createEffect,
     createMemo,
     createSignal,
     For,
@@ -18,12 +19,14 @@ import {
     Button,
     ChannelHeader,
     Composer,
-    ContextChips,
     DayDivider,
     DiffSnippet,
     EmptyState,
     EventCard,
+    FileAttachment,
     FormRow,
+    InfoPanel,
+    Lightbox,
     Message,
     MessageList,
     Menu,
@@ -31,10 +34,14 @@ import {
     Select,
     Sidebar,
     TextField,
-    Toolbar,
+    ThreadPanel,
     type ApprovalResolution,
     type ContextItem,
+    type InfoPanelProfile,
+    type MemberItem,
+    type MemberRole,
     type MenuItem,
+    type MessageImage,
     type SidebarSection,
     type SelectOption,
     type ToneName,
@@ -68,6 +75,8 @@ export type ChatViewProps = {
     session?: AuthSession;
     /** Shared TitleBar search value, owned by the App shell. */
     search: () => string;
+    /** Monotonic nonce from the rail "+" action that opens the create dialog. */
+    createRequest?: () => number;
     /** App-owned navigation rail element. */
     rail: JSX.Element;
     /** App-owned title bar element (carries the shared search field). */
@@ -83,6 +92,16 @@ const asMessage = (entry: WorkspaceEntry): LiveThreadMessage | undefined =>
     entry.kind === "message" ? entry : undefined;
 
 const tones: ToneName[] = ["violet", "ember", "mint", "ocean", "rose", "amber", "slate"];
+/* Friendly names for the mock (no-server) roster, keyed by avatar initials. */
+const mockMemberNames: Record<string, string> = {
+    MC: "Maya Chen",
+    TG: "Theo Grant",
+    NK: "Nora Kim",
+    ST: "Steve",
+    F: "Forge",
+    P: "Patch",
+    S: "Scout",
+};
 const channelKindOptions: SelectOption[] = [
     { value: "public_channel", label: "Public channel" },
     { value: "private_channel", label: "Private channel" },
@@ -106,25 +125,17 @@ const modalActionsStyle: JSX.CSSProperties = {
     "align-items": "center",
     gap: "8px",
 };
-const panelColumnStyle: JSX.CSSProperties = {
-    display: "flex",
-    "flex-direction": "column",
-    height: "100%",
-    "min-height": "0",
-};
-const panelBodyStyle: JSX.CSSProperties = {
-    display: "flex",
-    flex: "1 1 0%",
-    "flex-direction": "column",
-    gap: "12px",
-    "min-height": "0",
-    overflow: "auto",
-    padding: "16px",
-};
 const panelFooterStyle: JSX.CSSProperties = {
     display: "flex",
     "justify-content": "flex-end",
     gap: "8px",
+    "padding-top": "4px",
+};
+/* The channel edit form is one block in the InfoPanel body; the FormRows carry
+   their own dividers and padding, so the container just stacks them. */
+const infoFormStyle: JSX.CSSProperties = {
+    display: "flex",
+    "flex-direction": "column",
 };
 
 function toneFor(id: string): ToneName {
@@ -145,6 +156,18 @@ function messageTime(value: string): string {
     return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(
         new Date(value),
     );
+}
+
+/* The grouped gutter is only 36px wide, so drop the meridiem: "12:55 AM" → "12:55".
+   Locale-aware (keeps the locale's hour/minute), just without " AM"/" PM". */
+function compactTime(value: string): string {
+    const parts = new Intl.DateTimeFormat(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+    }).formatToParts(new Date(value));
+    const hour = parts.find((part) => part.type === "hour")?.value;
+    const minute = parts.find((part) => part.type === "minute")?.value;
+    return hour && minute ? `${hour}:${minute}` : messageTime(value);
 }
 
 function dayLabel(value: string): string {
@@ -178,6 +201,7 @@ function toThreadMessage(
         tone: sender ? toneFor(sender.id) : "brand",
         agent: message.kind === "automated",
         time: messageTime(message.createdAt),
+        gutterTime: compactTime(message.createdAt),
         body: deleted ? "Message deleted" : message.text,
         replyCount: message.threadReplyCount || undefined,
         reactions: message.reactions
@@ -236,7 +260,15 @@ export function ChatView(props: ChatViewProps) {
     const [threadRootId, setThreadRootId] = createSignal<string>();
     const [threadEntries, setThreadEntries] = createSignal<WorkspaceEntry[]>([]);
     const [threadDraft, setThreadDraft] = createSignal("");
-    const [panelMode, setPanelMode] = createSignal<"channel" | "thread">();
+    const [panelMode, setPanelMode] = createSignal<"info" | "thread">();
+    const [panelMembers, setPanelMembers] = createSignal<MemberItem[]>([]);
+    const [starredChats, setStarredChats] = createSignal<Record<string, boolean>>({});
+    const [lightbox, setLightbox] = createSignal<{
+        caption?: string;
+        detail?: string;
+        url: string;
+    }>();
+    const [fileUrls, setFileUrls] = createSignal<Record<string, string>>({});
     const [pendingFiles, setPendingFiles] = createSignal<UploadedFile[]>([]);
     const [busyCount, setBusyCount] = createSignal(0);
     const [statusHint, setStatusHint] = createSignal<string>();
@@ -369,7 +401,9 @@ export function ChatView(props: ChatViewProps) {
                 action: { icon: "plus", label: "Add channel" },
                 empty: {
                     actionLabel: "Browse channels",
-                    description: "No joined channels. Browse the directory or create one.",
+                    description: "Join one from the directory or create a new channel.",
+                    icon: "hash",
+                    title: "No channels yet",
                 },
                 items: channels.map((chat) => ({
                     id: chat.id,
@@ -383,7 +417,9 @@ export function ChatView(props: ChatViewProps) {
                 action: { icon: "edit", label: "New message" },
                 empty: {
                     actionLabel: "Start a conversation",
-                    description: "No direct messages yet. Say hello to a teammate.",
+                    description: "Message a teammate to start a direct chat.",
+                    icon: "chat",
+                    title: "No direct messages",
                 },
                 items: directMessages.map((contact) => {
                     const chat = dmByUserId.get(contact.id);
@@ -499,6 +535,7 @@ export function ChatView(props: ChatViewProps) {
             const members = await membersPromise;
             if (currentRequest !== requestNumber) return;
             setEntries(toEntries(messages, user()));
+            prefetchImages(messages);
             setConversationData((current) => ({
                 ...current,
                 [chatId]: {
@@ -891,12 +928,196 @@ export function ChatView(props: ChatViewProps) {
         }
     }
 
-    function openChannelInfo() {
+    const toggleStar = (chatId: string) => {
+        if (!chatId) return;
+        setStarredChats((current) => ({ ...current, [chatId]: !current[chatId] }));
+    };
+
+    function isImageAttachment(file: FileSummary): boolean {
+        return (
+            file.kind === "photo" ||
+            file.kind === "gif" ||
+            (file.contentType?.startsWith("image/") ?? false)
+        );
+    }
+
+    async function ensureFileUrl(fileId: string): Promise<string | undefined> {
+        const cached = fileUrls()[fileId];
+        if (cached) return cached;
+        const model = state();
+        if (!model) return undefined;
+        try {
+            const response = await model.execute("createFileSignedUrl", { fileId });
+            setFileUrls((current) => ({ ...current, [fileId]: response.signedUrl.url }));
+            return response.signedUrl.url;
+        } catch (reason) {
+            setStatusHint(errorMessage(reason));
+            return undefined;
+        }
+    }
+
+    function prefetchImages(messages: readonly MessageSummary[]) {
+        for (const message of messages) {
+            for (const file of message.attachments) {
+                if (isImageAttachment(file)) void ensureFileUrl(file.id);
+            }
+        }
+    }
+
+    function messageImages(message: LiveThreadMessage): MessageImage[] {
+        if (!message.serverMessage) return message.images ?? [];
+        return message.serverMessage.attachments
+            .filter(isImageAttachment)
+            .map((file) => ({
+                id: file.id,
+                alt: file.originalName ?? "Photo",
+                height: file.height,
+                url: fileUrls()[file.id] ?? "",
+                width: file.width,
+            }))
+            .filter((image) => image.url.length > 0);
+    }
+
+    function fileAttachments(message: LiveThreadMessage): FileSummary[] {
+        return (message.serverMessage?.attachments ?? []).filter(
+            (file) => !isImageAttachment(file),
+        );
+    }
+
+    /* Unified non-image file list for a message — real server attachments (with a
+       signed-URL download) or the mock roster — rendered as FileAttachment. */
+    function messageFiles(message: LiveThreadMessage): Array<{
+        id: string;
+        kind: "file" | "video" | "archive";
+        name: string;
+        onOpen?: () => void;
+        size?: string;
+    }> {
+        if (message.serverMessage) {
+            return fileAttachments(message).map((file) => ({
+                id: file.id,
+                kind: file.kind === "video" ? "video" : "file",
+                name: file.originalName ?? "Attachment",
+                onOpen: () => void downloadFile(file),
+                size: formatBytes(file.size),
+            }));
+        }
+        return (message.files ?? []).map((file) => ({
+            id: file.id,
+            kind: file.kind ?? "file",
+            name: file.name,
+            size: file.size,
+        }));
+    }
+
+    async function openImage(message: LiveThreadMessage, imageId: string) {
+        if (!message.serverMessage) {
+            const image = message.images?.find((item) => item.id === imageId);
+            if (image) setLightbox({ url: image.url, caption: image.alt });
+            return;
+        }
+        const file = message.serverMessage.attachments.find((item) => item.id === imageId);
+        if (!file) return;
+        const url = fileUrls()[file.id] ?? (await ensureFileUrl(file.id));
+        if (url) {
+            setLightbox({
+                caption: file.originalName ?? "Photo",
+                detail: formatBytes(file.size),
+                url,
+            });
+        }
+    }
+
+    function memberRoleFor(member: UserSummary): MemberRole {
+        if (member.id === user()?.id && activeChat()?.membershipRole)
+            return activeChat()!.membershipRole!;
+        return member.role === "admin" ? "admin" : "member";
+    }
+
+    async function loadPanelMembers(chatId: string) {
+        const model = state();
+        if (!model) return;
+        try {
+            const response = await model.execute("getChatMembers", { chatId });
+            const snapshots = presence();
+            setPanelMembers(
+                response.users.map(
+                    (member): MemberItem => ({
+                        id: member.id,
+                        initials: initials(member),
+                        name: fullName(member),
+                        presence: snapshots[member.id]?.status === "online" ? "online" : "offline",
+                        role: memberRoleFor(member),
+                        title: member.title,
+                        tone: toneFor(member.id),
+                        username: member.username,
+                    }),
+                ),
+            );
+        } catch (reason) {
+            setStatusHint(errorMessage(reason));
+        }
+    }
+
+    function openInfoPanel() {
         const chat = activeChat();
-        if (!chat || chat.kind === "dm") return;
-        setChannelNameDraft(chat.name ?? "");
-        setChannelTopicDraft(chat.topic ?? "");
-        setPanelMode("channel");
+        setPanelMode("info");
+        if (chat) {
+            setChannelNameDraft(chat.name ?? "");
+            setChannelTopicDraft(chat.topic ?? "");
+            if (props.session) void loadPanelMembers(chat.id);
+        } else {
+            setPanelMembers(mockPanelMembers());
+        }
+    }
+
+    const infoPeer = () => dmPeers()[activeConversationId()];
+    const infoProfile = (): InfoPanelProfile | undefined => {
+        const peer = infoPeer();
+        if (!peer) return undefined;
+        return {
+            initials: initials(peer),
+            name: fullName(peer),
+            presence: presence()[peer.id]?.status === "online" ? "online" : "offline",
+            title: peer.title,
+            tone: toneFor(peer.id),
+            username: peer.username,
+        };
+    };
+    const mockPanelMembers = (): MemberItem[] =>
+        (conversation().members ?? []).map(
+            (member, index): MemberItem => ({
+                id: `mock:${member.initials}:${index}`,
+                initials: member.initials,
+                name: mockMemberNames[member.initials] ?? member.initials,
+                presence: index % 2 === 0 ? "online" : "offline",
+                role: index === 0 ? "owner" : "member",
+                tone: member.tone,
+            }),
+        );
+
+    function channelMenuItems(): MenuItem[] {
+        const chat = activeChat();
+        const starred = starredChats()[activeConversationId()];
+        const items: MenuItem[] = [
+            { icon: "eye", id: "details", kind: "item", label: "View details" },
+            { icon: "star", id: "star", kind: "item", label: starred ? "Unstar" : "Star channel" },
+        ];
+        if (canEditChannel())
+            items.push({ icon: "settings", id: "edit", kind: "item", label: "Edit settings" });
+        if (chat?.kind !== "dm" && chat?.membershipRole) {
+            items.push(
+                { kind: "separator" },
+                { danger: true, icon: "close", id: "leave", kind: "item", label: "Leave channel" },
+            );
+        }
+        return items;
+    }
+
+    function handleChannelMenu(id: string) {
+        if (id === "details" || id === "edit") return openInfoPanel();
+        if (id === "star") return toggleStar(activeConversationId());
+        if (id === "leave") void leaveActiveChannel();
     }
 
     async function saveChannelInfo() {
@@ -930,8 +1151,7 @@ export function ChatView(props: ChatViewProps) {
         void loadConversation(id);
     }
 
-    async function downloadFile(file: FileSummary, event: MouseEvent) {
-        event.preventDefault();
+    async function downloadFile(file: FileSummary) {
         const model = state();
         if (!model) return;
         const download = window.open("about:blank", "_blank");
@@ -952,6 +1172,19 @@ export function ChatView(props: ChatViewProps) {
         }
     }
 
+    let seenCreateRequest: number | undefined;
+    createEffect(() => {
+        const nonce = props.createRequest?.() ?? 0;
+        if (seenCreateRequest === undefined) {
+            seenCreateRequest = nonce;
+            return;
+        }
+        if (nonce !== seenCreateRequest) {
+            seenCreateRequest = nonce;
+            setCreateOpen(true);
+        }
+    });
+
     onMount(() => {
         const model = state();
         if (!model || !props.session) return;
@@ -964,6 +1197,7 @@ export function ChatView(props: ChatViewProps) {
                     .map((item) => item.message)
                     .filter((message) => !message.threadRootMessageId);
                 setEntries(toEntries(messages, user()));
+                prefetchImages(messages);
                 const root = threadRootId();
                 if (root) void loadThread(root);
             }),
@@ -1009,28 +1243,29 @@ export function ChatView(props: ChatViewProps) {
                     />
                 }
                 panel={
-                    !connected ? (
-                        <AgentDesk done={deskDone} queued={deskQueued} running={deskRunning} />
-                    ) : panelMode() === "thread" ? (
-                        <Box data-testid="thread-panel" style={panelColumnStyle}>
-                            <Toolbar
-                                subtitle={threadRoot()?.author}
-                                title="Thread"
-                                trailing={
-                                    <Button
-                                        aria-label="Close thread"
-                                        icon="close"
-                                        iconOnly
-                                        onClick={() => {
-                                            setThreadRootId(undefined);
-                                            setThreadEntries([]);
-                                            setPanelMode(undefined);
-                                        }}
-                                        size="small"
-                                        variant="ghost"
-                                    />
-                                }
-                            />
+                    panelMode() === "thread" ? (
+                        <ThreadPanel
+                            composer={
+                                <Composer
+                                    emoji={emojiItems}
+                                    hint="Reply in thread"
+                                    mentions={mentionCandidates()}
+                                    onSend={() => void sendThreadReply()}
+                                    onValueChange={setThreadDraft}
+                                    pending={busy()}
+                                    placeholder="Reply…"
+                                    sendEnabled={threadDraft().trim().length > 0}
+                                    value={threadDraft()}
+                                />
+                            }
+                            data-testid="thread-panel"
+                            onClose={() => {
+                                setThreadRootId(undefined);
+                                setThreadEntries([]);
+                                setPanelMode(undefined);
+                            }}
+                            subtitle={threadRoot()?.author}
+                        >
                             <MessageList
                                 intro={{ title: "Thread", description: "No replies yet." }}
                             >
@@ -1051,6 +1286,7 @@ export function ChatView(props: ChatViewProps) {
                                                         index(),
                                                         message(),
                                                     )}
+                                                    gutterTime={message().gutterTime}
                                                     initials={message().initials}
                                                     menuItems={messageMenuItems(message())}
                                                     onMenuSelect={(action) =>
@@ -1069,66 +1305,55 @@ export function ChatView(props: ChatViewProps) {
                                     )}
                                 </For>
                             </MessageList>
-                            <Composer
-                                emoji={emojiItems}
-                                hint="Reply in thread"
-                                mentions={mentionCandidates()}
-                                onSend={() => void sendThreadReply()}
-                                onValueChange={setThreadDraft}
-                                pending={busy()}
-                                placeholder="Reply…"
-                                sendEnabled={threadDraft().trim().length > 0}
-                                style={{ margin: "0 12px 12px" }}
-                                value={threadDraft()}
-                            />
-                        </Box>
-                    ) : panelMode() === "channel" ? (
-                        <Box data-testid="channel-info-panel" style={panelColumnStyle}>
-                            <Toolbar
-                                subtitle={
-                                    canEditChannel() ? "Edit channel details" : "Channel details"
-                                }
-                                title={activeChat()?.name ?? "Channel"}
-                                trailing={
-                                    <Button
-                                        aria-label="Close channel details"
-                                        icon="close"
-                                        iconOnly
-                                        onClick={() => setPanelMode(undefined)}
-                                        size="small"
-                                        variant="ghost"
+                        </ThreadPanel>
+                    ) : panelMode() === "info" ? (
+                        <InfoPanel
+                            about={
+                                !infoPeer() && !canEditChannel()
+                                    ? (conversation().topic ?? "No topic set yet.")
+                                    : undefined
+                            }
+                            data-testid="channel-info-panel"
+                            leadingIcon={infoPeer() ? undefined : "hash"}
+                            members={panelMembers()}
+                            onClose={() => setPanelMode(undefined)}
+                            profile={infoProfile()}
+                            subtitle={
+                                infoPeer()
+                                    ? "Direct message"
+                                    : canEditChannel()
+                                      ? "Edit details"
+                                      : "Details"
+                            }
+                            title={conversation().title}
+                        >
+                            <Show when={!infoPeer() && canEditChannel()}>
+                                <Box style={infoFormStyle}>
+                                    <FormRow
+                                        control={
+                                            <TextField
+                                                fullWidth
+                                                onValueChange={setChannelNameDraft}
+                                                value={channelNameDraft()}
+                                            />
+                                        }
+                                        description="Shown in the channel header and sidebar."
+                                        label="Name"
+                                        layout="stacked"
                                     />
-                                }
-                            />
-                            <Box style={panelBodyStyle}>
-                                <FormRow
-                                    control={
-                                        <TextField
-                                            disabled={!canEditChannel()}
-                                            fullWidth
-                                            onValueChange={setChannelNameDraft}
-                                            value={channelNameDraft()}
-                                        />
-                                    }
-                                    description="Shown in the channel header and sidebar."
-                                    label="Name"
-                                    layout="stacked"
-                                />
-                                <FormRow
-                                    control={
-                                        <TextField
-                                            disabled={!canEditChannel()}
-                                            fullWidth
-                                            onValueChange={setChannelTopicDraft}
-                                            placeholder="What is this channel for?"
-                                            value={channelTopicDraft()}
-                                        />
-                                    }
-                                    description="The channel topic and about text."
-                                    label="About"
-                                    layout="stacked"
-                                />
-                                <Show when={canEditChannel()}>
+                                    <FormRow
+                                        control={
+                                            <TextField
+                                                fullWidth
+                                                onValueChange={setChannelTopicDraft}
+                                                placeholder="What is this channel for?"
+                                                value={channelTopicDraft()}
+                                            />
+                                        }
+                                        description="The channel topic and about text."
+                                        label="About"
+                                        layout="stacked"
+                                    />
                                     <Box style={panelFooterStyle}>
                                         <Button
                                             disabled={busy() || !channelNameDraft().trim()}
@@ -1137,47 +1362,48 @@ export function ChatView(props: ChatViewProps) {
                                             {busy() ? "Saving…" : "Save changes"}
                                         </Button>
                                     </Box>
-                                </Show>
-                            </Box>
-                        </Box>
+                                </Box>
+                            </Show>
+                        </InfoPanel>
+                    ) : !connected ? (
+                        <AgentDesk done={deskDone} queued={deskQueued} running={deskRunning} />
                     ) : undefined
                 }
             >
                 <ChannelHeader
                     actions={
-                        <>
-                            <Show when={connected && activeChat()?.kind !== "dm" && activeChat()}>
-                                {(chat) => (
-                                    <>
-                                        <Button
-                                            aria-label="Channel details"
-                                            icon="settings"
-                                            iconOnly
-                                            onClick={openChannelInfo}
-                                            size="small"
-                                            variant="ghost"
-                                        />
-                                        <Button
-                                            disabled={busy()}
-                                            onClick={() =>
-                                                void (chat().membershipRole
-                                                    ? leaveActiveChannel()
-                                                    : joinActiveChannel())
-                                            }
-                                            size="small"
-                                            variant={chat().membershipRole ? "ghost" : "secondary"}
-                                        >
-                                            {chat().membershipRole ? "Leave" : "Join"}
-                                        </Button>
-                                    </>
-                                )}
-                            </Show>
-                        </>
+                        <Show
+                            when={
+                                connected &&
+                                activeChat()?.kind !== "dm" &&
+                                activeChat() &&
+                                !activeChat()?.membershipRole
+                            }
+                        >
+                            <Button
+                                disabled={busy()}
+                                onClick={() => void joinActiveChannel()}
+                                size="small"
+                                variant="secondary"
+                            >
+                                Join
+                            </Button>
+                        </Show>
                     }
                     agentCount={conversation().agentCount}
                     icon={conversation().icon}
                     memberCount={conversation().memberCount}
-                    members={conversation().members}
+                    menuItems={activeConversationId() ? channelMenuItems() : undefined}
+                    onMembersClick={activeConversationId() ? openInfoPanel : undefined}
+                    onMenuSelect={handleChannelMenu}
+                    onStarToggle={
+                        activeConversationId()
+                            ? () => toggleStar(activeConversationId())
+                            : undefined
+                    }
+                    onTitleClick={activeConversationId() ? openInfoPanel : undefined}
+                    starLabel={starredChats()[activeConversationId()] ? "Unstar" : "Star channel"}
+                    starred={starredChats()[activeConversationId()] ?? false}
                     title={conversation().title}
                     topic={conversation().topic}
                 />
@@ -1207,8 +1433,11 @@ export function ChatView(props: ChatViewProps) {
                                                     index(),
                                                     item,
                                                 )}
+                                                gutterTime={item.gutterTime}
+                                                images={messageImages(item)}
                                                 initials={item.initials}
                                                 menuItems={messageMenuItems(item)}
+                                                onImageOpen={(id) => void openImage(item, id)}
                                                 onMenuSelect={(action) =>
                                                     void handleMessageMenu(item, action)
                                                 }
@@ -1222,31 +1451,15 @@ export function ChatView(props: ChatViewProps) {
                                                 time={item.time}
                                                 tone={item.tone}
                                             >
-                                                <For each={item.serverMessage?.attachments}>
+                                                <For each={messageFiles(item)}>
                                                     {(file) => (
-                                                        <a
-                                                            aria-label={`Download ${file.originalName ?? "attachment"}`}
-                                                            href="#"
-                                                            onClick={(event) =>
-                                                                void downloadFile(file, event)
-                                                            }
-                                                        >
-                                                            <ContextChips
-                                                                items={[
-                                                                    {
-                                                                        id: file.id,
-                                                                        kind: "file",
-                                                                        label:
-                                                                            file.originalName ??
-                                                                            "Attachment",
-                                                                        detail: formatBytes(
-                                                                            file.size,
-                                                                        ),
-                                                                    },
-                                                                ]}
-                                                                readOnly
-                                                            />
-                                                        </a>
+                                                        <FileAttachment
+                                                            aria-label={`Download ${file.name}`}
+                                                            kind={file.kind}
+                                                            name={file.name}
+                                                            onOpen={file.onOpen}
+                                                            size={file.size}
+                                                        />
                                                     )}
                                                 </For>
                                                 {attachment?.kind === "run" && (
@@ -1467,6 +1680,24 @@ export function ChatView(props: ChatViewProps) {
                         </Modal>
                     </Box>
                 </Box>
+            </Show>
+            <Show when={lightbox()}>
+                {(image) => (
+                    <Box
+                        onClick={() => setLightbox(undefined)}
+                        style={{ ...overlayStyle, background: "rgb(0 0 0 / 0.72)" }}
+                    >
+                        <Box onClick={(event) => event.stopPropagation()}>
+                            <Lightbox
+                                alt={image().caption}
+                                caption={image().caption}
+                                detail={image().detail}
+                                imageUrl={image().url}
+                                onClose={() => setLightbox(undefined)}
+                            />
+                        </Box>
+                    </Box>
+                )}
             </Show>
         </>
     );

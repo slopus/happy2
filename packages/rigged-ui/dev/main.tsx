@@ -22,8 +22,11 @@ import { DiffSnippetPage } from "./pages/DiffSnippetPage";
 import { EmojiPickerPage } from "./pages/EmojiPickerPage";
 import { EmptyStatePage } from "./pages/EmptyStatePage";
 import { EventCardPage } from "./pages/EventCardPage";
+import { FileAttachmentPage } from "./pages/FileAttachmentPage";
 import { FormRowPage } from "./pages/FormRowPage";
 import { IconPage } from "./pages/IconPage";
+import { InfoPanelPage } from "./pages/InfoPanelPage";
+import { LightboxPage } from "./pages/LightboxPage";
 import { MediaGalleryPage } from "./pages/MediaGalleryPage";
 import { MemberListPage } from "./pages/MemberListPage";
 import { MenuPage } from "./pages/MenuPage";
@@ -45,6 +48,7 @@ import { SwitchPage } from "./pages/SwitchPage";
 import { TabsPage } from "./pages/TabsPage";
 import { TextFieldPage } from "./pages/TextFieldPage";
 import { ThreadListPage } from "./pages/ThreadListPage";
+import { ThreadPanelPage } from "./pages/ThreadPanelPage";
 import { TitleBarPage } from "./pages/TitleBarPage";
 import { ToolbarPage } from "./pages/ToolbarPage";
 
@@ -109,6 +113,10 @@ const components: Array<{ id: string; label: string; number: string; page: () =>
         number: "C-045",
         page: ModerationReportCardPage,
     },
+    { id: "lightbox", label: "Lightbox", number: "C-046", page: LightboxPage },
+    { id: "info-panel", label: "Info panel", number: "C-047", page: InfoPanelPage },
+    { id: "thread-panel", label: "Thread panel", number: "C-048", page: ThreadPanelPage },
+    { id: "file-attachment", label: "File attachment", number: "C-049", page: FileAttachmentPage },
 ];
 
 function componentFromHash(): string {

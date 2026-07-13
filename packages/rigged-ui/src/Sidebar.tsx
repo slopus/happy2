@@ -19,7 +19,7 @@ export type SidebarItem = {
 
 export type SidebarSection = {
     action?: { icon: IconName; label: string };
-    empty?: { actionLabel: string; description: string };
+    empty?: { actionLabel: string; description: string; icon?: IconName; title?: string };
     id: string;
     items: SidebarItem[];
     label?: string;
@@ -209,6 +209,27 @@ export function Sidebar(props: SidebarProps) {
                                         class="rigged-sidebar__empty"
                                         data-rigged-ui="sidebar-section-empty"
                                     >
+                                        <span
+                                            class="rigged-sidebar__empty-media"
+                                            data-rigged-ui="sidebar-section-empty-media"
+                                        >
+                                            <Icon
+                                                name={
+                                                    empty().icon ?? section.action?.icon ?? "inbox"
+                                                }
+                                                size={16}
+                                            />
+                                        </span>
+                                        <Show when={empty().title}>
+                                            {(title) => (
+                                                <span
+                                                    class="rigged-sidebar__empty-title"
+                                                    data-rigged-ui="sidebar-section-empty-title"
+                                                >
+                                                    {title()}
+                                                </span>
+                                            )}
+                                        </Show>
                                         <span
                                             class="rigged-sidebar__empty-description"
                                             data-rigged-ui="sidebar-section-empty-description"

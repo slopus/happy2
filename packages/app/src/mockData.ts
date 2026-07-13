@@ -17,6 +17,7 @@ import type {
     MemberItem,
     MemberRole,
     MentionableAgent,
+    MessageImage,
     MessageReaction,
     MessageSegment,
     ModerationReportCardProps,
@@ -434,7 +435,10 @@ export type ThreadMessage = {
     author: string;
     body: string | MessageSegment[];
     conversationId: string;
+    files?: { id: string; name: string; size?: string; kind?: "file" | "video" | "archive" }[];
     id: string;
+    gutterTime?: string;
+    images?: MessageImage[];
     initials?: string;
     reactions?: MessageReaction[];
     replyCount?: number;
@@ -477,6 +481,18 @@ const authFlakeDiff: DiffLine[] = [
     { kind: "add", number: 43, text: "    if (!lock) return queue.enqueue(token);" },
     { kind: "context", number: 44, text: "    try {" },
 ];
+
+/* Deterministic inline artwork so the mock never loads a network asset. */
+function demoPhoto(width: number, height: number, from: string, to: string): string {
+    const svg =
+        `<svg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}'>` +
+        `<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>` +
+        `<stop offset='0' stop-color='${from}'/><stop offset='1' stop-color='${to}'/>` +
+        `</linearGradient></defs><rect width='100%' height='100%' fill='url(#g)'/>` +
+        `<circle cx='${width * 0.72}' cy='${height * 0.34}' r='${height * 0.16}' fill='rgba(255,255,255,0.24)'/>` +
+        `</svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
 
 export const initialEntries: ThreadEntry[] = [
     /* ---- #launch-week ---- */
@@ -576,6 +592,70 @@ export const initialEntries: ThreadEntry[] = [
         time: "10:54",
         body: "Reviewing now. If the device farm comes back green we’re clear for Friday.",
         replyCount: 2,
+    },
+    {
+        kind: "message",
+        id: "lw-4b",
+        conversationId: "launch-week",
+        author: "Nora Kim",
+        initials: "NK",
+        tone: "rose",
+        time: "10:55",
+        body: "Device farm is green across the board 🎉 Snapshots from the run:",
+        images: [
+            {
+                id: "photo-ios",
+                alt: "iPhone 15 delivery",
+                url: demoPhoto(720, 460, "#8b7cf7", "#f472b6"),
+                width: 720,
+                height: 460,
+            },
+            {
+                id: "photo-android",
+                alt: "Pixel 9 delivery",
+                url: demoPhoto(480, 480, "#60a5fa", "#34d399"),
+                width: 480,
+                height: 480,
+            },
+            {
+                id: "photo-reinstall",
+                alt: "Reinstall run",
+                url: demoPhoto(480, 480, "#fbbf24", "#f87171"),
+                width: 480,
+                height: 480,
+            },
+        ],
+        reactions: [{ emoji: "🎉", count: 4 }],
+    },
+    {
+        kind: "message",
+        id: "lw-4c",
+        conversationId: "launch-week",
+        author: "Nora Kim",
+        initials: "NK",
+        tone: "rose",
+        time: "10:56",
+        body: "",
+        images: [
+            {
+                id: "photo-dashboard",
+                alt: "Release dashboard",
+                url: demoPhoto(760, 420, "#a89bff", "#f472b6"),
+                width: 760,
+                height: 420,
+            },
+        ],
+    },
+    {
+        kind: "message",
+        id: "lw-4d",
+        conversationId: "launch-week",
+        author: "Nora Kim",
+        initials: "NK",
+        tone: "rose",
+        time: "10:56",
+        body: "",
+        files: [{ id: "file-report", name: "Relay Flagship (standalone).html", size: "283 KB" }],
     },
     {
         kind: "message",

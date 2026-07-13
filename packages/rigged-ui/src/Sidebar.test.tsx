@@ -601,7 +601,9 @@ it("renders actionable guidance for empty sections", async () => {
                         action: { icon: "plus", label: "Add channel" },
                         empty: {
                             actionLabel: "Create a channel",
-                            description: "No channels yet. Create one for your team.",
+                            description: "Channels keep your team's work in one place.",
+                            icon: "hash",
+                            title: "No channels yet",
                         },
                         id: "channels",
                         items: [],
@@ -611,7 +613,9 @@ it("renders actionable guidance for empty sections", async () => {
                         action: { icon: "edit", label: "New message" },
                         empty: {
                             actionLabel: "Start a conversation",
-                            description: "No direct messages yet. Say hello to a teammate.",
+                            description: "Message a teammate to start a direct chat.",
+                            icon: "chat",
+                            title: "No direct messages",
                         },
                         id: "dms",
                         items: [],
@@ -641,14 +645,26 @@ it("renders actionable guidance for empty sections", async () => {
             "padding-top",
         ]),
     ).toEqual({
-        "align-items": "flex-start",
+        "align-items": "center",
         display: "flex",
-        "padding-bottom": "10px",
-        "padding-left": "10px",
-        "padding-right": "10px",
-        "padding-top": "6px",
+        "padding-bottom": "16px",
+        "padding-left": "14px",
+        "padding-right": "14px",
+        "padding-top": "16px",
     });
     expect(channelsEmpty.element.textContent).toContain("No channels yet");
+    /* The new empty state leads with an icon medallion + bold title. */
+    expect(
+        document.querySelector(
+            '[data-testid="empty"] [data-section-id="channels"] [data-rigged-ui="sidebar-section-empty-media"]',
+        ),
+        "channels empty medallion",
+    ).not.toBeNull();
+    expect(
+        view.$(
+            '[data-testid="empty"] [data-section-id="channels"] [data-rigged-ui="sidebar-section-empty-title"]',
+        ).element.textContent,
+    ).toBe("No channels yet");
 
     const buttons = Array.from(
         document.querySelectorAll<HTMLButtonElement>(

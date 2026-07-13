@@ -117,11 +117,24 @@ describe("live views use rigged-state", () => {
                     '[data-rigged-ui="channel-header-actions"] button',
                 ),
             ).map((button) => button.textContent?.trim()),
-        ).toEqual(["", "Join"]);
+        ).toEqual(["Join"]);
         await waitFor(() => expect(actionButton("Join")?.disabled).toBe(false));
         fireEvent.click(actionButton("Join")!);
-        await waitFor(() => expect(actionButton("Leave")?.disabled).toBe(false));
-        fireEvent.click(actionButton("Leave")!);
+        /* After joining, Leave moves into the channel overflow menu. */
+        await waitFor(() => expect(actionButton("Join")).toBeUndefined());
+        fireEvent.click(
+            view.container.querySelector<HTMLButtonElement>(
+                '[data-rigged-ui="channel-header-menu"] button',
+            )!,
+        );
+        const leaveItem = await waitFor(() => {
+            const item = view.container.querySelector<HTMLButtonElement>(
+                '[data-rigged-ui="channel-header-menu-popover"] [data-item-id="leave"]',
+            );
+            if (!item) throw new Error("leave menu item not shown");
+            return item;
+        });
+        fireEvent.click(leaveItem);
         await waitFor(() =>
             expect(
                 server.requests.some(
@@ -405,7 +418,7 @@ describe("live views use rigged-state", () => {
             ).toBe(true),
         );
 
-        fireEvent.click(view.getByRole("button", { name: "Channel details" }));
+        fireEvent.click(view.getByRole("button", { name: "Open Joined details" }));
         await waitFor(() => expect(view.getByTestId("channel-info-panel")).toBeTruthy());
         fireEvent.input(view.getByDisplayValue("Joined"), { target: { value: "Renamed" } });
         fireEvent.input(view.getByDisplayValue("Old topic"), { target: { value: "New topic" } });

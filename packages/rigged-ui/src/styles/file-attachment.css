@@ -1,0 +1,78 @@
+/*
+ * C-049 FileAttachment — a non-image file card for a chat message.
+ *
+ * A single inline-flex pill (a real <button> when clickable): a doc glyph, a
+ * truncating name, and an optional mono size on the inset surface with a
+ * hairline border. Block-level so it drops into a message body cleanly.
+ */
+
+.rigged-file-attachment,
+.rigged-file-attachment__icon,
+.rigged-file-attachment__name,
+.rigged-file-attachment__size {
+    box-sizing: border-box;
+}
+
+.rigged-file-attachment {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 8px 12px;
+    background: var(--rg-bg-inset);
+    border: 1px solid var(--rg-border);
+    border-radius: var(--rg-radius-md);
+    color: var(--rg-text);
+    font-family: var(--rg-font-ui);
+    font-synthesis: none;
+    text-align: left;
+    text-decoration: none;
+    appearance: none;
+    transition:
+        background-color 120ms ease,
+        border-color 120ms ease;
+}
+
+button.rigged-file-attachment {
+    cursor: pointer;
+}
+
+.rigged-file-attachment:hover {
+    background: var(--rg-bg-raised);
+    border-color: var(--rg-border-strong);
+}
+
+.rigged-file-attachment:focus-visible {
+    outline: var(--rg-focus-ring);
+    outline-offset: 2px;
+}
+
+.rigged-file-attachment__icon {
+    display: flex;
+    flex: none;
+    color: var(--rg-text-muted);
+}
+
+.rigged-file-attachment__name {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--rg-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rigged-file-attachment__size {
+    flex: none;
+    color: var(--rg-text-muted);
+    font-family: var(--rg-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 18px;
+    white-space: nowrap;
+}

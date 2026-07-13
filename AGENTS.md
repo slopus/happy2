@@ -14,6 +14,12 @@ layout dimensions, icon preparation, optical alignment, and cross-browser
 rendering tests. Reusable visual components belong in `rigged-ui`; application
 packages may only compose them and supply product state and event handlers.
 
+Use flexbox for layout almost all of the time — it is the default for every row,
+column, stack, toolbar, and centered box. Use another mechanism (CSS Grid, and
+only for a genuine two-dimensional grid) solely when flexbox cannot express the
+layout at all; never fall back to floats, `inline-block` hacks, or layout tables.
+See `DESIGN.md` → "Layout with flexbox".
+
 ## Sync to main
 
 When asked to “sync to main,” commit the current work, fetch and rebase it onto

@@ -29,10 +29,17 @@ const railItems: RailItem[] = [
 function Shell(props: AppProps & { session?: AuthSession }) {
     const [activeFeatureId, setActiveFeatureId] = createSignal("chat");
     const [search, setSearch] = createSignal("");
+    const [createRequest, setCreateRequest] = createSignal(0);
 
     const user = () => props.session?.user;
     const userName = () => user()?.firstName ?? "Steve";
     const userInitials = () => user()?.firstName.slice(0, 2).toUpperCase() ?? "ST";
+
+    const requestCreateChannel = () => {
+        setActiveFeatureId("chat");
+        setSearch("");
+        setCreateRequest((nonce) => nonce + 1);
+    };
 
     const rail = () => (
         <Rail
@@ -51,6 +58,7 @@ function Shell(props: AppProps & { session?: AuthSession }) {
             items={railItems}
             onFooterSelect={() => setActiveFeatureId("you")}
             onItemSelect={setActiveFeatureId}
+            primaryAction={{ icon: "plus", label: "New channel", onSelect: requestCreateChannel }}
         />
     );
 
@@ -89,6 +97,7 @@ function Shell(props: AppProps & { session?: AuthSession }) {
                 <Show
                     fallback={
                         <ChatView
+                            createRequest={createRequest}
                             platform={props.platform}
                             rail={rail()}
                             search={search}
