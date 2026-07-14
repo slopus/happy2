@@ -924,7 +924,7 @@ export class CollaborationRepository {
                 .update(agentTurns)
                 .set({
                     baselineMessageCount: input.baselineMessageCount,
-                    runId: input.runId ?? null,
+                    ...(input.runId === undefined ? {} : { runId: input.runId }),
                     leaseExpiresAt: new Date(Date.now() + 45_000).toISOString(),
                     updatedAt: sql`CURRENT_TIMESTAMP`,
                     lastError: null,
@@ -975,14 +975,9 @@ export class CollaborationRepository {
             .select(agentTurnWorkSelection)
             .from(agentTurns)
             .innerJoin(messages, eq(messages.id, agentTurns.userMessageId))
-            .where(
-                and(
-                    eq(agentTurns.sessionId, sessionId),
-                    eq(agentTurns.runId, runId),
-                    eq(agentTurns.status, "running"),
-                ),
-            )
+            .where(and(eq(agentTurns.sessionId, sessionId), eq(agentTurns.status, "running")))
             .limit(1);
+        if (turn?.runId && turn.runId !== runId) return undefined;
         return turn?.actorUserId ? agentTurnWork(turn) : undefined;
     }
 

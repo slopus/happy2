@@ -201,12 +201,25 @@ export class AgentService {
             return;
         }
         if (!runId || (event.type !== "run_finished" && event.type !== "run_error")) return;
-        const turn = await this.repository.getRunningAgentTurn(event.sessionId, runId);
+        let turn = await this.repository.getRunningAgentTurn(event.sessionId, runId);
         if (!turn) return;
-        if (turn.baselineMessageCount === undefined)
-            throw new Error(
-                `Rig run ${runId} completed before its turn baseline was checkpointed.`,
-            );
+        if (turn.runId === undefined || turn.baselineMessageCount === undefined) {
+            const baselineMessageCount =
+                turn.baselineMessageCount ??
+                (await this.daemon.submittedTurnBaseline(
+                    turn.sessionId,
+                    turn.text,
+                    this.shutdown.signal,
+                ));
+            await this.repository.checkpointAgentTurn({
+                agentUserId: turn.agentUserId,
+                baselineMessageCount,
+                runId,
+                userMessageId: turn.userMessageId,
+                workerId: turn.workerId,
+            });
+            turn = { ...turn, baselineMessageCount, runId };
+        }
         if (event.type === "run_error") {
             await this.failTurn(turn, event.data.errorMessage ?? "Rig run failed.");
             return;

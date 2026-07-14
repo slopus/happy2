@@ -222,7 +222,9 @@ class ClientStateModel implements ClientState {
                     if (this.stopped) return;
                     const current = this.snapshot.messagesByChat[chatId] ?? [];
                     const withoutLocal = current.filter(
-                        (item) => item.clientMutationId !== clientMutationId,
+                        (item) =>
+                            item.clientMutationId !== clientMutationId &&
+                            item.message.id !== result.message.id,
                     );
                     this.replaceMessages(
                         chatId,

@@ -159,6 +159,64 @@ describe("client mutations", () => {
         ]);
     });
 
+    it("does not duplicate a message confirmed by sync before its mutation response", async () => {
+        const server = initializedServer();
+        let resolveRequest: ((value: ReturnType<typeof jsonResponse>) => void) | undefined;
+        const confirmed = message({ text: "confirmed through sync" });
+        server.route(
+            "POST",
+            "/v0/chats/chat-1/sendMessage",
+            () =>
+                new Promise((resolve) => {
+                    resolveRequest = resolve;
+                }),
+        );
+        server.respond(
+            "POST",
+            "/v0/sync/getDifference",
+            jsonResponse(200, {
+                kind: "difference",
+                changedChats: [chat({ pts: "1", lastMessageSequence: "1" })],
+                removedChatIds: [],
+                areas: [],
+                state: { protocolVersion: 1, generation: "g", sequence: "1" },
+                targetState: { protocolVersion: 1, generation: "g", sequence: "1" },
+            }),
+        );
+        server.respond(
+            "POST",
+            "/v0/chats/chat-1/getDifference",
+            jsonResponse(200, {
+                kind: "difference",
+                updates: [
+                    { pts: "1", ptsCount: 1, kind: "message.created", entityId: confirmed.id },
+                ],
+                messages: [confirmed],
+                chat: chat({ pts: "1", lastMessageSequence: "1" }),
+                state: { membershipEpoch: "1", pts: "1" },
+                targetState: { membershipEpoch: "1", pts: "1" },
+            }),
+        );
+        const state = createClientState(server.transport, { createId: () => "sync-race" });
+        await state.start();
+
+        state.sendMessage("chat-1", { text: confirmed.text });
+        await vi.waitFor(() => expect(resolveRequest).toBeTypeOf("function"));
+        server.events.sync({ sequence: "1", chats: [{ chatId: "chat-1", pts: "1" }] });
+        await vi.waitFor(() =>
+            expect(state.get().messagesByChat["chat-1"]?.map(({ message }) => message.id)).toEqual([
+                confirmed.id,
+                "local:sync-race",
+            ]),
+        );
+        resolveRequest!(jsonResponse(201, { message: confirmed }));
+        await state.whenIdle();
+
+        expect(state.get().messagesByChat["chat-1"]).toMatchObject([
+            { delivery: "sent", message: { id: confirmed.id, text: confirmed.text } },
+        ]);
+    });
+
     it("marks exhausted background actions failed and reports them without throwing", async () => {
         const server = initializedServer();
         server.respond(
