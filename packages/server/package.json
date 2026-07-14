@@ -28,7 +28,7 @@
     },
     "scripts": {
         "dev": "tsx watch sources/cli.ts",
-        "build": "pnpm run build:server && VITE_RIGGED_SERVER_URL='' pnpm --filter @rigged/web exec vite build --outDir ../server/dist/web --emptyOutDir false",
+        "build": "pnpm run build:server && VITE_RIGGED_SERVER_URL='/' pnpm --filter @rigged/web exec vite build --outDir ../server/dist/web --emptyOutDir false",
         "build:server": "rm -rf dist && tsc --project tsconfig.json",
         "start": "node dist/runner.js",
         "start:server": "node dist/cli.js",
