@@ -1,7 +1,7 @@
 /*
  * Message + MessageList + DayDivider — the chat column.
  *
- * Message: 6px 20px row on the app surface, grid [36px avatar | 12px gap |
+ * Message: 6px 20px flex row on the app surface [36px avatar | 12px gap |
  * content]. MessageList owns y-scrolling and bottom-anchors sparse histories
  * with a margin-top:auto spacer. DayDivider is a mono date pill between two
  * hairline segments.
@@ -20,8 +20,8 @@
 
 .rigged-message {
     position: relative;
-    display: grid;
-    grid-template-columns: 36px 1fr;
+    display: flex;
+    align-items: flex-start;
     column-gap: 12px;
     padding: 6px 20px;
     font-family: var(--rg-font-ui);
@@ -63,8 +63,10 @@
 
 .rigged-message__gutter {
     display: flex;
+    flex: 0 0 36px;
     align-items: flex-start;
     justify-content: flex-end;
+    width: 36px;
     min-width: 0;
 }
 
@@ -100,6 +102,9 @@
 }
 
 .rigged-message__content {
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: column;
     min-width: 0;
 }
 
@@ -177,16 +182,24 @@
 }
 
 .rigged-message__attachments {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     margin-top: 8px;
     min-width: 0;
 }
 
-/* A photo- or file-only message (no text body) drops the 8px body gap so the
-   media/attachment sits flush under the author/gutter line instead of adding a
-   phantom empty text line's worth of height. */
+/* File pills keep their intrinsic width inside the otherwise full-width slot;
+   larger attachment cards can still stretch across the message content. */
+.rigged-message__attachments > .rigged-file-attachment {
+    align-self: flex-start;
+}
+
+/* A photo- or file-only message (no text body) uses a small balanced inset
+   instead of the larger text-to-attachment gap. */
 .rigged-message:not([data-has-body]) .rigged-message__media,
 .rigged-message:not([data-has-body]) .rigged-message__attachments {
-    margin-top: 0;
+    margin-top: 4px;
 }
 
 /* ---- Inline photo attachments ----------------------------------------- */

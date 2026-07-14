@@ -385,6 +385,7 @@ describe("live views use rigged-state", () => {
         const messages = view.container.querySelectorAll('[data-rigged-ui="message"]');
         expect(messages).toHaveLength(2);
         expect(messages[1]?.hasAttribute("data-grouped")).toBe(true);
+        expect(view.container.querySelector('[data-rigged-ui="message-attachments"]')).toBeNull();
 
         const rootMessage = view.getByText("Root note").closest('[data-rigged-ui="message"]')!;
         fireEvent.click(rootMessage.querySelector('[aria-label="Open thread"]')!);

@@ -174,6 +174,7 @@ export {
     FileAttachment,
     type FileAttachmentKind,
     type FileAttachmentProps,
+    type FileAttachmentVariant,
 } from "./FileAttachment";
 export {
     type MemberItem,

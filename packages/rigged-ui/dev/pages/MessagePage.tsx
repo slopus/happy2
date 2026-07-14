@@ -217,6 +217,7 @@ export function MessagePage() {
                                 name="Relay Flagship (standalone).html"
                                 onOpen={() => {}}
                                 size="283 KB"
+                                variant="chat"
                             />
                         </Message>,
                     )}
@@ -225,8 +226,8 @@ export function MessagePage() {
             </Specimen>
 
             <Specimen
-                detail="compact: no avatar/author row — the 11px mono time hides until hover (shown here), right-aligned in the 36px gutter with a 12px gap to the body"
-                label="Message — compact follow-ups"
+                detail="grouped: no avatar/author row — the 11px mono time hides until hover (shown here), right-aligned in the 36px gutter with a 12px gap to the body"
+                label="Message — grouped follow-ups"
                 number="05"
                 stage="app"
             >
@@ -241,14 +242,14 @@ export function MessagePage() {
                         />
                         <Message
                             actionsVisible
-                            compact
+                            grouped
                             author="Claude"
                             body="Handing the fix to Codex and I'll draft release notes in parallel."
                             time="10:44"
                         />
                         <Message
                             actionsVisible
-                            compact
+                            grouped
                             author="Claude"
                             body={[
                                 { kind: "text", text: "Tracking in " },

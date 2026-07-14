@@ -1459,6 +1459,7 @@ export function ChatView(props: ChatViewProps) {
                                                             name={file.name}
                                                             onOpen={file.onOpen}
                                                             size={file.size}
+                                                            variant="chat"
                                                         />
                                                     )}
                                                 </For>

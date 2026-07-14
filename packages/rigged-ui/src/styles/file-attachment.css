@@ -1,15 +1,17 @@
 /*
  * C-049 FileAttachment — a non-image file card for a chat message.
  *
- * A single inline-flex pill (a real <button> when clickable): a doc glyph, a
- * truncating name, and an optional mono size on the inset surface with a
- * hairline border. Block-level so it drops into a message body cleanly.
+ * A single inline-flex element (a real <button> when clickable) with compact
+ * and chat-list variants.
  */
 
 .rigged-file-attachment,
 .rigged-file-attachment__icon,
+.rigged-file-attachment__copy,
 .rigged-file-attachment__name,
-.rigged-file-attachment__size {
+.rigged-file-attachment__size,
+.rigged-file-attachment__meta,
+.rigged-file-attachment__action {
     box-sizing: border-box;
 }
 
@@ -75,4 +77,102 @@ button.rigged-file-attachment {
     font-weight: 500;
     line-height: 18px;
     white-space: nowrap;
+}
+
+/* Chat-list treatment: a bounded attachment card with a Slack-like file tile
+ * and a single hover affordance. It stays intrinsic to the message rather than
+ * stretching across the conversation column. */
+.rigged-file-attachment[data-variant="chat"] {
+    width: min(420px, 100%);
+    height: 64px;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--rg-bg-surface);
+    border-color: var(--rg-border-strong);
+    border-radius: var(--rg-radius-window);
+}
+
+.rigged-file-attachment[data-variant="chat"][data-actions-visible] {
+    background: var(--rg-bg-raised);
+}
+
+.rigged-file-attachment[data-variant="chat"] .rigged-file-attachment__icon {
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    background: var(--rg-accent-soft);
+    border-radius: var(--rg-radius-sm);
+    color: var(--rg-accent-strong);
+}
+
+.rigged-file-attachment[data-variant="chat"] .rigged-file-attachment__copy {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+}
+
+.rigged-file-attachment[data-variant="chat"] .rigged-file-attachment__name {
+    display: block;
+    flex: none;
+    font-size: 14px;
+    line-height: 20px;
+}
+
+.rigged-file-attachment__meta {
+    display: block;
+    overflow: hidden;
+    color: var(--rg-text-secondary);
+    font-size: 12px;
+    font-weight: 450;
+    line-height: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rigged-file-attachment__meta-hover {
+    display: none;
+}
+
+.rigged-file-attachment__action {
+    display: flex;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    background: var(--rg-bg-raised);
+    border: 1px solid var(--rg-border-strong);
+    border-radius: var(--rg-radius-sm);
+    color: var(--rg-text-secondary);
+    opacity: 0;
+    transform: translateX(4px);
+    transition:
+        color 120ms ease,
+        opacity 120ms ease,
+        transform 120ms ease;
+}
+
+.rigged-file-attachment[data-variant="chat"]:hover .rigged-file-attachment__meta-default,
+.rigged-file-attachment[data-variant="chat"]:focus-visible .rigged-file-attachment__meta-default,
+.rigged-file-attachment[data-variant="chat"][data-actions-visible]
+    .rigged-file-attachment__meta-default {
+    display: none;
+}
+
+.rigged-file-attachment[data-variant="chat"]:hover .rigged-file-attachment__meta-hover,
+.rigged-file-attachment[data-variant="chat"]:focus-visible .rigged-file-attachment__meta-hover,
+.rigged-file-attachment[data-variant="chat"][data-actions-visible]
+    .rigged-file-attachment__meta-hover {
+    display: inline;
+}
+
+.rigged-file-attachment[data-variant="chat"]:hover .rigged-file-attachment__action,
+.rigged-file-attachment[data-variant="chat"]:focus-visible .rigged-file-attachment__action,
+.rigged-file-attachment[data-variant="chat"][data-actions-visible] .rigged-file-attachment__action {
+    color: var(--rg-text);
+    opacity: 1;
+    transform: none;
 }

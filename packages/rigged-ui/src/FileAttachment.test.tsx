@@ -1,5 +1,6 @@
 import "./styles.css";
 import type { JSX } from "solid-js";
+import { userEvent } from "vitest/browser";
 import { expect, it } from "vitest";
 import { FileAttachment } from "./FileAttachment";
 import { createRenderer } from "./testing";
@@ -52,6 +53,32 @@ it("holds FileAttachment geometry, typography, truncation, and interactivity", a
                 />,
             ),
         { width: 260, height: 56 },
+    );
+    view.render(
+        () =>
+            stage(
+                "chat",
+                <FileAttachment
+                    name="Relay Flagship (standalone).html"
+                    onOpen={() => {}}
+                    size="283 KB"
+                    variant="chat"
+                />,
+            ),
+        { width: 680, height: 80 },
+    );
+    view.render(
+        () =>
+            stage(
+                "chat-narrow",
+                <FileAttachment
+                    name="Q3-launch-readiness-review-final-FINAL-v2.pdf"
+                    onOpen={() => {}}
+                    size="1.7 MB"
+                    variant="chat"
+                />,
+            ),
+        { width: 300, height: 80 },
     );
     await view.ready();
 
@@ -120,6 +147,63 @@ it("holds FileAttachment geometry, typography, truncation, and interactivity", a
     );
     const tSize = view.$('[data-testid="trunc"] [data-rigged-ui="file-attachment-size"]');
     expect(tSize.element.textContent, "size stays intact").toBe("1.7 MB");
+
+    /* ---- Chat-list card stays bounded and reveals its hover treatment --- */
+
+    const chat = view.$('[data-testid="chat"] [data-rigged-ui="file-attachment"]');
+    expect(chat.element.getAttribute("data-variant")).toBe("chat");
+    expect(chat.bounds()).toEqual({ x: 8, y: 8, width: 420, height: 64 });
+    expect(
+        chat.computedStyles(["background-color", "border-radius", "display", "height", "width"]),
+    ).toEqual({
+        "background-color": "rgb(28, 27, 34)",
+        "border-radius": "8px",
+        display: "inline-flex",
+        height: "64px",
+        width: "420px",
+    });
+
+    const chatIcon = view.$('[data-testid="chat"] [data-rigged-ui="file-attachment-icon"]');
+    expect(chatIcon.bounds()).toEqual({ x: 21, y: 20, width: 40, height: 40 });
+    expect(chatIcon.computedStyles(["align-items", "border-radius", "justify-content"])).toEqual({
+        "align-items": "center",
+        "border-radius": "6px",
+        "justify-content": "center",
+    });
+
+    const chatName = view.$('[data-testid="chat"] [data-rigged-ui="file-attachment-name"]');
+    expect(chatName.computedStyles(["font-size", "font-weight", "line-height"])).toEqual({
+        "font-size": "14px",
+        "font-weight": "600",
+        "line-height": "20px",
+    });
+    const chatMeta = view.$('[data-testid="chat"] [data-rigged-ui="file-attachment-meta"]');
+    expect(chatMeta.element.textContent).toContain("HTML · 283 KB");
+
+    const narrowChat = view.$('[data-testid="chat-narrow"] [data-rigged-ui="file-attachment"]');
+    expect(narrowChat.bounds().width, "card respects a constrained message").toBe(284);
+    expect(
+        view.$('[data-testid="chat-narrow"] [data-rigged-ui="file-attachment-name"]').element
+            .scrollWidth,
+        "chat filename overflows and truncates",
+    ).toBeGreaterThan(
+        view.$('[data-testid="chat-narrow"] [data-rigged-ui="file-attachment-name"]').element
+            .clientWidth,
+    );
+
+    const action = view.$('[data-testid="chat"] [data-rigged-ui="file-attachment-action"]');
+    expect(action.computedStyle("opacity")).toBe("0");
+    await userEvent.hover(chat.element);
+    for (const animation of action.element.getAnimations()) animation.finish();
+    expect(action.computedStyle("opacity")).toBe("1");
+    expect(
+        view
+            .$('[data-testid="chat"] .rigged-file-attachment__meta-default')
+            .computedStyle("display"),
+    ).toBe("none");
+    expect(
+        view.$('[data-testid="chat"] .rigged-file-attachment__meta-hover').computedStyle("display"),
+    ).toBe("inline");
 
     await view.screenshot("FileAttachment.test");
 });

@@ -129,6 +129,13 @@ function renderSegment(segment: MessageSegment): JSX.Element {
     }
 }
 
+function hasRenderableChild(value: JSX.Element): boolean {
+    if (Array.isArray(value)) return value.some(hasRenderableChild);
+    return (
+        value !== undefined && value !== null && value !== false && value !== true && value !== ""
+    );
+}
+
 /**
  * One chat message on the app surface: 36px avatar gutter, author/time row,
  * rich body segments, attachment slot, reactions, and reply affordance.
@@ -169,6 +176,7 @@ export function Message(props: MessageProps) {
     let root: HTMLDivElement | undefined;
     const segments = (): MessageSegment[] =>
         typeof local.body === "string" ? [{ kind: "text", text: local.body }] : local.body;
+    const hasAttachments = () => hasRenderableChild(attachments());
     const grouped = () => local.grouped || local.compact;
     const deliveryState = () => local.deliveryState ?? "sent";
     const hasReactionAction = () =>
@@ -337,7 +345,7 @@ export function Message(props: MessageProps) {
                         </For>
                     </div>
                 </Show>
-                <Show when={attachments()}>
+                <Show when={hasAttachments()}>
                     <div class="rigged-message__attachments" data-rigged-ui="message-attachments">
                         {attachments()}
                     </div>

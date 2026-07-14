@@ -12,13 +12,37 @@ export function FileAttachmentPage() {
     return (
         <ComponentPage
             number="C-049"
-            summary="A non-image file card for a chat message: a doc glyph, a truncating name, and an optional mono size on an inset pill. A single block-level button so it composes cleanly in a message body."
+            summary="A non-image file attachment with a compact treatment and a larger bounded card for chat message lists."
             title="FileAttachment"
         >
             <Specimen
-                detail="doc glyph · name 13/600 · size 11 mono · inset pill · clickable button"
-                label="File attachment"
+                detail="bounded 420px card · 40px file tile · stacked metadata · hover action"
+                label="Chat-list attachment"
                 number="01"
+                stage="app"
+            >
+                <div style={column}>
+                    <FileAttachment
+                        name="Relay Flagship (standalone).html"
+                        onOpen={() => {}}
+                        size="283 KB"
+                        variant="chat"
+                    />
+                    <FileAttachment
+                        actionsVisible
+                        name="Relay Flagship (standalone).html"
+                        onOpen={() => {}}
+                        size="283 KB"
+                        variant="chat"
+                    />
+                </div>
+                <DimensionRule label="64px high · never stretches beyond 420px · hover reveals download affordance" />
+            </Specimen>
+
+            <Specimen
+                detail="doc glyph · name 13/600 · size 11 mono · inset pill · clickable button"
+                label="Compact attachment"
+                number="02"
                 stage="app"
             >
                 <div style={column}>
@@ -41,7 +65,7 @@ export function FileAttachmentPage() {
             <Specimen
                 detail="A long name truncates with an ellipsis; the size never shrinks"
                 label="Truncation"
-                number="02"
+                number="03"
                 stage="app"
             >
                 <div style={{ width: "320px" }}>
@@ -56,7 +80,7 @@ export function FileAttachmentPage() {
             <Specimen
                 detail="Read-only (no onOpen) renders a static div rather than a button"
                 label="Read-only"
-                number="03"
+                number="04"
                 stage="app"
             >
                 <FileAttachment name="shared-config.json" size="12 KB" />

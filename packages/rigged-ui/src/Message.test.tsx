@@ -1,6 +1,7 @@
 import "./styles.css";
 import { createSignal, For, type JSX } from "solid-js";
 import { expect, it } from "vitest";
+import { FileAttachment } from "./FileAttachment";
 import { DayDivider, Message, MessageList } from "./Message";
 import { assertParallelRoundedCorners, createRenderer, type RenderedElement } from "./testing";
 
@@ -85,7 +86,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
                     tone="amber"
                 />,
             ),
-        { width: 560, height: 168 },
+        { width: 560, height: 110 },
     );
     view.render(
         () =>
@@ -111,7 +112,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
                     />
                 </Message>,
             ),
-        { width: 560, height: 140 },
+        { width: 560, height: 108 },
     );
     view.render(
         () =>
@@ -131,11 +132,25 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
                     time="10:44"
                 />,
             ),
-        { width: 560, height: 48 },
+        { width: 560, height: 28 },
+    );
+    view.render(
+        () =>
+            stage(
+                "m4",
+                <Message
+                    grouped
+                    author="Claude"
+                    body="Conditional children resolved to no attachments."
+                    children={[[], false, undefined] as JSX.Element}
+                    time="10:45"
+                />,
+            ),
+        { width: 560, height: 26 },
     );
     await view.ready();
 
-    /* ---- Root grid + rhythm ------------------------------------------- */
+    /* ---- Root flex row + rhythm --------------------------------------- */
 
     const root = view.$('[data-testid="m1"] [data-rigged-ui="message"]');
     expect(root.bounds().width).toBe(560);
@@ -143,6 +158,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
         root.computedStyles([
             "box-sizing",
             "color",
+            "align-items",
             "column-gap",
             "display",
             "padding-bottom",
@@ -152,23 +168,50 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
         ]),
     ).toEqual({
         "box-sizing": "border-box",
+        "align-items": "flex-start",
         color: "rgb(237, 234, 242)",
         "column-gap": "12px",
-        display: "grid",
+        display: "flex",
         "padding-bottom": "6px",
         "padding-left": "20px",
         "padding-right": "20px",
         "padding-top": "6px",
     });
-    expect(root.computedStyle("grid-template-columns").startsWith("36px")).toBe(true);
-
     const avatar = view.$('[data-testid="m1"] [data-rigged-ui="avatar"]');
     expect(avatar.bounds()).toEqual({ x: 20, y: 6, width: 36, height: 36 });
 
     const content = view.$('[data-testid="m1"] [data-rigged-ui="message-content"]');
     expect(content.bounds().x).toBe(68); /* 20 pad + 36 avatar + 12 gap */
     expect(content.bounds().width).toBe(560 - 68 - 20);
-
+    expect(content.computedStyles(["display", "flex-direction", "flex-grow"])).toEqual({
+        display: "flex",
+        "flex-direction": "column",
+        "flex-grow": "1",
+    });
+    expect(
+        view.container.querySelector('[data-testid="m1"] [data-rigged-ui="message-attachments"]'),
+        "no empty attachment wrapper",
+    ).toBeNull();
+    expect(
+        view.container.querySelector('[data-testid="m2"] [data-rigged-ui="message-attachments"]'),
+        "supplied attachment wrapper",
+    ).not.toBeNull();
+    expect(
+        view.$('[data-testid="m2"] [data-rigged-ui="message"]').bounds().height,
+        "message height with a real attachment",
+    ).toBe(108);
+    expect(
+        view.$('[data-testid="m3"] [data-rigged-ui="message"]').bounds().height,
+        "grouped message height without phantom attachments",
+    ).toBeLessThan(28);
+    expect(
+        view.container.querySelector('[data-testid="m4"] [data-rigged-ui="message-attachments"]'),
+        "no attachment wrapper for conditional child placeholders",
+    ).toBeNull();
+    expect(
+        view.$('[data-testid="m4"] [data-rigged-ui="message"]').bounds().height,
+        "conditional child placeholders do not add attachment spacing",
+    ).toBe(26);
     /* ---- Author row ---------------------------------------------------- */
 
     const author = view.$('[data-testid="m1"] [data-rigged-ui="message-author"]');
@@ -323,7 +366,12 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
 
     const m2Body = view.$('[data-testid="m2"] [data-rigged-ui="message-body"]');
     const attachments = view.$('[data-testid="m2"] [data-rigged-ui="message-attachments"]');
-    expect(attachments.computedStyle("margin-top")).toBe("8px");
+    expect(attachments.computedStyles(["display", "flex-direction", "gap", "margin-top"])).toEqual({
+        display: "flex",
+        "flex-direction": "column",
+        gap: "4px",
+        "margin-top": "8px",
+    });
     /* Tolerance for the Gecko -0.5px body baseline correction (see above). */
     expect(
         Math.abs(attachments.bounds().y - (m2Body.bounds().y + m2Body.bounds().height) - 8),
@@ -357,6 +405,28 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     ).toBeGreaterThan(0);
 
     await view.screenshot("Message.test");
+});
+
+it("keeps file attachments intrinsic inside the full-width attachment slot", async () => {
+    const view = createRenderer();
+    view.render(
+        () =>
+            stage(
+                "file-message",
+                <Message grouped author="Claude" body="" time="10:46">
+                    <FileAttachment name="release-notes.txt" size="12 KB" />
+                </Message>,
+            ),
+        { width: 560, height: 44 },
+    );
+    await view.ready();
+
+    const file = view.$('[data-testid="file-message"] [data-rigged-ui="file-attachment"]');
+    const content = view.$('[data-testid="file-message"] [data-rigged-ui="message-content"]');
+    expect(file.computedStyle("align-self"), "file keeps intrinsic width").toBe("flex-start");
+    expect(file.bounds().width, "file does not stretch across the message").toBeLessThan(
+        content.bounds().width,
+    );
 });
 
 it("exposes real hover actions and keeps grouped sending geometry stable", async () => {
@@ -1066,7 +1136,8 @@ it("reveals the grouped gutter time on hover, tightens grouped rows, and lays ou
     /* Body line-height contract, guarded against regression. */
     expect(shownBody.computedStyle("line-height")).toBe("22px");
 
-    /* Photo-only message: no body element and the media sits flush (no phantom gap). */
+    /* Photo-only messages use a small inset; media below text keeps the larger
+       separation. The row's own padding supplies the shared trailing edge. */
     expect(
         view.container.querySelector('[data-testid="photo-only"] [data-rigged-ui="message-body"]'),
     ).toBeNull();
@@ -1074,8 +1145,8 @@ it("reveals the grouped gutter time on hover, tightens grouped rows, and lays ou
         view
             .$('[data-testid="photo-only"] [data-rigged-ui="message-media"]')
             .computedStyle("margin-top"),
-        "media flush without a body",
-    ).toBe("0px");
+        "media inset without a body",
+    ).toBe("4px");
     expect(
         view
             .$('[data-testid="photo-text"] [data-rigged-ui="message-media"]')
