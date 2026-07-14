@@ -2,6 +2,13 @@ import "./styles.css";
 
 export { happyOtterLogoUrl, onboardingBackgroundUrl } from "./assets";
 export { AgentDesk, type AgentDeskProps, type DeskListItem, type DeskRun } from "./AgentDesk";
+export { AgentImageDetail, type AgentImageDetailProps } from "./AgentImageDetail";
+export {
+    AgentImagePanel,
+    type AgentImageItem,
+    type AgentImagePanelProps,
+    type AgentImageStatus,
+} from "./AgentImagePanel";
 export {
     AgentRunCard,
     type AgentRun,

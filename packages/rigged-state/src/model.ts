@@ -476,6 +476,7 @@ class ClientStateModel implements ClientState {
             else if (area === "threads") add("getThreads");
             else if (area === "scheduled-messages") add("getScheduledMessages");
             else if (area === "automations") add("getAutomations");
+            else if (area === "agent-images") add("getAgentImages");
             else if (area === "bots") add("getBots");
             else if (area === "integrations") add("getIntegrations");
             else if (area === "presence") add("getPresence");

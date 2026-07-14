@@ -1,7 +1,7 @@
 import { createClientState } from "rigged-state";
 import { describe, expect, it } from "vitest";
-import { createMockRigDaemon } from "gym/rig";
-import { createGymServer } from "../../sources/index.js";
+import { createMockRigDaemon, MockAgentDockerRuntime } from "gym/rig";
+import { createGymServer, type GymRequestClient } from "../../sources/index.js";
 import { createGymStateTransport } from "../../sources/state/index.js";
 
 describe("agent turns through rigged-state and the real server", () => {
@@ -9,6 +9,7 @@ describe("agent turns through rigged-state and the real server", () => {
         await using rig = await createMockRigDaemon();
         rig.setAutomaticReply(undefined);
         await using server = await createGymServer({
+            agentDocker: new MockAgentDockerRuntime(),
             databaseMode: "file",
             configure(config) {
                 config.agents.enabled = true;
@@ -18,6 +19,7 @@ describe("agent turns through rigged-state and the real server", () => {
             },
         });
         const owner = await server.createUser({ username: "state_agent_owner" });
+        await configureAgentImage(server.as(owner));
         const transport = await createGymStateTransport(server, owner);
         await using state = createClientState(transport);
         const backgroundErrors: string[] = [];
@@ -84,3 +86,30 @@ describe("agent turns through rigged-state and the real server", () => {
         expect(rig.cursorRejections).toBe(0);
     }, 15_000);
 });
+
+async function configureAgentImage(client: GymRequestClient): Promise<void> {
+    const images = (await client.get("/v0/admin/agentImages")).json().images as Array<{
+        builtinKey?: string;
+        id: string;
+    }>;
+    const image = images.find(({ builtinKey }) => builtinKey === "daycare-minimal");
+    if (!image) throw new Error("Daycare Minimal image was not seeded");
+    expect((await client.post(`/v0/admin/agentImages/${image.id}/buildImage`, {})).statusCode).toBe(
+        202,
+    );
+    await expect
+        .poll(
+            async () => {
+                const current = (await client.get("/v0/admin/agentImages")).json().images as Array<{
+                    id: string;
+                    status: string;
+                }>;
+                return current.find(({ id }) => id === image.id)?.status;
+            },
+            { timeout: 4_000 },
+        )
+        .toBe("ready");
+    expect(
+        (await client.post(`/v0/admin/agentImages/${image.id}/setDefaultImage`, {})).statusCode,
+    ).toBe(200);
+}

@@ -16,6 +16,8 @@ import type {
 import type {
     AccountBan,
     AdminUserSummary,
+    AgentImageDetails,
+    AgentImageSummary,
     ApiCredentialSummary,
     AuditLogEntry,
     AutomationSummary,
@@ -159,6 +161,12 @@ export const backendOperations = {
     deleteUser: post("/v0/admin/users/:userId/deleteUser"),
     updateServer: post("/v0/admin/updateServer"),
     sendAutomatedMessage: post("/v0/admin/sendAutomatedMessage"),
+
+    getAgentImages: get("/v0/admin/agentImages"),
+    getAgentImage: get("/v0/admin/agentImages/:imageId"),
+    createAgentImage: post("/v0/admin/agentImages/createImage"),
+    buildAgentImage: post("/v0/admin/agentImages/:imageId/buildImage"),
+    setDefaultAgentImage: post("/v0/admin/agentImages/:imageId/setDefaultImage"),
 
     getSyncState: get("/v0/sync/state"),
     getDifference: post("/v0/sync/getDifference"),
@@ -445,6 +453,9 @@ export interface KnownBackendInputs {
         readonly botId?: string;
         readonly clientMutationId?: string;
     };
+    createAgentImage: { readonly name: string; readonly dockerfile: string };
+    buildAgentImage: { readonly imageId: string };
+    setDefaultAgentImage: { readonly imageId: string };
     getDifference: {
         readonly state: JsonObject;
         readonly untilSequence?: string;
@@ -723,6 +734,17 @@ export interface KnownBackendResults {
     getMessageRevisions: { readonly revisions: readonly MessageRevision[] };
     getScheduledMessages: { readonly messages: readonly ScheduledMessageSummary[] };
     getAutomations: { readonly automations: readonly AutomationSummary[] };
+    getAgentImages: {
+        readonly defaultImageId?: string;
+        readonly images: readonly AgentImageSummary[];
+    };
+    getAgentImage: { readonly image: AgentImageDetails };
+    createAgentImage: { readonly image: AgentImageSummary };
+    buildAgentImage: { readonly image: AgentImageSummary };
+    setDefaultAgentImage: {
+        readonly defaultImageId: string;
+        readonly image: AgentImageSummary;
+    };
     getBots: { readonly bots: readonly BotSummary[] };
     getIntegrations: { readonly integrations: readonly IntegrationSummary[] };
     getIntegrationCredentials: { readonly credentials: readonly ApiCredentialSummary[] };

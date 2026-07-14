@@ -3,6 +3,13 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type {
+    AgentContainerInput,
+    AgentDockerRuntime,
+    AgentImageBuildInput,
+    AgentImageBuildOptions,
+    AgentImageBuildUpdate,
+} from "@slopus/rigged";
 
 interface RigBlock {
     type: "text";
@@ -46,12 +53,19 @@ export interface MockRigRun {
     text: string;
 }
 
+export interface MockRigSessionRequest {
+    cwd: string;
+    docker?: { container?: string; workingDirectory?: string };
+    permissionMode?: string;
+}
+
 /**
  * Programmable black-box Rig protocol server bound to a real Unix socket.
  * Sessions and the opt-in durable global event queue survive `restart()`.
  */
 export class MockRigDaemon implements AsyncDisposable {
     readonly createdCwds: string[] = [];
+    readonly createdSessions: MockRigSessionRequest[] = [];
     readonly submittedRuns: MockRigRun[] = [];
     readonly submittedTexts: string[] = [];
     readonly trimRequests: number[] = [];
@@ -243,6 +257,27 @@ export class MockRigDaemon implements AsyncDisposable {
             const session: MockSession = { events: [], id, messages: [], status: "idle" };
             this.sessions.set(id, session);
             this.createdCwds.push(String(body.cwd));
+            const docker =
+                body.docker && typeof body.docker === "object"
+                    ? (body.docker as Record<string, unknown>)
+                    : undefined;
+            const container = typeof docker?.container === "string" ? docker.container : undefined;
+            const workingDirectory =
+                typeof docker?.workingDirectory === "string" ? docker.workingDirectory : undefined;
+            this.createdSessions.push({
+                cwd: String(body.cwd),
+                ...(container !== undefined || workingDirectory !== undefined
+                    ? {
+                          docker: {
+                              ...(container !== undefined ? { container } : {}),
+                              ...(workingDirectory !== undefined ? { workingDirectory } : {}),
+                          },
+                      }
+                    : {}),
+                ...(typeof body.permissionMode === "string"
+                    ? { permissionMode: body.permissionMode }
+                    : {}),
+            });
             this.append(session, "session_created", { session: snapshot(session) });
             return sendJson(response, 201, { session: snapshot(session) });
         }
@@ -409,6 +444,83 @@ export class MockRigDaemon implements AsyncDisposable {
     }
 }
 
+/** In-memory Docker boundary for server + Rig Gym tests. */
+export class MockAgentDockerRuntime implements AgentDockerRuntime {
+    readonly buildRequests: AgentImageBuildInput[] = [];
+    readonly createdContainers: AgentContainerInput[] = [];
+    readonly removedContainers: string[] = [];
+    private buildsPaused = false;
+    private readonly buildWaiters = new Set<() => void>();
+    private readonly buildUpdates = new Set<(update: AgentImageBuildUpdate) => void>();
+    private nextBuildError?: Error;
+
+    pauseBuilds(): void {
+        this.buildsPaused = true;
+    }
+
+    resumeBuilds(): void {
+        this.buildsPaused = false;
+        for (const resume of this.buildWaiters) resume();
+        this.buildWaiters.clear();
+    }
+
+    failNextBuild(message = "Mock Docker build failed"): void {
+        this.nextBuildError = new Error(message);
+    }
+
+    emitBuildUpdate(update: AgentImageBuildUpdate): void {
+        for (const listener of this.buildUpdates) listener(update);
+    }
+
+    async buildImage(
+        input: AgentImageBuildInput,
+        options: AgentImageBuildOptions = {},
+    ): Promise<{ imageId: string }> {
+        this.buildRequests.push({ ...input });
+        const listener = options.onUpdate;
+        if (listener) this.buildUpdates.add(listener);
+        listener?.({ logChunk: "#1 [stage-0 1/2] preparing image\n", progress: 5 });
+        try {
+            if (this.buildsPaused) await this.waitForBuildResume(options.signal);
+            if (options.signal?.aborted) throw abortError();
+            const error = this.nextBuildError;
+            this.nextBuildError = undefined;
+            if (error) throw error;
+            listener?.({ logChunk: "#2 [stage-0 2/2] image assembled\n#2 DONE\n", progress: 95 });
+            return { imageId: `sha256:gym-agent-image-${this.buildRequests.length}` };
+        } finally {
+            if (listener) this.buildUpdates.delete(listener);
+        }
+    }
+
+    async createContainer(input: AgentContainerInput, signal?: AbortSignal): Promise<void> {
+        if (signal?.aborted) throw abortError();
+        this.createdContainers.push({ ...input });
+    }
+
+    async removeContainer(containerName: string): Promise<void> {
+        this.removedContainers.push(containerName);
+    }
+
+    private waitForBuildResume(signal?: AbortSignal): Promise<void> {
+        if (!this.buildsPaused) return Promise.resolve();
+        return new Promise((resolve, reject) => {
+            const finish = () => {
+                signal?.removeEventListener("abort", abort);
+                this.buildWaiters.delete(finish);
+                resolve();
+            };
+            const abort = () => {
+                this.buildWaiters.delete(finish);
+                reject(abortError());
+            };
+            this.buildWaiters.add(finish);
+            if (signal?.aborted) abort();
+            else signal?.addEventListener("abort", abort, { once: true });
+        });
+    }
+}
+
 export const createMockRigDaemon = (): Promise<MockRigDaemon> => MockRigDaemon.create();
 
 function snapshot(session: MockSession) {
@@ -434,4 +546,8 @@ function sendJson(response: ServerResponse, status: number, body: unknown): void
         "content-type": "application/json; charset=utf-8",
     });
     response.end(contents);
+}
+
+function abortError(): Error {
+    return new Error("Mock Docker operation aborted", { cause: "ABORT_ERR" });
 }

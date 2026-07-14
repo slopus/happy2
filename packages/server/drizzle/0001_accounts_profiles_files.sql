@@ -12,6 +12,7 @@ CREATE TABLE `users` (
   `id` TEXT PRIMARY KEY NOT NULL,
   `account_id` TEXT UNIQUE REFERENCES `accounts`(`id`) ON DELETE CASCADE,
   `kind` TEXT NOT NULL DEFAULT 'human' CHECK (`kind` IN ('human', 'agent')),
+  `agent_image_id` TEXT REFERENCES `agent_images`(`id`) ON DELETE RESTRICT,
   `created_by_user_id` TEXT REFERENCES `users`(`id`) ON DELETE SET NULL,
   `first_name` TEXT NOT NULL,
   `last_name` TEXT,
@@ -21,8 +22,8 @@ CREATE TABLE `users` (
   `photo_file_id` TEXT,
   `created_at` TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CHECK (
-    (`kind` = 'human' AND `account_id` IS NOT NULL)
-    OR (`kind` = 'agent' AND `account_id` IS NULL)
+    (`kind` = 'human' AND `account_id` IS NOT NULL AND `agent_image_id` IS NULL)
+    OR (`kind` = 'agent' AND `account_id` IS NULL AND `agent_image_id` IS NOT NULL)
   )
 );
 --> statement-breakpoint

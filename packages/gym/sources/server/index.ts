@@ -23,6 +23,7 @@ import {
     IntegrationRepository,
     TokenService,
     type FileStorageFileSystem,
+    type AgentDockerRuntime,
     type ServerConfig,
     type User,
 } from "@slopus/rigged";
@@ -66,6 +67,7 @@ export interface GymServer extends GymRequestClient, AsyncDisposable {
 }
 
 export interface GymServerOptions {
+    agentDocker?: AgentDockerRuntime;
     configure?: (config: ServerConfig) => void;
     /** Uses libSQL's real multi-connection file adapter instead of serialized `:memory:` access. */
     databaseMode?: "file" | "memory";
@@ -107,6 +109,7 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
             collaboration,
             integrations,
             fileStorage: new FileStorage(config, database, fileSystem),
+            agentDocker: options.agentDocker,
             logger: false,
         });
         return new GymServerInstance(
@@ -119,6 +122,7 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
             tokenKeys,
             integrationProtector,
             integrations,
+            options.agentDocker,
             async () => {
                 if (databaseDirectory)
                     await rm(databaseDirectory, { force: true, recursive: true });
@@ -159,6 +163,7 @@ class GymServerInstance implements GymServer {
         private readonly tokenKeys: { privateKey: string; publicKey: string },
         private readonly integrationProtector: AesGcmSecretProtector,
         private integrations: IntegrationRepository,
+        private readonly agentDocker: AgentDockerRuntime | undefined,
         private readonly cleanupDatabase: () => Promise<void>,
     ) {}
 
@@ -231,6 +236,7 @@ class GymServerInstance implements GymServer {
             collaboration,
             integrations: this.integrations,
             fileStorage: new FileStorage(this.config, this.database, this.fileSystem),
+            agentDocker: this.agentDocker,
             logger: false,
         });
     }

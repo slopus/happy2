@@ -41,6 +41,25 @@ only for a genuine two-dimensional grid) solely when flexbox cannot express the
 layout at all; never fall back to floats, `inline-block` hacks, or layout tables.
 See `DESIGN.md` → "Layout with flexbox".
 
+## Reactivity
+
+Every surface must stay current on its own. A manual "Refresh" button (or any
+control whose only job is to re-fetch) is not allowed — if the user has to ask
+for fresh data, the screen is broken. Data updates arrive one of two ways:
+
+- Full reactivity via the realtime SSE stream. The primary, focused surface
+  reconciles live: subscribe to sync events and reconcile durable state through
+  the `rigged-state` difference APIs (realtime events are delivery hints, never
+  durable state — see "Client state principles"). This is the default; prefer it.
+- Polling only for a secondary surface that has no realtime channel yet. While
+  that surface is on screen, poll every few seconds; stop polling the moment it
+  unmounts or is no longer visible so a backgrounded view does no work. Polling
+  is a stopgap — if a surface matters enough to keep open, give it SSE.
+
+Asynchronous server work (a build, an export, a job) must stream its status
+changes to the UI through the same mechanism, not wait for a user-initiated
+reload.
+
 ## Sync to main
 
 When asked to “sync to main,” commit the current work, fetch and rebase it onto

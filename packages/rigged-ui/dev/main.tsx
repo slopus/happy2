@@ -3,6 +3,8 @@ import { render } from "solid-js/web";
 import "../src/index";
 import "./workbench.css";
 import { AgentDeskPage } from "./pages/AgentDeskPage";
+import { AgentImageDetailPage } from "./pages/AgentImageDetailPage";
+import { AgentImagePanelPage } from "./pages/AgentImagePanelPage";
 import { AgentRunCardPage } from "./pages/AgentRunCardPage";
 import { ApprovalCardPage } from "./pages/ApprovalCardPage";
 import { AppShellPage } from "./pages/AppShellPage";
@@ -117,6 +119,18 @@ const components: Array<{ id: string; label: string; number: string; page: () =>
     { id: "info-panel", label: "Info panel", number: "C-047", page: InfoPanelPage },
     { id: "thread-panel", label: "Thread panel", number: "C-048", page: ThreadPanelPage },
     { id: "file-attachment", label: "File attachment", number: "C-049", page: FileAttachmentPage },
+    {
+        id: "agent-image-panel",
+        label: "Agent image panel",
+        number: "C-050",
+        page: AgentImagePanelPage,
+    },
+    {
+        id: "agent-image-detail",
+        label: "Agent image detail",
+        number: "C-051",
+        page: AgentImageDetailPage,
+    },
 ];
 
 function componentFromHash(): string {

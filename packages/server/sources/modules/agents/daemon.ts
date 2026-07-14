@@ -66,11 +66,21 @@ export class RigDaemonClient {
         );
     }
 
-    async createSession(cwd: string): Promise<{ id: string }> {
-        const response = await this.connectedRequest<{ session: RigSession }>("POST", "/sessions", {
-            cwd,
-            permissionMode: "workspace_write",
-        });
+    async createSession(
+        cwd: string,
+        containerName: string,
+        signal?: AbortSignal,
+    ): Promise<{ id: string }> {
+        const response = await this.connectedRequest<{ session: RigSession }>(
+            "POST",
+            "/sessions",
+            {
+                cwd,
+                docker: { container: containerName, workingDirectory: "/workspace" },
+                permissionMode: "workspace_write",
+            },
+            signal,
+        );
         return { id: response.session.id };
     }
 

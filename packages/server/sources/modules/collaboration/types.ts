@@ -54,7 +54,37 @@ export interface UserSummary {
     photoFileId?: string;
     role: "member" | "admin";
     kind: "human" | "agent";
+    agentImageId?: string;
     createdByUserId?: string;
+}
+
+export type AgentImageStatus = "pending" | "building" | "ready" | "failed";
+
+export interface AgentImageSummary {
+    id: string;
+    name: string;
+    definitionHash: string;
+    dockerTag: string;
+    builtinKey?: "daycare-full" | "daycare-minimal";
+    status: AgentImageStatus;
+    buildAttempt: number;
+    buildProgress: number;
+    lastBuildLogLine?: string;
+    buildLogUpdatedAt?: string;
+    dockerImageId?: string;
+    lastError?: string;
+    buildRequestedAt?: string;
+    buildStartedAt?: string;
+    readyAt?: string;
+    createdByUserId?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AgentImageDetails extends AgentImageSummary {
+    dockerfile: string;
+    buildLog: string;
+    buildLogTruncated: boolean;
 }
 
 export interface AdminUserSummary extends UserSummary {

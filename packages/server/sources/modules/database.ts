@@ -56,6 +56,7 @@ export interface User {
     title?: string;
     role: "member" | "admin";
     kind: "human" | "agent";
+    agentImageId?: string;
     createdByUserId?: string;
     lastAccessAt?: string;
 }
@@ -849,6 +850,7 @@ function asUser(row: UserRow): User {
         title: row.title ?? undefined,
         role: row.role as User["role"],
         kind: row.kind as User["kind"],
+        agentImageId: row.agentImageId ?? undefined,
         createdByUserId: row.createdByUserId ?? undefined,
         lastAccessAt: row.lastAccessAt ?? undefined,
     };

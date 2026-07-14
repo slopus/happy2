@@ -18,6 +18,7 @@ import {
     type TabItem,
 } from "rigged-ui";
 import type { AuthSession } from "../components/AuthGate";
+import { AgentImagesView } from "./AgentImagesView";
 
 export type AdminViewProps = {
     session?: AuthSession;
@@ -40,6 +41,7 @@ const tabs: TabItem[] = [
     { id: "reports", label: "Reports", icon: "shield" },
     { id: "automations", label: "Automations", icon: "zap" },
     { id: "integrations", label: "Integrations", icon: "link" },
+    { id: "images", label: "Agent images", icon: "spark" },
 ];
 
 const columns: Record<string, DataTableColumn[]> = {
@@ -195,22 +197,31 @@ export function AdminView(props: AdminViewProps) {
                                 padding: "16px",
                             }}
                         >
-                            <DataTable
-                                columns={columns[activeTab()] ?? []}
-                                empty={
-                                    <EmptyState
-                                        description={
-                                            query().trim()
-                                                ? "Try a different search term."
-                                                : `The server returned no ${activeTab()}.`
+                            <Show
+                                fallback={
+                                    <DataTable
+                                        columns={columns[activeTab()] ?? []}
+                                        empty={
+                                            <EmptyState
+                                                description={
+                                                    query().trim()
+                                                        ? "Try a different search term."
+                                                        : `The server returned no ${activeTab()}.`
+                                                }
+                                                icon="search"
+                                                size="inline"
+                                                title={
+                                                    query().trim() ? "No matches" : "Nothing here"
+                                                }
+                                            />
                                         }
-                                        icon="search"
-                                        size="inline"
-                                        title={query().trim() ? "No matches" : "Nothing here"}
+                                        rows={rows()}
                                     />
                                 }
-                                rows={rows()}
-                            />
+                                when={activeTab() === "images"}
+                            >
+                                <AgentImagesView query={query()} session={props.session!} />
+                            </Show>
                         </Box>
                     </Show>
                 </Show>

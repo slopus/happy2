@@ -36,10 +36,35 @@ describe("CollaborationRepository", () => {
 
     it("stores agent provenance and atomically queues DMs without agent unread state", async () => {
         const agentUserId = "agent-user";
+        await repository.ensureAgentImageDefinitions([
+            {
+                buildContext: "test-context",
+                builtinKey: "daycare-minimal",
+                definitionHash: "test-image-hash",
+                dockerTag: "rigged-agent:test-image-hash",
+                dockerfile: "FROM scratch",
+                name: "Test image",
+            },
+        ]);
+        const testImage = (await repository.listAgentImages(ada.id)).images.find(
+            ({ builtinKey }) => builtinKey === "daycare-minimal",
+        );
+        expect(testImage).toBeDefined();
+        const imageId = testImage!.id;
+        await repository.requestAgentImageBuild({ actorUserId: ada.id, imageId });
+        expect(await repository.takeAgentImageBuild(imageId, "test-worker")).toBeDefined();
+        await repository.completeAgentImageBuild({
+            dockerImageId: "sha256:test-image",
+            imageId,
+            workerId: "test-worker",
+        });
+        await repository.setDefaultAgentImage({ actorUserId: ada.id, imageId });
         const created = await repository.createAgent({
             actorUserId: ada.id,
             agentUserId,
-            cwd: `/agents/${agentUserId}/users/${ada.id}`,
+            containerName: "test-container",
+            cwd: `/agents/${agentUserId}/users/${ada.id}/workspace`,
+            imageId,
             name: "Fixer",
             sessionId: "rig-session",
             username: "fixer",

@@ -3,7 +3,12 @@ import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { AuthService } from "./modules/auth/service.js";
-import { AgentService, RigDaemonClient } from "./modules/agents/index.js";
+import {
+    AgentService,
+    LocalAgentDockerRuntime,
+    RigDaemonClient,
+    type AgentDockerRuntime,
+} from "./modules/agents/index.js";
 import { TokenService } from "./modules/auth/tokens.js";
 import { AutomationRepository } from "./modules/automation/repository.js";
 import type { ServerConfig } from "./modules/config/type.js";
@@ -29,6 +34,7 @@ import {
     type StoredHttpResponse,
 } from "./modules/request/index.js";
 import { registerAuthRoutes } from "./routes/auth.js";
+import { registerAgentRoutes } from "./routes/agents.js";
 import { registerAutomationRoutes } from "./routes/automation.js";
 import { registerBasicRoutes } from "./routes/basic.js";
 import { registerCollaborationRoutes } from "./routes/collaboration.js";
@@ -50,6 +56,7 @@ interface Services {
     rateLimiter?: HttpRateLimiter;
     idempotency?: IdempotencyCoordinator<StoredHttpResponse>;
     agents?: AgentService;
+    agentDocker?: AgentDockerRuntime;
     logger?: boolean;
 }
 
@@ -150,6 +157,7 @@ export async function buildServer(
                       collaboration,
                       pubsub,
                       new RigDaemonClient(config.agents),
+                      services.agentDocker ?? new LocalAgentDockerRuntime(),
                       config.agents.defaultCwd,
                       (error) => app.log.error(error),
                   )
@@ -188,6 +196,7 @@ export async function buildServer(
             collaboration,
         );
         registerCollaborationRoutes(app, auth, collaboration, pubsub, agentService);
+        if (agentService) registerAgentRoutes(app, auth, agentService);
         registerAutomationRoutes(app, auth, automation, pubsub);
         registerOperationsRoutes(app, auth, operations);
         registerIntegrationRoutes(app, auth, integrations, {

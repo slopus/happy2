@@ -26,6 +26,8 @@ import {
 import {
     accountBans,
     accounts,
+    agentImages,
+    agentImageSettings,
     agentRigBindings,
     agentTurns,
     auditLogEntries,
@@ -79,6 +81,8 @@ import {
     type ChatSummary,
     type CallSummary,
     type AdminUserSummary,
+    type AgentImageDetails,
+    type AgentImageSummary,
     type FileSummary,
     type MessageSummary,
     type MutationHint,
@@ -103,9 +107,25 @@ export interface RigEventCheckpoint {
 export interface AgentChatContext {
     agentUserId: string;
     chatId: string;
+    image: AgentExecutionImage;
     privateUserId: string;
-    binding?: { cwd: string; sessionId: string };
+    binding?: { containerName: string; cwd: string; sessionId: string };
 }
+
+export interface AgentExecutionImage {
+    id: string;
+    dockerImageId: string;
+    dockerTag: string;
+}
+
+export interface AgentImageBuild {
+    buildContext?: string;
+    dockerfile: string;
+    id: string;
+    dockerTag: string;
+}
+
+const MAX_AGENT_IMAGE_BUILD_LOG_CHARACTERS = 2_000_000;
 
 interface ChatMutation {
     sequence: number;
@@ -155,7 +175,36 @@ const userSelection = {
     photo_file_id: users.photoFileId,
     role: users.role,
     user_kind: users.kind,
+    agent_image_id: users.agentImageId,
     created_by_user_id: users.createdByUserId,
+};
+
+const agentImageSelection = {
+    id: agentImages.id,
+    name: agentImages.name,
+    definition_hash: agentImages.definitionHash,
+    docker_tag: agentImages.dockerTag,
+    builtin_key: agentImages.builtinKey,
+    status: agentImages.status,
+    build_attempt: agentImages.buildAttempt,
+    build_progress: agentImages.buildProgress,
+    last_build_log_line: agentImages.lastBuildLogLine,
+    build_log_updated_at: agentImages.buildLogUpdatedAt,
+    docker_image_id: agentImages.dockerImageId,
+    last_error: agentImages.lastError,
+    build_requested_at: agentImages.buildRequestedAt,
+    build_started_at: agentImages.buildStartedAt,
+    ready_at: agentImages.readyAt,
+    created_by_user_id: agentImages.createdByUserId,
+    created_at: agentImages.createdAt,
+    updated_at: agentImages.updatedAt,
+};
+
+const agentImageDetailsSelection = {
+    ...agentImageSelection,
+    dockerfile: agentImages.dockerfile,
+    build_log: agentImages.buildLog,
+    build_log_truncated: agentImages.buildLogTruncated,
 };
 
 const fileSelection = {
@@ -590,9 +639,486 @@ export class CollaborationRepository {
         });
     }
 
+    async ensureAgentImageDefinitions(
+        definitions: ReadonlyArray<{
+            buildContext: string;
+            builtinKey: "daycare-full" | "daycare-minimal";
+            definitionHash: string;
+            dockerTag: string;
+            dockerfile: string;
+            name: string;
+        }>,
+    ): Promise<void> {
+        await this.writeDb(async (tx) => {
+            for (const definition of definitions)
+                await tx
+                    .insert(agentImages)
+                    .values({
+                        id: createId(),
+                        name: definition.name,
+                        dockerfile: definition.dockerfile,
+                        definitionHash: definition.definitionHash,
+                        dockerTag: definition.dockerTag,
+                        buildContext: definition.buildContext,
+                        builtinKey: definition.builtinKey,
+                    })
+                    .onConflictDoNothing();
+        });
+    }
+
+    async listAgentImages(actorUserId: string): Promise<{
+        defaultImageId?: string;
+        images: AgentImageSummary[];
+    }> {
+        await this.requireServerAdminDb(this.db, actorUserId);
+        const [settings, images] = await Promise.all([
+            this.db
+                .select({ defaultImageId: agentImageSettings.defaultImageId })
+                .from(agentImageSettings)
+                .where(eq(agentImageSettings.id, 1))
+                .then((rows) => rows[0]),
+            this.db
+                .select(agentImageSelection)
+                .from(agentImages)
+                .orderBy(agentImages.createdAt, agentImages.id),
+        ]);
+        return {
+            ...(settings?.defaultImageId ? { defaultImageId: settings.defaultImageId } : {}),
+            images: images.map(asAgentImage),
+        };
+    }
+
+    async getAgentImage(actorUserId: string, imageId: string): Promise<AgentImageDetails> {
+        await this.requireServerAdminDb(this.db, actorUserId);
+        const [image] = await this.db
+            .select(agentImageDetailsSelection)
+            .from(agentImages)
+            .where(eq(agentImages.id, imageId))
+            .limit(1);
+        if (!image) throw new CollaborationError("not_found", "Agent image was not found");
+        return asAgentImageDetails(image);
+    }
+
+    async createAgentImage(input: {
+        actorUserId: string;
+        definitionHash: string;
+        dockerTag: string;
+        dockerfile: string;
+        name: string;
+    }): Promise<{ hint: MutationHint; image: AgentImageSummary }> {
+        return this.writeDb(async (tx) => {
+            await this.requireServerAdminDb(tx, input.actorUserId);
+            let created: Record<string, unknown>;
+            try {
+                [created] = await tx
+                    .insert(agentImages)
+                    .values({
+                        id: createId(),
+                        name: input.name,
+                        dockerfile: input.dockerfile,
+                        definitionHash: input.definitionHash,
+                        dockerTag: input.dockerTag,
+                        status: "pending",
+                        buildRequestedAt: sql`CURRENT_TIMESTAMP`,
+                        createdByUserId: input.actorUserId,
+                    })
+                    .returning(agentImageSelection);
+            } catch (error) {
+                if (isUniqueConstraint(error))
+                    throw new CollaborationError(
+                        "conflict",
+                        "An agent image with this immutable definition already exists",
+                    );
+                throw error;
+            }
+            if (!created) throw new Error("Agent image was not created");
+            await this.appendAuditDb(tx, {
+                actorUserId: input.actorUserId,
+                action: "agent_image.created",
+                targetType: "agent_image",
+                targetId: text(created.id),
+                after: { definitionHash: input.definitionHash, name: input.name },
+            });
+            const sequence = await this.nextSequence(tx);
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "agentImage.created",
+                entityId: text(created.id),
+                actorUserId: input.actorUserId,
+            });
+            return {
+                hint: areaHint(sequence, "agent-images"),
+                image: asAgentImage(created),
+            };
+        });
+    }
+
+    async requestAgentImageBuild(input: {
+        actorUserId: string;
+        imageId: string;
+    }): Promise<{ hint: MutationHint; image: AgentImageSummary }> {
+        return this.writeDb(async (tx) => {
+            await this.requireServerAdminDb(tx, input.actorUserId);
+            const [current] = await tx
+                .select({ status: agentImages.status })
+                .from(agentImages)
+                .where(eq(agentImages.id, input.imageId))
+                .limit(1);
+            if (!current) throw new CollaborationError("not_found", "Agent image was not found");
+            if (current.status === "ready")
+                throw new CollaborationError("conflict", "Agent image is already ready");
+            if (current.status === "building")
+                throw new CollaborationError("conflict", "Agent image is already building");
+            const [image] = await tx
+                .update(agentImages)
+                .set({
+                    status: "pending",
+                    buildProgress: 0,
+                    buildLog: "",
+                    buildLogTruncated: 0,
+                    lastBuildLogLine: null,
+                    buildLogUpdatedAt: null,
+                    buildRequestedAt: sql`CURRENT_TIMESTAMP`,
+                    buildStartedAt: null,
+                    dockerImageId: null,
+                    lastError: null,
+                    readyAt: null,
+                    workerId: null,
+                    leaseExpiresAt: null,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(agentImages.id, input.imageId))
+                .returning(agentImageSelection);
+            if (!image) throw new Error("Agent image build was not requested");
+            await this.appendAuditDb(tx, {
+                actorUserId: input.actorUserId,
+                action: "agent_image.build_requested",
+                targetType: "agent_image",
+                targetId: input.imageId,
+            });
+            const sequence = await this.nextSequence(tx);
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "agentImage.buildRequested",
+                entityId: input.imageId,
+                actorUserId: input.actorUserId,
+            });
+            return {
+                hint: areaHint(sequence, "agent-images"),
+                image: asAgentImage(image),
+            };
+        });
+    }
+
+    async setDefaultAgentImage(input: {
+        actorUserId: string;
+        imageId: string;
+    }): Promise<{ hint: MutationHint; image: AgentImageSummary }> {
+        return this.writeDb(async (tx) => {
+            await this.requireServerAdminDb(tx, input.actorUserId);
+            const [image] = await tx
+                .select(agentImageSelection)
+                .from(agentImages)
+                .where(eq(agentImages.id, input.imageId))
+                .limit(1);
+            if (!image) throw new CollaborationError("not_found", "Agent image was not found");
+            if (image.status !== "ready" || !image.docker_image_id)
+                throw new CollaborationError(
+                    "conflict",
+                    "Only a ready agent image can be the default",
+                );
+            await tx
+                .update(agentImageSettings)
+                .set({
+                    defaultImageId: input.imageId,
+                    updatedByUserId: input.actorUserId,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(agentImageSettings.id, 1));
+            await this.appendAuditDb(tx, {
+                actorUserId: input.actorUserId,
+                action: "agent_image.default_selected",
+                targetType: "agent_image",
+                targetId: input.imageId,
+            });
+            const sequence = await this.nextSequence(tx);
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "agentImage.defaultSelected",
+                entityId: input.imageId,
+                actorUserId: input.actorUserId,
+            });
+            return {
+                hint: areaHint(sequence, "agent-images"),
+                image: asAgentImage(image),
+            };
+        });
+    }
+
+    async getReadyDefaultAgentImage(): Promise<AgentExecutionImage | undefined> {
+        const [image] = await this.db
+            .select({
+                id: agentImages.id,
+                dockerTag: agentImages.dockerTag,
+                dockerImageId: agentImages.dockerImageId,
+            })
+            .from(agentImageSettings)
+            .innerJoin(agentImages, eq(agentImages.id, agentImageSettings.defaultImageId))
+            .where(
+                and(
+                    eq(agentImageSettings.id, 1),
+                    eq(agentImages.status, "ready"),
+                    sql`${agentImages.dockerImageId} IS NOT NULL`,
+                ),
+            )
+            .limit(1);
+        return image?.dockerImageId
+            ? { id: image.id, dockerTag: image.dockerTag, dockerImageId: image.dockerImageId }
+            : undefined;
+    }
+
+    async listRequestedAgentImageBuildIds(): Promise<string[]> {
+        const rows = await this.db
+            .select({ id: agentImages.id })
+            .from(agentImages)
+            .where(
+                or(
+                    and(
+                        eq(agentImages.status, "pending"),
+                        sql`${agentImages.buildRequestedAt} IS NOT NULL`,
+                    ),
+                    and(
+                        eq(agentImages.status, "building"),
+                        or(
+                            isNull(agentImages.leaseExpiresAt),
+                            lte(agentImages.leaseExpiresAt, new Date().toISOString()),
+                        ),
+                    ),
+                ),
+            )
+            .orderBy(agentImages.buildRequestedAt, agentImages.createdAt, agentImages.id);
+        return rows.map((row) => row.id);
+    }
+
+    async takeAgentImageBuild(
+        imageId: string,
+        workerId: string,
+    ): Promise<{ build: AgentImageBuild; hint: MutationHint } | undefined> {
+        return this.writeDb(async (tx) => {
+            const now = new Date().toISOString();
+            const leaseExpiresAt = new Date(Date.now() + 60_000).toISOString();
+            const claimable = or(
+                and(
+                    eq(agentImages.status, "pending"),
+                    sql`${agentImages.buildRequestedAt} IS NOT NULL`,
+                ),
+                and(
+                    eq(agentImages.status, "building"),
+                    or(isNull(agentImages.leaseExpiresAt), lte(agentImages.leaseExpiresAt, now)),
+                ),
+            );
+            const [claimed] = await tx
+                .update(agentImages)
+                .set({
+                    status: "building",
+                    buildAttempt: sql`${agentImages.buildAttempt} + 1`,
+                    buildProgress: 1,
+                    buildLog: "",
+                    buildLogTruncated: 0,
+                    lastBuildLogLine: null,
+                    buildLogUpdatedAt: sql`CURRENT_TIMESTAMP`,
+                    buildStartedAt: sql`CURRENT_TIMESTAMP`,
+                    lastError: null,
+                    workerId,
+                    leaseExpiresAt,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(and(eq(agentImages.id, imageId), claimable))
+                .returning({
+                    id: agentImages.id,
+                    buildContext: agentImages.buildContext,
+                    dockerfile: agentImages.dockerfile,
+                    dockerTag: agentImages.dockerTag,
+                });
+            if (!claimed) return undefined;
+            const sequence = await this.nextSequence(tx);
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "agentImage.building",
+                entityId: imageId,
+            });
+            return {
+                build: {
+                    id: claimed.id,
+                    dockerfile: claimed.dockerfile,
+                    dockerTag: claimed.dockerTag,
+                    ...(claimed.buildContext ? { buildContext: claimed.buildContext } : {}),
+                },
+                hint: areaHint(sequence, "agent-images"),
+            };
+        });
+    }
+
+    async recordAgentImageBuildOutput(input: {
+        imageId: string;
+        lastBuildLogLine?: string;
+        logChunk: string;
+        progress: number;
+        workerId: string;
+    }): Promise<MutationHint | undefined> {
+        const progress = Math.max(1, Math.min(99, Math.trunc(input.progress)));
+        return this.writeDb(async (tx) => {
+            const changed = await tx
+                .update(agentImages)
+                .set({
+                    buildLog: sql`substr(${agentImages.buildLog} || ${input.logChunk}, -${MAX_AGENT_IMAGE_BUILD_LOG_CHARACTERS})`,
+                    buildLogTruncated: sql`CASE WHEN ${agentImages.buildLogTruncated} = 1 OR length(${agentImages.buildLog}) + length(${input.logChunk}) > ${MAX_AGENT_IMAGE_BUILD_LOG_CHARACTERS} THEN 1 ELSE 0 END`,
+                    buildProgress: sql`max(${agentImages.buildProgress}, ${progress})`,
+                    ...(input.lastBuildLogLine === undefined
+                        ? {}
+                        : { lastBuildLogLine: input.lastBuildLogLine }),
+                    buildLogUpdatedAt: sql`CURRENT_TIMESTAMP`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(agentImages.id, input.imageId),
+                        eq(agentImages.status, "building"),
+                        eq(agentImages.workerId, input.workerId),
+                    ),
+                )
+                .returning({ id: agentImages.id });
+            if (changed.length !== 1) return undefined;
+            const sequence = await this.nextSequence(tx);
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "agentImage.buildProgress",
+                entityId: input.imageId,
+            });
+            return areaHint(sequence, "agent-images");
+        });
+    }
+
+    async renewAgentImageBuildLease(imageId: string, workerId: string): Promise<boolean> {
+        const changed = await retrySqliteBusy(() =>
+            this.db
+                .update(agentImages)
+                .set({
+                    leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(agentImages.id, imageId),
+                        eq(agentImages.status, "building"),
+                        eq(agentImages.workerId, workerId),
+                    ),
+                )
+                .returning({ id: agentImages.id }),
+        );
+        return changed.length === 1;
+    }
+
+    async completeAgentImageBuild(input: {
+        dockerImageId: string;
+        imageId: string;
+        workerId: string;
+    }): Promise<MutationHint | undefined> {
+        return this.writeDb(async (tx) => {
+            const changed = await tx
+                .update(agentImages)
+                .set({
+                    status: "ready",
+                    buildProgress: 100,
+                    dockerImageId: input.dockerImageId,
+                    lastError: null,
+                    readyAt: sql`CURRENT_TIMESTAMP`,
+                    workerId: null,
+                    leaseExpiresAt: null,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(agentImages.id, input.imageId),
+                        eq(agentImages.status, "building"),
+                        eq(agentImages.workerId, input.workerId),
+                    ),
+                )
+                .returning({ id: agentImages.id });
+            if (changed.length !== 1) return undefined;
+            const sequence = await this.nextSequence(tx);
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "agentImage.ready",
+                entityId: input.imageId,
+            });
+            return areaHint(sequence, "agent-images");
+        });
+    }
+
+    async failAgentImageBuild(input: {
+        error: string;
+        imageId: string;
+        workerId: string;
+    }): Promise<MutationHint | undefined> {
+        return this.writeDb(async (tx) => {
+            const changed = await tx
+                .update(agentImages)
+                .set({
+                    status: "failed",
+                    dockerImageId: null,
+                    lastError: input.error,
+                    readyAt: null,
+                    workerId: null,
+                    leaseExpiresAt: null,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(agentImages.id, input.imageId),
+                        eq(agentImages.status, "building"),
+                        eq(agentImages.workerId, input.workerId),
+                    ),
+                )
+                .returning({ id: agentImages.id });
+            if (changed.length !== 1) return undefined;
+            const sequence = await this.nextSequence(tx);
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "agentImage.failed",
+                entityId: input.imageId,
+            });
+            return areaHint(sequence, "agent-images");
+        });
+    }
+
+    async releaseAgentImageBuildLeases(workerId: string): Promise<void> {
+        await this.writeDb(async (tx) => {
+            const changed = await tx
+                .update(agentImages)
+                .set({
+                    status: "pending",
+                    workerId: null,
+                    leaseExpiresAt: null,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(and(eq(agentImages.workerId, workerId), eq(agentImages.status, "building")))
+                .returning({ id: agentImages.id });
+            if (!changed.length) return;
+            const sequence = await this.nextSequence(tx);
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "agentImage.buildReleased",
+                entityId: changed[0]!.id,
+            });
+        });
+    }
+
     async createAgent(input: {
         agentUserId: string;
         actorUserId: string;
+        containerName: string;
+        imageId: string;
         name: string;
         username: string;
         sessionId: string;
@@ -607,6 +1133,21 @@ export class CollaborationRepository {
                 .limit(1);
             if (existing)
                 throw new CollaborationError("conflict", "Agent username is already taken");
+            const [configuredImage] = await tx
+                .select({
+                    id: agentImages.id,
+                    status: agentImages.status,
+                    dockerImageId: agentImages.dockerImageId,
+                })
+                .from(agentImageSettings)
+                .innerJoin(agentImages, eq(agentImages.id, agentImageSettings.defaultImageId))
+                .where(and(eq(agentImageSettings.id, 1), eq(agentImages.id, input.imageId)))
+                .limit(1);
+            if (configuredImage?.status !== "ready" || !configuredImage.dockerImageId)
+                throw new CollaborationError(
+                    "conflict",
+                    "A ready default agent image must be configured before creating agents",
+                );
             const chatId = createId();
             const agentUserId = input.agentUserId;
             const sequence = await this.nextSequence(tx);
@@ -617,6 +1158,7 @@ export class CollaborationRepository {
                 firstName: input.name,
                 username: input.username,
                 kind: "agent",
+                agentImageId: input.imageId,
             });
             await tx.insert(chats).values({
                 id: chatId,
@@ -633,7 +1175,9 @@ export class CollaborationRepository {
             await tx.insert(agentRigBindings).values({
                 userId: agentUserId,
                 chatId,
+                imageId: input.imageId,
                 sessionId: input.sessionId,
+                containerName: input.containerName,
                 cwd: input.cwd,
             });
             await tx.insert(chatMembers).values(
@@ -676,9 +1220,16 @@ export class CollaborationRepository {
         if (!access || access.kind !== "dm" || access.dmType !== "direct") return undefined;
         const [agent, human] = await Promise.all([
             this.db
-                .select({ userId: users.id })
+                .select({
+                    userId: users.id,
+                    imageId: agentImages.id,
+                    dockerTag: agentImages.dockerTag,
+                    dockerImageId: agentImages.dockerImageId,
+                    imageStatus: agentImages.status,
+                })
                 .from(chatMembers)
                 .innerJoin(users, eq(users.id, chatMembers.userId))
+                .innerJoin(agentImages, eq(agentImages.id, users.agentImageId))
                 .where(
                     and(
                         eq(chatMembers.chatId, chatId),
@@ -706,9 +1257,14 @@ export class CollaborationRepository {
                 .limit(1)
                 .then((rows) => rows[0]),
         ]);
-        if (!agent || !human) return undefined;
+        if (!agent || !human || agent.imageStatus !== "ready" || !agent.dockerImageId)
+            return undefined;
         const [bound] = await this.db
-            .select({ cwd: agentRigBindings.cwd, sessionId: agentRigBindings.sessionId })
+            .select({
+                containerName: agentRigBindings.containerName,
+                cwd: agentRigBindings.cwd,
+                sessionId: agentRigBindings.sessionId,
+            })
             .from(agentRigBindings)
             .where(
                 and(eq(agentRigBindings.userId, agent.userId), eq(agentRigBindings.chatId, chatId)),
@@ -717,8 +1273,21 @@ export class CollaborationRepository {
         return {
             agentUserId: agent.userId,
             chatId,
+            image: {
+                id: agent.imageId,
+                dockerImageId: agent.dockerImageId,
+                dockerTag: agent.dockerTag,
+            },
             privateUserId: human.userId,
-            ...(bound ? { binding: { cwd: bound.cwd, sessionId: bound.sessionId } } : {}),
+            ...(bound
+                ? {
+                      binding: {
+                          containerName: bound.containerName,
+                          cwd: bound.cwd,
+                          sessionId: bound.sessionId,
+                      },
+                  }
+                : {}),
         };
     }
 
@@ -726,26 +1295,54 @@ export class CollaborationRepository {
         actorUserId: string;
         agentUserId: string;
         chatId: string;
+        containerName: string;
         cwd: string;
+        imageId: string;
         sessionId: string;
-    }): Promise<{ cwd: string; sessionId: string }> {
+    }): Promise<{ containerName: string; cwd: string; sessionId: string }> {
         return this.writeDb(async (tx) => {
             const access = await this.chatAccessDb(tx, input.actorUserId, input.chatId, true);
             if (!access || access.kind !== "dm" || access.dmType !== "direct")
+                throw new CollaborationError("not_found", "Agent direct message was not found");
+            const [agent] = await tx
+                .select({ id: users.id })
+                .from(users)
+                .innerJoin(
+                    chatMembers,
+                    and(
+                        eq(chatMembers.userId, users.id),
+                        eq(chatMembers.chatId, input.chatId),
+                        isNull(chatMembers.leftAt),
+                    ),
+                )
+                .where(
+                    and(
+                        eq(users.id, input.agentUserId),
+                        eq(users.kind, "agent"),
+                        eq(users.agentImageId, input.imageId),
+                        isNull(users.deletedAt),
+                    ),
+                )
+                .limit(1);
+            if (!agent)
                 throw new CollaborationError("not_found", "Agent direct message was not found");
             await tx
                 .insert(agentRigBindings)
                 .values({
                     userId: input.agentUserId,
                     chatId: input.chatId,
+                    imageId: input.imageId,
                     sessionId: input.sessionId,
+                    containerName: input.containerName,
                     cwd: input.cwd,
                 })
                 .onConflictDoNothing();
             const [binding] = await tx
                 .select({
                     agentUserId: agentRigBindings.userId,
+                    containerName: agentRigBindings.containerName,
                     cwd: agentRigBindings.cwd,
+                    imageId: agentRigBindings.imageId,
                     sessionId: agentRigBindings.sessionId,
                 })
                 .from(agentRigBindings)
@@ -757,7 +1354,13 @@ export class CollaborationRepository {
                 )
                 .limit(1);
             if (!binding) throw new Error("Agent chat binding was not created");
-            return { cwd: binding.cwd, sessionId: binding.sessionId };
+            if (binding.imageId !== input.imageId)
+                throw new Error("Agent chat binding uses a different image");
+            return {
+                containerName: binding.containerName,
+                cwd: binding.cwd,
+                sessionId: binding.sessionId,
+            };
         });
     }
 
@@ -3815,6 +4418,7 @@ export class CollaborationRepository {
             else if (kind.startsWith("user.")) areas.add("users");
             else if (kind.startsWith("emoji.")) areas.add("emoji");
             else if (kind.startsWith("server.")) areas.add("server");
+            else if (kind.startsWith("agentImage.")) areas.add("agent-images");
             else if (!chatId) areas.add("directories");
         }
         const changedChats: ChatSummary[] = [];
@@ -6610,7 +7214,43 @@ function asUser(row: Record<string, unknown>): UserSummary {
         photoFileId: optionalText(row.photo_file_id),
         role: text(row.role) as "member" | "admin",
         kind: text(row.user_kind, "human") as "human" | "agent",
+        agentImageId: optionalText(row.agent_image_id),
         createdByUserId: optionalText(row.created_by_user_id),
+    };
+}
+
+function asAgentImage(row: Record<string, unknown>): AgentImageSummary {
+    const builtinKey = optionalText(row.builtin_key);
+    return {
+        id: text(row.id),
+        name: text(row.name),
+        definitionHash: text(row.definition_hash),
+        dockerTag: text(row.docker_tag),
+        ...(builtinKey === "daycare-full" || builtinKey === "daycare-minimal"
+            ? { builtinKey }
+            : {}),
+        status: text(row.status) as AgentImageSummary["status"],
+        buildAttempt: number(row.build_attempt),
+        buildProgress: number(row.build_progress),
+        lastBuildLogLine: optionalText(row.last_build_log_line),
+        buildLogUpdatedAt: optionalText(row.build_log_updated_at),
+        dockerImageId: optionalText(row.docker_image_id),
+        lastError: optionalText(row.last_error),
+        buildRequestedAt: optionalText(row.build_requested_at),
+        buildStartedAt: optionalText(row.build_started_at),
+        readyAt: optionalText(row.ready_at),
+        createdByUserId: optionalText(row.created_by_user_id),
+        createdAt: text(row.created_at),
+        updatedAt: text(row.updated_at),
+    };
+}
+
+function asAgentImageDetails(row: Record<string, unknown>): AgentImageDetails {
+    return {
+        ...asAgentImage(row),
+        dockerfile: text(row.dockerfile),
+        buildLog: text(row.build_log, ""),
+        buildLogTruncated: number(row.build_log_truncated) === 1,
     };
 }
 
@@ -6682,10 +7322,14 @@ function number(value: unknown, fallback?: number): number {
     throw new Error("Expected database integer value");
 }
 
-function isUniqueConstraint(error: unknown): boolean {
+function isUniqueConstraint(error: unknown, seen = new Set<unknown>()): boolean {
+    if (!error || typeof error !== "object" || seen.has(error)) return false;
+    seen.add(error);
+    const candidate = error as { cause?: unknown; code?: unknown; message?: unknown };
     return (
-        String((error as { code?: unknown }).code ?? "").includes("CONSTRAINT") ||
-        String((error as { message?: unknown }).message ?? "").includes("UNIQUE constraint")
+        String(candidate.code ?? "").includes("CONSTRAINT") ||
+        String(candidate.message ?? "").includes("UNIQUE constraint") ||
+        isUniqueConstraint(candidate.cause, seen)
     );
 }
 

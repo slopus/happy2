@@ -167,6 +167,44 @@ export const botIdentities = sqliteTable("bot_identities", {
     deletedAt: text("deleted_at"),
 });
 
+export const agentImages = sqliteTable("agent_images", {
+    id: text("id").primaryKey().notNull(),
+    name: text("name").notNull(),
+    dockerfile: text("dockerfile").notNull(),
+    definitionHash: text("definition_hash").notNull(),
+    dockerTag: text("docker_tag").notNull(),
+    buildContext: text("build_context"),
+    builtinKey: text("builtin_key"),
+    status: text("status").notNull().default("pending"),
+    buildAttempt: integer("build_attempt").notNull().default(0),
+    buildProgress: integer("build_progress").notNull().default(0),
+    buildLog: text("build_log").notNull().default(""),
+    buildLogTruncated: integer("build_log_truncated").notNull().default(0),
+    lastBuildLogLine: text("last_build_log_line"),
+    buildLogUpdatedAt: text("build_log_updated_at"),
+    dockerImageId: text("docker_image_id"),
+    lastError: text("last_error"),
+    buildRequestedAt: text("build_requested_at"),
+    buildStartedAt: text("build_started_at"),
+    readyAt: text("ready_at"),
+    workerId: text("worker_id"),
+    leaseExpiresAt: text("lease_expires_at"),
+    createdByUserId: text("created_by_user_id"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const agentImageSettings = sqliteTable("agent_image_settings", {
+    id: integer("id").primaryKey().notNull(),
+    defaultImageId: text("default_image_id").references(() => agentImages.id, {
+        onDelete: "restrict",
+    }),
+    updatedByUserId: text("updated_by_user_id").references(() => users.id, {
+        onDelete: "set null",
+    }),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
 export const agentRigBindings = sqliteTable(
     "agent_rig_bindings",
     {
@@ -176,7 +214,11 @@ export const agentRigBindings = sqliteTable(
         chatId: text("chat_id")
             .notNull()
             .references(() => chats.id, { onDelete: "cascade" }),
+        imageId: text("image_id")
+            .notNull()
+            .references(() => agentImages.id, { onDelete: "restrict" }),
         sessionId: text("session_id").notNull(),
+        containerName: text("container_name").notNull(),
         cwd: text("cwd").notNull(),
         createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
         updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
@@ -973,6 +1015,7 @@ export const users = sqliteTable("users", {
     id: text("id").primaryKey().notNull(),
     accountId: text("account_id"),
     kind: text("kind").notNull().default("human"),
+    agentImageId: text("agent_image_id"),
     createdByUserId: text("created_by_user_id"),
     firstName: text("first_name").notNull(),
     lastName: text("last_name"),
@@ -1021,6 +1064,8 @@ export const webhookSubscriptions = sqliteTable("webhook_subscriptions", {
 export const schema = {
     accountBans,
     accounts,
+    agentImages,
+    agentImageSettings,
     agentTurns,
     agentRigBindings,
     apiCredentials,

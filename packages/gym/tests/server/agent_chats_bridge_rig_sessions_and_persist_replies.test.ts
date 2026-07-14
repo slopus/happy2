@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMockRigDaemon, type MockRigDaemon } from "gym/rig";
+import { createMockRigDaemon, MockAgentDockerRuntime, type MockRigDaemon } from "gym/rig";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
 
 describe("AI agent chats", () => {
@@ -12,6 +12,7 @@ describe("AI agent chats", () => {
             firstName: "Other",
         });
         const asOwner = server.as(owner);
+        await configureAgentImage(asOwner);
 
         const created = await asOwner.post("/v0/chats/createAgent", {
             name: "Fixer",
@@ -47,7 +48,7 @@ describe("AI agent chats", () => {
             }),
         );
         expect(rig.createdCwds).toEqual([
-            `${rig.workspaceRoot}/agents/${agentUserId}/users/${owner.id}`,
+            `${rig.workspaceRoot}/agents/${agentUserId}/users/${owner.id}/workspace`,
         ]);
         const chatId = created.json().chat.id as string;
         expect((await server.as(outsider).get(`/v0/chats/${chatId}`)).statusCode).toBe(404);
@@ -57,7 +58,7 @@ describe("AI agent chats", () => {
         });
         expect(duplicate.statusCode).toBe(409);
         expect(rig.createdCwds).toEqual([
-            `${rig.workspaceRoot}/agents/${agentUserId}/users/${owner.id}`,
+            `${rig.workspaceRoot}/agents/${agentUserId}/users/${owner.id}/workspace`,
         ]);
 
         const payload = { text: "Fix the failing tests", clientMutationId: "agent-turn-one" };
@@ -145,6 +146,7 @@ describe("AI agent chats", () => {
             username: "sandbox_teammate",
             firstName: "Teammate",
         });
+        await configureAgentImage(server.as(owner));
         const created = await server.as(owner).post("/v0/chats/createAgent", {
             name: "Sandboxer",
             username: "sandboxer",
@@ -152,7 +154,7 @@ describe("AI agent chats", () => {
         expect(created.statusCode).toBe(201);
         const agentUserId = await findAgentUserId(server.as(owner), "sandboxer");
         expect(rig.createdCwds).toEqual([
-            `${rig.workspaceRoot}/agents/${agentUserId}/users/${owner.id}`,
+            `${rig.workspaceRoot}/agents/${agentUserId}/users/${owner.id}/workspace`,
         ]);
 
         const direct = await server.as(teammate).post("/v0/chats/createDirectMessage", {
@@ -170,7 +172,7 @@ describe("AI agent chats", () => {
         ).toBe(201);
         await waitForMessages(server.as(teammate), directChatId, 2);
         expect(rig.createdCwds).toContain(
-            `${rig.workspaceRoot}/agents/${agentUserId}/users/${teammate.id}`,
+            `${rig.workspaceRoot}/agents/${agentUserId}/users/${teammate.id}/workspace`,
         );
 
         const secondCreated = await server.as(owner).post("/v0/chats/createAgent", {
@@ -417,6 +419,7 @@ describe("AI agent chats", () => {
 
 function agentServer(rig: MockRigDaemon) {
     return createGymServer({
+        agentDocker: new MockAgentDockerRuntime(),
         configure(config) {
             config.agents.enabled = true;
             config.agents.socketPath = rig.socketPath;
@@ -427,9 +430,30 @@ function agentServer(rig: MockRigDaemon) {
 }
 
 async function createAgent(client: GymRequestClient, username = "fixer"): Promise<string> {
+    await configureAgentImage(client);
     const response = await client.post("/v0/chats/createAgent", { name: "Fixer", username });
     expect(response.statusCode).toBe(201);
     return response.json().chat.id as string;
+}
+
+async function configureAgentImage(client: GymRequestClient): Promise<void> {
+    let catalog = (await client.get("/v0/admin/agentImages")).json() as {
+        defaultImageId?: string;
+        images: Array<{ builtinKey?: string; id: string; status: string }>;
+    };
+    if (catalog.defaultImageId) return;
+    const image = catalog.images.find(({ builtinKey }) => builtinKey === "daycare-minimal");
+    if (!image) throw new Error("Daycare Minimal image was not seeded");
+    if (image.status !== "ready" && image.status !== "building") {
+        const requested = await client.post(`/v0/admin/agentImages/${image.id}/buildImage`, {});
+        expect(requested.statusCode).toBe(202);
+    }
+    await waitFor(async () => {
+        catalog = (await client.get("/v0/admin/agentImages")).json() as typeof catalog;
+        return catalog.images.find(({ id }) => id === image.id)?.status === "ready";
+    }, "the default agent image to build");
+    const selected = await client.post(`/v0/admin/agentImages/${image.id}/setDefaultImage`, {});
+    expect(selected.statusCode).toBe(200);
 }
 
 async function findAgentUserId(client: GymRequestClient, username: string): Promise<string> {

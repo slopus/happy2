@@ -92,6 +92,37 @@ export interface BotSummary {
     readonly updatedAt: string;
 }
 
+export type AgentImageStatus = "pending" | "building" | "ready" | "failed";
+
+export interface AgentImageSummary {
+    readonly id: string;
+    readonly name: string;
+    readonly definitionHash: string;
+    readonly dockerTag: string;
+    readonly builtinKey?: "daycare-full" | "daycare-minimal";
+    readonly status: AgentImageStatus;
+    readonly buildAttempt: number;
+    /** Best-effort build completion percentage (0–100). */
+    readonly buildProgress: number;
+    readonly lastBuildLogLine?: string;
+    readonly buildLogUpdatedAt?: string;
+    readonly dockerImageId?: string;
+    readonly lastError?: string;
+    readonly buildRequestedAt?: string;
+    readonly buildStartedAt?: string;
+    readonly readyAt?: string;
+    readonly createdByUserId?: string;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+/** A single image with its full Dockerfile and captured build log. */
+export interface AgentImageDetails extends AgentImageSummary {
+    readonly dockerfile: string;
+    readonly buildLog: string;
+    readonly buildLogTruncated: boolean;
+}
+
 export interface IntegrationSummary {
     readonly id: string;
     readonly kind: IntegrationKind;

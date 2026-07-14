@@ -49,6 +49,57 @@ describe("durable synchronization", () => {
         expect(server.requests.filter(({ path }) => path === "/v0/presence")).toHaveLength(2);
     });
 
+    it("refetches agent images when a durable difference names the agent-images area", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/sync/state",
+            jsonResponse(200, {
+                state: { protocolVersion: 1, generation: "g", sequence: "0" },
+                serverTime: "now",
+            }),
+        );
+        server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+        server.respond(
+            "GET",
+            "/v0/admin/agentImages",
+            jsonResponse(200, {
+                images: [{ id: "image-1", name: "Base", status: "pending" }],
+            }),
+            jsonResponse(200, {
+                images: [{ id: "image-1", name: "Base", status: "ready" }],
+                defaultImageId: "image-1",
+            }),
+        );
+        server.respond(
+            "POST",
+            "/v0/sync/getDifference",
+            jsonResponse(200, {
+                kind: "difference",
+                changedChats: [],
+                removedChatIds: [],
+                areas: ["agent-images"],
+                state: { protocolVersion: 1, generation: "g", sequence: "1" },
+                targetState: { protocolVersion: 1, generation: "g", sequence: "1" },
+            }),
+        );
+        const state = createClientState(server.transport);
+        await state.start();
+        await state.execute("getAgentImages");
+
+        server.events.sync({ sequence: "1", areas: ["agent-images"] });
+        await state.whenIdle();
+
+        expect(state.result("getAgentImages")).toEqual({
+            images: [{ id: "image-1", name: "Base", status: "ready" }],
+            defaultImageId: "image-1",
+        });
+        expect(server.requests.filter(({ path }) => path === "/v0/admin/agentImages")).toHaveLength(
+            2,
+        );
+        state.stop();
+    });
+
     it("uses realtime as a hint and reconciles changed loaded chats through differences", async () => {
         const server = createFakeServer();
         server.respond(
