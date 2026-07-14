@@ -10,4 +10,30 @@ export function createDatabase(client: Client): DrizzleDatabase {
     return drizzle(client, { schema });
 }
 
+const SQLITE_BUSY_RETRY_DELAYS_MS = [5, 10, 20, 40, 80, 160, 250, 400] as const;
+
+/** Retries a complete, rollback-safe SQLite operation without blocking the event loop. */
+export async function retrySqliteBusy<T>(operation: () => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt += 1) {
+        try {
+            return await operation();
+        } catch (error) {
+            const delay = SQLITE_BUSY_RETRY_DELAYS_MS[attempt];
+            if (delay === undefined || !isSqliteBusy(error)) throw error;
+            await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+    }
+}
+
+function isSqliteBusy(error: unknown, seen = new Set<unknown>()): boolean {
+    if (!error || typeof error !== "object" || seen.has(error)) return false;
+    seen.add(error);
+    const candidate = error as { cause?: unknown; code?: unknown; message?: unknown };
+    return (
+        candidate.code === "SQLITE_BUSY" ||
+        (typeof candidate.message === "string" && candidate.message.includes("SQLITE_BUSY")) ||
+        isSqliteBusy(candidate.cause, seen)
+    );
+}
+
 export { schema };

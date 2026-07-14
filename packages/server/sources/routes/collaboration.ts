@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AuthService } from "../modules/auth/service.js";
+import type { AgentService } from "../modules/agents/index.js";
 import type { CollaborationRepository } from "../modules/collaboration/repository.js";
 import { CollaborationError, type MutationHint } from "../modules/collaboration/types.js";
 import {
@@ -31,6 +32,7 @@ export function registerCollaborationRoutes(
     auth: AuthService,
     repository: CollaborationRepository,
     pubsub: PubSub,
+    agents?: AgentService,
 ): void {
     app.get(
         "/v0/chats",
@@ -167,6 +169,24 @@ export function registerCollaborationRoutes(
                 chat: result.chat,
                 sync: result.hint,
             });
+        }),
+    );
+    app.post(
+        "/v0/chats/createAgent",
+        authenticated(auth, async (request, reply, userId) => {
+            if (!agents)
+                return reply.code(503).send({
+                    error: "agents_unavailable",
+                    message: "AI agents are not enabled on this Rigged server.",
+                });
+            const body = requestBody(request, ["name", "username"]);
+            const result = await agents.createAgent({
+                actorUserId: userId,
+                name: trimmedString(body, "name", 100),
+                username: agentUsername(body),
+            });
+            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
+            return reply.code(201).send({ chat: result.chat, sync: result.hint });
         }),
     );
     app.post(
@@ -463,6 +483,13 @@ export function registerCollaborationRoutes(
     app.post(
         "/v0/chats/:chatId/sendMessage",
         authenticated(auth, async (request, reply, userId) => {
+            const chatId = pathId(request, "chatId");
+            const agentContext = await repository.getDirectAgentChatContext(userId, chatId);
+            if (agentContext && !agents)
+                return reply.code(503).send({
+                    error: "agents_unavailable",
+                    message: "AI agents are not enabled on this Rigged server.",
+                });
             const body = requestBody(request, [
                 "text",
                 "attachmentFileIds",
@@ -479,6 +506,10 @@ export function registerCollaborationRoutes(
                 MAX_ATTACHMENTS,
             );
             const text = messageText(body, attachmentFileIds?.length ?? 0);
+            const agentTurn =
+                agentContext && text
+                    ? await agents!.prepareTurn({ actorUserId: userId, chatId })
+                    : undefined;
             const selfDestructSeconds = optionalPositiveIntegerField(
                 body,
                 "selfDestructSeconds",
@@ -486,7 +517,7 @@ export function registerCollaborationRoutes(
             );
             const result = await repository.sendMessage({
                 actorUserId: userId,
-                chatId: pathId(request, "chatId"),
+                chatId,
                 text,
                 attachmentFileIds,
                 quotedMessageId: optionalIdField(body, "quotedMessageId"),
@@ -503,7 +534,9 @@ export function registerCollaborationRoutes(
                     "all_readers",
                 ] as const),
                 clientMutationId: optionalTokenField(body, "clientMutationId"),
+                agentTurn,
             });
+            if (agentTurn) agents!.startTurn(chatId);
             await publishHints(request, pubsub, [result.hint]);
             return reply.code(201).send({ message: result.message, sync: result.hint });
         }),
@@ -1260,6 +1293,13 @@ function requestBody(request: FastifyRequest, allowed: readonly string[]): Recor
     const body = record(request.body, "Request body");
     onlyKeys(body, allowed, "request body");
     return body;
+}
+
+function agentUsername(body: Record<string, unknown>): string {
+    const username = trimmedString(body, "username", 32).toLowerCase();
+    if (!/^[a-z0-9][a-z0-9_.-]{1,31}$/u.test(username))
+        throw new InvalidRequest("username must contain 2-32 safe characters");
+    return username;
 }
 
 function emptyBody(request: FastifyRequest): void {

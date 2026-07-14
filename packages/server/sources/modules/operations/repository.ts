@@ -3,7 +3,12 @@ import { createId } from "@paralleldrive/cuid2";
 import { and, asc, desc, eq, gt, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import type { RequestMetadata } from "../database.js";
-import { createDatabase, type DrizzleExecutor, type DrizzleTransaction } from "../drizzle.js";
+import {
+    createDatabase,
+    retrySqliteBusy,
+    type DrizzleExecutor,
+    type DrizzleTransaction,
+} from "../drizzle.js";
 import {
     accountBans,
     accounts,
@@ -337,9 +342,22 @@ export class OperationsRepository {
 
     /** Clears elapsed bans durably. Safe for concurrent timers on multiple server instances. */
     async expireDueBans(input?: { actorUserId?: string; context?: AuditContext }): Promise<number> {
+        const now = new Date().toISOString();
+        const dueCondition = and(
+            sql`${accounts.bannedAt} IS NOT NULL`,
+            sql`${accounts.banExpiresAt} IS NOT NULL`,
+            lte(accounts.banExpiresAt, now),
+        );
+        if (!input?.actorUserId) {
+            const [candidate] = await this.db
+                .select({ id: accounts.id })
+                .from(accounts)
+                .where(dueCondition)
+                .limit(1);
+            if (!candidate) return 0;
+        }
         return this.writeDb(async (tx) => {
             if (input?.actorUserId) await this.requireAdminDb(tx, input.actorUserId);
-            const now = new Date().toISOString();
             const due = await tx
                 .select({
                     accountId: accounts.id,
@@ -351,13 +369,7 @@ export class OperationsRepository {
                 })
                 .from(accounts)
                 .leftJoin(users, eq(users.accountId, accounts.id))
-                .where(
-                    and(
-                        sql`${accounts.bannedAt} IS NOT NULL`,
-                        sql`${accounts.banExpiresAt} IS NOT NULL`,
-                        lte(accounts.banExpiresAt, now),
-                    ),
-                );
+                .where(dueCondition);
             for (const row of due) {
                 await tx
                     .update(accountBans)
@@ -982,17 +994,20 @@ export class OperationsRepository {
     async claimPendingDataExports(limit = 5, leaseMs = 5 * 60_000): Promise<ClaimedDataExport[]> {
         const claimedAt = new Date().toISOString();
         const staleBefore = new Date(Date.now() - leaseMs).toISOString();
+        const claimable = or(
+            eq(dataExportJobs.status, "pending"),
+            and(
+                eq(dataExportJobs.status, "running"),
+                or(isNull(dataExportJobs.startedAt), lte(dataExportJobs.startedAt, staleBefore)),
+            ),
+        );
+        const [candidate] = await this.db
+            .select({ id: dataExportJobs.id })
+            .from(dataExportJobs)
+            .where(claimable)
+            .limit(1);
+        if (!candidate) return [];
         return this.writeDb(async (tx) => {
-            const claimable = or(
-                eq(dataExportJobs.status, "pending"),
-                and(
-                    eq(dataExportJobs.status, "running"),
-                    or(
-                        isNull(dataExportJobs.startedAt),
-                        lte(dataExportJobs.startedAt, staleBefore),
-                    ),
-                ),
-            );
             const candidates = await tx
                 .select({ id: dataExportJobs.id })
                 .from(dataExportJobs)
@@ -1901,6 +1916,7 @@ export class OperationsRepository {
                     })
                     .where(eq(chats.id, chatId));
         }
+        if (!target.accountId) throw new Error("User account is missing");
         const accountId = target.accountId;
         await tx
             .update(authSessions)
@@ -2355,7 +2371,7 @@ export class OperationsRepository {
     }
 
     private writeDb<T>(operation: (tx: DrizzleTransaction) => Promise<T>): Promise<T> {
-        return this.db.transaction(operation);
+        return retrySqliteBusy(() => this.db.transaction(operation));
     }
 }
 

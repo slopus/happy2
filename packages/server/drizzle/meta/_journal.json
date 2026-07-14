@@ -36,6 +36,20 @@
             "when": 1783877025268,
             "tag": "0004_collaboration_expansion",
             "breakpoints": true
+        },
+        {
+            "idx": 5,
+            "version": "6",
+            "when": 1783900000000,
+            "tag": "0005_ai_agents",
+            "breakpoints": true
+        },
+        {
+            "idx": 6,
+            "version": "6",
+            "when": 1784000000000,
+            "tag": "0006_rig_global_event_queue",
+            "breakpoints": true
         }
     ]
 }

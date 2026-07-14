@@ -18,6 +18,13 @@ export interface ServerConfig {
         trustedProxyHops: number;
     };
     database: { url: string; authTokenEnv?: string };
+    agents: {
+        enabled: boolean;
+        socketPath: string;
+        tokenPath: string;
+        command: string;
+        defaultCwd: string;
+    };
     files: {
         provider: "local";
         directory: string;

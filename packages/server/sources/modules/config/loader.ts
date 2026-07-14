@@ -1,4 +1,6 @@
 import { readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { parse } from "smol-toml";
 import type { OidcProviderConfig, ServerConfig, ServerRole } from "./type.js";
 
@@ -40,6 +42,7 @@ function strings(value: unknown, path: string, fallback: string[] = []): string[
 }
 
 export function parseConfig(input: string): ServerConfig {
+    const rigDirectory = join(tmpdir(), `rig-${process.getuid?.() ?? 0}`);
     const root = table(parse(input), "config");
     const server = table(root.server, "server");
     const role = string(server.role, "server.role") as ServerRole;
@@ -51,6 +54,7 @@ export function parseConfig(input: string): ServerConfig {
     if (trustedProxyHops < 0) throw new Error("server.trusted_proxy_hops cannot be negative");
 
     const database = table(root.database, "database");
+    const agents = table(root.agents ?? {}, "agents");
     const files = table(root.files ?? {}, "files");
     const fileProvider = string(files.provider, "files.provider", true) ?? "local";
     if (fileProvider !== "local")
@@ -198,6 +202,20 @@ export function parseConfig(input: string): ServerConfig {
         database: {
             url: string(database.url, "database.url")!,
             authTokenEnv: string(database.auth_token_env, "database.auth_token_env", true),
+        },
+        agents: {
+            enabled: boolean(agents.enabled, "agents.enabled", true),
+            socketPath:
+                string(agents.socket_path, "agents.socket_path", true) ??
+                process.env.RIG_SERVER_SOCKET_PATH ??
+                join(rigDirectory, "server.sock"),
+            tokenPath:
+                string(agents.token_path, "agents.token_path", true) ??
+                process.env.RIG_SERVER_TOKEN_PATH ??
+                join(rigDirectory, "token"),
+            command:
+                string(agents.command, "agents.command", true) ?? process.env.RIG_COMMAND ?? "rig",
+            defaultCwd: string(agents.default_cwd, "agents.default_cwd", true) ?? process.cwd(),
         },
         files: {
             provider: fileProvider,

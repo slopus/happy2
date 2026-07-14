@@ -179,6 +179,7 @@ function session(state: ReturnType<typeof createClientState>): AuthSession {
             lastName: "Lovelace",
             username: "ada",
             email: "ada@example.com",
+            kind: "human",
         },
         updateUser: () => undefined,
     };

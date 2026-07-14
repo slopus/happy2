@@ -6,6 +6,7 @@
     "exports": {
         ".": "./sources/index.ts",
         "./playwright": "./sources/playwright/index.ts",
+        "./rig": "./sources/rig/index.ts",
         "./state": "./sources/state/index.ts"
     },
     "scripts": {

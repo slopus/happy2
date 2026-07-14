@@ -20,9 +20,84 @@ const currentUser: User = {
     lastName: "Lovelace",
     username: "ada",
     email: "ada@example.com",
+    kind: "human",
 };
 
 describe("live views use rigged-state", () => {
+    it("creates an agent user and hides unread while its chat is open", async () => {
+        const server = baseServer([]);
+        const agent = {
+            id: "agent-1",
+            firstName: "Fixer",
+            username: "fixer",
+            role: "member" as const,
+            kind: "agent" as const,
+            createdByUserId: currentUser.id,
+        };
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, { users: [userSummary(), agent], presence: [], statuses: [] }),
+        );
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            /\/v0\/chats\/[^/]+\/members/,
+            jsonResponse(200, { users: [userSummary(), agent], memberships: [] }),
+        );
+        server.respond(
+            "GET",
+            (path) => path.includes("/messages?limit=100"),
+            jsonResponse(200, { messages: [], chatPts: "0", hasMore: false }),
+        );
+        server.respond(
+            "POST",
+            "/v0/chats/createAgent",
+            jsonResponse(201, {
+                chat: chat({
+                    id: "agent-chat",
+                    kind: "dm",
+                    name: undefined,
+                    dmType: "direct",
+                    membershipRole: "owner",
+                    unreadCount: 2,
+                }),
+            }),
+        );
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        const start = await view.findByRole("button", { name: "Start an agent" });
+        fireEvent.click(start);
+        fireEvent.input(await view.findByPlaceholderText("e.g. Fixer"), {
+            target: { value: "Fixer" },
+        });
+        fireEvent.click(view.getByRole("button", { name: "Create agent" }));
+        await waitFor(() =>
+            expect(view.container.querySelector('[data-kind="agent"]')?.textContent).toContain(
+                "Fixer",
+            ),
+        );
+        expect(
+            server.requests.some(
+                ({ method, path }) => method === "POST" && path === "/v0/chats/createAgent",
+            ),
+        ).toBe(true);
+        expect(view.queryByText("2")?.closest('[data-rigged-ui="count-badge"]')).toBeFalsy();
+        expect(server.requests.find(({ path }) => path === "/v0/chats/createAgent")?.body).toEqual({
+            name: "Fixer",
+            username: "fixer",
+        });
+    });
+
     it("creates, joins, and leaves channels through state actions", async () => {
         const server = baseServer([chat({ id: "joined", name: "Joined", slug: "joined" })]);
         const discoverable = chat({
@@ -382,6 +457,15 @@ describe("live views use rigged-state", () => {
         ));
 
         await waitFor(() => expect(view.getByText("Follow-up note")).toBeTruthy());
+        await waitFor(() =>
+            expect(
+                server.requests.some(
+                    ({ path, body }) =>
+                        path === "/v0/chats/joined/markRead" &&
+                        (body as { messageId?: string }).messageId === "follow-up",
+                ),
+            ).toBe(true),
+        );
         const messages = view.container.querySelectorAll('[data-rigged-ui="message"]');
         expect(messages).toHaveLength(2);
         expect(messages[1]?.hasAttribute("data-grouped")).toBe(true);
@@ -510,6 +594,12 @@ function baseServer(chats: readonly ChatSummary[]) {
         }),
     );
     server.respond("GET", "/v0/chats", jsonResponse(200, { chats }));
+    for (const chat of chats)
+        server.respond(
+            "POST",
+            `/v0/chats/${chat.id}/markRead`,
+            jsonResponse(200, { chat: { ...chat, unreadCount: 0 } }),
+        );
     return server;
 }
 
@@ -549,7 +639,7 @@ function chat(overrides: Partial<ChatSummary> = {}): ChatSummary {
 }
 
 function userSummary(): UserSummary & ClientUser {
-    return { ...currentUser, role: "admin" };
+    return { ...currentUser, role: "admin", kind: "human" };
 }
 
 function sentMessage(text: string, overrides: Partial<MessageSummary> = {}): MessageSummary {

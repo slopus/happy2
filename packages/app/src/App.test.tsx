@@ -169,6 +169,21 @@ describe("App", () => {
         expect(getByText("Profile requires a workspace")).toBeTruthy();
     });
 
+    it("opens a create menu from the rail for agents and channels", () => {
+        const { container, getByRole } = render(() => <App />);
+
+        const create = getByRole("button", { name: "Create" });
+        fireEvent.click(create);
+
+        expect(getByRole("menuitem", { name: "New agent" })).toBeTruthy();
+        fireEvent.click(getByRole("menuitem", { name: "New channel" }));
+
+        expect(container.querySelector('[data-rigged-ui="rail-primary-popover"]')).toBeNull();
+        expect(container.querySelector('[data-rigged-ui="modal"]')?.textContent).toContain(
+            "Create channel",
+        );
+    });
+
     it("does not substitute mock results when workspace search is disconnected", () => {
         const { container, getByText } = render(() => <App />);
 

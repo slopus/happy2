@@ -1,4 +1,6 @@
 import type { ServerConfig } from "./type.js";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 /**
  * Safe local-development defaults used only when neither --config nor
@@ -6,6 +8,7 @@ import type { ServerConfig } from "./type.js";
  * directory by initializeManagedEnvironment.
  */
 export function defaultConfig(): ServerConfig {
+    const rigDirectory = join(tmpdir(), `rig-${process.getuid?.() ?? 0}`);
     return {
         server: {
             role: "all",
@@ -15,6 +18,13 @@ export function defaultConfig(): ServerConfig {
             trustedProxyHops: 0,
         },
         database: { url: "file:rigged.db" },
+        agents: {
+            enabled: true,
+            socketPath: process.env.RIG_SERVER_SOCKET_PATH ?? join(rigDirectory, "server.sock"),
+            tokenPath: process.env.RIG_SERVER_TOKEN_PATH ?? join(rigDirectory, "token"),
+            command: process.env.RIG_COMMAND ?? "rig",
+            defaultCwd: process.cwd(),
+        },
         files: {
             provider: "local",
             directory: "files",

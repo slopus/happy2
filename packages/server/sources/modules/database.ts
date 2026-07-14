@@ -55,6 +55,8 @@ export interface User {
     photoFileId?: string;
     title?: string;
     role: "member" | "admin";
+    kind: "human" | "agent";
+    createdByUserId?: string;
     lastAccessAt?: string;
 }
 export interface Account {
@@ -104,6 +106,9 @@ export class Database {
     }
 
     async migrate(): Promise<void> {
+        // Local SQLite serves realtime readers while request and background workers persist
+        // durable state. WAL lets those readers continue without blocking writer commits.
+        if (this.client.protocol === "file") await this.client.execute("PRAGMA journal_mode = WAL");
         await migrate(this.db, {
             migrationsFolder: join(dirname(fileURLToPath(import.meta.url)), "../../drizzle"),
         });
@@ -843,6 +848,8 @@ function asUser(row: UserRow): User {
         photoFileId: row.photoFileId ?? undefined,
         title: row.title ?? undefined,
         role: row.role as User["role"],
+        kind: row.kind as User["kind"],
+        createdByUserId: row.createdByUserId ?? undefined,
         lastAccessAt: row.lastAccessAt ?? undefined,
     };
 }

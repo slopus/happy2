@@ -34,6 +34,10 @@ trusted_proxy_hops = 0
 [database]
 url = ${tomlString(`file:${join(runtimeDirectory, "rigged.db")}`)}
 
+[agents]
+enabled = true
+default_cwd = ${tomlString(join(runtimeDirectory, "workspaces"))}
+
 [files]
 directory = ${tomlString(join(runtimeDirectory, "files"))}
 signed_url_expiry_seconds = 300

@@ -106,6 +106,7 @@ async function anchoredCenter(
 it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, async () => {
     const onFooterSelect = vi.fn();
     const onItemSelect = vi.fn();
+    const onPrimarySelect = vi.fn();
     const view = createRenderer();
 
     /* Each surface pairs the contract fixture with a duplicate used for the
@@ -124,6 +125,14 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
                     items={items}
                     onFooterSelect={onFooterSelect}
                     onItemSelect={onItemSelect}
+                    primaryAction={{
+                        label: "Create",
+                        menuItems: [
+                            { id: "agent", icon: "spark", kind: "item", label: "New agent" },
+                            { id: "channel", icon: "hash", kind: "item", label: "New channel" },
+                        ],
+                        onMenuSelect: onPrimarySelect,
+                    }}
                 />
                 <div style={{ "padding-left": "0px", height: "100%" }}>
                     <Rail
@@ -467,6 +476,10 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     expect(avatarBounds.x).toBe(20);
     expect(76 - avatarBounds.x - avatarBounds.width).toBe(20);
     expect(420 - avatarBounds.y - avatarBounds.height).toBe(20);
+    const primary = view.$('[data-testid="rail-main"] [data-rigged-ui="rail-primary"]');
+    expect(primary.bounds()).toEqual({ x: 20, y: 314, width: 36, height: 36 });
+    expect(primary.bounds().width).toBe(footerAvatar.bounds().width);
+    expect(primary.element.getAttribute("aria-haspopup")).toBe("menu");
     const footerVisible = await footerAvatar.visibleMetrics();
     expect(footerVisible.pixelCount).toBeGreaterThan(0);
     expect(
@@ -476,6 +489,28 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
 
     (footerAction.element as HTMLButtonElement).click();
     expect(onFooterSelect).toHaveBeenCalledTimes(1);
+
+    (primary.element as HTMLButtonElement).click();
+    expect(primary.element.getAttribute("aria-expanded")).toBe("true");
+    const createAgent = view.$(
+        '[data-testid="rail-main"] [data-rigged-ui="rail-primary-popover"] [data-item-id="agent"]',
+    );
+    (createAgent.element as HTMLButtonElement).click();
+    expect(onPrimarySelect).toHaveBeenCalledWith("agent");
+    expect(primary.element.getAttribute("aria-expanded")).toBe("false");
+    (primary.element as HTMLButtonElement).click();
+    const reopenedCreateAgent = view.$(
+        '[data-testid="rail-main"] [data-rigged-ui="rail-primary-popover"] [data-item-id="agent"]',
+    );
+    (reopenedCreateAgent.element as HTMLButtonElement).focus();
+    reopenedCreateAgent.element.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+    );
+    expect(primary.element.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(primary.element);
+    (primary.element as HTMLButtonElement).click();
+    (chat.element as HTMLButtonElement).focus();
+    expect(primary.element.getAttribute("aria-expanded")).toBe("false");
 
     /* ---- Selection callback -------------------------------------------------- */
 

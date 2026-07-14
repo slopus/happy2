@@ -17,10 +17,17 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { FileKind } from "../database.js";
-import { createDatabase, type DrizzleExecutor, type DrizzleTransaction } from "../drizzle.js";
+import {
+    createDatabase,
+    retrySqliteBusy,
+    type DrizzleExecutor,
+    type DrizzleTransaction,
+} from "../drizzle.js";
 import {
     accountBans,
     accounts,
+    agentRigBindings,
+    agentTurns,
     auditLogEntries,
     authSessions,
     botIdentities,
@@ -49,6 +56,7 @@ import {
     moderationActions,
     notifications,
     reactions,
+    rigEventSyncState,
     serverSettings,
     serverSyncState,
     syncCompactions,
@@ -84,6 +92,20 @@ import {
 } from "./types.js";
 
 type ChatAccess = ChatSummary & { isServerAdmin: boolean };
+
+export interface RigEventCheckpoint {
+    cursor?: number;
+    eventsSinceTrim: number;
+    lastTrimmedAt: string;
+    trimmedThrough?: number;
+}
+
+export interface AgentChatContext {
+    agentUserId: string;
+    chatId: string;
+    privateUserId: string;
+    binding?: { cwd: string; sessionId: string };
+}
 
 interface ChatMutation {
     sequence: number;
@@ -132,6 +154,8 @@ const userSelection = {
     title: users.title,
     photo_file_id: users.photoFileId,
     role: users.role,
+    user_kind: users.kind,
+    created_by_user_id: users.createdByUserId,
 };
 
 const fileSelection = {
@@ -146,6 +170,19 @@ const fileSelection = {
     thumbhash: files.thumbhash,
     uploaded_by_user_id: files.uploadedByUserId,
     created_at: files.createdAt,
+};
+
+const agentTurnWorkSelection = {
+    agentUserId: agentTurns.agentUserId,
+    actorUserId: messages.senderUserId,
+    baselineMessageCount: agentTurns.baselineMessageCount,
+    chatId: agentTurns.chatId,
+    runId: agentTurns.runId,
+    sessionId: agentTurns.sessionId,
+    leaseExpiresAt: agentTurns.leaseExpiresAt,
+    workerId: agentTurns.workerId,
+    text: messages.text,
+    userMessageId: agentTurns.userMessageId,
 };
 
 export class CollaborationRepository {
@@ -165,6 +202,7 @@ export class CollaborationRepository {
             .insert(serverSyncState)
             .values({ id: 1, generation: createId(), sequence: 0 })
             .onConflictDoNothing();
+        await this.db.insert(rigEventSyncState).values({ id: 1 }).onConflictDoNothing();
     }
 
     close(): void {
@@ -442,15 +480,21 @@ export class CollaborationRepository {
             .select(userSelection)
             .from(chatMembers)
             .innerJoin(users, eq(users.id, chatMembers.userId))
-            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .leftJoin(accounts, eq(accounts.id, users.accountId))
             .where(
                 and(
                     eq(chatMembers.chatId, chatId),
                     isNull(chatMembers.leftAt),
                     isNull(users.deletedAt),
-                    eq(accounts.active, 1),
-                    isNull(accounts.bannedAt),
-                    isNull(accounts.deletedAt),
+                    or(
+                        eq(users.kind, "agent"),
+                        and(
+                            eq(users.kind, "human"),
+                            eq(accounts.active, 1),
+                            isNull(accounts.bannedAt),
+                            isNull(accounts.deletedAt),
+                        ),
+                    ),
                 ),
             )
             .orderBy(sql`lower(${users.firstName})`, sql`lower(${users.lastName})`, users.id);
@@ -470,15 +514,21 @@ export class CollaborationRepository {
             })
             .from(chatMembers)
             .innerJoin(users, eq(users.id, chatMembers.userId))
-            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .leftJoin(accounts, eq(accounts.id, users.accountId))
             .where(
                 and(
                     eq(chatMembers.chatId, chatId),
                     isNull(chatMembers.leftAt),
                     isNull(users.deletedAt),
-                    eq(accounts.active, 1),
-                    isNull(accounts.bannedAt),
-                    isNull(accounts.deletedAt),
+                    or(
+                        eq(users.kind, "agent"),
+                        and(
+                            eq(users.kind, "human"),
+                            eq(accounts.active, 1),
+                            isNull(accounts.bannedAt),
+                            isNull(accounts.deletedAt),
+                        ),
+                    ),
                 ),
             )
             .orderBy(chatMembers.joinedAt, chatMembers.userId);
@@ -540,6 +590,541 @@ export class CollaborationRepository {
         });
     }
 
+    async createAgent(input: {
+        agentUserId: string;
+        actorUserId: string;
+        name: string;
+        username: string;
+        sessionId: string;
+        cwd: string;
+    }): Promise<{ chat: ChatSummary; hint: MutationHint }> {
+        return this.writeDb(async (tx) => {
+            await this.requireActiveUserDb(tx, input.actorUserId);
+            const [existing] = await tx
+                .select({ id: users.id })
+                .from(users)
+                .where(sql`lower(${users.username}) = lower(${input.username})`)
+                .limit(1);
+            if (existing)
+                throw new CollaborationError("conflict", "Agent username is already taken");
+            const chatId = createId();
+            const agentUserId = input.agentUserId;
+            const sequence = await this.nextSequence(tx);
+            await tx.insert(users).values({
+                id: agentUserId,
+                accountId: null,
+                createdByUserId: input.actorUserId,
+                firstName: input.name,
+                username: input.username,
+                kind: "agent",
+            });
+            await tx.insert(chats).values({
+                id: chatId,
+                kind: "dm",
+                dmType: "direct",
+                createdByUserId: input.actorUserId,
+                ownerUserId: input.actorUserId,
+                dmKey: [input.actorUserId, agentUserId].sort().join(":"),
+                visibility: "direct",
+                isListed: 0,
+                pts: 1,
+                lastChangeSequence: sequence,
+            });
+            await tx.insert(agentRigBindings).values({
+                userId: agentUserId,
+                chatId,
+                sessionId: input.sessionId,
+                cwd: input.cwd,
+            });
+            await tx.insert(chatMembers).values(
+                [input.actorUserId, agentUserId].map((userId) => ({
+                    chatId,
+                    userId,
+                    role: userId === input.actorUserId ? ("owner" as const) : ("member" as const),
+                    membershipEpoch: createId(),
+                    syncSequence: sequence,
+                })),
+            );
+            await this.insertChatUpdate(tx, {
+                sequence,
+                pts: 1,
+                chatId,
+                kind: "chat.created",
+                entityId: chatId,
+                actorUserId: input.actorUserId,
+            });
+            const chat = await this.chatAccessDb(tx, input.actorUserId, chatId, false);
+            if (!chat) throw new Error("Created agent DM is not readable");
+            return { chat, hint: chatHint(sequence, chatId, 1) };
+        });
+    }
+
+    async agentUsernameAvailable(username: string): Promise<boolean> {
+        const [existing] = await this.db
+            .select({ id: users.id })
+            .from(users)
+            .where(sql`lower(${users.username}) = lower(${username})`)
+            .limit(1);
+        return !existing;
+    }
+
+    async getDirectAgentChatContext(
+        userId: string,
+        chatId: string,
+    ): Promise<AgentChatContext | undefined> {
+        const access = await this.chatAccessDb(this.db, userId, chatId, true);
+        if (!access || access.kind !== "dm" || access.dmType !== "direct") return undefined;
+        const [agent, human] = await Promise.all([
+            this.db
+                .select({ userId: users.id })
+                .from(chatMembers)
+                .innerJoin(users, eq(users.id, chatMembers.userId))
+                .where(
+                    and(
+                        eq(chatMembers.chatId, chatId),
+                        isNull(chatMembers.leftAt),
+                        isNull(users.deletedAt),
+                        eq(users.kind, "agent"),
+                    ),
+                )
+                .orderBy(users.id)
+                .limit(1)
+                .then((rows) => rows[0]),
+            this.db
+                .select({ userId: users.id })
+                .from(chatMembers)
+                .innerJoin(users, eq(users.id, chatMembers.userId))
+                .where(
+                    and(
+                        eq(chatMembers.chatId, chatId),
+                        isNull(chatMembers.leftAt),
+                        isNull(users.deletedAt),
+                        eq(users.kind, "human"),
+                    ),
+                )
+                .orderBy(users.id)
+                .limit(1)
+                .then((rows) => rows[0]),
+        ]);
+        if (!agent || !human) return undefined;
+        const [bound] = await this.db
+            .select({ cwd: agentRigBindings.cwd, sessionId: agentRigBindings.sessionId })
+            .from(agentRigBindings)
+            .where(
+                and(eq(agentRigBindings.userId, agent.userId), eq(agentRigBindings.chatId, chatId)),
+            )
+            .limit(1);
+        return {
+            agentUserId: agent.userId,
+            chatId,
+            privateUserId: human.userId,
+            ...(bound ? { binding: { cwd: bound.cwd, sessionId: bound.sessionId } } : {}),
+        };
+    }
+
+    async bindAgentChat(input: {
+        actorUserId: string;
+        agentUserId: string;
+        chatId: string;
+        cwd: string;
+        sessionId: string;
+    }): Promise<{ cwd: string; sessionId: string }> {
+        return this.writeDb(async (tx) => {
+            const access = await this.chatAccessDb(tx, input.actorUserId, input.chatId, true);
+            if (!access || access.kind !== "dm" || access.dmType !== "direct")
+                throw new CollaborationError("not_found", "Agent direct message was not found");
+            await tx
+                .insert(agentRigBindings)
+                .values({
+                    userId: input.agentUserId,
+                    chatId: input.chatId,
+                    sessionId: input.sessionId,
+                    cwd: input.cwd,
+                })
+                .onConflictDoNothing();
+            const [binding] = await tx
+                .select({
+                    agentUserId: agentRigBindings.userId,
+                    cwd: agentRigBindings.cwd,
+                    sessionId: agentRigBindings.sessionId,
+                })
+                .from(agentRigBindings)
+                .where(
+                    and(
+                        eq(agentRigBindings.userId, input.agentUserId),
+                        eq(agentRigBindings.chatId, input.chatId),
+                    ),
+                )
+                .limit(1);
+            if (!binding) throw new Error("Agent chat binding was not created");
+            return { cwd: binding.cwd, sessionId: binding.sessionId };
+        });
+    }
+
+    async listUnfinishedAgentChatIds(): Promise<string[]> {
+        const rows = await this.db
+            .selectDistinct({ chatId: agentTurns.chatId })
+            .from(agentTurns)
+            .where(inArray(agentTurns.status, ["pending", "running"]));
+        return rows.map((row) => row.chatId);
+    }
+
+    async hasUnfinishedAgentTurn(chatId: string): Promise<boolean> {
+        const [row] = await this.db
+            .select({ id: agentTurns.userMessageId })
+            .from(agentTurns)
+            .where(
+                and(
+                    eq(agentTurns.chatId, chatId),
+                    inArray(agentTurns.status, ["pending", "running"]),
+                ),
+            )
+            .limit(1);
+        return Boolean(row);
+    }
+
+    async hasRunnableAgentTurn(chatId: string): Promise<boolean> {
+        const [running] = await this.db
+            .select({ leaseExpiresAt: agentTurns.leaseExpiresAt })
+            .from(agentTurns)
+            .where(and(eq(agentTurns.chatId, chatId), eq(agentTurns.status, "running")))
+            .limit(1);
+        if (running && running.leaseExpiresAt && Date.parse(running.leaseExpiresAt) > Date.now())
+            return false;
+        const [pending] = await this.db
+            .select({ id: agentTurns.userMessageId })
+            .from(agentTurns)
+            .where(and(eq(agentTurns.chatId, chatId), eq(agentTurns.status, "pending")))
+            .limit(1);
+        return Boolean(running || pending);
+    }
+
+    async takeNextAgentTurn(
+        chatId: string,
+        workerId: string,
+    ): Promise<
+        | {
+              agentUserId: string;
+              actorUserId: string;
+              baselineMessageCount?: number;
+              chatId: string;
+              leaseExpiresAt?: string;
+              runId?: string;
+              sessionId: string;
+              text: string;
+              userMessageId: string;
+              workerId: string;
+          }
+        | undefined
+    > {
+        return this.writeDb(async (tx) => {
+            const leaseExpiresAt = new Date(Date.now() + 45_000).toISOString();
+            const [active] = await tx
+                .select(agentTurnWorkSelection)
+                .from(agentTurns)
+                .innerJoin(messages, eq(messages.id, agentTurns.userMessageId))
+                .where(and(eq(agentTurns.chatId, chatId), eq(agentTurns.status, "running")))
+                .limit(1);
+            if (active?.actorUserId) {
+                if (
+                    active.workerId !== workerId &&
+                    active.leaseExpiresAt &&
+                    Date.parse(active.leaseExpiresAt) > Date.now()
+                )
+                    return undefined;
+                const claimed = await tx
+                    .update(agentTurns)
+                    .set({ workerId, leaseExpiresAt, updatedAt: sql`CURRENT_TIMESTAMP` })
+                    .where(
+                        and(
+                            eq(agentTurns.userMessageId, active.userMessageId),
+                            eq(agentTurns.agentUserId, active.agentUserId),
+                            eq(agentTurns.status, "running"),
+                        ),
+                    )
+                    .returning({ id: agentTurns.userMessageId });
+                return claimed.length === 1
+                    ? agentTurnWork({ ...active, workerId, leaseExpiresAt })
+                    : undefined;
+            }
+            const [next] = await tx
+                .select(agentTurnWorkSelection)
+                .from(agentTurns)
+                .innerJoin(messages, eq(messages.id, agentTurns.userMessageId))
+                .where(and(eq(agentTurns.chatId, chatId), eq(agentTurns.status, "pending")))
+                .orderBy(agentTurns.createdAt, agentTurns.userMessageId)
+                .limit(1);
+            if (!next?.actorUserId) return undefined;
+            const claimed = await tx
+                .update(agentTurns)
+                .set({
+                    status: "running",
+                    workerId,
+                    leaseExpiresAt,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                    lastError: null,
+                })
+                .where(
+                    and(
+                        eq(agentTurns.userMessageId, next.userMessageId),
+                        eq(agentTurns.agentUserId, next.agentUserId),
+                        eq(agentTurns.status, "pending"),
+                    ),
+                )
+                .returning({ id: agentTurns.userMessageId });
+            return claimed.length === 1
+                ? agentTurnWork({ ...next, workerId, leaseExpiresAt })
+                : undefined;
+        });
+    }
+
+    async renewAgentTurnLease(input: {
+        agentUserId: string;
+        userMessageId: string;
+        workerId: string;
+    }): Promise<boolean> {
+        const changed = await retrySqliteBusy(() =>
+            this.db
+                .update(agentTurns)
+                .set({
+                    leaseExpiresAt: new Date(Date.now() + 45_000).toISOString(),
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(agentTurns.userMessageId, input.userMessageId),
+                        eq(agentTurns.agentUserId, input.agentUserId),
+                        eq(agentTurns.workerId, input.workerId),
+                        eq(agentTurns.status, "running"),
+                    ),
+                )
+                .returning({ id: agentTurns.userMessageId }),
+        );
+        return changed.length === 1;
+    }
+
+    async releaseAgentTurnLeases(workerId: string): Promise<void> {
+        await retrySqliteBusy(() =>
+            this.db
+                .update(agentTurns)
+                .set({ workerId: null, leaseExpiresAt: null, updatedAt: sql`CURRENT_TIMESTAMP` })
+                .where(and(eq(agentTurns.workerId, workerId), eq(agentTurns.status, "running"))),
+        );
+    }
+
+    async checkpointAgentTurn(input: {
+        agentUserId: string;
+        baselineMessageCount: number;
+        runId?: string;
+        userMessageId: string;
+        workerId: string;
+    }): Promise<void> {
+        await retrySqliteBusy(() =>
+            this.db
+                .update(agentTurns)
+                .set({
+                    baselineMessageCount: input.baselineMessageCount,
+                    runId: input.runId ?? null,
+                    leaseExpiresAt: new Date(Date.now() + 45_000).toISOString(),
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                    lastError: null,
+                })
+                .where(
+                    and(
+                        eq(agentTurns.userMessageId, input.userMessageId),
+                        eq(agentTurns.agentUserId, input.agentUserId),
+                        eq(agentTurns.workerId, input.workerId),
+                        eq(agentTurns.status, "running"),
+                    ),
+                ),
+        );
+    }
+
+    async attachAgentRun(input: { runId: string; sessionId: string; text: string }): Promise<void> {
+        const [turn] = await this.db
+            .select({ userMessageId: agentTurns.userMessageId })
+            .from(agentTurns)
+            .innerJoin(messages, eq(messages.id, agentTurns.userMessageId))
+            .where(
+                and(
+                    eq(agentTurns.sessionId, input.sessionId),
+                    eq(agentTurns.status, "running"),
+                    isNull(agentTurns.runId),
+                    eq(messages.text, input.text),
+                ),
+            )
+            .orderBy(agentTurns.createdAt, agentTurns.userMessageId)
+            .limit(1);
+        if (!turn) return;
+        await retrySqliteBusy(() =>
+            this.db
+                .update(agentTurns)
+                .set({ runId: input.runId, updatedAt: sql`CURRENT_TIMESTAMP`, lastError: null })
+                .where(
+                    and(
+                        eq(agentTurns.userMessageId, turn.userMessageId),
+                        eq(agentTurns.status, "running"),
+                        isNull(agentTurns.runId),
+                    ),
+                ),
+        );
+    }
+
+    async getRunningAgentTurn(sessionId: string, runId: string) {
+        const [turn] = await this.db
+            .select(agentTurnWorkSelection)
+            .from(agentTurns)
+            .innerJoin(messages, eq(messages.id, agentTurns.userMessageId))
+            .where(
+                and(
+                    eq(agentTurns.sessionId, sessionId),
+                    eq(agentTurns.runId, runId),
+                    eq(agentTurns.status, "running"),
+                ),
+            )
+            .limit(1);
+        return turn?.actorUserId ? agentTurnWork(turn) : undefined;
+    }
+
+    async getRigEventCheckpoint(): Promise<RigEventCheckpoint> {
+        await this.db.insert(rigEventSyncState).values({ id: 1 }).onConflictDoNothing();
+        const [state] = await this.db
+            .select()
+            .from(rigEventSyncState)
+            .where(eq(rigEventSyncState.id, 1))
+            .limit(1);
+        if (!state) throw new Error("Rig event checkpoint is missing");
+        return asRigEventCheckpoint(state);
+    }
+
+    async checkpointRigEvent(cursor: number, eventCount = 1): Promise<RigEventCheckpoint> {
+        if (!Number.isSafeInteger(eventCount) || eventCount < 1)
+            throw new Error("Rig event checkpoint count must be a positive integer");
+        const [updated] = await retrySqliteBusy(() =>
+            this.db
+                .update(rigEventSyncState)
+                .set({
+                    cursor,
+                    eventsSinceTrim: sql`${rigEventSyncState.eventsSinceTrim} + ${eventCount}`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(rigEventSyncState.id, 1),
+                        or(isNull(rigEventSyncState.cursor), lt(rigEventSyncState.cursor, cursor)),
+                    ),
+                )
+                .returning(),
+        );
+        return updated ? asRigEventCheckpoint(updated) : this.getRigEventCheckpoint();
+    }
+
+    async markRigEventsTrimmed(through: number): Promise<RigEventCheckpoint> {
+        const [updated] = await this.db
+            .update(rigEventSyncState)
+            .set({
+                trimmedThrough: through,
+                eventsSinceTrim: 0,
+                lastTrimmedAt: sql`CURRENT_TIMESTAMP`,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(and(eq(rigEventSyncState.id, 1), sql`${rigEventSyncState.cursor} >= ${through}`))
+            .returning();
+        return updated ? asRigEventCheckpoint(updated) : this.getRigEventCheckpoint();
+    }
+
+    async completeAgentTurn(input: {
+        agentUserId: string;
+        actorUserId: string;
+        sessionId: string;
+        userMessageId: string;
+        text: string;
+    }): Promise<{ message: MessageSummary; hint: MutationHint }> {
+        const [turn] = await this.db
+            .select({ chatId: agentTurns.chatId })
+            .from(agentTurns)
+            .where(
+                and(
+                    eq(agentTurns.userMessageId, input.userMessageId),
+                    eq(agentTurns.agentUserId, input.agentUserId),
+                ),
+            )
+            .limit(1);
+        if (!turn) throw new Error("Agent turn is missing");
+        const result = await this.sendMessage({
+            actorUserId: input.actorUserId,
+            chatId: turn.chatId,
+            text: input.text,
+            clientMutationId: `rig:${input.sessionId}:${input.userMessageId}`,
+            kind: "automated",
+            agentSessionId: input.sessionId,
+        });
+        await this.db
+            .update(agentTurns)
+            .set({
+                assistantMessageId: result.message.id,
+                status: "complete",
+                workerId: null,
+                leaseExpiresAt: null,
+                completedAt: sql`CURRENT_TIMESTAMP`,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+                lastError: null,
+            })
+            .where(
+                and(
+                    eq(agentTurns.userMessageId, input.userMessageId),
+                    eq(agentTurns.agentUserId, input.agentUserId),
+                ),
+            );
+        return result;
+    }
+
+    async failAgentTurn(input: {
+        agentUserId: string;
+        actorUserId: string;
+        error: string;
+        sessionId: string;
+        userMessageId: string;
+    }): Promise<{ message: MessageSummary; hint: MutationHint }> {
+        const [turn] = await this.db
+            .select({ chatId: agentTurns.chatId })
+            .from(agentTurns)
+            .where(
+                and(
+                    eq(agentTurns.userMessageId, input.userMessageId),
+                    eq(agentTurns.agentUserId, input.agentUserId),
+                ),
+            )
+            .limit(1);
+        if (!turn) throw new Error("Agent turn is missing");
+        const result = await this.sendMessage({
+            actorUserId: input.actorUserId,
+            chatId: turn.chatId,
+            text: "I couldn't complete this request.",
+            clientMutationId: `rig-error:${input.sessionId}:${input.userMessageId}:${input.agentUserId}`,
+            kind: "automated",
+            agentSessionId: input.sessionId,
+        });
+        await this.db
+            .update(agentTurns)
+            .set({
+                assistantMessageId: result.message.id,
+                status: "failed",
+                lastError: input.error,
+                workerId: null,
+                leaseExpiresAt: null,
+                completedAt: sql`CURRENT_TIMESTAMP`,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(
+                and(
+                    eq(agentTurns.userMessageId, input.userMessageId),
+                    eq(agentTurns.agentUserId, input.agentUserId),
+                ),
+            );
+        return result;
+    }
+
     async createDirectMessage(
         actorUserId: string,
         otherUserId: string,
@@ -548,7 +1133,7 @@ export class CollaborationRepository {
             throw new CollaborationError("invalid", "A direct message requires another user");
         return this.writeDb(async (tx) => {
             await this.requireActiveUserDb(tx, actorUserId);
-            await this.requireActiveUserDb(tx, otherUserId);
+            await this.requireActiveIdentityDb(tx, otherUserId);
             const dmKey = [actorUserId, otherUserId].sort().join(":");
             const [existing] = await tx
                 .select({ id: chats.id })
@@ -609,7 +1194,10 @@ export class CollaborationRepository {
                 "A group direct message requires between 3 and 50 distinct members",
             );
         return this.writeDb(async (tx) => {
-            for (const userId of memberUserIds) await this.requireActiveUserDb(tx, userId);
+            await this.requireActiveUserDb(tx, input.actorUserId);
+            for (const userId of memberUserIds) {
+                await this.requireActiveIdentityDb(tx, userId);
+            }
             const dmKey = `group:${memberUserIds.join(":")}`;
             const [existing] = await tx
                 .select({ id: chats.id })
@@ -1049,7 +1637,7 @@ export class CollaborationRepository {
             const access = await this.chatAccessDb(tx, actorUserId, chatId, true);
             if (!access) throw new CollaborationError("not_found", "Chat was not found");
             if (access.kind === "dm")
-                throw new CollaborationError("invalid", "Direct-message membership is fixed");
+                throw new CollaborationError("invalid", "This chat's membership is fixed");
             if (access.membershipRole === "owner") {
                 const [otherOwner] = await tx
                     .select({ userId: chatMembers.userId })
@@ -1114,7 +1702,11 @@ export class CollaborationRepository {
                 access.membershipRole !== "owner"
             )
                 throw new CollaborationError("forbidden", "Only an owner can assign ownership");
-            await this.requireActiveUserDb(tx, input.userId);
+            const identityKind = await this.requireActiveIdentityDb(tx, input.userId);
+            if (identityKind === "agent") {
+                if (input.role && input.role !== "member")
+                    throw new CollaborationError("invalid", "Agents cannot have channel roles");
+            }
             const [existing] = await tx
                 .select({ leftAt: chatMembers.leftAt })
                 .from(chatMembers)
@@ -1254,6 +1846,14 @@ export class CollaborationRepository {
                         eq(chatMembers.chatId, input.chatId),
                         eq(chatMembers.userId, input.userId),
                         isNull(chatMembers.leftAt),
+                    ),
+                );
+            await tx
+                .delete(agentRigBindings)
+                .where(
+                    and(
+                        eq(agentRigBindings.chatId, input.chatId),
+                        eq(agentRigBindings.userId, input.userId),
                     ),
                 );
             return { hint: chatHint(sequence, input.chatId, mutation.pts) };
@@ -2252,10 +2852,12 @@ export class CollaborationRepository {
         kind?: "user" | "automated";
         senderBotId?: string;
         forwardedFromMessageId?: string;
+        agentSessionId?: string;
+        agentTurn?: { agentUserId: string; sessionId: string };
     }): Promise<{ message: MessageSummary; hint: MutationHint }> {
         const scope = `message.send:${input.chatId}`;
         return this.writeDb(async (tx) => {
-            if (input.kind === "automated") {
+            if (input.kind === "automated" && !input.agentSessionId) {
                 await this.requireServerAdminDb(tx, input.actorUserId);
                 if (
                     input.senderBotId &&
@@ -2300,10 +2902,68 @@ export class CollaborationRepository {
                 }
             }
             const access =
-                input.kind === "automated"
+                input.kind === "automated" && !input.agentSessionId
                     ? await this.requireChatManagerDb(tx, input.actorUserId, input.chatId)
                     : await this.chatAccessDb(tx, input.actorUserId, input.chatId, true);
             if (!access) throw new CollaborationError("not_found", "Chat was not found");
+            if (input.agentTurn) {
+                if (
+                    input.kind === "automated" ||
+                    input.threadRootMessageId ||
+                    access.kind !== "dm" ||
+                    access.dmType !== "direct"
+                )
+                    throw new CollaborationError(
+                        "invalid",
+                        "Agent turns are only supported for top-level direct messages",
+                    );
+                const [binding] = await tx
+                    .select({ userId: agentRigBindings.userId })
+                    .from(agentRigBindings)
+                    .innerJoin(
+                        chatMembers,
+                        and(
+                            eq(chatMembers.chatId, agentRigBindings.chatId),
+                            eq(chatMembers.userId, agentRigBindings.userId),
+                        ),
+                    )
+                    .innerJoin(users, eq(users.id, agentRigBindings.userId))
+                    .where(
+                        and(
+                            eq(agentRigBindings.chatId, input.chatId),
+                            eq(agentRigBindings.userId, input.agentTurn.agentUserId),
+                            eq(agentRigBindings.sessionId, input.agentTurn.sessionId),
+                            isNull(chatMembers.leftAt),
+                            isNull(users.deletedAt),
+                            eq(users.kind, "agent"),
+                        ),
+                    )
+                    .limit(1);
+                if (!binding)
+                    throw new CollaborationError(
+                        "conflict",
+                        "Agent direct message is not ready for inference",
+                    );
+            }
+            let senderUserId = input.kind === "automated" ? undefined : input.actorUserId;
+            if (input.agentSessionId) {
+                const [agent] = await tx
+                    .select({ userId: agentRigBindings.userId })
+                    .from(agentRigBindings)
+                    .where(
+                        and(
+                            eq(agentRigBindings.chatId, input.chatId),
+                            eq(agentRigBindings.sessionId, input.agentSessionId),
+                        ),
+                    )
+                    .limit(1);
+                if (!agent)
+                    throw new CollaborationError(
+                        "forbidden",
+                        "Agent session does not own this chat",
+                    );
+                senderUserId = agent.userId;
+            }
             if (access.archivedAt)
                 throw new CollaborationError("forbidden", "Archived chats are read-only");
             if (await this.isPostingRestrictedDb(tx, input.actorUserId, input.chatId))
@@ -2388,7 +3048,7 @@ export class CollaborationRepository {
                 chatId: input.chatId,
                 sequence: mutation.messageSequence,
                 changePts: mutation.pts,
-                senderUserId: input.kind === "automated" ? null : input.actorUserId,
+                senderUserId,
                 kind: input.kind ?? "user",
                 text: input.text,
                 quotedMessageId: input.quotedMessageId,
@@ -2401,6 +3061,13 @@ export class CollaborationRepository {
                 senderBotId: input.senderBotId,
                 publishedAt: sql`CURRENT_TIMESTAMP`,
             });
+            if (input.agentTurn)
+                await tx.insert(agentTurns).values({
+                    userMessageId: id,
+                    agentUserId: input.agentTurn.agentUserId,
+                    chatId: input.chatId,
+                    sessionId: input.agentTurn.sessionId,
+                });
             const mentions = await this.replaceMessageMentionsDb(tx, id, input.text);
             await this.indexMessageForSearchDb(tx, id, input.chatId, input.text, 1);
             if (fileIds.length)
@@ -2466,6 +3133,7 @@ export class CollaborationRepository {
                 mentionedUserIds: mentions.userIds,
                 mentionAll: mentions.notifyAll,
                 syncSequence: sequence,
+                senderUserId,
             });
             if (input.clientMutationId)
                 await this.storeClientMutationDb(
@@ -3281,40 +3949,9 @@ export class CollaborationRepository {
     }
 
     async expireDueMessages(limit = 100): Promise<MutationHint | undefined> {
+        if ((await dueMessages(this.db, 1)).length === 0) return undefined;
         return this.writeDb(async (tx) => {
-            const due = await tx
-                .select({
-                    id: messages.id,
-                    chatId: messages.chatId,
-                    threadRootMessageId: messages.threadRootMessageId,
-                })
-                .from(messages)
-                .innerJoin(chats, eq(chats.id, messages.chatId))
-                .innerJoin(serverSettings, eq(serverSettings.id, 1))
-                .where(
-                    and(
-                        isNull(messages.deletedAt),
-                        or(
-                            and(
-                                sql`${messages.expiresAt} IS NOT NULL`,
-                                sql`datetime(${messages.expiresAt}) <= CURRENT_TIMESTAMP`,
-                            ),
-                            and(
-                                eq(chats.retentionMode, "duration"),
-                                sql`${chats.retentionSeconds} IS NOT NULL`,
-                                sql`datetime(${messages.createdAt}, '+' || ${chats.retentionSeconds} || ' seconds') <= CURRENT_TIMESTAMP`,
-                            ),
-                            and(
-                                eq(chats.retentionMode, "inherit"),
-                                eq(serverSettings.defaultRetentionMode, "duration"),
-                                sql`${serverSettings.defaultRetentionSeconds} IS NOT NULL`,
-                                sql`datetime(${messages.createdAt}, '+' || ${serverSettings.defaultRetentionSeconds} || ' seconds') <= CURRENT_TIMESTAMP`,
-                            ),
-                        ),
-                    ),
-                )
-                .orderBy(sql`coalesce(${messages.expiresAt}, ${messages.createdAt})`, messages.id)
-                .limit(limit);
+            const due = await dueMessages(tx, limit);
             if (due.length === 0) return undefined;
             const sequence = await this.nextSequence(tx);
             const changedChats = new Map<string, number>();
@@ -3374,13 +4011,19 @@ export class CollaborationRepository {
         const result = await this.db
             .select(userSelection)
             .from(users)
-            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .leftJoin(accounts, eq(accounts.id, users.accountId))
             .where(
                 and(
                     isNull(users.deletedAt),
-                    eq(accounts.active, 1),
-                    isNull(accounts.bannedAt),
-                    isNull(accounts.deletedAt),
+                    or(
+                        eq(users.kind, "agent"),
+                        and(
+                            eq(users.kind, "human"),
+                            eq(accounts.active, 1),
+                            isNull(accounts.bannedAt),
+                            isNull(accounts.deletedAt),
+                        ),
+                    ),
                 ),
             )
             .orderBy(sql`lower(${users.firstName})`, sql`lower(${users.lastName})`, users.id);
@@ -4442,7 +5085,9 @@ export class CollaborationRepository {
                 .from(users)
                 .innerJoin(accounts, eq(accounts.id, users.accountId))
                 .where(eq(users.id, input.userId));
-            if (!target) throw new CollaborationError("not_found", "User was not found");
+            if (!target?.accountId)
+                throw new CollaborationError("not_found", "User account was not found");
+            const accountId = target.accountId;
             if ((target.bannedAt !== null) === input.banned)
                 throw new CollaborationError(
                     "conflict",
@@ -4456,11 +5101,11 @@ export class CollaborationRepository {
                     banReason: input.banned ? "Administrative action" : null,
                     bannedByUserId: input.banned ? input.actorUserId : null,
                 })
-                .where(eq(accounts.id, target.accountId));
+                .where(eq(accounts.id, accountId));
             if (input.banned) {
                 await tx.insert(accountBans).values({
                     id: createId(),
-                    accountId: target.accountId,
+                    accountId,
                     bannedByUserId: input.actorUserId,
                     reason: "Administrative action",
                 });
@@ -4468,10 +5113,7 @@ export class CollaborationRepository {
                     .update(authSessions)
                     .set({ revokedAt: sql`CURRENT_TIMESTAMP` })
                     .where(
-                        and(
-                            eq(authSessions.accountId, target.accountId),
-                            isNull(authSessions.revokedAt),
-                        ),
+                        and(eq(authSessions.accountId, accountId), isNull(authSessions.revokedAt)),
                     );
             } else {
                 await tx
@@ -4482,10 +5124,7 @@ export class CollaborationRepository {
                         revokeReason: sql`coalesce(${accountBans.revokeReason}, 'Administrative action')`,
                     })
                     .where(
-                        and(
-                            eq(accountBans.accountId, target.accountId),
-                            isNull(accountBans.revokedAt),
-                        ),
+                        and(eq(accountBans.accountId, accountId), isNull(accountBans.revokedAt)),
                     );
             }
             await tx
@@ -4627,7 +5266,9 @@ export class CollaborationRepository {
                 .select({ accountId: users.accountId })
                 .from(users)
                 .where(eq(users.id, input.userId));
-            if (!target) throw new CollaborationError("not_found", "User was not found");
+            if (!target?.accountId)
+                throw new CollaborationError("not_found", "User account was not found");
+            const accountId = target.accountId;
             await tx
                 .update(accounts)
                 .set({
@@ -4636,16 +5277,11 @@ export class CollaborationRepository {
                     passwordHash: null,
                     email: sql`'deleted+' || ${accounts.id} || '@invalid.local'`,
                 })
-                .where(eq(accounts.id, target.accountId));
+                .where(eq(accounts.id, accountId));
             await tx
                 .update(authSessions)
                 .set({ revokedAt: sql`CURRENT_TIMESTAMP` })
-                .where(
-                    and(
-                        eq(authSessions.accountId, target.accountId),
-                        isNull(authSessions.revokedAt),
-                    ),
-                );
+                .where(and(eq(authSessions.accountId, accountId), isNull(authSessions.revokedAt)));
             await tx
                 .update(users)
                 .set({
@@ -4828,6 +5464,34 @@ export class CollaborationRepository {
             )
             .limit(1);
         if (!row) throw new CollaborationError("not_found", "User was not found");
+    }
+
+    private async requireActiveIdentityDb(
+        executor: DrizzleExecutor,
+        userId: string,
+    ): Promise<"human" | "agent"> {
+        const [row] = await executor
+            .select({ kind: users.kind })
+            .from(users)
+            .leftJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(users.id, userId),
+                    isNull(users.deletedAt),
+                    or(
+                        eq(users.kind, "agent"),
+                        and(
+                            eq(users.kind, "human"),
+                            isNull(accounts.deletedAt),
+                            isNull(accounts.bannedAt),
+                            eq(accounts.active, 1),
+                        ),
+                    ),
+                ),
+            )
+            .limit(1);
+        if (!row) throw new CollaborationError("not_found", "User was not found");
+        return row.kind as "human" | "agent";
     }
 
     private async isPostingRestrictedDb(
@@ -5255,6 +5919,7 @@ export class CollaborationRepository {
                 sender_title: sender.title,
                 sender_photo_file_id: sender.photoFileId,
                 sender_role: sender.role,
+                sender_kind: sender.kind,
                 sender_bot_id: bot.id,
                 sender_bot_name: bot.name,
                 sender_bot_username: bot.username,
@@ -5350,6 +6015,7 @@ export class CollaborationRepository {
                   title: row.sender_title,
                   photo_file_id: row.sender_photo_file_id,
                   role: row.sender_role,
+                  user_kind: row.sender_kind,
               })
             : undefined;
         const forwardedFromChatId = row.forwarded_from_chat_id ?? undefined;
@@ -5448,14 +6114,20 @@ export class CollaborationRepository {
             const [user] = await tx
                 .select({ id: users.id })
                 .from(users)
-                .innerJoin(accounts, eq(accounts.id, users.accountId))
+                .leftJoin(accounts, eq(accounts.id, users.accountId))
                 .where(
                     and(
                         sql`lower(${users.username}) = lower(${candidate})`,
                         isNull(users.deletedAt),
-                        eq(accounts.active, 1),
-                        isNull(accounts.bannedAt),
-                        isNull(accounts.deletedAt),
+                        or(
+                            eq(users.kind, "agent"),
+                            and(
+                                eq(users.kind, "human"),
+                                eq(accounts.active, 1),
+                                isNull(accounts.bannedAt),
+                                isNull(accounts.deletedAt),
+                            ),
+                        ),
                     ),
                 )
                 .limit(1);
@@ -5521,6 +6193,7 @@ export class CollaborationRepository {
             mentionedUserIds: string[];
             mentionAll?: boolean;
             syncSequence: number;
+            senderUserId?: string;
         },
     ): Promise<void> {
         const mentioned = new Set(input.mentionedUserIds);
@@ -5535,6 +6208,7 @@ export class CollaborationRepository {
                 threadReplies: sql<string>`coalesce(${userNotificationPreferences.threadReplies}, 'all')`,
             })
             .from(chatMembers)
+            .innerJoin(users, eq(users.id, chatMembers.userId))
             .leftJoin(
                 userChatPreferences,
                 and(
@@ -5550,7 +6224,8 @@ export class CollaborationRepository {
                 and(
                     eq(chatMembers.chatId, input.chat.id),
                     isNull(chatMembers.leftAt),
-                    ne(chatMembers.userId, input.actorUserId),
+                    eq(users.kind, "human"),
+                    ne(chatMembers.userId, input.senderUserId ?? input.actorUserId),
                 ),
             );
         let rootSenderUserId: string | undefined;
@@ -5799,8 +6474,44 @@ export class CollaborationRepository {
     }
 
     private writeDb<T>(operation: (tx: DrizzleTransaction) => Promise<T>): Promise<T> {
-        return this.db.transaction(operation);
+        return retrySqliteBusy(() => this.db.transaction(operation));
     }
+}
+
+function dueMessages(executor: DrizzleExecutor, limit: number) {
+    return executor
+        .select({
+            id: messages.id,
+            chatId: messages.chatId,
+            threadRootMessageId: messages.threadRootMessageId,
+        })
+        .from(messages)
+        .innerJoin(chats, eq(chats.id, messages.chatId))
+        .innerJoin(serverSettings, eq(serverSettings.id, 1))
+        .where(
+            and(
+                isNull(messages.deletedAt),
+                or(
+                    and(
+                        sql`${messages.expiresAt} IS NOT NULL`,
+                        sql`datetime(${messages.expiresAt}) <= CURRENT_TIMESTAMP`,
+                    ),
+                    and(
+                        eq(chats.retentionMode, "duration"),
+                        sql`${chats.retentionSeconds} IS NOT NULL`,
+                        sql`datetime(${messages.createdAt}, '+' || ${chats.retentionSeconds} || ' seconds') <= CURRENT_TIMESTAMP`,
+                    ),
+                    and(
+                        eq(chats.retentionMode, "inherit"),
+                        eq(serverSettings.defaultRetentionMode, "duration"),
+                        sql`${serverSettings.defaultRetentionSeconds} IS NOT NULL`,
+                        sql`datetime(${messages.createdAt}, '+' || ${serverSettings.defaultRetentionSeconds} || ' seconds') <= CURRENT_TIMESTAMP`,
+                    ),
+                ),
+            ),
+        )
+        .orderBy(sql`coalesce(${messages.expiresAt}, ${messages.createdAt})`, messages.id)
+        .limit(limit);
 }
 
 function asChat(row: Record<string, unknown>): ChatSummary {
@@ -5850,6 +6561,50 @@ function asChat(row: Record<string, unknown>): ChatSummary {
     };
 }
 
+function agentTurnWork(row: {
+    agentUserId: string;
+    actorUserId: string | null;
+    baselineMessageCount: number | null;
+    chatId: string;
+    leaseExpiresAt: string | null;
+    runId: string | null;
+    sessionId: string;
+    text: string;
+    userMessageId: string;
+    workerId: string | null;
+}) {
+    if (!row.actorUserId) throw new Error("Agent turn sender is missing");
+    if (!row.workerId) throw new Error("Agent turn worker lease is missing");
+    return {
+        agentUserId: row.agentUserId,
+        actorUserId: row.actorUserId,
+        ...(row.baselineMessageCount === null
+            ? {}
+            : { baselineMessageCount: row.baselineMessageCount }),
+        chatId: row.chatId,
+        ...(row.leaseExpiresAt ? { leaseExpiresAt: row.leaseExpiresAt } : {}),
+        ...(row.runId ? { runId: row.runId } : {}),
+        sessionId: row.sessionId,
+        text: row.text,
+        userMessageId: row.userMessageId,
+        workerId: row.workerId,
+    };
+}
+
+function asRigEventCheckpoint(row: {
+    cursor: number | null;
+    eventsSinceTrim: number;
+    lastTrimmedAt: string;
+    trimmedThrough: number | null;
+}): RigEventCheckpoint {
+    return {
+        ...(row.cursor === null ? {} : { cursor: row.cursor }),
+        eventsSinceTrim: row.eventsSinceTrim,
+        lastTrimmedAt: row.lastTrimmedAt,
+        ...(row.trimmedThrough === null ? {} : { trimmedThrough: row.trimmedThrough }),
+    };
+}
+
 function asUser(row: Record<string, unknown>): UserSummary {
     return {
         id: text(row.id),
@@ -5859,6 +6614,8 @@ function asUser(row: Record<string, unknown>): UserSummary {
         title: optionalText(row.title),
         photoFileId: optionalText(row.photo_file_id),
         role: text(row.role) as "member" | "admin",
+        kind: text(row.user_kind, "human") as "human" | "agent",
+        createdByUserId: optionalText(row.created_by_user_id),
     };
 }
 

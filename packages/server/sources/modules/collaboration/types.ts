@@ -53,6 +53,8 @@ export interface UserSummary {
     title?: string;
     photoFileId?: string;
     role: "member" | "admin";
+    kind: "human" | "agent";
+    createdByUserId?: string;
 }
 
 export interface AdminUserSummary extends UserSummary {

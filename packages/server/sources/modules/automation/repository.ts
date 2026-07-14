@@ -4,7 +4,12 @@ import { createId } from "@paralleldrive/cuid2";
 import { and, asc, desc, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
 import type { CollaborationRepository } from "../collaboration/repository.js";
 import { CollaborationError, type MutationHint } from "../collaboration/types.js";
-import { createDatabase, type DrizzleExecutor, type DrizzleTransaction } from "../drizzle.js";
+import {
+    createDatabase,
+    retrySqliteBusy,
+    type DrizzleExecutor,
+    type DrizzleTransaction,
+} from "../drizzle.js";
 import {
     accounts,
     auditLogEntries,
@@ -962,7 +967,7 @@ export class AutomationRepository {
     }
 
     private write<T>(operation: (tx: DrizzleTransaction) => Promise<T>): Promise<T> {
-        return this.db.transaction(operation);
+        return retrySqliteBusy(() => this.db.transaction(operation));
     }
 }
 

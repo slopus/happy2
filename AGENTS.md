@@ -6,6 +6,27 @@ Rigged is a desktop work and coding app that evolves by adopting itself. It is
 desktop-only: do not assume mobile use, add mobile-specific behavior, or adapt
 layouts for mobile viewports.
 
+## Feature development workflow
+
+Build each feature in isolation, with an explicit boundary between its server
+and UI work. Do not mix unrelated features into the same implementation.
+
+Model ownership is strict:
+
+- GPT models, and only GPT models, implement the server behavior and its `gym`
+  coverage.
+- Claude Opus implements the UI portion only after the server behavior is
+  complete and the user has explicitly approved the backend.
+
+Development starts with the server feature. Design its API and data model
+carefully, implement it, and prove its observable behavior with thorough `gym`
+tests. Then stop and ask the user to review and approve the backend. Do not
+begin or hand off any UI work until that approval is given. Favor simple,
+durable boundaries that will not create foreseeable maintenance or
+compatibility problems. Do not add abstractions, options, or behavior solely
+for hypothetical future use cases; solve the feature currently being built
+well.
+
 ## Design system
 
 Before creating or changing any user interface, read and follow `DESIGN.md`.

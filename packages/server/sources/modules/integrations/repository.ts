@@ -2,7 +2,12 @@ import { createHash, createHmac } from "node:crypto";
 import { createId } from "@paralleldrive/cuid2";
 import { createClient, type Client } from "@libsql/client";
 import { and, asc, desc, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
-import { createDatabase, type DrizzleExecutor, type DrizzleTransaction } from "../drizzle.js";
+import {
+    createDatabase,
+    retrySqliteBusy,
+    type DrizzleExecutor,
+    type DrizzleTransaction,
+} from "../drizzle.js";
 import {
     accounts,
     apiCredentials,
@@ -645,26 +650,10 @@ export class IntegrationRepository {
             occurredAt: this.now().toISOString(),
             payload: input.payload,
         });
+        if ((await outgoingSubscriptionIds(this.db, eventType, input.chatId)).length === 0)
+            return [];
         return this.writeDb(async (tx) => {
-            const subscriptions = await tx
-                .select({ id: webhookSubscriptions.id })
-                .from(webhookSubscriptions)
-                .innerJoin(integrations, eq(integrations.id, webhookSubscriptions.integrationId))
-                .where(
-                    and(
-                        eq(webhookSubscriptions.direction, "outgoing"),
-                        eq(webhookSubscriptions.active, 1),
-                        eq(integrations.active, 1),
-                        isNull(integrations.deletedAt),
-                        or(
-                            isNull(webhookSubscriptions.chatId),
-                            eq(webhookSubscriptions.chatId, input.chatId ?? ""),
-                        ),
-                        sql`exists (select 1 from json_each(${webhookSubscriptions.eventTypesJson}) where value = ${eventType})`,
-                        sql`exists (select 1 from json_each(${integrations.scopesJson}) where value = 'events:read')`,
-                    ),
-                )
-                .orderBy(asc(webhookSubscriptions.id));
+            const subscriptions = await outgoingSubscriptionIds(tx, eventType, input.chatId);
             const deliveries: QueuedWebhookDelivery[] = [];
             for (const row of subscriptions) {
                 const subscriptionId = row.id;
@@ -993,7 +982,37 @@ export class IntegrationRepository {
         maxAttempts: number,
     ): Promise<ClaimedDelivery[]> {
         const now = this.now();
+        const nowIso = now.toISOString();
         const leaseUntil = new Date(now.getTime() + leaseMs).toISOString();
+        const dueCondition = and(
+            sql`${webhookDeliveries.attempts} < ${maxAttempts}`,
+            or(
+                sql`${webhookDeliveries.status} in ('pending', 'failed')`,
+                and(
+                    eq(webhookDeliveries.status, "delivering"),
+                    lte(
+                        sql`julianday(${webhookDeliveries.nextAttemptAt})`,
+                        sql`julianday(${nowIso})`,
+                    ),
+                ),
+            ),
+            lte(sql`julianday(${webhookDeliveries.nextAttemptAt})`, sql`julianday(${nowIso})`),
+            eq(webhookSubscriptions.active, 1),
+            eq(webhookSubscriptions.direction, "outgoing"),
+            eq(integrations.active, 1),
+            isNull(integrations.deletedAt),
+        );
+        const [candidate] = await this.db
+            .select({ id: webhookDeliveries.id })
+            .from(webhookDeliveries)
+            .innerJoin(
+                webhookSubscriptions,
+                eq(webhookSubscriptions.id, webhookDeliveries.subscriptionId),
+            )
+            .innerJoin(integrations, eq(integrations.id, webhookSubscriptions.integrationId))
+            .where(dueCondition)
+            .limit(1);
+        if (!candidate) return [];
         return this.writeDb(async (tx) => {
             const due = await tx
                 .select({ id: webhookDeliveries.id })
@@ -1003,29 +1022,7 @@ export class IntegrationRepository {
                     eq(webhookSubscriptions.id, webhookDeliveries.subscriptionId),
                 )
                 .innerJoin(integrations, eq(integrations.id, webhookSubscriptions.integrationId))
-                .where(
-                    and(
-                        sql`${webhookDeliveries.attempts} < ${maxAttempts}`,
-                        or(
-                            sql`${webhookDeliveries.status} in ('pending', 'failed')`,
-                            and(
-                                eq(webhookDeliveries.status, "delivering"),
-                                lte(
-                                    sql`julianday(${webhookDeliveries.nextAttemptAt})`,
-                                    sql`julianday(${now.toISOString()})`,
-                                ),
-                            ),
-                        ),
-                        lte(
-                            sql`julianday(${webhookDeliveries.nextAttemptAt})`,
-                            sql`julianday(${now.toISOString()})`,
-                        ),
-                        eq(webhookSubscriptions.active, 1),
-                        eq(webhookSubscriptions.direction, "outgoing"),
-                        eq(integrations.active, 1),
-                        isNull(integrations.deletedAt),
-                    ),
-                )
+                .where(dueCondition)
                 .orderBy(asc(webhookDeliveries.nextAttemptAt), asc(webhookDeliveries.id))
                 .limit(limit);
             const claimed: ClaimedDelivery[] = [];
@@ -1389,8 +1386,30 @@ export class IntegrationRepository {
     }
 
     private writeDb<T>(operation: (tx: DrizzleTransaction) => Promise<T>): Promise<T> {
-        return this.db.transaction(operation);
+        return retrySqliteBusy(() => this.db.transaction(operation));
     }
+}
+
+function outgoingSubscriptionIds(executor: DrizzleExecutor, eventType: string, chatId?: string) {
+    return executor
+        .select({ id: webhookSubscriptions.id })
+        .from(webhookSubscriptions)
+        .innerJoin(integrations, eq(integrations.id, webhookSubscriptions.integrationId))
+        .where(
+            and(
+                eq(webhookSubscriptions.direction, "outgoing"),
+                eq(webhookSubscriptions.active, 1),
+                eq(integrations.active, 1),
+                isNull(integrations.deletedAt),
+                or(
+                    isNull(webhookSubscriptions.chatId),
+                    eq(webhookSubscriptions.chatId, chatId ?? ""),
+                ),
+                sql`exists (select 1 from json_each(${webhookSubscriptions.eventTypesJson}) where value = ${eventType})`,
+                sql`exists (select 1 from json_each(${integrations.scopesJson}) where value = 'events:read')`,
+            ),
+        )
+        .orderBy(asc(webhookSubscriptions.id));
 }
 
 const botSelection = {

@@ -183,7 +183,11 @@ export function SettingsView(props: SettingsViewProps) {
                 phone: session.user.phone ?? null,
             });
             if (disposed) return;
-            session.updateUser({ ...result.user, avatarUrl: session.user.avatarUrl });
+            session.updateUser({
+                ...result.user,
+                kind: session.user.kind,
+                avatarUrl: session.user.avatarUrl,
+            });
             setSaveError(undefined);
         } catch (reason) {
             if (!disposed) setLoadError(errorMessage(reason));
@@ -225,7 +229,11 @@ export function SettingsView(props: SettingsViewProps) {
             if (disposed) return;
             setConfirmedHandle(username);
             setHandle(username);
-            session.updateUser({ ...result.user, avatarUrl: session.user.avatarUrl });
+            session.updateUser({
+                ...result.user,
+                kind: session.user.kind,
+                avatarUrl: session.user.avatarUrl,
+            });
             setSaveError(undefined);
         } catch (reason) {
             if (!disposed) setSaveError(errorMessage(reason));

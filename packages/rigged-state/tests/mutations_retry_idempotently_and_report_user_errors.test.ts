@@ -18,6 +18,37 @@ function initializedServer() {
 }
 
 describe("client mutations", () => {
+    it("creates an agent user through the state boundary", async () => {
+        const server = initializedServer();
+        server.respond(
+            "POST",
+            "/v0/chats/createAgent",
+            jsonResponse(201, {
+                chat: chat({
+                    id: "agent-chat",
+                    kind: "dm",
+                    name: undefined,
+                    dmType: "direct",
+                }),
+            }),
+        );
+        const state = createClientState(server.transport, { createId: () => "agent-key" });
+        await state.start();
+
+        await expect(
+            state.createAgent({ name: "New agent", username: "new_agent" }),
+        ).resolves.toMatchObject({
+            id: "agent-chat",
+            kind: "dm",
+            dmType: "direct",
+        });
+        expect(server.requests.at(-1)).toMatchObject({
+            method: "POST",
+            path: "/v0/chats/createAgent",
+            headers: { "idempotency-key": "agent-key" },
+        });
+    });
+
     it("retries promise actions with one idempotency key", async () => {
         const server = initializedServer();
         let attempt = 0;

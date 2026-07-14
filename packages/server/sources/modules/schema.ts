@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 // Generated from the fully migrated SQLite schema. Migrations remain the DDL authority.
 export const accountBans = sqliteTable("account_bans", {
@@ -167,6 +167,23 @@ export const botIdentities = sqliteTable("bot_identities", {
     deletedAt: text("deleted_at"),
 });
 
+export const agentRigBindings = sqliteTable(
+    "agent_rig_bindings",
+    {
+        userId: text("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        chatId: text("chat_id")
+            .notNull()
+            .references(() => chats.id, { onDelete: "cascade" }),
+        sessionId: text("session_id").notNull(),
+        cwd: text("cwd").notNull(),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [primaryKey({ columns: [table.userId, table.chatId] })],
+);
+
 export const callCredentialLeases = sqliteTable("call_credential_leases", {
     id: text("id").primaryKey().notNull(),
     callId: text("call_id").notNull(),
@@ -309,6 +326,46 @@ export const chats = sqliteTable("chats", {
     defaultSelfDestructSeconds: integer("default_self_destruct_seconds"),
     defaultAfterReadScope: text("default_after_read_scope").notNull().default("any_reader"),
     lifecycleVersion: integer("lifecycle_version").notNull().default(1),
+});
+
+export const agentTurns = sqliteTable(
+    "agent_turns",
+    {
+        userMessageId: text("user_message_id")
+            .notNull()
+            .references(() => messages.id, { onDelete: "cascade" }),
+        agentUserId: text("agent_user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        chatId: text("chat_id")
+            .notNull()
+            .references(() => chats.id, { onDelete: "cascade" }),
+        sessionId: text("session_id")
+            .notNull()
+            .references(() => agentRigBindings.sessionId, { onDelete: "cascade" }),
+        runId: text("run_id"),
+        baselineMessageCount: integer("baseline_message_count"),
+        status: text("status").notNull().default("pending"),
+        assistantMessageId: text("assistant_message_id").references(() => messages.id, {
+            onDelete: "set null",
+        }),
+        lastError: text("last_error"),
+        workerId: text("worker_id"),
+        leaseExpiresAt: text("lease_expires_at"),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        completedAt: text("completed_at"),
+    },
+    (table) => [primaryKey({ columns: [table.userMessageId, table.agentUserId] })],
+);
+
+export const rigEventSyncState = sqliteTable("rig_event_sync_state", {
+    id: integer("id").primaryKey().notNull(),
+    cursor: integer("cursor"),
+    trimmedThrough: integer("trimmed_through"),
+    eventsSinceTrim: integer("events_since_trim").notNull().default(0),
+    lastTrimmedAt: text("last_trimmed_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
 });
 
 export const clientMutations = sqliteTable("client_mutations", {
@@ -914,7 +971,9 @@ export const userStorageQuotas = sqliteTable("user_storage_quotas", {
 
 export const users = sqliteTable("users", {
     id: text("id").primaryKey().notNull(),
-    accountId: text("account_id").notNull(),
+    accountId: text("account_id"),
+    kind: text("kind").notNull().default("human"),
+    createdByUserId: text("created_by_user_id"),
     firstName: text("first_name").notNull(),
     lastName: text("last_name"),
     username: text("username").notNull(),
@@ -962,6 +1021,8 @@ export const webhookSubscriptions = sqliteTable("webhook_subscriptions", {
 export const schema = {
     accountBans,
     accounts,
+    agentTurns,
+    agentRigBindings,
     apiCredentials,
     auditLogEntries,
     authMagicLinks,
@@ -1010,6 +1071,7 @@ export const schema = {
     rateLimitBuckets,
     reactions,
     retentionRuns,
+    rigEventSyncState,
     scheduledMessageAttachments,
     scheduledMessages,
     searchIndexState,

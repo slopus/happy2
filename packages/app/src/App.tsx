@@ -29,16 +29,19 @@ const railItems: RailItem[] = [
 function Shell(props: AppProps & { session?: AuthSession }) {
     const [activeFeatureId, setActiveFeatureId] = createSignal("chat");
     const [search, setSearch] = createSignal("");
-    const [createRequest, setCreateRequest] = createSignal(0);
+    const [createRequest, setCreateRequest] = createSignal<{
+        kind: "agent" | "channel";
+        nonce: number;
+    }>({ kind: "agent", nonce: 0 });
 
     const user = () => props.session?.user;
     const userName = () => user()?.firstName ?? "Steve";
-    const userInitials = () => user()?.firstName.slice(0, 2).toUpperCase() ?? "ST";
+    const userInitials = () => user()?.firstName?.slice(0, 2).toUpperCase() ?? "ST";
 
-    const requestCreateChannel = () => {
+    const requestCreate = (kind: "agent" | "channel") => {
         setActiveFeatureId("chat");
         setSearch("");
-        setCreateRequest((nonce) => nonce + 1);
+        setCreateRequest((request) => ({ kind, nonce: request.nonce + 1 }));
     };
 
     const rail = () => (
@@ -58,7 +61,17 @@ function Shell(props: AppProps & { session?: AuthSession }) {
             items={railItems}
             onFooterSelect={() => setActiveFeatureId("you")}
             onItemSelect={setActiveFeatureId}
-            primaryAction={{ icon: "plus", label: "New channel", onSelect: requestCreateChannel }}
+            primaryAction={{
+                icon: "plus",
+                label: "Create",
+                menuItems: [
+                    { id: "agent", icon: "spark", kind: "item", label: "New agent" },
+                    { id: "channel", icon: "hash", kind: "item", label: "New channel" },
+                ],
+                onMenuSelect: (id) => {
+                    if (id === "agent" || id === "channel") requestCreate(id);
+                },
+            }}
         />
     );
 

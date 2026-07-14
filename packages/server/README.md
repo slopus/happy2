@@ -117,6 +117,41 @@ The main route groups are:
 | Integrations          | bots, scoped API credentials, credential-authenticated posting, incoming/outgoing webhooks, slash commands, and delivery queues           |
 | Automation            | scheduled messages plus schedule, durable event, authenticated webhook, outgoing-webhook, bot-message, and moderation automations         |
 
+## AI agents
+
+`POST /v0/chats/createAgent` requires a display name and unique username. It
+creates an ordinary `User` with `kind = "agent"`, records the creating user, and
+opens a normal two-member direct message with it. There is no agent-specific
+chat kind.
+Agents share the normal user profile, username, sender, directory, mention, and
+typing paths; only their Rig execution bindings are agent-specific. The product
+server—not the desktop or web client—creates and controls Rig sessions over its
+authenticated Unix socket. Configure `[agents]` with the socket, token, Rig
+executable, and server-owned `default_cwd`; clients cannot select filesystem
+paths.
+
+Each agent is rooted at `default_cwd/agents/<agent-user-id>`. Direct/private
+conversations run in `users/<human-user-id>` below that root, preventing one
+person's files and context from leaking into another's. For now, only top-level
+messages in exact two-user DMs invoke Rig. Agents may be ordinary members of
+group DMs and channels—including multiple agents in one channel—but those
+conversations remain dormant until mention-based collaboration is implemented.
+
+If the configured socket is unavailable, Rigged runs `rig daemon start` without
+a shell and passes the configured socket and token paths through Rig's standard
+environment variables. User turns are ordinary chat messages. The message and
+its durable `agent_turns` outbox row commit in one SQLite transaction; leased
+workers then serialize turns per agent and chat and resume them after restart.
+at startup the server enables Rig's durable global event queue when necessary.
+It consumes the queue through one resumable global SSE connection and a numeric
+cursor persisted in SQLite; it never polls the queue or opens per-session event
+streams. Agent work is broadcast through the ordinary typing-presence event,
+and persisted replies use the agent `User` as sender, update human unread
+counts, and then publish normal sync hints. Agent users never accumulate unread
+counters, receipts, or notifications. Applied Rig events are trimmed in batches after
+1,000 updates or one day. Remote clients use the same chat and sync APIs as local
+clients and never need access to Rig itself.
+
 Channels are `public_channel` or `private_channel`. Direct chats support both
 exact two-user DMs and membership-exact group DMs. Public channels can be
 discovered and read by every active server member, but posting requires joining.

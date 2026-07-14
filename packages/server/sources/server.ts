@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { AuthService } from "./modules/auth/service.js";
+import { AgentService, RigDaemonClient } from "./modules/agents/index.js";
 import { TokenService } from "./modules/auth/tokens.js";
 import { AutomationRepository } from "./modules/automation/repository.js";
 import type { ServerConfig } from "./modules/config/type.js";
@@ -48,6 +49,7 @@ interface Services {
     webhookTransport?: WebhookTransport;
     rateLimiter?: HttpRateLimiter;
     idempotency?: IdempotencyCoordinator<StoredHttpResponse>;
+    agents?: AgentService;
     logger?: boolean;
 }
 
@@ -127,24 +129,31 @@ export async function buildServer(
     let fileStorage: FileStorage | undefined;
     let dataExportWorker: DataExportWorker | undefined;
     let unsubscribeWebhookEvents: (() => void) | undefined;
+    let agentService: AgentService | undefined;
     let expiryTimer: NodeJS.Timeout | undefined;
     let pendingSweep: Promise<void> = Promise.resolve();
     const productServer = config.server.role !== "auth";
     if (productServer) {
         collaboration =
             services.collaboration ??
-            new CollaborationRepository(
-                config.database.url,
-                config.database.authTokenEnv
-                    ? process.env[config.database.authTokenEnv]
-                    : undefined,
-            );
+            new CollaborationRepository(services.database.extensionClient());
         await collaboration.initialize();
         pubsub =
             services.pubsub ??
             new LocalPubSub({
                 onSubscriberError: (error) => app.log.error(error),
             });
+        agentService =
+            services.agents ??
+            (config.agents.enabled
+                ? new AgentService(
+                      collaboration,
+                      pubsub,
+                      new RigDaemonClient(config.agents),
+                      config.agents.defaultCwd,
+                      (error) => app.log.error(error),
+                  )
+                : undefined);
         operations =
             services.operations ?? new OperationsRepository(collaboration.extensionClient());
         automation =
@@ -178,7 +187,7 @@ export async function buildServer(
             fileStorage,
             collaboration,
         );
-        registerCollaborationRoutes(app, auth, collaboration, pubsub);
+        registerCollaborationRoutes(app, auth, collaboration, pubsub, agentService);
         registerAutomationRoutes(app, auth, automation, pubsub);
         registerOperationsRoutes(app, auth, operations);
         registerIntegrationRoutes(app, auth, integrations, {
@@ -214,6 +223,7 @@ export async function buildServer(
             },
         });
         registerSyncRoutes(app, auth, collaboration, pubsub);
+        await agentService?.start();
 
         unsubscribeWebhookEvents = pubsub.subscribe(realtimeTopics.server, async (event) => {
             if (event.type === "sync") await integrations!.enqueueSyncSequence(event.sequence);
@@ -294,6 +304,7 @@ export async function buildServer(
         expiryTimer.unref();
     }
     app.addHook("onClose", async () => {
+        await agentService?.close();
         if (expiryTimer) clearInterval(expiryTimer);
         await pendingSweep;
         unsubscribeWebhookEvents?.();

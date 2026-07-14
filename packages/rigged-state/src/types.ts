@@ -51,6 +51,8 @@ export interface UserSummary {
     readonly title?: string;
     readonly photoFileId?: string;
     readonly role: "member" | "admin";
+    readonly kind: "human" | "agent";
+    readonly createdByUserId?: string;
 }
 
 export interface FileSummary {
@@ -266,6 +268,11 @@ export interface CreateChannelInput {
     readonly name: string;
     readonly slug: string;
     readonly topic?: string;
+}
+
+export interface CreateAgentInput {
+    readonly name: string;
+    readonly username: string;
 }
 
 export interface ClientMessage {

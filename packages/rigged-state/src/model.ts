@@ -15,6 +15,7 @@ import type {
     ClientStateEventOf,
     ClientStateEventType,
     ClientStateSnapshot,
+    CreateAgentInput,
     CreateChannelInput,
     MessageSummary,
     PresenceSnapshot,
@@ -52,6 +53,7 @@ export interface ClientState extends AsyncDisposable {
     stop(): void;
     loadMessages(chatId: string): Promise<readonly ClientMessage[]>;
     createChannel(input: CreateChannelInput): Promise<ChatSummary>;
+    createAgent(input: CreateAgentInput): Promise<ChatSummary>;
     createDirectMessage(userId: string): Promise<ChatSummary>;
     joinChat(chatId: string): Promise<ChatSummary>;
     /** Optimistic background action. Observe message and background-error events for completion. */
@@ -184,6 +186,10 @@ class ClientStateModel implements ClientState {
 
     async createChannel(input: CreateChannelInput): Promise<ChatSummary> {
         return this.chatMutation("createChannel", (key) => this.api.createChannel(input, key));
+    }
+
+    async createAgent(input: CreateAgentInput): Promise<ChatSummary> {
+        return this.chatMutation("createAgent", (key) => this.api.createAgent(input, key));
     }
 
     async createDirectMessage(userId: string): Promise<ChatSummary> {
@@ -338,7 +344,7 @@ class ClientStateModel implements ClientState {
     }
 
     private async chatMutation(
-        _name: "createChannel" | "createDirectMessage" | "joinChat",
+        _name: "createAgent" | "createChannel" | "createDirectMessage" | "joinChat",
         request: (idempotencyKey: string) => Promise<{ chat: ChatSummary }>,
     ): Promise<ChatSummary> {
         this.assertActive();
@@ -565,17 +571,22 @@ class ClientStateModel implements ClientState {
     }
 
     private applyTyping(event: Extract<RealtimeEvent, { type: "typing" }>): void {
-        const key = `${event.chatId}\u0000${event.userId}`;
+        const actorKey = event.userId;
+        const key = `${event.chatId}\u0000${actorKey}`;
         if ((this.typingOccurredAt.get(key) ?? -1) > event.occurredAt) return;
         this.typingOccurredAt.set(key, event.occurredAt);
         const existing = this.snapshot.typing.filter(
-            (typing) => typing.chatId !== event.chatId || typing.userId !== event.userId,
+            (typing) => typing.chatId !== event.chatId || typingActorKey(typing) !== actorKey,
         );
         const active = event.active && (event.expiresAt ?? 0) > this.now();
         const typing: TypingState[] = active
             ? [
                   ...existing,
-                  { chatId: event.chatId, userId: event.userId, expiresAt: event.expiresAt! },
+                  {
+                      chatId: event.chatId,
+                      userId: event.userId,
+                      expiresAt: event.expiresAt!,
+                  },
               ]
             : existing;
         this.replaceSnapshot({ typing });
@@ -584,26 +595,36 @@ class ClientStateModel implements ClientState {
         this.typingTimers.delete(key);
         if (active) {
             const nextTimer = setTimeout(
-                () => this.expireTyping(key, event.chatId, event.userId, event.expiresAt!),
+                () => this.expireTyping(key, event.chatId, actorKey, event.expiresAt!),
                 Math.max(0, event.expiresAt! - this.now()),
             );
             this.typingTimers.set(key, nextTimer);
         }
-        this.emit({ type: "typing", chatId: event.chatId, userId: event.userId, active });
+        this.emit({
+            type: "typing",
+            chatId: event.chatId,
+            userId: event.userId,
+            active,
+        });
     }
 
-    private expireTyping(key: string, chatId: string, userId: string, expiresAt: number): void {
+    private expireTyping(key: string, chatId: string, actorKey: string, expiresAt: number): void {
         this.typingTimers.delete(key);
         const current = this.snapshot.typing.find(
-            (typing) => typing.chatId === chatId && typing.userId === userId,
+            (typing) => typing.chatId === chatId && typingActorKey(typing) === actorKey,
         );
         if (!current || current.expiresAt !== expiresAt) return;
         this.replaceSnapshot({
             typing: this.snapshot.typing.filter(
-                (typing) => typing.chatId !== chatId || typing.userId !== userId,
+                (typing) => typing.chatId !== chatId || typingActorKey(typing) !== actorKey,
             ),
         });
-        this.emit({ type: "typing", chatId, userId, active: false });
+        this.emit({
+            type: "typing",
+            chatId,
+            userId: current.userId,
+            active: false,
+        });
     }
 
     private applyPresence(event: Extract<RealtimeEvent, { type: "presence" }>): void {
@@ -761,6 +782,10 @@ function retryable(error: unknown): boolean {
         error.response.status === 429 ||
         error.response.status >= 500
     );
+}
+
+function typingActorKey(actor: { readonly userId: string }): string {
+    return actor.userId;
 }
 
 function userError(

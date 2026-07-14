@@ -7,6 +7,7 @@ export type User = {
     email?: string;
     phone?: string;
     photoFileId?: string;
+    kind: "human" | "agent";
     /** Browser object URL, populated locally after the authenticated avatar fetch. */
     avatarUrl?: string;
 };
@@ -75,8 +76,10 @@ export function createServerClient(baseUrl: string) {
             post<AuthToken>("/v0/auth/password/login", { email, password }),
         register: (email: string, password: string) =>
             post<AuthToken>("/v0/auth/password/register", { email, password }),
-        createProfile: (profile: Omit<User, "id" | "photoFileId" | "avatarUrl">, token: string) =>
-            post<{ user: User }>("/v0/me/createProfile", profile, token),
+        createProfile: (
+            profile: Omit<User, "id" | "photoFileId" | "avatarUrl" | "kind">,
+            token: string,
+        ) => post<{ user: User }>("/v0/me/createProfile", profile, token),
         me: (token: string) => request<{ user: User }>("/v0/me", {}, token),
         refresh: (token: string) => post<AuthToken>("/v0/auth/refresh", undefined, token),
         logout: (token: string) => post<void>("/v0/auth/logout", undefined, token),

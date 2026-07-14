@@ -1,6 +1,7 @@
 import type { ClientTransport, HttpRequest, HttpResponse } from "./transport.js";
 import type {
     ChatSummary,
+    CreateAgentInput,
     CreateChannelInput,
     MessageSummary,
     SendMessageInput,
@@ -104,6 +105,13 @@ export class RiggedApi {
         idempotencyKey: string,
     ): Promise<{ chat: ChatSummary }> {
         return this.post("/v0/chats/createChannel", input, idempotencyKey);
+    }
+
+    async createAgent(
+        input: CreateAgentInput,
+        idempotencyKey: string,
+    ): Promise<{ chat: ChatSummary }> {
+        return this.post("/v0/chats/createAgent", input, idempotencyKey);
     }
 
     async createDirectMessage(

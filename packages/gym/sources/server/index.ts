@@ -1,4 +1,7 @@
 import { generateKeyPairSync, randomBytes } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Readable, Writable } from "node:stream";
 import {
     createClient,
@@ -64,6 +67,8 @@ export interface GymServer extends GymRequestClient, AsyncDisposable {
 
 export interface GymServerOptions {
     configure?: (config: ServerConfig) => void;
+    /** Uses libSQL's real multi-connection file adapter instead of serialized `:memory:` access. */
+    databaseMode?: "file" | "memory";
 }
 
 /**
@@ -71,9 +76,17 @@ export interface GymServerOptions {
  * anonymous by default; call `as(user)` to make authenticated requests.
  */
 export async function createGymServer(options: GymServerOptions = {}): Promise<GymServer> {
-    const client = singleConnectionClient(createClient({ url: ":memory:" }));
+    const databaseDirectory =
+        options.databaseMode === "file"
+            ? await mkdtemp(join(tmpdir(), "rigged-gym-database-"))
+            : undefined;
+    const databaseUrl = databaseDirectory
+        ? `file:${join(databaseDirectory, "rigged.db")}`
+        : ":memory:";
+    const rawClient = createClient({ url: databaseUrl });
+    const client = databaseDirectory ? rawClient : singleConnectionClient(rawClient);
     const fileSystem = new MemoryFileSystem();
-    const config = gymConfig();
+    const config = gymConfig(databaseUrl);
     options.configure?.(config);
     const database = new Database(client);
     const tokenKeys = generateKeys();
@@ -106,6 +119,10 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
             tokenKeys,
             integrationProtector,
             integrations,
+            async () => {
+                if (databaseDirectory)
+                    await rm(databaseDirectory, { force: true, recursive: true });
+            },
         );
     } catch (error) {
         await app?.close();
@@ -113,6 +130,7 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
         database.close();
         client.close();
         fileSystem.reset();
+        if (databaseDirectory) await rm(databaseDirectory, { force: true, recursive: true });
         throw error;
     }
 }
@@ -141,6 +159,7 @@ class GymServerInstance implements GymServer {
         private readonly tokenKeys: { privateKey: string; publicKey: string },
         private readonly integrationProtector: AesGcmSecretProtector,
         private integrations: IntegrationRepository,
+        private readonly cleanupDatabase: () => Promise<void>,
     ) {}
 
     request(options: InjectOptions): Promise<LightMyRequestResponse> {
@@ -226,6 +245,7 @@ class GymServerInstance implements GymServer {
             this.database.close();
             this.client.close();
             this.fileSystem.reset();
+            await this.cleanupDatabase();
         }
     }
 
@@ -270,9 +290,9 @@ class AuthenticatedClient implements GymRequestClient {
     }
 }
 
-function gymConfig(): ServerConfig {
+function gymConfig(databaseUrl: string): ServerConfig {
     const config = defaultConfig();
-    config.database.url = ":memory:";
+    config.database.url = databaseUrl;
     config.files.directory = "/files";
     config.server.publicUrl = "http://gym.invalid";
     config.jwt.issuer = "http://gym.invalid";

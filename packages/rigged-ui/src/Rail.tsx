@@ -1,7 +1,8 @@
-import { For, Show, splitProps, type JSX } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, Show, splitProps, type JSX } from "solid-js";
 import { happyOtterLogoUrl } from "./assets";
 import { CountBadge } from "./Badge";
 import { Icon, type IconName } from "./Icon";
+import { Menu, type MenuItem } from "./Menu";
 
 export type RailItem = {
     badge?: number;
@@ -10,11 +11,21 @@ export type RailItem = {
     label: string;
 };
 
-export type RailPrimaryAction = {
-    icon?: IconName;
-    label: string;
-    onSelect: () => void;
-};
+export type RailPrimaryAction =
+    | {
+          icon?: IconName;
+          label: string;
+          onSelect: () => void;
+          menuItems?: never;
+          onMenuSelect?: never;
+      }
+    | {
+          icon?: IconName;
+          label: string;
+          menuItems: MenuItem[];
+          onMenuSelect: (id: string) => void;
+          onSelect?: never;
+      };
 
 export type RailProps = Omit<JSX.HTMLAttributes<HTMLElement>, "style"> & {
     activeItemId: string;
@@ -47,6 +58,27 @@ export function Rail(props: RailProps) {
         "primaryAction",
         "style",
     ]);
+    const [primaryMenuOpen, setPrimaryMenuOpen] = createSignal(false);
+    let primaryRoot: HTMLDivElement | undefined;
+
+    createEffect(() => {
+        if (!primaryMenuOpen()) return;
+        const close = (event: PointerEvent) => {
+            if (!primaryRoot?.contains(event.target as Node)) setPrimaryMenuOpen(false);
+        };
+        const closeOnFocus = (event: FocusEvent) => {
+            if (!primaryRoot?.contains(event.target as Node)) setPrimaryMenuOpen(false);
+        };
+        const dismiss = () => setPrimaryMenuOpen(false);
+        document.addEventListener("pointerdown", close);
+        document.addEventListener("focusin", closeOnFocus);
+        window.addEventListener("resize", dismiss);
+        onCleanup(() => {
+            document.removeEventListener("pointerdown", close);
+            document.removeEventListener("focusin", closeOnFocus);
+            window.removeEventListener("resize", dismiss);
+        });
+    });
 
     return (
         <nav
@@ -108,15 +140,53 @@ export function Rail(props: RailProps) {
                 <div class="rigged-rail__footer" data-rigged-ui="rail-footer">
                     <Show when={local.primaryAction}>
                         {(action) => (
-                            <button
-                                aria-label={action().label}
-                                class="rigged-rail__primary"
-                                data-rigged-ui="rail-primary"
-                                onClick={() => action().onSelect()}
-                                type="button"
+                            <div
+                                class="rigged-rail__primary-wrap"
+                                data-rigged-ui="rail-primary-wrap"
+                                onKeyDown={(event) => {
+                                    if (event.key !== "Escape" || !primaryMenuOpen()) return;
+                                    event.preventDefault();
+                                    setPrimaryMenuOpen(false);
+                                    primaryRoot
+                                        ?.querySelector<HTMLButtonElement>(
+                                            '[data-rigged-ui="rail-primary"]',
+                                        )
+                                        ?.focus();
+                                }}
+                                ref={(element) => (primaryRoot = element)}
                             >
-                                <Icon name={action().icon ?? "plus"} size={20} />
-                            </button>
+                                <button
+                                    aria-expanded={
+                                        action().menuItems ? primaryMenuOpen() : undefined
+                                    }
+                                    aria-haspopup={action().menuItems ? "menu" : undefined}
+                                    aria-label={action().label}
+                                    class="rigged-rail__primary"
+                                    data-rigged-ui="rail-primary"
+                                    onClick={() => {
+                                        if (action().menuItems) setPrimaryMenuOpen((open) => !open);
+                                        else action().onSelect?.();
+                                    }}
+                                    type="button"
+                                >
+                                    <Icon name={action().icon ?? "plus"} size={20} />
+                                </button>
+                                <Show when={primaryMenuOpen() && action().menuItems}>
+                                    <div
+                                        class="rigged-rail__primary-popover"
+                                        data-rigged-ui="rail-primary-popover"
+                                    >
+                                        <Menu
+                                            items={action().menuItems ?? []}
+                                            onSelect={(id) => {
+                                                setPrimaryMenuOpen(false);
+                                                action().onMenuSelect?.(id);
+                                            }}
+                                            width={184}
+                                        />
+                                    </div>
+                                </Show>
+                            </div>
                         )}
                     </Show>
                     <Show when={local.footer}>

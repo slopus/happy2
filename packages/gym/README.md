@@ -17,10 +17,38 @@ it("reads the current user", async () => {
 });
 ```
 
+Use `databaseMode: "file"` for concurrency tests that must exercise libSQL's
+real multi-connection SQLite transaction behavior. Gym creates the database in
+a temporary directory and removes it during teardown; the file volume remains
+in memory.
+
 Use `server` directly for anonymous requests and `server.as(user)` for requests
 with that user's bearer token. `close()`, `await using`, and `withGymServer()`
 all provide deterministic teardown. The first user created in an instance is an
 admin, matching the production profile bootstrap behavior.
+
+## Mock Rig daemon
+
+`gym/rig` provides a programmable Rig protocol server on a real Unix socket.
+Its sessions and opt-in durable global event queue survive `restart()`. Tests can
+pause automatic replies or global event delivery, complete or fail individual
+runs, discard a submit response after accepting the turn, emit high-volume queue
+updates, and inspect configuration, resumable global SSE connections, forbidden
+batch polling, cursor rejection, and trimming.
+
+```ts
+import { createMockRigDaemon } from "gym/rig";
+
+await using rig = await createMockRigDaemon();
+rig.setAutomaticReply(undefined);
+
+// Configure server agents.socketPath/tokenPath from the fixture, submit work,
+// then exercise recovery without replacing the durable Rig session.
+rig.pauseGlobalEventDelivery();
+await rig.restart();
+rig.completeRun(rig.submittedRuns[0]!.runId, "Recovered reply");
+rig.resumeGlobalEventDelivery();
+```
 
 ## Naming and organizing tests
 

@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { createClient } from "@libsql/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Database, type StoredFile, type User } from "../database.js";
 import { CollaborationError } from "./types.js";
@@ -10,13 +11,14 @@ describe("CollaborationRepository", () => {
     let directory: string;
     let database: Database;
     let repository: CollaborationRepository;
+    let url: string;
     let ada: User;
     let grace: User;
     let linus: User;
 
     beforeEach(async () => {
         directory = await mkdtemp(join(tmpdir(), "rigged-collaboration-"));
-        const url = `file:${join(directory, "rigged.db")}`;
+        url = `file:${join(directory, "rigged.db")}`;
         database = new Database(url);
         await database.migrate();
         repository = new CollaborationRepository(url);
@@ -30,6 +32,57 @@ describe("CollaborationRepository", () => {
         repository.close();
         database.close();
         await rm(directory, { recursive: true, force: true });
+    });
+
+    it("stores agent provenance and atomically queues DMs without agent unread state", async () => {
+        const agentUserId = "agent-user";
+        const created = await repository.createAgent({
+            actorUserId: ada.id,
+            agentUserId,
+            cwd: `/agents/${agentUserId}/users/${ada.id}`,
+            name: "Fixer",
+            sessionId: "rig-session",
+            username: "fixer",
+        });
+        expect(created.chat).toMatchObject({
+            kind: "dm",
+            dmType: "direct",
+            membershipRole: "owner",
+        });
+        expect(
+            (await repository.listContacts()).find(({ id }) => id === agentUserId),
+        ).toMatchObject({
+            kind: "agent",
+            createdByUserId: ada.id,
+        });
+
+        const sent = await repository.sendMessage({
+            actorUserId: ada.id,
+            chatId: created.chat.id,
+            text: "Queue this durably",
+            agentTurn: { agentUserId, sessionId: "rig-session" },
+        });
+        const inspection = createClient({ url });
+        try {
+            const turn = await inspection.execute({
+                sql: "SELECT status FROM agent_turns WHERE user_message_id = ? AND agent_user_id = ?",
+                args: [sent.message.id, agentUserId],
+            });
+            expect(turn.rows).toHaveLength(1);
+            expect(turn.rows[0]?.status).toBe("pending");
+            const membership = await inspection.execute({
+                sql: "SELECT unread_count FROM chat_members WHERE chat_id = ? AND user_id = ?",
+                args: [created.chat.id, agentUserId],
+            });
+            expect(membership.rows[0]?.unread_count).toBe(0);
+            const notifications = await inspection.execute({
+                sql: "SELECT count(*) AS count FROM notifications WHERE user_id = ?",
+                args: [agentUserId],
+            });
+            expect(notifications.rows[0]?.count).toBe(0);
+        } finally {
+            inspection.close();
+        }
     });
 
     it("enforces chat privacy while advancing durable server and chat cursors", async () => {
@@ -397,6 +450,17 @@ describe("CollaborationRepository", () => {
             args: [sent.message.id],
         });
         expect(Number(revisions.rows[0]?.count)).toBe(0);
+    });
+
+    it("checks an empty expiry sweep without competing for the SQLite write lock", async () => {
+        const blocker = createClient({ url });
+        const transaction = await blocker.transaction("write");
+        try {
+            await expect(repository.expireDueMessages()).resolves.toBeUndefined();
+        } finally {
+            await transaction.rollback();
+            blocker.close();
+        }
     });
 
     it("keeps access telemetry admin-only and prevents custom emoji file promotion by readers", async () => {

@@ -75,8 +75,8 @@ export type ChatViewProps = {
     session?: AuthSession;
     /** Shared TitleBar search value, owned by the App shell. */
     search: () => string;
-    /** Monotonic nonce from the rail "+" action that opens the create dialog. */
-    createRequest?: () => number;
+    /** Monotonic request from the rail "+" menu. */
+    createRequest?: () => { kind: "agent" | "channel"; nonce: number };
     /** App-owned navigation rail element. */
     rail: JSX.Element;
     /** App-owned title bar element (carries the shared search field). */
@@ -187,6 +187,7 @@ function dayLabel(value: string): string {
 function toThreadMessage(
     message: MessageSummary,
     currentUser?: Pick<UserSummary, "id" | "firstName" | "lastName">,
+    agentName?: string,
 ): LiveThreadMessage {
     const sender =
         message.sender ??
@@ -196,8 +197,10 @@ function toThreadMessage(
         kind: "message",
         id: message.id,
         conversationId: message.chatId,
-        author: sender ? fullName(sender) : "Rigged",
-        initials: sender ? initials(sender) : "R",
+        author: sender ? fullName(sender) : (message.senderBot?.name ?? agentName ?? "Rigged"),
+        initials: sender
+            ? initials(sender)
+            : (message.senderBot?.name ?? agentName ?? "R").slice(0, 2).toUpperCase(),
         tone: sender ? toneFor(sender.id) : "brand",
         agent: message.kind === "automated",
         time: messageTime(message.createdAt),
@@ -218,6 +221,7 @@ function toThreadMessage(
 function toEntries(
     messages: readonly MessageSummary[],
     currentUser?: Pick<UserSummary, "id" | "firstName" | "lastName">,
+    agentName?: string,
 ): WorkspaceEntry[] {
     const result: WorkspaceEntry[] = [];
     let previousDay = "";
@@ -232,7 +236,7 @@ function toEntries(
             });
             previousDay = date;
         }
-        result.push(toThreadMessage(message, currentUser));
+        result.push(toThreadMessage(message, currentUser, agentName));
     }
     return result;
 }
@@ -272,7 +276,11 @@ export function ChatView(props: ChatViewProps) {
     const [pendingFiles, setPendingFiles] = createSignal<UploadedFile[]>([]);
     const [busyCount, setBusyCount] = createSignal(0);
     const [statusHint, setStatusHint] = createSignal<string>();
-    const [typingUser, setTypingUser] = createSignal<{ chatId: string; userId: string }>();
+    const [typingActor, setTypingActor] = createSignal<{
+        chatId: string;
+        userId: string;
+    }>();
+    const [localReadThrough, setLocalReadThrough] = createSignal<Record<string, string>>({});
     const [expandedRuns, setExpandedRuns] = createSignal<Record<string, boolean>>({});
     const [expandedApprovals, setExpandedApprovals] = createSignal<Record<string, boolean>>({});
     const [approvalResolutions, setApprovalResolutions] = createSignal<
@@ -280,6 +288,7 @@ export function ChatView(props: ChatViewProps) {
     >({});
     const [toggledReactions, setToggledReactions] = createSignal<Record<string, boolean>>({});
     const [createOpen, setCreateOpen] = createSignal(false);
+    const [agentCreateOpen, setAgentCreateOpen] = createSignal(false);
     const [directoryOpen, setDirectoryOpen] = createSignal(false);
     const [manualEmptySelection, setManualEmptySelection] = createSignal(false);
     const [channelNameDraft, setChannelNameDraft] = createSignal("");
@@ -290,11 +299,15 @@ export function ChatView(props: ChatViewProps) {
     const [newChannelKind, setNewChannelKind] = createSignal<"public_channel" | "private_channel">(
         "public_channel",
     );
+    const [newAgentName, setNewAgentName] = createSignal("");
+    const [newAgentUsername, setNewAgentUsername] = createSignal("");
+    const [agentUsernameEdited, setAgentUsernameEdited] = createSignal(false);
     let fileInput: HTMLInputElement | undefined;
     let requestNumber = 0;
     let workspaceRequestNumber = 0;
     const stateCleanups: Array<() => void> = [];
     let sentTyping = false;
+    const requestedReadThrough = new Map<string, string>();
 
     const busy = () => busyCount() > 0;
     const startBusy = () => setBusyCount((count) => count + 1);
@@ -316,6 +329,7 @@ export function ChatView(props: ChatViewProps) {
         })),
     );
     const canEditChannel = () => {
+        if (activeChat()?.kind === "dm") return false;
         const role = activeChat()?.membershipRole;
         return role === "owner" || role === "admin";
     };
@@ -364,12 +378,17 @@ export function ChatView(props: ChatViewProps) {
         })),
     );
     const liveComposerHint = () => {
-        const typing = typingUser();
+        const typing = typingActor();
         if (typing?.chatId === activeConversationId()) {
             const contact = contacts().find((item) => item.id === typing.userId);
             if (contact) return `${fullName(contact)} is typing…`;
         }
         return statusHint() ?? composerHint;
+    };
+    const displayedUnreadCount = (chat: ChatSummary): number => {
+        if (chat.id === activeConversationId()) return 0;
+        const cached = localReadThrough()[chat.id];
+        return cached && sequenceAtLeast(cached, chat.lastMessageSequence) ? 0 : chat.unreadCount;
     };
 
     const reactionsFor = (message: LiveThreadMessage) =>
@@ -390,11 +409,38 @@ export function ChatView(props: ChatViewProps) {
             const peer = peers[chat.id];
             if (peer) dmByUserId.set(peer.id, chat);
         }
-        const channels = chats.filter((chat) => chat.kind !== "dm" && chat.membershipRole);
+        const channels = chats.filter(
+            (chat) =>
+                (chat.kind === "public_channel" || chat.kind === "private_channel") &&
+                chat.membershipRole,
+        );
+        const agents = users.filter((item) => item.kind === "agent" && dmByUserId.has(item.id));
         const directMessages = users.filter(
-            (item) => item.id !== user()?.id && dmByUserId.has(item.id),
+            (item) => item.kind === "human" && item.id !== user()?.id && dmByUserId.has(item.id),
         );
         setSidebar([
+            {
+                id: "agents",
+                label: "Agents",
+                action: { icon: "plus", label: "New agent" },
+                empty: {
+                    actionLabel: "Start an agent",
+                    description: "Create a coding agent with its own profile and chat.",
+                    icon: "spark",
+                    title: "No agents yet",
+                },
+                items: agents.map((agent) => {
+                    const chat = dmByUserId.get(agent.id)!;
+                    return {
+                        id: chat.id,
+                        kind: "agent" as const,
+                        label: fullName(agent),
+                        initials: initials(agent),
+                        badge: displayedUnreadCount(chat),
+                        tone: toneFor(agent.id),
+                    };
+                }),
+            },
             {
                 id: "channels",
                 label: "Channels",
@@ -409,6 +455,7 @@ export function ChatView(props: ChatViewProps) {
                     id: chat.id,
                     kind: "channel" as const,
                     label: chat.name ?? chat.slug ?? "Untitled channel",
+                    badge: displayedUnreadCount(chat),
                 })),
             },
             {
@@ -430,6 +477,7 @@ export function ChatView(props: ChatViewProps) {
                         initials: initials(contact),
                         tone: toneFor(contact.id),
                         online: snapshots[contact.id]?.status === "online",
+                        badge: chat ? displayedUnreadCount(chat) : undefined,
                     };
                 }),
             },
@@ -438,16 +486,19 @@ export function ChatView(props: ChatViewProps) {
         const nextConversations: Record<string, Conversation> = {};
         for (const chat of chats) {
             const peer = peers[chat.id];
+            const agentPeer = peer?.kind === "agent";
             const title =
                 chat.kind === "dm" ? (peer ? fullName(peer) : "Direct message") : chat.name;
             nextConversations[chat.id] = {
                 id: chat.id,
                 title: title ?? chat.slug ?? "Untitled channel",
-                icon: chat.kind === "dm" ? undefined : "hash",
+                icon: chat.kind === "dm" ? (agentPeer ? "spark" : undefined) : "hash",
                 topic:
                     chat.topic ??
                     (chat.kind === "dm"
-                        ? "Direct message"
+                        ? agentPeer
+                            ? "Private AI coding agent"
+                            : "Direct message"
                         : chat.membershipRole
                           ? undefined
                           : "Public channel — sending a message will join it"),
@@ -463,7 +514,9 @@ export function ChatView(props: ChatViewProps) {
                     description:
                         chat.topic ??
                         (chat.kind === "dm"
-                            ? `This conversation is between you and ${title ?? "a teammate"}.`
+                            ? agentPeer
+                                ? "Send a message to give this agent its first task."
+                                : `This conversation is between you and ${title ?? "a teammate"}.`
                             : "This channel is ready for its first message."),
                 },
             };
@@ -516,6 +569,8 @@ export function ChatView(props: ChatViewProps) {
                   ? preferredChat.id
                   : (chats.find((chat) => chat.kind === "dm" || chat.membershipRole)?.id ?? "");
             setActiveConversationId(nextChatId);
+            if (nextChatId) cacheReadThrough(nextChatId);
+            applyNavigation(chats, [...contactResponse.users], peers, snapshots);
             if (nextChatId) await loadConversation(nextChatId);
             else setEntries([]);
             setStatusHint(undefined);
@@ -534,7 +589,8 @@ export function ChatView(props: ChatViewProps) {
             const messages = (await model.loadMessages(chatId)).map((item) => item.message);
             const members = await membersPromise;
             if (currentRequest !== requestNumber) return;
-            setEntries(toEntries(messages, user()));
+            setEntries(toEntries(messages, user(), activeChat()?.name));
+            void autoReadOpenChat(chatId, messages);
             prefetchImages(messages);
             setConversationData((current) => ({
                 ...current,
@@ -584,7 +640,46 @@ export function ChatView(props: ChatViewProps) {
             return;
         }
         setActiveConversationId(id);
+        cacheReadThrough(id);
+        applyNavigation();
         await loadConversation(id);
+    }
+
+    function cacheReadThrough(chatId: string, sequence?: string): void {
+        const through =
+            sequence ??
+            serverChats().find((candidate) => candidate.id === chatId)?.lastMessageSequence;
+        if (!through) return;
+        setLocalReadThrough((current) => {
+            const previous = current[chatId];
+            if (previous && sequenceAtLeast(previous, through)) return current;
+            return { ...current, [chatId]: through };
+        });
+    }
+
+    async function autoReadOpenChat(chatId: string, messages: readonly MessageSummary[]) {
+        const model = state();
+        if (!model || activeConversationId() !== chatId) return;
+        const latest = [...messages].reverse().find((message) => !message.id.startsWith("local:"));
+        const through =
+            latest?.sequence ??
+            serverChats().find((candidate) => candidate.id === chatId)?.lastMessageSequence ??
+            "0";
+        cacheReadThrough(chatId, through);
+        applyNavigation();
+        if (through === "0") return;
+        const requested = requestedReadThrough.get(chatId);
+        if (requested && sequenceAtLeast(requested, through)) return;
+        requestedReadThrough.set(chatId, through);
+        try {
+            await model.execute("markChatRead", {
+                chatId,
+                ...(latest ? { messageId: latest.id } : {}),
+            });
+        } catch (reason) {
+            if (requestedReadThrough.get(chatId) === through) requestedReadThrough.delete(chatId);
+            setStatusHint(errorMessage(reason));
+        }
     }
 
     async function createChannel() {
@@ -605,6 +700,27 @@ export function ChatView(props: ChatViewProps) {
             setNewChannelName("");
             setNewChannelSlug("");
             setChannelSlugEdited(false);
+            await refreshWorkspace(chat.id);
+        } catch (reason) {
+            setStatusHint(errorMessage(reason));
+        } finally {
+            finishBusy();
+        }
+    }
+
+    async function createAgent() {
+        const model = state();
+        const name = newAgentName().trim();
+        const username = agentUsername(newAgentUsername());
+        if (!model || busy() || !name || !validAgentUsername(username)) return;
+        startBusy();
+        try {
+            const chat = await model.createAgent({ name, username });
+            setManualEmptySelection(false);
+            setAgentCreateOpen(false);
+            setNewAgentName("");
+            setNewAgentUsername("");
+            setAgentUsernameEdited(false);
             await refreshWorkspace(chat.id);
         } catch (reason) {
             setStatusHint(errorMessage(reason));
@@ -1174,14 +1290,15 @@ export function ChatView(props: ChatViewProps) {
 
     let seenCreateRequest: number | undefined;
     createEffect(() => {
-        const nonce = props.createRequest?.() ?? 0;
+        const request = props.createRequest?.() ?? { kind: "agent" as const, nonce: 0 };
         if (seenCreateRequest === undefined) {
-            seenCreateRequest = nonce;
+            seenCreateRequest = request.nonce;
             return;
         }
-        if (nonce !== seenCreateRequest) {
-            seenCreateRequest = nonce;
-            setCreateOpen(true);
+        if (request.nonce !== seenCreateRequest) {
+            seenCreateRequest = request.nonce;
+            if (request.kind === "agent") setAgentCreateOpen(true);
+            else setCreateOpen(true);
         }
     });
 
@@ -1196,7 +1313,8 @@ export function ChatView(props: ChatViewProps) {
                 const messages = (model.get().messagesByChat[event.chatId] ?? [])
                     .map((item) => item.message)
                     .filter((message) => !message.threadRootMessageId);
-                setEntries(toEntries(messages, user()));
+                setEntries(toEntries(messages, user(), activeChat()?.name));
+                void autoReadOpenChat(event.chatId, messages);
                 prefetchImages(messages);
                 const root = threadRootId();
                 if (root) void loadThread(root);
@@ -1210,8 +1328,13 @@ export function ChatView(props: ChatViewProps) {
             }),
             model.subscribe("typing", (event) => {
                 if (event.userId === props.session!.user.id) return;
-                setTypingUser(
-                    event.active ? { chatId: event.chatId, userId: event.userId } : undefined,
+                setTypingActor(
+                    event.active
+                        ? {
+                              chatId: event.chatId,
+                              userId: event.userId,
+                          }
+                        : undefined,
                 );
             }),
             model.subscribe("background-error", (event) => setStatusHint(event.error.message)),
@@ -1235,6 +1358,7 @@ export function ChatView(props: ChatViewProps) {
                         onCompose={() => void startDirectMessage()}
                         onItemSelect={(id) => void selectConversation(id)}
                         onSectionAction={(sectionId) => {
+                            if (sectionId === "agents") setAgentCreateOpen(true);
                             if (sectionId === "channels") setDirectoryOpen(true);
                             if (sectionId === "dms") void startDirectMessage();
                         }}
@@ -1603,6 +1727,75 @@ export function ChatView(props: ChatViewProps) {
                     </Box>
                 </Box>
             </Show>
+            <Show when={agentCreateOpen()}>
+                <Box onClick={() => setAgentCreateOpen(false)} style={overlayStyle}>
+                    <Box onClick={(event) => event.stopPropagation()}>
+                        <Modal
+                            footer={
+                                <Box style={modalActionsStyle}>
+                                    <Button
+                                        onClick={() => setAgentCreateOpen(false)}
+                                        variant="ghost"
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        disabled={
+                                            busy() ||
+                                            !newAgentName().trim() ||
+                                            !validAgentUsername(newAgentUsername())
+                                        }
+                                        icon="plus"
+                                        onClick={() => void createAgent()}
+                                    >
+                                        Create agent
+                                    </Button>
+                                </Box>
+                            }
+                            icon="spark"
+                            onClose={() => setAgentCreateOpen(false)}
+                            size="small"
+                            title="Create agent"
+                        >
+                            <Box style={modalStackStyle}>
+                                <FormRow
+                                    control={
+                                        <TextField
+                                            fullWidth
+                                            onValueChange={(value) => {
+                                                setNewAgentName(value);
+                                                if (!agentUsernameEdited())
+                                                    setNewAgentUsername(agentUsername(value));
+                                            }}
+                                            placeholder="e.g. Fixer"
+                                            value={newAgentName()}
+                                        />
+                                    }
+                                    description="The agent’s display name in chats and messages."
+                                    label="Name"
+                                    layout="stacked"
+                                />
+                                <FormRow
+                                    control={
+                                        <TextField
+                                            fullWidth
+                                            onValueChange={(value) => {
+                                                setAgentUsernameEdited(true);
+                                                setNewAgentUsername(agentUsername(value));
+                                            }}
+                                            placeholder="fixer"
+                                            value={newAgentUsername()}
+                                        />
+                                    }
+                                    description="A unique 2–32 character agent username."
+                                    label="Username"
+                                    layout="stacked"
+                                />
+                            </Box>
+                        </Modal>
+                    </Box>
+                </Box>
+            </Show>
             <Show when={createOpen()}>
                 <Box onClick={() => setCreateOpen(false)} style={overlayStyle}>
                     <Box onClick={(event) => event.stopPropagation()}>
@@ -1721,6 +1914,23 @@ function channelSlug(value: string): string {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "")
         .slice(0, 64);
+}
+
+function agentUsername(value: string): string {
+    return value
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_.-]+/gu, "_")
+        .replace(/^[^a-z0-9]+/u, "")
+        .slice(0, 32);
+}
+
+function validAgentUsername(value: string): boolean {
+    return /^[a-z0-9][a-z0-9_.-]{1,31}$/u.test(value);
+}
+
+function sequenceAtLeast(left: string, right: string): boolean {
+    return BigInt(left) >= BigInt(right);
 }
 
 function errorMessage(reason: unknown): string {
