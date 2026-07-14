@@ -3,10 +3,11 @@
     "version": "0.1.0",
     "description": "Rigged web app, server, and authentication service",
     "bin": {
-        "rigged": "dist/runner.js",
-        "rigged-server": "dist/cli.js"
+        "rigged": "bin/rigged.js",
+        "rigged-server": "bin/rigged-server.js"
     },
     "files": [
+        "bin",
         "dist",
         "drizzle",
         "rigged.example.toml",
