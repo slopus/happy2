@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 
 export interface RigDaemonConfig {
+    directory: string;
     socketPath: string;
     tokenPath: string;
     command: string;
@@ -203,6 +204,7 @@ export class RigDaemonClient {
         this.token = await readToken(this.config.tokenPath);
         if (this.token && (await this.healthy())) return;
         await execute(this.config.command, ["daemon", "start"], {
+            RIG_SERVER_DIRECTORY: this.config.directory,
             RIG_SERVER_SOCKET_PATH: this.config.socketPath,
             RIG_SERVER_TOKEN_PATH: this.config.tokenPath,
         });

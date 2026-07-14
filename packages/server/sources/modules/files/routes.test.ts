@@ -31,6 +31,7 @@ describe("file pipeline HTTP API", () => {
         const config = defaultConfig();
         config.database.url = `file:${join(directory, "rigged.db")}`;
         config.files.directory = join(directory, "files");
+        config.agents.enabled = false;
         database = new Database(config.database.url);
         await database.migrate();
         app = await buildServer(config, {

@@ -17,11 +17,11 @@ url = "file:rigged.db"
 
 [agents]
 # The product server owns Rig sessions. Clients never access this socket or token.
+# By default, Server-started Rig keeps its socket, token, and session database
+# under .rigged/rig instead of reusing the user's global Rig daemon. Set the
+# standard RIG_SERVER_DIRECTORY environment variable to move that private state.
 enabled = true
-socket_path = "/tmp/rig-1000/server.sock"
-token_path = "/tmp/rig-1000/token"
-# Executed without a shell as: rig daemon start, when the socket is unavailable.
-command = "rig"
+# The bundled @slopus/rig executable is used unless command is explicitly set.
 # Root for server-owned agent/user and agent/chat sandboxes. Clients cannot override it.
 default_cwd = "/srv/rigged/workspace"
 

@@ -1,14 +1,15 @@
 import type { ServerConfig } from "./type.js";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { bundledRigCommand } from "../agents/command.js";
+import { localRuntimePaths } from "./paths.js";
 
 /**
- * Safe local-development defaults used only when neither --config nor
- * RIGGED_CONFIG is supplied. Secrets are initialized beside the working
- * directory by initializeManagedEnvironment.
+ * Safe standalone defaults used only when neither --config nor RIGGED_CONFIG
+ * is supplied. Persistent state and generated secrets live under .rigged in
+ * the invoking working directory.
  */
 export function defaultConfig(): ServerConfig {
-    const rigDirectory = join(tmpdir(), `rig-${process.getuid?.() ?? 0}`);
+    const paths = localRuntimePaths();
     return {
         server: {
             role: "all",
@@ -17,17 +18,19 @@ export function defaultConfig(): ServerConfig {
             publicUrl: "http://127.0.0.1:3000",
             trustedProxyHops: 0,
         },
-        database: { url: "file:rigged.db" },
+        database: { url: `file:${join(paths.runtimeDirectory, "rigged.db")}` },
         agents: {
             enabled: true,
-            socketPath: process.env.RIG_SERVER_SOCKET_PATH ?? join(rigDirectory, "server.sock"),
-            tokenPath: process.env.RIG_SERVER_TOKEN_PATH ?? join(rigDirectory, "token"),
-            command: process.env.RIG_COMMAND ?? "rig",
-            defaultCwd: process.cwd(),
+            directory: paths.rigDirectory,
+            socketPath:
+                process.env.RIG_SERVER_SOCKET_PATH ?? join(paths.rigDirectory, "server.sock"),
+            tokenPath: process.env.RIG_SERVER_TOKEN_PATH ?? join(paths.rigDirectory, "token"),
+            command: process.env.RIG_COMMAND ?? bundledRigCommand(),
+            defaultCwd: paths.workspacesDirectory,
         },
         files: {
             provider: "local",
-            directory: "files",
+            directory: paths.filesDirectory,
             signedUrlExpirySeconds: 300,
             maxUploadBytes: 512 * 1024 * 1024,
             resumableChunkBytes: 8 * 1024 * 1024,

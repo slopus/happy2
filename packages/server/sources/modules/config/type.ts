@@ -20,6 +20,7 @@ export interface ServerConfig {
     database: { url: string; authTokenEnv?: string };
     agents: {
         enabled: boolean;
+        directory: string;
         socketPath: string;
         tokenPath: string;
         command: string;

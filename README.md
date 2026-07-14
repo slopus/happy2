@@ -56,6 +56,22 @@ set `RIGGED_CONFIG`) to override the defaults; copy the example TOML before
 production deployment. See the server package README for deployment and auth
 configuration.
 
+## Publishing
+
+Authenticate with npm once using `pnpm login`, then publish `@slopus/rigged`
+from a clean, up-to-date `main` branch:
+
+```sh
+pnpm release 0.1.0
+```
+
+The release command also accepts semantic version bumps such as `patch`,
+`minor`, and `major`. It checks the branch, working tree, and npm
+authentication; runs the full workspace check; creates the release commit and
+tag; previews the package; pushes to `main`; and publishes it publicly. If
+publishing is interrupted after the tag is created, rerun the command with the
+exact version to resume safely.
+
 ## Working convention
 
 “Sync to main” means to commit the current work, rebase it onto the latest

@@ -1,26 +1,46 @@
 # `@slopus/rigged`
 
-The Rigged Fastify server is publishable as `@slopus/rigged` and runs either as
-one service (`server.role = "all"`), a dedicated authentication service
-(`"auth"`), or an API-side token validator (`"api"`). All useful endpoints are
-versioned under `/v0`; `/` is only a small service-status response.
+`@slopus/rigged` is runnable as the complete local Rigged web app and server.
+It also exposes the Fastify backend by itself for deployments that run one
+service (`server.role = "all"`), a dedicated authentication service (`"auth"`),
+or an API-side token validator (`"api"`). All useful backend endpoints are
+versioned under `/v0`; the backend's `/` remains only a small service-status
+response.
 
 ## Run
 
 ```sh
+# Published package: built web app and API on http://127.0.0.1:3000
+npx @slopus/rigged
+
 # Development, with reload and no configuration file:
 pnpm dev:server
 
-# Production package:
+# Locally built complete package:
 cp packages/server/rigged.example.toml rigged.toml
 pnpm --filter @slopus/rigged build
 pnpm --filter @slopus/rigged start -- --config ../../rigged.toml
+
+# Backend only (for split or container deployments):
+pnpm --filter @slopus/rigged start:server -- --config ../../rigged.toml
 ```
 
-Without a TOML file, development starts an `all`-role server on
-`127.0.0.1:3000` with SQLite, self-service password registration, and local
-JWT/pepper generation. Provide a custom TOML with `--config /path/to/rigged.toml`
-or `RIGGED_CONFIG=/path/to/rigged.toml` to override those defaults.
+The `rigged` executable starts the API on an ephemeral loopback port, serves the
+packaged SPA on the configured public port, and streams `/v0` requests through
+an internal reverse proxy. The web app therefore uses one origin for normal
+HTTP, uploads, and server-sent events. The configured `trusted_proxy_hops`
+continues to describe only proxies outside Rigged; the private loopback hop is
+handled internally.
+
+Without a TOML file, the package starts an `all`-role app on `127.0.0.1:3000`
+with SQLite, self-service password registration, and generated JWT/pepper
+material. Database, files, generated secrets, agent workspaces, and Rig runtime
+state live under `.rigged` in the invoking directory. Add `.rigged` to the
+project's ignore rules and preserve it as private application state. The
+package starts its bundled `@slopus/rig` executable with a project-private
+socket, token, and session database; it never connects to the user's global Rig
+daemon. Provide `--config /path/to/rigged.toml` or
+`RIGGED_CONFIG=/path/to/rigged.toml` to override the defaults.
 
 Clients can discover the selected issuance method at `GET /v0/auth/methods`.
 The response includes the server role and one `method` value: `password`,

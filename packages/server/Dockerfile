@@ -7,7 +7,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/server/package.json packages/server/package.json
 RUN pnpm install --frozen-lockfile
 COPY packages/server packages/server
-RUN pnpm --filter @slopus/rigged build \
+RUN pnpm --filter @slopus/rigged build:server \
   && pnpm --filter @slopus/rigged --prod deploy /app
 
 FROM node:22-bookworm-slim

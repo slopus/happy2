@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { join } from "node:path";
 import { parseConfig } from "./loader.js";
 
 const base = `[server]
@@ -28,6 +29,11 @@ redirect_path = "/v0/auth/oidc/example/callback"
 `);
         expect(config.auth.password.enabled).toBe(false);
         expect(config.auth.oidc.get("example")?.clientSecretEnv).toBe("OIDC_SECRET");
+        expect(config.agents).toMatchObject({
+            directory: join(process.cwd(), ".rigged", "rig"),
+            defaultCwd: join(process.cwd(), ".rigged", "workspaces"),
+        });
+        expect(config.files.directory).toBe(join(process.cwd(), ".rigged", "files"));
     });
 
     it("rejects more than one enabled authentication mechanism", () => {

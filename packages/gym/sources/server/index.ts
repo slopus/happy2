@@ -299,6 +299,7 @@ function gymConfig(databaseUrl: string): ServerConfig {
     config.jwt.keyId = "gym-server";
     config.auth.password.enabled = false;
     config.auth.password.signupEnabled = false;
+    config.agents.enabled = false;
     return config;
 }
 

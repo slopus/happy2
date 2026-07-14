@@ -2,6 +2,7 @@
   "name": "rigged",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@10.28.1",
   "engines": {
     "node": ">=24.0.0",
@@ -15,17 +16,21 @@
     "build": "pnpm -r --if-present build",
     "test": "pnpm -r --if-present test",
     "test:watch": "pnpm -r --parallel --if-present test:watch",
-    "typecheck": "pnpm -r --if-present typecheck",
-    "format": "pnpm -r --if-present format",
-    "format:check": "pnpm -r --if-present format:check",
-    "lint": "pnpm -r --if-present lint",
+    "typecheck": "tsc --project tsconfig.json && pnpm -r --if-present typecheck",
+    "format": "oxfmt --write scripts tsconfig.json && pnpm -r --if-present format",
+    "format:check": "oxfmt --check scripts tsconfig.json && pnpm -r --if-present format:check",
+    "lint": "oxlint scripts && pnpm -r --if-present lint",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "release": "tsx scripts/release.ts",
     "clean": "pnpm -r --if-present clean"
   },
   "devDependencies": {
+    "@types/node": "^26.1.1",
     "concurrently": "^10.0.3",
     "oxfmt": "^0.57.0",
     "oxlint": "^1.73.0",
-    "portless": "^0.15.1"
+    "portless": "^0.15.1",
+    "tsx": "^4.21.0",
+    "typescript": "^7.0.2"
   }
 }

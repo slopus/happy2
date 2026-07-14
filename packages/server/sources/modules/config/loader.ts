@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "smol-toml";
+import { bundledRigCommand } from "../agents/command.js";
+import { localRuntimePaths } from "./paths.js";
 import type { OidcProviderConfig, ServerConfig, ServerRole } from "./type.js";
 
 export type { ServerConfig } from "./type.js";
@@ -42,7 +43,7 @@ function strings(value: unknown, path: string, fallback: string[] = []): string[
 }
 
 export function parseConfig(input: string): ServerConfig {
-    const rigDirectory = join(tmpdir(), `rig-${process.getuid?.() ?? 0}`);
+    const paths = localRuntimePaths();
     const root = table(parse(input), "config");
     const server = table(root.server, "server");
     const role = string(server.role, "server.role") as ServerRole;
@@ -205,21 +206,25 @@ export function parseConfig(input: string): ServerConfig {
         },
         agents: {
             enabled: boolean(agents.enabled, "agents.enabled", true),
+            directory: paths.rigDirectory,
             socketPath:
                 string(agents.socket_path, "agents.socket_path", true) ??
                 process.env.RIG_SERVER_SOCKET_PATH ??
-                join(rigDirectory, "server.sock"),
+                join(paths.rigDirectory, "server.sock"),
             tokenPath:
                 string(agents.token_path, "agents.token_path", true) ??
                 process.env.RIG_SERVER_TOKEN_PATH ??
-                join(rigDirectory, "token"),
+                join(paths.rigDirectory, "token"),
             command:
-                string(agents.command, "agents.command", true) ?? process.env.RIG_COMMAND ?? "rig",
-            defaultCwd: string(agents.default_cwd, "agents.default_cwd", true) ?? process.cwd(),
+                string(agents.command, "agents.command", true) ??
+                process.env.RIG_COMMAND ??
+                bundledRigCommand(),
+            defaultCwd:
+                string(agents.default_cwd, "agents.default_cwd", true) ?? paths.workspacesDirectory,
         },
         files: {
             provider: fileProvider,
-            directory: string(files.directory, "files.directory", true) ?? "files",
+            directory: string(files.directory, "files.directory", true) ?? paths.filesDirectory,
             signedUrlExpirySeconds,
             maxUploadBytes,
             resumableChunkBytes,
