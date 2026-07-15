@@ -50,6 +50,13 @@
             "when": 1784000000000,
             "tag": "0006_rig_global_event_queue",
             "breakpoints": true
+        },
+        {
+            "idx": 7,
+            "version": "6",
+            "when": 1784050000000,
+            "tag": "0007_rename_server_identity",
+            "breakpoints": true
         }
     ]
 }

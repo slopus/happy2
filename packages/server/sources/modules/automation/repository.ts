@@ -138,7 +138,7 @@ export class AutomationRepository {
             const id = createId();
             const webhookToken =
                 input.triggerType === "webhook"
-                    ? `rgd_auto_${randomBytes(32).toString("base64url")}`
+                    ? `happy2_auto_${randomBytes(32).toString("base64url")}`
                     : undefined;
             const triggerConfig = webhookToken
                 ? { ...input.triggerConfig, tokenHash: secretHash(webhookToken) }
@@ -281,7 +281,7 @@ export class AutomationRepository {
         token: string,
         idempotencyKey?: string,
     ): Promise<{ hint?: MutationHint; runId: string }> {
-        if (!token.startsWith("rgd_auto_") || token.length > 256)
+        if (!token.startsWith("happy2_auto_") || token.length > 256)
             throw new CollaborationError("not_found", "Automation webhook was not found");
         if (
             idempotencyKey !== undefined &&

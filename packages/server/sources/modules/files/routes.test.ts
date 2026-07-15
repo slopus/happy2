@@ -21,15 +21,15 @@ describe("file pipeline HTTP API", () => {
             publicKeyEncoding: { type: "spki", format: "pem" },
             privateKeyEncoding: { type: "pkcs8", format: "pem" },
         });
-        process.env.RIGGED_JWT_PRIVATE_KEY_B64 = Buffer.from(pair.privateKey).toString("base64");
-        process.env.RIGGED_JWT_PUBLIC_KEY_B64 = Buffer.from(pair.publicKey).toString("base64");
-        process.env.RIGGED_PASSWORD_PEPPER = "file-route-test-pepper";
+        process.env.HAPPY2_JWT_PRIVATE_KEY_B64 = Buffer.from(pair.privateKey).toString("base64");
+        process.env.HAPPY2_JWT_PUBLIC_KEY_B64 = Buffer.from(pair.publicKey).toString("base64");
+        process.env.HAPPY2_PASSWORD_PEPPER = "file-route-test-pepper";
     });
 
     beforeEach(async () => {
-        directory = await mkdtemp(join(tmpdir(), "rigged-file-routes-"));
+        directory = await mkdtemp(join(tmpdir(), "happy2-file-routes-"));
         const config = defaultConfig();
-        config.database.url = `file:${join(directory, "rigged.db")}`;
+        config.database.url = `file:${join(directory, "happy2.db")}`;
         config.files.directory = join(directory, "files");
         config.agents.enabled = false;
         database = new Database(config.database.url);
@@ -169,7 +169,7 @@ function upload(
     contents: Buffer,
     options: { url?: string; headers?: Record<string, string> } = {},
 ) {
-    const boundary = `rigged-file-${Date.now()}`;
+    const boundary = `happy2-file-${Date.now()}`;
     const payload = Buffer.concat([
         Buffer.from(
             `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`,

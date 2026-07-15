@@ -247,7 +247,7 @@ export function parseConfig(input: string): ServerConfig {
         security: {
             integrationSecretEnv:
                 string(security.integration_secret_env, "security.integration_secret_env", true) ??
-                "RIGGED_INTEGRATION_SECRET",
+                "HAPPY2_INTEGRATION_SECRET",
             rateLimit: {
                 enabled: boolean(rateLimit.enabled, "security.rate_limit.enabled", true),
                 readsPerMinute,

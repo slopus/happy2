@@ -6,14 +6,14 @@ const base = `[server]
 role = "all"
 host = "127.0.0.1"
 port = 3000
-public_url = "https://rigged.example"
+public_url = "https://happy2.example"
 
 [database]
-url = "file:/tmp/rigged.db"
+url = "file:/tmp/happy2.db"
 
 [jwt]
-issuer = "https://rigged.example"
-audience = "rigged"
+issuer = "https://happy2.example"
+audience = "happy2"
 key_id = "test"
 `;
 
@@ -30,10 +30,10 @@ redirect_path = "/v0/auth/oidc/example/callback"
         expect(config.auth.password.enabled).toBe(false);
         expect(config.auth.oidc.get("example")?.clientSecretEnv).toBe("OIDC_SECRET");
         expect(config.agents).toMatchObject({
-            directory: join(process.cwd(), ".rigged", "rig"),
-            defaultCwd: join(process.cwd(), ".rigged", "workspaces"),
+            directory: join(process.cwd(), ".happy2", "rig"),
+            defaultCwd: join(process.cwd(), ".happy2", "workspaces"),
         });
-        expect(config.files.directory).toBe(join(process.cwd(), ".rigged", "files"));
+        expect(config.files.directory).toBe(join(process.cwd(), ".happy2", "files"));
     });
 
     it("rejects more than one enabled authentication mechanism", () => {
@@ -44,7 +44,7 @@ enabled = true
 
 [auth.magic_link]
 enabled = true
-redirect_url = "rigged://auth/magic-link"
+redirect_url = "happy2://auth/magic-link"
 `),
         ).toThrow("only one authentication method");
     });

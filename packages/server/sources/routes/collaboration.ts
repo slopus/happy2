@@ -177,7 +177,7 @@ export function registerCollaborationRoutes(
             if (!agents)
                 return reply.code(503).send({
                     error: "agents_unavailable",
-                    message: "AI agents are not enabled on this Rigged server.",
+                    message: "AI agents are not enabled on this Happy (2) server.",
                 });
             const body = requestBody(request, ["name", "username"]);
             const result = await agents.createAgent({
@@ -488,7 +488,7 @@ export function registerCollaborationRoutes(
             if (agentContext && !agents)
                 return reply.code(503).send({
                     error: "agents_unavailable",
-                    message: "AI agents are not enabled on this Rigged server.",
+                    message: "AI agents are not enabled on this Happy (2) server.",
                 });
             const body = requestBody(request, [
                 "text",

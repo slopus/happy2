@@ -57,7 +57,7 @@ export class LocalAgentDockerRuntime implements AgentDockerRuntime {
     ): Promise<{ imageId: string }> {
         const temporaryContext = input.buildContext
             ? undefined
-            : await mkdtemp(join(tmpdir(), "rigged-agent-image-"));
+            : await mkdtemp(join(tmpdir(), "happy2-agent-image-"));
         try {
             const progress = new DockerBuildProgress();
             await this.run(
@@ -106,11 +106,11 @@ export class LocalAgentDockerRuntime implements AgentDockerRuntime {
             "--name",
             input.containerName,
             "--label",
-            "dev.rigged.managed=true",
+            "dev.happy2.managed=true",
             "--label",
-            `dev.rigged.agent=${input.agentUserId}`,
+            `dev.happy2.agent=${input.agentUserId}`,
             "--label",
-            `dev.rigged.agent-image=${input.imageId}`,
+            `dev.happy2.agent-image=${input.imageId}`,
             ...(input.security.readonlyRootFilesystem ? ["--read-only"] : []),
             ...(input.security.init ? ["--init"] : []),
             "--shm-size",

@@ -4,8 +4,8 @@ import { bundledRigCommand } from "../agents/command.js";
 import { localRuntimePaths } from "./paths.js";
 
 /**
- * Safe standalone defaults used only when neither --config nor RIGGED_CONFIG
- * is supplied. Persistent state and generated secrets live under .rigged in
+ * Safe standalone defaults used only when neither --config nor HAPPY2_CONFIG
+ * is supplied. Persistent state and generated secrets live under .happy2 in
  * the invoking working directory.
  */
 export function defaultConfig(): ServerConfig {
@@ -18,7 +18,7 @@ export function defaultConfig(): ServerConfig {
             publicUrl: "http://127.0.0.1:3000",
             trustedProxyHops: 0,
         },
-        database: { url: `file:${join(paths.runtimeDirectory, "rigged.db")}` },
+        database: { url: `file:${join(paths.runtimeDirectory, "happy2.db")}` },
         agents: {
             enabled: true,
             directory: paths.rigDirectory,
@@ -43,7 +43,7 @@ export function defaultConfig(): ServerConfig {
             malwareScanFailureMode: "deny",
         },
         security: {
-            integrationSecretEnv: "RIGGED_INTEGRATION_SECRET",
+            integrationSecretEnv: "HAPPY2_INTEGRATION_SECRET",
             rateLimit: {
                 enabled: true,
                 readsPerMinute: 1_200,
@@ -58,7 +58,7 @@ export function defaultConfig(): ServerConfig {
         },
         jwt: {
             issuer: "http://127.0.0.1:3000",
-            audience: "rigged-desktop",
+            audience: "happy2-desktop",
             keyId: "local-generated",
             expiryDays: 30,
         },

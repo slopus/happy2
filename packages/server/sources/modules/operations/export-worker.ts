@@ -28,7 +28,7 @@ export class DataExportWorker {
                     requester,
                     Readable.from([contents]),
                     {
-                        filename: `rigged-${claim.kind}-${claim.id}.json`,
+                        filename: `happy2-${claim.kind}-${claim.id}.json`,
                         contentType: "application/json",
                     },
                 );

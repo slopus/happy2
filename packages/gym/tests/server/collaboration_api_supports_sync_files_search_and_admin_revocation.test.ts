@@ -72,12 +72,12 @@ describe("collaboration HTTP API", () => {
         await expectStatus(
             asAdmin,
             "/v0/admin/updateServer",
-            { name: "Rigged Test", title: "First title" },
+            { name: "Happy (2) Test", title: "First title" },
             200,
         );
         await expectStatus(asAdmin, "/v0/admin/updateServer", { title: null }, 200);
         const serverProfile = await asAdmin.get("/v0/server");
-        expect(serverProfile.json().server).toMatchObject({ name: "Rigged Test" });
+        expect(serverProfile.json().server).toMatchObject({ name: "Happy (2) Test" });
         expect(serverProfile.json().server).not.toHaveProperty("title");
 
         const ban = await asAdmin.post(`/v0/admin/users/${member.id}/banUser`);
@@ -102,7 +102,7 @@ async function uploadTextFile(
     filename: string,
     contents: string,
 ): Promise<{ id: string }> {
-    const boundary = "rigged-test-boundary";
+    const boundary = "happy2-test-boundary";
     const payload = Buffer.from(
         `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: text/plain\r\n\r\n${contents}\r\n--${boundary}--\r\n`,
     );

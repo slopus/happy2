@@ -64,11 +64,11 @@ describe("integration HTTP routes", () => {
                     id: "credential_1",
                     integrationId: "integration_1",
                     name: "CI",
-                    tokenPrefix: "rgd_api_abc",
+                    tokenPrefix: "happy2_api_abc",
                     scopes: ["messages:write"],
                     createdAt: "2026-01-01T00:00:00.000Z",
                 },
-                token: "rgd_api_secret_returned_once",
+                token: "happy2_api_secret_returned_once",
             })),
         });
         const app = buildRouteServer(repository);
@@ -80,7 +80,7 @@ describe("integration HTTP routes", () => {
         });
         expect(created.statusCode).toBe(201);
         expect(created.json()).toMatchObject({
-            token: "rgd_api_secret_returned_once",
+            token: "happy2_api_secret_returned_once",
             credential: { id: "credential_1" },
         });
 
@@ -137,7 +137,7 @@ describe("integration HTTP routes", () => {
             method: "POST",
             url: "/v0/integrations/incomingWebhook",
             headers: {
-                "x-rigged-webhook-token": "rgd_hook_secret",
+                "x-happy2-webhook-token": "happy2_hook_secret",
                 "idempotency-key": "deploy-event-42",
             },
             payload: { text: "hello" },
@@ -145,7 +145,7 @@ describe("integration HTTP routes", () => {
         expect(accepted.statusCode).toBe(201);
         expect(accepted.json()).toEqual({ messageId: "message_1" });
         expect(invokeIncomingWebhook).toHaveBeenCalledWith(
-            "rgd_hook_secret",
+            "happy2_hook_secret",
             "hello",
             incomingWebhook,
             "deploy-event-42",
@@ -154,7 +154,7 @@ describe("integration HTTP routes", () => {
             expect.objectContaining({
                 botId: "bot_1",
                 chatId: "chat_1",
-                text: "rgd_hook_secret:hello",
+                text: "happy2_hook_secret:hello",
                 idempotencyKey: "deploy-event-42",
             }),
         );
@@ -163,7 +163,7 @@ describe("integration HTTP routes", () => {
             method: "POST",
             url: "/v0/integrations/incomingWebhook",
             headers: {
-                "x-rigged-webhook-token": "rgd_hook_secret",
+                "x-happy2-webhook-token": "happy2_hook_secret",
                 "idempotency-key": "contains spaces",
             },
             payload: { text: "hello" },

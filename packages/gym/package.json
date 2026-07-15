@@ -22,8 +22,8 @@
     },
     "dependencies": {
         "@libsql/client": "^0.17.4",
-        "@slopus/rigged": "workspace:*",
         "fastify": "^5.8.2",
+        "happy2": "workspace:*",
         "rigged-state": "workspace:*"
     },
     "devDependencies": {

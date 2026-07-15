@@ -321,7 +321,7 @@ async function postMultipart(
         | { name: string; filename: string; contentType: string; contents: Buffer }
     >,
 ) {
-    const boundary = "rigged-gym-media-boundary";
+    const boundary = "happy2-gym-media-boundary";
     const payload: Buffer[] = [];
     for (const part of parts) {
         payload.push(Buffer.from(`--${boundary}\r\n`));

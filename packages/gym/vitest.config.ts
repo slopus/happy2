@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
     resolve: {
         alias: {
-            "@slopus/rigged": fileURLToPath(new URL("../server/sources/index.ts", import.meta.url)),
+            happy2: fileURLToPath(new URL("../server/sources/index.ts", import.meta.url)),
         },
     },
     test: {

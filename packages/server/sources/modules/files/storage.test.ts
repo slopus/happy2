@@ -17,9 +17,9 @@ describe("attachment storage", () => {
     let user: User;
 
     beforeEach(async () => {
-        directory = await mkdtemp(join(tmpdir(), "rigged-files-"));
+        directory = await mkdtemp(join(tmpdir(), "happy2-files-"));
         const config = defaultConfig();
-        config.database.url = `file:${join(directory, "rigged.db")}`;
+        config.database.url = `file:${join(directory, "happy2.db")}`;
         config.files.directory = join(directory, "files");
         database = new Database(config.database.url);
         await database.migrate();
@@ -180,7 +180,7 @@ describe("attachment storage", () => {
 
     function config() {
         const value = defaultConfig();
-        value.database.url = `file:${join(directory, "rigged.db")}`;
+        value.database.url = `file:${join(directory, "happy2.db")}`;
         value.files.directory = join(directory, "files");
         return value;
     }

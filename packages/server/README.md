@@ -1,6 +1,6 @@
-# `@slopus/rigged`
+# `happy2`
 
-`@slopus/rigged` is runnable as the complete local Rigged web app and server.
+`happy2` is runnable as the complete local Happy (2) web app and server.
 It also exposes the Fastify backend by itself for deployments that run one
 service (`server.role = "all"`), a dedicated authentication service (`"auth"`),
 or an API-side token validator (`"api"`). All useful backend endpoints are
@@ -11,36 +11,36 @@ response.
 
 ```sh
 # Published package: built web app and API on http://127.0.0.1:3000
-npx @slopus/rigged
+npx happy2
 
 # Development, with reload and no configuration file:
 pnpm dev:server
 
 # Locally built complete package:
-cp packages/server/rigged.example.toml rigged.toml
-pnpm --filter @slopus/rigged build
-pnpm --filter @slopus/rigged start -- --config ../../rigged.toml
+cp packages/server/happy2.example.toml happy2.toml
+pnpm --filter happy2 build
+pnpm --filter happy2 start -- --config ../../happy2.toml
 
 # Backend only (for split or container deployments):
-pnpm --filter @slopus/rigged start:server -- --config ../../rigged.toml
+pnpm --filter happy2 start:server -- --config ../../happy2.toml
 ```
 
-The `rigged` executable starts the API on an ephemeral loopback port, serves the
+The `happy2` executable starts the API on an ephemeral loopback port, serves the
 packaged SPA on the configured public port, and streams `/v0` requests through
 an internal reverse proxy. The web app therefore uses one origin for normal
 HTTP, uploads, and server-sent events. The configured `trusted_proxy_hops`
-continues to describe only proxies outside Rigged; the private loopback hop is
+continues to describe only proxies outside Happy (2); the private loopback hop is
 handled internally.
 
 Without a TOML file, the package starts an `all`-role app on `127.0.0.1:3000`
 with SQLite, self-service password registration, and generated JWT/pepper
 material. Database, files, generated secrets, agent workspaces, and Rig runtime
-state live under `.rigged` in the invoking directory. Add `.rigged` to the
+state live under `.happy2` in the invoking directory. Add `.happy2` to the
 project's ignore rules and preserve it as private application state. The
 package starts its bundled `@slopus/rig` executable with a project-private
 socket, token, and session database; it never connects to the user's global Rig
-daemon. Provide `--config /path/to/rigged.toml` or
-`RIGGED_CONFIG=/path/to/rigged.toml` to override the defaults.
+daemon. Provide `--config /path/to/happy2.toml` or
+`HAPPY2_CONFIG=/path/to/happy2.toml` to override the defaults.
 
 Clients can discover the selected issuance method at `GET /v0/auth/methods`.
 The response includes the server role and one `method` value: `password`,
@@ -77,16 +77,16 @@ environment variable named by `database.auth_token_env`.
 Build the image from the repository root:
 
 ```sh
-docker build -f packages/server/Dockerfile -t slopus/rigged .
-docker run --rm -p 3000:3000 -v "$PWD/rigged.toml:/app/rigged.toml:ro" slopus/rigged --config /app/rigged.toml
+docker build -f packages/server/Dockerfile -t slopus/happy2 .
+docker run --rm -p 3000:3000 -v "$PWD/happy2.toml:/app/happy2.toml:ro" slopus/happy2 --config /app/happy2.toml
 ```
 
-Mount a writable directory containing `rigged.toml` when using generated key
+Mount a writable directory containing `happy2.toml` when using generated key
 material, because the adjacent `.env` file is the durable key store.
 
 ## Authentication
 
-Choose exactly one of password, magic-link, or OIDC in `rigged.toml`; startup
+Choose exactly one of password, magic-link, or OIDC in `happy2.toml`; startup
 rejects configurations that enable more than one method. Clients can learn the
 selected method from `GET /v0/auth/methods`.
 
@@ -101,9 +101,9 @@ selected method from `GET /v0/auth/methods`.
 
 On initial startup, external environment values win. If an auth-capable server
 has no JWT private key configured, it generates a 3072-bit RS256 key pair and
-adds base64-encoded `RIGGED_JWT_PRIVATE_KEY_B64` and
-`RIGGED_JWT_PUBLIC_KEY_B64` to the `.env` file beside its TOML file. It likewise
-adds `RIGGED_PASSWORD_PEPPER` when password auth is enabled. Preserve that file
+adds base64-encoded `HAPPY2_JWT_PRIVATE_KEY_B64` and
+`HAPPY2_JWT_PUBLIC_KEY_B64` to the `.env` file beside its TOML file. It likewise
+adds `HAPPY2_PASSWORD_PEPPER` when password auth is enabled. Preserve that file
 as a secret; replacing it invalidates existing passwords and sessions. You may
 instead supply those variables through the deployment environment or mount PEM
 key files via the `jwt` config.
@@ -183,7 +183,7 @@ members of group DMs and channels—including multiple agents in one channel—b
 those conversations remain dormant until mention-based collaboration is
 implemented.
 
-If the configured socket is unavailable, Rigged runs `rig daemon start` without
+If the configured socket is unavailable, Happy (2) runs `rig daemon start` without
 a shell and passes the configured socket and token paths through Rig's standard
 environment variables. User turns are ordinary chat messages. The message and
 its durable `agent_turns` outbox row commit in one SQLite transaction; leased
@@ -249,7 +249,7 @@ and paginated differences, as described in its official
 [`updates.getDifference`](https://core.telegram.org/method/updates.getDifference)
 documentation.
 
-Rigged has two durable cursor levels:
+Happy (2) has two durable cursor levels:
 
 - A database-generation ID and server-wide `sequence` identify durable objects
   that changed for reconnect discovery.

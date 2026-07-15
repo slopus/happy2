@@ -1,6 +1,6 @@
 # gym
 
-`gym` contains Rigged's black-box test harnesses. Its server harness gives every
+`gym` contains Happy (2)'s black-box test harnesses. Its server harness gives every
 instance an in-memory SQLite database, an in-memory file volume, generated
 signing keys, and a Fastify server. It does not bind a port or write files, and
 closing it drops all of its state.

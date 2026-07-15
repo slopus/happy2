@@ -9,7 +9,7 @@ import type {
     AgentImageBuildInput,
     AgentImageBuildOptions,
     AgentImageBuildUpdate,
-} from "@slopus/rigged";
+} from "happy2";
 
 interface RigBlock {
     type: "text";
@@ -108,7 +108,7 @@ export class MockRigDaemon implements AsyncDisposable {
     }
 
     static async create(): Promise<MockRigDaemon> {
-        const directory = await mkdtemp(join(tmpdir(), "rigged-gym-rig-"));
+        const directory = await mkdtemp(join(tmpdir(), "happy2-gym-rig-"));
         const daemon = new MockRigDaemon(directory);
         await writeFile(daemon.tokenPath, daemon.token, { mode: 0o600 });
         await daemon.startServer();

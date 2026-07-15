@@ -410,7 +410,7 @@ export class IntegrationRepository {
         token: string,
         requiredScopes: readonly IntegrationScope[] = [],
     ): Promise<AuthenticatedIntegration | undefined> {
-        if (!token.startsWith("rgd_api_") || token.length > 256) return undefined;
+        if (!token.startsWith("happy2_api_") || token.length > 256) return undefined;
         const requested = normalizeScopes(requiredScopes);
         const candidates = await this.db
             .select({
@@ -517,7 +517,7 @@ export class IntegrationRepository {
         sink: IncomingWebhookSink,
         idempotencyKey?: string,
     ): Promise<IncomingWebhookSinkResult> {
-        if (!token.startsWith("rgd_hook_") || token.length > 256)
+        if (!token.startsWith("happy2_hook_") || token.length > 256)
             throw new IntegrationError("unauthorized", "Incoming webhook token is invalid");
         const textBody = requiredText(textValue, "Webhook message", 40_000);
         if (
@@ -937,9 +937,9 @@ export class IntegrationRepository {
                     body: delivery.payloadJson,
                     headers: {
                         "content-type": "application/json",
-                        "x-rigged-event-id": delivery.eventId,
-                        "x-rigged-signature": signature,
-                        "x-rigged-timestamp": timestamp,
+                        "x-happy2-event-id": delivery.eventId,
+                        "x-happy2-signature": signature,
+                        "x-happy2-timestamp": timestamp,
                     },
                 });
                 if (response.statusCode < 200 || response.statusCode >= 300)

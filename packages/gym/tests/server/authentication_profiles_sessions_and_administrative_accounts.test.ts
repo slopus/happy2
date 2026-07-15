@@ -16,7 +16,7 @@ type RequestOptions = Omit<InjectOptions, "method" | "url" | "payload">;
  */
 describe("authentication, profiles, sessions, and administrative accounts", () => {
     it("registers a password account, activates its profile, refreshes one session, and logs out only that session", async () => {
-        await withEnvironment({ RIGGED_PASSWORD_PEPPER: "gym-auth-password-pepper" }, async () => {
+        await withEnvironment({ HAPPY2_PASSWORD_PEPPER: "gym-auth-password-pepper" }, async () => {
             await using server = await createGymServer({
                 configure(config) {
                     config.auth.password.enabled = true;
@@ -137,7 +137,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
 
     it("advertises password sign-up policy and leaves disabled registration unavailable", async () => {
         await withEnvironment(
-            { RIGGED_PASSWORD_PEPPER: "gym-auth-closed-signup-pepper" },
+            { HAPPY2_PASSWORD_PEPPER: "gym-auth-closed-signup-pepper" },
             async () => {
                 await using server = await createGymServer({
                     configure(config) {
@@ -171,7 +171,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
     });
 
     it("reports duplicate password registration as a conflict", async () => {
-        await withEnvironment({ RIGGED_PASSWORD_PEPPER: "gym-auth-duplicate-pepper" }, async () => {
+        await withEnvironment({ HAPPY2_PASSWORD_PEPPER: "gym-auth-duplicate-pepper" }, async () => {
             await using server = await createGymServer({
                 configure(config) {
                     config.auth.password.enabled = true;
@@ -199,15 +199,15 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
                 EMAIL_SMTP_PORT: String(inbox.port),
                 EMAIL_SMTP_USER: "gym-user",
                 EMAIL_SMTP_PASSWORD: "gym-password",
-                EMAIL_FROM: "Rigged Gym <no-reply@gym.invalid>",
+                EMAIL_FROM: "Happy (2) Gym <no-reply@gym.invalid>",
             },
             async () => {
                 try {
                     await using server = await createGymServer({
                         configure(config) {
                             config.auth.magicLink.enabled = true;
-                            config.auth.magicLink.from = "Rigged Gym <no-reply@gym.invalid>";
-                            config.auth.magicLink.redirectUrl = "rigged://auth/magic-link";
+                            config.auth.magicLink.from = "Happy (2) Gym <no-reply@gym.invalid>";
+                            config.auth.magicLink.redirectUrl = "happy2://auth/magic-link";
                         },
                     });
                     const admin = await server.createUser({ username: "magic_link_admin" });
@@ -416,7 +416,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
 
     it("reports repeated profile creation as a conflict", async () => {
         await withEnvironment(
-            { RIGGED_PASSWORD_PEPPER: "gym-auth-profile-conflict-pepper" },
+            { HAPPY2_PASSWORD_PEPPER: "gym-auth-profile-conflict-pepper" },
             async () => {
                 await using server = await createGymServer({
                     configure(config) {

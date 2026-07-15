@@ -38,7 +38,7 @@ export class NodeWebhookTransport implements WebhookTransport {
             "maximumResponseBytes",
             2_000_000,
         );
-        this.userAgent = options.userAgent ?? "Rigged-Webhook/1.0";
+        this.userAgent = options.userAgent ?? "happy2-webhook/1.0";
         if (!this.userAgent || /[\r\n]/.test(this.userAgent))
             throw new TypeError("userAgent must be a valid HTTP header value");
     }

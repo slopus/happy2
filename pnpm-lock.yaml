@@ -112,7 +112,7 @@ importers:
       '@libsql/client':
         specifier: ^0.17.4
         version: 0.17.4
-      '@slopus/rigged':
+      'happy2':
         specifier: workspace:*
         version: link:../server
       fastify:

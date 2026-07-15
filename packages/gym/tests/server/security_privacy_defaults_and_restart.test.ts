@@ -404,13 +404,13 @@ describe("internet-facing security, privacy, and restart behavior", () => {
         const incomingPost = await server.post(
             "/v0/integrations/incomingWebhook",
             { text: "incoming hook survived restart" },
-            { headers: { "x-rigged-webhook-token": incomingToken } },
+            { headers: { "x-happy2-webhook-token": incomingToken } },
         );
         expect(incomingPost.statusCode).toBe(201);
         expect(
             (
                 await server.post("/v0/automations/invokeWebhook", undefined, {
-                    headers: { "x-rigged-automation-token": automationToken },
+                    headers: { "x-happy2-automation-token": automationToken },
                 })
             ).statusCode,
         ).toBe(202);
@@ -521,7 +521,7 @@ async function uploadTextFile(
     filename: string,
     contents: string,
 ): Promise<{ id: string }> {
-    const boundary = "rigged-security-boundary";
+    const boundary = "happy2-security-boundary";
     const payload = Buffer.from(
         `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: text/plain\r\n\r\n${contents}\r\n--${boundary}--\r\n`,
     );
@@ -538,7 +538,7 @@ async function appendUpload(
     offset: number,
     contents: Buffer,
 ) {
-    const boundary = "rigged-resume-boundary";
+    const boundary = "happy2-resume-boundary";
     const payload = Buffer.concat([
         Buffer.from(
             `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="chunk.bin"\r\nContent-Type: application/octet-stream\r\n\r\n`,

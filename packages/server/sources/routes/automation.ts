@@ -276,7 +276,7 @@ function routeId(request: FastifyRequest, key: string): string {
 }
 
 function automationWebhookToken(request: FastifyRequest): string {
-    const value = request.headers["x-rigged-automation-token"];
+    const value = request.headers["x-happy2-automation-token"];
     if (typeof value !== "string" || !value)
         throw new CollaborationError("not_found", "Automation webhook was not found");
     return value;

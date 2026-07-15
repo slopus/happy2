@@ -124,7 +124,7 @@ describe("AI agent chats", () => {
         expect(sent.statusCode).toBe(201);
         await waitFor(
             () => rig.submissionAttemptCount > 0,
-            "Rigged to attempt the atomically queued turn",
+            "Happy (2) to attempt the atomically queued turn",
         );
 
         await server.restart();
@@ -318,7 +318,7 @@ describe("AI agent chats", () => {
         const chatId = await createAgent(asOwner);
 
         await asOwner.post(`/v0/chats/${chatId}/sendMessage`, {
-            text: "Survive the Rigged restart",
+            text: "Survive the Happy (2) restart",
             clientMutationId: "server-restart",
         });
         const run = await waitForRun(rig, 1);
@@ -334,7 +334,7 @@ describe("AI agent chats", () => {
         expect(messages.at(-1)?.text).toBe("Recovered by the rebuilt server.");
         await server.restart();
         expect(await waitForMessages(asOwner, chatId, 2)).toHaveLength(2);
-        expect(rig.submittedTexts).toEqual(["Survive the Rigged restart"]);
+        expect(rig.submittedTexts).toEqual(["Survive the Happy (2) restart"]);
     });
 
     it("fails one run without blocking the next durable queued turn", async () => {
@@ -399,7 +399,7 @@ describe("AI agent chats", () => {
 
         await waitFor(
             () => rig.globalStreamRequestCount > 0,
-            "Rigged to open the durable global event stream",
+            "Happy (2) to open the durable global event stream",
         );
         expect(rig.globalEventReadCount).toBe(0);
         expect(rig.trimRequests).toEqual([]);
@@ -407,7 +407,7 @@ describe("AI agent chats", () => {
 
         await waitFor(
             () => rig.trimRequests.length > 0,
-            "Rigged to trim applied global events",
+            "Happy (2) to trim applied global events",
             10_000,
         );
         expect(rig.trimRequests).toHaveLength(1);

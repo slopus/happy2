@@ -3,14 +3,14 @@ import { join, resolve } from "node:path";
 
 const workspace = resolve(import.meta.dirname, "..");
 const portless = join(workspace, "node_modules", ".bin", "portless");
-const serverUrl = execFileSync(portless, ["get", "rigged-api"], {
+const serverUrl = execFileSync(portless, ["get", "happy2-api"], {
     cwd: workspace,
     encoding: "utf8",
 }).trim();
 
-console.log(`Rigged desktop development: server ${serverUrl}`);
+console.log(`Happy (2) desktop development: server ${serverUrl}`);
 
-const portlessArguments = ["run", "--name", "rigged-desktop"];
+const portlessArguments = ["run", "--name", "happy2-desktop"];
 if (process.env.PORT) portlessArguments.push("--app-port", process.env.PORT);
 portlessArguments.push("pnpm", "--filter", "@rigged/desktop", "dev");
 

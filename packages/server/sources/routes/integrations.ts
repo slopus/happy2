@@ -500,7 +500,7 @@ function queryLimit(request: FastifyRequest): number {
 }
 
 function incomingWebhookToken(request: FastifyRequest): string {
-    const value = request.headers["x-rigged-webhook-token"];
+    const value = request.headers["x-happy2-webhook-token"];
     if (typeof value !== "string" || !value)
         throw new IntegrationError("unauthorized", "Incoming webhook token is invalid");
     return value;

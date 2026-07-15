@@ -280,7 +280,7 @@ describe("integration lifecycle and webhook contracts", () => {
                 active: true,
             },
         });
-        expect(signingSecret).toMatch(/^rgd_sign_/);
+        expect(signingSecret).toMatch(/^happy2_sign_/);
         const listed = await asAdmin.get(
             `/v0/admin/integrations/${integrationId}/webhookSubscriptions`,
         );
@@ -376,7 +376,7 @@ describe("integration lifecycle and webhook contracts", () => {
             },
             command: { id: commandId, command: "/deploy-gym", active: true },
         });
-        expect(signingSecret).toMatch(/^rgd_sign_/);
+        expect(signingSecret).toMatch(/^happy2_sign_/);
         expect((await asMember.get("/v0/slashCommands")).json().commands).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({ id: commandId, command: "/deploy-gym", active: true }),

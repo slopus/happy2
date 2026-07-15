@@ -298,7 +298,7 @@ describe("automation and scheduled message lifecycle contracts", () => {
         expect(webhookAutomation.statusCode).toBe(201);
         const webhookAutomationId = webhookAutomation.json().automation.id as string;
         const webhookToken = webhookAutomation.json().webhookToken as string;
-        expect(webhookToken).toMatch(/^rgd_auto_/);
+        expect(webhookToken).toMatch(/^happy2_auto_/);
         expect(webhookAutomation.json().automation.triggerConfig).not.toHaveProperty("tokenHash");
         expect(JSON.stringify((await asAdmin.get("/v0/admin/automations")).json())).not.toContain(
             webhookToken,
@@ -309,12 +309,12 @@ describe("automation and scheduled message lifecycle contracts", () => {
         expect(
             (
                 await server.post("/v0/automations/invokeWebhook", undefined, {
-                    headers: { "x-rigged-automation-token": "rgd_auto_not_a_real_token" },
+                    headers: { "x-happy2-automation-token": "happy2_auto_not_a_real_token" },
                 })
             ).statusCode,
         ).toBe(404);
         const webhookHeaders = {
-            "x-rigged-automation-token": webhookToken,
+            "x-happy2-automation-token": webhookToken,
             "idempotency-key": "webhook-trigger-once",
         };
         const firstWebhook = await server.post("/v0/automations/invokeWebhook", undefined, {
@@ -358,7 +358,7 @@ describe("automation and scheduled message lifecycle contracts", () => {
         ).toBe(200);
         const reenabledWebhook = await server.post("/v0/automations/invokeWebhook", undefined, {
             headers: {
-                "x-rigged-automation-token": webhookToken,
+                "x-happy2-automation-token": webhookToken,
                 "idempotency-key": "webhook-trigger-after-reenable",
             },
         });

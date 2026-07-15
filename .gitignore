@@ -1,6 +1,6 @@
 node_modules
 .context
-.rigged
+.happy2
 dist
 coverage
 .vitest-attachments

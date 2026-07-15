@@ -59,7 +59,7 @@ describe("integration HTTP API", () => {
         );
         expect(credentialResponse.statusCode).toBe(201);
         const credential = credentialResponse.json();
-        expect(credential.token).toMatch(/^rgd_api_/);
+        expect(credential.token).toMatch(/^happy2_api_/);
         expect(credential.credential).not.toHaveProperty("tokenHash");
 
         const listedCredentials = await asAdmin.get(`/v0/admin/integrations/${appId}/credentials`);
@@ -104,11 +104,11 @@ describe("integration HTTP API", () => {
         });
         expect(hookResponse.statusCode).toBe(201);
         const hook = hookResponse.json();
-        expect(hook.token).toMatch(/^rgd_hook_/);
+        expect(hook.token).toMatch(/^happy2_hook_/);
         expect(hook.subscription).not.toHaveProperty("tokenHash");
 
         const incomingHeaders = {
-            "x-rigged-webhook-token": hook.token as string,
+            "x-happy2-webhook-token": hook.token as string,
             "idempotency-key": "deployment-event-42",
         };
         const firstDelivery = await server.post(
@@ -152,7 +152,7 @@ describe("integration HTTP API", () => {
             botId,
         });
         expect(slashResponse.statusCode).toBe(201);
-        expect(slashResponse.json().signingSecret).toMatch(/^rgd_sign_/);
+        expect(slashResponse.json().signingSecret).toMatch(/^happy2_sign_/);
         const slashIntegrationId = slashResponse.json().integration.id as string;
         const commands = await asMember.get("/v0/slashCommands");
         expect(commands.statusCode).toBe(200);

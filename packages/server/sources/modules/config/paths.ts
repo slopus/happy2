@@ -6,7 +6,7 @@ export function localRuntimePaths(cwd = process.cwd()): {
     runtimeDirectory: string;
     workspacesDirectory: string;
 } {
-    const runtimeDirectory = join(cwd, ".rigged");
+    const runtimeDirectory = join(cwd, ".happy2");
     const configuredRigDirectory = process.env.RIG_SERVER_DIRECTORY?.trim();
     return {
         filesDirectory: join(runtimeDirectory, "files"),

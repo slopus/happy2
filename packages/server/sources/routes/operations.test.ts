@@ -22,8 +22,8 @@ describe("operations routes", () => {
     let member: Identity;
 
     beforeEach(async () => {
-        directory = await mkdtemp(join(tmpdir(), "rigged-operations-routes-"));
-        const url = `file:${join(directory, "rigged.db")}`;
+        directory = await mkdtemp(join(tmpdir(), "happy2-operations-routes-"));
+        const url = `file:${join(directory, "happy2.db")}`;
         database = new Database(url);
         await database.migrate();
         repository = new OperationsRepository(url);
@@ -71,7 +71,7 @@ describe("operations routes", () => {
             url: "/v0/reports/createReport",
             headers: {
                 authorization: "Bearer member",
-                "x-rigged-device": "Rigged Desktop",
+                "x-happy2-device": "Happy (2) Desktop",
             },
             payload: {
                 targetUserId: admin.user.id,

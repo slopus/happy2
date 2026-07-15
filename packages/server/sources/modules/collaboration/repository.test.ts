@@ -17,8 +17,8 @@ describe("CollaborationRepository", () => {
     let linus: User;
 
     beforeEach(async () => {
-        directory = await mkdtemp(join(tmpdir(), "rigged-collaboration-"));
-        url = `file:${join(directory, "rigged.db")}`;
+        directory = await mkdtemp(join(tmpdir(), "happy2-collaboration-"));
+        url = `file:${join(directory, "happy2.db")}`;
         database = new Database(url);
         await database.migrate();
         repository = new CollaborationRepository(url);
@@ -41,7 +41,7 @@ describe("CollaborationRepository", () => {
                 buildContext: "test-context",
                 builtinKey: "daycare-minimal",
                 definitionHash: "test-image-hash",
-                dockerTag: "rigged-agent:test-image-hash",
+                dockerTag: "happy2-agent:test-image-hash",
                 dockerfile: "FROM scratch",
                 name: "Test image",
             },

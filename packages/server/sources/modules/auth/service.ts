@@ -29,11 +29,11 @@ export class AuthService {
         private readonly tokens: TokenService,
     ) {
         this.passwordPepper = config.auth.password.enabled
-            ? process.env.RIGGED_PASSWORD_PEPPER
+            ? process.env.HAPPY2_PASSWORD_PEPPER
             : undefined;
         if (config.auth.password.enabled && !this.passwordPepper)
             throw new Error(
-                "RIGGED_PASSWORD_PEPPER must be initialized before starting password authentication",
+                "HAPPY2_PASSWORD_PEPPER must be initialized before starting password authentication",
             );
     }
 
@@ -116,8 +116,8 @@ export class AuthService {
         await smtpTransport().sendMail({
             from: process.env.EMAIL_FROM ?? this.config.auth.magicLink.from,
             to: accountEmail,
-            subject: "Sign in to Rigged",
-            text: `Open this sign-in link in Rigged. It expires in 15 minutes:\n${link}`,
+            subject: "Sign in to Happy (2)",
+            text: `Open this sign-in link in Happy (2). It expires in 15 minutes:\n${link}`,
         });
     }
     async verifyMagicLink(body: unknown, request: FastifyRequest): Promise<AuthToken | undefined> {

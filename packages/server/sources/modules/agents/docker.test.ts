@@ -10,7 +10,7 @@ describe("LocalAgentDockerRuntime", () => {
     let log: string;
 
     beforeEach(async () => {
-        directory = await mkdtemp(join(tmpdir(), "rigged-docker-runtime-"));
+        directory = await mkdtemp(join(tmpdir(), "happy2-docker-runtime-"));
         command = join(directory, "docker");
         log = join(directory, "calls.jsonl");
         await writeFile(
@@ -47,7 +47,7 @@ if (args[0] === "build") process.stderr.write("#1 [stage-0 1/2] prepare\\n#1 DON
                 {
                     buildContext: "https://example.invalid/context.git#commit:runtime",
                     dockerfile: "FROM ubuntu:24.04\n",
-                    tag: "rigged-agent:definition",
+                    tag: "happy2-agent:definition",
                 },
                 { onUpdate: (update) => updates.push(update) },
             ),
@@ -57,10 +57,10 @@ if (args[0] === "build") process.stderr.write("#1 [stage-0 1/2] prepare\\n#1 DON
 
         await runtime.createContainer({
             agentUserId: "agent-id",
-            containerName: "rigged-agent-container",
+            containerName: "happy2-agent-container",
             homeDirectory: "/host/agent/user/home",
             imageId: "image-record-id",
-            imageTag: "rigged-agent:definition",
+            imageTag: "happy2-agent:definition",
             security: {
                 init: true,
                 readonlyRootFilesystem: true,
@@ -86,7 +86,7 @@ if (args[0] === "build") process.stderr.write("#1 [stage-0 1/2] prepare\\n#1 DON
                 "--progress",
                 "plain",
                 "--tag",
-                "rigged-agent:definition",
+                "happy2-agent:definition",
                 "--file",
                 "-",
                 "https://example.invalid/context.git#commit:runtime",
@@ -98,18 +98,18 @@ if (args[0] === "build") process.stderr.write("#1 [stage-0 1/2] prepare\\n#1 DON
             "inspect",
             "--format",
             "{{.Id}}",
-            "rigged-agent:definition",
+            "happy2-agent:definition",
         ]);
         expect(calls[2]?.args).toEqual([
             "create",
             "--name",
-            "rigged-agent-container",
+            "happy2-agent-container",
             "--label",
-            "dev.rigged.managed=true",
+            "dev.happy2.managed=true",
             "--label",
-            "dev.rigged.agent=agent-id",
+            "dev.happy2.agent=agent-id",
             "--label",
-            "dev.rigged.agent-image=image-record-id",
+            "dev.happy2.agent-image=image-record-id",
             "--read-only",
             "--init",
             "--shm-size",
@@ -134,11 +134,11 @@ if (args[0] === "build") process.stderr.write("#1 [stage-0 1/2] prepare\\n#1 DON
             "/workspace",
             "--entrypoint",
             "/bin/sh",
-            "rigged-agent:definition",
+            "happy2-agent:definition",
             "-c",
             "trap : TERM INT; while :; do sleep 2073600; done",
         ]);
-        expect(calls[3]?.args).toEqual(["start", "rigged-agent-container"]);
+        expect(calls[3]?.args).toEqual(["start", "happy2-agent-container"]);
     });
 
     it("retries the transient Docker Desktop bind propagation failure", async () => {
@@ -150,7 +150,7 @@ if (args[0] === "build") process.stderr.write("#1 [stage-0 1/2] prepare\\n#1 DON
                 containerName: "retry-mount-container",
                 homeDirectory: "/Users/example/home",
                 imageId: "image-record-id",
-                imageTag: "rigged-agent:definition",
+                imageTag: "happy2-agent:definition",
                 security: {
                     init: true,
                     readonlyRootFilesystem: true,

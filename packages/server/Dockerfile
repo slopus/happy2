@@ -1,5 +1,5 @@
 # Build from the repository root:
-# docker build -f packages/server/Dockerfile -t slopus/rigged .
+# docker build -f packages/server/Dockerfile -t slopus/happy2 .
 FROM node:22-bookworm-slim AS build
 WORKDIR /workspace
 RUN corepack enable
@@ -7,8 +7,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/server/package.json packages/server/package.json
 RUN pnpm install --frozen-lockfile
 COPY packages/server packages/server
-RUN pnpm --filter @slopus/rigged build:server \
-  && pnpm --filter @slopus/rigged --prod deploy /app
+RUN pnpm --filter happy2 build:server \
+  && pnpm --filter happy2 --prod deploy /app
 
 FROM node:22-bookworm-slim
 ENV NODE_ENV=production

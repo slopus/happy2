@@ -1,16 +1,16 @@
 {
-    "name": "@slopus/rigged",
+    "name": "happy2",
     "version": "0.0.3",
-    "description": "Rigged web app, server, and authentication service",
+    "description": "Happy (2) web app, server, and authentication service",
     "bin": {
-        "rigged": "bin/rigged.js",
-        "rigged-server": "bin/rigged-server.js"
+        "happy2": "bin/happy2.js",
+        "happy2-server": "bin/happy2-server.js"
     },
     "files": [
         "bin",
         "dist",
         "drizzle",
-        "rigged.example.toml",
+        "happy2.example.toml",
         "README.md",
         "Dockerfile"
     ],

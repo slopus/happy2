@@ -21,8 +21,8 @@ describe("OperationsRepository", () => {
     let member: TestIdentity;
 
     beforeEach(async () => {
-        directory = await mkdtemp(join(tmpdir(), "rigged-operations-"));
-        const url = `file:${join(directory, "rigged.db")}`;
+        directory = await mkdtemp(join(tmpdir(), "happy2-operations-"));
+        const url = `file:${join(directory, "happy2.db")}`;
         database = new Database(url);
         await database.migrate();
         raw = createClient({ url });
@@ -52,9 +52,9 @@ describe("OperationsRepository", () => {
             context: {
                 request: {
                     ip: "198.51.100.12",
-                    device: "Rigged Desktop",
+                    device: "Happy (2) Desktop",
                     appVersion: "1.2.3",
-                    userAgent: "Rigged/1.2.3",
+                    userAgent: "happy2/1.2.3",
                 },
             },
         });
@@ -73,7 +73,7 @@ describe("OperationsRepository", () => {
             action: "user.ban_applied",
             targetId: member.user.id,
             clientIp: "198.51.100.12",
-            device: "Rigged Desktop",
+            device: "Happy (2) Desktop",
         });
         expect(audit.items[0]?.metadata).toMatchObject({ revokedSessionCount: 1 });
 
@@ -579,7 +579,7 @@ describe("OperationsRepository", () => {
             height: 0,
             thumbhash: "",
             kind: "file",
-            originalName: "rigged-export.zip",
+            originalName: "happy2-export.zip",
         };
         await database.createFile(output);
         const complete = await repository.updateDataExport({
@@ -652,7 +652,7 @@ describe("OperationsRepository", () => {
             ip: "192.0.2.44",
             device: "MacBookPro",
             appVersion: "4.0.0",
-            userAgent: "Rigged/4.0.0",
+            userAgent: "happy2/4.0.0",
         });
         await expect(
             repository.listUserAccess({ actorUserId: member.user.id, limit: 20 }),

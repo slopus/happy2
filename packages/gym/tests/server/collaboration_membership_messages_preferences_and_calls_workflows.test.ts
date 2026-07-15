@@ -850,7 +850,7 @@ async function uploadGif(
     client: GymRequestClient,
     filename: string,
 ): Promise<{ id: string; kind: string }> {
-    const boundary = "rigged-collaboration-workflow-boundary";
+    const boundary = "happy2-collaboration-workflow-boundary";
     const gif = Buffer.from("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==", "base64");
     const payload = Buffer.concat([
         Buffer.from(

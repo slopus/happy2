@@ -7,7 +7,7 @@ import {
 } from "node:crypto";
 
 const CIPHER = "aes-256-gcm";
-const CONTEXT = Buffer.from("rigged:integration-signing-secret:v1", "utf8");
+const CONTEXT = Buffer.from("happy2:integration-signing-secret:v1", "utf8");
 
 export interface SecretProtector {
     protect(secret: string): Promise<string>;
@@ -67,15 +67,15 @@ export class AesGcmSecretProtector implements SecretProtector {
 }
 
 export function generateApiToken(): string {
-    return `rgd_api_${randomBytes(32).toString("base64url")}`;
+    return `happy2_api_${randomBytes(32).toString("base64url")}`;
 }
 
 export function generateIncomingWebhookToken(): string {
-    return `rgd_hook_${randomBytes(32).toString("base64url")}`;
+    return `happy2_hook_${randomBytes(32).toString("base64url")}`;
 }
 
 export function generateSigningSecret(): string {
-    return `rgd_sign_${randomBytes(32).toString("base64url")}`;
+    return `happy2_sign_${randomBytes(32).toString("base64url")}`;
 }
 
 export function tokenPrefix(token: string): string {

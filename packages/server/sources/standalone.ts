@@ -8,7 +8,7 @@ import type { ServerConfig } from "./modules/config/type.js";
 import { Database } from "./modules/database.js";
 import { buildServer } from "./server.js";
 
-export interface StandaloneRigged extends AsyncDisposable {
+export interface StandaloneHappy2 extends AsyncDisposable {
     /** Actual bound public URL. This differs from config.server.publicUrl when port 0 is used. */
     url: string;
     close(): Promise<void>;
@@ -20,10 +20,10 @@ export interface StandaloneOptions {
 }
 
 /** Starts the private API server and the public web/static reverse proxy. */
-export async function startStandaloneRigged(
+export async function startStandaloneHappy2(
     config: ServerConfig,
     options: StandaloneOptions = {},
-): Promise<StandaloneRigged> {
+): Promise<StandaloneHappy2> {
     const webRoot = options.webRoot ?? join(import.meta.dirname, "web");
     await access(join(webRoot, "index.html"));
 

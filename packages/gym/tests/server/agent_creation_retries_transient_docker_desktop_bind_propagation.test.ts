@@ -1,14 +1,14 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalAgentDockerRuntime } from "@slopus/rigged";
+import { LocalAgentDockerRuntime } from "happy2";
 import { describe, expect, it } from "vitest";
 import { createMockRigDaemon } from "gym/rig";
 import { createGymServer } from "../../sources/index.js";
 
 describe("agent container bind propagation", () => {
     it("retries Docker Desktop's transient missing bind source response", async () => {
-        const directory = await mkdtemp(join(tmpdir(), "rigged-gym-docker-bind-"));
+        const directory = await mkdtemp(join(tmpdir(), "happy2-gym-docker-bind-"));
         const command = join(directory, "docker");
         const callsPath = join(directory, "calls.jsonl");
         const markerPath = join(directory, "create-failed.marker");

@@ -26,7 +26,7 @@ import {
     type AgentDockerRuntime,
     type ServerConfig,
     type User,
-} from "@slopus/rigged";
+} from "happy2";
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from "fastify";
 
 export interface GymUser extends User {
@@ -74,16 +74,16 @@ export interface GymServerOptions {
 }
 
 /**
- * Creates a complete Rigged server backed only by memory. The returned object is
+ * Creates a complete Happy (2) server backed only by memory. The returned object is
  * anonymous by default; call `as(user)` to make authenticated requests.
  */
 export async function createGymServer(options: GymServerOptions = {}): Promise<GymServer> {
     const databaseDirectory =
         options.databaseMode === "file"
-            ? await mkdtemp(join(tmpdir(), "rigged-gym-database-"))
+            ? await mkdtemp(join(tmpdir(), "happy2-gym-database-"))
             : undefined;
     const databaseUrl = databaseDirectory
-        ? `file:${join(databaseDirectory, "rigged.db")}`
+        ? `file:${join(databaseDirectory, "happy2.db")}`
         : ":memory:";
     const rawClient = createClient({ url: databaseUrl });
     const client = databaseDirectory ? rawClient : singleConnectionClient(rawClient);

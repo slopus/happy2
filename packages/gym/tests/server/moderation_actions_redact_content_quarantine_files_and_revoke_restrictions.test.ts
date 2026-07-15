@@ -245,7 +245,7 @@ async function uploadTextFile(
     filename: string,
     contents: string,
 ): Promise<{ id: string }> {
-    const boundary = "rigged-moderation-boundary";
+    const boundary = "happy2-moderation-boundary";
     const payload = Buffer.from(
         `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: text/plain\r\n\r\n${contents}\r\n--${boundary}--\r\n`,
     );

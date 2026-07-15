@@ -10,20 +10,20 @@ const portlessUrl = (name) =>
         encoding: "utf8",
     }).trim();
 
-const webUrl = portlessUrl("rigged");
-const serverUrl = portlessUrl("rigged-api");
+const webUrl = portlessUrl("happy2");
+const serverUrl = portlessUrl("happy2-api");
 
-console.log(`Rigged development: web ${webUrl} · server ${serverUrl}`);
+console.log(`Happy (2) development: web ${webUrl} · server ${serverUrl}`);
 
 const { result } = concurrently(
     [
         {
-            command: "pnpm exec portless run --name rigged-api node scripts/dev-server.mjs",
+            command: "pnpm exec portless run --name happy2-api node scripts/dev-server.mjs",
             name: "server",
             prefixColor: "magenta",
         },
         {
-            command: "pnpm exec portless run --name rigged node scripts/dev-web.mjs",
+            command: "pnpm exec portless run --name happy2 node scripts/dev-web.mjs",
             name: "web",
             prefixColor: "cyan",
             env: { VITE_RIGGED_SERVER_URL: serverUrl },

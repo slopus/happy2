@@ -175,10 +175,10 @@ describe("stateful collaboration workflows", () => {
             actionConfig: { text: "Webhook-driven notice" },
         });
         expect(webhookAutomation.statusCode).toBe(201);
-        expect(webhookAutomation.json().webhookToken).toMatch(/^rgd_auto_/);
+        expect(webhookAutomation.json().webhookToken).toMatch(/^happy2_auto_/);
         expect(webhookAutomation.json().automation.triggerConfig).not.toHaveProperty("tokenHash");
         const webhookHeaders = {
-            "x-rigged-automation-token": webhookAutomation.json().webhookToken as string,
+            "x-happy2-automation-token": webhookAutomation.json().webhookToken as string,
             "idempotency-key": "external-release-1",
         };
         const firstWebhookRun = await server.post("/v0/automations/invokeWebhook", undefined, {

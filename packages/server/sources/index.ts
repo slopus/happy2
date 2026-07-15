@@ -3,7 +3,7 @@ export { supportedAuthMethods, type SupportedAuthMethods } from "./modules/auth/
 export { initializeManagedEnvironment } from "./modules/config/environment.js";
 export { defaultConfig } from "./modules/config/defaults.js";
 export { loadConfig, parseConfig } from "./modules/config/loader.js";
-export { startStandaloneRigged, type StandaloneRigged } from "./standalone.js";
+export { startStandaloneHappy2, type StandaloneHappy2 } from "./standalone.js";
 export type { ServerConfig } from "./modules/config/type.js";
 export { Database, type RequestMetadata, type User } from "./modules/database.js";
 export { CollaborationRepository } from "./modules/collaboration/repository.js";

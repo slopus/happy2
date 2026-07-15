@@ -166,13 +166,13 @@ describe("authentication abuse protection and deployment role contracts", () => 
 });
 
 async function withPasswordPepper(run: () => Promise<void>): Promise<void> {
-    const previous = process.env.RIGGED_PASSWORD_PEPPER;
-    process.env.RIGGED_PASSWORD_PEPPER = "gym-auth-abuse-pepper";
+    const previous = process.env.HAPPY2_PASSWORD_PEPPER;
+    process.env.HAPPY2_PASSWORD_PEPPER = "gym-auth-abuse-pepper";
     try {
         await run();
     } finally {
-        if (previous === undefined) delete process.env.RIGGED_PASSWORD_PEPPER;
-        else process.env.RIGGED_PASSWORD_PEPPER = previous;
+        if (previous === undefined) delete process.env.HAPPY2_PASSWORD_PEPPER;
+        else process.env.HAPPY2_PASSWORD_PEPPER = previous;
     }
 }
 

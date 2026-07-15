@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 function port(value) {
     const parsed = Number(value);
     if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65_535) {
-        throw new Error("Portless must provide a valid PORT for the Rigged server");
+        throw new Error("Portless must provide a valid PORT for the Happy (2) server");
     }
     return parsed;
 }
@@ -16,10 +16,10 @@ function tomlString(value) {
 
 const workspace = resolve(import.meta.dirname, "..");
 const runtimeDirectory = join(workspace, ".context", "dev");
-const configPath = join(runtimeDirectory, "rigged.toml");
+const configPath = join(runtimeDirectory, "happy2.toml");
 const serverPort = port(process.env.PORT);
 const serverUrl = process.env.PORTLESS_URL;
-if (!serverUrl) throw new Error("Portless must provide PORTLESS_URL for the Rigged server");
+if (!serverUrl) throw new Error("Portless must provide PORTLESS_URL for the Happy (2) server");
 
 await mkdir(runtimeDirectory, { recursive: true });
 await writeFile(
@@ -32,7 +32,7 @@ public_url = ${tomlString(serverUrl)}
 trusted_proxy_hops = 0
 
 [database]
-url = ${tomlString(`file:${join(runtimeDirectory, "rigged.db")}`)}
+url = ${tomlString(`file:${join(runtimeDirectory, "happy2.db")}`)}
 
 [agents]
 enabled = true
@@ -45,7 +45,7 @@ max_upload_bytes = 536870912
 
 [jwt]
 issuer = ${tomlString(serverUrl)}
-audience = "rigged-desktop"
+audience = "happy2-desktop"
 key_id = "local-generated"
 expiry_days = 30
 

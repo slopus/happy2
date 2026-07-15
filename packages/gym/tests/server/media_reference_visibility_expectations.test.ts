@@ -90,7 +90,7 @@ describe("referenced media visibility expectations", () => {
 });
 
 async function uploadPhoto(client: GymRequestClient, filename: string): Promise<{ id: string }> {
-    const boundary = "rigged-gym-reference-photo";
+    const boundary = "happy2-gym-reference-photo";
     const response = await client.post(
         "/v0/files/upload",
         Buffer.concat([

@@ -20,8 +20,8 @@ export function requestMetadata(request: FastifyRequest): RequestMetadata {
         ip: request.ip,
         forwardedFor: request.ips?.length ? request.ips : undefined,
         location: Object.keys(location).length ? location : undefined,
-        device: header(request, "x-rigged-device"),
-        appVersion: header(request, "x-rigged-app-version"),
+        device: header(request, "x-happy2-device"),
+        appVersion: header(request, "x-happy2-app-version"),
         userAgent: header(request, "user-agent"),
     };
 }

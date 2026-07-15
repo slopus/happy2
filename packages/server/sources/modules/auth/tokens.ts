@@ -24,15 +24,15 @@ export class TokenService {
             keys?.privateKey ??
             (config.jwt.privateKeyPath
                 ? await readFile(config.jwt.privateKeyPath, "utf8")
-                : environmentPem("RIGGED_JWT_PRIVATE_KEY"));
+                : environmentPem("HAPPY2_JWT_PRIVATE_KEY"));
         const publicPem =
             keys?.publicKey ??
             (config.jwt.publicKeyPath
                 ? await readFile(config.jwt.publicKeyPath, "utf8")
-                : environmentPem("RIGGED_JWT_PUBLIC_KEY"));
+                : environmentPem("HAPPY2_JWT_PUBLIC_KEY"));
         if (!publicPem)
             throw new Error(
-                "A JWT public key is required (jwt.public_key_path or RIGGED_JWT_PUBLIC_KEY_B64)",
+                "A JWT public key is required (jwt.public_key_path or HAPPY2_JWT_PUBLIC_KEY_B64)",
             );
         const publicKey = await importSPKI(publicPem, "RS256");
         const privateKey = privatePem ? await importPKCS8(privatePem, "RS256") : undefined;
@@ -65,7 +65,7 @@ export class TokenService {
     async issueFileUrlToken(fileId: string, expiresInSeconds: number): Promise<string> {
         if (!this.privateKey) throw new Error("This server has no JWT signing key");
         return new SignJWT()
-            .setProtectedHeader({ alg: "RS256", kid: this.config.jwt.keyId, typ: "rigged-file" })
+            .setProtectedHeader({ alg: "RS256", kid: this.config.jwt.keyId, typ: "happy2-file" })
             .setIssuer(this.config.jwt.issuer)
             .setAudience(`${this.config.jwt.audience}/file`)
             .setSubject(fileId)

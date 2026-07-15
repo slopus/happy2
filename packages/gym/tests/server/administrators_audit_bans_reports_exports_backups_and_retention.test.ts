@@ -60,8 +60,8 @@ describe("administrative operations HTTP API", () => {
             },
             {
                 headers: {
-                    "x-rigged-device": "Rigged Desktop",
-                    "user-agent": "rigged-gym/operations",
+                    "x-happy2-device": "Happy (2) Desktop",
+                    "user-agent": "happy2-gym/operations",
                 },
             },
         );
@@ -261,8 +261,8 @@ describe("administrative operations HTTP API", () => {
         ).toMatchObject({
             actorUserId: member.id,
             targetId: reportId,
-            device: "Rigged Desktop",
-            userAgent: "rigged-gym/operations",
+            device: "Happy (2) Desktop",
+            userAgent: "happy2-gym/operations",
         });
     });
 });

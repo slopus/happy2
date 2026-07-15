@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 function port(value) {
     const parsed = Number(value);
     if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65_535) {
-        throw new Error("Portless must provide a valid PORT for the Rigged web app");
+        throw new Error("Portless must provide a valid PORT for the Happy (2) web app");
     }
     return String(parsed);
 }

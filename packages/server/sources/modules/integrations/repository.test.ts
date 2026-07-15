@@ -66,7 +66,7 @@ describe("IntegrationRepository", () => {
             scopes: ["messages:write"],
         });
 
-        expect(issued.token).toMatch(/^rgd_api_/);
+        expect(issued.token).toMatch(/^happy2_api_/);
         expect(issued.credential).not.toHaveProperty("tokenHash");
         expect(
             await fixture.integrations.authenticateApiCredential(issued.token, ["messages:write"]),
@@ -142,7 +142,7 @@ describe("IntegrationRepository", () => {
             idempotencyKey: "deploy-event-1",
         });
         await expect(
-            fixture.integrations.invokeIncomingWebhook("rgd_hook_invalid", "Ignored", {
+            fixture.integrations.invokeIncomingWebhook("happy2_hook_invalid", "Ignored", {
                 sendMessage,
             }),
         ).rejects.toMatchObject({ code: "unauthorized" });
@@ -176,7 +176,7 @@ describe("IntegrationRepository", () => {
             eventTypes: ["message.created", "chat.topicUpdated"],
             chatId: fixture.chatId,
         });
-        expect(outgoing.value.signingSecret).toMatch(/^rgd_sign_/);
+        expect(outgoing.value.signingSecret).toMatch(/^happy2_sign_/);
         const stored = (
             await fixture.client.execute({
                 sql: `SELECT signing_secret_ciphertext FROM webhook_subscriptions WHERE id = ?`,
@@ -215,8 +215,8 @@ describe("IntegrationRepository", () => {
             failed: 0,
         });
         expect(deliveredRequest?.allowedAddresses).toEqual([{ address: "8.8.8.8", family: 4 }]);
-        const timestamp = deliveredRequest!.headers["x-rigged-timestamp"]!;
-        expect(deliveredRequest!.headers["x-rigged-signature"]).toBe(
+        const timestamp = deliveredRequest!.headers["x-happy2-timestamp"]!;
+        expect(deliveredRequest!.headers["x-happy2-signature"]).toBe(
             `v1=${createHmac("sha256", outgoing.value.signingSecret)
                 .update(`${timestamp}.${deliveredRequest!.body}`)
                 .digest("hex")}`,
@@ -339,7 +339,7 @@ describe("IntegrationRepository", () => {
             usageHint: "/deploy api",
             handlerUrl: "https://hooks.example.com/slash",
         });
-        expect(command.value.signingSecret).toMatch(/^rgd_sign_/);
+        expect(command.value.signingSecret).toMatch(/^happy2_sign_/);
         expect(await fixture.integrations.listSlashCommands(fixture.member.id)).toMatchObject([
             { command: "/deploy", active: true },
         ]);
@@ -386,8 +386,8 @@ describe("IntegrationRepository", () => {
 });
 
 async function createFixture(): Promise<Fixture> {
-    const directory = await mkdtemp(join(tmpdir(), "rigged-integrations-"));
-    const client = createClient({ url: `file:${join(directory, "rigged.db")}` });
+    const directory = await mkdtemp(join(tmpdir(), "happy2-integrations-"));
+    const client = createClient({ url: `file:${join(directory, "happy2.db")}` });
     const database = new Database(client);
     await database.migrate();
     const admin = await createUser(database, "admin@example.com", "admin");

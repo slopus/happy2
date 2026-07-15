@@ -166,7 +166,7 @@ describe("sync, presence, calls, and API error contracts", () => {
         const signal = await asAdmin.post(`/v0/calls/${callId}/sendSignal`, {
             chatId,
             recipientUserId: member.id,
-            signal: { kind: "offer", sdp: "v=0\r\no=rigged 1 1 IN IP4 127.0.0.1" },
+            signal: { kind: "offer", sdp: "v=0\r\no=happy2 1 1 IN IP4 127.0.0.1" },
         });
         expect(signal.statusCode).toBe(202);
         expect(

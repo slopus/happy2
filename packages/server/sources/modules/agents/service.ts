@@ -853,7 +853,7 @@ function sqliteTimestamp(value: string): number {
 
 function agentImageDefinitionHash(dockerfile: string, buildContext = ""): string {
     return createHash("sha256")
-        .update("rigged-agent-image-v1\0")
+        .update("happy2-agent-image-v1\0")
         .update(buildContext)
         .update("\0")
         .update(dockerfile)
@@ -861,11 +861,11 @@ function agentImageDefinitionHash(dockerfile: string, buildContext = ""): string
 }
 
 function agentImageTag(definitionHash: string): string {
-    return `rigged-agent:${definitionHash}`;
+    return `happy2-agent:${definitionHash}`;
 }
 
 function agentContainerName(): string {
-    return `rigged-agent-${createId()}`;
+    return `happy2-agent-${createId()}`;
 }
 
 function sandboxDirectories(root: string, agentUserId: string, privateUserId: string) {

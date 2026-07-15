@@ -2,16 +2,16 @@
 
 import { parseArgs } from "node:util";
 import { loadRuntimeConfig } from "./modules/config/runtime.js";
-import { startStandaloneRigged } from "./standalone.js";
+import { startStandaloneHappy2 } from "./standalone.js";
 
 const { values } = parseArgs({
     options: { config: { type: "string" } },
 });
 
 try {
-    const { config } = await loadRuntimeConfig(values.config ?? process.env.RIGGED_CONFIG);
-    const running = await startStandaloneRigged(config);
-    console.log(`Rigged is running at ${running.url}`);
+    const { config } = await loadRuntimeConfig(values.config ?? process.env.HAPPY2_CONFIG);
+    const running = await startStandaloneHappy2(config);
+    console.log(`Happy (2) is running at ${running.url}`);
 
     let stopping = false;
     const stop = () => {

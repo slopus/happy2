@@ -6,10 +6,10 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import {
     defaultConfig,
-    startStandaloneRigged,
+    startStandaloneHappy2,
     type ServerConfig,
-    type StandaloneRigged,
-} from "@slopus/rigged";
+    type StandaloneHappy2,
+} from "happy2";
 import { describe, expect, it } from "vitest";
 
 const execute = promisify(execFile);
@@ -18,16 +18,16 @@ describe.sequential("the package runner", () => {
     it("serves the built SPA and streams the versioned server API through one origin", async () => {
         await withSigningEnvironment(async () => {
             const fixture = await createFixture(false);
-            let running: StandaloneRigged | undefined;
+            let running: StandaloneHappy2 | undefined;
             try {
-                running = await startStandaloneRigged(fixture.config, {
+                running = await startStandaloneHappy2(fixture.config, {
                     logger: false,
                     webRoot: fixture.webRoot,
                 });
 
                 const index = await fetch(running.url, { headers: { accept: "text/html" } });
                 expect(index.status).toBe(200);
-                expect(await index.text()).toContain("Rigged packaged web fixture");
+                expect(await index.text()).toContain("Happy (2) packaged web fixture");
 
                 const asset = await fetch(`${running.url}/assets/fixture.txt`);
                 expect(asset.status).toBe(200);
@@ -37,7 +37,7 @@ describe.sequential("the package runner", () => {
                     headers: { accept: "text/html" },
                 });
                 expect(fallback.status).toBe(200);
-                expect(await fallback.text()).toContain("Rigged packaged web fixture");
+                expect(await fallback.text()).toContain("Happy (2) packaged web fixture");
 
                 const methods = await fetch(`${running.url}/v0/auth/methods`);
                 expect(methods.status).toBe(200);
@@ -77,9 +77,9 @@ describe.sequential("the package runner", () => {
     it("starts the bundled Rig daemon with package-private socket, token, and session state", async () => {
         await withSigningEnvironment(async () => {
             const fixture = await createFixture(true);
-            let running: StandaloneRigged | undefined;
+            let running: StandaloneHappy2 | undefined;
             try {
-                running = await startStandaloneRigged(fixture.config, {
+                running = await startStandaloneHappy2(fixture.config, {
                     logger: false,
                     webRoot: fixture.webRoot,
                 });
@@ -111,13 +111,13 @@ async function createFixture(agentsEnabled: boolean): Promise<{
     rigDirectory: string;
     webRoot: string;
 }> {
-    const directory = await mkdtemp(join(tmpdir(), "rigged-package-runner-"));
+    const directory = await mkdtemp(join(tmpdir(), "happy2-package-runner-"));
     const webRoot = join(directory, "web");
     const rigDirectory = join(directory, "rig");
     await mkdir(join(webRoot, "assets"), { recursive: true });
     await writeFile(
         join(webRoot, "index.html"),
-        "<!doctype html><title>Rigged packaged web fixture</title>\n",
+        "<!doctype html><title>Happy (2) packaged web fixture</title>\n",
     );
     await writeFile(join(webRoot, "assets", "fixture.txt"), "packaged asset\n");
 
@@ -125,7 +125,7 @@ async function createFixture(agentsEnabled: boolean): Promise<{
     config.server.host = "127.0.0.1";
     config.server.port = 0;
     config.server.publicUrl = "http://127.0.0.1";
-    config.database.url = `file:${join(directory, "rigged.db")}`;
+    config.database.url = `file:${join(directory, "happy2.db")}`;
     config.files.directory = join(directory, "files");
     config.jwt.issuer = "http://127.0.0.1";
     config.agents.enabled = agentsEnabled;
@@ -178,10 +178,10 @@ async function withSigningEnvironment<T>(run: () => Promise<T>): Promise<T> {
         publicKeyEncoding: { type: "spki", format: "pem" },
     });
     const values = {
-        RIGGED_JWT_PRIVATE_KEY_B64: Buffer.from(pair.privateKey).toString("base64"),
-        RIGGED_JWT_PUBLIC_KEY_B64: Buffer.from(pair.publicKey).toString("base64"),
-        RIGGED_PASSWORD_PEPPER: "package-runner-gym-pepper",
-        RIGGED_INTEGRATION_SECRET: Buffer.alloc(32, 7).toString("base64"),
+        HAPPY2_JWT_PRIVATE_KEY_B64: Buffer.from(pair.privateKey).toString("base64"),
+        HAPPY2_JWT_PUBLIC_KEY_B64: Buffer.from(pair.publicKey).toString("base64"),
+        HAPPY2_PASSWORD_PEPPER: "package-runner-gym-pepper",
+        HAPPY2_INTEGRATION_SECRET: Buffer.alloc(32, 7).toString("base64"),
     };
     const previous = new Map(Object.keys(values).map((key) => [key, process.env[key]]));
     Object.assign(process.env, values);

@@ -9,7 +9,7 @@ import { buildServer } from "./server.js";
 const { values } = parseArgs({
     options: { config: { type: "string" } },
 });
-const configPath = values.config ?? process.env.RIGGED_CONFIG;
+const configPath = values.config ?? process.env.HAPPY2_CONFIG;
 const { config } = await loadRuntimeConfig(configPath);
 const database = new Database(
     config.database.url,

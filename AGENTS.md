@@ -2,7 +2,7 @@
 
 ## Project
 
-Rigged is a desktop work and coding app that evolves by adopting itself. It is
+Happy (2) is a desktop work and coding app that evolves by adopting itself. It is
 desktop-only: do not assume mobile use, add mobile-specific behavior, or adapt
 layouts for mobile viewports.
 
@@ -69,7 +69,7 @@ and retry until the push succeeds. Never force-push `main`.
 
 ## Server principles
 
-`@slopus/rigged` is a small desktop-app backend that may run as the complete
+`happy2` is a small desktop-app backend that may run as the complete
 server or as a separately deployed authentication service. Its behavior is
 configured from a TOML file; do not add deployment-specific switches to code.
 
