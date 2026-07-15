@@ -1,0 +1,104 @@
+/*
+ * C-024 EmptyState — centered icon medallion + title + description + action.
+ *
+ * Replaces the app's raw `.feature-empty` block. Layout is a centered flex
+ * column: a symmetric icon medallion, then title / description / action stacked
+ * with integer vertical rhythm. `panel` fills its host and vertically centers
+ * the stack; `inline` is a compact, content-sized block. Every color, radius,
+ * and font comes from the theme tokens.
+ *
+ * Panel rhythm (top → bottom): medallion 48 · 16 · title 20 · 6 · description
+ * 18 · 20 · action 36. Inline rhythm: medallion 40 · 12 · title 18 · 4 ·
+ * description 18 · 16 · action 28.
+ */
+
+.happy2-empty-state {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    text-align: center;
+}
+
+.happy2-empty-state[data-size="panel"] {
+    width: 100%;
+    height: 100%;
+    padding: 40px 32px;
+}
+
+.happy2-empty-state[data-size="inline"] {
+    padding: 24px;
+}
+
+/*
+ * Icon medallion — a symmetric rounded box so the composed Icon glyph stays
+ * optically centered (the glyph is already balanced by its own path data; the
+ * medallion only needs an integer-inset box to keep it that way).
+ */
+.happy2-empty-state__media {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    background: var(--happy2-bg-inset);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-empty-state[data-size="panel"] .happy2-empty-state__media {
+    width: 48px;
+    height: 48px;
+}
+
+.happy2-empty-state[data-size="inline"] .happy2-empty-state__media {
+    width: 40px;
+    height: 40px;
+}
+
+.happy2-empty-state__title {
+    max-width: 360px;
+    margin: 16px 0 0;
+    color: var(--happy2-text);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    letter-spacing: -0.01em;
+}
+
+.happy2-empty-state[data-size="inline"] .happy2-empty-state__title {
+    margin-top: 12px;
+    font-size: 14px;
+    line-height: 18px;
+}
+
+.happy2-empty-state__description {
+    max-width: 320px;
+    margin: 6px 0 0;
+    color: var(--happy2-text-muted);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 18px;
+}
+
+.happy2-empty-state[data-size="inline"] .happy2-empty-state__description {
+    max-width: 280px;
+    margin-top: 4px;
+}
+
+.happy2-empty-state__actions {
+    display: flex;
+    flex: none;
+    justify-content: center;
+    margin: 20px 0 0;
+}
+
+.happy2-empty-state[data-size="inline"] .happy2-empty-state__actions {
+    margin-top: 16px;
+}

@@ -1,0 +1,205 @@
+/*
+ * C-045 ModerationReportCard — moderation-queue item.
+ *
+ * Surface card, radius 10 (card contract), 1px hairline, 16px padding, and a
+ * flex column with a 12px rhythm: a 36px header (kind chip + target descriptor
+ * + status badge), a 34px inset reason well, an optional details paragraph, a
+ * 20px meta row (reporter/assignee avatars + timestamp), and an optional
+ * bordered actions footer. Colours are tokens only; the status badge, avatars,
+ * and buttons carry their own already-tuned optical treatments.
+ */
+
+.happy2-moderation-report-card,
+.happy2-moderation-report-card * {
+    box-sizing: border-box;
+}
+
+.happy2-moderation-report-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 520px;
+    margin: 0;
+    padding: 16px;
+    background: var(--happy2-bg-surface);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Header: kind chip + target descriptor + status badge ------------- */
+
+.happy2-moderation-report-card__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+    min-height: 36px;
+    min-width: 0;
+}
+
+.happy2-moderation-report-card__kind {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    background: var(--happy2-bg-inset);
+    border-radius: var(--happy2-radius-sm);
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-moderation-report-card__target {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 0;
+    min-width: 0;
+}
+
+.happy2-moderation-report-card__target-label {
+    display: block;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.happy2-moderation-report-card__target-sub {
+    display: block;
+    overflow: hidden;
+    color: var(--happy2-text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.happy2-moderation-report-card__status {
+    display: flex;
+    flex: none;
+    align-items: center;
+}
+
+/* ---- Reason well ------------------------------------------------------- */
+
+.happy2-moderation-report-card__reason {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 8px 12px;
+    background: var(--happy2-bg-inset);
+    border-radius: var(--happy2-radius-sm);
+}
+
+.happy2-moderation-report-card__reason-icon {
+    flex: none;
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-moderation-report-card__reason-text {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 18px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* ---- Details ----------------------------------------------------------- */
+
+.happy2-moderation-report-card__details {
+    flex: none;
+    margin: 0;
+    color: var(--happy2-text-secondary);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 18px;
+}
+
+/* ---- Meta: reporter / assignee avatars + timestamp -------------------- */
+
+.happy2-moderation-report-card__meta {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 16px;
+    min-height: 20px;
+    min-width: 0;
+}
+
+.happy2-moderation-report-card__party {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.happy2-moderation-report-card__party-caption {
+    display: block;
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+}
+
+.happy2-moderation-report-card__party-name {
+    display: block;
+    overflow: hidden;
+    color: var(--happy2-text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.happy2-moderation-report-card__time {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-moderation-report-card__time-icon {
+    flex: none;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-moderation-report-card__time-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+    font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* ---- Actions footer ---------------------------------------------------- */
+
+.happy2-moderation-report-card__actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--happy2-border);
+}

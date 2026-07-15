@@ -1,0 +1,346 @@
+/*
+ * C-014 ApprovalCard — approval gate for guarded agent actions.
+ *
+ * Surface card, radius 10, max-width 680. Pending wears the amber treatment
+ * (warning-soft hairline + shield chip + warning type badge); approved/denied
+ * add a resolution banner and replace the action buttons with a muted state
+ * line. Geometry contract (pending, collapsed): 1px border + 12px body pad +
+ * 26 header + 10 + 20 title + 4 + 18 reason + 10 + 32 action well + 12 pad +
+ * 45 footer + 1px border = 191px.
+ */
+
+.happy2-approval-card,
+.happy2-approval-card * {
+    box-sizing: border-box;
+}
+
+.happy2-approval-card {
+    display: block;
+    width: 100%;
+    max-width: 680px;
+    margin: 0;
+    overflow: hidden;
+    background: var(--happy2-bg-surface);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-approval-card[data-resolution="pending"] {
+    border-color: var(--happy2-warning-soft);
+}
+
+/* ---- Resolution banner ------------------------------------------------ */
+
+.happy2-approval-card__banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--happy2-border);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 30px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.happy2-approval-card[data-resolution="approved"] .happy2-approval-card__banner {
+    background: var(--happy2-success-soft);
+    color: var(--happy2-success-strong);
+}
+
+.happy2-approval-card[data-resolution="denied"] .happy2-approval-card__banner {
+    background: var(--happy2-danger-soft);
+    color: var(--happy2-danger-strong);
+}
+
+.happy2-approval-card__banner-label {
+    display: block;
+    /* 31px line box fills the 31px content strip exactly: integer box origin,
+     * no half-pixel flex remainder for engines to round unpredictably. */
+    line-height: 31px;
+    transform: translateY(var(--happy2-approval-banner-optical-y, 0px));
+}
+
+/* The 14px banner icon flex-centers in the 31px content strip at a half-pixel
+ * offset (8.5px); Blink and Gecko snap the SVG down a half pixel. */
+.happy2-approval-card__banner > .happy2-icon {
+    transform: translateY(var(--happy2-approval-banner-icon-optical-y, 0px));
+}
+
+/* ---- Body -------------------------------------------------------------- */
+
+.happy2-approval-card__body {
+    padding: 12px 16px;
+}
+
+.happy2-approval-card__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+}
+
+.happy2-approval-card__chip {
+    display: grid;
+    flex: none;
+    align-items: center;
+    justify-items: center;
+    width: 26px;
+    height: 26px;
+    background: var(--happy2-warning-soft);
+    border-radius: 8px;
+    color: var(--happy2-warning);
+}
+
+.happy2-approval-card[data-resolution="approved"] .happy2-approval-card__chip {
+    background: var(--happy2-success-soft);
+    color: var(--happy2-success);
+}
+
+.happy2-approval-card[data-resolution="denied"] .happy2-approval-card__chip {
+    background: var(--happy2-danger-soft);
+    color: var(--happy2-danger);
+}
+
+.happy2-approval-card__agent {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.happy2-approval-card__agent-name {
+    display: block;
+    color: var(--happy2-text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    transform: translateY(var(--happy2-approval-agent-optical-y, 0px));
+}
+
+.happy2-approval-card__title {
+    margin: 0;
+    color: var(--happy2-text);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    letter-spacing: -0.01em;
+}
+
+.happy2-approval-card__reason {
+    margin: 4px 0 0;
+    color: var(--happy2-text-secondary);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 18px;
+}
+
+.happy2-approval-card__action {
+    display: block;
+    margin: 10px 0 0;
+    padding: 6px 10px;
+    overflow: hidden;
+    background: var(--happy2-bg-code);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-sm);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-approval-card__action-text {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transform: translateY(var(--happy2-approval-action-optical-y, 0px));
+}
+
+/* ---- Expanded details --------------------------------------------------- */
+
+.happy2-approval-card__details {
+    margin: 12px 0 0;
+}
+
+.happy2-approval-card__detail-label {
+    display: block;
+    color: var(--happy2-text-faint);
+    font-family: var(--happy2-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 14px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transform: translateY(var(--happy2-approval-detail-optical-y, 0px));
+}
+
+.happy2-approval-card__detail-label + .happy2-approval-card__detail-label,
+.happy2-approval-card__impact + .happy2-approval-card__detail-label {
+    margin-top: 10px;
+}
+
+.happy2-approval-card__impact {
+    margin: 4px 0 0;
+    color: var(--happy2-text-secondary);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 18px;
+}
+
+.happy2-approval-card__resources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 6px 0 0;
+}
+
+/* ---- Footer -------------------------------------------------------------- */
+
+.happy2-approval-card__footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-top: 1px solid var(--happy2-border);
+}
+
+.happy2-approval-card__state {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-approval-card[data-resolution="approved"] .happy2-approval-card__state > .happy2-icon {
+    color: var(--happy2-success);
+}
+
+.happy2-approval-card[data-resolution="denied"] .happy2-approval-card__state > .happy2-icon {
+    color: var(--happy2-danger);
+}
+
+.happy2-approval-card__state-label {
+    display: block;
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transform: translateY(var(--happy2-approval-state-optical-y, 0px));
+}
+
+.happy2-approval-card__toggle {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    height: 28px;
+    margin: 0 0 0 auto;
+    padding: 0 8px;
+    appearance: none;
+    background: transparent;
+    border: none;
+    border-radius: var(--happy2-radius-sm);
+    color: var(--happy2-text-secondary);
+    cursor: pointer;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
+}
+
+.happy2-approval-card__toggle:hover {
+    background: var(--happy2-bg-hover);
+    color: var(--happy2-text);
+}
+
+.happy2-approval-card__toggle:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}
+
+.happy2-approval-card__toggle-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 12px;
+    transform: translateY(var(--happy2-approval-toggle-optical-y, 0px));
+}
+
+.happy2-approval-card__toggle > .happy2-icon {
+    transition: transform 120ms ease;
+}
+
+.happy2-approval-card__toggle[aria-expanded="true"] > .happy2-icon {
+    transform: rotate(180deg);
+}
+
+/* ---- Engine-measured optical corrections --------------------------------- */
+/*
+ * Re-measured at true 2x (full-size viewport) against alpha-weighted ink
+ * centroids in all three engines; ApprovalCard.test.tsx asserts every part at
+ * <=0.75px. Raw drift (+ = ink low), and the sweep-verified correction that
+ * minimizes residual drift per engine:
+ * - banner label: 11px mono caps ride HIGH (-0.79 Blink / -0.29 Gecko /
+ *   -0.35 WebKit);
+ * - banner icon: snaps 0.5px LOW off the strip's half-pixel flex offset in
+ *   Blink/Gecko only;
+ * - agent name / toggle label: 12px UI runs sit ~0.4-0.5px low, ~1px in Gecko;
+ * - action well mono: +0.40 Blink / +0.90 Gecko / +0.84 WebKit;
+ * - detail labels: 10px mono caps ride HIGH -1.0 in Blink, -0.5 in WebKit,
+ *   true in Gecko;
+ * - state line: +0.65 Blink / +1.15 Gecko / +0.6 WebKit (residual spread
+ *   between the Approved and Denied sentences is content ink, not drift).
+ * Corrections are not the raw drift negated: engines snap translated text to
+ * device-pixel classes, so each value is the swept candidate whose measured
+ * residual is smallest. Shield/chevron/state icons carry no correction: the
+ * glyph set is centered by path data (measured |drift| <= 0.11px).
+ */
+
+.happy2-approval-card {
+    --happy2-approval-action-optical-y: -0.5px;
+    --happy2-approval-agent-optical-y: -0.5px;
+    --happy2-approval-banner-icon-optical-y: -0.5px;
+    --happy2-approval-banner-optical-y: 0.5px;
+    --happy2-approval-detail-optical-y: 1px;
+    --happy2-approval-state-optical-y: -0.75px;
+    --happy2-approval-toggle-optical-y: -0.5px;
+}
+
+/* Firefox — only Gecko parses -moz-appearance. */
+@supports (-moz-appearance: none) {
+    .happy2-approval-card {
+        --happy2-approval-action-optical-y: -1px;
+        --happy2-approval-agent-optical-y: -1px;
+        --happy2-approval-banner-optical-y: 0px;
+        --happy2-approval-detail-optical-y: 0px;
+        --happy2-approval-state-optical-y: -1.25px;
+        --happy2-approval-toggle-optical-y: -1px;
+    }
+}
+
+/* WebKit — Blink and Gecko do not parse -webkit-named-image(). */
+@supports (background: -webkit-named-image(i)) {
+    .happy2-approval-card {
+        --happy2-approval-action-optical-y: -0.75px;
+        --happy2-approval-agent-optical-y: -0.5px;
+        --happy2-approval-banner-icon-optical-y: 0px;
+        --happy2-approval-banner-optical-y: 0.25px;
+        --happy2-approval-detail-optical-y: 0.25px;
+        --happy2-approval-state-optical-y: -0.5px;
+        --happy2-approval-toggle-optical-y: -0.5px;
+    }
+}

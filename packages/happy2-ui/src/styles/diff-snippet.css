@@ -1,0 +1,172 @@
+/*
+ * C-006 DiffSnippet — code-well diff block.
+ *
+ * A `--happy2-bg-code` well with a hairline border: optional 28px header
+ * (mono file name + right-aligned +N/−N stats), then 20px mono diff
+ * lines with a 24px +/− gutter, optional 32px line-number gutter, and
+ * add/del/context/meta treatments. Long lines scroll horizontally
+ * inside the well; they never wrap.
+ */
+
+.happy2-diff-snippet {
+    display: block;
+    box-sizing: border-box;
+    overflow: hidden;
+    background: var(--happy2-bg-code);
+    border: 1px solid var(--happy2-border);
+    border-radius: 8px;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    /*
+     * Measured optical corrections (see DiffSnippet.test.tsx; alpha-weighted
+     * ink centroids per engine at 2x). Blink rasterizes the 12px/20px mono
+     * line ~0.43px above the row center while Gecko/WebKit land dead-on, so
+     * the base (Blink) rule drops text/number ink half a pixel. The +/−
+     * gutter glyphs ride the font's math axis, which sits ~0.4px lower in
+     * the em than the digit center: raw Blink is already centered there,
+     * and Gecko/WebKit need the opposite half-pixel lift. Half-pixel values
+     * are exactly one device pixel at the required 2x DPR.
+     */
+    --happy2-diff-text-optical-y: 0.5px;
+    --happy2-diff-gutter-optical-y: 0px;
+}
+
+.happy2-diff-snippet__header {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    /*
+     * The 1px padding-bottom reserves the border-bottom hairline row so the
+     * 16px text line centers on integer geometry (26px content area) and the
+     * ink centroid lands in the middle of the 27px inset field — without it,
+     * children sit at a half-pixel offset that engines rasterize differently.
+     */
+    padding: 0 12px 1px;
+    background: var(--happy2-bg-inset);
+    border-bottom: 1px solid var(--happy2-border);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+}
+
+.happy2-diff-snippet__file {
+    box-sizing: border-box;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-diff-snippet__stats {
+    box-sizing: border-box;
+    display: flex;
+    flex: none;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.happy2-diff-snippet__added {
+    box-sizing: border-box;
+    color: var(--happy2-diff-add);
+}
+
+.happy2-diff-snippet__removed {
+    box-sizing: border-box;
+    color: var(--happy2-diff-del);
+}
+
+.happy2-diff-snippet__scroll {
+    box-sizing: border-box;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.happy2-diff-snippet__code {
+    box-sizing: border-box;
+    min-width: 100%;
+    width: max-content;
+    padding: 8px 0;
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 20px;
+}
+
+.happy2-diff-snippet__line {
+    box-sizing: border-box;
+    display: flex;
+    height: 20px;
+    padding: 0 12px 0 0;
+    white-space: pre;
+}
+
+.happy2-diff-snippet__line[data-kind="add"] {
+    background: var(--happy2-diff-add-bg);
+    color: var(--happy2-diff-add);
+}
+
+.happy2-diff-snippet__line[data-kind="del"] {
+    background: var(--happy2-diff-del-bg);
+    color: var(--happy2-diff-del);
+}
+
+.happy2-diff-snippet__line[data-kind="context"] {
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-diff-snippet__line[data-kind="meta"] {
+    color: var(--happy2-text-faint);
+}
+
+.happy2-diff-snippet__number {
+    box-sizing: border-box;
+    flex: none;
+    width: 32px;
+    padding-right: 6px;
+    text-align: right;
+    color: var(--happy2-text-faint);
+    transform: translateY(var(--happy2-diff-text-optical-y));
+}
+
+.happy2-diff-snippet__gutter {
+    box-sizing: border-box;
+    flex: none;
+    width: 24px;
+    text-align: center;
+    transform: translateY(var(--happy2-diff-gutter-optical-y));
+}
+
+.happy2-diff-snippet__line[data-kind="context"] .happy2-diff-snippet__gutter {
+    color: var(--happy2-text-muted);
+}
+
+.happy2-diff-snippet__text {
+    box-sizing: border-box;
+    flex: none;
+    transform: translateY(var(--happy2-diff-text-optical-y));
+}
+
+/*
+ * Firefox — Gecko is the only engine that parses -moz-appearance.
+ * (@-moz-document is stripped by the CSS pipeline, and Blink on macOS
+ * matches @supports (font: -apple-system-body), so those two classic
+ * scopes cannot be used here.)
+ */
+@supports (-moz-appearance: none) {
+    .happy2-diff-snippet {
+        --happy2-diff-text-optical-y: 0px;
+        --happy2-diff-gutter-optical-y: -0.5px;
+    }
+}
+
+/* WebKit — only WebKit parses -webkit-named-image(). */
+@supports (background: -webkit-named-image(i)) {
+    .happy2-diff-snippet {
+        --happy2-diff-text-optical-y: 0px;
+        --happy2-diff-gutter-optical-y: -0.5px;
+    }
+}

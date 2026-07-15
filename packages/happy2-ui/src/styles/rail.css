@@ -1,0 +1,218 @@
+/*
+ * Rail — the 76px feature rail on the far left of the window chrome.
+ *
+ * Contract: 76px wide, fills its parent's height, transparent over the window
+ * chrome. Column: 34px otter brand mark (replaceable via the brand slot),
+ * 60×52 icon+label item buttons, footer slot pinned with equal 20px
+ * left/right/bottom clearance.
+ */
+
+.happy2-rail,
+.happy2-rail * {
+    box-sizing: border-box;
+}
+
+.happy2-rail {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    width: 76px;
+    height: 100%;
+    padding: 10px 0 20px;
+    /* Seamless chrome: transparent over the window backdrop, no right hairline —
+       the rail and title bar read as one frame. The full 76px lane centers its
+       60px items on integer coordinates. */
+    background: transparent;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Brand ----------------------------------------------------------- */
+
+.happy2-rail__brand {
+    display: flex;
+    flex: none;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+
+.happy2-rail__brand-image {
+    display: block;
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    -webkit-user-drag: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* ---- Items ------------------------------------------------------------ */
+
+.happy2-rail__items {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+}
+
+.happy2-rail__item {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 60px;
+    height: 52px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    appearance: none;
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
+}
+
+.happy2-rail__item:hover {
+    background: var(--happy2-bg-hover);
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-rail__item:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}
+
+.happy2-rail__item[data-active] {
+    background: var(--happy2-accent-soft);
+    color: var(--happy2-accent-strong);
+}
+
+.happy2-rail__item-icon {
+    position: relative;
+    display: block;
+    flex: none;
+    width: 20px;
+    height: 20px;
+}
+
+.happy2-rail__item-badge {
+    position: absolute;
+    top: -6px;
+    left: 13px;
+    display: block;
+}
+
+.happy2-rail__item-badge > .happy2-count-badge {
+    border-radius: 6px;
+}
+
+.happy2-rail__item-label {
+    display: block;
+    max-width: 56px;
+    overflow: hidden;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 12px;
+    letter-spacing: 0.02em;
+    /* Letter-spacing trails the last glyph, widening the box 0.02em to the
+     * right of the ink; cancel the bias structurally (no translate nudges)
+     * so flex centering centers the ink run itself. */
+    margin-right: -0.02em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-rail__item[data-active] .happy2-rail__item-label {
+    color: var(--happy2-text);
+}
+
+/* ---- Footer ------------------------------------------------------------ */
+
+.happy2-rail__footer {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    margin-top: auto;
+    padding-top: 10px;
+}
+
+/* Primary create action — avatar-sized, pinned above the profile. */
+.happy2-rail__primary-wrap {
+    position: relative;
+    display: flex;
+    flex: none;
+}
+
+.happy2-rail__primary {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    margin: 0;
+    padding: 0;
+    background: var(--happy2-accent);
+    border: 0;
+    border-radius: var(--happy2-radius-pill);
+    color: var(--happy2-text-on-accent);
+    appearance: none;
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        transform 120ms ease;
+}
+
+.happy2-rail__primary:hover {
+    background: var(--happy2-accent-strong);
+}
+
+.happy2-rail__primary:active {
+    transform: scale(0.94);
+}
+
+.happy2-rail__primary:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}
+
+.happy2-rail__primary-popover {
+    position: absolute;
+    bottom: 0;
+    left: calc(100% + 8px);
+    z-index: 40;
+    display: flex;
+    filter: drop-shadow(0 12px 24px rgb(0 0 0 / 28%));
+}
+
+.happy2-rail__footer-action {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: var(--happy2-radius-pill);
+    appearance: none;
+    cursor: pointer;
+}
+
+.happy2-rail__footer-action:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}

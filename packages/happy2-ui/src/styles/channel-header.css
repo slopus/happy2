@@ -1,0 +1,263 @@
+/*
+ * ChannelHeader — 52px context strip across the top of the main app surface.
+ *
+ * Contract: 52px high (border-bottom hairline inside the box), 16px x-padding,
+ * transparent so it composes on --happy2-bg-app. Modeled on Slack: an optional
+ * leading star toggle, a clickable channel icon + title, a truncating topic on
+ * the left; a member-count pill, agent chip, actions slot, and overflow menu on
+ * the right. The left cluster truncates through the topic; the right meta
+ * cluster never shrinks.
+ */
+
+.happy2-channel-header,
+.happy2-channel-header *,
+.happy2-channel-header__info,
+.happy2-channel-header__meta {
+    box-sizing: border-box;
+}
+
+.happy2-channel-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    height: 52px;
+    margin: 0;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--happy2-border);
+    background: transparent;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Left cluster: star · icon · title · dot · topic ----------------- */
+
+.happy2-channel-header__info {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+/* Star toggle — 28px ghost square, amber when the channel is starred. */
+.happy2-channel-header__star {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin: 0 -2px 0 -6px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: var(--happy2-radius-sm);
+    color: var(--happy2-text-muted);
+    appearance: none;
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
+}
+
+.happy2-channel-header__star:hover {
+    background: var(--happy2-bg-hover);
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-channel-header__star:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}
+
+.happy2-channel-header__star[data-starred] {
+    color: var(--happy2-warning);
+}
+
+/* Lead = icon + title. As a button it opens channel/user details. */
+.happy2-channel-header__lead {
+    display: inline-flex;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    color: var(--happy2-text);
+}
+
+.happy2-channel-header__lead--button {
+    height: 28px;
+    margin: 0 -8px;
+    padding: 0 8px;
+    background: transparent;
+    border: 0;
+    border-radius: var(--happy2-radius-sm);
+    appearance: none;
+    cursor: pointer;
+    transition: background-color 120ms ease;
+}
+
+.happy2-channel-header__lead--button:hover {
+    background: var(--happy2-bg-hover);
+}
+
+.happy2-channel-header__lead--button:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}
+
+.happy2-channel-header__icon {
+    display: flex;
+    flex: none;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-channel-header__title {
+    display: block;
+    flex: 0 1 auto;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/*
+ * Optical corrections, measured at true-2x element captures (alpha-weighted ink
+ * centroid vs the 51px content-lane center — see ChannelHeader.test.tsx):
+ *   - title 15px/700: Blink/WebKit paint ~1px low → -1px; Gecko 0.5px lower
+ *     still → -1.5px.
+ *   - topic 12px/400: Blink/WebKit ~0.5px low → -0.5px; Gecko → -1px.
+ * Values stay in device-pixel quanta (multiples of 0.5px at 2x). The ink
+ * wrappers move the paint without moving the boxes off the layout grid.
+ */
+.happy2-channel-header__title-ink {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transform: translateY(var(--happy2-channel-title-optical-y, -1px));
+}
+
+@supports (-moz-appearance: none) {
+    .happy2-channel-header__title-ink {
+        --happy2-channel-title-optical-y: -1.5px;
+    }
+
+    .happy2-channel-header__topic-ink {
+        --happy2-channel-topic-optical-y: -1px;
+    }
+}
+
+.happy2-channel-header__dot {
+    flex: none;
+    width: 3px;
+    height: 3px;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-text-faint);
+}
+
+.happy2-channel-header__topic {
+    flex: 0 1 auto;
+    min-width: 0;
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 16px;
+}
+
+.happy2-channel-header__topic-ink {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transform: translateY(var(--happy2-channel-topic-optical-y, -0.5px));
+}
+
+/* ---- Right cluster: members · agent chip · actions · menu ------------ */
+
+.happy2-channel-header__meta {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Member counter — Slack-style pill: users icon + count. */
+.happy2-channel-header__members {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    margin: 0;
+    padding: 0 8px;
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-channel-header__members--button {
+    background: transparent;
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-sm);
+    appearance: none;
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        border-color 120ms ease,
+        color 120ms ease;
+}
+
+.happy2-channel-header__members--button:hover {
+    background: var(--happy2-bg-hover);
+    border-color: var(--happy2-border-strong);
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-channel-header__members--button:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}
+
+.happy2-channel-header__member-count {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 16px;
+    font-variant-numeric: tabular-nums;
+}
+
+.happy2-channel-header__member-count-ink {
+    display: block;
+}
+
+.happy2-channel-header__actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Overflow "⋮" menu — anchored popover under the trigger button. */
+.happy2-channel-header__menu {
+    position: relative;
+    display: flex;
+    flex: none;
+}
+
+.happy2-channel-header__menu-popover {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 40;
+}

@@ -1,0 +1,16 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "target": "ES2022",
+        "lib": ["ES2024", "DOM", "DOM.Iterable", "ESNext.Disposable"],
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "paths": {
+            "happy2-server": ["../happy2-server/sources/index.ts"],
+            "happy2-state": ["../happy2-state/src/index.ts"]
+        },
+        "types": ["node", "vite/client", "vitest/globals"],
+        "noEmit": true
+    },
+    "include": ["sources", "tests", "vitest.config.ts", "vitest.playwright.config.ts"]
+}

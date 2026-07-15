@@ -58,7 +58,16 @@ signup_enabled = true
 
 const child = spawn(
     "pnpm",
-    ["--dir", "packages/server", "exec", "tsx", "watch", "sources/cli.ts", "--config", configPath],
+    [
+        "--dir",
+        "packages/happy2-server",
+        "exec",
+        "tsx",
+        "watch",
+        "sources/cli.ts",
+        "--config",
+        configPath,
+    ],
     { cwd: workspace, env: process.env, stdio: "inherit" },
 );
 const signals = ["SIGHUP", "SIGINT", "SIGTERM"];

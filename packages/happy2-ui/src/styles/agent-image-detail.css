@@ -1,0 +1,122 @@
+/*
+ * AgentImageDetail — the body of an agent image's detail dialog.
+ *
+ * Contract: a status strip over two labelled sections — the Dockerfile and the
+ * captured build log — each a monospace, scrollable code block on the inset
+ * surface. Sits inside a Modal that carries the image name as its title.
+ */
+
+.happy2-agent-image-detail,
+.happy2-agent-image-detail * {
+    box-sizing: border-box;
+}
+
+.happy2-agent-image-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Status strip ----------------------------------------------------- */
+
+.happy2-agent-image-detail__status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.happy2-agent-image-detail__progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 160px;
+    min-width: 120px;
+}
+
+.happy2-agent-image-detail__progress-track {
+    position: relative;
+    flex: 1 1 auto;
+    height: 4px;
+    min-width: 0;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-bg-inset);
+    overflow: hidden;
+}
+
+.happy2-agent-image-detail__progress-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-brand-gradient);
+    transition: width 240ms ease;
+}
+
+.happy2-agent-image-detail__progress-value {
+    flex: none;
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    line-height: 14px;
+    color: var(--happy2-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- Sections --------------------------------------------------------- */
+
+.happy2-agent-image-detail__section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.happy2-agent-image-detail__section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.happy2-agent-image-detail__section-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.72px;
+    text-transform: uppercase;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-agent-image-detail__section-note {
+    font-size: 11px;
+    line-height: 14px;
+    color: var(--happy2-text-faint);
+}
+
+.happy2-agent-image-detail__code {
+    margin: 0;
+    max-height: 260px;
+    overflow: auto;
+    padding: 12px 14px;
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    background: var(--happy2-bg-code);
+    color: var(--happy2-text-secondary);
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    line-height: 18px;
+    white-space: pre;
+    tab-size: 4;
+}
+
+.happy2-agent-image-detail__empty {
+    margin: 0;
+    padding: 12px 14px;
+    border: 1px dashed var(--happy2-border-strong);
+    border-radius: var(--happy2-radius-md);
+    color: var(--happy2-text-muted);
+    font-size: 13px;
+    line-height: 18px;
+}

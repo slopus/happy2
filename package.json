@@ -1,8 +1,30 @@
 {
-  "name": "happy2-workspace",
-  "version": "0.0.0",
-  "private": true,
+  "name": "happy2",
+  "version": "0.0.3",
+  "description": "Happy (2) desktop web app and server bundle",
+  "bin": {
+    "happy2": "packages/happy2-server/bin/happy2.js"
+  },
+  "files": [
+    "packages/happy2-server/bin/happy2.js",
+    "packages/happy2-server/dist",
+    "packages/happy2-server/drizzle",
+    "packages/happy2-server/happy2.example.toml",
+    "packages/happy2-server/README.md",
+    "packages/happy2-server/Dockerfile"
+  ],
   "type": "module",
+  "main": "./packages/happy2-server/dist/index.js",
+  "types": "./packages/happy2-server/dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./packages/happy2-server/dist/index.d.ts",
+      "default": "./packages/happy2-server/dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "packageManager": "pnpm@10.28.1",
   "engines": {
     "node": ">=24.0.0",
@@ -10,10 +32,11 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "dev:web": "pnpm --filter @rigged/web dev",
+    "dev:web": "pnpm --filter happy2-web dev",
     "dev:desktop": "node scripts/dev-desktop.mjs",
-    "dev:server": "pnpm --dir packages/server dev",
-    "build": "pnpm -r --if-present build",
+    "dev:server": "pnpm --dir packages/happy2-server dev",
+    "start": "node packages/happy2-server/dist/runner.js",
+    "build": "pnpm -r --if-present build && VITE_HAPPY2_SERVER_URL='/' pnpm --filter happy2-web exec vite build --outDir ../happy2-server/dist/web --emptyOutDir false",
     "test": "pnpm -r --if-present test",
     "test:watch": "pnpm -r --parallel --if-present test:watch",
     "typecheck": "tsc --project tsconfig.json && pnpm -r --if-present typecheck",
@@ -22,7 +45,24 @@
     "lint": "oxlint scripts && pnpm -r --if-present lint",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "release": "tsx scripts/release.ts",
+    "prepack": "pnpm run build",
     "clean": "pnpm -r --if-present clean"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.0",
+    "@fastify/http-proxy": "^11.5.0",
+    "@fastify/multipart": "^10.1.0",
+    "@fastify/static": "^10.1.0",
+    "@libsql/client": "^0.17.4",
+    "@paralleldrive/cuid2": "^3.3.0",
+    "@slopus/rig": "^0.0.9",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.8.2",
+    "jose": "^6.1.3",
+    "nodemailer": "^7.0.13",
+    "sharp": "^0.35.3",
+    "smol-toml": "^1.4.2",
+    "thumbhash": "^0.1.1"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

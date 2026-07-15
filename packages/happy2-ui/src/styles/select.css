@@ -1,0 +1,195 @@
+/*
+ * C-019 Select — styled single-select dropdown (native overlay pattern).
+ *
+ * Contract: three control heights (28 / 36 / 44) on the 4px grid, an inset
+ * well with a hairline border and 6px radius, a real transparent `<select>`
+ * filling the control for native open/keyboard/click, a measurable value
+ * `<span>`, and a tuned chevron Icon. The value span and chevron are separate,
+ * non-overlapping flex items so each paints in its own box. Tokens only — every
+ * color, radius, and font is a `var(--happy2-*)`; the chevron glyph mass is owned
+ * and corrected by the Icon path data, so this file only pins its box.
+ */
+
+.happy2-select,
+.happy2-select * {
+    box-sizing: border-box;
+}
+
+.happy2-select {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-select[data-full-width] {
+    display: flex;
+    width: 100%;
+}
+
+.happy2-select[data-disabled] {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
+/* ---- Label ------------------------------------------------------------- */
+
+.happy2-select__label {
+    display: block;
+    color: var(--happy2-text-secondary);
+    font-family: var(--happy2-font-ui);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: 0;
+    font-synthesis: none;
+}
+
+/* ---- Control well ------------------------------------------------------ */
+
+.happy2-select__control {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: var(--happy2-bg-inset);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-sm);
+    transition: border-color 120ms ease;
+}
+
+.happy2-select[data-error] .happy2-select__control {
+    border-color: var(--happy2-danger);
+}
+
+.happy2-select__control:focus-within {
+    border-color: var(--happy2-border-strong);
+    outline: var(--happy2-focus-ring);
+    outline-offset: 1px;
+}
+
+/* ---- Visible value text ------------------------------------------------ */
+
+.happy2-select__value {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-weight: 500;
+    letter-spacing: 0;
+    font-synthesis: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-select__value[data-placeholder] {
+    color: var(--happy2-text-muted);
+}
+
+/* ---- Chevron ----------------------------------------------------------- */
+
+.happy2-select__chevron {
+    flex: none;
+    display: flex;
+    align-items: center;
+    color: var(--happy2-text-muted);
+    pointer-events: none;
+}
+
+/* ---- Native select overlay (transparent, owns interaction) ------------- */
+
+.happy2-select__native {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    opacity: 0;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+.happy2-select[data-disabled] .happy2-select__native {
+    cursor: not-allowed;
+}
+
+/* Keep the popup list on the Relay surface where the engine allows it. */
+.happy2-select__native option {
+    background: var(--happy2-bg-raised);
+    color: var(--happy2-text);
+}
+
+/* ---- Sizes (heights on the 4px grid) ----------------------------------- */
+
+.happy2-select[data-size="small"] .happy2-select__control {
+    height: 28px;
+}
+
+.happy2-select[data-size="small"] .happy2-select__value {
+    padding: 0 8px 0 10px;
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.happy2-select[data-size="small"] .happy2-select__chevron {
+    margin-right: 9px;
+}
+
+.happy2-select[data-size="medium"] .happy2-select__control {
+    height: 36px;
+}
+
+.happy2-select[data-size="medium"] .happy2-select__value {
+    padding: 0 8px 0 12px;
+    font-size: 13px;
+    line-height: 18px;
+}
+
+.happy2-select[data-size="medium"] .happy2-select__chevron {
+    margin-right: 11px;
+}
+
+.happy2-select[data-size="large"] .happy2-select__control {
+    height: 44px;
+}
+
+.happy2-select[data-size="large"] .happy2-select__value {
+    padding: 0 8px 0 14px;
+    font-size: 14px;
+    line-height: 20px;
+}
+
+.happy2-select[data-size="large"] .happy2-select__chevron {
+    margin-right: 13px;
+}
+
+/* ---- Hint / error message ---------------------------------------------- */
+
+.happy2-select__message {
+    display: block;
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-ui);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    letter-spacing: 0;
+    font-synthesis: none;
+}
+
+.happy2-select[data-error] .happy2-select__message {
+    color: var(--happy2-danger);
+}

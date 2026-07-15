@@ -1,0 +1,216 @@
+/*
+ * C-036 SearchResults — grouped unified search popover.
+ *
+ * Contract: a 400px raised card (--happy2-bg-raised) with a 1px strong hairline,
+ * 10px card radius and a soft drop shadow, 6px inner padding. Groups stack with
+ * 6px breathing room; each group has a 28px mono uppercase header (type label
+ * left, result count right) over 44px rows. Every row leads with a 28px block —
+ * an avatar for people and message authors, a hash/glyph tile for channels and
+ * message fallbacks — then a stacked title + muted meta. Query matches inside a
+ * title paint on the accent highlight token.
+ */
+
+.happy2-search-results,
+.happy2-search-results * {
+    box-sizing: border-box;
+}
+
+.happy2-search-results {
+    display: block;
+    width: 400px;
+    padding: 6px;
+    background: var(--happy2-bg-raised);
+    border: 1px solid var(--happy2-border-strong);
+    border-radius: var(--happy2-radius-md);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* ---- Groups ----------------------------------------------------------- */
+
+.happy2-search-results__group {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+}
+
+.happy2-search-results__group + .happy2-search-results__group {
+    margin-top: 6px;
+}
+
+.happy2-search-results__group-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 28px;
+    padding: 0 10px;
+}
+
+.happy2-search-results__group-label {
+    display: block;
+    overflow: hidden;
+    color: var(--happy2-text-faint);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 16px;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.happy2-search-results__group-count {
+    flex: none;
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+}
+
+/* ---- Rows ------------------------------------------------------------- */
+
+.happy2-search-results__row {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    height: 44px;
+    margin: 0;
+    padding: 0 10px;
+    border: none;
+    border-radius: var(--happy2-radius-sm);
+    background: transparent;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    text-align: left;
+    appearance: none;
+    cursor: pointer;
+    transition: background-color 120ms ease;
+}
+
+.happy2-search-results__group:last-child .happy2-search-results__row:last-child {
+    border-bottom-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+}
+
+.happy2-search-results__row:hover {
+    background: var(--happy2-bg-hover);
+}
+
+.happy2-search-results__row:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: -2px;
+}
+
+.happy2-search-results__row-leading {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+}
+
+.happy2-search-results__row-glyph {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-bg-inset);
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-search-results__row-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+}
+
+.happy2-search-results__row-title {
+    display: block;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-search-results__row-meta {
+    display: block;
+    overflow: hidden;
+    color: var(--happy2-text-muted);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- Rich snippet spans ----------------------------------------------- */
+
+.happy2-search-results__mark {
+    border-radius: 4px;
+    background: var(--happy2-accent-soft);
+    color: var(--happy2-accent-strong);
+    font-weight: 600;
+}
+
+.happy2-search-results__mention {
+    color: var(--happy2-accent);
+    font-weight: 500;
+}
+
+.happy2-search-results__code {
+    padding: 0 4px;
+    border-radius: 4px;
+    background: var(--happy2-bg-inset);
+    font-family: var(--happy2-font-mono);
+    font-size: 13px;
+}
+
+.happy2-search-results__link {
+    color: var(--happy2-accent);
+    text-decoration: none;
+}
+
+/* ---- Empty ------------------------------------------------------------ */
+
+.happy2-search-results__empty {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 32px 16px;
+    text-align: center;
+}
+
+.happy2-search-results__empty-icon {
+    display: flex;
+    color: var(--happy2-text-faint);
+}
+
+.happy2-search-results__empty-label {
+    color: var(--happy2-text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 16px;
+}

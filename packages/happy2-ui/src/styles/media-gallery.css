@@ -1,0 +1,152 @@
+/*
+ * C-038 MediaGallery — files/media grid.
+ *
+ * An equal-track CSS grid (column count from the `columns` prop, 12px gutters
+ * on the 4px grid). Each tile is a 4:3 thumbnail card over a raised surface —
+ * either a data-URI image (object-fit cover) or a centered 48px file-glyph
+ * medallion — with optional kind-badge and duration-chip overlays, and a
+ * name + size footer. Colours are tokens only.
+ */
+
+.happy2-media-gallery,
+.happy2-media-gallery * {
+    box-sizing: border-box;
+}
+
+.happy2-media-gallery {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-media-gallery__empty {
+    grid-column: 1 / -1;
+    min-width: 0;
+}
+
+/* ---- Tile ------------------------------------------------------------ */
+
+.happy2-media-gallery__tile {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    appearance: none;
+}
+
+.happy2-media-gallery__tile:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--happy2-radius-md);
+}
+
+/* ---- Thumbnail ------------------------------------------------------- */
+
+.happy2-media-gallery__thumb {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    background: var(--happy2-bg-raised);
+    /* Hairline as an inset shadow, not a border: a real border would subtract
+     * from the aspect box and land the 100%-height thumbnail on a half pixel.
+     * The shadow keeps the thumb a clean integer 4:3 border box. */
+    box-shadow: inset 0 0 0 1px var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+}
+
+.happy2-media-gallery__image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* File-glyph medallion: reuses the 48px chip / 20px Icon proportions the rest
+ * of the system uses, so the composed glyph stays optically centered. */
+.happy2-media-gallery__glyph {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    background: var(--happy2-bg-inset);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    color: var(--happy2-text-secondary);
+}
+
+/* ---- Overlays -------------------------------------------------------- */
+
+.happy2-media-gallery__kind {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 1;
+}
+
+.happy2-media-gallery__duration {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    z-index: 1;
+    display: block;
+    height: 18px;
+    padding: 0 6px;
+    background: var(--happy2-bg-chrome);
+    border-radius: 2px;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    /* Height equals line-height so the single mono line is vertically centred
+     * without a flex context — keeps the numeric run measurable as text. */
+    line-height: 18px;
+    font-variant-numeric: lining-nums tabular-nums;
+    white-space: nowrap;
+}
+
+/* ---- Footer: name + size -------------------------------------------- */
+
+.happy2-media-gallery__footer {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.happy2-media-gallery__name {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.happy2-media-gallery__size {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--happy2-text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 14px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}

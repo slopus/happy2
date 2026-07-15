@@ -1,0 +1,192 @@
+/*
+ * C-026 Toolbar — panel/section header bar.
+ *
+ * Contract: default 48px high (bottom hairline included inside the box), 16px
+ * x-padding, transparent so it composes on --happy2-bg-surface. The left heading
+ * (title + optional subtitle) truncates through its lane; the right actions
+ * cluster (inset search well + trailing slot) never shrinks and pins flush to
+ * the right content edge. Height is overridable through the `height` prop,
+ * which sets --happy2-toolbar-height.
+ */
+
+.happy2-toolbar,
+.happy2-toolbar * {
+    box-sizing: border-box;
+}
+
+.happy2-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    height: var(--happy2-toolbar-height, 48px);
+    margin: 0;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--happy2-border);
+    background: transparent;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+
+    /*
+     * Optical vertical ink corrections, tuned per engine at true-2x with
+     * alpha-weighted centroids (see the @supports scopes at the bottom of the
+     * file and Toolbar.test.tsx). Declared here so the resolved value is
+     * readable through getComputedStyle on the root, which the test asserts.
+     */
+    --happy2-toolbar-title-optical-y: -1px;
+    --happy2-toolbar-subtitle-optical-y: -1px;
+}
+
+/* ---- Leading slot ----------------------------------------------------- */
+
+.happy2-toolbar__leading {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    color: var(--happy2-text-muted);
+}
+
+/* ---- Heading: title over optional subtitle ---------------------------- */
+
+.happy2-toolbar__heading {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+}
+
+.happy2-toolbar__title {
+    display: block;
+    min-width: 0;
+    color: var(--happy2-text);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 20px;
+}
+
+/*
+ * Truncation and the optical lift both live on the ink wrapper so the outer
+ * title box keeps its integer 20px line box on the layout grid while the paint
+ * is nudged onto the lane. The outer box is not clipped, so an element capture
+ * of the title still sees all of the (lifted) ink.
+ */
+.happy2-toolbar__title-ink {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transform: translateY(var(--happy2-toolbar-title-optical-y));
+}
+
+.happy2-toolbar__subtitle {
+    display: block;
+    min-width: 0;
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+}
+
+.happy2-toolbar__subtitle-ink {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transform: translateY(var(--happy2-toolbar-subtitle-optical-y));
+}
+
+/* ---- Actions: search well + trailing slot ----------------------------- */
+
+.happy2-toolbar__actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto; /* pin the cluster to the right edge, heading or not */
+}
+
+.happy2-toolbar__search {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    width: 220px;
+    height: 28px;
+    padding: 0 8px;
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-sm);
+    background: var(--happy2-bg-inset);
+    transition: border-color 120ms ease;
+}
+
+.happy2-toolbar__search:focus-within {
+    border-color: var(--happy2-border-strong);
+    outline: var(--happy2-focus-ring);
+    outline-offset: 1px;
+}
+
+.happy2-toolbar__search-icon {
+    display: flex;
+    flex: none;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-toolbar__search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 26px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 26px;
+    letter-spacing: 0;
+    font-synthesis: none;
+    caret-color: var(--happy2-accent);
+}
+
+.happy2-toolbar__search-input::placeholder {
+    color: var(--happy2-text-muted);
+    opacity: 1;
+}
+
+.happy2-toolbar__trailing {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+}
+
+/*
+ * Per-engine optical corrections, measured at true-2x with alpha-weighted ink
+ * centroids on zeroed CSS (see Toolbar.test.tsx). Figtree paints low in its
+ * line box; each lift is a device-pixel (0.5px-at-2x) multiple so the paint
+ * never re-rasterizes. Raw uncorrected centroids: title (15px/700) Blink +1.0,
+ * Gecko +1.5, WebKit +0.45 low; subtitle (12px/500) Blink +1.1, Gecko +1.6,
+ * WebKit +0.58 low. Corrected residuals land within |dy| <= 0.55px (WebKit
+ * title) and <= 0.12px everywhere else — all inside the 0.75px word-label
+ * ceiling. Engine scopes follow the project convention: only Gecko parses
+ * -moz-appearance, only WebKit parses -webkit-named-image().
+ */
+@supports (-moz-appearance: none) {
+    .happy2-toolbar {
+        --happy2-toolbar-title-optical-y: -1.5px;
+        --happy2-toolbar-subtitle-optical-y: -1.5px;
+    }
+}
+
+@supports (background: -webkit-named-image(i)) {
+    .happy2-toolbar {
+        --happy2-toolbar-title-optical-y: -0.5px;
+        --happy2-toolbar-subtitle-optical-y: -0.5px;
+    }
+}

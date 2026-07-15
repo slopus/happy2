@@ -1,0 +1,177 @@
+/*
+ * AgentImagePanel — administrator surface for immutable agent container images.
+ *
+ * Contract: fills its container, stacks a header row (title + refresh / new)
+ * over a DataTable of images and their build status. A ready image can be
+ * promoted to default; pending or failed builds can be retried. The create
+ * dialog renders in a self-contained absolute overlay so the panel owns its own
+ * scrim without a positioned ancestor.
+ */
+
+.happy2-agent-image-panel,
+.happy2-agent-image-panel * {
+    box-sizing: border-box;
+}
+
+.happy2-agent-image-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0%;
+    min-height: 0;
+    gap: 16px;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Header ----------------------------------------------------------- */
+
+.happy2-agent-image-panel__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+}
+
+.happy2-agent-image-panel__heading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.happy2-agent-image-panel__title {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+    color: var(--happy2-text);
+}
+
+.happy2-agent-image-panel__subtitle {
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-agent-image-panel__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+/* ---- Rows ------------------------------------------------------------- */
+
+.happy2-agent-image-panel__name {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.happy2-agent-image-panel__name-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.happy2-agent-image-panel__name-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+/* Muted build-log tail under the name; danger tone reuses it for failures. */
+.happy2-agent-image-panel__subline {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-agent-image-panel__subline[data-tone="danger"] {
+    color: var(--happy2-danger);
+}
+
+/* ---- Status + progress ------------------------------------------------ */
+
+.happy2-agent-image-panel__status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+}
+
+.happy2-agent-image-panel__progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.happy2-agent-image-panel__progress-track {
+    position: relative;
+    flex: 1 1 auto;
+    height: 4px;
+    min-width: 0;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-bg-inset);
+    overflow: hidden;
+}
+
+.happy2-agent-image-panel__progress-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-brand-gradient);
+    transition: width 240ms ease;
+}
+
+.happy2-agent-image-panel__progress-value {
+    flex: none;
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    line-height: 14px;
+    color: var(--happy2-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.happy2-agent-image-panel__row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* ---- Create overlay --------------------------------------------------- */
+
+.happy2-agent-image-panel__overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgb(0 0 0 / 0.48);
+    z-index: 30;
+}
+
+.happy2-agent-image-panel__modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.happy2-agent-image-panel__form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}

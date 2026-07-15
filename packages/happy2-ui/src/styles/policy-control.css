@@ -1,0 +1,77 @@
+/*
+ * C-041 PolicyControl — disappearing-message / retention policy editor.
+ *
+ * A settings card that composes SegmentedControl, Select, Switch, and FormRow.
+ * Geometry is integer on the 4px grid: 20px card padding, a 20px gap between the
+ * two policy sections split by a 1px hairline rule, 16px rhythm inside a section,
+ * and a 4px title→help gap. Every color, radius, and font is a --happy2-* token; the
+ * composed primitives own their own glyph tuning, so this file only lays them
+ * out and neutralizes the FormRow divider/padding to keep one clean card rhythm.
+ */
+
+.happy2-policy-control {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 20px;
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    background: var(--happy2-bg-surface);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-policy-control__section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+.happy2-policy-control__header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.happy2-policy-control__title {
+    margin: 0;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 20px;
+    letter-spacing: 0;
+}
+
+.happy2-policy-control__help {
+    margin: 0;
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-ui);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 16px;
+}
+
+/* Hairline between the disappearing and retention sections. */
+.happy2-policy-control__rule {
+    box-sizing: border-box;
+    width: 100%;
+    height: 1px;
+    margin: 0;
+    border: 0;
+    background: var(--happy2-border);
+}
+
+/*
+ * FormRow is composed as a pure label+control row here: the card owns the
+ * section rhythm (16px gaps), so each row drops FormRow's own vertical padding
+ * and bottom divider rather than double-spacing or drawing stray hairlines.
+ */
+.happy2-policy-control .happy2-form-row {
+    padding: 0;
+    border-bottom: 0;
+}

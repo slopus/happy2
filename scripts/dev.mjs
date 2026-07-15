@@ -26,7 +26,7 @@ const { result } = concurrently(
             command: "pnpm exec portless run --name happy2 node scripts/dev-web.mjs",
             name: "web",
             prefixColor: "cyan",
-            env: { VITE_RIGGED_SERVER_URL: serverUrl },
+            env: { VITE_HAPPY2_SERVER_URL: serverUrl },
         },
     ],
     {

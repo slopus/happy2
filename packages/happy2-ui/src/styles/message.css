@@ -1,0 +1,522 @@
+/*
+ * Message + MessageList + DayDivider — the chat column.
+ *
+ * Message: 6px 20px flex row on the app surface [36px avatar | 12px gap |
+ * content]. MessageList owns y-scrolling and bottom-anchors sparse histories
+ * with a margin-top:auto spacer. DayDivider is a mono date pill between two
+ * hairline segments.
+ */
+
+.happy2-message,
+.happy2-message *,
+.happy2-message-list,
+.happy2-message-list > *,
+.happy2-day-divider,
+.happy2-day-divider * {
+    box-sizing: border-box;
+}
+
+/* ---- Message ---------------------------------------------------------- */
+
+.happy2-message {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    column-gap: 12px;
+    padding: 6px 20px;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    color: var(--happy2-text);
+    transition: background-color 120ms ease;
+}
+
+.happy2-message:hover {
+    background: var(--happy2-bg-hover);
+}
+
+/* Consecutive (grouped) messages tighten into one turn: symmetric, smaller
+   vertical padding than a fresh author group, so a run of follow-ups reads as
+   one block and the single line of body text stays centered in its hover row. */
+.happy2-message[data-grouped] {
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+/* Sending changes paint only: author, avatar, body, attachments, and reactions
+ * keep their exact geometry while the optimistic row waits for confirmation. */
+.happy2-message__gutter,
+.happy2-message__content {
+    transition:
+        color 120ms ease,
+        opacity 120ms ease;
+}
+
+.happy2-message[data-delivery-state="sending"] .happy2-message__gutter,
+.happy2-message[data-delivery-state="sending"] .happy2-message__content {
+    opacity: 0.56;
+}
+
+.happy2-message[data-delivery-state="failed"] .happy2-message__content {
+    color: var(--happy2-text-secondary);
+    opacity: 0.78;
+}
+
+.happy2-message__gutter {
+    display: flex;
+    flex: 0 0 36px;
+    align-items: flex-start;
+    justify-content: flex-end;
+    width: 36px;
+    min-width: 0;
+}
+
+/*
+ * Grouped follow-ups hide their gutter time until the row is hovered or focused
+ * (only the first message of a group shows its time inline, always). The time
+ * stays right-aligned in the 36px gutter, so it keeps the full 12px gutter→body
+ * gap and never runs into the message text.
+ */
+.happy2-message__gutter-time {
+    display: block;
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 22px; /* sits on the first body line */
+    color: var(--happy2-text-muted);
+    white-space: nowrap;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    /* Measured (all engines): the 11px mono baseline lands 1px above the 15px
+       body baseline when both ride a 22px line (different ascent metrics split
+       the half-leading differently). Drop it onto the body baseline. */
+    position: relative;
+    top: 1px;
+    opacity: 0;
+    transition: opacity 100ms ease;
+}
+
+.happy2-message:hover .happy2-message__gutter-time,
+.happy2-message:focus-within .happy2-message__gutter-time,
+.happy2-message[data-actions-visible] .happy2-message__gutter-time {
+    opacity: 1;
+}
+
+.happy2-message__content {
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.happy2-message__meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 20px;
+    margin-bottom: 2px;
+}
+
+.happy2-message__author {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 20px;
+    color: var(--happy2-text);
+    white-space: nowrap;
+}
+
+.happy2-message__time {
+    display: block;
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+    white-space: nowrap;
+}
+
+.happy2-message__body {
+    font-size: 15px;
+    line-height: 22px;
+    color: var(--happy2-text);
+    overflow-wrap: anywhere;
+}
+
+.happy2-message__mention {
+    background: var(--happy2-accent-soft);
+    color: var(--happy2-accent-strong);
+    border-radius: 4px;
+    /* Asymmetric vertical padding recenters the glyph ink in the pill
+       background: measured glyph-vs-pill dy +0.76 (Blink) / +0.70 (WebKit)
+       with symmetric 1px/1px padding, so the pill extends further below the
+       baseline than above the ascenders. Total stays 2px. */
+    padding: 0.3px 5px 1.7px;
+    font-weight: 500;
+    white-space: nowrap;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
+.happy2-message__code {
+    font-family: var(--happy2-font-mono);
+    font-size: 13px;
+    background: var(--happy2-bg-inset);
+    border-radius: 4px;
+    /* Measured glyph-vs-pill dy -0.50 (Blink/WebKit) with symmetric padding:
+       uppercase mono ink floats high, so give the pill more room on top. */
+    padding: 1.5px 5px 0.5px;
+    white-space: nowrap;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
+.happy2-message__link {
+    color: var(--happy2-accent);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.happy2-message__link:hover {
+    color: var(--happy2-accent-strong);
+    text-decoration: underline;
+}
+
+.happy2-message__attachments {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+    min-width: 0;
+}
+
+/* File pills keep their intrinsic width inside the otherwise full-width slot;
+   larger attachment cards can still stretch across the message content. */
+.happy2-message__attachments > .happy2-file-attachment {
+    align-self: flex-start;
+}
+
+/* A photo- or file-only message (no text body) uses a small balanced inset
+   instead of the larger text-to-attachment gap. */
+.happy2-message:not([data-has-body]) .happy2-message__media,
+.happy2-message:not([data-has-body]) .happy2-message__attachments {
+    margin-top: 4px;
+}
+
+/* ---- Inline photo attachments ----------------------------------------- */
+
+.happy2-message__media {
+    display: grid;
+    gap: 4px;
+    margin-top: 8px;
+    max-width: 420px;
+    min-width: 0;
+}
+
+.happy2-message__media[data-count="1"] {
+    grid-template-columns: minmax(0, max-content);
+}
+
+.happy2-message__media[data-count="2"],
+.happy2-message__media[data-count="3"],
+.happy2-message__media[data-count="4"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.happy2-message__media-item {
+    display: block;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+    background: var(--happy2-bg-inset);
+    border: 1px solid var(--happy2-border);
+    border-radius: 8px;
+    appearance: none;
+    cursor: zoom-in;
+    transition: border-color 120ms ease;
+}
+
+.happy2-message__media[data-count="2"] .happy2-message__media-item,
+.happy2-message__media[data-count="3"] .happy2-message__media-item,
+.happy2-message__media[data-count="4"] .happy2-message__media-item {
+    aspect-ratio: 1 / 1;
+}
+
+.happy2-message__media-item:hover {
+    border-color: var(--happy2-border-strong);
+}
+
+.happy2-message__media-item:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}
+
+/* A fixed box (grid squares, or a lone photo with known dimensions) fills its
+   reserved space so the layout never reflows when the image loads. */
+.happy2-message__media-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    -webkit-user-drag: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* A lone photo with no dimension metadata sizes to its natural aspect, capped —
+   it may reflow once on load, which is why callers should pass width/height. */
+.happy2-message__media[data-count="1"]
+    .happy2-message__media-item:not([data-fixed])
+    .happy2-message__media-image {
+    width: auto;
+    height: auto;
+    max-width: 380px;
+    max-height: 320px;
+}
+
+.happy2-message__reactions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.happy2-message__react-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--happy2-radius-pill);
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-ui);
+    appearance: none;
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        border-color 120ms ease,
+        color 120ms ease;
+}
+
+.happy2-message__react-add:hover {
+    background: var(--happy2-bg-inset);
+    border-color: var(--happy2-border);
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-message__react-add:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}
+
+.happy2-message__replies {
+    display: inline-flex;
+    align-items: center;
+    margin: 6px 0 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    font-family: var(--happy2-font-ui);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 16px;
+    color: var(--happy2-accent);
+    font-synthesis: none;
+    appearance: none;
+    cursor: pointer;
+    transition: color 120ms ease;
+}
+
+.happy2-message__replies:hover {
+    color: var(--happy2-accent-strong);
+    text-decoration: underline;
+}
+
+.happy2-message__replies:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* ---- Hover actions ---------------------------------------------------- */
+
+.happy2-message__actions {
+    position: absolute;
+    z-index: 2;
+    top: 4px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    padding: 2px;
+    background: var(--happy2-bg-raised);
+    border: 1px solid var(--happy2-border-strong);
+    border-radius: var(--happy2-radius-sm);
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.32);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-2px);
+    transition:
+        opacity 100ms ease,
+        transform 100ms ease;
+}
+
+.happy2-message:hover > .happy2-message__actions,
+.happy2-message:focus-within > .happy2-message__actions,
+.happy2-message[data-actions-visible] > .happy2-message__actions {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+/* The 28px buttons are 3px inside the toolbar border box. At the occupied
+ * outer corners their 3px curve is the true parallel of the 6px toolbar. */
+.happy2-message__action.happy2-button:first-child {
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
+}
+
+.happy2-message__action.happy2-button:last-child {
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+}
+
+.happy2-message__popover {
+    position: fixed;
+    z-index: 30;
+}
+
+.happy2-message__popover--reaction {
+    width: 234px;
+}
+
+.happy2-message__popover--menu {
+    width: 196px;
+}
+
+/* ---- MessageList ------------------------------------------------------ */
+
+.happy2-message-list {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px 0;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-message-list__spacer {
+    flex: none;
+    margin-top: auto;
+}
+
+.happy2-message-list__intro {
+    flex: none;
+    padding: 6px 20px 14px;
+}
+
+.happy2-message-list__intro-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 24px;
+    color: var(--happy2-text);
+}
+
+.happy2-message-list__intro-description {
+    margin: 2px 0 0;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 20px;
+    color: var(--happy2-text-secondary);
+}
+
+/* ---- DayDivider ------------------------------------------------------- */
+
+.happy2-day-divider {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 12px;
+    padding: 10px 20px;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-day-divider__line {
+    display: block;
+    flex: 1 1 0%;
+    height: 1px;
+    background: var(--happy2-border);
+}
+
+.happy2-day-divider__label {
+    display: block;
+    flex: none;
+    height: 20px;
+    /* 0.06em tracking on 11px adds a phantom 0.66px advance after the last
+       glyph; trim it from the right padding so the ink centers in the pill
+       (measured dx -0.29..-0.40 across engines with symmetric 10px padding). */
+    padding: 0 9.34px 0 10px;
+    background: var(--happy2-bg-inset);
+    border-radius: var(--happy2-radius-pill);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 20px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--happy2-text-secondary);
+    white-space: nowrap;
+}
+
+/* ---- Engine-scoped optical corrections -------------------------------- */
+/*
+ * Measured with the repo's alpha-weighted centroid probes at true 2x captures
+ * (dy = ink centroid minus box center, positive = ink sits low):
+ * - author 14px/20px Figtree bold: Blink dy +0.09, Gecko +1.09, WebKit +1.03
+ *   — Gecko and WebKit split the half-leading a full pixel lower.
+ * - body 15px/22px Figtree: Gecko paints the line 0.5px lower than
+ *   Blink/WebKit (centroids 18.29 vs 17.79/17.74), which would break the
+ *   gutter-time baseline and the cross-engine screenshot rhythm.
+ * - mention pill: Gecko glyph-vs-pill dy +1.20 vs +0.76/+0.70 elsewhere, so
+ *   it needs a deeper below-baseline padding split than the base rule.
+ * - code pill: Gecko glyph-vs-pill dy 0.00 with symmetric padding — the base
+ *   1.5/0.5 split (tuned for Blink/WebKit -0.50) must be undone for Gecko.
+ * - day-divider label, meta time, gutter time, reaction row: measured within
+ *   tolerance in all engines after the base rules above; no scoped overrides.
+ */
+
+@supports (-moz-appearance: none) {
+    .happy2-message__author {
+        position: relative;
+        top: -1px;
+    }
+
+    .happy2-message__body {
+        position: relative;
+        top: -0.5px;
+    }
+
+    .happy2-message__mention {
+        padding: 0px 5px 2.4px;
+    }
+
+    .happy2-message__code {
+        padding: 1px 5px;
+    }
+}
+
+@supports (background: -webkit-named-image(i)) {
+    .happy2-message__author {
+        position: relative;
+        top: -1px;
+    }
+}

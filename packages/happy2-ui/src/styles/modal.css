@@ -1,0 +1,129 @@
+/*
+ * C-028 Modal — dialog card (header / body / footer) on a raised surface.
+ *
+ * The root .happy2-modal is a transparent centering layer (no scrim / no fixed
+ * positioning) so the dialog renders as a screenshot-safe specimen; a consuming
+ * app portals it over its own backdrop. The inner .happy2-modal__dialog is the
+ * measured card: three fixed widths (360 / 480 / 640), a 14px shell radius, a
+ * 1px strong hairline, the raised surface background, and an elevated drop
+ * shadow (the same black-on-dark elevation used by the composer picker).
+ *
+ * Geometry contract (border-box): header is a fixed 60px control row (28px
+ * chip / close square + 16px top+bottom padding); the footer action row is
+ * 16px top+bottom padding + a 1px top hairline. Header/body/footer share a
+ * 20px content inset (the close square hugs the 16px right gutter).
+ */
+
+.happy2-modal,
+.happy2-modal__dialog,
+.happy2-modal__header,
+.happy2-modal__icon,
+.happy2-modal__title,
+.happy2-modal__body,
+.happy2-modal__footer {
+    box-sizing: border-box;
+}
+
+.happy2-modal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-modal__dialog {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--happy2-bg-raised);
+    border: 1px solid var(--happy2-border-strong);
+    border-radius: var(--happy2-radius-shell);
+    box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
+}
+
+.happy2-modal__dialog[data-size="small"] {
+    width: 360px;
+}
+
+.happy2-modal__dialog[data-size="medium"] {
+    width: 480px;
+}
+
+.happy2-modal__dialog[data-size="large"] {
+    width: 640px;
+}
+
+/* ---- Header ---------------------------------------------------------- */
+
+.happy2-modal__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+    min-height: 60px;
+    padding: 16px 16px 16px 20px;
+}
+
+.happy2-modal__icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    background: var(--happy2-accent-soft);
+    border-radius: 8px;
+    color: var(--happy2-accent);
+}
+
+.happy2-modal__dialog[data-tone="danger"] .happy2-modal__icon {
+    background: var(--happy2-danger-soft);
+    color: var(--happy2-danger);
+}
+
+.happy2-modal__title {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 24px;
+    letter-spacing: -0.01em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Close reuses the ghost icon Button (28px square, glyph optically centered);
+ * the title's flex-grow pins it against the 16px right gutter. */
+.happy2-modal__close {
+    flex: none;
+}
+
+/* ---- Body ------------------------------------------------------------ */
+
+.happy2-modal__body {
+    flex: 1 1 auto;
+    padding: 4px 20px 20px;
+    overflow: auto;
+    color: var(--happy2-text-secondary);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 20px;
+}
+
+/* ---- Footer ---------------------------------------------------------- */
+
+.happy2-modal__footer {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--happy2-border);
+}

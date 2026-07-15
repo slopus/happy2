@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { readPackageManifest } from "./release/readPackageManifest.js";
 import { runCommand } from "./release/runCommand.js";
 
-const PACKAGE_DIRECTORY = fileURLToPath(new URL("../packages/server/", import.meta.url));
+const PACKAGE_DIRECTORY = fileURLToPath(new URL("../", import.meta.url));
 const VERSION_BUMPS = new Set([
     "major",
     "minor",
@@ -135,7 +135,7 @@ async function release(): Promise<void> {
             });
         }
         const versionedManifest = readPackageManifest();
-        runCommand("git", ["add", "packages/server/package.json", "pnpm-lock.yaml"]);
+        runCommand("git", ["add", "package.json", "pnpm-lock.yaml"]);
         const commitArguments = ["commit", "-m", `Release v${versionedManifest.version}`];
         if (releasingInitialVersion) {
             commitArguments.push("--allow-empty");

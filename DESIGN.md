@@ -1,20 +1,20 @@
-# Rigged design system
+# Happy (2) design system
 
-This document is the source of truth for visual work in Rigged. The product is a
+This document is the source of truth for visual work in Happy (2). The product is a
 desktop application. Design for its desktop window and do not introduce mobile
 breakpoints, touch-only behavior, or mobile substitutes.
 
-The design system is implemented by `rigged-ui`. Its component workbench is the
-blueprint: run it with `pnpm --filter rigged-ui dev`.
+The design system is implemented by `happy2-ui`. Its component workbench is the
+blueprint: run it with `pnpm --filter happy2-ui dev`.
 
 ## Architecture and ownership
 
-Every visual element must be a reusable `rigged-ui` component before it is used
+Every visual element must be a reusable `happy2-ui` component before it is used
 by the main app. This applies to small primitives such as Box, Button, Icon, and
 Avatar and to product-sized structures such as a rail, sidebar, title bar,
 inspector, editor shell, or dialog.
 
-A `rigged-ui` component must:
+A `happy2-ui` component must:
 
 - render in isolation without an application store, router, API client, IPC
   bridge, authentication context, or knowledge of a product route;
@@ -28,8 +28,8 @@ A `rigged-ui` component must:
 The main app is glue and state management. It may load data, own stores, select
 the current route, translate product data into component props, and handle
 component callbacks. It must not define visual components, component-local
-styling systems, icons, or alternate copies of `rigged-ui` components. If the
-app needs a new visual element, implement and prove it in `rigged-ui`, add it to
+styling systems, icons, or alternate copies of `happy2-ui` components. If the
+app needs a new visual element, implement and prove it in `happy2-ui`, add it to
 the blueprint, and then import it into the app.
 
 Keep product decisions out of the component. For example, a rail may accept
@@ -38,11 +38,11 @@ must not read the app's feature store or navigate by itself.
 
 ## Theme
 
-Rigged uses the "Relay" dark theme: violet-tinted near-black surfaces, solid
+Happy (2) uses the "Relay" dark theme: violet-tinted near-black surfaces, solid
 light text, hairline borders, and a violet accent with a violet→pink brand
-gradient. The tokens live in `packages/rigged-ui/src/theme.css` and are the
+gradient. The tokens live in `packages/happy2-ui/src/theme.css` and are the
 only source of color and typography in the system. Components must consume
-`var(--rg-*)` custom properties; a raw hex value in component CSS is a defect.
+`var(--happy2-*)` custom properties; a raw hex value in component CSS is a defect.
 
 Core values (see `theme.css` for the full set):
 
@@ -53,12 +53,12 @@ Core values (see `theme.css` for the full set):
 | Text        | `#edeaf2`, secondary `#a5a0b0`, muted `#757085`, faint `#55515f`                      |
 | Accent      | violet `#8b7cf7`, strong `#a89bff`, brand gradient violet→pink `#f472b6`              |
 | Semantics   | success mint `#34d399`, warning amber `#fbbf24`, danger `#f87171`, info `#60a5fa`     |
-| Type        | UI "Rigged Figtree" (Figtree variable), code "Rigged Mono" (JetBrains Mono variable)  |
+| Type        | UI "happy2 Figtree" (Figtree variable), code "happy2 Mono" (JetBrains Mono variable)  |
 | Radii       | controls 6 px, macOS-matched content 8 px, cards 10 px, large shells 14 px, pills 999 |
 
 Text colors are solid (not alpha) so rendering tests can assert exact `rgb()`
 values in every engine. Identity colors for avatars come from the named
-`--rg-tone-*` gradient presets; product code selects a tone name and never
+`--happy2-tone-*` gradient presets; product code selects a tone name and never
 passes raw CSS colors or utility classes for identity.
 
 ## Grid and dimensions
@@ -147,9 +147,9 @@ the browser actually renders before applying the formula. A descendant whose
 corner is outside the ancestor's corner field is an independent rounded shape
 and does not inherit this relationship.
 
-The shared `rigged-ui` renderer audits this contract after every test render in
+The shared `happy2-ui` renderer audits this contract after every test render in
 Chromium, Firefox, and WebKit. Component fixtures must expose rounded visual
-parts with `data-rigged-ui` so nested geometry is included automatically. A
+parts with `data-happy2-ui` so nested geometry is included automatically. A
 test must fail when a nested curve uses an independently selected radius or
 asymmetric horizontal and vertical insets, even if a screenshot looks close.
 
@@ -264,7 +264,7 @@ For every supported text class, tests must independently assert:
 Numbers-only controls need extra care. A digit such as `7` is top-heavy, so forcing every possible
 number's alpha centroid to the box center would move its baseline and make the numeral set look
 unstable. Use lining numerals so `0` through `9` occupy a common vertical figure band, and use
-tabular numerals when counts must keep equal digit advances. Prefer the bundled `Rigged Mono`
+tabular numerals when counts must keep equal digit advances. Prefer the bundled `happy2 Mono`
 (JetBrains Mono) for small counters because its lining, tabular digits rasterize consistently in
 all supported engines. Counter tests must cover every digit `0`–`9`, repeated and mixed multi-digit
 values, and a balanced reference such as `1234`; assert a shared baseline and centered full numeral
@@ -325,7 +325,7 @@ browsers, use normalized bundled SVG or PNG assets instead of font fallback emoj
 Keyboard shortcut caps follow the same separation rule. Unicode modifier characters such as `⌘`,
 `⇧`, `⌥`, and `⌃` are not ordinary letters: a mono font may omit them, substitute a platform glyph,
 or draw each with a different em-square scale. Do not put modifier symbols and shortcut letters in
-one undifferentiated text run. Render supported modifiers as normalized Rigged-owned SVG artwork in
+one undifferentiated text run. Render supported modifiers as normalized Happy (2)-owned SVG artwork in
 fixed symbol slots, and render letters/digits in fixed mono text cells. KeyCap currently uses 9px
 symbol slots, 6.5px text cells, bearing-aware zero-gap adjacency, and exactly 4px padding on both
 sides.
@@ -371,7 +371,7 @@ Every request must describe the actual scene and composition in detail. Include
 the image's role, subject, camera or perspective, placement of focal elements,
 areas that must remain quiet enough for UI, palette, lighting, texture, aspect
 ratio, and exclusions. Use this treatment phrase when the background should
-match Rigged's retro visual direction: **“generate retro dithered technicolor
+match Happy (2)'s retro visual direction: **“generate retro dithered technicolor
 gamma image, 20% muted.”** The phrase is a treatment, not a sufficient prompt
 by itself.
 
@@ -379,7 +379,7 @@ For example, open a separate terminal at the repository root, start Codex, and
 ask:
 
 > Generate a background image and save the final asset at
-> `packages/rigged-ui/src/assets/backgrounds/agent-workspace.png`. Generate
+> `packages/happy2-ui/src/assets/backgrounds/agent-workspace.png`. Generate
 > retro dithered technicolor gamma image, 20% muted. Show a late-1970s computer
 > operations room at night from a slightly elevated three-quarter perspective:
 > violet-black walls, low amber and magenta monitor glow, modular terminals,
@@ -394,7 +394,7 @@ ask:
 For a quieter abstract surface, ask:
 
 > Generate a seamless desktop application background and save it at
-> `packages/rigged-ui/src/assets/backgrounds/relay-field.png`. Generate retro
+> `packages/happy2-ui/src/assets/backgrounds/relay-field.png`. Generate retro
 > dithered technicolor gamma image, 20% muted. Create an abstract field of broad
 > violet-black bands, faint rose and cyan signal arcs, and sparse amber relay
 > points, viewed as a flat graphic rather than a physical scene. Preserve a
@@ -441,7 +441,7 @@ as a group, then test them in their real component containers.
 ## Definition of done
 
 A visual change is complete only when the reusable component exists in
-`rigged-ui`, all supported states appear on its blueprint page, the main app uses
+`happy2-ui`, all supported states appear on its blueprint page, the main app uses
 that component instead of defining its own UI, and cross-browser unit tests prove
 its dimensions, computed styles, visible bounds, colors, typography, and optical
 alignment at Retina scale.

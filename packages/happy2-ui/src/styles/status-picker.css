@@ -1,0 +1,255 @@
+/*
+ * C-034 StatusPicker — availability chooser + custom status editor.
+ *
+ * A raised card (radius-md) stacking two sections with a 16px rhythm; each
+ * section stacks its eyebrow label and control with an 8px gap. Geometry is
+ * integer on the 4px grid: card border-box 380 − 2×16 pad − 2×1 hairline =
+ * content lane 346, so the fullWidth availability track (border-box 346, 1px
+ * hairline, 4px inset pad) divides into four exact 84px columns, and every
+ * device edge lands on a
+ * physical pixel at 2×. The availability row is a bespoke segmented control
+ * (SegmentedControl can't carry per-state identity dots) that reuses the same
+ * sliding-pill math: the pill is one column wide, absolutely positioned in the
+ * track padding box, and translated by the selected index so its border box
+ * lands exactly on the selected segment. Every color is a token; the per-state
+ * dot colors are selected by the segment/dot `data-availability` attribute.
+ */
+
+.happy2-status-picker {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 380px;
+    padding: 16px;
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    background: var(--happy2-bg-raised);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-status-picker *,
+.happy2-status-picker *::before,
+.happy2-status-picker *::after {
+    box-sizing: border-box;
+}
+
+/* ---- Sections ---------------------------------------------------------- */
+
+.happy2-status-picker__section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.happy2-status-picker__section-label {
+    display: block;
+    color: var(--happy2-text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 14px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* ---- Availability segmented control ------------------------------------ */
+
+.happy2-status-picker__segmented {
+    --happy2-sp-pad: 4px;
+    --happy2-sp-inner-radius: calc(var(--happy2-radius-sm) - var(--happy2-sp-pad) - 1px);
+    --happy2-sp-count: 4;
+    --happy2-sp-index: 0;
+
+    position: relative;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: 1fr;
+    align-items: stretch;
+    width: 100%;
+    height: 36px;
+    padding: var(--happy2-sp-pad);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-sm);
+    background: var(--happy2-bg-inset);
+}
+
+/*
+ * Selected pill. 100% resolves against the track's padding box, so one column
+ * is (padding-box width − 2 × pad) / 4; translateX by the index moves it
+ * exactly one segment because the segments are contiguous (no column gap).
+ * The transition only fires on selection change, never on first paint.
+ */
+.happy2-status-picker__pill {
+    position: absolute;
+    top: var(--happy2-sp-pad);
+    bottom: var(--happy2-sp-pad);
+    left: var(--happy2-sp-pad);
+    box-sizing: border-box;
+    width: calc((100% - 2 * var(--happy2-sp-pad)) / var(--happy2-sp-count));
+    border: 1px solid var(--happy2-border-strong);
+    border-radius: var(--happy2-sp-inner-radius);
+    background: var(--happy2-bg-raised);
+    transform: translateX(calc(var(--happy2-sp-index) * 100%));
+    transition: transform 160ms ease;
+}
+
+.happy2-status-picker__segment {
+    position: relative;
+    z-index: 1;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--happy2-sp-inner-radius);
+    background: transparent;
+    color: var(--happy2-text-secondary);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 18px;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 120ms ease;
+}
+
+.happy2-status-picker__segment[data-active] {
+    color: var(--happy2-text);
+}
+
+.happy2-status-picker__segment:not([data-active]):hover {
+    color: var(--happy2-text);
+}
+
+.happy2-status-picker__segment:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: -1px;
+}
+
+/*
+ * Status dot — a solid 8px identity circle painted before the label. It is an
+ * opaque token fill, so its alpha-weighted centroid is measurable directly and
+ * its color is asserted by attribute in StatusPicker.test.tsx.
+ */
+.happy2-status-picker__dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-text-muted);
+}
+
+.happy2-status-picker__dot[data-availability="online"] {
+    background: var(--happy2-success);
+}
+
+.happy2-status-picker__dot[data-availability="away"] {
+    background: var(--happy2-warning);
+}
+
+.happy2-status-picker__dot[data-availability="dnd"] {
+    background: var(--happy2-danger);
+}
+
+/*
+ * Fixed even label width so the centered dot+label group has an integer total
+ * width and the leading 8px dot lands on a whole CSS pixel: an odd/fractional
+ * label advance would place the disc at a subpixel offset and bias its
+ * alpha-centroid past the tuned 0.4px (the subpixel-placement trap). Text is
+ * centered inside the box, so segments still read as optically balanced.
+ */
+.happy2-status-picker__segment-label {
+    display: block;
+    flex: none;
+    width: 48px;
+    text-align: center;
+}
+
+/* ---- Custom status editor ---------------------------------------------- */
+
+.happy2-status-picker__field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 40px;
+    padding: 0 8px;
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-sm);
+    background: var(--happy2-bg-inset);
+}
+
+.happy2-status-picker__field:focus-within {
+    border-color: var(--happy2-border-strong);
+}
+
+/* Fixed, explicitly sized emoji slot (label and glyph stay decoupled). */
+.happy2-status-picker__emoji {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-emoji);
+    font-size: 18px;
+    line-height: 24px;
+}
+
+.happy2-status-picker__input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 38px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 38px;
+    letter-spacing: 0;
+    caret-color: var(--happy2-accent);
+}
+
+.happy2-status-picker__input::placeholder {
+    color: var(--happy2-text-muted);
+    opacity: 1;
+}
+
+.happy2-status-picker__clear {
+    flex: none;
+}
+
+/* ---- Expiry meta ------------------------------------------------------- */
+
+.happy2-status-picker__meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+}
+
+.happy2-status-picker__meta-icon {
+    display: flex;
+    flex: none;
+}

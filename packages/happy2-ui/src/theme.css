@@ -1,0 +1,110 @@
+/*
+ * Happy (2) design tokens — "Relay" dark theme.
+ *
+ * Every happy2-ui component consumes these custom properties; no component
+ * hard-codes a color. Text colors are solid values so rendering tests can
+ * assert exact rgb() results in every browser. Alpha values are reserved for
+ * fills and hairlines that must composite over varying surfaces.
+ */
+
+@font-face {
+    font-family: "happy2 Figtree";
+    font-style: normal;
+    font-display: block;
+    font-weight: 300 900;
+    src: url("@fontsource-variable/figtree/files/figtree-latin-wght-normal.woff2")
+        format("woff2-variations");
+}
+
+@font-face {
+    font-family: "happy2 Mono";
+    font-style: normal;
+    font-display: block;
+    font-weight: 100 800;
+    src: url("@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2")
+        format("woff2-variations");
+}
+
+:root {
+    /* Surfaces */
+    --happy2-bg-chrome: #131217; /* window chrome: title bar and rail */
+    --happy2-bg-app: #17161c; /* main content shell base */
+    --happy2-bg-surface: #1c1b22; /* cards and panels on the app base */
+    --happy2-bg-raised: #24222b; /* raised card, popover, active surface */
+    --happy2-bg-inset: rgb(255 255 255 / 0.05); /* inputs, search wells */
+    --happy2-bg-hover: rgb(255 255 255 / 0.04);
+    --happy2-bg-code: #141319; /* diff and code blocks */
+    /* Window backdrop: a slight top-center lift over the chrome base so the
+       seamless rail+title-bar frame reads with depth. background-color stays
+       --happy2-bg-chrome; this is layered as background-image. */
+    --happy2-bg-window: radial-gradient(130% 92% at 50% 0%, #15141b 0%, #131217 55%);
+
+    /* Hairlines */
+    --happy2-border: rgb(255 255 255 / 0.07);
+    --happy2-border-strong: rgb(255 255 255 / 0.13);
+
+    /* Text */
+    --happy2-text: #edeaf2;
+    --happy2-text-secondary: #a5a0b0;
+    --happy2-text-muted: #757085;
+    --happy2-text-faint: #55515f;
+    --happy2-text-on-accent: #ffffff;
+    --happy2-text-on-fill: #131217; /* dark text over bright solid fills */
+
+    /* Accent — violet with the brand pink gradient */
+    --happy2-accent: #8b7cf7;
+    --happy2-accent-strong: #a89bff;
+    --happy2-accent-soft: rgb(139 124 247 / 0.15);
+    --happy2-pink: #f472b6;
+    --happy2-brand-gradient: linear-gradient(135deg, #8b7cf7, #f472b6);
+
+    /* Semantics */
+    --happy2-success: #34d399;
+    --happy2-success-strong: #6ee7b7;
+    --happy2-success-soft: rgb(52 211 153 / 0.13);
+    --happy2-warning: #fbbf24;
+    --happy2-warning-strong: #fcd34d;
+    --happy2-warning-soft: rgb(251 191 36 / 0.13);
+    --happy2-danger: #f87171;
+    --happy2-danger-strong: #fca5a5;
+    --happy2-danger-soft: rgb(248 113 113 / 0.13);
+    --happy2-info: #60a5fa;
+    --happy2-info-soft: rgb(96 165 250 / 0.13);
+    --happy2-online: #34d399;
+
+    /* Diff */
+    --happy2-diff-add: #34d399;
+    --happy2-diff-add-bg: rgb(52 211 153 / 0.09);
+    --happy2-diff-del: #f87171;
+    --happy2-diff-del-bg: rgb(248 113 113 / 0.09);
+
+    /* Identity tones (avatars, brand marks) */
+    --happy2-tone-violet: linear-gradient(135deg, #8b7cf7, #6d28d9);
+    --happy2-tone-ember: linear-gradient(135deg, #fb923c, #e11d48);
+    --happy2-tone-mint: linear-gradient(135deg, #34d399, #0d9488);
+    --happy2-tone-ocean: linear-gradient(135deg, #38bdf8, #6366f1);
+    --happy2-tone-rose: linear-gradient(135deg, #fb7185, #c026d3);
+    --happy2-tone-amber: linear-gradient(135deg, #fbbf24, #ea580c);
+    --happy2-tone-slate: linear-gradient(135deg, #94a3b8, #475569);
+    --happy2-tone-brand: linear-gradient(135deg, #8b7cf7, #f472b6);
+
+    /* Typography */
+    --happy2-font-ui: "happy2 Figtree", system-ui, sans-serif;
+    --happy2-font-mono: "happy2 Mono", ui-monospace, monospace;
+    --happy2-font-emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+
+    /* Radii */
+    --happy2-radius-sm: 6px;
+    --happy2-radius-md: 10px;
+    --happy2-radius-window: 8px; /* matches the native macOS window corner */
+    --happy2-radius-shell: 14px; /* main content shell contract */
+    --happy2-radius-pill: 999px;
+
+    /* Focus */
+    --happy2-focus-ring: 2px solid #a89bff;
+}
+
+.happy2-box {
+    display: block;
+    box-sizing: border-box;
+}

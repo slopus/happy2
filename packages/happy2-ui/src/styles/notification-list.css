@@ -1,0 +1,245 @@
+/*
+ * C-035 NotificationList — the activity inbox.
+ *
+ * A surface card of fixed 64px rows on a 4-column grid:
+ *   [ 8px unread dot | 36px avatar media | body (text + context) | time ].
+ * The actor avatar carries a per-kind corner glyph badge; actor-less rows show
+ * a standalone tinted kind tile in the same 36px media lane. Colours are tokens
+ * only: `data-tone` on the kind element selects --nl-kind-color / --nl-kind-soft
+ * and read/unread is a background token plus a leading accent dot.
+ */
+
+.happy2-notification-list,
+.happy2-notification-list * {
+    box-sizing: border-box;
+}
+
+.happy2-notification-list {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    background: var(--happy2-bg-surface);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Row -------------------------------------------------------------- */
+
+.happy2-notification-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 8px 36px minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 12px;
+    width: 100%;
+    height: 64px;
+    margin: 0;
+    padding: 0 16px;
+    border: 0;
+    background: transparent;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    text-align: left;
+    appearance: none;
+    cursor: pointer;
+    transition: background-color 120ms ease;
+}
+
+/* Hairline divider between rows; drawn as a pseudo so the 64px row box and its
+ * measured parts are never displaced by a border. */
+.happy2-notification-row + .happy2-notification-row::before {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--happy2-border);
+    content: "";
+}
+
+.happy2-notification-row:hover {
+    background: var(--happy2-bg-hover);
+}
+
+.happy2-notification-row[data-unread] {
+    background: var(--happy2-accent-soft);
+}
+
+.happy2-notification-row[data-unread]:hover {
+    background-image: linear-gradient(var(--happy2-bg-hover), var(--happy2-bg-hover));
+}
+
+.happy2-notification-row:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: -2px;
+}
+
+/* ---- Unread dot ------------------------------------------------------- */
+
+.happy2-notification-row__unread-lane {
+    display: grid;
+    place-items: center;
+    width: 8px;
+}
+
+.happy2-notification-row__unread {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-accent);
+}
+
+/* ---- Media: avatar + kind glyph --------------------------------------- */
+
+.happy2-notification-row__media {
+    position: relative;
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+}
+
+.happy2-notification-row__kind {
+    display: grid;
+    flex: none;
+    place-items: center;
+    border-radius: var(--happy2-radius-pill);
+    color: var(--nl-kind-color);
+}
+
+/* Corner badge over the avatar: solid raised chip with a 2px ring the colour of
+ * the card so it reads as detached; the 12px glyph is inset 3px from the badge
+ * edge, keeping its ink clear of the ring and of the avatar behind it. */
+.happy2-notification-row__kind[data-variant="corner"] {
+    position: absolute;
+    right: -3px;
+    bottom: -3px;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--happy2-bg-surface);
+    background: var(--happy2-bg-raised);
+}
+
+/* Standalone tile for actor-less notifications: fills the 36px media lane. */
+.happy2-notification-row__kind[data-variant="tile"] {
+    width: 36px;
+    height: 36px;
+    background: var(--nl-kind-soft);
+}
+
+.happy2-notification-row__kind[data-tone="accent"] {
+    --nl-kind-color: var(--happy2-accent-strong);
+    --nl-kind-soft: var(--happy2-accent-soft);
+}
+
+.happy2-notification-row__kind[data-tone="info"] {
+    --nl-kind-color: var(--happy2-info);
+    --nl-kind-soft: var(--happy2-info-soft);
+}
+
+.happy2-notification-row__kind[data-tone="success"] {
+    --nl-kind-color: var(--happy2-success-strong);
+    --nl-kind-soft: var(--happy2-success-soft);
+}
+
+.happy2-notification-row__kind[data-tone="warning"] {
+    --nl-kind-color: var(--happy2-warning-strong);
+    --nl-kind-soft: var(--happy2-warning-soft);
+}
+
+.happy2-notification-row__kind[data-tone="danger"] {
+    --nl-kind-color: var(--happy2-danger-strong);
+    --nl-kind-soft: var(--happy2-danger-soft);
+}
+
+.happy2-notification-row__kind[data-tone="neutral"] {
+    --nl-kind-color: var(--happy2-text-secondary);
+    --nl-kind-soft: var(--happy2-bg-raised);
+}
+
+/* ---- Body: text + context -------------------------------------------- */
+
+.happy2-notification-row__body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.happy2-notification-row__text {
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.happy2-notification-row[data-unread] .happy2-notification-row__text {
+    font-weight: 600;
+}
+
+.happy2-notification-row__actor {
+    color: var(--happy2-text);
+    font-weight: 700;
+}
+
+.happy2-notification-row__mention {
+    color: var(--happy2-accent-strong);
+    font-weight: 600;
+}
+
+.happy2-notification-row__code {
+    background: var(--happy2-bg-inset);
+    border-radius: 4px;
+    padding: 0 4px;
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+}
+
+.happy2-notification-row__link {
+    color: var(--happy2-accent);
+    text-decoration: none;
+}
+
+.happy2-notification-row__context {
+    overflow: hidden;
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* ---- Time ------------------------------------------------------------- */
+
+.happy2-notification-row__time {
+    flex: none;
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+}
+
+/* ---- Empty state ------------------------------------------------------ */
+
+.happy2-notification-list__empty {
+    display: grid;
+    place-items: center;
+    min-height: 96px;
+    padding: 24px 16px;
+    color: var(--happy2-text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 20px;
+    text-align: center;
+}

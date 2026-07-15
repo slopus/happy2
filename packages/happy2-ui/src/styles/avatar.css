@@ -1,0 +1,160 @@
+/*
+ * Avatar — identity mark for humans (circle) and agents (rounded square).
+ * Sizes: xs 20 / sm 28 / md 36 / lg 44. Tone gradients come from theme.css.
+ */
+
+.happy2-avatar,
+.happy2-avatar__initials,
+.happy2-avatar__image,
+.happy2-avatar__presence {
+    box-sizing: border-box;
+}
+
+.happy2-avatar {
+    position: relative;
+    display: grid;
+    flex: none;
+    align-items: center;
+    justify-items: center;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-tone-slate);
+    color: var(--happy2-text-on-accent);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    font-weight: 700;
+    letter-spacing: 0;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.happy2-avatar[data-size="xs"] {
+    width: 20px;
+    height: 20px;
+    font-size: 8px;
+    line-height: 8px;
+}
+
+.happy2-avatar[data-size="sm"] {
+    width: 28px;
+    height: 28px;
+    font-size: 10px;
+    line-height: 10px;
+}
+
+.happy2-avatar[data-size="md"] {
+    width: 36px;
+    height: 36px;
+    font-size: 12px;
+    line-height: 12px;
+}
+
+.happy2-avatar[data-size="lg"] {
+    width: 44px;
+    height: 44px;
+    font-size: 14px;
+    line-height: 14px;
+}
+
+.happy2-avatar[data-type="agent"][data-size="xs"] {
+    border-radius: 6px;
+}
+
+.happy2-avatar[data-type="agent"][data-size="sm"] {
+    border-radius: 7px;
+}
+
+.happy2-avatar[data-type="agent"][data-size="md"] {
+    border-radius: 9px;
+}
+
+.happy2-avatar[data-type="agent"][data-size="lg"] {
+    border-radius: 10px;
+}
+
+.happy2-avatar[data-tone="violet"] {
+    background: var(--happy2-tone-violet);
+}
+
+.happy2-avatar[data-tone="ember"] {
+    background: var(--happy2-tone-ember);
+}
+
+.happy2-avatar[data-tone="mint"] {
+    background: var(--happy2-tone-mint);
+}
+
+.happy2-avatar[data-tone="ocean"] {
+    background: var(--happy2-tone-ocean);
+}
+
+.happy2-avatar[data-tone="rose"] {
+    background: var(--happy2-tone-rose);
+}
+
+.happy2-avatar[data-tone="amber"] {
+    background: var(--happy2-tone-amber);
+}
+
+.happy2-avatar[data-tone="slate"] {
+    background: var(--happy2-tone-slate);
+}
+
+.happy2-avatar[data-tone="brand"] {
+    background: var(--happy2-tone-brand);
+}
+
+.happy2-avatar__initials {
+    display: block;
+}
+
+/* Calibrated against the balanced O fixture's visible bounds. */
+.happy2-avatar[data-size="sm"] .happy2-avatar__initials {
+    transform: translateY(0.5px);
+}
+
+.happy2-avatar[data-size="md"] .happy2-avatar__initials {
+    transform: translateY(0.25px);
+}
+
+.happy2-avatar[data-size="lg"] .happy2-avatar__initials {
+    transform: translateY(1px);
+}
+
+@supports (-moz-appearance: none) {
+    .happy2-avatar[data-size="sm"] .happy2-avatar__initials,
+    .happy2-avatar[data-size="md"] .happy2-avatar__initials,
+    .happy2-avatar[data-size="lg"] .happy2-avatar__initials {
+        transform: none;
+    }
+}
+
+@supports (background: -webkit-named-image(i)) {
+    .happy2-avatar[data-size="sm"] .happy2-avatar__initials,
+    .happy2-avatar[data-size="lg"] .happy2-avatar__initials {
+        transform: none;
+    }
+}
+
+.happy2-avatar__image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    object-fit: cover;
+}
+
+.happy2-avatar__presence {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 8px;
+    height: 8px;
+    border: 2px solid var(--happy2-bg-app);
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-online);
+}
+
+.happy2-avatar[data-size="lg"] .happy2-avatar__presence {
+    width: 10px;
+    height: 10px;
+}

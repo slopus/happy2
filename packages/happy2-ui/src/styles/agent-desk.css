@@ -1,0 +1,323 @@
+/*
+ * AgentDesk — right-panel overview of agent activity.
+ *
+ * Contract: fluid width (designed for the 340px AppShell panel), fills its
+ * container's height, body scrolls. Header 48px with 14px x-padding; running
+ * tiles on --happy2-bg-raised with a 3px brand-gradient progress bar; queued rows
+ * 36px with a dashed strong hairline; done rows 32px with a quiet wash.
+ */
+
+.happy2-agent-desk,
+.happy2-agent-desk * {
+    box-sizing: border-box;
+}
+
+.happy2-agent-desk {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Header ----------------------------------------------------------- */
+
+.happy2-agent-desk__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--happy2-border);
+}
+
+.happy2-agent-desk__spark {
+    color: var(--happy2-accent);
+    translate: 0 var(--happy2-agent-desk-spark-ty, 0px);
+}
+
+.happy2-agent-desk__title {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-top: var(--happy2-agent-desk-header-title-y, 0px);
+    margin-bottom: calc(-1 * var(--happy2-agent-desk-header-title-y, 0px));
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 13px;
+    font-weight: 800;
+    translate: 0 var(--happy2-agent-desk-header-title-ty, 0px);
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.happy2-agent-desk__count {
+    flex: none;
+}
+
+/* ---- Scrolling body --------------------------------------------------- */
+
+.happy2-agent-desk__body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+    padding: 12px 14px 16px;
+    overflow-y: auto;
+}
+
+/* ---- Running tiles ----------------------------------------------------- */
+
+.happy2-agent-desk__run {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    background: var(--happy2-bg-raised);
+    border-radius: var(--happy2-radius-md);
+}
+
+.happy2-agent-desk__run-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.happy2-agent-desk__run-title {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-top: var(--happy2-agent-desk-run-title-y, 0px);
+    margin-bottom: calc(-1 * var(--happy2-agent-desk-run-title-y, 0px));
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    translate: 0 var(--happy2-agent-desk-run-title-ty, 0px);
+}
+
+.happy2-agent-desk__run-eta {
+    display: block;
+    flex: none;
+    margin-top: var(--happy2-agent-desk-run-eta-y, 0px);
+    margin-bottom: calc(-1 * var(--happy2-agent-desk-run-eta-y, 0px));
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 14px;
+    white-space: nowrap;
+    translate: 0 var(--happy2-agent-desk-run-eta-ty, 0px);
+}
+
+.happy2-agent-desk__run-detail {
+    overflow: hidden;
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.happy2-agent-desk__run-track {
+    flex: none;
+    height: 3px;
+    overflow: hidden;
+    background: var(--happy2-bg-inset);
+    border-radius: var(--happy2-radius-pill);
+}
+
+.happy2-agent-desk__run-fill {
+    height: 100%;
+    background: var(--happy2-brand-gradient);
+    border-radius: var(--happy2-radius-pill);
+}
+
+/* ---- Section labels ---------------------------------------------------- */
+
+.happy2-agent-desk__section-label {
+    display: flex;
+    flex: none;
+    align-items: flex-end;
+    height: 24px;
+    margin-top: 4px;
+    padding: 0 2px;
+    color: var(--happy2-text-faint);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 12px;
+    text-transform: uppercase;
+}
+
+/* ---- Queued and done rows ---------------------------------------------- */
+
+.happy2-agent-desk__queued,
+.happy2-agent-desk__done {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin: 0;
+    padding: 0 12px;
+    background: transparent;
+    border: none;
+    color: var(--happy2-text-secondary);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    text-align: left;
+    appearance: none;
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        border-color 120ms ease;
+}
+
+.happy2-agent-desk__queued:focus-visible,
+.happy2-agent-desk__done:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: -2px;
+}
+
+.happy2-agent-desk__queued {
+    height: 36px;
+    border: 1px dashed var(--happy2-border-strong);
+    border-radius: 8px;
+}
+
+.happy2-agent-desk__queued:hover {
+    background: var(--happy2-bg-hover);
+}
+
+.happy2-agent-desk__done {
+    height: 32px;
+    background: var(--happy2-bg-hover);
+    border-radius: 8px;
+}
+
+.happy2-agent-desk__done:hover {
+    background: var(--happy2-bg-inset);
+}
+
+.happy2-agent-desk__row-icon {
+    color: var(--happy2-text-muted);
+}
+
+.happy2-agent-desk__done .happy2-agent-desk__row-icon {
+    color: var(--happy2-success);
+}
+
+.happy2-agent-desk__row-title {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-top: var(--happy2-agent-desk-row-title-y, 0px);
+    margin-bottom: calc(-1 * var(--happy2-agent-desk-row-title-y, 0px));
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    translate: 0 var(--happy2-agent-desk-row-title-ty, 0px);
+}
+
+.happy2-agent-desk__row-meta {
+    display: block;
+    flex: none;
+    margin-top: var(--happy2-agent-desk-row-meta-y, 0px);
+    margin-bottom: calc(-1 * var(--happy2-agent-desk-row-meta-y, 0px));
+    color: var(--happy2-text-faint);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 14px;
+    white-space: nowrap;
+    translate: 0 var(--happy2-agent-desk-row-meta-ty, 0px);
+}
+
+/* ---- Optical corrections ------------------------------------------------ */
+
+/*
+ * Measured at 2x with alpha-weighted visible-pixel centroids on zeroed CSS
+ * (see AgentDesk.test.tsx). Each text correction zeroes the midpoint between
+ * a descender-free and a descender-heavy fixture, so any real string keeps
+ * its vertical ink centroid within +-0.75px of its lane center (symmetric
+ * content within +-0.4px). Two mechanisms are needed: Blink snaps painted
+ * text to whole CSS pixels, ignoring fractional margins, but honors
+ * fractional `translate`; WebKit is the reverse (subpixel margins work,
+ * `translate` on these inline blocks does not repaint subpixel); Gecko
+ * honors both. So the base rule carries Blink translate corrections and the
+ * Gecko/WebKit scopes zero them and set margin corrections instead. The
+ * spark glyph box lands on a half pixel (header lane is 47px), which Blink
+ * and Gecko rasterize 0.5px low; WebKit centers it raw. Icons in queued/done
+ * rows, the header badge, and the bottom-anchored section labels measured
+ * centered raw and carry no correction.
+ */
+.happy2-agent-desk {
+    --happy2-agent-desk-spark-ty: -0.5px;
+    --happy2-agent-desk-header-title-ty: -1px;
+    --happy2-agent-desk-run-title-ty: -0.5px;
+    --happy2-agent-desk-run-eta-ty: -0.6px;
+    --happy2-agent-desk-row-title-ty: -0.5px;
+    --happy2-agent-desk-row-meta-ty: -0.4px;
+}
+
+/*
+ * Firefox — only Gecko parses -moz-appearance. (@-moz-document is stripped by
+ * the CSS pipeline, and @supports (font: -apple-system-body) also matches
+ * Blink on macOS, so neither is a usable engine scope.)
+ */
+@supports (-moz-appearance: none) {
+    .happy2-agent-desk {
+        --happy2-agent-desk-header-title-y: -1px;
+        --happy2-agent-desk-run-title-y: -1px;
+        --happy2-agent-desk-run-eta-y: -0.6px;
+        --happy2-agent-desk-row-title-y: -1px;
+        --happy2-agent-desk-row-meta-y: -0.4px;
+    }
+
+    /*
+     * Gecko keeps its text-baseline device-pixel snapping only when no
+     * transform applies at all — even a zero-valued `translate` turns the
+     * snapping off and moves fractional-margin text by half a device pixel.
+     * The spark (an SVG, not snapped text) keeps its translate correction.
+     */
+    .happy2-agent-desk__title,
+    .happy2-agent-desk__run-title,
+    .happy2-agent-desk__run-eta,
+    .happy2-agent-desk__row-title,
+    .happy2-agent-desk__row-meta {
+        translate: none;
+    }
+}
+
+/* WebKit — Blink and Gecko do not parse -webkit-named-image(). */
+@supports (background: -webkit-named-image(i)) {
+    .happy2-agent-desk {
+        --happy2-agent-desk-spark-ty: 0px;
+        --happy2-agent-desk-header-title-ty: 0px;
+        --happy2-agent-desk-run-title-ty: 0px;
+        --happy2-agent-desk-run-eta-ty: 0px;
+        --happy2-agent-desk-row-title-ty: 0px;
+        --happy2-agent-desk-row-meta-ty: 0px;
+        --happy2-agent-desk-header-title-y: -1px;
+        --happy2-agent-desk-run-title-y: -1px;
+        --happy2-agent-desk-run-eta-y: -0.6px;
+        --happy2-agent-desk-row-title-y: -0.5px;
+        --happy2-agent-desk-row-meta-y: -0.4px;
+    }
+}

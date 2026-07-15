@@ -7,6 +7,49 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@fastify/cors':
+        specifier: ^11.3.0
+        version: 11.3.0
+      '@fastify/http-proxy':
+        specifier: ^11.5.0
+        version: 11.5.0
+      '@fastify/multipart':
+        specifier: ^10.1.0
+        version: 10.1.0
+      '@fastify/static':
+        specifier: ^10.1.0
+        version: 10.1.0
+      '@libsql/client':
+        specifier: ^0.17.4
+        version: 0.17.4
+      '@paralleldrive/cuid2':
+        specifier: ^3.3.0
+        version: 3.3.0
+      '@slopus/rig':
+        specifier: ^0.0.9
+        version: 0.0.9(@aws-sdk/credential-provider-node@3.972.67)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@smithy/signature-v4@5.6.4)(@types/node@26.1.1)(ws@8.21.0)
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0)
+      fastify:
+        specifier: ^5.8.2
+        version: 5.10.0
+      jose:
+        specifier: ^6.1.3
+        version: 6.2.3
+      nodemailer:
+        specifier: ^7.0.13
+        version: 7.0.13
+      sharp:
+        specifier: ^0.35.3
+        version: 0.35.3(@types/node@26.1.1)
+      smol-toml:
+        specifier: ^1.4.2
+        version: 1.7.0
+      thumbhash:
+        specifier: ^0.1.1
+        version: 0.1.1
     devDependencies:
       '@types/node':
         specifier: ^26.1.1
@@ -30,14 +73,14 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
-  packages/app:
+  packages/happy2-app:
     dependencies:
-      rigged-state:
+      happy2-state:
         specifier: workspace:*
-        version: link:../rigged-state
-      rigged-ui:
+        version: link:../happy2-state
+      happy2-ui:
         specifier: workspace:*
-        version: link:../rigged-ui
+        version: link:../happy2-ui
       solid-js:
         specifier: ^1.9.14
         version: 1.9.14
@@ -70,11 +113,11 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.1)(@vitest/browser-playwright@4.1.10)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
 
-  packages/desktop:
+  packages/happy2-desktop:
     dependencies:
-      '@rigged/app':
+      happy2-app:
         specifier: workspace:*
-        version: link:../app
+        version: link:../happy2-app
       solid-js:
         specifier: ^1.9.14
         version: 1.9.14
@@ -107,20 +150,20 @@ importers:
         specifier: ^9.0.10
         version: 9.0.10
 
-  packages/gym:
+  packages/happy2-gym:
     dependencies:
       '@libsql/client':
         specifier: ^0.17.4
         version: 0.17.4
-      'happy2':
-        specifier: workspace:*
-        version: link:../server
       fastify:
         specifier: ^5.8.2
         version: 5.10.0
-      rigged-state:
+      happy2-server:
         specifier: workspace:*
-        version: link:../rigged-state
+        version: link:../happy2-server
+      happy2-state:
+        specifier: workspace:*
+        version: link:../happy2-state
     devDependencies:
       '@fontsource-variable/jetbrains-mono':
         specifier: ^5.2.8
@@ -150,56 +193,7 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.1)(@vitest/browser-playwright@4.1.10)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
 
-  packages/rigged-state:
-    devDependencies:
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: ^4.1.10
-        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.1)(@vitest/browser-playwright@4.1.10)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
-
-  packages/rigged-ui:
-    dependencies:
-      '@fontsource-variable/figtree':
-        specifier: ^5.2.10
-        version: 5.2.10
-      '@fontsource-variable/jetbrains-mono':
-        specifier: ^5.2.8
-        version: 5.2.8
-      solid-js:
-        specifier: ^1.9.14
-        version: 1.9.14
-    devDependencies:
-      '@tailwindcss/vite':
-        specifier: ^4.3.2
-        version: 4.3.2(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
-      '@vitest/browser-playwright':
-        specifier: ^4.1.10
-        version: 4.1.10(playwright@1.61.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))(vitest@4.1.10)
-      gym:
-        specifier: workspace:*
-        version: link:../gym
-      playwright:
-        specifier: ^1.61.1
-        version: 1.61.1
-      tailwindcss:
-        specifier: ^4.3.2
-        version: 4.3.2
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vite:
-        specifier: ^8.1.4
-        version: 8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0)
-      vite-plugin-solid:
-        specifier: ^2.11.12
-        version: 2.11.12(solid-js@1.9.14)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
-      vitest:
-        specifier: ^4.1.10
-        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.1)(@vitest/browser-playwright@4.1.10)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
-
-  packages/server:
+  packages/happy2-server:
     dependencies:
       '@fastify/cors':
         specifier: ^11.3.0
@@ -266,11 +260,60 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.1)(@vitest/browser-playwright@4.1.10)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
 
-  packages/web:
+  packages/happy2-state:
+    devDependencies:
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.1)(@vitest/browser-playwright@4.1.10)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
+
+  packages/happy2-ui:
     dependencies:
-      '@rigged/app':
+      '@fontsource-variable/figtree':
+        specifier: ^5.2.10
+        version: 5.2.10
+      '@fontsource-variable/jetbrains-mono':
+        specifier: ^5.2.8
+        version: 5.2.8
+      solid-js:
+        specifier: ^1.9.14
+        version: 1.9.14
+    devDependencies:
+      '@tailwindcss/vite':
+        specifier: ^4.3.2
+        version: 4.3.2(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
+      '@vitest/browser-playwright':
+        specifier: ^4.1.10
+        version: 4.1.10(playwright@1.61.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))(vitest@4.1.10)
+      happy2-gym:
         specifier: workspace:*
-        version: link:../app
+        version: link:../happy2-gym
+      playwright:
+        specifier: ^1.61.1
+        version: 1.61.1
+      tailwindcss:
+        specifier: ^4.3.2
+        version: 4.3.2
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0)
+      vite-plugin-solid:
+        specifier: ^2.11.12
+        version: 2.11.12(solid-js@1.9.14)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.1)(@vitest/browser-playwright@4.1.10)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
+
+  packages/happy2-web:
+    dependencies:
+      happy2-app:
+        specifier: workspace:*
+        version: link:../happy2-app
       solid-js:
         specifier: ^1.9.14
         version: 1.9.14
@@ -4024,7 +4067,7 @@ snapshots:
       '@aws-sdk/types': 3.974.0
       '@smithy/core': 3.29.3
       '@smithy/fetch-http-handler': 5.6.5
-      '@smithy/node-http-handler': 4.7.3
+      '@smithy/node-http-handler': 4.9.5
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 

@@ -1,0 +1,205 @@
+/* C-003 Button — Relay control. 28/36/44 contract heights, five variants. */
+
+.happy2-button {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    border-radius: var(--happy2-radius-sm);
+    margin: 0;
+    background: transparent;
+    font-family: var(--happy2-font-ui);
+    font-size: 13px;
+    font-synthesis: none;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        border-color 120ms ease,
+        color 120ms ease;
+}
+
+/*
+ * Line boxes are taller than the font size (≥1.2em) so every ascender and
+ * descender paints inside the label's own box: element captures clip to the
+ * box, and the optical measurements in Button.test.tsx must see all the ink.
+ */
+.happy2-button[data-size="small"] {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.happy2-button[data-size="medium"] {
+    height: 36px;
+    padding: 0 14px;
+    line-height: 18px;
+}
+
+.happy2-button[data-size="large"] {
+    height: 44px;
+    padding: 0 18px;
+    font-size: 14px;
+    line-height: 20px;
+}
+
+.happy2-button[data-icon-only][data-size="small"] {
+    width: 28px;
+    padding: 0;
+}
+
+.happy2-button[data-icon-only][data-size="medium"] {
+    width: 36px;
+    padding: 0;
+}
+
+.happy2-button[data-icon-only][data-size="large"] {
+    width: 44px;
+    padding: 0;
+}
+
+.happy2-button[data-variant="primary"] {
+    background: var(--happy2-accent);
+    color: var(--happy2-text-on-accent);
+}
+
+.happy2-button[data-variant="primary"]:hover:not(:disabled) {
+    background: var(--happy2-accent-strong);
+}
+
+.happy2-button[data-variant="secondary"] {
+    border-color: var(--happy2-border-strong);
+    background-color: var(--happy2-bg-raised);
+    color: var(--happy2-text);
+}
+
+.happy2-button[data-variant="secondary"]:hover:not(:disabled) {
+    background-image: linear-gradient(var(--happy2-bg-hover), var(--happy2-bg-hover));
+}
+
+.happy2-button[data-variant="ghost"] {
+    background: transparent;
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-button[data-variant="ghost"]:hover:not(:disabled) {
+    background: var(--happy2-bg-hover);
+    color: var(--happy2-text);
+}
+
+.happy2-button[data-variant="danger"] {
+    background-color: var(--happy2-danger-soft);
+    color: var(--happy2-danger-strong);
+}
+
+.happy2-button[data-variant="danger"]:hover:not(:disabled) {
+    background-image: linear-gradient(var(--happy2-danger-soft), var(--happy2-danger-soft));
+}
+
+.happy2-button[data-variant="success"] {
+    background-color: var(--happy2-success-soft);
+    color: var(--happy2-success-strong);
+}
+
+.happy2-button[data-variant="success"]:hover:not(:disabled) {
+    background-image: linear-gradient(var(--happy2-success-soft), var(--happy2-success-soft));
+}
+
+.happy2-button:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}
+
+.happy2-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
+.happy2-button__content {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+}
+
+.happy2-button__icon {
+    display: flex;
+    flex: none;
+}
+
+/*
+ * The label optical correction is a translateY: every engine rasterizes the
+ * label's vertical ink position in whole device pixels (0.5px steps at 2×),
+ * and Blink/Gecko additionally snap margin offsets to whole CSS pixels, so a
+ * transform declared in exact 0.5px multiples is the only mechanism all three
+ * engines apply verbatim (measured with a 0.1..1px probe ladder per engine).
+ */
+.happy2-button__label {
+    display: block;
+    flex: none;
+    transform: translateY(var(--happy2-button-label-y, 0px));
+}
+
+/*
+ * Optical vertical corrections, measured per engine at true 2× with
+ * alpha-weighted visible-pixel centroids on zeroed vars (see Button.test.tsx).
+ * Figtree 700 sits low in the line box, worst in Gecko. Each correction is
+ * the midpoint of the ink-centroid range across the realistic label set
+ * (descender-heavy "Approve & merge" through ascender-only "Full width"),
+ * rounded to the engines' 0.5px raster step. That keeps balanced-ink labels
+ * within ±0.27px; descender/ascender-skewed words stay within ±0.64px, and
+ * that remaining spread (~0.85px between extremes) is inherent to word ink,
+ * not a layout defect. The label is corrected independently of the icon: raw
+ * icon glyph centroids measure |dy| ≤ 0.09px in all engines, so icons get no
+ * correction and a shared content-span nudge would only knock them off-center.
+ */
+.happy2-button[data-size="small"] {
+    --happy2-button-label-y: -0.5px;
+}
+
+.happy2-button[data-size="medium"] {
+    --happy2-button-label-y: 0px;
+}
+
+.happy2-button[data-size="large"] {
+    --happy2-button-label-y: 0px;
+}
+
+/*
+ * Firefox — only Gecko parses -moz-appearance. (@-moz-document is stripped by
+ * the CSS pipeline, and @supports (font: -apple-system-body) also matches
+ * Blink on macOS, so neither is a usable engine scope.)
+ */
+@supports (-moz-appearance: none) {
+    .happy2-button[data-size="small"] {
+        --happy2-button-label-y: -1px;
+    }
+
+    .happy2-button[data-size="medium"] {
+        --happy2-button-label-y: -0.5px;
+    }
+
+    .happy2-button[data-size="large"] {
+        --happy2-button-label-y: -1px;
+    }
+}
+
+/* WebKit — Blink and Gecko do not parse -webkit-named-image(). */
+@supports (background: -webkit-named-image(i)) {
+    .happy2-button[data-size="small"] {
+        --happy2-button-label-y: -0.5px;
+    }
+
+    .happy2-button[data-size="medium"] {
+        --happy2-button-label-y: -0.5px;
+    }
+
+    .happy2-button[data-size="large"] {
+        --happy2-button-label-y: -1px;
+    }
+}

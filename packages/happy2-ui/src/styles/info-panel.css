@@ -1,0 +1,83 @@
+/*
+ * C-047 InfoPanel — channel/user detail side panel.
+ *
+ * A column that fills the panel region: a 52px surface header (shared with
+ * ChannelHeader / ThreadPanel), then a scrolling body of stacked blocks —
+ * person ProfileCard or read-only channel About, a caller body slot, and a
+ * labeled member roster. Colors and type are theme tokens only.
+ */
+
+.happy2-info-panel,
+.happy2-info-panel *,
+.happy2-info-panel__body {
+    box-sizing: border-box;
+}
+
+.happy2-info-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    color: var(--happy2-text);
+}
+
+.happy2-info-panel__header {
+    flex: none;
+}
+
+.happy2-info-panel__body {
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 0;
+    padding: 16px;
+    overflow: auto;
+}
+
+/* ---- Read-only channel About ----------------------------------------- */
+
+.happy2-info-panel__about {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    background: var(--happy2-bg-inset);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+}
+
+.happy2-info-panel__about-label {
+    color: var(--happy2-text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+}
+
+.happy2-info-panel__about-text {
+    color: var(--happy2-text-secondary);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 20px;
+}
+
+/* ---- Member roster --------------------------------------------------- */
+
+.happy2-info-panel__members {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.happy2-info-panel__section-label {
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    line-height: 16px;
+    text-transform: uppercase;
+}

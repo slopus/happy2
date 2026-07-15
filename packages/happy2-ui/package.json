@@ -1,0 +1,38 @@
+{
+    "name": "happy2-ui",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "exports": {
+        ".": "./src/index.ts",
+        "./styles.css": "./src/styles.css",
+        "./testing": "./src/testing/index.ts"
+    },
+    "scripts": {
+        "dev": "vite --host 127.0.0.1",
+        "build": "vite build",
+        "test": "playwright install chromium firefox webkit && vitest run",
+        "test:watch": "playwright install chromium firefox webkit && vitest",
+        "typecheck": "tsc --project tsconfig.json",
+        "format": "oxfmt --write .",
+        "format:check": "oxfmt --check .",
+        "lint": "oxlint .",
+        "clean": "rm -rf dist coverage"
+    },
+    "dependencies": {
+        "@fontsource-variable/figtree": "^5.2.10",
+        "@fontsource-variable/jetbrains-mono": "^5.2.8",
+        "solid-js": "^1.9.14"
+    },
+    "devDependencies": {
+        "@tailwindcss/vite": "^4.3.2",
+        "@vitest/browser-playwright": "^4.1.10",
+        "happy2-gym": "workspace:*",
+        "playwright": "^1.61.1",
+        "tailwindcss": "^4.3.2",
+        "typescript": "^7.0.2",
+        "vite": "^8.1.4",
+        "vite-plugin-solid": "^2.11.12",
+        "vitest": "^4.1.10"
+    }
+}

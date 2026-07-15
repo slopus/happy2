@@ -1,0 +1,184 @@
+/*
+ * C-015 EventCard — compact status-transition row.
+ *
+ * 44px surface row, hairline border, radius 8, max-width 680. Left 24px icon
+ * chip, truncating title with inline meta, right-aligned `from → to`
+ * transition (or Badge) and mono time. Clickable rows render as <button> and
+ * carry [data-clickable].
+ */
+
+.happy2-event-card,
+.happy2-event-card * {
+    box-sizing: border-box;
+}
+
+.happy2-event-card {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 680px;
+    height: 44px;
+    margin: 0;
+    padding: 0 12px;
+    appearance: none;
+    background: var(--happy2-bg-surface);
+    border: 1px solid var(--happy2-border);
+    border-radius: 8px;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    text-align: left;
+}
+
+.happy2-event-card[data-clickable] {
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        border-color 120ms ease;
+}
+
+.happy2-event-card[data-clickable]:hover {
+    background-image: linear-gradient(var(--happy2-bg-hover), var(--happy2-bg-hover));
+    border-color: var(--happy2-border-strong);
+}
+
+.happy2-event-card[data-clickable]:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}
+
+.happy2-event-card__chip {
+    display: grid;
+    flex: none;
+    align-items: center;
+    justify-items: center;
+    width: 24px;
+    height: 24px;
+    background: var(--happy2-bg-inset);
+    border-radius: var(--happy2-radius-sm);
+    color: var(--happy2-text-muted);
+}
+
+.happy2-event-card__text {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    transform: translateY(var(--happy2-event-text-optical-y, 0px));
+}
+
+.happy2-event-card__title {
+    display: block;
+    flex: 0 1 auto;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-event-card__meta {
+    display: block;
+    flex: none;
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    /* Composes with the lane translate on __text (transforms nest). */
+    transform: translateY(var(--happy2-event-meta-optical-y, 0px));
+}
+
+.happy2-event-card__side {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.happy2-event-card__transition {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+}
+
+.happy2-event-card__transition > .happy2-icon {
+    color: var(--happy2-text-faint);
+}
+
+.happy2-event-card__from {
+    display: block;
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    transform: translateY(var(--happy2-event-fromto-optical-y, 0px));
+}
+
+.happy2-event-card__to {
+    display: block;
+    color: var(--happy2-accent-strong);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    transform: translateY(var(--happy2-event-fromto-optical-y, 0px));
+}
+
+.happy2-event-card__time {
+    display: block;
+    flex: none;
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+    transform: translateY(var(--happy2-event-time-optical-y, 0px));
+}
+
+/* ---- Engine-measured optical corrections --------------------------------- */
+/*
+ * Re-measured at true 2x (full-size viewport) against alpha-weighted ink
+ * centroids in all three engines; EventCard.test.tsx asserts each lane at
+ * <=0.75px. Raw drift (+ = ink low) and sweep-verified corrections:
+ * - from/to status words paint low in every engine (+0.6..+1.0 Blink/WebKit,
+ *   +1.1..+1.5 Gecko) and ride up to meet the arrow glyph, which measures
+ *   dead-center untouched;
+ * - the title/meta lane baseline lands 0.5px lower in Gecko and WebKit than
+ *   in Blink; the lane translate equalizes the three engines and the meta
+ *   translate (constant +0.5, composing with the lane) recenters the 12px
+ *   cap-band ref that rides high relative to the title baseline;
+ * - the 11px mono time stamp measures true in all three engines (residual is
+ *   content ink asymmetry, e.g. "2m" vs "3h", not baseline drift).
+ * Corrections are not the raw drift negated: engines snap translated text to
+ * device-pixel classes, so each value is the swept candidate whose measured
+ * residual is smallest. Icons carry no correction: the glyph set is centered
+ * by path data (measured |drift| <= 0.2px).
+ */
+
+.happy2-event-card {
+    --happy2-event-fromto-optical-y: -0.75px;
+    --happy2-event-meta-optical-y: 0.5px;
+    --happy2-event-text-optical-y: 0px;
+    --happy2-event-time-optical-y: 0px;
+}
+
+/* Firefox — only Gecko parses -moz-appearance. */
+@supports (-moz-appearance: none) {
+    .happy2-event-card {
+        --happy2-event-fromto-optical-y: -1.4px;
+        --happy2-event-text-optical-y: -0.5px;
+    }
+}
+
+/* WebKit — Blink and Gecko do not parse -webkit-named-image(). */
+@supports (background: -webkit-named-image(i)) {
+    .happy2-event-card {
+        --happy2-event-fromto-optical-y: -0.75px;
+        --happy2-event-text-optical-y: -0.5px;
+    }
+}

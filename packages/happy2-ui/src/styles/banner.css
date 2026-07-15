@@ -1,0 +1,158 @@
+/*
+ * C-023 Banner — inline alert.
+ *
+ * One vertically centered row: a fixed 18px leading-icon slot, a flex-column
+ * text block (title + message), then a right-pinned actions group (optional
+ * action Button + dismiss). Tone is carried by a soft fill, a hairline border,
+ * and the leading-icon color — every value is a theme token, no raw color.
+ *
+ * Geometry is integer and grid-aligned: 13px/18px text, 12px vertical padding
+ * and a 1px border give a natural 44px single-line height (the declared
+ * min-height floor); a title+message block grows the row to 66px. Text flows in
+ * its own line boxes (no forced control-centering), so no engine translateY
+ * corrections are needed — only the leading icon and dismiss glyph are
+ * optically centered, and that centering lives in the Icon path data itself.
+ */
+
+.happy2-banner,
+.happy2-banner * {
+    box-sizing: border-box;
+}
+
+.happy2-banner {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    margin: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--happy2-border-strong);
+    border-radius: var(--happy2-radius-md);
+    background-color: var(--happy2-bg-inset);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    text-align: left;
+}
+
+/* ---- Tone identity: soft fill, hairline border, leading-icon color -------- */
+
+.happy2-banner[data-tone="info"] {
+    border-color: var(--happy2-info);
+    background-color: var(--happy2-info-soft);
+}
+
+.happy2-banner[data-tone="info"] .happy2-banner__icon {
+    color: var(--happy2-info);
+}
+
+.happy2-banner[data-tone="success"] {
+    border-color: var(--happy2-success);
+    background-color: var(--happy2-success-soft);
+}
+
+.happy2-banner[data-tone="success"] .happy2-banner__icon {
+    color: var(--happy2-success);
+}
+
+.happy2-banner[data-tone="warning"] {
+    border-color: var(--happy2-warning);
+    background-color: var(--happy2-warning-soft);
+}
+
+.happy2-banner[data-tone="warning"] .happy2-banner__icon {
+    color: var(--happy2-warning);
+}
+
+.happy2-banner[data-tone="danger"] {
+    border-color: var(--happy2-danger);
+    background-color: var(--happy2-danger-soft);
+}
+
+.happy2-banner[data-tone="danger"] .happy2-banner__icon {
+    color: var(--happy2-danger);
+}
+
+.happy2-banner[data-tone="neutral"] {
+    border-color: var(--happy2-border-strong);
+    background-color: var(--happy2-bg-inset);
+}
+
+.happy2-banner[data-tone="neutral"] .happy2-banner__icon {
+    color: var(--happy2-text-secondary);
+}
+
+/* ---- Leading icon slot ---------------------------------------------------- */
+
+.happy2-banner__icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+}
+
+/* ---- Text block ----------------------------------------------------------- */
+
+.happy2-banner__content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.happy2-banner__title {
+    display: block;
+    color: var(--happy2-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 18px;
+}
+
+.happy2-banner__message {
+    display: block;
+    color: var(--happy2-text-secondary);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 18px;
+}
+
+/* ---- Trailing actions ----------------------------------------------------- */
+
+.happy2-banner__actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.happy2-banner__dismiss {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--happy2-radius-sm);
+    background: transparent;
+    color: var(--happy2-text-muted);
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
+}
+
+.happy2-banner__dismiss:hover {
+    background: var(--happy2-bg-hover);
+    color: var(--happy2-text);
+}
+
+.happy2-banner__dismiss:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}

@@ -12,11 +12,11 @@ console.log(`Happy (2) desktop development: server ${serverUrl}`);
 
 const portlessArguments = ["run", "--name", "happy2-desktop"];
 if (process.env.PORT) portlessArguments.push("--app-port", process.env.PORT);
-portlessArguments.push("pnpm", "--filter", "@rigged/desktop", "dev");
+portlessArguments.push("pnpm", "--filter", "happy2-desktop", "dev");
 
 const child = spawn(portless, portlessArguments, {
     cwd: workspace,
-    env: { ...process.env, VITE_RIGGED_SERVER_URL: serverUrl },
+    env: { ...process.env, VITE_HAPPY2_SERVER_URL: serverUrl },
     stdio: "inherit",
 });
 

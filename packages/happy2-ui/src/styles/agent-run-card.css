@@ -1,0 +1,332 @@
+/*
+ * C-013 AgentRunCard — the hero card: an agent run on a surface card.
+ *
+ * Status treatments: review = mint-tinted border + soft glow, working = 3px
+ * brand-gradient progress strip along the top edge, queued = dashed hairline,
+ * complete = neutral hairline with a mint check in the header. Max-width 680.
+ * Every color derives from theme tokens; the mint tints are color-mix()
+ * blends of --happy2-success so no raw color values appear here.
+ */
+
+.happy2-agent-run-card,
+.happy2-agent-run-card * {
+    box-sizing: border-box;
+}
+
+.happy2-agent-run-card {
+    position: relative;
+    display: block;
+    max-width: 680px;
+    overflow: hidden;
+    margin: 0;
+    padding: 16px;
+    background-color: var(--happy2-bg-surface);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-agent-run-card[data-status="review"] {
+    border-color: color-mix(in srgb, var(--happy2-success) 35%, transparent);
+    background-color: color-mix(in srgb, var(--happy2-success) 5%, var(--happy2-bg-surface));
+    box-shadow: 0 0 24px var(--happy2-success-soft);
+}
+
+.happy2-agent-run-card[data-status="queued"] {
+    border-style: dashed;
+    border-color: var(--happy2-border-strong);
+}
+
+/* ---- Working progress strip ------------------------------------------ */
+
+.happy2-agent-run-card__progress {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 3px;
+    background-color: var(--happy2-bg-inset);
+}
+
+.happy2-agent-run-card__progress-fill {
+    height: 3px;
+    background-image: var(--happy2-brand-gradient);
+}
+
+/* ---- Header ----------------------------------------------------------- */
+
+.happy2-agent-run-card__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+}
+
+.happy2-agent-run-card__name {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.happy2-agent-run-card__agent {
+    display: block;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 18px;
+    text-overflow: ellipsis;
+}
+
+.happy2-agent-run-card__kind {
+    display: block;
+    color: var(--happy2-text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+}
+
+.happy2-agent-run-card__check {
+    display: flex;
+    flex: none;
+    color: var(--happy2-success);
+}
+
+.happy2-agent-run-card__toggle {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin: 0 0 0 auto;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: var(--happy2-radius-sm);
+    color: var(--happy2-text-muted);
+    cursor: pointer;
+    appearance: none;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
+}
+
+.happy2-agent-run-card__toggle:hover {
+    background-color: var(--happy2-bg-hover);
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-agent-run-card__toggle:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}
+
+.happy2-agent-run-card__toggle-icon {
+    display: flex;
+    transition: transform 120ms ease;
+}
+
+.happy2-agent-run-card[data-expanded] .happy2-agent-run-card__toggle-icon {
+    transform: rotate(180deg);
+}
+
+/* ---- Title, diffstat meta, branch ------------------------------------- */
+
+.happy2-agent-run-card__title {
+    margin: 8px 0 0;
+    color: var(--happy2-text);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    letter-spacing: -0.01em;
+}
+
+.happy2-agent-run-card__meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+}
+
+.happy2-agent-run-card__added {
+    display: block;
+    flex: none;
+    color: var(--happy2-diff-add);
+}
+
+.happy2-agent-run-card__removed {
+    display: block;
+    flex: none;
+    color: var(--happy2-diff-del);
+}
+
+.happy2-agent-run-card__detail {
+    display: block;
+    overflow: hidden;
+    color: var(--happy2-text-muted);
+    text-overflow: ellipsis;
+}
+
+.happy2-agent-run-card__branch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+}
+
+.happy2-agent-run-card__branch-icon {
+    display: flex;
+    flex: none;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-agent-run-card__branch-name {
+    display: block;
+    overflow: hidden;
+    color: var(--happy2-text-secondary);
+    text-overflow: ellipsis;
+}
+
+/* ---- Step checklist (expanded) ---------------------------------------- */
+
+.happy2-agent-run-card__steps {
+    display: block;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.happy2-agent-run-card__step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+}
+
+.happy2-agent-run-card__step-glyph {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+}
+
+.happy2-agent-run-card__step[data-status="done"] .happy2-agent-run-card__step-glyph {
+    color: var(--happy2-success);
+}
+
+.happy2-agent-run-card__step-dot {
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--happy2-radius-pill);
+}
+
+.happy2-agent-run-card__step[data-status="working"] .happy2-agent-run-card__step-dot {
+    background-color: var(--happy2-accent);
+    box-shadow: 0 0 0 3px var(--happy2-accent-soft);
+}
+
+.happy2-agent-run-card__step[data-status="pending"] .happy2-agent-run-card__step-dot {
+    border: 1px solid var(--happy2-text-faint);
+    background-color: transparent;
+}
+
+.happy2-agent-run-card__step-label {
+    display: block;
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-agent-run-card__step[data-status="done"] .happy2-agent-run-card__step-label {
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-agent-run-card__step[data-status="working"] .happy2-agent-run-card__step-label {
+    color: var(--happy2-text);
+    font-weight: 600;
+}
+
+.happy2-agent-run-card__step[data-status="pending"] .happy2-agent-run-card__step-label {
+    color: var(--happy2-text-muted);
+}
+
+/* ---- Expanded children slot + actions --------------------------------- */
+
+.happy2-agent-run-card__body {
+    margin-top: 12px;
+}
+
+.happy2-agent-run-card__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+/* ---- Engine-measured optical corrections ------------------------------- */
+
+/*
+ * Re-measured 2026-07 at true-2x capture resolution (1600x1600 tester
+ * viewport, verified unscaled by CaptureSanity). Alpha-weighted ink centroids
+ * of every card-owned text run in all three engines (see AgentRunCard.test.tsx)
+ * show: Gecko rasterizes every run of this card's text exactly 0.50px lower
+ * than Blink, and WebKit draws the 12px mono and 13px UI runs 0.44-0.49px
+ * lower while the 15px title already matches Blink (-0.04px). The translate
+ * corrections below cancel that engine drift only — they are paint-only and
+ * never move layout boxes. Icons, the toggle chevron, and step dots measured
+ * true-centered raw (|d| <= 0.11px in every engine), so they carry none.
+ */
+.happy2-agent-run-card__agent,
+.happy2-agent-run-card__kind,
+.happy2-agent-run-card__added,
+.happy2-agent-run-card__removed,
+.happy2-agent-run-card__detail,
+.happy2-agent-run-card__branch-name,
+.happy2-agent-run-card__step-label {
+    translate: 0 var(--happy2-run-card-text-y, 0px);
+}
+
+.happy2-agent-run-card__title {
+    translate: 0 var(--happy2-run-card-title-y, 0px);
+}
+
+/*
+ * Firefox — only Gecko parses -moz-appearance. (@-moz-document is stripped by
+ * the CSS pipeline, and @supports (font: -apple-system-body) also matches
+ * Blink on macOS, so neither is a usable engine scope.)
+ */
+@supports (-moz-appearance: none) {
+    .happy2-agent-run-card {
+        --happy2-run-card-text-y: -0.5px;
+        --happy2-run-card-title-y: -0.5px;
+    }
+}
+
+/* WebKit — Blink and Gecko do not parse -webkit-named-image(). */
+@supports (background: -webkit-named-image(i)) {
+    .happy2-agent-run-card {
+        --happy2-run-card-text-y: -0.5px;
+        --happy2-run-card-title-y: 0px;
+    }
+}

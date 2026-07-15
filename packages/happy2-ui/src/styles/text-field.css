@@ -1,0 +1,226 @@
+/*
+ * C-018 TextField — labeled text input / textarea on the Relay inset well.
+ *
+ * Contract: three control heights (28/36/44, box-sizing border-box, 1px
+ * hairline border included), 6px radius, inset background, muted leading
+ * icon, 500-weight text, muted placeholder. The single-line input fills the
+ * full inner lane (control height − 2px border) and uses a line box equal to
+ * that lane, so the text centers vertically without any per-engine nudge
+ * (same mechanism proven by SearchField). Label sits above the control,
+ * hint/error below. All geometry is integer on the 4px grid.
+ */
+
+.happy2-text-field {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 6px;
+    box-sizing: border-box;
+    /* Standard single-field width; `fullWidth` stretches to the container. */
+    width: 240px;
+    margin: 0;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-text-field * {
+    box-sizing: border-box;
+}
+
+.happy2-text-field[data-full-width] {
+    display: flex;
+    width: 100%;
+}
+
+.happy2-text-field[data-disabled] {
+    opacity: 0.5;
+}
+
+/* ---- Label ------------------------------------------------------------- */
+
+.happy2-text-field__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    color: var(--happy2-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: 0;
+}
+
+.happy2-text-field__required {
+    color: var(--happy2-danger);
+}
+
+/* ---- Control box ------------------------------------------------------- */
+
+.happy2-text-field__control {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin: 0;
+    background: var(--happy2-bg-inset);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-sm);
+    transition: border-color 120ms ease;
+}
+
+.happy2-text-field__control[data-size="small"] {
+    height: 28px;
+    padding: 0 10px;
+    column-gap: 8px;
+}
+
+.happy2-text-field__control[data-size="medium"] {
+    height: 36px;
+    padding: 0 12px;
+    column-gap: 8px;
+}
+
+.happy2-text-field__control[data-size="large"] {
+    height: 44px;
+    padding: 0 14px;
+    column-gap: 8px;
+}
+
+/* Multiline: the box grows with the textarea, icon/text align to the top. */
+.happy2-text-field__control[data-multiline] {
+    height: auto;
+    align-items: flex-start;
+}
+
+.happy2-text-field__control[data-multiline][data-size="small"] {
+    padding: 8px 10px;
+}
+
+.happy2-text-field__control[data-multiline][data-size="medium"] {
+    padding: 8px 12px;
+}
+
+.happy2-text-field__control[data-multiline][data-size="large"] {
+    padding: 8px 14px;
+}
+
+.happy2-text-field__control:focus-within {
+    border-color: var(--happy2-border-strong);
+    outline: var(--happy2-focus-ring);
+    outline-offset: 1px;
+}
+
+.happy2-text-field__control[data-invalid] {
+    border-color: var(--happy2-danger);
+}
+
+/* Invalid + focused keeps the danger identity in the ring. */
+.happy2-text-field__control[data-invalid]:focus-within {
+    outline-color: var(--happy2-danger);
+}
+
+.happy2-text-field[data-disabled] .happy2-text-field__control {
+    cursor: not-allowed;
+}
+
+/* ---- Leading icon ------------------------------------------------------ */
+
+.happy2-text-field__icon {
+    display: flex;
+    flex: none;
+    color: var(--happy2-text-muted);
+}
+
+/* ---- Input / textarea -------------------------------------------------- */
+
+.happy2-text-field__input {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-weight: 500;
+    letter-spacing: 0;
+    font-synthesis: none;
+    caret-color: var(--happy2-accent);
+}
+
+.happy2-text-field__input::placeholder {
+    color: var(--happy2-text-muted);
+    opacity: 1;
+}
+
+/* Strip the native search decorations so geometry stays engine-agnostic. */
+.happy2-text-field__input::-webkit-search-decoration,
+.happy2-text-field__input::-webkit-search-cancel-button {
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.happy2-text-field[data-disabled] .happy2-text-field__input {
+    cursor: not-allowed;
+}
+
+/*
+ * Single-line lanes fill the inner box (height − 2px border) and set an equal
+ * line box, so the text/caret centers on the control's optical midline.
+ */
+.happy2-text-field__control[data-size="small"] input.happy2-text-field__input {
+    height: 26px;
+    font-size: 12px;
+    line-height: 26px;
+}
+
+.happy2-text-field__control[data-size="medium"] input.happy2-text-field__input {
+    height: 34px;
+    font-size: 13px;
+    line-height: 34px;
+}
+
+.happy2-text-field__control[data-size="large"] input.happy2-text-field__input {
+    height: 42px;
+    font-size: 14px;
+    line-height: 42px;
+}
+
+/* Multiline uses a real 20px reading line box; height is set inline from rows. */
+textarea.happy2-text-field__input {
+    display: block;
+    width: 100%;
+    line-height: 20px;
+    resize: none;
+    overflow-y: auto;
+}
+
+.happy2-text-field__control[data-size="small"] textarea.happy2-text-field__input {
+    font-size: 12px;
+}
+
+.happy2-text-field__control[data-size="medium"] textarea.happy2-text-field__input {
+    font-size: 13px;
+}
+
+.happy2-text-field__control[data-size="large"] textarea.happy2-text-field__input {
+    font-size: 14px;
+}
+
+/* ---- Hint / error message ---------------------------------------------- */
+
+.happy2-text-field__message {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    letter-spacing: 0;
+}
+
+.happy2-text-field__message[data-tone="hint"] {
+    color: var(--happy2-text-muted);
+}
+
+.happy2-text-field__message[data-tone="error"] {
+    color: var(--happy2-danger);
+}

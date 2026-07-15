@@ -32,7 +32,7 @@ well.
 Before creating or changing any user interface, read and follow `DESIGN.md`.
 It is the authoritative contract for component ownership, blueprint coverage,
 layout dimensions, icon preparation, optical alignment, and cross-browser
-rendering tests. Reusable visual components belong in `rigged-ui`; application
+rendering tests. Reusable visual components belong in `happy2-ui`; application
 packages may only compose them and supply product state and event handlers.
 
 Use flexbox for layout almost all of the time — it is the default for every row,
@@ -49,7 +49,7 @@ for fresh data, the screen is broken. Data updates arrive one of two ways:
 
 - Full reactivity via the realtime SSE stream. The primary, focused surface
   reconciles live: subscribe to sync events and reconcile durable state through
-  the `rigged-state` difference APIs (realtime events are delivery hints, never
+  the `happy2-state` difference APIs (realtime events are delivery hints, never
   durable state — see "Client state principles"). This is the default; prefer it.
 - Polling only for a secondary surface that has no realtime channel yet. While
   that surface is on screen, poll every few seconds; stop polling the moment it
@@ -69,17 +69,17 @@ and retry until the push succeeds. Never force-push `main`.
 
 ## Server principles
 
-`happy2` is a small desktop-app backend that may run as the complete
+`happy2-server` is a small desktop-app backend that may run as the complete
 server or as a separately deployed authentication service. Its behavior is
 configured from a TOML file; do not add deployment-specific switches to code.
 
 Server behavior must be tested end to end in `gym`, the repository's isolated
 black-box testing environment. Add or update coverage under
-`packages/gym/tests/server` whenever changing server HTTP behavior; unit tests
+`packages/happy2-gym/tests/server` whenever changing server HTTP behavior; unit tests
 do not replace this end-to-end coverage. Name each test file after the observable
 behavior it proves so the directory reads like an index of supported workflows;
 do not use generic names such as `server.test.ts`, `integration.test.ts`, or
-issue numbers. Read `packages/gym/README.md` before writing gym tests for the
+issue numbers. Read `packages/happy2-gym/README.md` before writing gym tests for the
 full naming, organization, harness, and lifecycle instructions.
 
 - Keep `/` deliberately minimal. Versioned, useful HTTP APIs live under `/v0`.
@@ -113,7 +113,7 @@ full naming, organization, harness, and lifecycle instructions.
 
 ## Client state principles
 
-`rigged-state` is the in-memory product-state boundary between application code
+`happy2-state` is the in-memory product-state boundary between application code
 and the server. Keep authentication, UI framework bindings, persistence, and the
 decision to create a process-global instance outside this package.
 
@@ -128,5 +128,5 @@ decision to create a process-global instance outside this package.
 - State remains memory-only and framework-independent: immutable `get()`
   snapshots plus typed subscriptions are the UI integration contract.
 - Cover deterministic races and failures with the programmable fake server in
-  `rigged-state/testing`, and cover the same boundary against the real in-memory
+  `happy2-state/testing`, and cover the same boundary against the real in-memory
   server through `gym/state`.

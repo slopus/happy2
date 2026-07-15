@@ -7,14 +7,16 @@ for mobile viewports.
 
 ## Packages
 
-- `@rigged/app` contains the shared Solid component and its tests.
-- `@rigged/web` imports `@rigged/app` and creates a browser build.
-- `@rigged/desktop` imports `@rigged/app` in an Electron renderer and builds its
+- `happy2-app` contains the shared Solid component and its tests.
+- `happy2-web` imports `happy2-app` and creates a browser build.
+- `happy2-desktop` imports `happy2-app` in an Electron renderer and builds its
   Electron main process with Vite.
-- `happy2` is the publishable Fastify server and authentication service.
-- `gym` is the isolated end-to-end testing environment. Its server harness runs
+- `happy2-server` is the Fastify server and authentication-service package.
+- The root `happy2` package bundles the server and built web app into the complete
+  distributable.
+- `happy2-gym` is the isolated end-to-end testing environment. Its server harness runs
   black-box HTTP tests against disposable in-memory server instances; see
-  [`packages/gym/README.md`](packages/gym/README.md) for usage.
+  [`packages/happy2-gym/README.md`](packages/happy2-gym/README.md) for usage.
 
 ## Requirements
 
@@ -29,13 +31,13 @@ TypeScript is on the v7 release line throughout the workspace.
 pnpm install
 pnpm dev                # Server + web app on stable Portless URLs
 pnpm dev:desktop        # Electron app connected to the server from pnpm dev
-pnpm --dir packages/gym test # Server end-to-end tests
+pnpm --dir packages/happy2-gym test # Server end-to-end tests
 pnpm check              # Type-check, test, and build every package
 ```
 
-`pnpm build` emits browser files to `packages/web/dist` and an Electron renderer
-plus main process to `packages/desktop/dist`. Start the latter after building
-with `pnpm --filter @rigged/desktop start`.
+`pnpm build` emits browser files to `packages/happy2-web/dist` and an Electron renderer
+plus main process to `packages/happy2-desktop/dist`. Start the latter after building
+with `pnpm --filter happy2-desktop start`.
 
 `pnpm dev` runs the server and web app through Portless with interleaved logs.
 The main checkout uses `https://happy2.localhost` and
@@ -50,15 +52,15 @@ set `PORT=xxxx` only when you need to choose it explicitly.
 
 Start only a local server with `pnpm dev:server`. Without a TOML file it enables
 self-service password registration and login, creates its SQLite database under
-`packages/server`, and generates durable local JWT keys plus password pepper in
-`packages/server/.env` on first start. Pass `--config path/to/happy2.toml` (or
+`packages/happy2-server`, and generates durable local JWT keys plus password pepper in
+`packages/happy2-server/.env` on first start. Pass `--config path/to/happy2.toml` (or
 set `HAPPY2_CONFIG`) to override the defaults; copy the example TOML before
 production deployment. See the server package README for deployment and auth
 configuration.
 
 ## Publishing
 
-Authenticate with npm once using `pnpm login`, then publish `happy2`
+Authenticate with npm once using `pnpm login`, then publish the all-in-one `happy2`
 from a clean, up-to-date `main` branch:
 
 ```sh

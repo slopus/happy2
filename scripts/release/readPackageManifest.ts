@@ -4,6 +4,6 @@ import type { PackageManifest } from "./PackageManifest.js";
 
 export function readPackageManifest(): PackageManifest {
     return JSON.parse(
-        readFileSync(new URL("../../packages/server/package.json", import.meta.url), "utf8"),
+        readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
     ) as PackageManifest;
 }

@@ -1,0 +1,165 @@
+/*
+ * C-031 StatTile — metric card: label / value / delta(trend) / icon / tone.
+ *
+ * Card: surface fill, hairline border, radius 10 (card contract). A flex
+ * column with an 8px rhythm: a 28px header (muted label + a 28px tone icon
+ * chip, so a row of tiles shares one value baseline whether or not each has an
+ * icon), a 28px tabular value on a 32px line, and an optional footer carrying
+ * the trend delta and a muted hint. Colours are tokens only: `tone` tints the
+ * chip, `delta.trend` tints the delta (success / danger / muted).
+ */
+
+.happy2-stat-tile,
+.happy2-stat-tile * {
+    box-sizing: border-box;
+}
+
+.happy2-stat-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    padding: 16px;
+    background: var(--happy2-bg-surface);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Header: label + tone icon chip ---------------------------------- */
+
+.happy2-stat-tile__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 28px;
+    min-width: 0;
+}
+
+.happy2-stat-tile__label {
+    display: block;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.happy2-stat-tile__icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--happy2-radius-sm);
+}
+
+.happy2-stat-tile[data-tone="neutral"] .happy2-stat-tile__icon {
+    background: var(--happy2-bg-inset);
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-stat-tile[data-tone="accent"] .happy2-stat-tile__icon {
+    background: var(--happy2-accent-soft);
+    color: var(--happy2-accent-strong);
+}
+
+.happy2-stat-tile[data-tone="success"] .happy2-stat-tile__icon {
+    background: var(--happy2-success-soft);
+    color: var(--happy2-success-strong);
+}
+
+.happy2-stat-tile[data-tone="warning"] .happy2-stat-tile__icon {
+    background: var(--happy2-warning-soft);
+    color: var(--happy2-warning-strong);
+}
+
+.happy2-stat-tile[data-tone="danger"] .happy2-stat-tile__icon {
+    background: var(--happy2-danger-soft);
+    color: var(--happy2-danger-strong);
+}
+
+/* ---- Value ----------------------------------------------------------- */
+
+.happy2-stat-tile__value {
+    display: block;
+    flex: none;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 32px;
+    font-variant-numeric: lining-nums tabular-nums;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* ---- Footer: trend delta + hint -------------------------------------- */
+
+.happy2-stat-tile__footer {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    min-height: 16px;
+    min-width: 0;
+}
+
+.happy2-stat-tile__delta {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+}
+
+.happy2-stat-tile__delta[data-trend="up"] {
+    color: var(--happy2-success);
+}
+
+.happy2-stat-tile__delta[data-trend="down"] {
+    color: var(--happy2-danger);
+}
+
+.happy2-stat-tile__delta[data-trend="flat"] {
+    color: var(--happy2-text-muted);
+}
+
+.happy2-stat-tile__delta-arrow {
+    display: block;
+    flex: none;
+    width: 12px;
+    height: 12px;
+    fill: currentColor;
+}
+
+.happy2-stat-tile__delta-value {
+    display: block;
+    color: currentColor;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 16px;
+    font-variant-numeric: lining-nums tabular-nums;
+    white-space: nowrap;
+}
+
+.happy2-stat-tile__hint {
+    display: block;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}

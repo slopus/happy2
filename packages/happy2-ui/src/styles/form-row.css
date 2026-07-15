@@ -1,0 +1,79 @@
+/*
+ * C-029 FormRow — settings row: label + description + trailing control slot.
+ *
+ * Geometry is on the 4px grid: 16px vertical padding, a 4px label→description
+ * gap, a 24px text→control gutter inline and a 12px stack gap. A single 1px
+ * hairline bottom divider lets rows tile into a settings list. Colors and type
+ * come only from --happy2-* tokens.
+ */
+
+.happy2-form-row {
+    box-sizing: border-box;
+    display: flex;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--happy2-border);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+}
+
+.happy2-form-row[data-layout="inline"] {
+    flex-direction: row;
+    gap: 24px;
+}
+
+/* Stacked rows read as a form field: left-aligned text with a full-width
+   control below it. `align` only tunes inline vertical centering, so it is
+   deliberately ignored here (a centered label + narrow control looks broken). */
+.happy2-form-row[data-layout="stacked"] {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.happy2-form-row[data-layout="stacked"] .happy2-form-row__control {
+    align-self: stretch;
+}
+
+.happy2-form-row[data-layout="inline"][data-align="center"] {
+    align-items: center;
+}
+
+.happy2-form-row[data-layout="inline"][data-align="start"] {
+    align-items: flex-start;
+}
+
+.happy2-form-row__text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.happy2-form-row__label {
+    display: block;
+    margin: 0;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-size: 13px;
+    font-synthesis: none;
+    font-weight: 600;
+    line-height: 20px;
+}
+
+.happy2-form-row__description {
+    display: block;
+    margin: 0;
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-ui);
+    font-size: 12px;
+    font-synthesis: none;
+    font-weight: 400;
+    line-height: 16px;
+}
+
+.happy2-form-row__control {
+    display: flex;
+    flex: none;
+    align-items: center;
+}

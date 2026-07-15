@@ -1,0 +1,35 @@
+{
+    "name": "happy2-app",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "scripts": {
+        "build": "vite build",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "typecheck": "tsc --project tsconfig.json",
+        "format": "oxfmt --write .",
+        "format:check": "oxfmt --check .",
+        "lint": "oxlint .",
+        "clean": "rm -rf dist coverage"
+    },
+    "dependencies": {
+        "happy2-state": "workspace:*",
+        "happy2-ui": "workspace:*",
+        "solid-js": "^1.9.14",
+        "thumbhash": "^0.1.1"
+    },
+    "devDependencies": {
+        "@solidjs/testing-library": "^0.8.10",
+        "@tailwindcss/vite": "^4.3.2",
+        "jsdom": "^29.1.1",
+        "tailwindcss": "^4.3.2",
+        "typescript": "^7.0.2",
+        "vite": "^8.1.4",
+        "vite-plugin-solid": "^2.11.12",
+        "vitest": "^4.1.10"
+    }
+}

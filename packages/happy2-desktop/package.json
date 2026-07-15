@@ -1,0 +1,32 @@
+{
+    "name": "happy2-desktop",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "main": "dist/main.js",
+    "scripts": {
+        "dev": "PORT=${PORT:-5174}; concurrently --kill-others-on-fail --names main,renderer,electron \"vite build --config vite.main.config.ts --watch\" \"vite --host 127.0.0.1 --port $PORT --strictPort\" \"wait-on dist/main.js tcp:$PORT && VITE_DEV_SERVER_URL=http://127.0.0.1:$PORT electron ./dist/main.js\"",
+        "build": "vite build && vite build --config vite.main.config.ts",
+        "start": "electron ./dist/main.js",
+        "typecheck": "tsc --project tsconfig.json",
+        "format": "oxfmt --write .",
+        "format:check": "oxfmt --check .",
+        "lint": "oxlint .",
+        "clean": "rm -rf dist"
+    },
+    "dependencies": {
+        "happy2-app": "workspace:*",
+        "solid-js": "^1.9.14"
+    },
+    "devDependencies": {
+        "@tailwindcss/vite": "^4.3.2",
+        "@types/node": "^26.1.1",
+        "concurrently": "^10.0.3",
+        "electron": "^43.1.0",
+        "tailwindcss": "^4.3.2",
+        "typescript": "^7.0.2",
+        "vite": "^8.1.4",
+        "vite-plugin-solid": "^2.11.12",
+        "wait-on": "^9.0.10"
+    }
+}

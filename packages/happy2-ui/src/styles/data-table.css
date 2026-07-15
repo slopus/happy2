@@ -1,0 +1,203 @@
+/*
+ * C-030 DataTable — Relay admin table. Columns + rows, alignment, selection,
+ * row actions, dense mode, and an empty slot. Tokens only.
+ *
+ * Row hairlines are painted with an inset box-shadow rather than a border so
+ * they never enter the box model: cell heights stay exact integers (40/48/36)
+ * on the 4px grid in every engine, which the rendering test asserts to the
+ * pixel. Selection is the tuned `check` Icon glyph inside a fixed 18px box.
+ */
+
+.happy2-data-table {
+    box-sizing: border-box;
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    background: var(--happy2-bg-surface);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+}
+
+.happy2-data-table__table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+}
+
+/* Header ---------------------------------------------------------------- */
+
+.happy2-data-table__th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    box-sizing: border-box;
+    height: 40px;
+    padding: 0 16px;
+    background: var(--happy2-bg-surface);
+    box-shadow: inset 0 -1px 0 var(--happy2-border-strong);
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+.happy2-data-table[data-dense] .happy2-data-table__th {
+    height: 36px;
+}
+
+.happy2-data-table__head-label {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Body ------------------------------------------------------------------ */
+
+.happy2-data-table__td {
+    box-sizing: border-box;
+    height: 48px;
+    padding: 0 16px;
+    background: transparent;
+    box-shadow: inset 0 -1px 0 var(--happy2-border);
+    color: var(--happy2-text);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+    vertical-align: middle;
+}
+
+.happy2-data-table[data-dense] .happy2-data-table__td {
+    height: 36px;
+}
+
+.happy2-data-table__body tr:last-child .happy2-data-table__td {
+    box-shadow: none;
+}
+
+.happy2-data-table__cell {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Alignment ------------------------------------------------------------- */
+
+.happy2-data-table [data-align="start"] {
+    text-align: left;
+}
+
+.happy2-data-table [data-align="center"] {
+    text-align: center;
+}
+
+.happy2-data-table [data-align="end"] {
+    text-align: right;
+}
+
+/* Row states ------------------------------------------------------------ */
+
+.happy2-data-table__row[data-clickable] {
+    cursor: pointer;
+}
+
+.happy2-data-table__row:hover .happy2-data-table__td {
+    background: var(--happy2-bg-hover);
+}
+
+.happy2-data-table__row[data-selected] .happy2-data-table__td {
+    background: var(--happy2-accent-soft);
+}
+
+/* Row actions ----------------------------------------------------------- */
+
+.happy2-data-table__actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    vertical-align: middle;
+}
+
+.happy2-data-table__sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Selection checkbox ---------------------------------------------------- */
+
+.happy2-data-table__th--select,
+.happy2-data-table__td--select {
+    padding: 0;
+    text-align: center;
+}
+
+.happy2-data-table__check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    border: none;
+    border-radius: var(--happy2-radius-sm);
+    background: none;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.happy2-data-table__check-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--happy2-border-strong);
+    border-radius: var(--happy2-radius-sm);
+    background: var(--happy2-bg-inset);
+    color: var(--happy2-text-on-accent);
+}
+
+.happy2-data-table__check[data-checked] .happy2-data-table__check-box,
+.happy2-data-table__check[data-indeterminate] .happy2-data-table__check-box {
+    border-color: transparent;
+    background: var(--happy2-accent);
+}
+
+.happy2-data-table__check-bar {
+    width: 8px;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+}
+
+.happy2-data-table__check:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}
+
+/* Empty slot ------------------------------------------------------------ */
+
+.happy2-data-table__empty-cell {
+    box-sizing: border-box;
+    padding: 32px 16px;
+    text-align: center;
+    vertical-align: middle;
+    color: var(--happy2-text-muted);
+}

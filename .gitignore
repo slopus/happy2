@@ -12,4 +12,4 @@ __screenshots__
 *.db
 *.db-shm
 *.db-wal
-packages/server/files
+packages/happy2-server/files
