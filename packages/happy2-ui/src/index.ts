@@ -77,6 +77,7 @@ export {
     type MessageReaction,
     type MessageSegment,
 } from "./Message";
+export { type MessageGenerationStatus } from "./MessageMarkdown";
 export { Lightbox, type LightboxProps } from "./Lightbox";
 export { Rail, type RailItem, type RailProps } from "./Rail";
 export { Sidebar, type SidebarItem, type SidebarProps, type SidebarSection } from "./Sidebar";

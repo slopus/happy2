@@ -17,6 +17,7 @@ import type {
     MemberItem,
     MemberRole,
     MentionableAgent,
+    MessageGenerationStatus,
     MessageImage,
     MessageReaction,
     MessageSegment,
@@ -436,6 +437,7 @@ export type ThreadMessage = {
     body: string | MessageSegment[];
     conversationId: string;
     files?: { id: string; name: string; size?: string; kind?: "file" | "video" | "archive" }[];
+    generationStatus?: MessageGenerationStatus;
     id: string;
     gutterTime?: string;
     images?: MessageImage[];

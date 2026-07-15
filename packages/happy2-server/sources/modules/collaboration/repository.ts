@@ -97,6 +97,29 @@ import {
 
 type ChatAccess = ChatSummary & { isServerAdmin: boolean };
 
+interface SendMessageRepositoryInput {
+    actorUserId: string;
+    chatId: string;
+    text: string;
+    attachmentFileIds?: string[];
+    quotedMessageId?: string;
+    threadRootMessageId?: string;
+    expiresAt?: string;
+    expiryMode?: "none" | "after_send" | "after_read";
+    selfDestructSeconds?: number;
+    afterReadScope?: "any_reader" | "all_readers";
+    clientMutationId?: string;
+    kind?: "user" | "automated";
+    senderBotId?: string;
+    forwardedFromMessageId?: string;
+    agentSessionId?: string;
+    agentTurn?: { agentUserId: string; sessionId: string };
+}
+
+interface SendMessageDbInput extends SendMessageRepositoryInput {
+    deferPublication?: boolean;
+}
+
 export interface RigEventCheckpoint {
     cursor?: number;
     eventsSinceTrim: number;
@@ -226,11 +249,13 @@ const agentTurnWorkSelection = {
     actorUserId: messages.senderUserId,
     baselineMessageCount: agentTurns.baselineMessageCount,
     chatId: agentTurns.chatId,
+    lastSessionEventId: agentTurns.lastSessionEventId,
     runId: agentTurns.runId,
     sessionId: agentTurns.sessionId,
     leaseExpiresAt: agentTurns.leaseExpiresAt,
     workerId: agentTurns.workerId,
     text: messages.text,
+    streamCommittedText: agentTurns.streamCommittedText,
     userMessageId: agentTurns.userMessageId,
 };
 
@@ -1411,9 +1436,11 @@ export class CollaborationRepository {
               actorUserId: string;
               baselineMessageCount?: number;
               chatId: string;
+              lastSessionEventId?: string;
               leaseExpiresAt?: string;
               runId?: string;
               sessionId: string;
+              streamCommittedText: string;
               text: string;
               userMessageId: string;
               workerId: string;
@@ -1518,15 +1545,19 @@ export class CollaborationRepository {
     async checkpointAgentTurn(input: {
         agentUserId: string;
         baselineMessageCount: number;
+        lastSessionEventId?: string;
         runId?: string;
         userMessageId: string;
         workerId: string;
-    }): Promise<void> {
-        await retrySqliteBusy(() =>
+    }): Promise<boolean> {
+        const changed = await retrySqliteBusy(() =>
             this.db
                 .update(agentTurns)
                 .set({
                     baselineMessageCount: input.baselineMessageCount,
+                    ...(input.lastSessionEventId === undefined
+                        ? {}
+                        : { lastSessionEventId: input.lastSessionEventId }),
                     ...(input.runId === undefined ? {} : { runId: input.runId }),
                     leaseExpiresAt: new Date(Date.now() + 45_000).toISOString(),
                     updatedAt: sql`CURRENT_TIMESTAMP`,
@@ -1539,8 +1570,10 @@ export class CollaborationRepository {
                         eq(agentTurns.workerId, input.workerId),
                         eq(agentTurns.status, "running"),
                     ),
-                ),
+                )
+                .returning({ id: agentTurns.userMessageId }),
         );
+        return changed.length === 1;
     }
 
     async attachAgentRun(input: { runId: string; sessionId: string; text: string }): Promise<void> {
@@ -1562,7 +1595,11 @@ export class CollaborationRepository {
         await retrySqliteBusy(() =>
             this.db
                 .update(agentTurns)
-                .set({ runId: input.runId, updatedAt: sql`CURRENT_TIMESTAMP`, lastError: null })
+                .set({
+                    runId: input.runId,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                    lastError: null,
+                })
                 .where(
                     and(
                         eq(agentTurns.userMessageId, turn.userMessageId),
@@ -1631,50 +1668,129 @@ export class CollaborationRepository {
         return updated ? asRigEventCheckpoint(updated) : this.getRigEventCheckpoint();
     }
 
+    async streamAgentTurnReply(input: {
+        agentUserId: string;
+        actorUserId: string;
+        eventId: string;
+        expectedEventId?: string;
+        sessionId: string;
+        streamCommittedText: string;
+        userMessageId: string;
+        text: string;
+        workerId: string;
+    }): Promise<{
+        applied: boolean;
+        message?: MessageSummary;
+        hint?: MutationHint;
+    }> {
+        return this.writeDb(async (tx) => {
+            const [turn] = await tx
+                .update(agentTurns)
+                .set({
+                    lastSessionEventId: input.eventId,
+                    streamCommittedText: input.streamCommittedText,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(agentTurns.userMessageId, input.userMessageId),
+                        eq(agentTurns.agentUserId, input.agentUserId),
+                        eq(agentTurns.sessionId, input.sessionId),
+                        eq(agentTurns.workerId, input.workerId),
+                        eq(agentTurns.status, "running"),
+                        input.expectedEventId === undefined
+                            ? isNull(agentTurns.lastSessionEventId)
+                            : eq(agentTurns.lastSessionEventId, input.expectedEventId),
+                    ),
+                )
+                .returning({
+                    assistantMessageId: agentTurns.assistantMessageId,
+                    chatId: agentTurns.chatId,
+                });
+            if (!turn) return { applied: false };
+
+            let created: { message: MessageSummary; hint: MutationHint } | undefined;
+            let messageId = turn.assistantMessageId ?? undefined;
+            if (!messageId && input.text.length > 0) {
+                created = await this.sendMessageDb(tx, {
+                    actorUserId: input.actorUserId,
+                    agentSessionId: input.sessionId,
+                    chatId: turn.chatId,
+                    clientMutationId: agentReplyMutationId(input.sessionId, input.userMessageId),
+                    deferPublication: true,
+                    kind: "automated",
+                    text: input.text,
+                });
+                messageId = created.message.id;
+                const linked = await tx
+                    .update(agentTurns)
+                    .set({ assistantMessageId: messageId })
+                    .where(
+                        and(
+                            eq(agentTurns.userMessageId, input.userMessageId),
+                            eq(agentTurns.agentUserId, input.agentUserId),
+                            eq(agentTurns.sessionId, input.sessionId),
+                            eq(agentTurns.workerId, input.workerId),
+                            eq(agentTurns.status, "running"),
+                            eq(agentTurns.lastSessionEventId, input.eventId),
+                        ),
+                    )
+                    .returning({ id: agentTurns.assistantMessageId });
+                if (linked.length !== 1) throw new Error("Agent turn reply could not be linked");
+            }
+            if (!messageId) return { applied: true };
+            const [messageRow] = await tx
+                .select({ text: messages.text })
+                .from(messages)
+                .where(eq(messages.id, messageId))
+                .limit(1);
+            if (!messageRow) throw new Error("Agent turn reply is missing");
+            if (messageRow.text === input.text) {
+                if (!created) return { applied: true };
+                const message = await this.getMessageProjectionDb(tx, input.actorUserId, messageId);
+                if (!message) throw new Error("Agent turn reply is not readable");
+                return { applied: true, message, hint: created.hint };
+            }
+            const sequence = await this.nextSequence(tx);
+            const mutation = await this.advanceChatWithSequence(
+                tx,
+                sequence,
+                input.agentUserId,
+                turn.chatId,
+                "message.streaming",
+                messageId,
+            );
+            await tx
+                .update(messages)
+                .set({
+                    text: input.text,
+                    changePts: mutation.pts,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(messages.id, messageId));
+            const message = await this.getMessageProjectionDb(tx, input.actorUserId, messageId);
+            if (!message) throw new Error("Streamed agent turn reply is not readable");
+            return {
+                applied: true,
+                message,
+                hint: chatHint(sequence, turn.chatId, mutation.pts),
+            };
+        });
+    }
+
     async completeAgentTurn(input: {
         agentUserId: string;
         actorUserId: string;
         sessionId: string;
         userMessageId: string;
         text: string;
-    }): Promise<{ message: MessageSummary; hint: MutationHint }> {
-        const [turn] = await this.db
-            .select({ chatId: agentTurns.chatId })
-            .from(agentTurns)
-            .where(
-                and(
-                    eq(agentTurns.userMessageId, input.userMessageId),
-                    eq(agentTurns.agentUserId, input.agentUserId),
-                ),
-            )
-            .limit(1);
-        if (!turn) throw new Error("Agent turn is missing");
-        const result = await this.sendMessage({
-            actorUserId: input.actorUserId,
-            chatId: turn.chatId,
-            text: input.text,
-            clientMutationId: `rig:${input.sessionId}:${input.userMessageId}`,
-            kind: "automated",
-            agentSessionId: input.sessionId,
+        workerId: string;
+    }): Promise<{ message: MessageSummary; hint: MutationHint } | undefined> {
+        return this.finishAgentTurn({
+            ...input,
+            eventKind: "message.completed",
+            status: "complete",
         });
-        await this.db
-            .update(agentTurns)
-            .set({
-                assistantMessageId: result.message.id,
-                status: "complete",
-                workerId: null,
-                leaseExpiresAt: null,
-                completedAt: sql`CURRENT_TIMESTAMP`,
-                updatedAt: sql`CURRENT_TIMESTAMP`,
-                lastError: null,
-            })
-            .where(
-                and(
-                    eq(agentTurns.userMessageId, input.userMessageId),
-                    eq(agentTurns.agentUserId, input.agentUserId),
-                ),
-            );
-        return result;
     }
 
     async failAgentTurn(input: {
@@ -1683,44 +1799,141 @@ export class CollaborationRepository {
         error: string;
         sessionId: string;
         userMessageId: string;
-    }): Promise<{ message: MessageSummary; hint: MutationHint }> {
-        const [turn] = await this.db
-            .select({ chatId: agentTurns.chatId })
-            .from(agentTurns)
-            .where(
-                and(
-                    eq(agentTurns.userMessageId, input.userMessageId),
-                    eq(agentTurns.agentUserId, input.agentUserId),
-                ),
-            )
-            .limit(1);
-        if (!turn) throw new Error("Agent turn is missing");
-        const result = await this.sendMessage({
+        workerId: string;
+    }): Promise<{ message: MessageSummary; hint: MutationHint } | undefined> {
+        return this.finishAgentTurn({
+            agentUserId: input.agentUserId,
             actorUserId: input.actorUserId,
-            chatId: turn.chatId,
+            eventKind: "message.failed",
+            lastError: input.error,
+            sessionId: input.sessionId,
+            status: "failed",
             text: "I couldn't complete this request.",
-            clientMutationId: `rig-error:${input.sessionId}:${input.userMessageId}:${input.agentUserId}`,
-            kind: "automated",
-            agentSessionId: input.sessionId,
+            userMessageId: input.userMessageId,
+            workerId: input.workerId,
         });
-        await this.db
-            .update(agentTurns)
-            .set({
-                assistantMessageId: result.message.id,
-                status: "failed",
-                lastError: input.error,
-                workerId: null,
-                leaseExpiresAt: null,
-                completedAt: sql`CURRENT_TIMESTAMP`,
-                updatedAt: sql`CURRENT_TIMESTAMP`,
-            })
-            .where(
-                and(
-                    eq(agentTurns.userMessageId, input.userMessageId),
-                    eq(agentTurns.agentUserId, input.agentUserId),
-                ),
+    }
+
+    private async finishAgentTurn(input: {
+        agentUserId: string;
+        actorUserId: string;
+        eventKind: "message.completed" | "message.failed";
+        lastError?: string;
+        sessionId: string;
+        status: "complete" | "failed";
+        text: string;
+        userMessageId: string;
+        workerId: string;
+    }): Promise<{ message: MessageSummary; hint: MutationHint } | undefined> {
+        return this.writeDb(async (tx) => {
+            const [turn] = await tx
+                .update(agentTurns)
+                .set({
+                    status: input.status,
+                    lastError: input.lastError ?? null,
+                    workerId: null,
+                    leaseExpiresAt: null,
+                    completedAt: sql`CURRENT_TIMESTAMP`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(
+                    and(
+                        eq(agentTurns.userMessageId, input.userMessageId),
+                        eq(agentTurns.agentUserId, input.agentUserId),
+                        eq(agentTurns.sessionId, input.sessionId),
+                        eq(agentTurns.workerId, input.workerId),
+                        eq(agentTurns.status, "running"),
+                    ),
+                )
+                .returning({
+                    assistantMessageId: agentTurns.assistantMessageId,
+                    chatId: agentTurns.chatId,
+                });
+            if (!turn) return undefined;
+
+            let created: { message: MessageSummary; hint: MutationHint } | undefined;
+            let messageId = turn.assistantMessageId ?? undefined;
+            if (!messageId) {
+                created = await this.sendMessageDb(tx, {
+                    actorUserId: input.actorUserId,
+                    agentSessionId: input.sessionId,
+                    chatId: turn.chatId,
+                    clientMutationId: agentReplyMutationId(input.sessionId, input.userMessageId),
+                    kind: "automated",
+                    text: input.text,
+                });
+                messageId = created.message.id;
+                const linked = await tx
+                    .update(agentTurns)
+                    .set({ assistantMessageId: messageId })
+                    .where(
+                        and(
+                            eq(agentTurns.userMessageId, input.userMessageId),
+                            eq(agentTurns.agentUserId, input.agentUserId),
+                            eq(agentTurns.sessionId, input.sessionId),
+                            eq(agentTurns.status, input.status),
+                        ),
+                    )
+                    .returning({ id: agentTurns.assistantMessageId });
+                if (linked.length !== 1) throw new Error("Agent turn reply could not be linked");
+            }
+            const [messageRow] = await tx
+                .select({
+                    publishedAt: messages.publishedAt,
+                    sequence: messages.sequence,
+                    text: messages.text,
+                })
+                .from(messages)
+                .where(eq(messages.id, messageId))
+                .limit(1);
+            if (!messageRow) throw new Error("Agent turn reply is missing");
+            if (created && messageRow.text === input.text) {
+                const message = await this.getMessageProjectionDb(tx, input.actorUserId, messageId);
+                if (!message) throw new Error("Agent turn reply is not readable");
+                return { message, hint: created.hint };
+            }
+            const sequence = await this.nextSequence(tx);
+            const mutation = await this.advanceChatWithSequence(
+                tx,
+                sequence,
+                input.agentUserId,
+                turn.chatId,
+                input.eventKind,
+                messageId,
             );
-        return result;
+            await tx
+                .update(messages)
+                .set({
+                    text: input.text,
+                    changePts: mutation.pts,
+                    publishedAt: sql`coalesce(${messages.publishedAt}, CURRENT_TIMESTAMP)`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(eq(messages.id, messageId));
+            let mentions: { notifyAll: boolean; userIds: string[] } | undefined;
+            if (messageRow.text !== input.text || messageRow.publishedAt === null) {
+                mentions = await this.replaceMessageMentionsDb(tx, messageId, input.text);
+                await this.indexMessageForSearchDb(tx, messageId, turn.chatId, input.text, 1);
+            }
+            if (messageRow.publishedAt === null) {
+                const chat = await this.chatAccessDb(tx, input.actorUserId, turn.chatId, true);
+                if (!chat) throw new Error("Agent turn chat is inaccessible");
+                await this.recordMessageDeliveryDb(tx, {
+                    actorUserId: input.actorUserId,
+                    chat,
+                    messageId,
+                    messageSequence: messageRow.sequence,
+                    mentionedUserIds: mentions?.userIds ?? [],
+                    mentionAll: mentions?.notifyAll,
+                    respectCurrentReadState: true,
+                    senderUserId: input.agentUserId,
+                    syncSequence: sequence,
+                });
+            }
+            const message = await this.getMessageProjectionDb(tx, input.actorUserId, messageId);
+            if (!message) throw new Error("Finished agent turn reply is not readable");
+            return { message, hint: chatHint(sequence, turn.chatId, mutation.pts) };
+        });
     }
 
     async createDirectMessage(
@@ -3435,26 +3648,18 @@ export class CollaborationRepository {
         });
     }
 
-    async sendMessage(input: {
-        actorUserId: string;
-        chatId: string;
-        text: string;
-        attachmentFileIds?: string[];
-        quotedMessageId?: string;
-        threadRootMessageId?: string;
-        expiresAt?: string;
-        expiryMode?: "none" | "after_send" | "after_read";
-        selfDestructSeconds?: number;
-        afterReadScope?: "any_reader" | "all_readers";
-        clientMutationId?: string;
-        kind?: "user" | "automated";
-        senderBotId?: string;
-        forwardedFromMessageId?: string;
-        agentSessionId?: string;
-        agentTurn?: { agentUserId: string; sessionId: string };
-    }): Promise<{ message: MessageSummary; hint: MutationHint }> {
+    async sendMessage(
+        input: SendMessageRepositoryInput,
+    ): Promise<{ message: MessageSummary; hint: MutationHint }> {
+        return this.writeDb((tx) => this.sendMessageDb(tx, input));
+    }
+
+    private async sendMessageDb(
+        tx: DrizzleTransaction,
+        input: SendMessageDbInput,
+    ): Promise<{ message: MessageSummary; hint: MutationHint }> {
         const scope = `message.send:${input.chatId}`;
-        return this.writeDb(async (tx) => {
+        return (async () => {
             if (input.kind === "automated" && !input.agentSessionId) {
                 await this.requireServerAdminDb(tx, input.actorUserId);
                 if (
@@ -3657,7 +3862,7 @@ export class CollaborationRepository {
                 selfDestructSeconds,
                 afterReadScope: input.afterReadScope ?? access.defaultAfterReadScope,
                 senderBotId: input.senderBotId,
-                publishedAt: sql`CURRENT_TIMESTAMP`,
+                publishedAt: input.deferPublication ? null : sql`CURRENT_TIMESTAMP`,
             });
             if (input.agentTurn)
                 await tx.insert(agentTurns).values({
@@ -3666,8 +3871,11 @@ export class CollaborationRepository {
                     chatId: input.chatId,
                     sessionId: input.agentTurn.sessionId,
                 });
-            const mentions = await this.replaceMessageMentionsDb(tx, id, input.text);
-            await this.indexMessageForSearchDb(tx, id, input.chatId, input.text, 1);
+            const mentions = input.deferPublication
+                ? { notifyAll: false, userIds: [] }
+                : await this.replaceMessageMentionsDb(tx, id, input.text);
+            if (!input.deferPublication)
+                await this.indexMessageForSearchDb(tx, id, input.chatId, input.text, 1);
             if (fileIds.length)
                 await tx
                     .insert(messageAttachments)
@@ -3722,17 +3930,18 @@ export class CollaborationRepository {
                     .set({ changePts: mutation.pts })
                     .where(eq(messages.id, input.threadRootMessageId));
             }
-            await this.recordMessageDeliveryDb(tx, {
-                actorUserId: input.actorUserId,
-                chat: access,
-                messageId: id,
-                messageSequence: mutation.messageSequence,
-                threadRootMessageId: input.threadRootMessageId,
-                mentionedUserIds: mentions.userIds,
-                mentionAll: mentions.notifyAll,
-                syncSequence: sequence,
-                senderUserId,
-            });
+            if (!input.deferPublication)
+                await this.recordMessageDeliveryDb(tx, {
+                    actorUserId: input.actorUserId,
+                    chat: access,
+                    messageId: id,
+                    messageSequence: mutation.messageSequence,
+                    threadRootMessageId: input.threadRootMessageId,
+                    mentionedUserIds: mentions.userIds,
+                    mentionAll: mentions.notifyAll,
+                    syncSequence: sequence,
+                    senderUserId,
+                });
             if (input.clientMutationId)
                 await this.storeClientMutationDb(
                     tx,
@@ -3753,7 +3962,7 @@ export class CollaborationRepository {
                     after: { botId: input.senderBotId },
                 });
             return { message, hint: chatHint(sequence, input.chatId, mutation.pts) };
-        });
+        })();
     }
 
     async forwardMessage(input: {
@@ -6523,6 +6732,7 @@ export class CollaborationRepository {
                 sender_bot_name: bot.name,
                 sender_bot_username: bot.username,
                 sender_bot_photo_file_id: bot.photoFileId,
+                generation_status: agentTurns.status,
                 quoted_sender_user_id: quoted.senderUserId,
                 quoted_text: quoted.text,
                 quoted_deleted_at: quoted.deletedAt,
@@ -6533,6 +6743,7 @@ export class CollaborationRepository {
             .from(messages)
             .leftJoin(sender, eq(sender.id, messages.senderUserId))
             .leftJoin(bot, eq(bot.id, messages.senderBotId))
+            .leftJoin(agentTurns, eq(agentTurns.assistantMessageId, messages.id))
             .leftJoin(quoted, eq(quoted.id, messages.quotedMessageId))
             .leftJoin(forwarded, eq(forwarded.id, messages.forwardedFromMessageId))
             .leftJoin(threads, eq(threads.rootMessageId, messages.id))
@@ -6642,6 +6853,12 @@ export class CollaborationRepository {
                 : undefined,
             kind: row.kind as "user" | "automated",
             text: deleted ? "" : row.text,
+            generationStatus:
+                row.generation_status === "running"
+                    ? "streaming"
+                    : row.generation_status === "complete" || row.generation_status === "failed"
+                      ? row.generation_status
+                      : undefined,
             quotedMessage: row.quoted_message_id
                 ? {
                       id: row.quoted_message_id,
@@ -6791,6 +7008,7 @@ export class CollaborationRepository {
             threadRootMessageId?: string;
             mentionedUserIds: string[];
             mentionAll?: boolean;
+            respectCurrentReadState?: boolean;
             syncSequence: number;
             senderUserId?: string;
         },
@@ -6805,6 +7023,7 @@ export class CollaborationRepository {
                 directMessages: sql<string>`coalesce(${userNotificationPreferences.directMessages}, 'all')`,
                 mentionNotifications: sql<string>`coalesce(${userNotificationPreferences.mentions}, 'all')`,
                 threadReplies: sql<string>`coalesce(${userNotificationPreferences.threadReplies}, 'all')`,
+                lastReadSequence: chatMembers.lastReadSequence,
             })
             .from(chatMembers)
             .innerJoin(users, eq(users.id, chatMembers.userId))
@@ -6867,11 +7086,14 @@ export class CollaborationRepository {
         for (const recipient of recipients) {
             const userId = recipient.userId;
             const isMentioned = input.mentionAll === true || mentioned.has(userId);
+            const alreadyRead =
+                input.respectCurrentReadState === true &&
+                recipient.lastReadSequence >= input.messageSequence;
             await tx
                 .update(chatMembers)
                 .set({
-                    unreadCount: sql`${chatMembers.unreadCount} + 1`,
-                    mentionCount: sql`${chatMembers.mentionCount} + ${isMentioned ? 1 : 0}`,
+                    unreadCount: sql`${chatMembers.unreadCount} + ${alreadyRead ? 0 : 1}`,
+                    mentionCount: sql`${chatMembers.mentionCount} + ${isMentioned && !alreadyRead ? 1 : 0}`,
                     updatedAt: sql`CURRENT_TIMESTAMP`,
                 })
                 .where(
@@ -6883,11 +7105,21 @@ export class CollaborationRepository {
                 );
             await tx
                 .insert(messageReceipts)
-                .values({ messageId: input.messageId, userId, deliveredAt: sql`CURRENT_TIMESTAMP` })
+                .values({
+                    messageId: input.messageId,
+                    userId,
+                    deliveredAt: sql`CURRENT_TIMESTAMP`,
+                    ...(alreadyRead ? { readAt: sql`CURRENT_TIMESTAMP` } : {}),
+                })
                 .onConflictDoUpdate({
                     target: [messageReceipts.messageId, messageReceipts.userId],
                     set: {
                         deliveredAt: sql`coalesce(${messageReceipts.deliveredAt}, CURRENT_TIMESTAMP)`,
+                        ...(alreadyRead
+                            ? {
+                                  readAt: sql`coalesce(${messageReceipts.readAt}, CURRENT_TIMESTAMP)`,
+                              }
+                            : {}),
                         updatedAt: sql`CURRENT_TIMESTAMP`,
                     },
                 });
@@ -6950,6 +7182,7 @@ export class CollaborationRepository {
                         ? recipient.directMessages !== "none"
                         : true;
             if (
+                alreadyRead ||
                 !kind ||
                 !globallyAllowed ||
                 muted ||
@@ -7165,9 +7398,11 @@ function agentTurnWork(row: {
     actorUserId: string | null;
     baselineMessageCount: number | null;
     chatId: string;
+    lastSessionEventId: string | null;
     leaseExpiresAt: string | null;
     runId: string | null;
     sessionId: string;
+    streamCommittedText: string;
     text: string;
     userMessageId: string;
     workerId: string | null;
@@ -7181,9 +7416,11 @@ function agentTurnWork(row: {
             ? {}
             : { baselineMessageCount: row.baselineMessageCount }),
         chatId: row.chatId,
+        ...(row.lastSessionEventId ? { lastSessionEventId: row.lastSessionEventId } : {}),
         ...(row.leaseExpiresAt ? { leaseExpiresAt: row.leaseExpiresAt } : {}),
         ...(row.runId ? { runId: row.runId } : {}),
         sessionId: row.sessionId,
+        streamCommittedText: row.streamCommittedText,
         text: row.text,
         userMessageId: row.userMessageId,
         workerId: row.workerId,
@@ -7289,6 +7526,10 @@ function syncState(row: Record<string, unknown>): SyncState {
 
 function stateAt(generation: string, sequence: number): SyncState {
     return { protocolVersion: 1, generation, sequence: String(sequence) };
+}
+
+function agentReplyMutationId(sessionId: string, userMessageId: string): string {
+    return `rig:${sessionId}:${userMessageId}`;
 }
 
 function chatHint(sequence: number, chatId: string, pts: number): MutationHint {

@@ -92,6 +92,7 @@ export interface MessageSummary {
     };
     readonly kind: "user" | "automated";
     readonly text: string;
+    readonly generationStatus?: "streaming" | "complete" | "failed";
     readonly quotedMessage?: {
         readonly id: string;
         readonly senderUserId?: string;

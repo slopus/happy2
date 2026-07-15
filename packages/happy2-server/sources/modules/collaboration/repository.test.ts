@@ -34,7 +34,7 @@ describe("CollaborationRepository", () => {
         await rm(directory, { recursive: true, force: true });
     });
 
-    it("stores agent provenance and atomically queues DMs without agent unread state", async () => {
+    it("stores agent provenance, queues DMs, and guards terminal writes by worker lease", async () => {
         const agentUserId = "agent-user";
         await repository.ensureAgentImageDefinitions([
             {
@@ -105,6 +105,55 @@ describe("CollaborationRepository", () => {
                 args: [agentUserId],
             });
             expect(notifications.rows[0]?.count).toBe(0);
+
+            expect(await repository.takeNextAgentTurn(created.chat.id, "worker-a")).toMatchObject({
+                userMessageId: sent.message.id,
+                workerId: "worker-a",
+            });
+            await inspection.execute({
+                sql: "UPDATE agent_turns SET lease_expires_at = ? WHERE user_message_id = ? AND agent_user_id = ?",
+                args: ["1970-01-01T00:00:00.000Z", sent.message.id, agentUserId],
+            });
+            expect(await repository.takeNextAgentTurn(created.chat.id, "worker-b")).toMatchObject({
+                userMessageId: sent.message.id,
+                workerId: "worker-b",
+            });
+            expect(
+                await repository.checkpointAgentTurn({
+                    agentUserId,
+                    baselineMessageCount: 0,
+                    userMessageId: sent.message.id,
+                    workerId: "worker-a",
+                }),
+            ).toBe(false);
+            expect(
+                await repository.completeAgentTurn({
+                    actorUserId: ada.id,
+                    agentUserId,
+                    sessionId: "rig-session",
+                    text: "A stale worker must not publish this.",
+                    userMessageId: sent.message.id,
+                    workerId: "worker-a",
+                }),
+            ).toBeUndefined();
+            const reclaimed = await inspection.execute({
+                sql: "SELECT status, worker_id FROM agent_turns WHERE user_message_id = ? AND agent_user_id = ?",
+                args: [sent.message.id, agentUserId],
+            });
+            expect(reclaimed.rows[0]).toMatchObject({ status: "running", worker_id: "worker-b" });
+
+            const completed = await repository.completeAgentTurn({
+                actorUserId: ada.id,
+                agentUserId,
+                sessionId: "rig-session",
+                text: "The current worker published this.",
+                userMessageId: sent.message.id,
+                workerId: "worker-b",
+            });
+            expect(completed?.message).toMatchObject({
+                generationStatus: "complete",
+                text: "The current worker published this.",
+            });
         } finally {
             inspection.close();
         }

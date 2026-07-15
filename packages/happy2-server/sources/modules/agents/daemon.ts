@@ -16,13 +16,26 @@ interface RigBlock {
 
 interface RigMessage {
     role: "agent" | "system" | "user";
+    id?: string;
     blocks: RigBlock[];
 }
 
 interface RigSession {
     id: string;
+    lastEventId?: string;
     status: string;
     snapshot: { messages: RigMessage[] };
+}
+
+interface RigPartialMessage {
+    content?: Array<{ type: string; text?: string }>;
+}
+
+interface RigAgentLoopEvent {
+    error?: RigPartialMessage;
+    message?: RigPartialMessage;
+    type?: string;
+    partial?: RigPartialMessage;
 }
 
 export interface RigEvent {
@@ -31,6 +44,7 @@ export interface RigEvent {
     type: string;
     data: {
         errorMessage?: string;
+        event?: RigAgentLoopEvent;
         message?: RigMessage;
         runId?: string;
     };
@@ -112,12 +126,44 @@ export class RigDaemonClient {
         }
     }
 
+    async watchSessionEvents(
+        sessionId: string,
+        after: string | undefined,
+        onEvent: (event: RigEvent) => Promise<void>,
+        signal?: AbortSignal,
+    ): Promise<string | undefined> {
+        const path =
+            after === undefined
+                ? `/sessions/${encodeURIComponent(sessionId)}/stream`
+                : `/sessions/${encodeURIComponent(sessionId)}/stream?after=${encodeURIComponent(after)}`;
+        await this.ensureReady();
+        try {
+            return await this.sessionStream(path, after, onEvent, signal);
+        } catch (error) {
+            if (
+                error instanceof RigTransportError ||
+                (error instanceof RigHttpError && error.status === 401)
+            ) {
+                this.ready = undefined;
+                this.token = undefined;
+            }
+            throw error;
+        }
+    }
+
     async trimGlobalEvents(through: number, signal?: AbortSignal): Promise<void> {
         await this.connectedRequest("POST", "/events/trim", { through }, signal);
     }
 
-    async sessionMessageCount(sessionId: string, signal?: AbortSignal): Promise<number> {
-        return (await this.session(sessionId, signal)).snapshot.messages.length;
+    async sessionCheckpoint(
+        sessionId: string,
+        signal?: AbortSignal,
+    ): Promise<{ messageCount: number; lastEventId?: string }> {
+        const session = await this.session(sessionId, signal);
+        return {
+            messageCount: session.snapshot.messages.length,
+            ...(session.lastEventId === undefined ? {} : { lastEventId: session.lastEventId }),
+        };
     }
 
     async submittedTurnBaseline(
@@ -161,7 +207,7 @@ export class RigDaemonClient {
         sessionId: string,
         text: string,
         signal?: AbortSignal,
-    ): Promise<{ runId: string }> {
+    ): Promise<{ eventId: string; runId: string }> {
         return this.connectedRequest<{ eventId: string; runId: string }>(
             "POST",
             `/sessions/${encodeURIComponent(sessionId)}/messages`,
@@ -245,7 +291,8 @@ export class RigDaemonClient {
         body?: unknown,
         signal?: AbortSignal,
     ): Promise<T> {
-        if (!this.token) return Promise.reject(new Error("Rig daemon token is unavailable."));
+        if (!this.token)
+            return Promise.reject(new RigTransportError("Rig daemon token is unavailable."));
         if (signal?.aborted) return Promise.reject(shutdownError());
         const payload = body === undefined ? undefined : JSON.stringify(body);
         return new Promise<T>((resolve, reject) => {
@@ -326,7 +373,8 @@ export class RigDaemonClient {
         onEvent: (event: RigGlobalEvent) => Promise<void>,
         signal?: AbortSignal,
     ): Promise<void> {
-        if (!this.token) return Promise.reject(new Error("Rig daemon token is unavailable."));
+        if (!this.token)
+            return Promise.reject(new RigTransportError("Rig daemon token is unavailable."));
         if (signal?.aborted) return Promise.reject(shutdownError());
         return new Promise<void>((resolve, reject) => {
             let settled = false;
@@ -364,6 +412,7 @@ export class RigDaemonClient {
                         });
                         return;
                     }
+                    response.setEncoding("utf8");
                     void consumeGlobalEventStream(response, onEvent, signal).then(
                         () =>
                             finish(() =>
@@ -384,6 +433,78 @@ export class RigDaemonClient {
             request.once("close", () => signal?.removeEventListener("abort", abort));
             request.on("error", (error) => {
                 if (signal?.aborted) finish(resolve);
+                else finish(() => reject(asTransportError(error)));
+            });
+            request.end();
+        });
+    }
+
+    private sessionStream(
+        path: string,
+        after: string | undefined,
+        onEvent: (event: RigEvent) => Promise<void>,
+        signal?: AbortSignal,
+    ): Promise<string | undefined> {
+        if (!this.token)
+            return Promise.reject(new RigTransportError("Rig daemon token is unavailable."));
+        if (signal?.aborted) return Promise.resolve(after);
+        return new Promise<string | undefined>((resolve, reject) => {
+            let settled = false;
+            const finish = (action: () => void) => {
+                if (settled) return;
+                settled = true;
+                action();
+            };
+            const request = httpRequest(
+                {
+                    socketPath: this.config.socketPath,
+                    method: "GET",
+                    path,
+                    headers: {
+                        accept: "text/event-stream",
+                        authorization: `Bearer ${this.token}`,
+                    },
+                },
+                (response) => {
+                    if ((response.statusCode ?? 500) >= 400) {
+                        const chunks: Buffer[] = [];
+                        response.on("data", (chunk: Buffer | string) =>
+                            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)),
+                        );
+                        response.on("end", () => {
+                            const contents = Buffer.concat(chunks).toString("utf8");
+                            finish(() =>
+                                reject(
+                                    new RigHttpError(
+                                        response.statusCode ?? 500,
+                                        rigError(contents, response.statusCode),
+                                    ),
+                                ),
+                            );
+                        });
+                        return;
+                    }
+                    response.setEncoding("utf8");
+                    void consumeSessionEventStream(response, after, onEvent, signal).then(
+                        (cursor) =>
+                            finish(() =>
+                                signal?.aborted
+                                    ? resolve(cursor)
+                                    : reject(
+                                          new RigTransportError(
+                                              "Rig session event stream ended unexpectedly.",
+                                          ),
+                                      ),
+                            ),
+                        (error) => finish(() => reject(asTransportError(error))),
+                    );
+                },
+            );
+            const abort = () => request.destroy(shutdownError());
+            signal?.addEventListener("abort", abort, { once: true });
+            request.once("close", () => signal?.removeEventListener("abort", abort));
+            request.on("error", (error) => {
+                if (signal?.aborted) finish(() => resolve(after));
                 else finish(() => reject(asTransportError(error)));
             });
             request.end();
@@ -411,6 +532,31 @@ async function consumeGlobalEventStream(
     }
 }
 
+async function consumeSessionEventStream(
+    response: NodeJS.ReadableStream & AsyncIterable<Buffer | string>,
+    after: string | undefined,
+    onEvent: (event: RigEvent) => Promise<void>,
+    signal?: AbortSignal,
+): Promise<string | undefined> {
+    let buffer = "";
+    let cursor = after;
+    for await (const chunk of response) {
+        if (signal?.aborted) return cursor;
+        buffer += Buffer.isBuffer(chunk) ? chunk.toString("utf8") : chunk;
+        for (;;) {
+            const boundary = buffer.match(/\r?\n\r?\n/u);
+            if (!boundary?.index && boundary?.index !== 0) break;
+            const frame = buffer.slice(0, boundary.index);
+            buffer = buffer.slice(boundary.index + boundary[0].length);
+            const event = parseSessionEventFrame(frame);
+            if (!event) continue;
+            await onEvent(event);
+            cursor = event.id;
+        }
+    }
+    return cursor;
+}
+
 function parseGlobalEventFrame(frame: string): RigGlobalEvent | undefined {
     let id: string | undefined;
     const data: string[] = [];
@@ -430,6 +576,25 @@ function parseGlobalEventFrame(frame: string): RigGlobalEvent | undefined {
     return { cursor, event: JSON.parse(data.join("\n")) as RigEvent };
 }
 
+function parseSessionEventFrame(frame: string): RigEvent | undefined {
+    let id: string | undefined;
+    const data: string[] = [];
+    for (const line of frame.split(/\r?\n/u)) {
+        if (line.startsWith(":")) continue;
+        const separator = line.indexOf(":");
+        const field = separator < 0 ? line : line.slice(0, separator);
+        let value = separator < 0 ? "" : line.slice(separator + 1);
+        if (value.startsWith(" ")) value = value.slice(1);
+        if (field === "id") id = value;
+        if (field === "data") data.push(value);
+    }
+    if (!id || data.length === 0) return undefined;
+    const event = JSON.parse(data.join("\n")) as RigEvent;
+    if (event.id !== id)
+        throw new RigTransportError("Rig session event id does not match its SSE cursor.");
+    return event;
+}
+
 export function isRetryableRigError(error: unknown): boolean {
     return (
         error instanceof RigTransportError ||
@@ -440,10 +605,8 @@ export function isRetryableRigError(error: unknown): boolean {
 function agentText(messages: readonly RigMessage[]): string {
     return messages
         .filter((message) => message.role === "agent")
-        .flatMap((message) => message.blocks)
-        .filter((block) => block.type === "text" && block.text)
-        .map((block) => block.text!.trim())
-        .filter(Boolean)
+        .map((message) => messageText(message) ?? "")
+        .filter((text) => text.length > 0)
         .join("\n\n");
 }
 

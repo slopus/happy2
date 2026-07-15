@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Socket } from "node:net";
@@ -37,6 +38,17 @@ interface GlobalEvent {
 interface GlobalEventStream {
     cursor: number;
     response: ServerResponse;
+}
+
+interface SessionEventStream {
+    cursor?: string;
+    response: ServerResponse;
+    sessionId: string;
+}
+
+interface MockRunStream {
+    started: boolean;
+    text: string;
 }
 
 interface MockSession {
@@ -83,14 +95,18 @@ export class MockRigDaemon implements AsyncDisposable {
     private automaticReply: string | undefined = "All tests are passing.";
     private dropSubmissionResponse = false;
     private durableGlobalEventQueue = false;
-    private eventSequence = 0;
+    private readonly createEventId = createEventIdFactory();
     private globalEventDeliveryPaused = false;
     private globalCursor = 0;
     private submissionsPaused = false;
     private readonly globalEvents: GlobalEvent[] = [];
     private readonly globalEventStreams = new Set<GlobalEventStream>();
     private runSequence = 0;
+    private readonly runStreams = new Map<string, MockRunStream>();
     private server = createServer();
+    private nextSessionStreamStatus?: number;
+    private sessionEventDeliveryPaused = false;
+    private readonly sessionEventStreams = new Set<SessionEventStream>();
     private readonly sessions = new Map<string, MockSession>();
     private readonly sockets = new Set<Socket>();
     private token = "test-token";
@@ -131,13 +147,69 @@ export class MockRigDaemon implements AsyncDisposable {
         this.submissionsPaused = false;
     }
 
-    completeRun(runId: string, text: string): void {
-        const run = this.submittedRuns.find((candidate) => candidate.runId === runId);
-        if (!run) throw new Error(`Unknown mock Rig run ${runId}`);
-        const session = this.requireSession(run.sessionId);
+    emitTextStart(runId: string): void {
+        const { session } = this.requireRun(runId);
+        const stream = { started: true, text: "" };
+        this.runStreams.set(runId, stream);
+        this.append(session, "agent_event", {
+            event: {
+                contentIndex: 0,
+                partial: partialAgentMessage(stream.text),
+                type: "text_start",
+            },
+            runId,
+        });
+    }
+
+    emitTextDelta(runId: string, delta: string): void {
+        const { session } = this.requireRun(runId);
+        let stream = this.runStreams.get(runId);
+        if (!stream?.started) {
+            this.emitTextStart(runId);
+            stream = this.runStreams.get(runId)!;
+        }
+        stream.text += delta;
+        this.append(session, "agent_event", {
+            event: {
+                contentIndex: 0,
+                delta,
+                partial: partialAgentMessage(stream.text),
+                type: "text_delta",
+            },
+            runId,
+        });
+    }
+
+    emitTextEnd(runId: string, content?: string): void {
+        const { session } = this.requireRun(runId);
+        let stream = this.runStreams.get(runId);
+        if (!stream?.started) {
+            this.emitTextStart(runId);
+            stream = this.runStreams.get(runId)!;
+        }
+        if (content !== undefined) stream.text = content;
+        this.append(session, "agent_event", {
+            event: {
+                content: stream.text,
+                contentIndex: 0,
+                partial: partialAgentMessage(stream.text),
+                type: "text_end",
+            },
+            runId,
+        });
+    }
+
+    emitAgentMessage(runId: string, text: string): void {
+        const { session } = this.requireRun(runId);
         const message: RigMessage = { role: "agent", blocks: [{ type: "text", text }] };
         session.messages.push(message);
         this.append(session, "agent_message", { message, runId });
+        this.runStreams.delete(runId);
+    }
+
+    completeRun(runId: string, text: string): void {
+        const { session } = this.requireRun(runId);
+        this.emitAgentMessage(runId, text);
         session.status = "completed";
         this.append(session, "run_finished", {
             agentRunId: `agent-${runId}`,
@@ -145,14 +217,14 @@ export class MockRigDaemon implements AsyncDisposable {
             runId,
             stopReason: "stop",
         });
+        this.runStreams.delete(runId);
     }
 
     failRun(runId: string, errorMessage: string): void {
-        const run = this.submittedRuns.find((candidate) => candidate.runId === runId);
-        if (!run) throw new Error(`Unknown mock Rig run ${runId}`);
-        const session = this.requireSession(run.sessionId);
+        const { session } = this.requireRun(runId);
         session.status = "error";
         this.append(session, "run_error", { errorMessage, modelLocked: false, runId });
+        this.runStreams.delete(runId);
     }
 
     emitGlobalUpdates(count: number): void {
@@ -169,6 +241,20 @@ export class MockRigDaemon implements AsyncDisposable {
     resumeGlobalEventDelivery(): void {
         this.globalEventDeliveryPaused = false;
         for (const stream of this.globalEventStreams) this.flushGlobalEventStream(stream);
+    }
+
+    pauseSessionEventDelivery(): void {
+        this.sessionEventDeliveryPaused = true;
+    }
+
+    resumeSessionEventDelivery(): void {
+        this.sessionEventDeliveryPaused = false;
+        for (const stream of this.sessionEventStreams) this.flushSessionEventStream(stream);
+    }
+
+    rejectNextSessionStream(status = 409): void {
+        this.nextSessionStreamStatus = status;
+        for (const stream of this.sessionEventStreams) stream.response.destroy();
     }
 
     /** Restarts the Unix HTTP listener without losing sessions or queued events. */
@@ -293,7 +379,12 @@ export class MockRigDaemon implements AsyncDisposable {
         }
         if (request.method === "GET" && action === "stream") {
             this.sessionStreamRequestCount += 1;
-            return sendJson(response, 501, { error: "Per-session streams are disabled in Gym" });
+            if (this.nextSessionStreamStatus !== undefined) {
+                const status = this.nextSessionStreamStatus;
+                this.nextSessionStreamStatus = undefined;
+                return sendJson(response, status, { error: "Session stream is unavailable" });
+            }
+            return this.streamSessionEvents(request, url, session, response);
         }
         if (request.method === "POST" && action === "messages") {
             this.submissionAttemptCount += 1;
@@ -386,10 +477,54 @@ export class MockRigDaemon implements AsyncDisposable {
         if (this.globalEventDeliveryPaused || stream.response.destroyed) return;
         for (const entry of this.globalEvents) {
             if (entry.cursor <= stream.cursor) continue;
-            stream.response.write(
+            writeSseFrame(
+                stream.response,
                 `id: ${entry.cursor}\nevent: ${entry.event.type}\ndata: ${JSON.stringify(entry.event)}\n\n`,
             );
             stream.cursor = entry.cursor;
+        }
+    }
+
+    private streamSessionEvents(
+        request: IncomingMessage,
+        url: URL,
+        session: MockSession,
+        response: ServerResponse,
+    ): void {
+        const header = request.headers["last-event-id"];
+        const headerCursor = Array.isArray(header) ? header.at(-1) : header;
+        const cursor = headerCursor ?? url.searchParams.get("after") ?? undefined;
+        if (cursor !== undefined && !session.events.some((event) => event.id === cursor)) {
+            return sendJson(response, 409, { error: "Event cursor not found" });
+        }
+        response.writeHead(200, {
+            "cache-control": "no-cache, no-transform",
+            connection: "keep-alive",
+            "content-type": "text/event-stream; charset=utf-8",
+            "x-accel-buffering": "no",
+        });
+        response.write(": connected\n\n");
+        const stream = { cursor, response, sessionId: session.id };
+        this.sessionEventStreams.add(stream);
+        response.once("close", () => this.sessionEventStreams.delete(stream));
+        this.flushSessionEventStream(stream);
+    }
+
+    private flushSessionEventStream(stream: SessionEventStream): void {
+        if (this.sessionEventDeliveryPaused || stream.response.destroyed) return;
+        const session = this.sessions.get(stream.sessionId);
+        if (!session) return;
+        const start =
+            stream.cursor === undefined
+                ? 0
+                : session.events.findIndex((event) => event.id === stream.cursor) + 1;
+        if (start < 0) return;
+        for (const event of session.events.slice(start)) {
+            writeSseFrame(
+                stream.response,
+                `id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`,
+            );
+            stream.cursor = event.id;
         }
     }
 
@@ -424,13 +559,16 @@ export class MockRigDaemon implements AsyncDisposable {
         const event: RigEvent = {
             createdAt: Date.now(),
             data,
-            id: `event-${++this.eventSequence}`,
+            id: this.createEventId(),
             sessionId: session.id,
             type,
         };
         session.events.push(event);
         session.lastEventId = event.id;
-        if (this.durableGlobalEventQueue) {
+        for (const stream of this.sessionEventStreams) {
+            if (stream.sessionId === session.id) this.flushSessionEventStream(stream);
+        }
+        if (this.durableGlobalEventQueue && type !== "agent_event") {
             this.globalEvents.push({ cursor: ++this.globalCursor, event });
             for (const stream of this.globalEventStreams) this.flushGlobalEventStream(stream);
         }
@@ -441,6 +579,12 @@ export class MockRigDaemon implements AsyncDisposable {
         const session = this.sessions.get(sessionId);
         if (!session) throw new Error(`Unknown mock Rig session ${sessionId}`);
         return session;
+    }
+
+    private requireRun(runId: string): { run: MockRigRun; session: MockSession } {
+        const run = this.submittedRuns.find((candidate) => candidate.runId === runId);
+        if (!run) throw new Error(`Unknown mock Rig run ${runId}`);
+        return { run, session: this.requireSession(run.sessionId) };
     }
 }
 
@@ -523,6 +667,60 @@ export class MockAgentDockerRuntime implements AgentDockerRuntime {
 
 export const createMockRigDaemon = (): Promise<MockRigDaemon> => MockRigDaemon.create();
 
+function partialAgentMessage(text: string) {
+    return {
+        api: "gym",
+        content: [{ type: "text", text }],
+        model: "gym/mock-agent",
+        provider: "gym",
+        role: "assistant",
+        stopReason: "stop",
+        timestamp: Date.now(),
+        usage: {
+            cacheRead: 0,
+            cacheWrite: 0,
+            cost: { cacheRead: 0, cacheWrite: 0, input: 0, output: 0, total: 0 },
+            input: 0,
+            output: 0,
+            totalTokens: 0,
+        },
+    };
+}
+
+function createEventIdFactory(): () => string {
+    let lastTimeMs = 0;
+    let sequence = randomBytes(2).readUInt16BE(0) & 0x0fff;
+    return () => {
+        const observedTimeMs = Math.max(0, Math.floor(Date.now()));
+        if (observedTimeMs > lastTimeMs) {
+            lastTimeMs = observedTimeMs;
+            sequence = randomBytes(2).readUInt16BE(0) & 0x0fff;
+        } else {
+            sequence = (sequence + 1) & 0x0fff;
+            if (sequence === 0) lastTimeMs += 1;
+        }
+        return formatUuidV7(lastTimeMs, sequence, randomBytes(8));
+    };
+}
+
+function formatUuidV7(timeMs: number, sequence: number, random: Buffer): string {
+    const bytes = Buffer.alloc(16);
+    const timestamp = Math.min(timeMs, 0xffffffffffff);
+    bytes[0] = Math.floor(timestamp / 0x10000000000) & 0xff;
+    bytes[1] = Math.floor(timestamp / 0x100000000) & 0xff;
+    bytes[2] = Math.floor(timestamp / 0x1000000) & 0xff;
+    bytes[3] = Math.floor(timestamp / 0x10000) & 0xff;
+    bytes[4] = Math.floor(timestamp / 0x100) & 0xff;
+    bytes[5] = timestamp & 0xff;
+    bytes[6] = 0x70 | ((sequence >> 8) & 0x0f);
+    bytes[7] = sequence & 0xff;
+    bytes[8] = 0x80 | ((random[0] ?? 0) & 0x3f);
+    random.copy(bytes, 9, 1);
+
+    const hex = bytes.toString("hex");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function snapshot(session: MockSession) {
     return {
         id: session.id,
@@ -546,6 +744,18 @@ function sendJson(response: ServerResponse, status: number, body: unknown): void
         "content-type": "application/json; charset=utf-8",
     });
     response.end(contents);
+}
+
+function writeSseFrame(response: ServerResponse, frame: string): void {
+    const contents = Buffer.from(frame);
+    const multibyte = Buffer.from("🚀");
+    const marker = contents.indexOf(multibyte);
+    if (marker < 0) {
+        response.write(contents);
+        return;
+    }
+    response.write(contents.subarray(0, marker + 1));
+    response.write(contents.subarray(marker + 1));
 }
 
 function abortError(): Error {

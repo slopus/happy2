@@ -123,6 +123,7 @@ export interface MessageSummary {
     senderBot?: { id: string; name: string; username: string; photoFileId?: string };
     kind: "user" | "automated";
     text: string;
+    generationStatus?: "streaming" | "complete" | "failed";
     quotedMessage?: {
         id: string;
         senderUserId?: string;

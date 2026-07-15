@@ -57,6 +57,13 @@
             "when": 1784050000000,
             "tag": "0007_rename_server_identity",
             "breakpoints": true
+        },
+        {
+            "idx": 8,
+            "version": "6",
+            "when": 1784080000000,
+            "tag": "0008_agent_message_streaming",
+            "breakpoints": true
         }
     ]
 }

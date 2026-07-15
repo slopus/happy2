@@ -318,9 +318,54 @@ export function MessagePage() {
             </Specimen>
 
             <Specimen
+                detail="String body renders as Markdown — headings, lists, emphasis, inline + fenced code, and safe links, all on theme tokens"
+                label="Message — Markdown body (complete)"
+                number="08"
+                stage="app"
+            >
+                {channelFrame(
+                    <Message
+                        agent
+                        author="Codex"
+                        body={
+                            "## Cold-start fix\n\n" +
+                            "Moved token registration behind the **handshake promise** and added a *cold-start* retry.\n\n" +
+                            "- Registers after `handshake.settled`\n" +
+                            "- Retries once on `isColdStart()`\n\n" +
+                            "```ts\nawait handshake.settled;\nconst token = await requestPushToken({ retry: isColdStart() });\n```\n\n" +
+                            "See the [launch checklist](https://example.com/launch) for the rollout steps."
+                        }
+                        generationStatus="complete"
+                        initials="CX"
+                        time="10:58"
+                        tone="mint"
+                    />,
+                )}
+            </Specimen>
+
+            <Specimen
+                detail="Streaming: incomplete inline syntax is suppressed and a static caret marks the live cursor; content stays full opacity"
+                label="Message — Markdown body (streaming)"
+                number="09"
+                stage="app"
+            >
+                {channelFrame(
+                    <Message
+                        agent
+                        author="Codex"
+                        body={"## Result\n\n- **par"}
+                        generationStatus="streaming"
+                        initials="CX"
+                        time="10:58"
+                        tone="mint"
+                    />,
+                )}
+            </Specimen>
+
+            <Specimen
                 detail="11/700 mono uppercase pill (inset bg, radius 999) between hairline segments"
                 label="DayDivider"
-                number="08"
+                number="10"
                 stage="app"
             >
                 <div style={column}>
@@ -338,7 +383,7 @@ export function MessagePage() {
             <Specimen
                 detail="Sparse history bottom-anchors against the 12px padding; intro block leads the chronology"
                 label="MessageList — bottom anchor + intro"
-                number="09"
+                number="11"
                 stage="app"
             >
                 <div style={column}>
@@ -373,7 +418,7 @@ export function MessagePage() {
             <Specimen
                 detail="Overflowing history mounts scrolled to the newest message and follows appended content unless the reader scrolls up"
                 label="MessageList — long history"
-                number="10"
+                number="12"
                 stage="app"
             >
                 {channelFrame(

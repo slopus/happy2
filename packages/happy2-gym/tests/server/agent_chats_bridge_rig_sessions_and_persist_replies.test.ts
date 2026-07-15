@@ -79,7 +79,7 @@ describe("AI agent chats", () => {
         expect(rig.submittedTexts).toEqual(["Fix the failing tests"]);
         expect(rig.globalEventReadCount).toBe(0);
         expect(rig.sessionEventRequestCount).toBe(0);
-        expect(rig.sessionStreamRequestCount).toBe(0);
+        expect(rig.sessionStreamRequestCount).toBeGreaterThan(0);
         expect(rig.globalStreamRequestCount).toBeGreaterThan(0);
         expect(rig.trimRequests).toEqual([]);
     });
@@ -305,7 +305,7 @@ describe("AI agent chats", () => {
         expect(rig.globalEventReadCount).toBe(0);
         expect(rig.globalStreamRequestCount).toBeGreaterThan(0);
         expect(rig.sessionEventRequestCount).toBe(0);
-        expect(rig.sessionStreamRequestCount).toBe(0);
+        expect(rig.sessionStreamRequestCount).toBeGreaterThan(0);
         expect(rig.cursorRejections).toBe(0);
     });
 

@@ -581,6 +581,760 @@ describe("live views use happy2-state", () => {
         ).toBe(true);
         state.stop();
     });
+
+    it("streams an agent Markdown reply and settles it into one durable row", async () => {
+        const joined = chat({
+            id: "joined",
+            membershipRole: "owner",
+            name: "Joined",
+            slug: "joined",
+        });
+        /* The same durable message id is served twice: first mid-stream, then
+           settled — exactly what a live reconcile delivers to the client. */
+        let reply = automatedMessage("## Draft\n\n- **par", {
+            generationStatus: "streaming",
+        });
+        const server = baseServer([joined]);
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, { users: [userSummary()], presence: [], statuses: [] }),
+        );
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            "/v0/chats/joined/members",
+            jsonResponse(200, { users: [userSummary()], memberships: [] }),
+        );
+        server.route(
+            "GET",
+            (path) => path.includes("/v0/chats/joined/messages?limit=100"),
+            () =>
+                jsonResponse(200, { messages: [reply], chatPts: reply.changePts, hasMore: false }),
+        );
+
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        /* Streaming: the automated body renders as Markdown with a live caret. */
+        const streamingBody = await waitFor(() => {
+            const body = view.container.querySelector(
+                '[data-happy2-ui="message-body"][data-markdown]',
+            );
+            expect(body).toBeTruthy();
+            expect(body!.querySelector("h2")?.textContent).toBe("Draft");
+            return body!;
+        });
+        expect(view.container.querySelectorAll('[data-happy2-ui="message"]')).toHaveLength(1);
+        const streamingRow = streamingBody.closest('[data-happy2-ui="message"]')!;
+        expect(streamingRow.getAttribute("data-generation-status")).toBe("streaming");
+        expect(streamingRow.getAttribute("aria-busy")).toBe("true");
+        expect(
+            view.container.querySelector('[data-happy2-ui="message-stream-caret"]'),
+        ).toBeTruthy();
+
+        /* The reply settles in place: same id, final Markdown, complete status. */
+        reply = automatedMessage(
+            "## Draft\n\n- **partial** done\n\n```ts\nconst answer = 42;\n```\n",
+            { generationStatus: "complete", revision: 2, sequence: "2", changePts: "2" },
+        );
+        await state.loadMessages("joined");
+
+        await waitFor(() => {
+            expect(
+                view.container.querySelector('[data-happy2-ui="message-stream-caret"]'),
+            ).toBeNull();
+            const body = view.container.querySelector(
+                '[data-happy2-ui="message-body"][data-markdown]',
+            )!;
+            expect(body.querySelector("strong")?.textContent).toBe("partial");
+            expect(body.querySelector("pre code")?.textContent).toContain("const answer = 42;");
+        });
+        /* Reconciled into the single existing row — never duplicated. */
+        expect(view.container.querySelectorAll('[data-happy2-ui="message"]')).toHaveLength(1);
+        const settledRow = view.container.querySelector('[data-happy2-ui="message"]')!;
+        expect(settledRow.getAttribute("data-generation-status")).toBe("complete");
+        expect(settledRow.getAttribute("aria-busy")).toBeNull();
+        /* Tear down the view (clearing ChatView's subscriptions) before stopping
+           the state, so no in-flight workspace refresh runs against a stopped
+           instance during teardown. */
+        view.unmount();
+        await state.whenIdle();
+        state.stop();
+    });
+
+    it("keeps every row's DOM node stable while an agent reply streams over the sync channel", async () => {
+        /* Two known channels: `joined` is active, `other` streams in the
+           background. Neither the topology nor membership changes across the
+           run, so a stream tick must patch in memory — no workspace refetch. */
+        let joined = chat({
+            id: "joined",
+            membershipRole: "owner",
+            name: "Joined",
+            slug: "joined",
+            pts: "2",
+            lastMessageSequence: "2",
+        });
+        let other = chat({
+            id: "other",
+            membershipRole: "owner",
+            name: "Other",
+            slug: "other",
+            pts: "0",
+            lastMessageSequence: "0",
+        });
+        const prior = sentMessage("Kickoff at ten", {
+            id: "prior-1",
+            sequence: "1",
+            changePts: "1",
+        });
+        let reply = automatedMessage("## Draft\n\n- **par", {
+            id: "reply-1",
+            sequence: "2",
+            changePts: "2",
+        });
+
+        const server = baseServer([joined, other]);
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, { users: [userSummary()], presence: [], statuses: [] }),
+        );
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            /\/v0\/chats\/[^/]+\/members/,
+            jsonResponse(200, { users: [userSummary()], memberships: [] }),
+        );
+        server.route(
+            "GET",
+            (path) => path.includes("/v0/chats/joined/messages?limit=100"),
+            () =>
+                jsonResponse(200, {
+                    messages: [prior, reply],
+                    chatPts: reply.changePts,
+                    hasMore: false,
+                }),
+        );
+
+        /* Realtime sync plumbing: the workspace diff and the per-chat diff both
+           read mutable closures so each tick can serve fresh content. */
+        let seq = 0;
+        let syncDiff: unknown = null;
+        let chatDiff: unknown = null;
+        server.route("POST", "/v0/sync/getDifference", () => jsonResponse(200, syncDiff));
+        server.route(
+            "POST",
+            (path) => path.includes("/v0/chats/") && path.endsWith("/getDifference"),
+            () => jsonResponse(200, chatDiff),
+        );
+
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        /* Drive one realtime sync tick that advances a chat's pts and, for a
+           loaded chat, delivers the given message through the per-chat diff. */
+        async function tick(changedChat: ChatSummary, message?: MessageSummary) {
+            seq += 1;
+            const syncState = { protocolVersion: 1, generation: "g", sequence: String(seq) };
+            syncDiff = {
+                kind: "difference",
+                changedChats: [changedChat],
+                removedChatIds: [],
+                areas: [],
+                state: syncState,
+                targetState: syncState,
+            };
+            chatDiff = message
+                ? {
+                      kind: "difference",
+                      updates: [{ pts: changedChat.pts, ptsCount: 1, kind: "message" }],
+                      messages: [message],
+                      chat: changedChat,
+                      state: { membershipEpoch: changedChat.membershipEpoch, pts: changedChat.pts },
+                      targetState: {
+                          membershipEpoch: changedChat.membershipEpoch,
+                          pts: changedChat.pts,
+                      },
+                  }
+                : null;
+            server.events.sync({
+                sequence: String(seq),
+                chats: [{ chatId: changedChat.id, pts: changedChat.pts }],
+                areas: [],
+            });
+            await state.whenIdle();
+        }
+
+        const messageRows = () =>
+            [...view.container.querySelectorAll('[data-happy2-ui="message"]')] as HTMLElement[];
+
+        /* Initial streaming render: prior user row + streaming agent row, with
+           the member count resolved so its DOM node exists to be captured. */
+        await waitFor(() => {
+            expect(messageRows()).toHaveLength(2);
+            expect(messageRows()[1]?.getAttribute("data-generation-status")).toBe("streaming");
+            expect(
+                view.container.querySelector('[data-happy2-ui="channel-header-member-count"]'),
+            ).toBeTruthy();
+        });
+
+        /* Capture the concrete DOM nodes whose identity must survive streaming. */
+        const header = view.container.querySelector('[data-happy2-ui="channel-header"]')!;
+        const memberCount = view.container.querySelector(
+            '[data-happy2-ui="channel-header-member-count"]',
+        )!;
+        const sidebarRow = view.container.querySelector(
+            '[data-happy2-ui="sidebar-item"][data-item-id="joined"]',
+        )!;
+        const priorRow = messageRows()[0]!;
+        const streamRow = messageRows()[1]!;
+        expect(memberCount.textContent).toContain("1");
+        expect(priorRow.textContent).toContain("Kickoff at ten");
+
+        const forbiddenReads = () =>
+            server.requests.filter(
+                ({ method, path }) =>
+                    method === "GET" &&
+                    (path === "/v0/contacts" ||
+                        path === "/v0/directory/channels" ||
+                        path.includes("/members") ||
+                        path.includes("/messages?limit=100")),
+            ).length;
+        const readsBefore = forbiddenReads();
+
+        /* Two more streaming partials over the sync channel. Each advances chat
+           pts and rewrites the same durable message id. */
+        joined = { ...joined, pts: "3" };
+        reply = automatedMessage("## Draft\n\n- **partial** in progress", {
+            id: "reply-1",
+            sequence: "2",
+            changePts: "3",
+            revision: 2,
+        });
+        await tick(joined, reply);
+        await waitFor(() => expect(streamRow.querySelector("strong")?.textContent).toBe("partial"));
+
+        joined = { ...joined, pts: "4" };
+        reply = automatedMessage("## Draft\n\n- **partial** in progress\n- second point", {
+            id: "reply-1",
+            sequence: "2",
+            changePts: "4",
+            revision: 3,
+        });
+        await tick(joined, reply);
+        await waitFor(() => expect(streamRow.querySelectorAll("ul > li")).toHaveLength(2));
+
+        /* Completion: caret and busy state clear, still the same row. */
+        joined = { ...joined, pts: "5" };
+        reply = automatedMessage(
+            "## Draft\n\n- **partial** in progress\n- second point\n\n```ts\nconst answer = 42;\n```\n",
+            {
+                id: "reply-1",
+                sequence: "2",
+                changePts: "5",
+                revision: 4,
+                generationStatus: "complete",
+            },
+        );
+        await tick(joined, reply);
+        await waitFor(() => {
+            expect(streamRow.getAttribute("data-generation-status")).toBe("complete");
+            expect(streamRow.querySelector("pre code")?.textContent).toContain(
+                "const answer = 42;",
+            );
+        });
+
+        /* Row identity held throughout: no remount of any surface. */
+        expect(messageRows()).toHaveLength(2);
+        expect(messageRows()[0]).toBe(priorRow);
+        expect(messageRows()[1]).toBe(streamRow);
+        expect(view.container.querySelector('[data-happy2-ui="channel-header"]')).toBe(header);
+        expect(view.container.querySelector('[data-happy2-ui="channel-header-member-count"]')).toBe(
+            memberCount,
+        );
+        expect(memberCount.textContent).toContain("1");
+        expect(
+            view.container.querySelector('[data-happy2-ui="sidebar-item"][data-item-id="joined"]'),
+        ).toBe(sidebarRow);
+        /* Settled row carries no caret or busy affordance. */
+        expect(streamRow.querySelector('[data-happy2-ui="message-stream-caret"]')).toBeNull();
+        expect(streamRow.getAttribute("aria-busy")).toBeNull();
+
+        /* Ordinary same-topology stream ticks never refetch the workspace. */
+        expect(forbiddenReads()).toBe(readsBefore);
+
+        /* A background chat advancing does not steal the active conversation. */
+        other = { ...other, pts: "1", lastMessageSequence: "1", unreadCount: 3 };
+        await tick(other);
+        expect(
+            view.container.querySelector('[data-happy2-ui="channel-header-title"]')?.textContent,
+        ).toBe("Joined");
+        expect(
+            view.container
+                .querySelector('[data-happy2-ui="sidebar-item"][data-active]')
+                ?.getAttribute("data-item-id"),
+        ).toBe("joined");
+        expect(messageRows()[1]).toBe(streamRow);
+        expect(forbiddenReads()).toBe(readsBefore);
+
+        view.unmount();
+        await state.whenIdle();
+        state.stop();
+    });
+
+    it("reconciles an open thread in place from the stream without refetching it", async () => {
+        let joined = chat({
+            id: "joined",
+            membershipRole: "owner",
+            name: "Joined",
+            slug: "joined",
+            pts: "3",
+            lastMessageSequence: "3",
+        });
+        const root = sentMessage("Root note", {
+            id: "root",
+            sequence: "1",
+            changePts: "1",
+            threadReplyCount: 1,
+        });
+        const mainFollow = sentMessage("Main follow", {
+            id: "main-follow",
+            sequence: "2",
+            changePts: "2",
+        });
+        let reply = sentMessage("Existing reply", {
+            id: "reply",
+            sequence: "3",
+            changePts: "3",
+            threadRootMessageId: "root",
+        });
+
+        const server = baseServer([joined]);
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, { users: [userSummary()], presence: [], statuses: [] }),
+        );
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            /\/v0\/chats\/[^/]+\/members/,
+            jsonResponse(200, { users: [userSummary()], memberships: [] }),
+        );
+        server.route(
+            "GET",
+            (path) => path.includes("/v0/chats/joined/messages?limit=100"),
+            () =>
+                jsonResponse(200, {
+                    messages: [root, mainFollow],
+                    chatPts: "3",
+                    hasMore: false,
+                }),
+        );
+        /* Count getThread calls to prove the stream hot path never refetches. */
+        let threadRequests = 0;
+        server.route("GET", "/v0/messages/root/thread?limit=100", () => {
+            threadRequests += 1;
+            return jsonResponse(200, { root, messages: [reply], chatPts: "3", hasMore: false });
+        });
+
+        let seq = 0;
+        let syncDiff: unknown = null;
+        let chatDiff: unknown = null;
+        server.route("POST", "/v0/sync/getDifference", () => jsonResponse(200, syncDiff));
+        server.route(
+            "POST",
+            (path) => path.includes("/v0/chats/") && path.endsWith("/getDifference"),
+            () => jsonResponse(200, chatDiff),
+        );
+
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        async function tick(changedChat: ChatSummary, message?: MessageSummary) {
+            seq += 1;
+            const syncState = { protocolVersion: 1, generation: "g", sequence: String(seq) };
+            syncDiff = {
+                kind: "difference",
+                changedChats: [changedChat],
+                removedChatIds: [],
+                areas: [],
+                state: syncState,
+                targetState: syncState,
+            };
+            chatDiff = message
+                ? {
+                      kind: "difference",
+                      updates: [{ pts: changedChat.pts, ptsCount: 1, kind: "message" }],
+                      messages: [message],
+                      chat: changedChat,
+                      state: { membershipEpoch: changedChat.membershipEpoch, pts: changedChat.pts },
+                      targetState: {
+                          membershipEpoch: changedChat.membershipEpoch,
+                          pts: changedChat.pts,
+                      },
+                  }
+                : null;
+            server.events.sync({
+                sequence: String(seq),
+                chats: [{ chatId: changedChat.id, pts: changedChat.pts }],
+                areas: [],
+            });
+            await state.whenIdle();
+        }
+
+        await waitFor(() => expect(view.getByText("Main follow")).toBeTruthy());
+        const rootMessage = view.getByText("Root note").closest('[data-happy2-ui="message"]')!;
+        fireEvent.click(rootMessage.querySelector('[aria-label="Open thread"]')!);
+        await waitFor(() => expect(view.getByTestId("thread-panel")).toBeTruthy());
+        await waitFor(() => expect(view.getByText("Existing reply")).toBeTruthy());
+        expect(threadRequests, "thread loaded exactly once on open").toBe(1);
+
+        const threadReplyRow = view
+            .getByText("Existing reply")
+            .closest('[data-happy2-ui="message"]')!;
+        const threadComposer = () =>
+            view.container.querySelector(
+                '[data-testid="thread-panel"] [data-happy2-ui="composer"]',
+            )!;
+
+        /* An unrelated main-message partial must not touch the thread: no
+           getThread request, no busy/pending composer, no panel change. */
+        joined = { ...joined, pts: "4", lastMessageSequence: "4" };
+        await tick(
+            joined,
+            sentMessage("Chatter", { id: "chatter", sequence: "4", changePts: "4" }),
+        );
+        await waitFor(() => expect(view.getByText("Chatter")).toBeTruthy());
+        expect(threadRequests, "unrelated main partial does not refetch the thread").toBe(1);
+        expect(
+            threadComposer().hasAttribute("data-pending"),
+            "unrelated main partial leaves the thread composer idle",
+        ).toBe(false);
+        expect(
+            view.getByText("Existing reply").closest('[data-happy2-ui="message"]'),
+            "thread reply row is untouched",
+        ).toBe(threadReplyRow);
+
+        /* A changed thread reply reconciles the same row in place — still no
+           network request. */
+        joined = { ...joined, pts: "5", lastMessageSequence: "5" };
+        reply = sentMessage("Existing reply — edited", {
+            id: "reply",
+            sequence: "3",
+            changePts: "5",
+            revision: 2,
+            threadRootMessageId: "root",
+        });
+        await tick(joined, reply);
+        await waitFor(() =>
+            expect(threadReplyRow.textContent).toContain("Existing reply — edited"),
+        );
+        expect(
+            view.getByText("Existing reply — edited").closest('[data-happy2-ui="message"]'),
+            "thread reply reconciled its existing DOM node",
+        ).toBe(threadReplyRow);
+        expect(threadRequests, "in-memory reconcile makes no getThread request").toBe(1);
+
+        view.unmount();
+        await state.whenIdle();
+        state.stop();
+    });
+
+    it("discards a stale thread response after the panel closes", async () => {
+        const joined = chat({
+            id: "joined",
+            membershipRole: "owner",
+            name: "Joined",
+            slug: "joined",
+        });
+        const root = sentMessage("Root note", { id: "root", threadReplyCount: 1 });
+        const reply = sentMessage("Late reply", {
+            id: "reply",
+            sequence: "2",
+            changePts: "2",
+            threadRootMessageId: "root",
+        });
+        const server = baseServer([joined]);
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, { users: [userSummary()], presence: [], statuses: [] }),
+        );
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            "/v0/chats/joined/members",
+            jsonResponse(200, { users: [userSummary()], memberships: [] }),
+        );
+        server.respond(
+            "GET",
+            (path) => path.includes("/v0/chats/joined/messages?limit=100"),
+            jsonResponse(200, { messages: [root], chatPts: "1", hasMore: false }),
+        );
+        /* Hold the thread response so the panel can close before it resolves. */
+        let releaseThread: (() => void) | undefined;
+        server.route("GET", "/v0/messages/root/thread?limit=100", async () => {
+            await new Promise<void>((resolve) => (releaseThread = resolve));
+            return jsonResponse(200, { root, messages: [reply], chatPts: "2", hasMore: false });
+        });
+
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        await waitFor(() => expect(view.getByText("Root note")).toBeTruthy());
+        const rootMessage = view.getByText("Root note").closest('[data-happy2-ui="message"]')!;
+        fireEvent.click(rootMessage.querySelector('[aria-label="Open thread"]')!);
+        await waitFor(() => expect(view.getByTestId("thread-panel")).toBeTruthy());
+        await waitFor(() => expect(releaseThread).toBeTruthy());
+
+        /* Close the panel while getThread is still in flight, then let the stale
+           response resolve — it must not repopulate the closed panel. */
+        fireEvent.click(view.getByRole("button", { name: "Close thread" }));
+        await waitFor(() => expect(view.queryByTestId("thread-panel")).toBeNull());
+        releaseThread!();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(view.queryByTestId("thread-panel")).toBeNull();
+        expect(view.queryByText("Late reply")).toBeNull();
+
+        view.unmount();
+        await state.whenIdle();
+        state.stop();
+    });
+
+    it("hydrates on a known chat's membership change but not on an ordinary stream tick", async () => {
+        let joined = chat({
+            id: "joined",
+            membershipRole: "member",
+            name: "Joined",
+            slug: "joined",
+            pts: "1",
+            lastMessageSequence: "1",
+        });
+        const server = baseServer([joined]);
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, { users: [userSummary()], presence: [], statuses: [] }),
+        );
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            /\/v0\/chats\/[^/]+\/members/,
+            jsonResponse(200, { users: [userSummary()], memberships: [] }),
+        );
+        server.route(
+            "GET",
+            (path) => path.includes("/v0/chats/joined/messages?limit=100"),
+            () => jsonResponse(200, { messages: [], chatPts: joined.pts, hasMore: false }),
+        );
+
+        let seq = 0;
+        let syncDiff: unknown = null;
+        let chatDiff: unknown = null;
+        server.route("POST", "/v0/sync/getDifference", () => jsonResponse(200, syncDiff));
+        server.route(
+            "POST",
+            (path) => path.includes("/v0/chats/") && path.endsWith("/getDifference"),
+            () => jsonResponse(200, chatDiff),
+        );
+
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        async function tick(changedChat: ChatSummary, message: MessageSummary) {
+            seq += 1;
+            const syncState = { protocolVersion: 1, generation: "g", sequence: String(seq) };
+            syncDiff = {
+                kind: "difference",
+                changedChats: [changedChat],
+                removedChatIds: [],
+                areas: [],
+                state: syncState,
+                targetState: syncState,
+            };
+            chatDiff = {
+                kind: "difference",
+                updates: [{ pts: changedChat.pts, ptsCount: 1, kind: "message" }],
+                messages: [message],
+                chat: changedChat,
+                state: { membershipEpoch: changedChat.membershipEpoch, pts: changedChat.pts },
+                targetState: { membershipEpoch: changedChat.membershipEpoch, pts: changedChat.pts },
+            };
+            server.events.sync({
+                sequence: String(seq),
+                chats: [{ chatId: changedChat.id, pts: changedChat.pts }],
+                areas: [],
+            });
+            await state.whenIdle();
+        }
+
+        await waitFor(() =>
+            expect(
+                view.container.querySelector(
+                    '[data-happy2-ui="sidebar-item"][data-item-id="joined"]',
+                ),
+            ).toBeTruthy(),
+        );
+        const hydrationReads = () =>
+            server.requests.filter(
+                ({ method, path }) =>
+                    method === "GET" &&
+                    (path === "/v0/contacts" || path === "/v0/directory/channels"),
+            ).length;
+        const readsBefore = hydrationReads();
+
+        /* An ordinary pts/text tick is patched in memory — no workspace refetch. */
+        joined = { ...joined, pts: "2", lastMessageSequence: "2" };
+        await tick(joined, sentMessage("Hello", { id: "m2", sequence: "2", changePts: "2" }));
+        await waitFor(() => expect(view.getByText("Hello")).toBeTruthy());
+        expect(hydrationReads(), "ordinary stream tick does not hydrate").toBe(readsBefore);
+
+        /* A membership change on a known chat is topology — it must hydrate. */
+        joined = { ...joined, pts: "3", lastMessageSequence: "3", membershipRole: "admin" };
+        await tick(joined, sentMessage("Promoted", { id: "m3", sequence: "3", changePts: "3" }));
+        await waitFor(() => expect(hydrationReads()).toBeGreaterThan(readsBefore));
+
+        view.unmount();
+        await state.whenIdle();
+        state.stop();
+    });
+
+    it("coalesces mount and topology hydration into one in-flight run plus one trailing rerun", async () => {
+        let joined = chat({
+            id: "joined",
+            membershipRole: "member",
+            name: "Joined",
+            slug: "joined",
+            pts: "1",
+            lastMessageSequence: "1",
+        });
+        const server = baseServer([joined]);
+        /* Hold the contacts fetch so the mount hydration stays in flight while a
+           burst of topology events arrives; count fetches to prove coalescing. */
+        let contactsCalls = 0;
+        let releaseContacts: (() => void) | undefined;
+        server.route("GET", "/v0/contacts", async () => {
+            contactsCalls += 1;
+            await new Promise<void>((resolve) => (releaseContacts = resolve));
+            return jsonResponse(200, { users: [userSummary()], presence: [], statuses: [] });
+        });
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            /\/v0\/chats\/[^/]+\/members/,
+            jsonResponse(200, { users: [userSummary()], memberships: [] }),
+        );
+        server.route(
+            "GET",
+            (path) => path.includes("/v0/chats/joined/messages?limit=100"),
+            () => jsonResponse(200, { messages: [], chatPts: joined.pts, hasMore: false }),
+        );
+
+        let seq = 0;
+        let syncDiff: unknown = null;
+        server.route("POST", "/v0/sync/getDifference", () => jsonResponse(200, syncDiff));
+        server.route(
+            "POST",
+            (path) => path.includes("/v0/chats/") && path.endsWith("/getDifference"),
+            () => jsonResponse(200, null),
+        );
+
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        /* The mount hydration is now in flight, parked on the gated contacts. */
+        await waitFor(() => expect(contactsCalls).toBe(1));
+
+        async function topologyTick(role: "member" | "admin") {
+            seq += 1;
+            joined = { ...joined, membershipRole: role };
+            const syncState = { protocolVersion: 1, generation: "g", sequence: String(seq) };
+            syncDiff = {
+                kind: "difference",
+                changedChats: [joined],
+                removedChatIds: [],
+                areas: [],
+                state: syncState,
+                targetState: syncState,
+            };
+            server.events.sync({
+                sequence: String(seq),
+                chats: [{ chatId: "joined", pts: joined.pts }],
+                areas: [],
+            });
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+
+        /* A burst of topology events while one hydration is in flight collapses to
+           a single trailing rerun rather than one refetch per event. */
+        await topologyTick("admin");
+        await topologyTick("member");
+        await topologyTick("admin");
+        expect(contactsCalls, "the burst starts no concurrent hydration").toBe(1);
+
+        releaseContacts!();
+        await waitFor(() => expect(contactsCalls).toBe(2));
+        releaseContacts!();
+        await state.whenIdle();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(contactsCalls, "one in-flight plus exactly one trailing rerun").toBe(2);
+
+        view.unmount();
+        await state.whenIdle();
+        state.stop();
+    });
 });
 
 function baseServer(chats: readonly ChatSummary[]) {
@@ -661,4 +1415,14 @@ function sentMessage(text: string, overrides: Partial<MessageSummary> = {}): Mes
         createdAt: "2026-01-01T00:00:00.000Z",
         ...overrides,
     };
+}
+
+function automatedMessage(text: string, overrides: Partial<MessageSummary> = {}): MessageSummary {
+    return sentMessage(text, {
+        kind: "automated",
+        sender: undefined,
+        senderBot: { id: "bot-1", name: "Fixer", username: "fixer" },
+        generationStatus: "streaming",
+        ...overrides,
+    });
 }

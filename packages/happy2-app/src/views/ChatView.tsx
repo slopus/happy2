@@ -10,6 +10,7 @@ import {
     Switch,
     type JSX,
 } from "solid-js";
+import { createStore, reconcile } from "solid-js/store";
 import {
     AgentDesk,
     AgentRunCard,
@@ -48,6 +49,7 @@ import {
 } from "happy2-ui";
 import type {
     ChatSummary,
+    ClientStateEventOf,
     FileSummary,
     MessageSummary,
     PresenceSnapshot,
@@ -203,6 +205,7 @@ function toThreadMessage(
             : (message.senderBot?.name ?? agentName ?? "R").slice(0, 2).toUpperCase(),
         tone: sender ? toneFor(sender.id) : "brand",
         agent: message.kind === "automated",
+        generationStatus: deleted ? undefined : message.generationStatus,
         time: messageTime(message.createdAt),
         gutterTime: compactTime(message.createdAt),
         body: deleted ? "Message deleted" : message.text,
@@ -252,8 +255,24 @@ export function ChatView(props: ChatViewProps) {
         connected ? "" : "launch-week",
     );
     const [draft, setDraft] = createSignal("");
-    const [entries, setEntries] = createSignal<WorkspaceEntry[]>(connected ? [] : initialEntries);
-    const [sidebar, setSidebar] = createSignal<SidebarSection[]>(connected ? [] : chatSections);
+    /* Conversation and thread rows live in Solid stores keyed by durable entry
+       id: `reconcile` mutates matching rows in place, so an existing row keeps
+       its exact DOM node while a stream tick swaps only its body/status fields,
+       and `For` (which memoizes by row identity) never remounts a settled row.
+       Reference equality of a summary may flag a change, but it is never a row's
+       identity — the id is. */
+    const [entryStore, setEntryStore] = createStore<{ list: WorkspaceEntry[] }>({
+        list: connected ? [] : initialEntries,
+    });
+    const entries = () => entryStore.list;
+    const commitEntries = (next: WorkspaceEntry[]) =>
+        setEntryStore("list", reconcile(next, { key: "id" }));
+    const [sidebarStore, setSidebarStore] = createStore<{ sections: SidebarSection[] }>({
+        sections: connected ? [] : chatSections,
+    });
+    const sidebar = () => sidebarStore.sections;
+    const commitSidebar = (next: SidebarSection[]) =>
+        setSidebarStore("sections", reconcile(next, { key: "id" }));
     const [conversationData, setConversationData] = createSignal<Record<string, Conversation>>(
         connected ? {} : conversations,
     );
@@ -262,7 +281,10 @@ export function ChatView(props: ChatViewProps) {
     const [dmPeers, setDmPeers] = createSignal<Record<string, UserSummary>>({});
     const [presence, setPresence] = createSignal<Record<string, PresenceSnapshot>>({});
     const [threadRootId, setThreadRootId] = createSignal<string>();
-    const [threadEntries, setThreadEntries] = createSignal<WorkspaceEntry[]>([]);
+    const [threadStore, setThreadStore] = createStore<{ list: WorkspaceEntry[] }>({ list: [] });
+    const threadEntries = () => threadStore.list;
+    const commitThread = (next: WorkspaceEntry[]) =>
+        setThreadStore("list", reconcile(next, { key: "id" }));
     const [threadDraft, setThreadDraft] = createSignal("");
     const [panelMode, setPanelMode] = createSignal<"info" | "thread">();
     const [panelMembers, setPanelMembers] = createSignal<MemberItem[]>([]);
@@ -305,6 +327,10 @@ export function ChatView(props: ChatViewProps) {
     let fileInput: HTMLInputElement | undefined;
     let requestNumber = 0;
     let workspaceRequestNumber = 0;
+    let threadRequestNumber = 0;
+    let hydrating = false;
+    let hydrateAgain = false;
+    let disposed = false;
     const stateCleanups: Array<() => void> = [];
     let sentTyping = false;
     const requestedReadThrough = new Map<string, string>();
@@ -418,7 +444,7 @@ export function ChatView(props: ChatViewProps) {
         const directMessages = users.filter(
             (item) => item.kind === "human" && item.id !== user()?.id && dmByUserId.has(item.id),
         );
-        setSidebar([
+        commitSidebar([
             {
                 id: "agents",
                 label: "Agents",
@@ -483,47 +509,69 @@ export function ChatView(props: ChatViewProps) {
             },
         ]);
 
-        const nextConversations: Record<string, Conversation> = {};
-        for (const chat of chats) {
-            const peer = peers[chat.id];
-            const agentPeer = peer?.kind === "agent";
-            const title =
-                chat.kind === "dm" ? (peer ? fullName(peer) : "Direct message") : chat.name;
-            nextConversations[chat.id] = {
-                id: chat.id,
-                title: title ?? chat.slug ?? "Untitled channel",
-                icon: chat.kind === "dm" ? (agentPeer ? "spark" : undefined) : "hash",
-                topic:
-                    chat.topic ??
-                    (chat.kind === "dm"
-                        ? agentPeer
-                            ? "Private AI coding agent"
-                            : "Direct message"
-                        : chat.membershipRole
-                          ? undefined
-                          : "Public channel — sending a message will join it"),
-                composerPlaceholder:
-                    chat.kind === "dm"
-                        ? `Message ${title ?? "this person"}`
-                        : `Message #${chat.slug ?? title ?? "channel"}`,
-                intro: {
-                    title:
-                        chat.kind === "dm"
-                            ? (title ?? "Direct message")
-                            : `Welcome to #${chat.slug ?? title ?? "channel"}`,
-                    description:
+        /* Merge the derived descriptors into the existing map instead of
+           replacing it: `memberCount`/`members` are loaded separately by
+           `loadConversation`, so preserving them here keeps the header's member
+           count from blinking to `undefined` and back on an incremental chat
+           summary update (e.g. a streaming reply advancing chat pts). */
+        setConversationData((current) => {
+            const next: Record<string, Conversation> = { ...current };
+            for (const chat of chats) {
+                const peer = peers[chat.id];
+                const agentPeer = peer?.kind === "agent";
+                const title =
+                    chat.kind === "dm" ? (peer ? fullName(peer) : "Direct message") : chat.name;
+                const existing = current[chat.id];
+                next[chat.id] = {
+                    id: chat.id,
+                    title: title ?? chat.slug ?? "Untitled channel",
+                    icon: chat.kind === "dm" ? (agentPeer ? "spark" : undefined) : "hash",
+                    topic:
                         chat.topic ??
                         (chat.kind === "dm"
                             ? agentPeer
-                                ? "Send a message to give this agent its first task."
-                                : `This conversation is between you and ${title ?? "a teammate"}.`
-                            : "This channel is ready for its first message."),
-                },
-            };
-        }
-        setConversationData(nextConversations);
+                                ? "Private AI coding agent"
+                                : "Direct message"
+                            : chat.membershipRole
+                              ? undefined
+                              : "Public channel — sending a message will join it"),
+                    composerPlaceholder:
+                        chat.kind === "dm"
+                            ? `Message ${title ?? "this person"}`
+                            : `Message #${chat.slug ?? title ?? "channel"}`,
+                    intro: {
+                        title:
+                            chat.kind === "dm"
+                                ? (title ?? "Direct message")
+                                : `Welcome to #${chat.slug ?? title ?? "channel"}`,
+                        description:
+                            chat.topic ??
+                            (chat.kind === "dm"
+                                ? agentPeer
+                                    ? "Send a message to give this agent its first task."
+                                    : `This conversation is between you and ${title ?? "a teammate"}.`
+                                : "This channel is ready for its first message."),
+                    },
+                    ...(existing?.memberCount !== undefined
+                        ? { memberCount: existing.memberCount }
+                        : {}),
+                    ...(existing?.members !== undefined ? { members: existing.members } : {}),
+                };
+            }
+            return next;
+        });
     }
 
+    /*
+     * Full workspace hydration: (re)fetch the auxiliary data that chat summaries
+     * alone cannot supply — contacts, the public directory, and DM peers — and
+     * rebuild navigation. Only run this for genuine topology/membership gaps; an
+     * ordinary chat-summary tick is handled in-memory by `patchChatSummaries`.
+     * The chat set is read from the model at *apply* time (after the peer
+     * fetches settle) and merged with the directory, so a stream tick that
+     * advanced a chat mid-fetch is never clobbered by the snapshot we started
+     * with.
+     */
     async function refreshWorkspace(preferredChatId = activeConversationId()) {
         const model = state();
         if (!model || !props.session) return;
@@ -533,15 +581,11 @@ export function ChatView(props: ChatViewProps) {
                 model.execute("getContacts"),
                 model.execute("getDirectoryChannels"),
             ]);
-            const chatsById = new Map(
-                directoryResponse.channels.map((chat) => [chat.id, chat] as const),
-            );
-            for (const chat of model.get().chats) chatsById.set(chat.id, chat);
-            const chats = [...chatsById.values()];
             const peers: Record<string, UserSummary> = {};
             await Promise.all(
-                chats
-                    .filter((chat) => chat.kind === "dm")
+                model
+                    .get()
+                    .chats.filter((chat) => chat.kind === "dm")
                     .map(async (chat) => {
                         const response = await model.execute("getChatMembers", {
                             chatId: chat.id,
@@ -552,10 +596,15 @@ export function ChatView(props: ChatViewProps) {
                         if (peer) peers[chat.id] = peer;
                     }),
             );
+            if (currentWorkspaceRequest !== workspaceRequestNumber) return;
+            const chatsById = new Map(
+                directoryResponse.channels.map((chat) => [chat.id, chat] as const),
+            );
+            for (const chat of model.get().chats) chatsById.set(chat.id, chat);
+            const chats = [...chatsById.values()];
             const snapshots = Object.fromEntries(
                 contactResponse.presence.map((item) => [item.userId, item]),
             );
-            if (currentWorkspaceRequest !== workspaceRequestNumber) return;
             setServerChats(chats);
             setContacts([...contactResponse.users]);
             setDmPeers(peers);
@@ -572,11 +621,102 @@ export function ChatView(props: ChatViewProps) {
             if (nextChatId) cacheReadThrough(nextChatId);
             applyNavigation(chats, [...contactResponse.users], peers, snapshots);
             if (nextChatId) await loadConversation(nextChatId);
-            else setEntries([]);
+            else commitEntries([]);
             setStatusHint(undefined);
         } catch (reason) {
             setStatusHint(errorMessage(reason));
         }
+    }
+
+    /*
+     * Coalesced, single-flight wrapper around `refreshWorkspace` for
+     * subscription-driven hydration: while one hydration runs, a later trigger
+     * sets a trailing flag so exactly one rerun fires afterward. A burst of
+     * chat events (a newly streaming chat advancing pts repeatedly) collapses to
+     * at most one in-flight hydration plus one trailing rerun, instead of
+     * starting and cancelling a hydration per tick.
+     */
+    async function hydrateWorkspace() {
+        if (hydrating) {
+            hydrateAgain = true;
+            return;
+        }
+        hydrating = true;
+        try {
+            do {
+                hydrateAgain = false;
+                await refreshWorkspace();
+            } while (hydrateAgain && !disposed);
+        } finally {
+            hydrating = false;
+        }
+    }
+
+    /*
+     * In-memory patch for an incremental chat-summary change (the common case:
+     * an active reply streaming advances chat pts every partial). It merges the
+     * model's current summaries into the chats we already track and rebuilds
+     * navigation from memory — no contacts/directory/members/messages requests,
+     * no busy toggle, and (via the descriptor merge) no dropped member count.
+     * Reference inequality is used only to detect that a tracked chat advanced;
+     * durable row identity comes from the id-keyed stores, never from a summary
+     * reference.
+     */
+    function patchChatSummaries(modelChats: readonly ChatSummary[]) {
+        const byId = new Map(modelChats.map((chat) => [chat.id, chat] as const));
+        let changed = false;
+        const merged = serverChats().map((chat) => {
+            const next = byId.get(chat.id);
+            if (next && next !== chat) {
+                changed = true;
+                return next;
+            }
+            return chat;
+        });
+        if (!changed) return;
+        setServerChats(merged);
+        applyNavigation(merged, contacts(), dmPeers(), presence());
+    }
+
+    /*
+     * A chat summary batch either fits the topology we already know (patch in
+     * memory) or exposes a gap — a new chat, a removed chat, a membership/kind
+     * change, or a DM whose peer we have not loaded — that needs auxiliary data.
+     * Known chats are always patched immediately so their sidebar labels/badges
+     * and header descriptor stay live even when another chat in the same batch
+     * still requires a full hydration.
+     */
+    function needsHydration(
+        event: ClientStateEventOf<"chats">,
+        modelChats: readonly ChatSummary[],
+    ): boolean {
+        if (event.reason === "initial") return true;
+        if (event.removedChatIds.length > 0) return true;
+        const known = new Map(serverChats().map((chat) => [chat.id, chat] as const));
+        const byId = new Map(modelChats.map((chat) => [chat.id, chat] as const));
+        for (const id of event.chatIds) {
+            const next = byId.get(id);
+            if (!next) continue;
+            const previous = known.get(id);
+            if (!previous) return true;
+            if (next.membershipRole !== previous.membershipRole) return true;
+            if (next.kind !== previous.kind) return true;
+            if (next.kind === "dm" && !dmPeers()[id]) return true;
+        }
+        return false;
+    }
+
+    function onChatsEvent(event: ClientStateEventOf<"chats">) {
+        const model = state();
+        if (!model || !props.session) return;
+        const chats = model.get().chats;
+        /* Classify against the *pre-patch* summaries: `patchChatSummaries` writes
+           the new summaries into `serverChats`, so classifying afterward would
+           compare a chat against itself and mask a membership/kind delta. Patch
+           the known chats immediately (keeps labels/badges live), then hydrate. */
+        const hydrate = needsHydration(event, chats);
+        patchChatSummaries(chats);
+        if (hydrate) void hydrateWorkspace();
     }
 
     async function loadConversation(chatId: string) {
@@ -589,7 +729,7 @@ export function ChatView(props: ChatViewProps) {
             const messages = (await model.loadMessages(chatId)).map((item) => item.message);
             const members = await membersPromise;
             if (currentRequest !== requestNumber) return;
-            setEntries(toEntries(messages, user(), activeChat()?.name));
+            commitEntries(toEntries(messages, user(), activeChat()?.name));
             void autoReadOpenChat(chatId, messages);
             prefetchImages(messages);
             setConversationData((current) => ({
@@ -618,7 +758,7 @@ export function ChatView(props: ChatViewProps) {
         setDraft("");
         setPendingFiles([]);
         setThreadRootId(undefined);
-        setThreadEntries([]);
+        commitThread([]);
         setPanelMode(undefined);
         if (!props.session) {
             setActiveConversationId(id);
@@ -751,9 +891,9 @@ export function ChatView(props: ChatViewProps) {
         if (!model || !chat) return;
         setManualEmptySelection(true);
         setActiveConversationId("");
-        setEntries([]);
+        commitEntries([]);
         setThreadRootId(undefined);
-        setThreadEntries([]);
+        commitThread([]);
         setPanelMode(undefined);
         startBusy();
         try {
@@ -813,7 +953,8 @@ export function ChatView(props: ChatViewProps) {
         const body = draft().trim();
         if (!props.session) {
             if (!body) return;
-            setEntries((current) => [
+            const current = entries();
+            commitEntries([
                 ...current,
                 {
                     kind: "message",
@@ -882,15 +1023,15 @@ export function ChatView(props: ChatViewProps) {
                       messageId: message.id,
                       emoji: resolvedEmoji,
                   });
-            setEntries((current) =>
-                current.map((entry) =>
+            commitEntries(
+                entries().map((entry) =>
                     entry.kind === "message" && entry.id === message.id
                         ? toThreadMessage(response.message, user())
                         : entry,
                 ),
             );
-            setThreadEntries((current) =>
-                current.map((entry) =>
+            commitThread(
+                threadEntries().map((entry) =>
                     entry.kind === "message" && entry.id === message.id
                         ? toThreadMessage(response.message, user())
                         : entry,
@@ -980,19 +1121,67 @@ export function ChatView(props: ChatViewProps) {
         }
     }
 
+    /* True while the open thread panel still targets `messageId` — a close or a
+       switch to another root (or another chat) must discard a slow/out-of-order
+       getThread rather than repopulate a panel that has moved on. */
+    const threadStillTargets = (messageId: string) =>
+        panelMode() === "thread" && threadRootId() === messageId;
+
     async function loadThread(messageId: string) {
         const model = state();
         if (!model) return;
+        const currentRequest = ++threadRequestNumber;
         startBusy();
         try {
             const history = await model.execute("getThread", { messageId, limit: 100 });
-            setThreadEntries(toEntries([history.root, ...history.messages], user()));
+            if (currentRequest !== threadRequestNumber || !threadStillTargets(messageId)) return;
+            commitThread(toEntries([history.root, ...history.messages], user()));
             setStatusHint(undefined);
         } catch (reason) {
-            setStatusHint(errorMessage(reason));
+            if (currentRequest === threadRequestNumber && threadStillTargets(messageId))
+                setStatusHint(errorMessage(reason));
         } finally {
             finishBusy();
         }
+    }
+
+    /*
+     * In-memory reconcile for an open thread when a chat's message store changes.
+     * The stream hot path must never refetch: an unrelated main-message partial
+     * does zero `getThread` requests and zero busy toggles. Only when the event
+     * actually touches the open root or one of its replies is the thread rebuilt
+     * from the current `messagesByChat` snapshot — merged over the already-loaded
+     * history and committed through the id-keyed thread store, so an updated reply
+     * reconciles its existing row in place. Returns whether it touched the panel.
+     */
+    function reconcileOpenThread(chatId: string, changedIds: readonly string[]): boolean {
+        const root = threadRootId();
+        const model = state();
+        if (!root || !model || panelMode() !== "thread") return false;
+        const stored = model.get().messagesByChat[chatId] ?? [];
+        const storedById = new Map(stored.map((item) => [item.message.id, item.message]));
+        const touchesThread = changedIds.some(
+            (id) => id === root || storedById.get(id)?.threadRootMessageId === root,
+        );
+        if (!touchesThread) return false;
+        /* Merge the changed messages over the loaded history so paged replies the
+           store never held are preserved. */
+        const merged = new Map<string, MessageSummary>();
+        for (const entry of threadEntries()) {
+            if (entry.kind === "message" && entry.serverMessage)
+                merged.set(entry.id, entry.serverMessage);
+        }
+        for (const id of changedIds) {
+            const message = storedById.get(id);
+            if (message && (id === root || message.threadRootMessageId === root))
+                merged.set(id, message);
+        }
+        const rootMessage = merged.get(root);
+        const replies = [...merged.values()]
+            .filter((message) => message.id !== root && message.threadRootMessageId === root)
+            .sort((left, right) => (sequenceAtLeast(left.sequence, right.sequence) ? 1 : -1));
+        commitThread(toEntries(rootMessage ? [rootMessage, ...replies] : replies, user()));
+        return true;
     }
 
     function openThread(message: LiveThreadMessage) {
@@ -1000,7 +1189,7 @@ export function ChatView(props: ChatViewProps) {
         setPanelMode("thread");
         setThreadDraft("");
         if (!props.session || !message.serverMessage) {
-            setThreadEntries([message]);
+            commitThread([message]);
             return;
         }
         void loadThread(message.id);
@@ -1012,7 +1201,8 @@ export function ChatView(props: ChatViewProps) {
         if (!body || !rootId) return;
         const model = state();
         if (!model) {
-            setThreadEntries((current) => [
+            const current = threadEntries();
+            commitThread([
                 ...current,
                 {
                     body,
@@ -1305,19 +1495,29 @@ export function ChatView(props: ChatViewProps) {
     onMount(() => {
         const model = state();
         if (!model || !props.session) return;
-        void refreshWorkspace();
+        /* Initial hydration goes through the same coalesced single-flight path as
+           subscription-driven hydration, so an early topology event cannot start a
+           second concurrent workspace refresh alongside the mount load. */
+        void hydrateWorkspace();
         stateCleanups.push(
-            model.subscribe("chats", () => void refreshWorkspace()),
+            /* An ordinary chat-summary tick (a streaming reply advancing pts) is
+               patched in memory; only a real topology/membership gap triggers a
+               coalesced full hydration. This keeps a stream tick from refetching
+               the workspace and remounting the chat every ~50ms. */
+            model.subscribe("chats", (event) => onChatsEvent(event)),
             model.subscribe("messages", (event) => {
+                /* Active-chat guard: a background chat's stream must never
+                   overwrite the conversation on screen. */
                 if (event.chatId !== activeConversationId()) return;
                 const messages = (model.get().messagesByChat[event.chatId] ?? [])
                     .map((item) => item.message)
                     .filter((message) => !message.threadRootMessageId);
-                setEntries(toEntries(messages, user(), activeChat()?.name));
+                commitEntries(toEntries(messages, user(), activeChat()?.name));
                 void autoReadOpenChat(event.chatId, messages);
                 prefetchImages(messages);
-                const root = threadRootId();
-                if (root) void loadThread(root);
+                /* Reconcile an open thread in memory only when this batch touches
+                   its root/replies — never refetch on an unrelated main partial. */
+                reconcileOpenThread(event.chatId, event.messageIds);
             }),
             model.subscribe("presence", () => {
                 const snapshots = Object.fromEntries(
@@ -1341,6 +1541,7 @@ export function ChatView(props: ChatViewProps) {
         );
     });
     onCleanup(() => {
+        disposed = true;
         workspaceRequestNumber += 1;
         requestNumber += 1;
         for (const cleanup of stateCleanups) cleanup();
@@ -1385,7 +1586,7 @@ export function ChatView(props: ChatViewProps) {
                             data-testid="thread-panel"
                             onClose={() => {
                                 setThreadRootId(undefined);
-                                setThreadEntries([]);
+                                commitThread([]);
                                 setPanelMode(undefined);
                             }}
                             subtitle={threadRoot()?.author}
@@ -1405,6 +1606,7 @@ export function ChatView(props: ChatViewProps) {
                                                             ? "sending"
                                                             : "sent"
                                                     }
+                                                    generationStatus={message().generationStatus}
                                                     grouped={groupedWithPrevious(
                                                         threadEntries(),
                                                         index(),
@@ -1541,7 +1743,22 @@ export function ChatView(props: ChatViewProps) {
                                 <Match when={asMessage(entry)}>
                                     {(message) => {
                                         const item = message();
-                                        const attachment = item.attachment;
+                                        /* Read the attachment reactively off the
+                                           reconciled row proxy: same-id updates
+                                           keep this DOM node, so a captured
+                                           snapshot would go stale. */
+                                        const runAttachment = () =>
+                                            item.attachment?.kind === "run"
+                                                ? item.attachment
+                                                : undefined;
+                                        const approvalAttachment = () =>
+                                            item.attachment?.kind === "approval"
+                                                ? item.attachment
+                                                : undefined;
+                                        const eventAttachment = () =>
+                                            item.attachment?.kind === "event"
+                                                ? item.attachment
+                                                : undefined;
                                         return (
                                             <Message
                                                 agent={item.agent}
@@ -1552,6 +1769,7 @@ export function ChatView(props: ChatViewProps) {
                                                         ? "sending"
                                                         : "sent"
                                                 }
+                                                generationStatus={item.generationStatus}
                                                 grouped={groupedWithPrevious(
                                                     conversationEntries(),
                                                     index(),
@@ -1587,62 +1805,75 @@ export function ChatView(props: ChatViewProps) {
                                                         />
                                                     )}
                                                 </For>
-                                                {attachment?.kind === "run" && (
-                                                    <AgentRunCard
-                                                        actions={attachment.actions}
-                                                        expanded={expandedRuns()[item.id] ?? false}
-                                                        onExpandedChange={(expanded) =>
-                                                            setExpandedRuns((current) => ({
-                                                                ...current,
-                                                                [item.id]: expanded,
-                                                            }))
-                                                        }
-                                                        run={attachment.run}
-                                                    >
-                                                        {attachment.diff && (
-                                                            <DiffSnippet
-                                                                file={attachment.diff.file}
-                                                                lines={attachment.diff.lines}
-                                                                stats={attachment.diff.stats}
-                                                            />
-                                                        )}
-                                                    </AgentRunCard>
-                                                )}
-                                                {attachment?.kind === "approval" && (
-                                                    <ApprovalCard
-                                                        expanded={
-                                                            expandedApprovals()[item.id] ?? false
-                                                        }
-                                                        onExpandedChange={(expanded) =>
-                                                            setExpandedApprovals((current) => ({
-                                                                ...current,
-                                                                [item.id]: expanded,
-                                                            }))
-                                                        }
-                                                        onResolutionChange={(resolution) =>
-                                                            setApprovalResolutions((current) => ({
-                                                                ...current,
-                                                                [item.id]: resolution,
-                                                            }))
-                                                        }
-                                                        request={attachment.request}
-                                                        resolution={
-                                                            approvalResolutions()[item.id] ??
-                                                            "pending"
-                                                        }
-                                                    />
-                                                )}
-                                                {attachment?.kind === "event" && (
-                                                    <EventCard
-                                                        badge={attachment.event.badge}
-                                                        from={attachment.event.from}
-                                                        icon={attachment.event.icon}
-                                                        meta={attachment.event.meta}
-                                                        time={attachment.event.time}
-                                                        title={attachment.event.title}
-                                                        to={attachment.event.to}
-                                                    />
-                                                )}
+                                                <Show when={runAttachment()}>
+                                                    {(run) => (
+                                                        <AgentRunCard
+                                                            actions={run().actions}
+                                                            expanded={
+                                                                expandedRuns()[item.id] ?? false
+                                                            }
+                                                            onExpandedChange={(expanded) =>
+                                                                setExpandedRuns((current) => ({
+                                                                    ...current,
+                                                                    [item.id]: expanded,
+                                                                }))
+                                                            }
+                                                            run={run().run}
+                                                        >
+                                                            <Show when={run().diff}>
+                                                                {(diff) => (
+                                                                    <DiffSnippet
+                                                                        file={diff().file}
+                                                                        lines={diff().lines}
+                                                                        stats={diff().stats}
+                                                                    />
+                                                                )}
+                                                            </Show>
+                                                        </AgentRunCard>
+                                                    )}
+                                                </Show>
+                                                <Show when={approvalAttachment()}>
+                                                    {(approval) => (
+                                                        <ApprovalCard
+                                                            expanded={
+                                                                expandedApprovals()[item.id] ??
+                                                                false
+                                                            }
+                                                            onExpandedChange={(expanded) =>
+                                                                setExpandedApprovals((current) => ({
+                                                                    ...current,
+                                                                    [item.id]: expanded,
+                                                                }))
+                                                            }
+                                                            onResolutionChange={(resolution) =>
+                                                                setApprovalResolutions(
+                                                                    (current) => ({
+                                                                        ...current,
+                                                                        [item.id]: resolution,
+                                                                    }),
+                                                                )
+                                                            }
+                                                            request={approval().request}
+                                                            resolution={
+                                                                approvalResolutions()[item.id] ??
+                                                                "pending"
+                                                            }
+                                                        />
+                                                    )}
+                                                </Show>
+                                                <Show when={eventAttachment()}>
+                                                    {(event) => (
+                                                        <EventCard
+                                                            badge={event().event.badge}
+                                                            from={event().event.from}
+                                                            icon={event().event.icon}
+                                                            meta={event().event.meta}
+                                                            time={event().event.time}
+                                                            title={event().event.title}
+                                                            to={event().event.to}
+                                                        />
+                                                    )}
+                                                </Show>
                                             </Message>
                                         );
                                     }}

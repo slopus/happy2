@@ -1,6 +1,7 @@
 import {
     children,
     createEffect,
+    createMemo,
     createSignal,
     For,
     onCleanup,
@@ -14,6 +15,7 @@ import { Badge, ReactionChip } from "./Badge";
 import { Button } from "./Button";
 import { EmojiPicker, type EmojiItem } from "./EmojiPicker";
 import { Icon } from "./Icon";
+import { renderMessageMarkdown, type MessageGenerationStatus } from "./MessageMarkdown";
 import { Menu, type MenuItem } from "./Menu";
 
 export type MessageSegment =
@@ -67,6 +69,10 @@ export type MessageProps = Omit<JSX.HTMLAttributes<HTMLDivElement>, "style"> & {
     compact?: boolean;
     /** Delivery styling that never inserts or removes layout. */
     deliveryState?: MessageDeliveryState;
+    /** Agent reply generation lifecycle for a string body. Separate from
+     * `deliveryState`: delivery is outgoing, generation is the incoming reply
+     * being produced. `streaming` shows a live caret; `failed` a minimal marker. */
+    generationStatus?: MessageGenerationStatus;
     /** Consecutive message from the same author. Preferred over `compact`. */
     grouped?: boolean;
     /** Compact time for the grouped gutter (e.g. "12:55") so a wide 12-hour
@@ -150,6 +156,7 @@ export function Message(props: MessageProps) {
         "class",
         "compact",
         "deliveryState",
+        "generationStatus",
         "grouped",
         "gutterTime",
         "imageUrl",
@@ -176,6 +183,14 @@ export function Message(props: MessageProps) {
     let root: HTMLDivElement | undefined;
     const segments = (): MessageSegment[] =>
         typeof local.body === "string" ? [{ kind: "text", text: local.body }] : local.body;
+    const isMarkdownBody = () => typeof local.body === "string";
+    /* A string body renders as Markdown; recompiles only when the streamed text
+       changes, so an in-place stream tick reuses the surrounding row and swaps
+       just the body nodes. Generation status drives the caret/marker below, not
+       the Markdown output. */
+    const markdownBody = createMemo(() =>
+        typeof local.body === "string" ? renderMessageMarkdown(local.body) : null,
+    );
     const hasAttachments = () => hasRenderableChild(attachments());
     const grouped = () => local.grouped || local.compact;
     const deliveryState = () => local.deliveryState ?? "sent";
@@ -261,11 +276,16 @@ export function Message(props: MessageProps) {
             data-actions-visible={local.actionsVisible ? "" : undefined}
             data-compact={grouped() ? "" : undefined}
             data-delivery-state={deliveryState()}
+            data-generation-status={local.generationStatus}
             data-grouped={grouped() ? "" : undefined}
             data-has-actions={hasActions() ? "" : undefined}
             data-has-body={local.body ? "" : undefined}
             data-happy2-ui="message"
-            aria-busy={deliveryState() === "sending" ? "true" : undefined}
+            aria-busy={
+                deliveryState() === "sending" || local.generationStatus === "streaming"
+                    ? "true"
+                    : undefined
+            }
             onKeyDown={(event) => {
                 if (event.key === "Escape") closePopovers();
             }}
@@ -308,9 +328,37 @@ export function Message(props: MessageProps) {
                     </div>
                 </Show>
                 <Show when={local.body}>
-                    <div class="happy2-message__body" data-happy2-ui="message-body">
-                        <For each={segments()}>{(segment) => renderSegment(segment)}</For>
-                    </div>
+                    <Show
+                        when={isMarkdownBody()}
+                        fallback={
+                            <div class="happy2-message__body" data-happy2-ui="message-body">
+                                <For each={segments()}>{(segment) => renderSegment(segment)}</For>
+                            </div>
+                        }
+                    >
+                        <div
+                            class="happy2-message__body happy2-message__body--markdown"
+                            data-markdown=""
+                            data-happy2-ui="message-body"
+                        >
+                            {markdownBody()}
+                            <Show when={local.generationStatus === "streaming"}>
+                                <span
+                                    aria-hidden="true"
+                                    class="happy2-message__caret"
+                                    data-happy2-ui="message-stream-caret"
+                                />
+                            </Show>
+                            <Show when={local.generationStatus === "failed"}>
+                                <span
+                                    aria-label="Generation failed"
+                                    class="happy2-message__gen-failed"
+                                    data-happy2-ui="message-generation-failed"
+                                    role="img"
+                                />
+                            </Show>
+                        </div>
+                    </Show>
                 </Show>
                 <Show when={local.images && local.images.length > 0}>
                     <div

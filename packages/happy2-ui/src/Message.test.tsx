@@ -813,6 +813,55 @@ it("centers painted ink optically in every Message text-in-a-box part", async ()
     expect(Math.abs(iconDy), "add icon optical y").toBeLessThanOrEqual(0.75);
 });
 
+it("renders only http/https/mailto Markdown targets as live hrefs", async () => {
+    const view = createRenderer();
+
+    /* A `data:image` src (permitted by the library sanitizer for `<img>`), a
+       `file:` link, and a bare `#fragment` link must all render inert — the
+       navigation allowlist admits only absolute http/https/mailto targets. */
+    view.render(
+        () =>
+            stage(
+                "nav",
+                <Message
+                    agent
+                    author="Codex"
+                    body={
+                        "![inline](data:image/svg+xml;base64,PHN2Zy8+)\n\n" +
+                        "[local file](file:///etc/passwd) and " +
+                        "[jump](#section) but [email](mailto:team@example.com) and " +
+                        "[site](https://example.com/x) work."
+                    }
+                    generationStatus="complete"
+                    initials="CX"
+                    time="11:20"
+                    tone="mint"
+                />,
+            ),
+        { width: 560, height: 140 },
+    );
+    await view.ready();
+
+    const navBody = view.$('[data-testid="nav"] [data-happy2-ui="message-body"]');
+    const linkByText = (text: string) =>
+        [...navBody.element.querySelectorAll<HTMLAnchorElement>("a")].find(
+            (anchor) => anchor.textContent?.trim() === text,
+        );
+
+    /* A `data:image/svg+xml` image renders as an inert labelled link — never an
+       implicit fetch and never a navigable data: href. */
+    const dataImage = view.$('[data-testid="nav"] [data-happy2-ui="message-md-image"]');
+    expect(dataImage.element.tagName).toBe("A");
+    expect(dataImage.element.getAttribute("href"), "data:image href is stripped").toBeNull();
+    expect(dataImage.element.getAttribute("data-md-src")).toBeNull();
+
+    /* file: and bare #fragment targets are inert; http(s)/mailto navigate. */
+    expect(linkByText("local file")?.getAttribute("href"), "file: href is stripped").toBeNull();
+    expect(linkByText("jump")?.getAttribute("href"), "#fragment href is stripped").toBeNull();
+    expect(linkByText("email")?.getAttribute("href")).toBe("mailto:team@example.com");
+    expect(linkByText("site")?.getAttribute("href")).toBe("https://example.com/x");
+});
+
 it("anchors MessageList to the bottom and lays out sparse histories", async () => {
     const view = createRenderer();
 
@@ -983,6 +1032,13 @@ it("follows the newest content in MessageList unless the reader scrolled up", as
     expect(
         view.$('[data-testid="feed"] [data-happy2-ui="message-list-spacer"]').bounds().height,
     ).toBe(0);
+    /* The Slack-style scrollbar chrome (`.happy2-message-list` scrollbar-width /
+       scrollbar-color and the ::-webkit-scrollbar thumb) is intentionally not
+       asserted here: native scrollbar rendering is not measurable cross-engine
+       — WebKit omits the standard properties, Chromium hides them behind
+       pseudo-elements unreachable from computed style, and headless Firefox
+       normalizes the value. It is a token-only, progressive-enhancement layer
+       verified visually against the running app. */
 
     /* On mount the list shows the newest message: scrolled to the bottom,
        with the last message resting on the 12px bottom padding. */
@@ -1168,4 +1224,252 @@ it("reveals the grouped gutter time on hover, tightens grouped rows, and lays ou
             .$('[data-testid="photo-only"] [data-happy2-ui="message-media-image"]')
             .computedStyle("object-fit"),
     ).toBe("cover");
+});
+
+it("renders string bodies as safe streaming Markdown", async () => {
+    const view = createRenderer();
+
+    /* Complete: full semantic Markdown — heading, list, emphasis, inline and
+       fenced code, a safe link, and a deliberately unsafe javascript: link. */
+    view.render(
+        () =>
+            stage(
+                "md",
+                <Message
+                    agent
+                    author="Codex"
+                    body={
+                        "## Cold-start fix\n\n" +
+                        "Moved registration behind the **handshake** promise with `handshake.settled`.\n\n" +
+                        "- Registers after settle\n" +
+                        "- Retries on cold start\n\n" +
+                        "```ts\nconst token = requestPushToken();\n```\n\n" +
+                        "Safe [launch checklist](https://example.com/launch) and " +
+                        "unsafe [do not run](javascript:alert(1))."
+                    }
+                    generationStatus="complete"
+                    initials="CX"
+                    time="10:58"
+                    tone="mint"
+                />,
+            ),
+        { width: 560, height: 320 },
+    );
+
+    /* Untrusted raw HTML and a Markdown image: neither may create a live <img>
+       or <script>, and the image must not trigger an implicit network load. */
+    view.render(
+        () =>
+            stage(
+                "md-unsafe",
+                <Message
+                    agent
+                    author="Codex"
+                    body={
+                        'Injected <img src=x onerror="window.__pwned=1"> and ' +
+                        "<script>window.__pwned=1</script>.\n\n" +
+                        "![diagram](https://cdn.example.com/diagram.png)"
+                    }
+                    generationStatus="complete"
+                    initials="CX"
+                    time="10:59"
+                    tone="mint"
+                />,
+            ),
+        { width: 560, height: 160 },
+    );
+
+    /* Streaming: an incomplete reply (open heading + unterminated fenced code)
+       renders gracefully as it arrives, a caret marks the live cursor, and the
+       content stays at full opacity. */
+    view.render(
+        () =>
+            stage(
+                "md-stream",
+                <Message
+                    agent
+                    author="Codex"
+                    body={"## Result\n\n```ts\nconst answer = 42"}
+                    generationStatus="streaming"
+                    initials="CX"
+                    time="11:00"
+                    tone="mint"
+                />,
+            ),
+        { width: 560, height: 140 },
+    );
+
+    /* Complete but malformed: an unclosed `**live` now stays visible verbatim
+       — final Markdown is never silently hidden. */
+    view.render(
+        () =>
+            stage(
+                "md-malformed",
+                <Message
+                    agent
+                    author="Codex"
+                    body={"Tracking totals **live"}
+                    generationStatus="complete"
+                    initials="CX"
+                    time="11:00"
+                    tone="mint"
+                />,
+            ),
+        { width: 560, height: 90 },
+    );
+
+    /* Failed: a minimal danger marker; the partial body remains fully visible. */
+    view.render(
+        () =>
+            stage(
+                "md-failed",
+                <Message
+                    agent
+                    author="Codex"
+                    body={"Partial answer before the run failed."}
+                    generationStatus="failed"
+                    initials="CX"
+                    time="11:01"
+                    tone="mint"
+                />,
+            ),
+        { width: 560, height: 90 },
+    );
+    await view.ready();
+
+    /* ---- Semantic Markdown rendering ----------------------------------- */
+    const mdBody = view.$('[data-testid="md"] [data-happy2-ui="message-body"]');
+    expect(mdBody.element.getAttribute("data-markdown")).toBe("");
+    expect(mdBody.computedStyles(["color", "font-size", "line-height"])).toEqual({
+        color: "rgb(237, 234, 242)",
+        "font-size": "15px",
+        "line-height": "22px",
+    });
+    const mdRoot = view.$('[data-testid="md"] [data-happy2-ui="message"]');
+    expect(mdRoot.element.getAttribute("data-generation-status")).toBe("complete");
+    expect(mdRoot.element.getAttribute("aria-busy")).toBeNull();
+
+    const heading = mdBody.element.querySelector("h2");
+    expect(heading?.textContent).toBe("Cold-start fix");
+    const listItems = mdBody.element.querySelectorAll("ul > li");
+    expect(listItems.length).toBe(2);
+    expect(mdBody.element.querySelector("strong")?.textContent).toBe("handshake");
+    const inlineCode = mdBody.element.querySelector("code:not(pre code)");
+    expect(inlineCode?.textContent).toBe("handshake.settled");
+    const preCode = mdBody.element.querySelector("pre code");
+    expect(preCode?.textContent).toContain("const token = requestPushToken();");
+    expect(preCode?.textContent).not.toContain("```");
+
+    /* ---- Multi-block stacking: 8px gap between adjacent blocks ---------- */
+    /* `wrapper: null` makes every block a direct body child, so the body's
+       `> * + *` 8px rule is truthful. Adjacent blocks must sit exactly 8px
+       apart (no leftover UA margin, no wrapper masking the rule). */
+    const mdBlocks = [...mdBody.element.children].filter(
+        (node): node is HTMLElement =>
+            node instanceof HTMLElement &&
+            !node.classList.contains("happy2-message__caret") &&
+            !node.classList.contains("happy2-message__gen-failed"),
+    );
+    expect(mdBlocks.length, "markdown compiled to direct block children").toBeGreaterThanOrEqual(4);
+    for (let index = 1; index < mdBlocks.length; index += 1) {
+        const previous = mdBlocks[index - 1]!.getBoundingClientRect();
+        const current = mdBlocks[index]!.getBoundingClientRect();
+        expect(
+            Math.abs(current.top - previous.bottom - 8),
+            `block ${index} sits 8px below block ${index - 1}`,
+        ).toBeLessThanOrEqual(0.75);
+    }
+
+    /* ---- Safe links ---------------------------------------------------- */
+    const links = [
+        ...mdBody.element.querySelectorAll<HTMLAnchorElement>('[data-happy2-ui="message-md-link"]'),
+    ];
+    const safe = links.find((link) => link.textContent === "launch checklist");
+    expect(safe).toBeDefined();
+    expect(safe!.tagName).toBe("A");
+    expect(safe!.getAttribute("href")).toBe("https://example.com/launch");
+    expect(safe!.getAttribute("target")).toBe("_blank");
+    expect(safe!.getAttribute("rel")).toContain("noopener");
+    expect(safe!.getAttribute("rel")).toContain("noreferrer");
+    /* A javascript: URL is stripped — the anchor renders but cannot navigate. */
+    const unsafe = links.find((link) => link.textContent === "do not run");
+    expect(unsafe).toBeDefined();
+    expect(unsafe!.getAttribute("href")).toBeNull();
+
+    /* ---- Raw HTML + image safety --------------------------------------- */
+    const unsafeBody = view.$('[data-testid="md-unsafe"] [data-happy2-ui="message-body"]');
+    expect(unsafeBody.element.querySelector("img"), "no live <img> from raw HTML").toBeNull();
+    expect(unsafeBody.element.querySelector("script"), "no <script> from raw HTML").toBeNull();
+    expect(unsafeBody.element.textContent).toContain("onerror");
+    expect(
+        (window as unknown as { __pwned?: number }).__pwned,
+        "no injected handler executed",
+    ).toBeUndefined();
+    /* A Markdown image is a safe labelled link, never an implicit <img> fetch. */
+    const mdImage = view.$('[data-testid="md-unsafe"] [data-happy2-ui="message-md-image"]');
+    expect(mdImage.element.tagName).toBe("A");
+    expect(mdImage.element.getAttribute("href")).toBe("https://cdn.example.com/diagram.png");
+    expect(mdImage.element.getAttribute("data-md-src")).toBe("https://cdn.example.com/diagram.png");
+    expect(mdImage.element.textContent).toBe("diagram");
+
+    /* ---- Streaming affordance + incomplete syntax ---------------------- */
+    const streamRoot = view.$('[data-testid="md-stream"] [data-happy2-ui="message"]');
+    expect(streamRoot.element.getAttribute("data-generation-status")).toBe("streaming");
+    expect(streamRoot.element.getAttribute("aria-busy")).toBe("true");
+    const streamBody = view.$('[data-testid="md-stream"] [data-happy2-ui="message-body"]');
+    /* Incomplete markdown streams gracefully: the heading resolves and the
+       unterminated fence still renders its partial code as a visible block. */
+    expect(streamBody.element.querySelector("h2")?.textContent).toBe("Result");
+    const streamCode = streamBody.element.querySelector("pre code");
+    expect(streamCode?.textContent).toContain("const answer = 42");
+    const caret = view.$('[data-testid="md-stream"] [data-happy2-ui="message-stream-caret"]');
+    expect(caret.bounds().width).toBe(8);
+    expect(caret.bounds().height).toBe(15);
+    expect(caret.computedStyle("background-color")).toBe("rgb(139, 124, 247)");
+    /* Streamed content is never dimmed — that treatment is reserved for delivery. */
+    const streamContent = view.$('[data-testid="md-stream"] [data-happy2-ui="message-content"]');
+    expect(streamContent.computedStyle("opacity")).toBe("1");
+
+    /* The caret is excluded from the 8px block stack, so it lands directly after
+       the trailing content (not dropped a block-gap below it) and stays visible
+       inside the body row rather than clipped past its bottom. */
+    const streamBlocks = [...streamBody.element.children].filter(
+        (node): node is HTMLElement =>
+            node instanceof HTMLElement && !node.classList.contains("happy2-message__caret"),
+    );
+    const lastStreamBlock = streamBlocks[streamBlocks.length - 1]!.getBoundingClientRect();
+    const caretRect = caret.element.getBoundingClientRect();
+    const streamBodyRect = streamBody.element.getBoundingClientRect();
+    expect(
+        caretRect.top - lastStreamBlock.bottom,
+        "caret follows content without a block gap",
+    ).toBeLessThan(8);
+    expect(caretRect.bottom, "caret stays within the body row").toBeLessThanOrEqual(
+        streamBodyRect.bottom + 0.75,
+    );
+
+    /* ---- Final malformed Markdown stays visible ------------------------ */
+    const malformedRoot = view.$('[data-testid="md-malformed"] [data-happy2-ui="message"]');
+    expect(malformedRoot.element.getAttribute("aria-busy")).toBeNull();
+    const malformedBody = view.$('[data-testid="md-malformed"] [data-happy2-ui="message-body"]');
+    expect(malformedBody.element.textContent).toContain("**live");
+    expect(
+        view.container.querySelector(
+            '[data-testid="md-malformed"] [data-happy2-ui="message-stream-caret"]',
+        ),
+        "no caret once generation settles",
+    ).toBeNull();
+
+    /* ---- Failed marker ------------------------------------------------- */
+    const failedRoot = view.$('[data-testid="md-failed"] [data-happy2-ui="message"]');
+    expect(failedRoot.element.getAttribute("data-generation-status")).toBe("failed");
+    expect(failedRoot.element.getAttribute("aria-busy")).toBeNull();
+    const failed = view.$('[data-testid="md-failed"] [data-happy2-ui="message-generation-failed"]');
+    expect(failed.element.getAttribute("aria-label")).toBe("Generation failed");
+    expect(failed.computedStyle("background-color")).toBe("rgb(248, 113, 113)");
+    /* The partial reply is still readable at full opacity. */
+    const failedContent = view.$('[data-testid="md-failed"] [data-happy2-ui="message-content"]');
+    expect(failedContent.computedStyle("opacity")).toBe("1");
+
+    await view.screenshot("Message.markdown.test");
 });

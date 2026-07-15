@@ -26,6 +26,8 @@ const IMAGE_BUILD_LOG_FLUSH_INTERVAL_MS = 500;
 const IMAGE_BUILD_LOG_FLUSH_CHARACTERS = 32_768;
 const MAX_BUILD_LOG_LINE_CHARACTERS = 1_000;
 const MAX_CONCURRENT_IMAGE_BUILDS = 1;
+const AGENT_REPLY_FLUSH_INTERVAL_MS = 50;
+const AGENT_REPLY_FLUSH_CHARACTERS = 1_024;
 const AGENT_CONTAINER_SECURITY = {
     init: true,
     readonlyRootFilesystem: true,
@@ -40,6 +42,23 @@ const AGENT_CONTAINER_SECURITY = {
 
 type AgentTurnWork = NonNullable<Awaited<ReturnType<CollaborationRepository["takeNextAgentTurn"]>>>;
 
+interface ActiveAgentTurnStream {
+    controller: AbortController;
+    output: AgentReplyStreamOutput;
+    task: Promise<void>;
+}
+
+interface AgentTurnSubmission {
+    inspection: RigTurnInspection;
+    lastSessionEventId?: string;
+    runId?: string;
+}
+
+interface ActiveTypingRenewal {
+    timer: ReturnType<typeof setInterval>;
+    userMessageId: string;
+}
+
 export class AgentService {
     private readonly workerId = createId();
     private readonly bindingCreations = new Map<
@@ -50,7 +69,8 @@ export class AgentService {
     private readonly pendingImageBuilds = new Set<string>();
     private activeImageBuilds = 0;
     private readonly drains = new Map<string, Promise<void>>();
-    private readonly typingRenewals = new Map<string, ReturnType<typeof setInterval>>();
+    private readonly turnStreams = new Map<string, ActiveAgentTurnStream>();
+    private readonly typingRenewals = new Map<string, ActiveTypingRenewal>();
     private readonly shutdown = new AbortController();
     private queueTask?: Promise<void>;
     private stopping = false;
@@ -257,13 +277,18 @@ export class AgentService {
         this.stopping = true;
         this.shutdown.abort();
         this.pendingImageBuilds.clear();
-        for (const timer of this.typingRenewals.values()) clearInterval(timer);
+        for (const stream of this.turnStreams.values()) {
+            stream.controller.abort();
+            stream.output.close();
+        }
+        for (const renewal of this.typingRenewals.values()) clearInterval(renewal.timer);
         this.typingRenewals.clear();
         await Promise.race([
             Promise.allSettled([
                 ...this.bindingCreations.values(),
                 ...this.drains.values(),
                 ...this.imageBuilds.values(),
+                ...Array.from(this.turnStreams.values(), (stream) => stream.task),
                 ...(this.queueTask ? [this.queueTask] : []),
             ]),
             shutdownDeadline(),
@@ -465,13 +490,14 @@ export class AgentService {
                     turn.text,
                     this.shutdown.signal,
                 ));
-            await this.repository.checkpointAgentTurn({
+            const checkpointed = await this.repository.checkpointAgentTurn({
                 agentUserId: turn.agentUserId,
                 baselineMessageCount,
                 runId,
                 userMessageId: turn.userMessageId,
                 workerId: turn.workerId,
             });
+            if (!checkpointed) return;
             turn = { ...turn, baselineMessageCount, runId };
         }
         if (event.type === "run_error") {
@@ -523,7 +549,8 @@ export class AgentService {
             if (!input) return;
             try {
                 await this.startTyping(input);
-                const inspection = await this.ensureTurnSubmitted(input);
+                const submission = await this.ensureTurnSubmitted(input);
+                const inspection = submission.inspection;
                 if (inspection.kind === "completed") {
                     await this.completeTurn(input, inspection.text);
                     continue;
@@ -532,6 +559,7 @@ export class AgentService {
                     await this.failTurn(input, inspection.error);
                     continue;
                 }
+                this.startTurnStream(input, submission);
                 return;
             } catch (error) {
                 if (this.shutdown.signal.aborted) return;
@@ -548,25 +576,38 @@ export class AgentService {
         }
     }
 
-    private async ensureTurnSubmitted(input: AgentTurnWork): Promise<RigTurnInspection> {
+    private async ensureTurnSubmitted(input: AgentTurnWork): Promise<AgentTurnSubmission> {
         let baselineMessageCount = input.baselineMessageCount;
+        let lastSessionEventId = input.lastSessionEventId;
+        let runId = input.runId;
         if (baselineMessageCount === undefined) {
-            baselineMessageCount = await this.retryRig(() =>
-                input.runId
-                    ? this.daemon.submittedTurnBaseline(
-                          input.sessionId,
-                          input.text,
-                          this.shutdown.signal,
-                      )
-                    : this.daemon.sessionMessageCount(input.sessionId, this.shutdown.signal),
-            );
-            await this.repository.checkpointAgentTurn({
+            if (runId) {
+                baselineMessageCount = await this.retryRig(() =>
+                    this.daemon.submittedTurnBaseline(
+                        input.sessionId,
+                        input.text,
+                        this.shutdown.signal,
+                    ),
+                );
+            } else {
+                const checkpoint = await this.retryRig(() =>
+                    this.daemon.sessionCheckpoint(input.sessionId, this.shutdown.signal),
+                );
+                baselineMessageCount = checkpoint.messageCount;
+                lastSessionEventId = checkpoint.lastEventId;
+            }
+            const checkpointed = await this.repository.checkpointAgentTurn({
                 agentUserId: input.agentUserId,
                 baselineMessageCount,
-                runId: input.runId,
+                lastSessionEventId,
+                runId,
                 userMessageId: input.userMessageId,
                 workerId: input.workerId,
             });
+            if (!checkpointed)
+                throw new AgentTurnStreamStopped(
+                    `Agent turn ${input.userMessageId} lease was lost before submission.`,
+                );
         }
 
         const existing = await this.retryRig(() =>
@@ -577,23 +618,21 @@ export class AgentService {
                 this.shutdown.signal,
             ),
         );
-        if (input.runId || existing.kind !== "not_submitted") return existing;
+        if (runId || existing.kind !== "not_submitted")
+            return {
+                inspection: existing,
+                ...(lastSessionEventId === undefined ? {} : { lastSessionEventId }),
+                ...(runId === undefined ? {} : { runId }),
+            };
 
         for (;;) {
+            let submitted: { eventId: string; runId: string };
             try {
-                const submitted = await this.daemon.submitTurn(
+                submitted = await this.daemon.submitTurn(
                     input.sessionId,
                     input.text,
                     this.shutdown.signal,
                 );
-                await this.repository.checkpointAgentTurn({
-                    agentUserId: input.agentUserId,
-                    baselineMessageCount,
-                    runId: submitted.runId,
-                    userMessageId: input.userMessageId,
-                    workerId: input.workerId,
-                });
-                return { kind: "running" };
             } catch (error) {
                 if (this.shutdown.signal.aborted) throw error;
                 const recovered = await this.retryRig(() =>
@@ -604,10 +643,188 @@ export class AgentService {
                         this.shutdown.signal,
                     ),
                 );
-                if (recovered.kind !== "not_submitted") return recovered;
+                if (recovered.kind !== "not_submitted")
+                    return {
+                        inspection: recovered,
+                        ...(lastSessionEventId === undefined ? {} : { lastSessionEventId }),
+                        ...(runId === undefined ? {} : { runId }),
+                    };
                 if (!isRetryableRigError(error)) throw error;
                 await delay(EVENT_RETRY_INTERVAL_MS, this.shutdown.signal);
+                continue;
             }
+            runId = submitted.runId;
+            lastSessionEventId = submitted.eventId;
+            const checkpointed = await this.repository.checkpointAgentTurn({
+                agentUserId: input.agentUserId,
+                baselineMessageCount,
+                lastSessionEventId,
+                runId,
+                userMessageId: input.userMessageId,
+                workerId: input.workerId,
+            });
+            if (!checkpointed)
+                throw new AgentTurnStreamStopped(
+                    `Agent turn ${input.userMessageId} lease was lost after submission.`,
+                );
+            return {
+                inspection: { kind: "running" },
+                lastSessionEventId,
+                runId,
+            };
+        }
+    }
+
+    private startTurnStream(input: AgentTurnWork, submission: AgentTurnSubmission): void {
+        if (this.stopping || this.turnStreams.has(input.userMessageId)) return;
+        const controller = new AbortController();
+        let streamFailure: unknown;
+        let streamFailureReported = false;
+        const rememberStreamFailure = (error: unknown) => {
+            if (error instanceof AgentTurnStreamStopped) return;
+            streamFailure ??= error;
+            if (!streamFailureReported && !this.shutdown.signal.aborted) {
+                streamFailureReported = true;
+                this.onError(error);
+            }
+        };
+        const output = new AgentReplyStreamOutput(
+            submission.lastSessionEventId,
+            async (update) => {
+                const result = await this.repository.streamAgentTurnReply({
+                    agentUserId: input.agentUserId,
+                    actorUserId: input.actorUserId,
+                    eventId: update.eventId,
+                    expectedEventId: update.expectedEventId,
+                    sessionId: input.sessionId,
+                    streamCommittedText: update.streamCommittedText,
+                    text: update.text,
+                    userMessageId: input.userMessageId,
+                    workerId: input.workerId,
+                });
+                if (!result.applied)
+                    throw new AgentTurnStreamStopped(
+                        `Agent turn ${input.userMessageId} stream lease or cursor was lost.`,
+                    );
+                if (result.hint) await this.publishAgentReplyHint(input.chatId, result.hint);
+            },
+            (error) => {
+                controller.abort();
+                rememberStreamFailure(error);
+            },
+        );
+        let task!: Promise<void>;
+        task = this.consumeTurnStream(input, submission, output, controller.signal)
+            .catch((error) => {
+                if (
+                    !(error instanceof AgentTurnStreamStopped) &&
+                    !controller.signal.aborted &&
+                    !this.shutdown.signal.aborted
+                )
+                    rememberStreamFailure(error);
+            })
+            .finally(async () => {
+                await output.finish().catch(rememberStreamFailure);
+                output.close();
+                if (this.turnStreams.get(input.userMessageId)?.task === task)
+                    this.turnStreams.delete(input.userMessageId);
+                if (streamFailure !== undefined && !this.shutdown.signal.aborted) {
+                    try {
+                        await this.failTurn(input, agentTurnStreamError(streamFailure));
+                    } catch (error) {
+                        this.clearTypingRenewal(input.chatId, input.userMessageId);
+                        this.onError(error);
+                    }
+                }
+            });
+        this.turnStreams.set(input.userMessageId, { controller, output, task });
+    }
+
+    private async consumeTurnStream(
+        input: AgentTurnWork,
+        submission: AgentTurnSubmission,
+        output: AgentReplyStreamOutput,
+        signal: AbortSignal,
+    ): Promise<void> {
+        let committedText = input.streamCommittedText;
+        let partialText = "";
+        let runId = submission.runId;
+        let after = submission.lastSessionEventId;
+        while (!signal.aborted && !this.shutdown.signal.aborted) {
+            try {
+                await this.daemon.watchSessionEvents(
+                    input.sessionId,
+                    after,
+                    async (event) => {
+                        if (signal.aborted) return;
+                        let shouldPersist = false;
+                        if (!runId && event.type === "message_submitted") {
+                            const submittedText = messageText(event.data.message);
+                            if (event.data.runId && submittedText === input.text) {
+                                runId = event.data.runId;
+                                await this.repository.attachAgentRun({
+                                    runId,
+                                    sessionId: input.sessionId,
+                                    text: input.text,
+                                });
+                                shouldPersist = true;
+                            }
+                        }
+                        if (runId && event.data.runId === runId) {
+                            if (event.type === "agent_event") {
+                                const nextPartial = agentLoopText(event);
+                                if (nextPartial !== undefined) {
+                                    partialText = nextPartial;
+                                    shouldPersist = true;
+                                }
+                            } else if (event.type === "agent_message") {
+                                const completed = messageText(event.data.message);
+                                if (completed) {
+                                    committedText = appendAgentText(committedText, completed);
+                                    partialText = "";
+                                    shouldPersist = true;
+                                }
+                            }
+                        }
+                        if (shouldPersist)
+                            output.add({
+                                eventId: event.id,
+                                streamCommittedText: committedText,
+                                text: appendAgentText(committedText, partialText),
+                            });
+                    },
+                    signal,
+                );
+                after = output.lastEventId;
+            } catch (error) {
+                if (signal.aborted || this.shutdown.signal.aborted) return;
+                await output.finish();
+                after = output.lastEventId;
+                if (!isRetryableRigError(error)) throw error;
+                await delay(EVENT_RETRY_INTERVAL_MS, signal);
+            }
+        }
+    }
+
+    private async stopTurnStream(input: AgentTurnWork): Promise<void> {
+        const stream = this.turnStreams.get(input.userMessageId);
+        if (!stream) return;
+        stream.controller.abort();
+        await stream.task;
+    }
+
+    private async publishAgentReplyHint(
+        chatId: string,
+        hint: { areas: string[]; chats: Array<{ chatId: string; pts: string }>; sequence: string },
+    ): Promise<void> {
+        const event = { type: "sync" as const, ...hint };
+        try {
+            await Promise.all([
+                this.pubsub.publish(realtimeTopics.server, event),
+                this.pubsub.publish(realtimeTopics.chat(chatId), event),
+            ]);
+        } catch (error) {
+            this.onError(error);
         }
     }
 
@@ -623,43 +840,39 @@ export class AgentService {
     }
 
     private async completeTurn(input: AgentTurnWork, text: string): Promise<void> {
+        await this.stopTurnStream(input);
         const result = await this.repository.completeAgentTurn({
             agentUserId: input.agentUserId,
             actorUserId: input.actorUserId,
             sessionId: input.sessionId,
             userMessageId: input.userMessageId,
             text,
+            workerId: input.workerId,
         });
-        const event = { type: "sync" as const, ...result.hint };
-        try {
-            await Promise.all([
-                this.pubsub.publish(realtimeTopics.server, event),
-                this.pubsub.publish(realtimeTopics.chat(input.chatId), event),
-            ]);
-        } catch (error) {
-            this.onError(error);
+        if (!result) {
+            this.clearTypingRenewal(input.chatId, input.userMessageId);
+            return;
         }
+        await this.publishAgentReplyHint(input.chatId, result.hint);
         await this.stopTyping(input);
         this.startDrain(input.chatId);
     }
 
     private async failTurn(input: AgentTurnWork, error: string): Promise<void> {
+        await this.stopTurnStream(input);
         const result = await this.repository.failAgentTurn({
             agentUserId: input.agentUserId,
             actorUserId: input.actorUserId,
             error,
             sessionId: input.sessionId,
             userMessageId: input.userMessageId,
+            workerId: input.workerId,
         });
-        const event = { type: "sync" as const, ...result.hint };
-        try {
-            await Promise.all([
-                this.pubsub.publish(realtimeTopics.server, event),
-                this.pubsub.publish(realtimeTopics.chat(input.chatId), event),
-            ]);
-        } catch (publishError) {
-            this.onError(publishError);
+        if (!result) {
+            this.clearTypingRenewal(input.chatId, input.userMessageId);
+            return;
         }
+        await this.publishAgentReplyHint(input.chatId, result.hint);
         await this.stopTyping(input);
         this.startDrain(input.chatId);
     }
@@ -671,29 +884,44 @@ export class AgentService {
         } catch (error) {
             this.onError(error);
         }
+        let renewal!: ActiveTypingRenewal;
         const timer = setInterval(() => {
-            void Promise.all([
-                this.repository.renewAgentTurnLease({
+            void this.repository
+                .renewAgentTurnLease({
                     agentUserId: input.agentUserId,
                     userMessageId: input.userMessageId,
                     workerId: input.workerId,
-                }),
-                this.publishTyping(input, true),
-            ]).catch(this.onError);
+                })
+                .then(async (renewed) => {
+                    if (this.typingRenewals.get(input.chatId) !== renewal) return;
+                    if (!renewed) {
+                        this.clearTypingRenewal(input.chatId, input.userMessageId);
+                        this.turnStreams.get(input.userMessageId)?.controller.abort();
+                        return;
+                    }
+                    await this.publishTyping(input, true);
+                })
+                .catch(this.onError);
         }, TYPING_RENEW_INTERVAL_MS);
         timer.unref();
-        this.typingRenewals.set(input.chatId, timer);
+        renewal = { timer, userMessageId: input.userMessageId };
+        this.typingRenewals.set(input.chatId, renewal);
     }
 
     private async stopTyping(input: AgentTurnWork): Promise<void> {
-        const timer = this.typingRenewals.get(input.chatId);
-        if (timer) clearInterval(timer);
-        this.typingRenewals.delete(input.chatId);
+        this.clearTypingRenewal(input.chatId, input.userMessageId);
         try {
             await this.publishTyping(input, false);
         } catch (error) {
             this.onError(error);
         }
+    }
+
+    private clearTypingRenewal(chatId: string, userMessageId?: string): void {
+        const renewal = this.typingRenewals.get(chatId);
+        if (userMessageId && renewal?.userMessageId !== userMessageId) return;
+        if (renewal) clearInterval(renewal.timer);
+        this.typingRenewals.delete(chatId);
     }
 
     private publishTyping(input: AgentTurnWork, active: boolean): Promise<void> {
@@ -706,6 +934,110 @@ export class AgentService {
             occurredAt,
             ...(active ? { expiresAt: occurredAt + TYPING_TTL_MS } : {}),
         });
+    }
+}
+
+class AgentTurnStreamStopped extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "AgentTurnStreamStopped";
+    }
+}
+
+class AgentReplyStreamOutput {
+    private activeFlush?: Promise<void>;
+    private failure?: unknown;
+    private flushTimer?: ReturnType<typeof setTimeout>;
+    private pending?: {
+        eventId: string;
+        streamCommittedText: string;
+        text: string;
+    };
+    private persistedTextLength = 0;
+
+    constructor(
+        private persistedEventId: string | undefined,
+        private readonly persist: (update: {
+            eventId: string;
+            expectedEventId?: string;
+            streamCommittedText: string;
+            text: string;
+        }) => Promise<void>,
+        private readonly onError: (error: unknown) => void,
+    ) {}
+
+    get lastEventId(): string | undefined {
+        return this.persistedEventId;
+    }
+
+    add(update: { eventId: string; streamCommittedText: string; text: string }): void {
+        if (this.failure) return;
+        this.pending = update;
+        if (
+            Math.abs(update.text.length - this.persistedTextLength) >= AGENT_REPLY_FLUSH_CHARACTERS
+        ) {
+            this.flushInBackground();
+            return;
+        }
+        if (!this.flushTimer) {
+            this.flushTimer = setTimeout(() => {
+                this.flushTimer = undefined;
+                this.flushInBackground();
+            }, AGENT_REPLY_FLUSH_INTERVAL_MS);
+            this.flushTimer.unref();
+        }
+    }
+
+    async finish(): Promise<void> {
+        if (this.flushTimer) clearTimeout(this.flushTimer);
+        this.flushTimer = undefined;
+        for (;;) {
+            if (this.failure) throw this.failure;
+            if (this.activeFlush) {
+                await this.activeFlush;
+                continue;
+            }
+            if (!this.pending) return;
+            await this.flushOnce();
+        }
+    }
+
+    close(): void {
+        if (this.flushTimer) clearTimeout(this.flushTimer);
+        this.flushTimer = undefined;
+    }
+
+    private flushInBackground(): void {
+        void this.flushAvailable().catch(this.onError);
+    }
+
+    private async flushAvailable(): Promise<void> {
+        if (this.activeFlush) await this.activeFlush;
+        if (this.pending && !this.failure) await this.flushOnce();
+    }
+
+    private flushOnce(): Promise<void> {
+        if (this.activeFlush) return this.activeFlush;
+        const update = this.pending;
+        if (!update) return Promise.resolve();
+        this.pending = undefined;
+        const expectedEventId = this.persistedEventId;
+        const task = this.persist({
+            ...update,
+            ...(expectedEventId === undefined ? {} : { expectedEventId }),
+        })
+            .then(() => {
+                this.persistedEventId = update.eventId;
+                this.persistedTextLength = update.text.length;
+            })
+            .catch((error) => {
+                this.failure = error;
+                throw error;
+            });
+        this.activeFlush = task.finally(() => {
+            this.activeFlush = undefined;
+        });
+        return this.activeFlush;
     }
 }
 
@@ -846,6 +1178,22 @@ function messageText(message: RigEvent["data"]["message"]): string | undefined {
         .join("");
 }
 
+function agentLoopText(event: RigEvent): string | undefined {
+    const loopEvent = event.data.event;
+    const message = loopEvent?.partial ?? loopEvent?.message ?? loopEvent?.error;
+    if (!message?.content) return undefined;
+    const textBlocks = message.content.filter(
+        (block) => block.type === "text" && block.text !== undefined,
+    );
+    if (textBlocks.length === 0) return undefined;
+    return textBlocks.map((block) => block.text ?? "").join("");
+}
+
+function appendAgentText(committedText: string, nextText: string): string {
+    if (!nextText) return committedText;
+    return committedText ? `${committedText}\n\n${nextText}` : nextText;
+}
+
 function sqliteTimestamp(value: string): number {
     const normalized = value.includes("T") ? value : value.replace(" ", "T");
     return Date.parse(/[zZ]|[+-]\d\d:\d\d$/u.test(normalized) ? normalized : `${normalized}Z`);
@@ -876,6 +1224,11 @@ function sandboxDirectories(root: string, agentUserId: string, privateUserId: st
 function agentImageBuildError(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
     return message.slice(0, 16_000) || "Agent image build failed";
+}
+
+function agentTurnStreamError(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.slice(0, 16_000) || "Agent reply stream failed";
 }
 
 function shutdownDeadline(): Promise<void> {

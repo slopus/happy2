@@ -387,6 +387,8 @@ export const agentTurns = sqliteTable(
             .references(() => agentRigBindings.sessionId, { onDelete: "cascade" }),
         runId: text("run_id"),
         baselineMessageCount: integer("baseline_message_count"),
+        lastSessionEventId: text("last_session_event_id"),
+        streamCommittedText: text("stream_committed_text").notNull().default(""),
         status: text("status").notNull().default("pending"),
         assistantMessageId: text("assistant_message_id").references(() => messages.id, {
             onDelete: "set null",

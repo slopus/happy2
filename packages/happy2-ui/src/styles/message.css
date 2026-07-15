@@ -181,6 +181,163 @@
     text-decoration: underline;
 }
 
+/* ---- Markdown body (string / agent-streamed content) ------------------ */
+
+/*
+ * A string body renders as Markdown. Block children reset their intrinsic
+ * margins to 0 and stack with an 8px top margin, so a single-line reply keeps
+ * the exact 22px row rhythm of an inline segment body while multi-block replies
+ * breathe. Every color, type ramp, and radius resolves to a theme token.
+ */
+.happy2-message__body--markdown > * {
+    margin: 0;
+    min-width: 0;
+}
+
+/* The streaming caret and failure marker are body children appended after the
+   compiled blocks, not blocks in the stack; excluding them keeps the caret on
+   the same baseline as the trailing content instead of dropping it 8px and out
+   of the captured row. */
+.happy2-message__body--markdown
+    > *
+    + *:not(.happy2-message__caret):not(.happy2-message__gen-failed) {
+    margin-top: 8px;
+}
+
+.happy2-message__body--markdown p {
+    font-size: 15px;
+    line-height: 22px;
+}
+
+.happy2-message__body--markdown h1,
+.happy2-message__body--markdown h2,
+.happy2-message__body--markdown h3,
+.happy2-message__body--markdown h4,
+.happy2-message__body--markdown h5,
+.happy2-message__body--markdown h6 {
+    color: var(--happy2-text);
+    font-weight: 700;
+    line-height: 24px;
+}
+
+.happy2-message__body--markdown h1 {
+    font-size: 19px;
+    font-weight: 800;
+}
+
+.happy2-message__body--markdown h2 {
+    font-size: 17px;
+    font-weight: 800;
+}
+
+.happy2-message__body--markdown h3 {
+    font-size: 15px;
+}
+
+.happy2-message__body--markdown h4,
+.happy2-message__body--markdown h5,
+.happy2-message__body--markdown h6 {
+    font-size: 14px;
+}
+
+.happy2-message__body--markdown strong {
+    font-weight: 700;
+}
+
+.happy2-message__body--markdown em {
+    font-style: italic;
+}
+
+.happy2-message__body--markdown ul,
+.happy2-message__body--markdown ol {
+    padding-left: 20px;
+    font-size: 15px;
+    line-height: 22px;
+}
+
+.happy2-message__body--markdown li + li {
+    margin-top: 2px;
+}
+
+.happy2-message__body--markdown a,
+.happy2-message__md-link {
+    color: var(--happy2-accent);
+    text-decoration: none;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+}
+
+.happy2-message__body--markdown a:hover,
+.happy2-message__md-link:hover {
+    color: var(--happy2-accent-strong);
+    text-decoration: underline;
+}
+
+.happy2-message__body--markdown code {
+    font-family: var(--happy2-font-mono);
+    font-size: 13px;
+    background: var(--happy2-bg-inset);
+    border-radius: 4px;
+    padding: 1px 5px;
+}
+
+.happy2-message__body--markdown pre {
+    background: var(--happy2-bg-code);
+    border: 1px solid var(--happy2-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+.happy2-message__body--markdown pre code {
+    display: block;
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    color: var(--happy2-text);
+    line-height: 20px;
+    white-space: pre;
+}
+
+.happy2-message__body--markdown blockquote {
+    border-left: 2px solid var(--happy2-border-strong);
+    padding-left: 10px;
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-message__body--markdown hr {
+    height: 1px;
+    border: 0;
+    background: var(--happy2-border);
+}
+
+/*
+ * Streaming caret: a small, static (no animation, screenshot-safe) accent block
+ * that reads as a live cursor while the reply generates. The streamed content
+ * itself stays at full opacity — only this marker signals in-progress state.
+ */
+.happy2-message__caret {
+    display: inline-block;
+    width: 8px;
+    height: 15px;
+    background: var(--happy2-accent);
+    border-radius: 2px;
+    vertical-align: text-bottom;
+}
+
+/*
+ * Failed generation: a minimal danger dot. No speculative retry control — the
+ * partial body stays fully visible so the reader keeps whatever text arrived.
+ */
+.happy2-message__gen-failed {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--happy2-danger);
+    border-radius: var(--happy2-radius-pill);
+}
+
 .happy2-message__attachments {
     display: flex;
     flex-direction: column;
@@ -410,6 +567,46 @@
     padding: 12px 0;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
+    /* Slack-style scrollbar (desktop): a narrow, rounded thumb over a
+       transparent track, subdued at rest and clearer while the column is
+       hovered. Firefox uses the standard properties; WebKit/Chromium use the
+       ::-webkit-scrollbar rules below. Both resolve to the same theme tokens. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--happy2-border-strong) transparent;
+}
+
+.happy2-message-list:hover {
+    scrollbar-color: var(--happy2-text-faint) transparent;
+}
+
+.happy2-message-list::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.happy2-message-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* The 3px transparent border (clipped to the padding box) insets the thumb to a
+   ~6px rounded bar floating off the edge, matching the standard property width. */
+.happy2-message-list::-webkit-scrollbar-thumb {
+    background-color: var(--happy2-border-strong);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+    border-radius: var(--happy2-radius-pill);
+}
+
+.happy2-message-list:hover::-webkit-scrollbar-thumb {
+    background-color: var(--happy2-text-faint);
+}
+
+.happy2-message-list::-webkit-scrollbar-thumb:hover {
+    background-color: var(--happy2-text-muted);
+}
+
+.happy2-message-list::-webkit-scrollbar-corner {
+    background: transparent;
 }
 
 .happy2-message-list__spacer {
