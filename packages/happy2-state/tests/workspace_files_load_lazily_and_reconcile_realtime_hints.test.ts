@@ -3,7 +3,7 @@ import { createClientState, type ClientStateEvent } from "../src/index";
 import { createFakeServer, jsonResponse } from "../src/testing";
 import { chat } from "./fixtures";
 
-describe("lazy channel workspace state", () => {
+describe("lazy chat workspace state", () => {
     it("loads only the adaptive preload and directory pages explicitly requested by the host", async () => {
         const server = createFakeServer();
         registerInitialState(server);

@@ -185,12 +185,15 @@ members of group DMs and channels—including multiple agents in one channel—b
 those conversations remain dormant until mention-based collaboration is
 implemented.
 
-Every public or private channel also owns a shared server-side workspace at
-`default_cwd/channels/<chat-id>`. A current channel member can read its file-tree
-snapshot from `GET /v0/chats/:chatId/workspace`; public-channel discovery alone
-does not reveal workspace contents. Paths are canonical `@pierre/trees` input
-(directory paths end in `/`), absolute server paths are never returned, and
-directory symlinks are listed without being traversed.
+The workspace file API is available to any chat that has exactly one connected
+Rig environment. It resolves the persisted `agent_rig_bindings.cwd` host path,
+which is the directory mounted into that environment at `/workspace`; it never
+creates a separate directory from the chat ID. A current chat member can read
+its file-tree snapshot from `GET /v0/chats/:chatId/workspace`. An unconnected or
+ambiguous chat returns `404`, and public-channel discovery alone never reveals
+workspace contents. Paths are canonical `@pierre/trees` input (directory paths
+end in `/`), absolute server paths are never returned, and directory symlinks
+are listed without being traversed.
 
 The first request lazily creates a process-local partial index and starts its
 recursive monitor before reading the root. Adaptive preload returns at most
@@ -210,13 +213,15 @@ same directory; a filesystem change invalidates it with `409
 workspace_cursor_stale`. All entries—including hidden files and the contents of
 `.git/`—remain reachable through these pages.
 
-Directory listings use a per-channel LRU capped at 20,000 entries. At most 8
-partial indexes stay warm; cooling an older index releases its directory and
-Git caches but keeps its lightweight monitor active, and the next request warms
-it again. Git status initializes and refreshes in the background, so a cold
-tree response does not wait for Git. Responses expose `gitStatusPending` and a
-process-local `revision`; completion publishes the same `workspace.changed` SSE
-invalidation as a filesystem mutation. File changes are coalesced for 20 ms,
+Directory listings use a per-workspace LRU capped at 20,000 entries. Chats
+connected to the same mounted host directory share one index and monitor. At
+most 8 partial indexes stay warm; cooling an older index releases its directory
+and Git caches but keeps its lightweight monitor active, and the next request
+warms it again. Git status initializes and refreshes in the background, so a
+cold tree response does not wait for Git. Responses expose `gitStatusPending`
+and a process-local `revision`; completion publishes the same
+`workspace.changed` SSE invalidation as a filesystem mutation. File changes are
+coalesced for 20 ms,
 invalidate only affected directory-cache branches when the watcher supplies a
 path, and cause clients to reconcile through the HTTP snapshot. Successful
 responses provide a private, revalidated `ETag`, allowing an unchanged

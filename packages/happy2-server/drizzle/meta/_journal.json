@@ -64,6 +64,13 @@
             "when": 1784080000000,
             "tag": "0008_agent_message_streaming",
             "breakpoints": true
+        },
+        {
+            "idx": 9,
+            "version": "6",
+            "when": 1784167000000,
+            "tag": "0009_chat_workspace_binding_lookup",
+            "breakpoints": true
         }
     ]
 }

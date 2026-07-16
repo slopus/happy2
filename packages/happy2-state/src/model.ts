@@ -63,7 +63,7 @@ export interface ClientState extends AsyncDisposable {
     start(): Promise<void>;
     stop(): void;
     loadMessages(chatId: string): Promise<readonly ClientMessage[]>;
-    /** Lazily loads the adaptive initial tree for a channel workspace. */
+    /** Lazily loads the adaptive initial tree for a chat workspace. */
     loadWorkspace(chatId: string): Promise<ClientWorkspace>;
     /**
      * Makes the workspace match the host's currently requested (usually expanded)
@@ -232,7 +232,7 @@ class ClientStateModel implements ClientState {
                 if (this.stopped)
                     throw new UserError("This client state instance has been stopped.");
                 if ((this.workspaceEpochs.get(chatId) ?? 0) !== epoch)
-                    throw new UserError("Channel workspace is no longer available.", "not_found");
+                    throw new UserError("Chat workspace is no longer available.", "not_found");
                 const record = createWorkspaceRecord(response.workspace, response.etag);
                 this.commitWorkspace(chatId, record, "initial", []);
                 return clientWorkspace(chatId, record);
@@ -1027,7 +1027,7 @@ class ClientStateModel implements ClientState {
 
     private assertCurrentWorkspace(chatId: string, expected: WorkspaceRecord): void {
         if (this.workspaceRecords.get(chatId) !== expected)
-            throw new UserError("Channel workspace is no longer available.", "not_found");
+            throw new UserError("Chat workspace is no longer available.", "not_found");
     }
 
     private invalidateWorkspace(chatId: string): void {

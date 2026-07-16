@@ -1,74 +1,102 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createClientState } from "happy2-state";
 import { describe, expect, it } from "vitest";
-import { createGymServer } from "../../sources/index.js";
+import { createMockRigDaemon, MockAgentDockerRuntime } from "happy2-gym/rig";
+import { createGymServer, type GymRequestClient } from "../../sources/index.js";
 import { createGymStateTransport } from "../../sources/state/index.js";
 
 describe("live workspace trees through happy2-state", () => {
-    it("materializes only requested folders and reconciles their files from SSE hints", async () => {
-        const root = await mkdtemp(join(tmpdir(), "happy2-state-workspace-"));
-        try {
-            await using server = await createGymServer({
-                configure(config) {
-                    config.agents.defaultCwd = root;
-                },
-            });
-            const owner = await server.createUser({ username: "state_workspace_owner" });
-            const channel = await server.as(owner).post("/v0/chats/createChannel", {
-                kind: "private_channel",
-                name: "State workspace",
-                slug: "state-workspace",
-            });
-            const chatId = channel.json().chat.id as string;
-            const directory = join(root, "channels", chatId);
-            const transport = await createGymStateTransport(server, owner);
-            await using state = createClientState(transport, { sleep: async () => undefined });
-            await state.start();
-            await transport.whenConnected();
+    it("materializes requested folders in a direct chat and reconciles SSE hints", async () => {
+        await using rig = await createMockRigDaemon();
+        await using server = await createGymServer({
+            agentDocker: new MockAgentDockerRuntime(),
+            configure(config) {
+                config.agents.enabled = true;
+                config.agents.socketPath = rig.socketPath;
+                config.agents.tokenPath = rig.tokenPath;
+                config.agents.defaultCwd = rig.workspaceRoot;
+            },
+        });
+        const owner = await server.createUser({ username: "state_workspace_owner" });
+        await configureAgentImage(server.as(owner));
+        const transport = await createGymStateTransport(server, owner);
+        await using state = createClientState(transport, { sleep: async () => undefined });
+        await state.start();
+        await transport.whenConnected();
+        const chat = await state.createAgent({
+            name: "State Workspace",
+            username: "state_workspace_agent",
+        });
+        const chatId = chat.id;
+        const directory = rig.createdCwds.at(-1);
+        if (!directory) throw new Error("Rig workspace was not created");
 
-            const empty = await state.syncWorkspace(chatId, []);
-            expect(empty.paths).toEqual([]);
+        const empty = await state.syncWorkspace(chatId, []);
+        expect(empty.paths).toEqual([]);
 
-            await Promise.all([
-                mkdir(join(directory, "node_modules", "package"), { recursive: true }),
-                mkdir(join(directory, "src"), { recursive: true }),
-            ]);
-            await Promise.all([
-                writeFile(join(directory, "node_modules", "package", "index.js"), "old\n"),
-                writeFile(join(directory, "src", "live.ts"), "export const live = true;\n"),
-            ]);
+        await Promise.all([
+            mkdir(join(directory, "node_modules", "package"), { recursive: true }),
+            mkdir(join(directory, "src"), { recursive: true }),
+        ]);
+        await Promise.all([
+            writeFile(join(directory, "node_modules", "package", "index.js"), "old\n"),
+            writeFile(join(directory, "src", "live.ts"), "export const live = true;\n"),
+        ]);
 
-            await expect
-                .poll(() => state.get().workspacesByChat[chatId]?.paths, { timeout: 3_000 })
-                .toEqual(["node_modules/", "src/", "src/live.ts"]);
-            expect(state.get().workspacesByChat[chatId]?.unloadedDirectories).toContain(
-                "node_modules/",
-            );
+        await expect
+            .poll(() => state.get().workspacesByChat[chatId]?.paths, { timeout: 3_000 })
+            .toEqual(["node_modules/", "src/", "src/live.ts"]);
+        expect(state.get().workspacesByChat[chatId]?.unloadedDirectories).toContain(
+            "node_modules/",
+        );
 
-            const expanded = await state.syncWorkspace(chatId, [
-                "node_modules/",
-                "node_modules/package/",
-            ]);
-            expect(expanded.paths).toEqual([
-                "node_modules/",
-                "node_modules/package/",
-                "node_modules/package/index.js",
-                "src/",
-                "src/live.ts",
-            ]);
+        const expanded = await state.syncWorkspace(chatId, [
+            "node_modules/",
+            "node_modules/package/",
+        ]);
+        expect(expanded.paths).toEqual([
+            "node_modules/",
+            "node_modules/package/",
+            "node_modules/package/index.js",
+            "src/",
+            "src/live.ts",
+        ]);
 
-            await writeFile(join(directory, "node_modules", "package", "new.js"), "new\n");
-            await expect
-                .poll(() => state.get().workspacesByChat[chatId]?.paths, { timeout: 3_000 })
-                .toContain("node_modules/package/new.js");
+        await writeFile(join(directory, "node_modules", "package", "new.js"), "new\n");
+        await expect
+            .poll(() => state.get().workspacesByChat[chatId]?.paths, { timeout: 3_000 })
+            .toContain("node_modules/package/new.js");
 
-            const collapsed = await state.syncWorkspace(chatId, []);
-            expect(collapsed.paths).toEqual(["node_modules/", "src/", "src/live.ts"]);
-            expect(collapsed.directories).toEqual([]);
-        } finally {
-            await rm(root, { force: true, recursive: true });
-        }
+        const collapsed = await state.syncWorkspace(chatId, []);
+        expect(collapsed.paths).toEqual(["node_modules/", "src/", "src/live.ts"]);
+        expect(collapsed.directories).toEqual([]);
     });
 });
+
+async function configureAgentImage(client: GymRequestClient): Promise<void> {
+    const images = (await client.get("/v0/admin/agentImages")).json().images as Array<{
+        builtinKey?: string;
+        id: string;
+    }>;
+    const image = images.find(({ builtinKey }) => builtinKey === "daycare-minimal");
+    if (!image) throw new Error("Daycare Minimal image was not seeded");
+    expect((await client.post(`/v0/admin/agentImages/${image.id}/buildImage`, {})).statusCode).toBe(
+        202,
+    );
+    await expect
+        .poll(
+            async () => {
+                const current = (await client.get("/v0/admin/agentImages")).json().images as Array<{
+                    id: string;
+                    status: string;
+                }>;
+                return current.find(({ id }) => id === image.id)?.status;
+            },
+            { timeout: 4_000 },
+        )
+        .toBe("ready");
+    expect(
+        (await client.post(`/v0/admin/agentImages/${image.id}/setDefaultImage`, {})).statusCode,
+    ).toBe(200);
+}

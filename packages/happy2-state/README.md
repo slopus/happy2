@@ -34,7 +34,7 @@ const { backups } = await state.execute("getBackups", { limit: 25 });
 const latest = state.result("getBackups");
 ```
 
-Channel workspaces are lazy live trees. Calling `start()` does not load any
+Chat workspaces are lazy live trees. Calling `start()` does not load any
 workspace. A host declares the directories it currently needs—normally the
 expanded folders in the file tree—and state materializes only those layers:
 

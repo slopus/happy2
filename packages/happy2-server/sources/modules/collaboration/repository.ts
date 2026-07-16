@@ -135,6 +135,11 @@ export interface AgentChatContext {
     binding?: { containerName: string; cwd: string; sessionId: string };
 }
 
+export interface ChatWorkspaceBinding {
+    chatId: string;
+    cwd: string;
+}
+
 export interface AgentExecutionImage {
     id: string;
     dockerImageId: string;
@@ -485,16 +490,30 @@ export class CollaborationRepository {
         return Boolean(await this.chatAccessDb(this.db, userId, chatId, false));
     }
 
-    async canAccessChannelWorkspace(userId: string, chatId: string): Promise<boolean> {
+    async canAccessChatWorkspace(userId: string, chatId: string): Promise<boolean> {
         const chat = await this.chatAccessDb(this.db, userId, chatId, true);
-        return Boolean(chat && chat.kind !== "dm");
+        if (!chat) return false;
+        const bindings = await this.db
+            .select({ cwd: agentRigBindings.cwd })
+            .from(agentRigBindings)
+            .where(eq(agentRigBindings.chatId, chatId))
+            .orderBy(agentRigBindings.userId)
+            .limit(2);
+        return bindings.length === 1;
     }
 
-    async getWorkspaceChannel(userId: string, chatId: string): Promise<ChatSummary> {
+    async getChatWorkspaceBinding(userId: string, chatId: string): Promise<ChatWorkspaceBinding> {
         const chat = await this.chatAccessDb(this.db, userId, chatId, true);
-        if (!chat || chat.kind === "dm")
-            throw new CollaborationError("not_found", "Channel workspace was not found");
-        return chat;
+        if (!chat) throw new CollaborationError("not_found", "Chat workspace was not found");
+        const bindings = await this.db
+            .select({ cwd: agentRigBindings.cwd })
+            .from(agentRigBindings)
+            .where(eq(agentRigBindings.chatId, chatId))
+            .orderBy(agentRigBindings.userId)
+            .limit(2);
+        if (bindings.length !== 1)
+            throw new CollaborationError("not_found", "Chat workspace was not found");
+        return { chatId: chat.id, cwd: bindings[0]!.cwd };
     }
 
     async canPostToChat(userId: string, chatId: string): Promise<boolean> {

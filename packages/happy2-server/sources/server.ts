@@ -189,11 +189,8 @@ export async function buildServer(
         webhookTransport = services.webhookTransport ?? new NodeWebhookTransport();
         fileStorage = services.fileStorage ?? new FileStorage(config, services.database);
         dataExportWorker = new DataExportWorker(operations, services.database, fileStorage);
-        workspaceService = new WorkspaceService(
-            collaboration,
-            pubsub,
-            config.agents.defaultCwd,
-            (error) => app.log.error(error),
+        workspaceService = new WorkspaceService(collaboration, pubsub, (error) =>
+            app.log.error(error),
         );
         registerFileRoutes(
             app,

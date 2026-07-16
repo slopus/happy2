@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { watch, type FSWatcher } from "node:fs";
-import { lstat, mkdir, readdir, realpath } from "node:fs/promises";
+import { lstat, readdir, realpath } from "node:fs/promises";
 import { join, sep } from "node:path";
 import type { CollaborationRepository } from "../collaboration/repository.js";
 import { realtimeTopics, type PubSub } from "../realtime/index.js";
@@ -70,12 +70,12 @@ export class WorkspaceService {
     private readonly indexes = new Map<string, WorkspaceIndex>();
     private readonly indexCreations = new Map<string, Promise<WorkspaceIndex>>();
     private readonly warmIndexes = new Map<string, WorkspaceIndex>();
+    private readonly indexesByChat = new Map<string, WorkspaceIndex>();
     private closed = false;
 
     constructor(
         private readonly repository: CollaborationRepository,
         private readonly pubsub: PubSub,
-        private readonly workspacesRoot: string,
         private readonly onError: (error: unknown) => void = () => undefined,
     ) {}
 
@@ -115,46 +115,65 @@ export class WorkspaceService {
         this.indexes.clear();
         this.indexCreations.clear();
         this.warmIndexes.clear();
+        this.indexesByChat.clear();
     }
 
     private async authorizedIndex(userId: string, chatId: string): Promise<WorkspaceIndex> {
         if (this.closed) throw new Error("Workspace service is closed");
-        const chat = await this.repository.getWorkspaceChannel(userId, chatId);
-        const existing = this.indexes.get(chat.id);
+        const binding = await this.repository.getChatWorkspaceBinding(userId, chatId);
+        const root = await workspaceRoot(binding.cwd);
+        const existing = this.indexes.get(root);
         if (existing) {
-            this.touchWarmIndex(chat.id, existing);
+            this.attachChat(binding.chatId, existing);
+            this.touchWarmIndex(root, existing);
             existing.ensureWatcher();
             existing.warmUp();
             this.coolOldIndexes();
             return existing;
         }
-        const pending = this.indexCreations.get(chat.id);
-        if (pending) return pending;
+        const pending = this.indexCreations.get(root);
+        if (pending) {
+            const index = await pending;
+            this.attachChat(binding.chatId, index);
+            this.touchWarmIndex(root, index);
+            index.ensureWatcher();
+            index.warmUp();
+            this.coolOldIndexes();
+            return index;
+        }
         const creation = (async () => {
-            const directory = join(this.workspacesRoot, "channels", chat.id);
-            await mkdir(directory, { recursive: true, mode: 0o700 });
-            const index = new WorkspaceIndex(chat.id, directory, this.pubsub, this.onError);
+            const index = new WorkspaceIndex(root, this.pubsub, this.onError);
+            index.attachChat(binding.chatId);
             await index.start();
             if (this.closed) {
                 await index.close();
                 throw new Error("Workspace service is closed");
             }
-            this.indexes.set(chat.id, index);
-            this.touchWarmIndex(chat.id, index);
-            this.coolOldIndexes();
+            this.indexes.set(root, index);
             return index;
         })();
-        this.indexCreations.set(chat.id, creation);
+        this.indexCreations.set(root, creation);
         try {
-            return await creation;
+            const index = await creation;
+            this.attachChat(binding.chatId, index);
+            this.touchWarmIndex(root, index);
+            this.coolOldIndexes();
+            return index;
         } finally {
-            this.indexCreations.delete(chat.id);
+            this.indexCreations.delete(root);
         }
     }
 
-    private touchWarmIndex(chatId: string, index: WorkspaceIndex): void {
-        this.warmIndexes.delete(chatId);
-        this.warmIndexes.set(chatId, index);
+    private attachChat(chatId: string, index: WorkspaceIndex): void {
+        const previous = this.indexesByChat.get(chatId);
+        if (previous && previous !== index) previous.detachChat(chatId);
+        index.attachChat(chatId);
+        this.indexesByChat.set(chatId, index);
+    }
+
+    private touchWarmIndex(root: string, index: WorkspaceIndex): void {
+        this.warmIndexes.delete(root);
+        this.warmIndexes.set(root, index);
     }
 
     private coolOldIndexes(): void {
@@ -187,13 +206,21 @@ class WorkspaceIndex {
     private changedPaths = new Set<string>();
     private unknownChange = false;
     private warm = true;
+    private readonly chatIds = new Set<string>();
 
     constructor(
-        private readonly chatId: string,
         private readonly root: string,
         private readonly pubsub: PubSub,
         private readonly onError: (error: unknown) => void,
     ) {}
+
+    attachChat(chatId: string): void {
+        this.chatIds.add(chatId);
+    }
+
+    detachChat(chatId: string): void {
+        this.chatIds.delete(chatId);
+    }
 
     async start(): Promise<void> {
         this.realRoot = await realpath(this.root);
@@ -554,13 +581,18 @@ class WorkspaceIndex {
 
     private publishChange(): Promise<void> {
         if (this.closed) return Promise.resolve();
-        return this.pubsub
-            .publish(realtimeTopics.chat(this.chatId), {
-                type: "workspace.changed",
-                chatId: this.chatId,
-                occurredAt: Date.now(),
-            })
-            .catch(this.onError);
+        const occurredAt = Date.now();
+        return Promise.all(
+            [...this.chatIds].map((chatId) =>
+                this.pubsub
+                    .publish(realtimeTopics.chat(chatId), {
+                        type: "workspace.changed",
+                        chatId,
+                        occurredAt,
+                    })
+                    .catch(this.onError),
+            ),
+        ).then(() => undefined);
     }
 }
 
@@ -570,8 +602,8 @@ async function readGitStatus(
 ): Promise<WorkspaceGitStatusEntry[]> {
     let output: string;
     try {
-        // A channel is its own filesystem boundary. Do not accidentally inherit a Git
-        // repository that contains the configured workspaces directory.
+        // A mounted workspace is its own filesystem boundary. Do not accidentally
+        // inherit a Git repository that contains the server-owned sandbox directory.
         const repositoryPrefix = await gitOutput(root, ["rev-parse", "--show-prefix"]);
         if (repositoryPrefix.trim()) return [];
         output = await gitOutput(root, [
@@ -773,6 +805,20 @@ function isMissingPathError(error: unknown): boolean {
     return Boolean(
         error && typeof error === "object" && (error as { code?: string }).code === "ENOENT",
     );
+}
+
+async function workspaceRoot(cwd: string): Promise<string> {
+    try {
+        const root = await realpath(cwd);
+        if (!(await lstat(root)).isDirectory())
+            throw new WorkspaceError("not_found", "Chat workspace was not found");
+        return root;
+    } catch (error) {
+        if (error instanceof WorkspaceError) throw error;
+        if (isMissingPathError(error))
+            throw new WorkspaceError("not_found", "Chat workspace was not found");
+        throw error;
+    }
 }
 
 export function workspaceDirectoryPageLimit(value: number | undefined): number {

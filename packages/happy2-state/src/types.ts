@@ -242,7 +242,7 @@ export interface WorkspaceDirectoryLoad {
     readonly complete: boolean;
 }
 
-/** The currently materialized, memory-only portion of one channel workspace. */
+/** The currently materialized, memory-only portion of one chat workspace. */
 export interface ClientWorkspace {
     readonly chatId: string;
     readonly requestedDirectories: readonly string[];
