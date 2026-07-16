@@ -243,6 +243,21 @@ counters, receipts, or notifications. Applied Rig events are trimmed in batches
 after 1,000 updates or one day. Remote clients use the same chat and sync APIs as
 local clients and never need access to Rig itself.
 
+Rig remains the source of truth for agent secret registrations and values.
+Administrators use `GET /v0/admin/agentSecrets`,
+`POST /v0/admin/agentSecrets/createSecret`, and
+`POST /v0/admin/agentSecrets/:secretId/deleteSecret` through Happy (2); list and
+mutation responses contain only the Rig ID, description, and environment-variable
+names. Secret values are forwarded once to Rig and are never persisted in the
+Happy (2) database or returned to a client. Happy (2) stores only assignments,
+managed through the `attachToAgent`, `detachFromAgent`, `attachToChannel`, and
+`detachFromChannel` actions. An agent assignment applies to every Rig session for
+that agent; a channel assignment applies to every agent Rig session bound to that
+channel. The union is reconciled before each turn and when Happy (2) starts, while
+Rig still requires the model to select the needed bundle IDs on each shell command.
+All secret-management routes require server-admin permission and publish durable
+`agent-secrets` sync hints.
+
 Channels are `public_channel` or `private_channel`. Direct chats support both
 exact two-user DMs and membership-exact group DMs. Public channels can be
 discovered and read by every active server member, but posting requires joining.

@@ -29,6 +29,8 @@ import {
     agentImages,
     agentImageSettings,
     agentRigBindings,
+    agentSecretAgentAssignments,
+    agentSecretChannelAssignments,
     agentTurns,
     auditLogEntries,
     authSessions,
@@ -151,6 +153,19 @@ export interface AgentImageBuild {
     dockerfile: string;
     id: string;
     dockerTag: string;
+}
+
+export interface AgentSecretAssignment {
+    secretId: string;
+    agentUserIds: string[];
+    channelIds: string[];
+}
+
+export interface AgentSecretBinding {
+    agentUserId: string;
+    chatId: string;
+    secretIds: string[];
+    sessionId: string;
 }
 
 const MAX_AGENT_IMAGE_BUILD_LOG_CHARACTERS = 2_000_000;
@@ -1167,6 +1182,342 @@ export class CollaborationRepository {
                 kind: "agentImage.buildReleased",
                 entityId: changed[0]!.id,
             });
+        });
+    }
+
+    async authorizeAgentSecretManagement(actorUserId: string): Promise<void> {
+        await this.requireServerAdminDb(this.db, actorUserId);
+    }
+
+    async listAgentSecretAssignments(actorUserId: string): Promise<AgentSecretAssignment[]> {
+        await this.requireServerAdminDb(this.db, actorUserId);
+        const [agentRows, channelRows] = await Promise.all([
+            this.db
+                .select({
+                    secretId: agentSecretAgentAssignments.secretId,
+                    agentUserId: agentSecretAgentAssignments.agentUserId,
+                })
+                .from(agentSecretAgentAssignments)
+                .orderBy(
+                    agentSecretAgentAssignments.secretId,
+                    agentSecretAgentAssignments.agentUserId,
+                ),
+            this.db
+                .select({
+                    secretId: agentSecretChannelAssignments.secretId,
+                    channelId: agentSecretChannelAssignments.chatId,
+                })
+                .from(agentSecretChannelAssignments)
+                .orderBy(
+                    agentSecretChannelAssignments.secretId,
+                    agentSecretChannelAssignments.chatId,
+                ),
+        ]);
+        const assignments = new Map<string, AgentSecretAssignment>();
+        const get = (secretId: string) => {
+            let assignment = assignments.get(secretId);
+            if (!assignment) {
+                assignment = { secretId, agentUserIds: [], channelIds: [] };
+                assignments.set(secretId, assignment);
+            }
+            return assignment;
+        };
+        for (const row of agentRows) get(row.secretId).agentUserIds.push(row.agentUserId);
+        for (const row of channelRows) get(row.secretId).channelIds.push(row.channelId);
+        return [...assignments.values()].sort((left, right) =>
+            left.secretId.localeCompare(right.secretId),
+        );
+    }
+
+    async listAgentSecretBindings(
+        input: {
+            agentUserId?: string;
+            chatId?: string;
+        } = {},
+    ): Promise<AgentSecretBinding[]> {
+        const conditions = [
+            input.agentUserId ? eq(agentRigBindings.userId, input.agentUserId) : undefined,
+            input.chatId ? eq(agentRigBindings.chatId, input.chatId) : undefined,
+        ].filter((condition): condition is SQL => condition !== undefined);
+        const bindings = await this.db
+            .select({
+                agentUserId: agentRigBindings.userId,
+                chatId: agentRigBindings.chatId,
+                sessionId: agentRigBindings.sessionId,
+                activeMemberUserId: chatMembers.userId,
+            })
+            .from(agentRigBindings)
+            .leftJoin(
+                chatMembers,
+                and(
+                    eq(chatMembers.chatId, agentRigBindings.chatId),
+                    eq(chatMembers.userId, agentRigBindings.userId),
+                    isNull(chatMembers.leftAt),
+                ),
+            )
+            .where(conditions.length ? and(...conditions) : undefined)
+            .orderBy(agentRigBindings.userId, agentRigBindings.chatId);
+        if (!bindings.length) return [];
+        const agentUserIds = [...new Set(bindings.map((binding) => binding.agentUserId))];
+        const chatIds = [...new Set(bindings.map((binding) => binding.chatId))];
+        const [agentRows, channelRows] = await Promise.all([
+            this.db
+                .select({
+                    secretId: agentSecretAgentAssignments.secretId,
+                    agentUserId: agentSecretAgentAssignments.agentUserId,
+                })
+                .from(agentSecretAgentAssignments)
+                .where(inArray(agentSecretAgentAssignments.agentUserId, agentUserIds)),
+            this.db
+                .select({
+                    secretId: agentSecretChannelAssignments.secretId,
+                    chatId: agentSecretChannelAssignments.chatId,
+                })
+                .from(agentSecretChannelAssignments)
+                .where(inArray(agentSecretChannelAssignments.chatId, chatIds)),
+        ]);
+        const agentSecrets = new Map<string, Set<string>>();
+        const channelSecrets = new Map<string, Set<string>>();
+        for (const row of agentRows) {
+            const ids = agentSecrets.get(row.agentUserId) ?? new Set<string>();
+            ids.add(row.secretId);
+            agentSecrets.set(row.agentUserId, ids);
+        }
+        for (const row of channelRows) {
+            const ids = channelSecrets.get(row.chatId) ?? new Set<string>();
+            ids.add(row.secretId);
+            channelSecrets.set(row.chatId, ids);
+        }
+        return bindings.map((binding) => ({
+            agentUserId: binding.agentUserId,
+            chatId: binding.chatId,
+            sessionId: binding.sessionId,
+            secretIds: [
+                ...new Set([
+                    ...(agentSecrets.get(binding.agentUserId) ?? []),
+                    ...(binding.activeMemberUserId
+                        ? (channelSecrets.get(binding.chatId) ?? [])
+                        : []),
+                ]),
+            ].sort(),
+        }));
+    }
+
+    async recordAgentSecretRegistration(input: {
+        actorUserId: string;
+        secretId: string;
+    }): Promise<MutationHint> {
+        return this.writeDb(async (tx) => {
+            await this.requireServerAdminDb(tx, input.actorUserId);
+            const sequence = await this.nextSequence(tx);
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "agentSecret.registered",
+                entityId: input.secretId,
+                actorUserId: input.actorUserId,
+            });
+            await this.appendAuditDb(tx, {
+                actorUserId: input.actorUserId,
+                action: "agent_secret.registered",
+                targetType: "agent_secret",
+                targetId: input.secretId,
+            });
+            return areaHint(sequence, "agent-secrets");
+        });
+    }
+
+    async deleteAgentSecretAssignments(input: {
+        actorUserId: string;
+        secretId: string;
+    }): Promise<MutationHint> {
+        return this.writeDb(async (tx) => {
+            await this.requireServerAdminDb(tx, input.actorUserId);
+            await tx
+                .delete(agentSecretAgentAssignments)
+                .where(eq(agentSecretAgentAssignments.secretId, input.secretId));
+            await tx
+                .delete(agentSecretChannelAssignments)
+                .where(eq(agentSecretChannelAssignments.secretId, input.secretId));
+            const sequence = await this.nextSequence(tx);
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "agentSecret.deleted",
+                entityId: input.secretId,
+                actorUserId: input.actorUserId,
+            });
+            await this.appendAuditDb(tx, {
+                actorUserId: input.actorUserId,
+                action: "agent_secret.deleted",
+                targetType: "agent_secret",
+                targetId: input.secretId,
+            });
+            return areaHint(sequence, "agent-secrets");
+        });
+    }
+
+    async attachAgentSecretToAgent(input: {
+        actorUserId: string;
+        agentUserId: string;
+        secretId: string;
+    }): Promise<MutationHint | undefined> {
+        return this.writeDb(async (tx) => {
+            await this.requireServerAdminDb(tx, input.actorUserId);
+            const [agent] = await tx
+                .select({ id: users.id })
+                .from(users)
+                .where(
+                    and(
+                        eq(users.id, input.agentUserId),
+                        eq(users.kind, "agent"),
+                        isNull(users.deletedAt),
+                    ),
+                )
+                .limit(1);
+            if (!agent) throw new CollaborationError("not_found", "Agent was not found");
+            const inserted = await tx
+                .insert(agentSecretAgentAssignments)
+                .values({
+                    secretId: input.secretId,
+                    agentUserId: input.agentUserId,
+                    createdByUserId: input.actorUserId,
+                })
+                .onConflictDoNothing()
+                .returning({ secretId: agentSecretAgentAssignments.secretId });
+            if (!inserted.length) return undefined;
+            const sequence = await this.nextSequence(tx);
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "agentSecret.attachedToAgent",
+                entityId: input.secretId,
+                actorUserId: input.actorUserId,
+            });
+            await this.appendAuditDb(tx, {
+                actorUserId: input.actorUserId,
+                action: "agent_secret.attached_to_agent",
+                targetType: "user",
+                targetId: input.agentUserId,
+                after: { secretId: input.secretId },
+            });
+            return areaHint(sequence, "agent-secrets");
+        });
+    }
+
+    async detachAgentSecretFromAgent(input: {
+        actorUserId: string;
+        agentUserId: string;
+        secretId: string;
+    }): Promise<MutationHint | undefined> {
+        return this.writeDb(async (tx) => {
+            await this.requireServerAdminDb(tx, input.actorUserId);
+            const removed = await tx
+                .delete(agentSecretAgentAssignments)
+                .where(
+                    and(
+                        eq(agentSecretAgentAssignments.secretId, input.secretId),
+                        eq(agentSecretAgentAssignments.agentUserId, input.agentUserId),
+                    ),
+                )
+                .returning({ secretId: agentSecretAgentAssignments.secretId });
+            if (!removed.length) return undefined;
+            const sequence = await this.nextSequence(tx);
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "agentSecret.detachedFromAgent",
+                entityId: input.secretId,
+                actorUserId: input.actorUserId,
+            });
+            await this.appendAuditDb(tx, {
+                actorUserId: input.actorUserId,
+                action: "agent_secret.detached_from_agent",
+                targetType: "user",
+                targetId: input.agentUserId,
+                after: { secretId: input.secretId },
+            });
+            return areaHint(sequence, "agent-secrets");
+        });
+    }
+
+    async attachAgentSecretToChannel(input: {
+        actorUserId: string;
+        channelId: string;
+        secretId: string;
+    }): Promise<MutationHint | undefined> {
+        return this.writeDb(async (tx) => {
+            await this.requireServerAdminDb(tx, input.actorUserId);
+            const [channel] = await tx
+                .select({ id: chats.id })
+                .from(chats)
+                .where(
+                    and(
+                        eq(chats.id, input.channelId),
+                        inArray(chats.kind, ["public_channel", "private_channel"]),
+                        isNull(chats.deletedAt),
+                    ),
+                )
+                .limit(1);
+            if (!channel) throw new CollaborationError("not_found", "Channel was not found");
+            const inserted = await tx
+                .insert(agentSecretChannelAssignments)
+                .values({
+                    secretId: input.secretId,
+                    chatId: input.channelId,
+                    createdByUserId: input.actorUserId,
+                })
+                .onConflictDoNothing()
+                .returning({ secretId: agentSecretChannelAssignments.secretId });
+            if (!inserted.length) return undefined;
+            const sequence = await this.nextSequence(tx);
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "agentSecret.attachedToChannel",
+                entityId: input.secretId,
+                actorUserId: input.actorUserId,
+            });
+            await this.appendAuditDb(tx, {
+                actorUserId: input.actorUserId,
+                action: "agent_secret.attached_to_channel",
+                targetType: "chat",
+                targetId: input.channelId,
+                chatId: input.channelId,
+                after: { secretId: input.secretId },
+            });
+            return areaHint(sequence, "agent-secrets");
+        });
+    }
+
+    async detachAgentSecretFromChannel(input: {
+        actorUserId: string;
+        channelId: string;
+        secretId: string;
+    }): Promise<MutationHint | undefined> {
+        return this.writeDb(async (tx) => {
+            await this.requireServerAdminDb(tx, input.actorUserId);
+            const removed = await tx
+                .delete(agentSecretChannelAssignments)
+                .where(
+                    and(
+                        eq(agentSecretChannelAssignments.secretId, input.secretId),
+                        eq(agentSecretChannelAssignments.chatId, input.channelId),
+                    ),
+                )
+                .returning({ secretId: agentSecretChannelAssignments.secretId });
+            if (!removed.length) return undefined;
+            const sequence = await this.nextSequence(tx);
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "agentSecret.detachedFromChannel",
+                entityId: input.secretId,
+                actorUserId: input.actorUserId,
+            });
+            await this.appendAuditDb(tx, {
+                actorUserId: input.actorUserId,
+                action: "agent_secret.detached_from_channel",
+                targetType: "chat",
+                targetId: input.channelId,
+                chatId: input.channelId,
+                after: { secretId: input.secretId },
+            });
+            return areaHint(sequence, "agent-secrets");
         });
     }
 
@@ -4659,6 +5010,7 @@ export class CollaborationRepository {
             else if (kind.startsWith("emoji.")) areas.add("emoji");
             else if (kind.startsWith("server.")) areas.add("server");
             else if (kind.startsWith("agentImage.")) areas.add("agent-images");
+            else if (kind.startsWith("agentSecret.")) areas.add("agent-secrets");
             else if (!chatId) areas.add("directories");
         }
         const changedChats: ChatSummary[] = [];

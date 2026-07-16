@@ -27,8 +27,8 @@ importers:
         specifier: ^3.3.0
         version: 3.3.0
       '@slopus/rig':
-        specifier: ^0.0.9
-        version: 0.0.9(@aws-sdk/credential-provider-node@3.972.67)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@smithy/signature-v4@5.6.4)(@types/node@26.1.1)(ws@8.21.0)
+        specifier: ^0.0.16
+        version: 0.0.16(@aws-sdk/credential-provider-node@3.972.67)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@smithy/signature-v4@5.6.4)(@types/node@26.1.1)(ws@8.21.0)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0)
@@ -214,8 +214,8 @@ importers:
         specifier: ^3.3.0
         version: 3.3.0
       '@slopus/rig':
-        specifier: ^0.0.9
-        version: 0.0.9(@aws-sdk/credential-provider-node@3.972.67)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@smithy/signature-v4@5.6.4)(@types/node@26.1.1)(ws@8.21.0)
+        specifier: ^0.0.16
+        version: 0.0.16(@aws-sdk/credential-provider-node@3.972.67)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@smithy/signature-v4@5.6.4)(@types/node@26.1.1)(ws@8.21.0)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0)
@@ -1726,8 +1726,8 @@ packages:
   '@sinclair/typebox@0.34.52':
     resolution: {integrity: sha512-XiMQh7qqVlxZzcVD+kkGMNGMzcTrDMLWI7S4x7z1MkCkbDPrekpZXEUK0eZqZFMuHQg2a2DZOcDIh9o5v3Gonw==}
 
-  '@slopus/rig@0.0.9':
-    resolution: {integrity: sha512-oxV2zYyUKwHMOp7UGuK1zpm/3/26Zfl1dOHjNfcX7JY5LVraYdYt9bi75lGVGQqgPCLsIyVSg1FrDtkmmZXExQ==}
+  '@slopus/rig@0.0.16':
+    resolution: {integrity: sha512-TLqavW9KiXE0NP/InVC/FF3EVgyqjOyquqJgMGJLq2oJ6PIYIRVMsLlFOs+2tW6byLEUN1bmfqExZRG9f5tc2Q==}
     hasBin: true
 
   '@smithy/core@3.29.3':
@@ -5237,7 +5237,7 @@ snapshots:
 
   '@sinclair/typebox@0.34.52': {}
 
-  '@slopus/rig@0.0.9(@aws-sdk/credential-provider-node@3.972.67)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@smithy/signature-v4@5.6.4)(@types/node@26.1.1)(ws@8.21.0)':
+  '@slopus/rig@0.0.16(@aws-sdk/credential-provider-node@3.972.67)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@smithy/signature-v4@5.6.4)(@types/node@26.1.1)(ws@8.21.0)':
     dependencies:
       '@anthropic-ai/claude-agent-sdk': 0.3.208(@anthropic-ai/sdk@0.110.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
       '@anthropic-ai/sandbox-runtime': 0.0.64

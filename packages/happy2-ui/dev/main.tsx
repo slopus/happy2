@@ -6,6 +6,8 @@ import { AgentDeskPage } from "./pages/AgentDeskPage";
 import { AgentImageDetailPage } from "./pages/AgentImageDetailPage";
 import { AgentImagePanelPage } from "./pages/AgentImagePanelPage";
 import { AgentRunCardPage } from "./pages/AgentRunCardPage";
+import { AgentSecretDetailPage } from "./pages/AgentSecretDetailPage";
+import { AgentSecretPanelPage } from "./pages/AgentSecretPanelPage";
 import { ApprovalCardPage } from "./pages/ApprovalCardPage";
 import { AppShellPage } from "./pages/AppShellPage";
 import { AutomationCardPage } from "./pages/AutomationCardPage";
@@ -137,6 +139,18 @@ const components: Array<{ id: string; label: string; number: string; page: () =>
     { id: "file-tree", label: "File tree", number: "C-052", page: FileTreePage },
     { id: "file-panel", label: "File panel", number: "C-053", page: FilePanelPage },
     { id: "file-editor", label: "File editor", number: "C-054", page: FileEditorPage },
+    {
+        id: "agent-secret-panel",
+        label: "Agent secret panel",
+        number: "C-055",
+        page: AgentSecretPanelPage,
+    },
+    {
+        id: "agent-secret-detail",
+        label: "Agent secret detail",
+        number: "C-056",
+        page: AgentSecretDetailPage,
+    },
 ];
 
 function componentFromHash(): string {

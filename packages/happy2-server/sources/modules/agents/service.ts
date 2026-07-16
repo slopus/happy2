@@ -3,7 +3,11 @@ import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { CollaborationRepository, RigEventCheckpoint } from "../collaboration/repository.js";
-import { CollaborationError } from "../collaboration/types.js";
+import {
+    CollaborationError,
+    type AgentSecretSummary,
+    type MutationHint,
+} from "../collaboration/types.js";
 import { realtimeTopics, type PubSub } from "../realtime/index.js";
 import {
     isRetryableRigError,
@@ -42,6 +46,26 @@ const AGENT_CONTAINER_SECURITY = {
 
 type AgentTurnWork = NonNullable<Awaited<ReturnType<CollaborationRepository["takeNextAgentTurn"]>>>;
 
+interface AgentSecretCreateInput {
+    actorUserId: string;
+    description: string;
+    environment: Record<string, string>;
+    id: string;
+}
+
+interface AgentSecretTargetInput {
+    actorUserId: string;
+    secretId: string;
+}
+
+interface AgentSecretAgentInput extends AgentSecretTargetInput {
+    agentUserId: string;
+}
+
+interface AgentSecretChannelInput extends AgentSecretTargetInput {
+    channelId: string;
+}
+
 interface ActiveAgentTurnStream {
     controller: AbortController;
     output: AgentReplyStreamOutput;
@@ -67,6 +91,7 @@ export class AgentService {
     >();
     private readonly imageBuilds = new Map<string, Promise<void>>();
     private readonly pendingImageBuilds = new Set<string>();
+    private readonly secretMutations = new Map<string, Promise<unknown>>();
     private activeImageBuilds = 0;
     private readonly drains = new Map<string, Promise<void>>();
     private readonly turnStreams = new Map<string, ActiveAgentTurnStream>();
@@ -149,6 +174,7 @@ export class AgentService {
         for (const imageId of await this.repository.listRequestedAgentImageBuildIds())
             this.queueImageBuild(imageId);
         await this.daemon.ensureGlobalEventQueue(this.shutdown.signal);
+        await this.reconcileSecretBindings();
         this.queueTask = this.trackGlobalEvents().catch((error) => {
             if (!this.shutdown.signal.aborted) this.onError(error);
         });
@@ -208,6 +234,179 @@ export class AgentService {
         return result.image;
     }
 
+    async listAgentSecrets(actorUserId: string): Promise<{ secrets: AgentSecretSummary[] }> {
+        const assignments = await this.repository.listAgentSecretAssignments(actorUserId);
+        const assignmentById = new Map(
+            assignments.map((assignment) => [assignment.secretId, assignment]),
+        );
+        const secrets = await this.daemon.listSecrets(this.shutdown.signal);
+        return {
+            secrets: secrets.map((secret) => {
+                const assignment = assignmentById.get(secret.id);
+                return {
+                    ...secret,
+                    agentUserIds: [...(assignment?.agentUserIds ?? [])],
+                    channelIds: [...(assignment?.channelIds ?? [])],
+                };
+            }),
+        };
+    }
+
+    async createAgentSecret(
+        input: AgentSecretCreateInput,
+    ): Promise<{ secret: AgentSecretSummary; sync: MutationHint }> {
+        return this.serializeAgentSecret(input.id, () => this.createAgentSecretMutation(input));
+    }
+
+    private async createAgentSecretMutation(
+        input: AgentSecretCreateInput,
+    ): Promise<{ secret: AgentSecretSummary; sync: MutationHint }> {
+        await this.repository.authorizeAgentSecretManagement(input.actorUserId);
+        const secret = await this.daemon.registerSecret(
+            {
+                id: input.id,
+                description: input.description,
+                environment: input.environment,
+            },
+            this.shutdown.signal,
+        );
+        const sync = await this.repository.recordAgentSecretRegistration({
+            actorUserId: input.actorUserId,
+            secretId: input.id,
+        });
+        await this.publishAgentHint(sync);
+        const assignments = await this.repository.listAgentSecretAssignments(input.actorUserId);
+        const assignment = assignments.find((candidate) => candidate.secretId === secret.id);
+        return {
+            secret: {
+                ...secret,
+                agentUserIds: [...(assignment?.agentUserIds ?? [])],
+                channelIds: [...(assignment?.channelIds ?? [])],
+            },
+            sync,
+        };
+    }
+
+    async deleteAgentSecret(
+        input: AgentSecretTargetInput,
+    ): Promise<{ removed: boolean; sync: MutationHint }> {
+        return this.serializeAgentSecret(input.secretId, () =>
+            this.deleteAgentSecretMutation(input),
+        );
+    }
+
+    private async deleteAgentSecretMutation(
+        input: AgentSecretTargetInput,
+    ): Promise<{ removed: boolean; sync: MutationHint }> {
+        await this.repository.authorizeAgentSecretManagement(input.actorUserId);
+        const sync = await this.repository.deleteAgentSecretAssignments(input);
+        let removed: boolean;
+        try {
+            removed = await this.daemon.unregisterSecret(input.secretId, this.shutdown.signal);
+        } catch (error) {
+            await this.publishAgentHint(sync);
+            throw error;
+        }
+        await this.publishAgentHint(sync);
+        return { removed, sync };
+    }
+
+    async attachAgentSecretToAgent(
+        input: AgentSecretAgentInput,
+    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+        return this.serializeAgentSecret(input.secretId, () =>
+            this.attachAgentSecretToAgentMutation(input),
+        );
+    }
+
+    private async attachAgentSecretToAgentMutation(
+        input: AgentSecretAgentInput,
+    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+        await this.requireAgentSecret(input.actorUserId, input.secretId);
+        const sync = await this.repository.attachAgentSecretToAgent(input);
+        await this.reconcileSecretBindings({ agentUserId: input.agentUserId });
+        if (sync) await this.publishAgentHint(sync);
+        return {
+            secret: await this.agentSecret(input.actorUserId, input.secretId),
+            ...(sync ? { sync } : {}),
+        };
+    }
+
+    async detachAgentSecretFromAgent(
+        input: AgentSecretAgentInput,
+    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+        return this.serializeAgentSecret(input.secretId, () =>
+            this.detachAgentSecretFromAgentMutation(input),
+        );
+    }
+
+    private async detachAgentSecretFromAgentMutation(
+        input: AgentSecretAgentInput,
+    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+        await this.requireAgentSecret(input.actorUserId, input.secretId);
+        const sync = await this.repository.detachAgentSecretFromAgent(input);
+        await this.reconcileSecretBindings({ agentUserId: input.agentUserId });
+        if (sync) await this.publishAgentHint(sync);
+        return {
+            secret: await this.agentSecret(input.actorUserId, input.secretId),
+            ...(sync ? { sync } : {}),
+        };
+    }
+
+    async attachAgentSecretToChannel(
+        input: AgentSecretChannelInput,
+    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+        return this.serializeAgentSecret(input.secretId, () =>
+            this.attachAgentSecretToChannelMutation(input),
+        );
+    }
+
+    private async attachAgentSecretToChannelMutation(
+        input: AgentSecretChannelInput,
+    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+        await this.requireAgentSecret(input.actorUserId, input.secretId);
+        const sync = await this.repository.attachAgentSecretToChannel(input);
+        await this.reconcileSecretBindings({ chatId: input.channelId });
+        if (sync) await this.publishAgentHint(sync);
+        return {
+            secret: await this.agentSecret(input.actorUserId, input.secretId),
+            ...(sync ? { sync } : {}),
+        };
+    }
+
+    async detachAgentSecretFromChannel(
+        input: AgentSecretChannelInput,
+    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+        return this.serializeAgentSecret(input.secretId, () =>
+            this.detachAgentSecretFromChannelMutation(input),
+        );
+    }
+
+    private async detachAgentSecretFromChannelMutation(
+        input: AgentSecretChannelInput,
+    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+        await this.requireAgentSecret(input.actorUserId, input.secretId);
+        const sync = await this.repository.detachAgentSecretFromChannel(input);
+        await this.reconcileSecretBindings({ chatId: input.channelId });
+        if (sync) await this.publishAgentHint(sync);
+        return {
+            secret: await this.agentSecret(input.actorUserId, input.secretId),
+            ...(sync ? { sync } : {}),
+        };
+    }
+
+    private async serializeAgentSecret<T>(secretId: string, action: () => Promise<T>): Promise<T> {
+        const previous = this.secretMutations.get(secretId) ?? Promise.resolve();
+        const mutation = previous.catch(() => undefined).then(action);
+        this.secretMutations.set(secretId, mutation);
+        try {
+            return await mutation;
+        } finally {
+            if (this.secretMutations.get(secretId) === mutation)
+                this.secretMutations.delete(secretId);
+        }
+    }
+
     private async ensureAgentBinding(
         actorUserId: string,
         chatId: string,
@@ -215,7 +414,13 @@ export class AgentService {
         if (this.stopping) return undefined;
         const context = await this.repository.getDirectAgentChatContext(actorUserId, chatId);
         if (!context) return undefined;
-        if (context.binding) return context.binding;
+        if (context.binding) {
+            await this.reconcileSecretBindings({
+                agentUserId: context.agentUserId,
+                chatId,
+            });
+            return context.binding;
+        }
         const key = `${context.agentUserId}:${chatId}`;
         const pending = this.bindingCreations.get(key);
         if (pending) return pending;
@@ -259,6 +464,10 @@ export class AgentService {
                 });
                 if (binding.containerName !== containerName)
                     await this.docker.removeContainer(containerName);
+                await this.reconcileSecretBindings({
+                    agentUserId: context.agentUserId,
+                    chatId,
+                });
                 return binding;
             } catch (error) {
                 await this.docker.removeContainer(containerName);
@@ -407,11 +616,70 @@ export class AgentService {
         chats: Array<{ chatId: string; pts: string }>;
         sequence: string;
     }): Promise<void> {
+        await this.publishAgentHint(hint);
+    }
+
+    private async publishAgentHint(hint: {
+        areas: string[];
+        chats: Array<{ chatId: string; pts: string }>;
+        sequence: string;
+    }): Promise<void> {
         try {
             await this.pubsub.publish(realtimeTopics.server, { type: "sync", ...hint });
         } catch (error) {
             this.onError(error);
         }
+    }
+
+    private async requireAgentSecret(actorUserId: string, secretId: string): Promise<void> {
+        await this.repository.authorizeAgentSecretManagement(actorUserId);
+        const secrets = await this.daemon.listSecrets(this.shutdown.signal);
+        if (!secrets.some((secret) => secret.id === secretId))
+            throw new CollaborationError("not_found", "Agent secret was not found");
+    }
+
+    private async agentSecret(actorUserId: string, secretId: string): Promise<AgentSecretSummary> {
+        const { secrets } = await this.listAgentSecrets(actorUserId);
+        const secret = secrets.find((candidate) => candidate.id === secretId);
+        if (!secret) throw new CollaborationError("not_found", "Agent secret was not found");
+        return secret;
+    }
+
+    private async reconcileSecretBindings(
+        input: {
+            agentUserId?: string;
+            chatId?: string;
+        } = {},
+    ): Promise<void> {
+        const bindings = await this.repository.listAgentSecretBindings(input);
+        await Promise.all(
+            bindings.map((binding) =>
+                this.daemon.reconcileSessionSecrets(
+                    binding.sessionId,
+                    async () => {
+                        const [secrets, latestBindings] = await Promise.all([
+                            this.daemon.listSecrets(this.shutdown.signal),
+                            this.repository.listAgentSecretBindings({
+                                agentUserId: binding.agentUserId,
+                                chatId: binding.chatId,
+                            }),
+                        ]);
+                        const managedSecretIds = secrets.map((secret) => secret.id);
+                        const registered = new Set(managedSecretIds);
+                        const latest = latestBindings.find(
+                            (candidate) => candidate.sessionId === binding.sessionId,
+                        );
+                        return {
+                            desiredSecretIds: (latest?.secretIds ?? []).filter((secretId) =>
+                                registered.has(secretId),
+                            ),
+                            managedSecretIds,
+                        };
+                    },
+                    this.shutdown.signal,
+                ),
+            ),
+        );
     }
 
     private async trackGlobalEvents(): Promise<void> {

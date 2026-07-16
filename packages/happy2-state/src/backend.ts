@@ -21,6 +21,7 @@ import type {
     AdminUserSummary,
     AgentImageDetails,
     AgentImageSummary,
+    AgentSecretSummary,
     ApiCredentialSummary,
     AuditLogEntry,
     AutomationSummary,
@@ -53,6 +54,7 @@ interface OperationSpec {
     readonly query?: readonly string[];
     readonly rawBodyKey?: string;
     readonly idempotency?: false;
+    readonly emitInput?: false;
 }
 
 const get = <P extends string, Q extends readonly string[] | undefined = undefined>(
@@ -77,6 +79,13 @@ const secretPost = <P extends string>(
     method: "POST",
     path,
     idempotency: false,
+});
+const sensitivePost = <P extends string>(
+    path: P,
+): OperationSpec & { readonly path: P; readonly emitInput: false } => ({
+    method: "POST",
+    path,
+    emitInput: false,
 });
 
 /** Every non-authentication HTTP capability exposed by the backend. */
@@ -174,6 +183,13 @@ export const backendOperations = {
     createAgentImage: post("/v0/admin/agentImages/createImage"),
     buildAgentImage: post("/v0/admin/agentImages/:imageId/buildImage"),
     setDefaultAgentImage: post("/v0/admin/agentImages/:imageId/setDefaultImage"),
+    getAgentSecrets: get("/v0/admin/agentSecrets"),
+    createAgentSecret: sensitivePost("/v0/admin/agentSecrets/createSecret"),
+    deleteAgentSecret: post("/v0/admin/agentSecrets/:secretId/deleteSecret"),
+    attachAgentSecretToAgent: post("/v0/admin/agentSecrets/:secretId/attachToAgent"),
+    detachAgentSecretFromAgent: post("/v0/admin/agentSecrets/:secretId/detachFromAgent"),
+    attachAgentSecretToChannel: post("/v0/admin/agentSecrets/:secretId/attachToChannel"),
+    detachAgentSecretFromChannel: post("/v0/admin/agentSecrets/:secretId/detachFromChannel"),
 
     getSyncState: get("/v0/sync/state"),
     getDifference: post("/v0/sync/getDifference"),
@@ -470,6 +486,16 @@ export interface KnownBackendInputs {
     createAgentImage: { readonly name: string; readonly dockerfile: string };
     buildAgentImage: { readonly imageId: string };
     setDefaultAgentImage: { readonly imageId: string };
+    createAgentSecret: {
+        readonly id: string;
+        readonly description: string;
+        readonly environment: Readonly<Record<string, string>>;
+    };
+    deleteAgentSecret: { readonly secretId: string };
+    attachAgentSecretToAgent: { readonly secretId: string; readonly agentUserId: string };
+    detachAgentSecretFromAgent: { readonly secretId: string; readonly agentUserId: string };
+    attachAgentSecretToChannel: { readonly secretId: string; readonly channelId: string };
+    detachAgentSecretFromChannel: { readonly secretId: string; readonly channelId: string };
     getDifference: {
         readonly state: JsonObject;
         readonly untilSequence?: string;
@@ -781,6 +807,25 @@ export interface KnownBackendResults {
     setDefaultAgentImage: {
         readonly defaultImageId: string;
         readonly image: AgentImageSummary;
+    };
+    getAgentSecrets: { readonly secrets: readonly AgentSecretSummary[] };
+    createAgentSecret: { readonly secret: AgentSecretSummary; readonly sync: unknown };
+    deleteAgentSecret: { readonly removed: boolean; readonly sync: unknown };
+    attachAgentSecretToAgent: {
+        readonly secret: AgentSecretSummary;
+        readonly sync?: unknown;
+    };
+    detachAgentSecretFromAgent: {
+        readonly secret: AgentSecretSummary;
+        readonly sync?: unknown;
+    };
+    attachAgentSecretToChannel: {
+        readonly secret: AgentSecretSummary;
+        readonly sync?: unknown;
+    };
+    detachAgentSecretFromChannel: {
+        readonly secret: AgentSecretSummary;
+        readonly sync?: unknown;
     };
     getBots: { readonly bots: readonly BotSummary[] };
     getIntegrations: { readonly integrations: readonly IntegrationSummary[] };

@@ -34,6 +34,11 @@ const { backups } = await state.execute("getBackups", { limit: 25 });
 const latest = state.result("getBackups");
 ```
 
+Rig-backed agent secrets use the same typed facade. `getAgentSecrets` materializes
+masked metadata only; create/delete and agent/channel attach/detach actions never
+place a secret value in a state snapshot or operation event. Once loaded, the
+list reconciles automatically from durable `agent-secrets` sync hints.
+
 Chat workspaces are lazy live trees. Calling `start()` does not load any
 workspace. A host declares the directories it currently needs—normally the
 expanded folders in the file tree—and state materializes only those layers:

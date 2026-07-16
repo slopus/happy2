@@ -52,3 +52,5 @@
 @import "./styles/moderation-report-card.css";
 @import "./styles/agent-image-panel.css";
 @import "./styles/agent-image-detail.css";
+@import "./styles/agent-secret-panel.css";
+@import "./styles/agent-secret-detail.css";

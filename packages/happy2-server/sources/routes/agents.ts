@@ -6,12 +6,98 @@ import { CollaborationError } from "../modules/collaboration/types.js";
 const MAX_ID_LENGTH = 128;
 const MAX_IMAGE_NAME_LENGTH = 100;
 const MAX_DOCKERFILE_BYTES = 256 * 1024;
+const MAX_SECRET_DESCRIPTION_LENGTH = 1_000;
+const MAX_SECRET_ENVIRONMENT_BYTES = 512 * 1024;
+const MAX_SECRET_ENVIRONMENT_VARIABLES = 128;
+const SECRET_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+const ENVIRONMENT_VARIABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 
 export function registerAgentRoutes(
     app: FastifyInstance,
     auth: AuthService,
     agents: AgentService,
 ): void {
+    app.get(
+        "/v0/admin/agentSecrets",
+        authenticated(auth, async (request, _reply, actorUserId) => {
+            emptyQuery(request);
+            return agents.listAgentSecrets(actorUserId);
+        }),
+    );
+
+    app.post(
+        "/v0/admin/agentSecrets/createSecret",
+        authenticated(auth, async (request, reply, actorUserId) => {
+            const body = requestBody(request, ["id", "description", "environment"]);
+            const result = await agents.createAgentSecret({
+                actorUserId,
+                id: secretIdField(body, "id"),
+                description: requiredString(body, "description", MAX_SECRET_DESCRIPTION_LENGTH),
+                environment: secretEnvironment(body),
+            });
+            return reply.code(201).send(result);
+        }),
+    );
+
+    app.post(
+        "/v0/admin/agentSecrets/:secretId/deleteSecret",
+        authenticated(auth, async (request, _reply, actorUserId) => {
+            emptyBody(request);
+            return agents.deleteAgentSecret({
+                actorUserId,
+                secretId: secretPathId(request),
+            });
+        }),
+    );
+
+    app.post(
+        "/v0/admin/agentSecrets/:secretId/attachToAgent",
+        authenticated(auth, async (request, _reply, actorUserId) => {
+            const body = requestBody(request, ["agentUserId"]);
+            return agents.attachAgentSecretToAgent({
+                actorUserId,
+                secretId: secretPathId(request),
+                agentUserId: idField(body, "agentUserId"),
+            });
+        }),
+    );
+
+    app.post(
+        "/v0/admin/agentSecrets/:secretId/detachFromAgent",
+        authenticated(auth, async (request, _reply, actorUserId) => {
+            const body = requestBody(request, ["agentUserId"]);
+            return agents.detachAgentSecretFromAgent({
+                actorUserId,
+                secretId: secretPathId(request),
+                agentUserId: idField(body, "agentUserId"),
+            });
+        }),
+    );
+
+    app.post(
+        "/v0/admin/agentSecrets/:secretId/attachToChannel",
+        authenticated(auth, async (request, _reply, actorUserId) => {
+            const body = requestBody(request, ["channelId"]);
+            return agents.attachAgentSecretToChannel({
+                actorUserId,
+                secretId: secretPathId(request),
+                channelId: idField(body, "channelId"),
+            });
+        }),
+    );
+
+    app.post(
+        "/v0/admin/agentSecrets/:secretId/detachFromChannel",
+        authenticated(auth, async (request, _reply, actorUserId) => {
+            const body = requestBody(request, ["channelId"]);
+            return agents.detachAgentSecretFromChannel({
+                actorUserId,
+                secretId: secretPathId(request),
+                channelId: idField(body, "channelId"),
+            });
+        }),
+    );
+
     app.get(
         "/v0/admin/agentImages",
         authenticated(auth, async (request, _reply, actorUserId) => {
@@ -131,6 +217,59 @@ function dockerfile(body: Record<string, unknown>): string {
         throw new InvalidRequest("dockerfile must be a non-empty string");
     if (Buffer.byteLength(value, "utf8") > MAX_DOCKERFILE_BYTES)
         throw new InvalidRequest("dockerfile exceeds the 256 KiB limit");
+    return value;
+}
+
+function secretIdField(body: Record<string, unknown>, key: string): string {
+    const value = body[key];
+    if (typeof value !== "string" || !SECRET_ID_PATTERN.test(value))
+        throw new InvalidRequest(
+            `${key} must be 1-128 characters using letters, numbers, periods, underscores, colons, or hyphens`,
+        );
+    return value;
+}
+
+function idField(body: Record<string, unknown>, key: string): string {
+    const value = body[key];
+    if (typeof value !== "string" || !value || value.length > MAX_ID_LENGTH)
+        throw new InvalidRequest(`${key} is invalid`);
+    return value;
+}
+
+function secretEnvironment(body: Record<string, unknown>): Record<string, string> {
+    const value = body.environment;
+    if (!value || typeof value !== "object" || Array.isArray(value))
+        throw new InvalidRequest("environment must be an object of variable names and values");
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) throw new InvalidRequest("environment must not be empty");
+    if (entries.length > MAX_SECRET_ENVIRONMENT_VARIABLES)
+        throw new InvalidRequest(
+            `environment may contain at most ${MAX_SECRET_ENVIRONMENT_VARIABLES} variables`,
+        );
+    const normalizedNames = new Set<string>();
+    const environment: Record<string, string> = {};
+    for (const [name, secret] of entries) {
+        if (!ENVIRONMENT_VARIABLE_PATTERN.test(name))
+            throw new InvalidRequest(`environment contains an invalid variable name: ${name}`);
+        const normalizedName = name.toUpperCase();
+        if (normalizedNames.has(normalizedName))
+            throw new InvalidRequest("environment variable names must be unique ignoring case");
+        normalizedNames.add(normalizedName);
+        if (typeof secret !== "string")
+            throw new InvalidRequest(`environment variable ${name} must have a text value`);
+        if (secret.includes("\0"))
+            throw new InvalidRequest(`environment variable ${name} cannot contain a null byte`);
+        environment[name] = secret;
+    }
+    if (Buffer.byteLength(JSON.stringify(environment), "utf8") > MAX_SECRET_ENVIRONMENT_BYTES)
+        throw new InvalidRequest("environment exceeds the 512 KiB limit");
+    return environment;
+}
+
+function secretPathId(request: FastifyRequest): string {
+    const value = (request.params as Record<string, unknown>).secretId;
+    if (typeof value !== "string" || !SECRET_ID_PATTERN.test(value))
+        throw new InvalidRequest("secretId is invalid");
     return value;
 }
 

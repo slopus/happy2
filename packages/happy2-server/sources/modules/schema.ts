@@ -226,6 +226,36 @@ export const agentRigBindings = sqliteTable(
     (table) => [primaryKey({ columns: [table.userId, table.chatId] })],
 );
 
+export const agentSecretAgentAssignments = sqliteTable(
+    "agent_secret_agent_assignments",
+    {
+        secretId: text("secret_id").notNull(),
+        agentUserId: text("agent_user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        createdByUserId: text("created_by_user_id").references(() => users.id, {
+            onDelete: "set null",
+        }),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [primaryKey({ columns: [table.secretId, table.agentUserId] })],
+);
+
+export const agentSecretChannelAssignments = sqliteTable(
+    "agent_secret_channel_assignments",
+    {
+        secretId: text("secret_id").notNull(),
+        chatId: text("chat_id")
+            .notNull()
+            .references(() => chats.id, { onDelete: "cascade" }),
+        createdByUserId: text("created_by_user_id").references(() => users.id, {
+            onDelete: "set null",
+        }),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [primaryKey({ columns: [table.secretId, table.chatId] })],
+);
+
 export const callCredentialLeases = sqliteTable("call_credential_leases", {
     id: text("id").primaryKey().notNull(),
     callId: text("call_id").notNull(),
@@ -1070,6 +1100,8 @@ export const schema = {
     agentImageSettings,
     agentTurns,
     agentRigBindings,
+    agentSecretAgentAssignments,
+    agentSecretChannelAssignments,
     apiCredentials,
     auditLogEntries,
     authMagicLinks,

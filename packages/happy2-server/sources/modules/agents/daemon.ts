@@ -23,8 +23,28 @@ interface RigMessage {
 interface RigSession {
     id: string;
     lastEventId?: string;
+    secretIds?: string[];
+    projectSecretIds?: string[];
+    sessionSecretIds?: string[];
     status: string;
     snapshot: { messages: RigMessage[] };
+}
+
+export interface RigSecretRegistration {
+    description: string;
+    environment: Record<string, string>;
+    id: string;
+}
+
+export interface RigSecretSummary {
+    description: string;
+    environmentVariables: string[];
+    id: string;
+}
+
+export interface RigSessionSecretPlan {
+    desiredSecretIds: readonly string[];
+    managedSecretIds: readonly string[];
 }
 
 interface RigPartialMessage {
@@ -62,6 +82,7 @@ export type RigTurnInspection =
     | { error: string; kind: "failed" };
 
 export class RigDaemonClient {
+    private readonly sessionSecretReconciliations = new Map<string, Promise<void>>();
     private token?: string;
     private ready?: Promise<void>;
 
@@ -96,6 +117,81 @@ export class RigDaemonClient {
             signal,
         );
         return { id: response.session.id };
+    }
+
+    async listSecrets(signal?: AbortSignal): Promise<RigSecretSummary[]> {
+        const response = await this.connectedRequest<{ secrets: RigSecretSummary[] }>(
+            "GET",
+            "/secrets",
+            undefined,
+            signal,
+        );
+        return response.secrets;
+    }
+
+    async registerSecret(
+        secret: RigSecretRegistration,
+        signal?: AbortSignal,
+    ): Promise<RigSecretSummary> {
+        const response = await this.connectedRequest<{ secret: RigSecretSummary }>(
+            "POST",
+            "/secrets",
+            secret,
+            signal,
+        );
+        return response.secret;
+    }
+
+    async unregisterSecret(secretId: string, signal?: AbortSignal): Promise<boolean> {
+        const response = await this.connectedRequest<{ removed: boolean }>(
+            "DELETE",
+            `/secrets/${encodeURIComponent(secretId)}`,
+            undefined,
+            signal,
+        );
+        return response.removed;
+    }
+
+    async reconcileSessionSecrets(
+        sessionId: string,
+        loadPlan: () => Promise<RigSessionSecretPlan>,
+        signal?: AbortSignal,
+    ): Promise<void> {
+        const previous = this.sessionSecretReconciliations.get(sessionId) ?? Promise.resolve();
+        const reconciliation = previous
+            .catch(() => undefined)
+            .then(async () => {
+                const { desiredSecretIds, managedSecretIds } = await loadPlan();
+                const desired = new Set(desiredSecretIds);
+                const managed = new Set(managedSecretIds);
+                const session = await this.session(sessionId, signal);
+                const attached = new Set(session.sessionSecretIds ?? session.secretIds ?? []);
+                for (const secretId of [...desired].sort()) {
+                    if (attached.has(secretId)) continue;
+                    await this.connectedRequest(
+                        "POST",
+                        `/sessions/${encodeURIComponent(sessionId)}/secrets`,
+                        { secretId, scope: "session" },
+                        signal,
+                    );
+                }
+                for (const secretId of [...attached].sort()) {
+                    if (!managed.has(secretId) || desired.has(secretId)) continue;
+                    await this.connectedRequest(
+                        "DELETE",
+                        `/sessions/${encodeURIComponent(sessionId)}/secrets/${encodeURIComponent(secretId)}?scope=session`,
+                        undefined,
+                        signal,
+                    );
+                }
+            });
+        this.sessionSecretReconciliations.set(sessionId, reconciliation);
+        try {
+            await reconciliation;
+        } finally {
+            if (this.sessionSecretReconciliations.get(sessionId) === reconciliation)
+                this.sessionSecretReconciliations.delete(sessionId);
+        }
     }
 
     async watchGlobalEvents(

@@ -123,6 +123,15 @@ export interface AgentImageDetails extends AgentImageSummary {
     readonly buildLogTruncated: boolean;
 }
 
+/** Rig-owned secret metadata. Values are intentionally absent from every client snapshot. */
+export interface AgentSecretSummary {
+    readonly id: string;
+    readonly description: string;
+    readonly environmentVariables: readonly string[];
+    readonly agentUserIds: readonly string[];
+    readonly channelIds: readonly string[];
+}
+
 export interface IntegrationSummary {
     readonly id: string;
     readonly kind: IntegrationKind;

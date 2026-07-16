@@ -1,4 +1,13 @@
-import { createMemo, createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
+import {
+    createMemo,
+    createSignal,
+    Match,
+    onCleanup,
+    onMount,
+    Show,
+    Switch,
+    type JSX,
+} from "solid-js";
 import type {
     AdminUserSummary,
     AutomationSummary,
@@ -19,6 +28,7 @@ import {
 } from "happy2-ui";
 import type { AuthSession } from "../components/AuthGate";
 import { AgentImagesView } from "./AgentImagesView";
+import { AgentSecretsView } from "./AgentSecretsView";
 
 export type AdminViewProps = {
     session?: AuthSession;
@@ -42,6 +52,7 @@ const tabs: TabItem[] = [
     { id: "automations", label: "Automations", icon: "zap" },
     { id: "integrations", label: "Integrations", icon: "link" },
     { id: "images", label: "Agent images", icon: "spark" },
+    { id: "secrets", label: "Agent secrets", icon: "shield" },
 ];
 
 const columns: Record<string, DataTableColumn[]> = {
@@ -197,7 +208,7 @@ export function AdminView(props: AdminViewProps) {
                                 padding: "16px",
                             }}
                         >
-                            <Show
+                            <Switch
                                 fallback={
                                     <DataTable
                                         columns={columns[activeTab()] ?? []}
@@ -218,10 +229,14 @@ export function AdminView(props: AdminViewProps) {
                                         rows={rows()}
                                     />
                                 }
-                                when={activeTab() === "images"}
                             >
-                                <AgentImagesView query={query()} session={props.session!} />
-                            </Show>
+                                <Match when={activeTab() === "images"}>
+                                    <AgentImagesView query={query()} session={props.session!} />
+                                </Match>
+                                <Match when={activeTab() === "secrets"}>
+                                    <AgentSecretsView query={query()} session={props.session!} />
+                                </Match>
+                            </Switch>
                         </Box>
                     </Show>
                 </Show>

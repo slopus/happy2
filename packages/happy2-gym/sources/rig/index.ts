@@ -56,7 +56,15 @@ interface MockSession {
     id: string;
     lastEventId?: string;
     messages: RigMessage[];
+    projectSecretIds: Set<string>;
+    sessionSecretIds: Set<string>;
     status: string;
+}
+
+interface MockSecretRegistration {
+    description: string;
+    environment: Record<string, string>;
+    id: string;
 }
 
 export interface MockRigRun {
@@ -103,6 +111,7 @@ export class MockRigDaemon implements AsyncDisposable {
     private readonly globalEventStreams = new Set<GlobalEventStream>();
     private runSequence = 0;
     private readonly runStreams = new Map<string, MockRunStream>();
+    private readonly secrets = new Map<string, MockSecretRegistration>();
     private server = createServer();
     private nextSessionStreamStatus?: number;
     private sessionEventDeliveryPaused = false;
@@ -133,6 +142,16 @@ export class MockRigDaemon implements AsyncDisposable {
 
     setAutomaticReply(reply: string | undefined): void {
         this.automaticReply = reply;
+    }
+
+    secretEnvironment(secretId: string): Readonly<Record<string, string>> | undefined {
+        const secret = this.secrets.get(secretId);
+        return secret ? { ...secret.environment } : undefined;
+    }
+
+    sessionSecretIds(sessionId: string): readonly string[] {
+        const session = this.requireSession(sessionId);
+        return [...new Set([...session.projectSecretIds, ...session.sessionSecretIds])].sort();
     }
 
     dropNextSubmissionResponseAfterAccept(): void {
@@ -329,6 +348,47 @@ export class MockRigDaemon implements AsyncDisposable {
                 },
             });
         }
+        if (request.method === "GET" && url.pathname === "/secrets") {
+            return sendJson(response, 200, {
+                secrets: [...this.secrets.values()]
+                    .sort((left, right) => left.id.localeCompare(right.id))
+                    .map(secretSummary),
+            });
+        }
+        if (request.method === "POST" && url.pathname === "/secrets") {
+            const body = await jsonBody(request);
+            if (
+                typeof body.id !== "string" ||
+                typeof body.description !== "string" ||
+                !body.environment ||
+                typeof body.environment !== "object" ||
+                Array.isArray(body.environment)
+            )
+                return sendJson(response, 400, { error: "Invalid secret registration" });
+            const secret: MockSecretRegistration = {
+                id: body.id,
+                description: body.description,
+                environment: Object.fromEntries(
+                    Object.entries(body.environment as Record<string, unknown>).map(
+                        ([name, value]) => [name, String(value)],
+                    ),
+                ),
+            };
+            this.secrets.set(secret.id, secret);
+            return sendJson(response, 200, { secret: secretSummary(secret) });
+        }
+        const secretRegistrationMatch = url.pathname.match(/^\/secrets\/([^/]+)$/u);
+        if (request.method === "DELETE" && secretRegistrationMatch) {
+            const secretId = decodeURIComponent(secretRegistrationMatch[1]!);
+            const removed = this.secrets.delete(secretId);
+            if (removed) {
+                for (const session of this.sessions.values()) {
+                    session.projectSecretIds.delete(secretId);
+                    session.sessionSecretIds.delete(secretId);
+                }
+            }
+            return sendJson(response, 200, { removed });
+        }
         if (request.method === "GET" && url.pathname === "/events/stream") {
             this.globalStreamRequestCount += 1;
             return this.streamGlobalEvents(url, response);
@@ -340,7 +400,20 @@ export class MockRigDaemon implements AsyncDisposable {
         if (request.method === "POST" && url.pathname === "/sessions") {
             const body = await jsonBody(request);
             const id = `session-${this.sessions.size + 1}`;
-            const session: MockSession = { events: [], id, messages: [], status: "idle" };
+            const session: MockSession = {
+                events: [],
+                id,
+                messages: [],
+                projectSecretIds: new Set(),
+                sessionSecretIds: new Set(
+                    Array.isArray(body.secretIds)
+                        ? body.secretIds.filter(
+                              (secretId): secretId is string => typeof secretId === "string",
+                          )
+                        : [],
+                ),
+                status: "idle",
+            };
             this.sessions.set(id, session);
             this.createdCwds.push(String(body.cwd));
             const docker =
@@ -367,7 +440,31 @@ export class MockRigDaemon implements AsyncDisposable {
             this.append(session, "session_created", { session: snapshot(session) });
             return sendJson(response, 201, { session: snapshot(session) });
         }
-        const match = url.pathname.match(/^\/sessions\/([^/]+)(?:\/(messages|events|stream))?$/);
+        const sessionSecretMatch = url.pathname.match(
+            /^\/sessions\/([^/]+)\/secrets(?:\/([^/]+))?$/u,
+        );
+        if (sessionSecretMatch) {
+            const session = this.sessions.get(decodeURIComponent(sessionSecretMatch[1]!));
+            if (!session) return sendJson(response, 404, { error: "Session not found" });
+            const pathSecretId = sessionSecretMatch[2]
+                ? decodeURIComponent(sessionSecretMatch[2])
+                : undefined;
+            if (request.method === "POST" && pathSecretId === undefined) {
+                const body = await jsonBody(request);
+                if (typeof body.secretId !== "string" || !this.secrets.has(body.secretId))
+                    return sendJson(response, 409, { error: "Secret is not registered" });
+                if (body.scope === "project") session.projectSecretIds.add(body.secretId);
+                else session.sessionSecretIds.add(body.secretId);
+                return sendJson(response, 200, { session: snapshot(session) });
+            }
+            if (request.method === "DELETE" && pathSecretId !== undefined) {
+                if (url.searchParams.get("scope") === "project")
+                    session.projectSecretIds.delete(pathSecretId);
+                else session.sessionSecretIds.delete(pathSecretId);
+                return sendJson(response, 200, { session: snapshot(session) });
+            }
+        }
+        const match = url.pathname.match(/^\/sessions\/([^/]+)(?:\/(messages|events|stream))?$/u);
         const session = match ? this.sessions.get(decodeURIComponent(match[1]!)) : undefined;
         if (!match || !session) return sendJson(response, 404, { error: "Session not found" });
         const action = match[2];
@@ -722,11 +819,24 @@ function formatUuidV7(timeMs: number, sequence: number, random: Buffer): string 
 }
 
 function snapshot(session: MockSession) {
+    const projectSecretIds = [...session.projectSecretIds].sort();
+    const sessionSecretIds = [...session.sessionSecretIds].sort();
     return {
         id: session.id,
         ...(session.lastEventId ? { lastEventId: session.lastEventId } : {}),
+        projectSecretIds,
+        secretIds: [...new Set([...projectSecretIds, ...sessionSecretIds])].sort(),
+        sessionSecretIds,
         snapshot: { messages: session.messages },
         status: session.status,
+    };
+}
+
+function secretSummary(secret: MockSecretRegistration) {
+    return {
+        id: secret.id,
+        description: secret.description,
+        environmentVariables: Object.keys(secret.environment),
     };
 }
 

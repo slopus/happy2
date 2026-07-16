@@ -87,6 +87,14 @@ export interface AgentImageDetails extends AgentImageSummary {
     buildLogTruncated: boolean;
 }
 
+export interface AgentSecretSummary {
+    id: string;
+    description: string;
+    environmentVariables: string[];
+    agentUserIds: string[];
+    channelIds: string[];
+}
+
 export interface AdminUserSummary extends UserSummary {
     lastAccessAt?: string;
 }

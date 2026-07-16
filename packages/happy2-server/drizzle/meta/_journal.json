@@ -71,6 +71,13 @@
             "when": 1784167000000,
             "tag": "0009_chat_workspace_binding_lookup",
             "breakpoints": true
+        },
+        {
+            "idx": 10,
+            "version": "6",
+            "when": 1784170000000,
+            "tag": "0010_rig_secret_assignments",
+            "breakpoints": true
         }
     ]
 }

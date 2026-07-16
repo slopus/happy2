@@ -653,7 +653,10 @@ class ClientStateModel implements ClientState {
             this.emit({
                 type: "operation",
                 operation,
-                input: input as Readonly<Record<string, unknown>> | undefined,
+                input:
+                    spec.emitInput === false
+                        ? undefined
+                        : (input as Readonly<Record<string, unknown>> | undefined),
             });
             return result;
         } catch (error) {
@@ -830,6 +833,7 @@ class ClientStateModel implements ClientState {
             else if (area === "scheduled-messages") add("getScheduledMessages");
             else if (area === "automations") add("getAutomations");
             else if (area === "agent-images") add("getAgentImages");
+            else if (area === "agent-secrets") add("getAgentSecrets");
             else if (area === "bots") add("getBots");
             else if (area === "integrations") add("getIntegrations");
             else if (area === "presence") add("getPresence");

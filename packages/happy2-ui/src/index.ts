@@ -10,6 +10,17 @@ export {
     type AgentImageStatus,
 } from "./AgentImagePanel";
 export {
+    AgentSecretDetail,
+    type AgentSecretBinding,
+    type AgentSecretDetailProps,
+} from "./AgentSecretDetail";
+export {
+    AgentSecretPanel,
+    type AgentSecretDraftVariable,
+    type AgentSecretItem,
+    type AgentSecretPanelProps,
+} from "./AgentSecretPanel";
+export {
     AgentRunCard,
     type AgentRun,
     type AgentRunAction,
