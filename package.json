@@ -1,6 +1,6 @@
 {
   "name": "happy2",
-  "version": "0.0.3",
+  "version": "0.0.1",
   "description": "Happy (2) desktop web app and server bundle",
   "bin": {
     "happy2": "packages/happy2-server/bin/happy2.js"
