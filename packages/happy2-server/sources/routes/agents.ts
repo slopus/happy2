@@ -117,6 +117,18 @@ export function registerAgentRoutes(
     );
 
     app.post(
+        "/v0/admin/agents/:agentUserId/changeImage",
+        authenticated(auth, async (request, _reply, actorUserId) => {
+            const body = requestBody(request, ["imageId"]);
+            return agents.changeAgentImage({
+                actorUserId,
+                agentUserId: pathId(request, "agentUserId"),
+                imageId: idField(body, "imageId"),
+            });
+        }),
+    );
+
+    app.post(
         "/v0/admin/agentImages/createImage",
         authenticated(auth, async (request, reply, actorUserId) => {
             const body = requestBody(request, ["name", "dockerfile"]);

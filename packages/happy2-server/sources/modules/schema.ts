@@ -412,9 +412,7 @@ export const agentTurns = sqliteTable(
         chatId: text("chat_id")
             .notNull()
             .references(() => chats.id, { onDelete: "cascade" }),
-        sessionId: text("session_id")
-            .notNull()
-            .references(() => agentRigBindings.sessionId, { onDelete: "cascade" }),
+        sessionId: text("session_id").notNull(),
         runId: text("run_id"),
         baselineMessageCount: integer("baseline_message_count"),
         lastSessionEventId: text("last_session_event_id"),

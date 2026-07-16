@@ -926,6 +926,232 @@ export class CollaborationRepository {
         });
     }
 
+    async getAgentImageChangeContext(input: {
+        actorUserId: string;
+        agentUserId: string;
+        imageId: string;
+    }): Promise<{
+        bindings: Array<{
+            chatId: string;
+            containerName: string;
+            cwd: string;
+            sessionId: string;
+        }>;
+        currentImageId: string;
+        image: { dockerImageId: string; dockerTag: string; id: string };
+        user: UserSummary;
+    }> {
+        await this.requireServerAdminDb(this.db, input.actorUserId);
+        const [agent, image, bindings, unfinished] = await Promise.all([
+            this.db
+                .select(userSelection)
+                .from(users)
+                .where(
+                    and(
+                        eq(users.id, input.agentUserId),
+                        eq(users.kind, "agent"),
+                        isNull(users.deletedAt),
+                    ),
+                )
+                .limit(1)
+                .then((rows) => rows[0]),
+            this.db
+                .select({
+                    id: agentImages.id,
+                    dockerImageId: agentImages.dockerImageId,
+                    dockerTag: agentImages.dockerTag,
+                    status: agentImages.status,
+                })
+                .from(agentImages)
+                .where(eq(agentImages.id, input.imageId))
+                .limit(1)
+                .then((rows) => rows[0]),
+            this.db
+                .select({
+                    chatId: agentRigBindings.chatId,
+                    containerName: agentRigBindings.containerName,
+                    cwd: agentRigBindings.cwd,
+                    sessionId: agentRigBindings.sessionId,
+                })
+                .from(agentRigBindings)
+                .where(eq(agentRigBindings.userId, input.agentUserId))
+                .orderBy(agentRigBindings.chatId),
+            this.db
+                .select({ id: agentTurns.userMessageId })
+                .from(agentTurns)
+                .where(
+                    and(
+                        eq(agentTurns.agentUserId, input.agentUserId),
+                        inArray(agentTurns.status, ["pending", "running"]),
+                    ),
+                )
+                .limit(1)
+                .then((rows) => rows[0]),
+        ]);
+        if (!agent) throw new CollaborationError("not_found", "Agent was not found");
+        const currentImageId = optionalText(agent.agent_image_id);
+        if (!currentImageId) throw new Error("Agent image assignment is missing");
+        if (!image) throw new CollaborationError("not_found", "Agent image was not found");
+        if (image.status !== "ready" || !image.dockerImageId)
+            throw new CollaborationError("conflict", "Agent image is not ready");
+        if (unfinished && currentImageId !== image.id)
+            throw new CollaborationError(
+                "conflict",
+                "Agent image cannot be changed while the agent has unfinished work",
+            );
+        return {
+            bindings,
+            currentImageId,
+            image: {
+                id: image.id,
+                dockerImageId: image.dockerImageId,
+                dockerTag: image.dockerTag,
+            },
+            user: asUser(agent),
+        };
+    }
+
+    async commitAgentImageChange(input: {
+        actorUserId: string;
+        agentUserId: string;
+        expectedImageId: string;
+        imageId: string;
+        replacements: Array<{
+            chatId: string;
+            containerName: string;
+            cwd: string;
+            previousContainerName: string;
+            previousSessionId: string;
+            sessionId: string;
+        }>;
+    }): Promise<{ user: UserSummary; sync?: MutationHint }> {
+        return this.writeDb(async (tx) => {
+            await this.requireServerAdminDb(tx, input.actorUserId);
+            const [agent] = await tx
+                .select(userSelection)
+                .from(users)
+                .where(
+                    and(
+                        eq(users.id, input.agentUserId),
+                        eq(users.kind, "agent"),
+                        isNull(users.deletedAt),
+                    ),
+                )
+                .limit(1);
+            if (!agent) throw new CollaborationError("not_found", "Agent was not found");
+            const currentImageId = optionalText(agent.agent_image_id);
+            if (currentImageId === input.imageId) return { user: asUser(agent) };
+            if (currentImageId !== input.expectedImageId)
+                throw new CollaborationError("conflict", "Agent image changed concurrently");
+            const [image] = await tx
+                .select({
+                    id: agentImages.id,
+                    status: agentImages.status,
+                    dockerImageId: agentImages.dockerImageId,
+                })
+                .from(agentImages)
+                .where(eq(agentImages.id, input.imageId))
+                .limit(1);
+            if (!image) throw new CollaborationError("not_found", "Agent image was not found");
+            if (image.status !== "ready" || !image.dockerImageId)
+                throw new CollaborationError("conflict", "Agent image is not ready");
+            const [unfinished] = await tx
+                .select({ id: agentTurns.userMessageId })
+                .from(agentTurns)
+                .where(
+                    and(
+                        eq(agentTurns.agentUserId, input.agentUserId),
+                        inArray(agentTurns.status, ["pending", "running"]),
+                    ),
+                )
+                .limit(1);
+            if (unfinished)
+                throw new CollaborationError(
+                    "conflict",
+                    "Agent image cannot be changed while the agent has unfinished work",
+                );
+            const currentBindings = await tx
+                .select({
+                    chatId: agentRigBindings.chatId,
+                    containerName: agentRigBindings.containerName,
+                    cwd: agentRigBindings.cwd,
+                    sessionId: agentRigBindings.sessionId,
+                })
+                .from(agentRigBindings)
+                .where(eq(agentRigBindings.userId, input.agentUserId))
+                .orderBy(agentRigBindings.chatId);
+            if (
+                currentBindings.length !== input.replacements.length ||
+                currentBindings.some((binding, index) => {
+                    const replacement = input.replacements[index];
+                    return (
+                        !replacement ||
+                        replacement.chatId !== binding.chatId ||
+                        replacement.cwd !== binding.cwd ||
+                        replacement.previousContainerName !== binding.containerName ||
+                        replacement.previousSessionId !== binding.sessionId
+                    );
+                })
+            )
+                throw new CollaborationError("conflict", "Agent environment changed concurrently");
+
+            const sequence = await this.nextSequence(tx);
+            for (const replacement of input.replacements) {
+                const changed = await tx
+                    .update(agentRigBindings)
+                    .set({
+                        imageId: input.imageId,
+                        sessionId: replacement.sessionId,
+                        containerName: replacement.containerName,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    })
+                    .where(
+                        and(
+                            eq(agentRigBindings.userId, input.agentUserId),
+                            eq(agentRigBindings.chatId, replacement.chatId),
+                            eq(agentRigBindings.sessionId, replacement.previousSessionId),
+                            eq(agentRigBindings.containerName, replacement.previousContainerName),
+                            eq(agentRigBindings.imageId, input.expectedImageId),
+                        ),
+                    )
+                    .returning({ id: agentRigBindings.sessionId });
+                if (changed.length !== 1)
+                    throw new CollaborationError(
+                        "conflict",
+                        "Agent environment changed concurrently",
+                    );
+            }
+            await tx
+                .update(users)
+                .set({ agentImageId: input.imageId, syncSequence: sequence })
+                .where(
+                    and(
+                        eq(users.id, input.agentUserId),
+                        eq(users.agentImageId, input.expectedImageId),
+                    ),
+                );
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "user.updated",
+                entityId: input.agentUserId,
+                actorUserId: input.actorUserId,
+            });
+            await this.appendAuditDb(tx, {
+                actorUserId: input.actorUserId,
+                action: "agent.image_changed",
+                targetType: "user",
+                targetId: input.agentUserId,
+                after: { imageId: input.imageId },
+            });
+            const [updated] = await tx
+                .select(userSelection)
+                .from(users)
+                .where(eq(users.id, input.agentUserId));
+            if (!updated) throw new Error("Updated agent is missing");
+            return { user: asUser(updated), sync: areaHint(sequence, "users") };
+        });
+    }
+
     async getReadyDefaultAgentImage(): Promise<AgentExecutionImage | undefined> {
         const [image] = await this.db
             .select({

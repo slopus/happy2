@@ -78,6 +78,13 @@
             "when": 1784170000000,
             "tag": "0010_rig_secret_assignments",
             "breakpoints": true
+        },
+        {
+            "idx": 11,
+            "version": "6",
+            "when": 1784220000000,
+            "tag": "0011_agent_image_changes",
+            "breakpoints": true
         }
     ]
 }

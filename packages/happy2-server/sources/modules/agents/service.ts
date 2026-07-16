@@ -7,6 +7,7 @@ import {
     CollaborationError,
     type AgentSecretSummary,
     type MutationHint,
+    type UserSummary,
 } from "../collaboration/types.js";
 import { realtimeTopics, type PubSub } from "../realtime/index.js";
 import {
@@ -90,6 +91,7 @@ export class AgentService {
         Promise<{ containerName: string; cwd: string; sessionId: string }>
     >();
     private readonly imageBuilds = new Map<string, Promise<void>>();
+    private readonly imageMutations = new Map<string, Promise<unknown>>();
     private readonly pendingImageBuilds = new Set<string>();
     private readonly secretMutations = new Map<string, Promise<unknown>>();
     private activeImageBuilds = 0;
@@ -232,6 +234,118 @@ export class AgentService {
         const result = await this.repository.setDefaultAgentImage(input);
         await this.publishAgentImageHint(result.hint);
         return result.image;
+    }
+
+    async changeAgentImage(input: {
+        actorUserId: string;
+        agentUserId: string;
+        imageId: string;
+    }): Promise<{ user: UserSummary; sync?: MutationHint }> {
+        const previous = this.imageMutations.get(input.agentUserId) ?? Promise.resolve();
+        const mutation = previous
+            .catch(() => undefined)
+            .then(() => this.changeAgentImageMutation(input));
+        this.imageMutations.set(input.agentUserId, mutation);
+        try {
+            return await mutation;
+        } finally {
+            if (this.imageMutations.get(input.agentUserId) === mutation)
+                this.imageMutations.delete(input.agentUserId);
+        }
+    }
+
+    private async changeAgentImageMutation(input: {
+        actorUserId: string;
+        agentUserId: string;
+        imageId: string;
+    }): Promise<{ user: UserSummary; sync?: MutationHint }> {
+        const context = await this.repository.getAgentImageChangeContext(input);
+        if (context.currentImageId === context.image.id) return { user: context.user };
+
+        const replacements: Array<{
+            chatId: string;
+            containerName: string;
+            cwd: string;
+            previousContainerName: string;
+            previousSessionId: string;
+            sessionId: string;
+        }> = [];
+        let committed = false;
+        try {
+            for (const binding of context.bindings) {
+                const containerName = agentContainerName();
+                await this.docker.createContainer(
+                    {
+                        agentUserId: input.agentUserId,
+                        containerName,
+                        homeDirectory: join(binding.cwd, "..", "home"),
+                        imageId: context.image.id,
+                        imageTag: context.image.dockerTag,
+                        security: AGENT_CONTAINER_SECURITY,
+                        workspaceDirectory: binding.cwd,
+                    },
+                    this.shutdown.signal,
+                );
+                try {
+                    const session = await this.daemon.createSession(
+                        binding.cwd,
+                        containerName,
+                        this.shutdown.signal,
+                    );
+                    replacements.push({
+                        chatId: binding.chatId,
+                        containerName,
+                        cwd: binding.cwd,
+                        previousContainerName: binding.containerName,
+                        previousSessionId: binding.sessionId,
+                        sessionId: session.id,
+                    });
+                } catch (error) {
+                    await this.docker.removeContainer(containerName);
+                    throw error;
+                }
+            }
+
+            const result = await this.repository.commitAgentImageChange({
+                ...input,
+                expectedImageId: context.currentImageId,
+                replacements,
+            });
+            if (!result.sync) {
+                await Promise.all(
+                    replacements.map(({ containerName }) =>
+                        this.docker.removeContainer(containerName),
+                    ),
+                );
+                return { user: result.user };
+            }
+
+            committed = true;
+            await Promise.allSettled(
+                replacements.map(({ previousContainerName }) =>
+                    this.docker.removeContainer(previousContainerName),
+                ),
+            ).then((results) => {
+                for (const result of results)
+                    if (result.status === "rejected") this.onError(result.reason);
+            });
+            await this.reconcileSecretBindings({ agentUserId: input.agentUserId }).catch(
+                this.onError,
+            );
+            await this.publishAgentHint(result.sync);
+            return result;
+        } catch (error) {
+            if (!committed)
+                await Promise.allSettled(
+                    replacements.map(({ containerName }) =>
+                        this.docker.removeContainer(containerName),
+                    ),
+                ).then((results) => {
+                    for (const result of results)
+                        if (result.status === "rejected") this.onError(result.reason);
+                });
+            throw error;
+        }
     }
 
     async listAgentSecrets(actorUserId: string): Promise<{ secrets: AgentSecretSummary[] }> {
@@ -495,6 +609,7 @@ export class AgentService {
         await Promise.race([
             Promise.allSettled([
                 ...this.bindingCreations.values(),
+                ...this.imageMutations.values(),
                 ...this.drains.values(),
                 ...this.imageBuilds.values(),
                 ...Array.from(this.turnStreams.values(), (stream) => stream.task),

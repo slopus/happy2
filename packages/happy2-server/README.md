@@ -227,6 +227,13 @@ Docker output is persisted in 500 ms batches so progress remains live without
 turning every process chunk into a SQLite transaction. The latest attempt's log
 is capped at two million characters and retries begin a fresh log.
 
+Administrators can assign a ready image to an existing agent with
+`POST /v0/admin/agents/:agentUserId/changeImage`. A real change starts a fresh
+container and Rig session for every connected private workspace, atomically
+switches the durable bindings, and then removes the old containers. Workspace
+directories are preserved. Selecting the current image is a no-op, and changing
+an image is rejected while the agent has pending or running work.
+
 Each agent is rooted at `default_cwd/agents/<agent-user-id>`. Direct/private
 conversations get separate `users/<human-user-id>/home` and
 `users/<human-user-id>/workspace` directories below that root, preventing one
