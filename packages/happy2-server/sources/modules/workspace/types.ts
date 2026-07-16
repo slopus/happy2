@@ -31,10 +31,51 @@ export interface WorkspaceDirectoryPage extends WorkspaceSnapshot {
     readonly nextCursor?: string;
 }
 
+/** One UTF-8 text file as observed at a conflict-detectable filesystem version. */
+export interface WorkspaceTextFile {
+    readonly path: string;
+    readonly content: string;
+    readonly size: number;
+    /** Opaque equality token. A different value means the file changed. */
+    readonly version: string;
+}
+
+export interface WorkspaceTextEdit {
+    /** UTF-16 string offset, matching JavaScript editor coordinates. */
+    readonly start: number;
+    /** Exclusive UTF-16 string offset. */
+    readonly end: number;
+    readonly text: string;
+}
+
+export interface WorkspaceTextPatch {
+    /** Sorted, non-overlapping edits against the supplied expectedVersion. */
+    readonly edits: readonly WorkspaceTextEdit[];
+}
+
+export interface WorkspaceFileWriteResult {
+    readonly path: string;
+    readonly size: number;
+    readonly version: string;
+    readonly created: boolean;
+}
+
+export interface WorkspaceFileDeleteResult {
+    readonly path: string;
+    readonly deletedVersion: string;
+}
+
 export class WorkspaceError extends Error {
     constructor(
-        readonly code: "not_found" | "stale_cursor",
+        readonly code:
+            | "not_found"
+            | "stale_cursor"
+            | "conflict"
+            | "invalid_patch"
+            | "not_text"
+            | "too_large",
         message: string,
+        readonly currentVersion?: string | null,
     ) {
         super(message);
         this.name = "WorkspaceError";

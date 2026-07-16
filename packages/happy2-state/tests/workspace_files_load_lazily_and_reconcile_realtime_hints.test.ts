@@ -46,7 +46,6 @@ describe("lazy chat workspace state", () => {
                 gitStatusPending: false,
             }),
         );
-
         await using state = createClientState(server.transport);
         await state.start();
         expect(server.requests.map(({ path }) => path)).toEqual(["/v0/sync/state", "/v0/chats"]);
@@ -262,6 +261,13 @@ describe("lazy chat workspace state", () => {
             }),
         );
         server.respond(
+            "GET",
+            "/v0/chats/chat-1/workspace/file?path=private.txt",
+            jsonResponse(200, {
+                file: { path: "private.txt", content: "private\n", size: 8, version: "v1" },
+            }),
+        );
+        server.respond(
             "POST",
             "/v0/sync/getDifference",
             jsonResponse(200, {
@@ -277,6 +283,7 @@ describe("lazy chat workspace state", () => {
         await using state = createClientState(server.transport);
         await state.start();
         await state.loadWorkspace("chat-1");
+        await state.readWorkspaceFile("chat-1", "private.txt");
         const events: ClientStateEvent[] = [];
         state.subscribe("workspace", (event) => events.push(event));
 
@@ -285,6 +292,7 @@ describe("lazy chat workspace state", () => {
 
         expect(state.get().chats).toEqual([]);
         expect(state.get().workspacesByChat).toEqual({});
+        expect(state.get().workspaceFilesByChat).toEqual({});
         expect(events).toEqual([
             { type: "workspace", reason: "removed", chatId: "chat-1", directories: [] },
         ]);

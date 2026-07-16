@@ -56,6 +56,32 @@ conditionally reconcile the preload and every requested directory. The hints
 never mutate state directly, and unchanged trees use `ETag` revalidation with
 no response body.
 
+Editor files are a separate lazy layer. Reading a file materializes its UTF-8
+contents and opaque filesystem `version` under
+`workspaceFilesByChat[chatId][path]`. Supply that last-read version when saving
+or deleting:
+
+```ts
+const opened = await state.readWorkspaceFile(chatId, "src/example.ts");
+const saved = await state.writeWorkspaceFile(chatId, {
+    path: opened.path,
+    expectedVersion: opened.version,
+    content: nextContents,
+});
+await state.deleteWorkspaceFile(chatId, saved.path, saved.version);
+```
+
+Writes may instead contain sorted, non-overlapping UTF-16 `patch.edits`. A
+server conflict makes state fetch the latest file and conservatively reapply
+edits that do not overlap the external changed range. Each resulting server
+attempt has its own idempotency key, while network retries of that attempt reuse
+the same key. An unsafe merge rejects with `WorkspaceFileConflictError`, which
+contains the latest file and attempted contents for an editor conflict view.
+Realtime workspace hints reconcile only already-materialized editor files;
+unopened files remain unloaded. Call `unloadWorkspaceFile` when an editor closes
+to release its base contents and stop live reconciliation. Files are UTF-8 text
+up to 4 MiB.
+
 Multipart uploads and one-time secret issuance are intentionally single-attempt
 operations because the server rejects HTTP idempotency keys for those routes.
 Use the resumable upload operations for retryable file transfer. All other JSON

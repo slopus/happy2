@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createClientState } from "happy2-state";
 import { describe, expect, it } from "vitest";
@@ -71,6 +71,29 @@ describe("live workspace trees through happy2-state", () => {
         const collapsed = await state.syncWorkspace(chatId, []);
         expect(collapsed.paths).toEqual(["node_modules/", "src/", "src/live.ts"]);
         expect(collapsed.directories).toEqual([]);
+
+        // An editor state is lazy and does not subscribe until start(), so its cached
+        // version remains stale while another process changes a separate region.
+        await using editor = createClientState(transport, { sleep: async () => undefined });
+        const opened = await editor.readWorkspaceFile(chatId, "src/live.ts");
+        await writeFile(join(directory, "src", "live.ts"), `// external\n${opened.content}`);
+        const saved = await editor.writeWorkspaceFile(chatId, {
+            path: opened.path,
+            expectedVersion: opened.version,
+            content: opened.content.replace("true", "false"),
+        });
+        expect(saved.content).toBe("// external\nexport const live = false;\n");
+        await expect(readFile(join(directory, "src", "live.ts"), "utf8")).resolves.toBe(
+            saved.content,
+        );
+
+        // Rewriting identical contents changes filesystem metadata. Deletion detects
+        // that conflict, confirms contents are unchanged, and safely retries.
+        await writeFile(join(directory, "src", "live.ts"), saved.content);
+        await editor.deleteWorkspaceFile(chatId, saved.path, saved.version);
+        await expect(readFile(join(directory, "src", "live.ts"), "utf8")).rejects.toMatchObject({
+            code: "ENOENT",
+        });
     });
 });
 

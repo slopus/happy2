@@ -24,8 +24,11 @@ import type {
     SendMessageInput,
     SyncState,
     TypingState,
+    WorkspaceFileWriteInput,
+    WorkspaceTextFile,
+    WorkspaceTextPatch,
 } from "./types.js";
-import { UserError } from "./types.js";
+import { UserError, WorkspaceFileConflictError } from "./types.js";
 import {
     clientWorkspace,
     createWorkspaceRecord,
@@ -77,6 +80,17 @@ export interface ClientState extends AsyncDisposable {
     loadWorkspaceDirectory(chatId: string, directory: string): Promise<ClientWorkspace>;
     /** Loads at most one additional page for an already expanded directory. */
     loadMoreWorkspaceDirectory(chatId: string, directory: string): Promise<ClientWorkspace>;
+    /** Reads and materializes one UTF-8 file with its conflict-detection version. */
+    readWorkspaceFile(chatId: string, path: string): Promise<WorkspaceTextFile>;
+    /** Stops retaining and live-reconciling a file after its editor surface closes. */
+    unloadWorkspaceFile(chatId: string, path: string): Promise<void>;
+    /**
+     * Writes full content or a text patch. On a version conflict, non-overlapping
+     * edits are reapplied to the latest file and retried automatically.
+     */
+    writeWorkspaceFile(chatId: string, input: WorkspaceFileWriteInput): Promise<WorkspaceTextFile>;
+    /** Deletes only if the file still has the supplied last-read version. */
+    deleteWorkspaceFile(chatId: string, path: string, expectedVersion: string): Promise<void>;
     createChannel(input: CreateChannelInput): Promise<ChatSummary>;
     createAgent(input: CreateAgentInput): Promise<ChatSummary>;
     createDirectMessage(userId: string): Promise<ChatSummary>;
@@ -124,12 +138,18 @@ class ClientStateModel implements ClientState {
     private readonly workspaceHints = new Map<string, number>();
     private readonly workspaceReconcileAgain = new Set<string>();
     private readonly workspaceReconcilePromises = new Map<string, Promise<void>>();
+    private readonly workspaceFileChains = new Map<string, Promise<void>>();
+    private readonly workspaceFileBases = new Map<string, WorkspaceTextFile>();
+    private readonly openWorkspaceFilePaths = new Map<string, Set<string>>();
+    private readonly workspaceFileReconcileAgain = new Set<string>();
+    private readonly workspaceFileReconcilePromises = new Map<string, Promise<void>>();
     private snapshot: ClientStateSnapshot = freezeSnapshot({
         revision: 0,
         status: "idle",
         chats: [],
         messagesByChat: {},
         workspacesByChat: {},
+        workspaceFilesByChat: {},
         typing: [],
         presence: [],
         operationResults: {},
@@ -195,6 +215,10 @@ class ClientStateModel implements ClientState {
         this.unsubscribeRealtime = undefined;
         for (const timer of this.typingTimers.values()) clearTimeout(timer);
         this.typingTimers.clear();
+        this.workspaceReconcileAgain.clear();
+        this.workspaceFileReconcileAgain.clear();
+        this.workspaceFileBases.clear();
+        this.openWorkspaceFilePaths.clear();
         this.setStatus("stopped");
     }
 
@@ -346,6 +370,163 @@ class ClientStateModel implements ClientState {
             });
         } catch (error) {
             throw userError(error);
+        }
+    }
+
+    async readWorkspaceFile(chatId: string, path: string): Promise<WorkspaceTextFile> {
+        this.assertActive();
+        try {
+            return await this.enqueueWorkspaceFile(chatId, path, async () => {
+                const file = await this.fetchWorkspaceFile(chatId, path);
+                this.commitWorkspaceFile(chatId, file, "read");
+                this.rememberWorkspaceFileBase(chatId, file);
+                return file;
+            });
+        } catch (error) {
+            throw userError(error, "Could not read the workspace file.");
+        }
+    }
+
+    async unloadWorkspaceFile(chatId: string, path: string): Promise<void> {
+        this.assertActive();
+        return this.enqueueWorkspaceFile(chatId, path, async () => {
+            this.forgetWorkspaceFile(chatId, path);
+            this.removeWorkspaceFile(chatId, path, "unload");
+        });
+    }
+
+    async writeWorkspaceFile(
+        chatId: string,
+        input: WorkspaceFileWriteInput,
+    ): Promise<WorkspaceTextFile> {
+        this.assertActive();
+        try {
+            return await this.enqueueWorkspaceFile(chatId, input.path, async () => {
+                let expectedVersion = input.expectedVersion;
+                let base =
+                    expectedVersion === null
+                        ? undefined
+                        : this.cachedWorkspaceFile(chatId, input.path, expectedVersion);
+                let patch =
+                    input.patch ??
+                    (base && input.content !== undefined
+                        ? patchFromContents(base.content, input.content)
+                        : undefined);
+                let attemptedContent = input.content;
+                if (attemptedContent === undefined && patch && (base || expectedVersion === null))
+                    attemptedContent = applyTextPatch(base?.content ?? "", patch);
+                let request: WorkspaceFileWriteInput = input;
+
+                for (
+                    let conflictAttempt = 1;
+                    conflictAttempt <= this.attempts;
+                    conflictAttempt += 1
+                ) {
+                    try {
+                        const result = await this.retryMutation((idempotencyKey) =>
+                            this.api.writeWorkspaceFile(chatId, request, idempotencyKey),
+                        );
+                        const file =
+                            attemptedContent === undefined
+                                ? await this.fetchWorkspaceFile(chatId, input.path)
+                                : {
+                                      path: result.path,
+                                      content: attemptedContent,
+                                      size: result.size,
+                                      version: result.version,
+                                  };
+                        this.commitWorkspaceFile(chatId, file, "write");
+                        this.rememberWorkspaceFileBase(chatId, file);
+                        if (this.workspaceRecords.has(chatId)) this.queueWorkspaceReconcile(chatId);
+                        return file;
+                    } catch (error) {
+                        if (!isWorkspaceFileConflict(error))
+                            throw userError(error, "Could not write the workspace file.");
+                        const latest = await this.fetchWorkspaceFileIfPresent(chatId, input.path);
+                        if (latest) this.commitWorkspaceFile(chatId, latest, "conflict");
+                        else this.removeWorkspaceFile(chatId, input.path, "conflict");
+                        if (
+                            conflictAttempt === this.attempts ||
+                            expectedVersion === null ||
+                            !base ||
+                            !latest ||
+                            !patch
+                        )
+                            throw new WorkspaceFileConflictError(
+                                input.path,
+                                latest,
+                                attemptedContent,
+                                error,
+                            );
+                        const rebased = rebaseTextPatch(base.content, latest.content, patch);
+                        if (!rebased)
+                            throw new WorkspaceFileConflictError(
+                                input.path,
+                                latest,
+                                attemptedContent,
+                                error,
+                            );
+                        base = latest;
+                        patch = rebased;
+                        attemptedContent = applyTextPatch(latest.content, rebased);
+                        expectedVersion = latest.version;
+                        request = {
+                            path: input.path,
+                            expectedVersion,
+                            patch: rebased,
+                        };
+                    }
+                }
+                throw new WorkspaceFileConflictError(input.path, base, attemptedContent);
+            });
+        } catch (error) {
+            throw userError(error, "Could not write the workspace file.");
+        }
+    }
+
+    async deleteWorkspaceFile(
+        chatId: string,
+        path: string,
+        expectedVersion: string,
+    ): Promise<void> {
+        this.assertActive();
+        try {
+            return await this.enqueueWorkspaceFile(chatId, path, async () => {
+                let expected = expectedVersion;
+                let base = this.cachedWorkspaceFile(chatId, path, expectedVersion);
+                for (
+                    let conflictAttempt = 1;
+                    conflictAttempt <= this.attempts;
+                    conflictAttempt += 1
+                ) {
+                    try {
+                        await this.retryMutation((idempotencyKey) =>
+                            this.api.deleteWorkspaceFile(chatId, path, expected, idempotencyKey),
+                        );
+                        this.forgetWorkspaceFile(chatId, path);
+                        this.removeWorkspaceFile(chatId, path, "delete");
+                        if (this.workspaceRecords.has(chatId)) this.queueWorkspaceReconcile(chatId);
+                        return;
+                    } catch (error) {
+                        if (!isWorkspaceFileConflict(error))
+                            throw userError(error, "Could not delete the workspace file.");
+                        const latest = await this.fetchWorkspaceFileIfPresent(chatId, path);
+                        if (latest) this.commitWorkspaceFile(chatId, latest, "conflict");
+                        else this.removeWorkspaceFile(chatId, path, "conflict");
+                        if (
+                            conflictAttempt === this.attempts ||
+                            !base ||
+                            !latest ||
+                            base.content !== latest.content
+                        )
+                            throw new WorkspaceFileConflictError(path, latest, undefined, error);
+                        base = latest;
+                        expected = latest.version;
+                    }
+                }
+            });
+        } catch (error) {
+            throw userError(error, "Could not delete the workspace file.");
         }
     }
 
@@ -569,6 +750,8 @@ class ClientStateModel implements ClientState {
         if (event.type === "workspace.changed") {
             this.workspaceHints.set(event.chatId, (this.workspaceHints.get(event.chatId) ?? 0) + 1);
             if (this.workspaceRecords.has(event.chatId)) this.queueWorkspaceReconcile(event.chatId);
+            if ((this.openWorkspaceFilePaths.get(event.chatId)?.size ?? 0) > 0)
+                this.queueWorkspaceFilesReconcile(event.chatId);
             return;
         }
         if (event.type === "typing") this.applyTyping(event);
@@ -727,9 +910,17 @@ class ClientStateModel implements ClientState {
         if (this.stopped) return;
         const visible = new Set(chats.chats.map((chat) => chat.id));
         const removedChatIds = [...previousChatIds].filter((chatId) => !visible.has(chatId));
-        for (const chatId of removedChatIds) this.invalidateWorkspace(chatId);
+        for (const chatId of removedChatIds) {
+            this.invalidateWorkspace(chatId);
+            this.forgetWorkspaceChat(chatId);
+        }
         const messagesByChat = Object.fromEntries(
             Object.entries(this.snapshot.messagesByChat).filter(([chatId]) => visible.has(chatId)),
+        );
+        const workspaceFilesByChat = Object.fromEntries(
+            Object.entries(this.snapshot.workspaceFilesByChat).filter(([chatId]) =>
+                visible.has(chatId),
+            ),
         );
         const workspacesByChat = { ...this.snapshot.workspacesByChat };
         const removedWorkspaceIds: string[] = [];
@@ -737,6 +928,7 @@ class ClientStateModel implements ClientState {
             if (visible.has(chatId)) continue;
             this.workspaceRecords.delete(chatId);
             this.workspaceReconcileAgain.delete(chatId);
+            this.workspaceFileReconcileAgain.delete(chatId);
             delete workspacesByChat[chatId];
             removedWorkspaceIds.push(chatId);
         }
@@ -745,6 +937,7 @@ class ClientStateModel implements ClientState {
             chats: [...chats.chats],
             messagesByChat,
             workspacesByChat,
+            workspaceFilesByChat,
         });
         for (const chatId of removedWorkspaceIds)
             this.emit({ type: "workspace", reason: "removed", chatId, directories: [] });
@@ -845,17 +1038,26 @@ class ClientStateModel implements ClientState {
         for (const chat of changed) chats.set(chat.id, chat);
         const messagesByChat = { ...this.snapshot.messagesByChat };
         const workspacesByChat = { ...this.snapshot.workspacesByChat };
+        const workspaceFilesByChat = { ...this.snapshot.workspaceFilesByChat };
         const removedWorkspaceIds: string[] = [];
         for (const id of removedIds) {
             this.invalidateWorkspace(id);
+            this.forgetWorkspaceChat(id);
             delete messagesByChat[id];
+            delete workspaceFilesByChat[id];
+            this.workspaceFileReconcileAgain.delete(id);
             if (this.workspaceRecords.delete(id) || workspacesByChat[id]) {
                 delete workspacesByChat[id];
                 this.workspaceReconcileAgain.delete(id);
                 removedWorkspaceIds.push(id);
             }
         }
-        this.replaceSnapshot({ chats: [...chats.values()], messagesByChat, workspacesByChat });
+        this.replaceSnapshot({
+            chats: [...chats.values()],
+            messagesByChat,
+            workspacesByChat,
+            workspaceFilesByChat,
+        });
         for (const chatId of removedWorkspaceIds)
             this.emit({ type: "workspace", reason: "removed", chatId, directories: [] });
         this.emit({
@@ -892,6 +1094,157 @@ class ClientStateModel implements ClientState {
             messagesByChat: { ...this.snapshot.messagesByChat, [chatId]: [...messages] },
         });
         this.emit({ type: "messages", reason, chatId, messageIds: [...ids] });
+    }
+
+    private enqueueWorkspaceFile<T>(
+        chatId: string,
+        path: string,
+        action: () => Promise<T>,
+    ): Promise<T> {
+        const key = workspaceFileKey(chatId, path);
+        const previous = this.workspaceFileChains.get(key) ?? Promise.resolve();
+        const result = previous.catch(() => undefined).then(action);
+        const settled = result.then(
+            () => undefined,
+            () => undefined,
+        );
+        this.workspaceFileChains.set(key, settled);
+        void settled.finally(() => {
+            if (this.workspaceFileChains.get(key) === settled) this.workspaceFileChains.delete(key);
+        });
+        return result;
+    }
+
+    private async fetchWorkspaceFile(chatId: string, path: string): Promise<WorkspaceTextFile> {
+        return this.retryRead(() => this.api.workspaceFile(chatId, path));
+    }
+
+    private async fetchWorkspaceFileIfPresent(
+        chatId: string,
+        path: string,
+    ): Promise<WorkspaceTextFile | undefined> {
+        try {
+            return await this.fetchWorkspaceFile(chatId, path);
+        } catch (error) {
+            if (isMissingWorkspace(error)) return undefined;
+            throw error;
+        }
+    }
+
+    private cachedWorkspaceFile(
+        chatId: string,
+        path: string,
+        version?: string,
+    ): WorkspaceTextFile | undefined {
+        const base = this.workspaceFileBases.get(workspaceFileKey(chatId, path));
+        if (base && (version === undefined || base.version === version)) return base;
+        const file = this.snapshot.workspaceFilesByChat[chatId]?.[path];
+        return version === undefined || file?.version === version ? file : undefined;
+    }
+
+    private rememberWorkspaceFileBase(chatId: string, file: WorkspaceTextFile): void {
+        this.workspaceFileBases.set(workspaceFileKey(chatId, file.path), file);
+        const paths = this.openWorkspaceFilePaths.get(chatId) ?? new Set<string>();
+        paths.add(file.path);
+        this.openWorkspaceFilePaths.set(chatId, paths);
+    }
+
+    private forgetWorkspaceFile(chatId: string, path: string): void {
+        this.workspaceFileBases.delete(workspaceFileKey(chatId, path));
+        const paths = this.openWorkspaceFilePaths.get(chatId);
+        paths?.delete(path);
+        if (paths?.size === 0) this.openWorkspaceFilePaths.delete(chatId);
+    }
+
+    private forgetWorkspaceChat(chatId: string): void {
+        for (const path of this.openWorkspaceFilePaths.get(chatId) ?? [])
+            this.workspaceFileBases.delete(workspaceFileKey(chatId, path));
+        this.openWorkspaceFilePaths.delete(chatId);
+        this.workspaceFileReconcileAgain.delete(chatId);
+    }
+
+    private commitWorkspaceFile(
+        chatId: string,
+        file: WorkspaceTextFile,
+        reason: Extract<ClientStateEvent, { type: "workspace-file" }>["reason"],
+    ): void {
+        const previous = this.snapshot.workspaceFilesByChat[chatId]?.[file.path];
+        if (
+            previous?.version === file.version &&
+            previous.content === file.content &&
+            previous.size === file.size
+        )
+            return;
+        this.replaceSnapshot({
+            workspaceFilesByChat: {
+                ...this.snapshot.workspaceFilesByChat,
+                [chatId]: {
+                    ...this.snapshot.workspaceFilesByChat[chatId],
+                    [file.path]: file,
+                },
+            },
+        });
+        this.emit({ type: "workspace-file", reason, chatId, path: file.path, file });
+    }
+
+    private removeWorkspaceFile(
+        chatId: string,
+        path: string,
+        reason: Extract<ClientStateEvent, { type: "workspace-file" }>["reason"],
+    ): void {
+        const current = this.snapshot.workspaceFilesByChat[chatId];
+        if (!current?.[path]) {
+            if (reason === "conflict") this.emit({ type: "workspace-file", reason, chatId, path });
+            return;
+        }
+        const chatFiles = { ...current };
+        delete chatFiles[path];
+        const workspaceFilesByChat = { ...this.snapshot.workspaceFilesByChat };
+        if (Object.keys(chatFiles).length > 0) workspaceFilesByChat[chatId] = chatFiles;
+        else delete workspaceFilesByChat[chatId];
+        this.replaceSnapshot({ workspaceFilesByChat });
+        this.emit({ type: "workspace-file", reason, chatId, path });
+    }
+
+    private queueWorkspaceFilesReconcile(chatId: string): void {
+        this.workspaceFileReconcileAgain.add(chatId);
+        if (this.workspaceFileReconcilePromises.has(chatId) || this.stopped) return;
+        const task = (async () => {
+            while (this.workspaceFileReconcileAgain.delete(chatId) && !this.stopped) {
+                const paths = [...(this.openWorkspaceFilePaths.get(chatId) ?? [])];
+                await Promise.all(
+                    paths.map((path) =>
+                        this.enqueueWorkspaceFile(chatId, path, async () => {
+                            try {
+                                const file = await this.fetchWorkspaceFile(chatId, path);
+                                this.commitWorkspaceFile(chatId, file, "sync");
+                            } catch (error) {
+                                if (isMissingWorkspace(error)) {
+                                    this.removeWorkspaceFile(chatId, path, "sync");
+                                    return;
+                                }
+                                throw error;
+                            }
+                        }),
+                    ),
+                );
+            }
+        })()
+            .catch((error) => {
+                this.emit({
+                    type: "background-error",
+                    action: "workspace-file",
+                    error: userError(error, "Could not synchronize open workspace files."),
+                    chatId,
+                });
+            })
+            .finally(() => {
+                this.workspaceFileReconcilePromises.delete(chatId);
+                if (this.workspaceFileReconcileAgain.has(chatId))
+                    this.queueWorkspaceFilesReconcile(chatId);
+            });
+        this.workspaceFileReconcilePromises.set(chatId, task);
+        this.track(task);
     }
 
     private enqueueWorkspace<T>(chatId: string, action: () => Promise<T>): Promise<T> {
@@ -1053,12 +1406,20 @@ class ClientStateModel implements ClientState {
 
     private removeWorkspace(chatId: string): void {
         this.invalidateWorkspace(chatId);
-        if (!this.workspaceRecords.delete(chatId) && !this.snapshot.workspacesByChat[chatId])
-            return;
+        this.forgetWorkspaceChat(chatId);
+        const hadWorkspace =
+            this.workspaceRecords.delete(chatId) || Boolean(this.snapshot.workspacesByChat[chatId]);
+        const removedFiles = Object.keys(this.snapshot.workspaceFilesByChat[chatId] ?? {});
+        if (!hadWorkspace && removedFiles.length === 0) return;
         const workspacesByChat = { ...this.snapshot.workspacesByChat };
         delete workspacesByChat[chatId];
-        this.replaceSnapshot({ workspacesByChat });
-        this.emit({ type: "workspace", reason: "removed", chatId, directories: [] });
+        const workspaceFilesByChat = { ...this.snapshot.workspaceFilesByChat };
+        delete workspaceFilesByChat[chatId];
+        this.replaceSnapshot({ workspacesByChat, workspaceFilesByChat });
+        if (hadWorkspace)
+            this.emit({ type: "workspace", reason: "removed", chatId, directories: [] });
+        for (const path of removedFiles)
+            this.emit({ type: "workspace-file", reason: "sync", chatId, path });
     }
 
     private setStatus(status: ClientStateSnapshot["status"]): void {
@@ -1141,6 +1502,97 @@ function sortedMessages(messages: readonly ClientMessage[]): ClientMessage[] {
     });
 }
 
+function workspaceFileKey(chatId: string, path: string): string {
+    return `${chatId}\u0000${path}`;
+}
+
+function isWorkspaceFileConflict(error: unknown): error is ApiResponseError {
+    return error instanceof ApiResponseError && error.code === "workspace_file_conflict";
+}
+
+function applyTextPatch(content: string, patch: WorkspaceTextPatch): string {
+    let cursor = 0;
+    let result = "";
+    for (const edit of patch.edits) {
+        if (
+            !Number.isSafeInteger(edit.start) ||
+            !Number.isSafeInteger(edit.end) ||
+            edit.start < cursor ||
+            edit.end < edit.start ||
+            edit.end > content.length
+        )
+            throw new UserError(
+                "Workspace file edits must be sorted, non-overlapping, and within the file.",
+                "workspace_invalid_patch",
+            );
+        result += content.slice(cursor, edit.start) + edit.text;
+        cursor = edit.end;
+    }
+    return result + content.slice(cursor);
+}
+
+/**
+ * Produces a compact single-splice representation. That makes rebasing conservative:
+ * a remote save may contain many changes, but they are treated as one changed range
+ * and an automatic retry happens only when the local edits are clearly outside it.
+ */
+function patchFromContents(base: string, desired: string): WorkspaceTextPatch {
+    if (base === desired) return { edits: [] };
+    let prefix = 0;
+    const prefixLimit = Math.min(base.length, desired.length);
+    while (prefix < prefixLimit && base[prefix] === desired[prefix]) prefix += 1;
+
+    let suffix = 0;
+    const suffixLimit = Math.min(base.length - prefix, desired.length - prefix);
+    while (
+        suffix < suffixLimit &&
+        base[base.length - suffix - 1] === desired[desired.length - suffix - 1]
+    )
+        suffix += 1;
+
+    return {
+        edits: [
+            {
+                start: prefix,
+                end: base.length - suffix,
+                text: desired.slice(prefix, desired.length - suffix),
+            },
+        ],
+    };
+}
+
+function rebaseTextPatch(
+    base: string,
+    current: string,
+    local: WorkspaceTextPatch,
+): WorkspaceTextPatch | undefined {
+    // Validate the caller's patch even if the remote file happened not to change.
+    applyTextPatch(base, local);
+    const remote = patchFromContents(base, current).edits[0];
+    if (!remote) return local;
+    const delta = remote.text.length - (remote.end - remote.start);
+    const edits = [] as { start: number; end: number; text: string }[];
+    for (const edit of local.edits) {
+        const bothInsertAtSamePoint =
+            edit.start === edit.end && remote.start === remote.end && edit.start === remote.start;
+        if (bothInsertAtSamePoint) return undefined;
+        if (edit.end <= remote.start) {
+            edits.push(edit);
+            continue;
+        }
+        if (edit.start >= remote.end) {
+            edits.push({
+                ...edit,
+                start: edit.start + delta,
+                end: edit.end + delta,
+            });
+            continue;
+        }
+        return undefined;
+    }
+    return { edits };
+}
+
 function retryable(error: unknown): boolean {
     if (error instanceof TransportError) return error.retryable;
     if (!(error instanceof ApiResponseError)) return true;
@@ -1176,11 +1628,18 @@ function freezeSnapshot(snapshot: ClientStateSnapshot): ClientStateSnapshot {
             [...messages],
         ]),
     );
+    const workspaceFilesByChat = Object.fromEntries(
+        Object.entries(snapshot.workspaceFilesByChat).map(([chatId, files]) => [
+            chatId,
+            { ...files },
+        ]),
+    );
     return deepFreeze({
         ...snapshot,
         chats: [...snapshot.chats],
         messagesByChat,
         workspacesByChat: { ...snapshot.workspacesByChat },
+        workspaceFilesByChat,
         typing: [...snapshot.typing],
         presence: [...snapshot.presence],
         operationResults: { ...snapshot.operationResults },

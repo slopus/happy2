@@ -242,6 +242,40 @@ export interface WorkspaceDirectoryLoad {
     readonly complete: boolean;
 }
 
+export interface WorkspaceTextFile {
+    readonly path: string;
+    readonly content: string;
+    readonly size: number;
+    /** Opaque equality token supplied with conflict-safe writes and deletes. */
+    readonly version: string;
+}
+
+export interface WorkspaceTextEdit {
+    /** UTF-16 string offset, matching JavaScript editor coordinates. */
+    readonly start: number;
+    /** Exclusive UTF-16 string offset. */
+    readonly end: number;
+    readonly text: string;
+}
+
+export interface WorkspaceTextPatch {
+    readonly edits: readonly WorkspaceTextEdit[];
+}
+
+export type WorkspaceFileWriteInput =
+    | {
+          readonly path: string;
+          readonly expectedVersion: string | null;
+          readonly content: string;
+          readonly patch?: never;
+      }
+    | {
+          readonly path: string;
+          readonly expectedVersion: string | null;
+          readonly patch: WorkspaceTextPatch;
+          readonly content?: never;
+      };
+
 /** The currently materialized, memory-only portion of one chat workspace. */
 export interface ClientWorkspace {
     readonly chatId: string;
@@ -333,6 +367,10 @@ export interface ClientStateSnapshot {
     readonly chats: readonly ChatSummary[];
     readonly messagesByChat: Readonly<Record<string, readonly ClientMessage[]>>;
     readonly workspacesByChat: Readonly<Record<string, ClientWorkspace>>;
+    /** Versioned files currently materialized for open editor surfaces. */
+    readonly workspaceFilesByChat: Readonly<
+        Record<string, Readonly<Record<string, WorkspaceTextFile>>>
+    >;
     readonly typing: readonly TypingState[];
     readonly presence: readonly PresenceSnapshot[];
     /** Latest successful response for each named backend operation. */
@@ -347,6 +385,22 @@ export class UserError extends Error {
     ) {
         super(message, { cause });
         this.name = "UserError";
+    }
+}
+
+export class WorkspaceFileConflictError extends UserError {
+    constructor(
+        readonly path: string,
+        readonly currentFile?: WorkspaceTextFile,
+        readonly attemptedContent?: string,
+        cause?: unknown,
+    ) {
+        super(
+            "Workspace file changed and the edit could not be reapplied safely.",
+            "workspace_file_conflict",
+            cause,
+        );
+        this.name = "WorkspaceFileConflictError";
     }
 }
 
@@ -386,12 +440,19 @@ export type ClientStateEvent =
           readonly directories: readonly string[];
       }
     | {
+          readonly type: "workspace-file";
+          readonly reason: "read" | "write" | "sync" | "delete" | "conflict" | "unload";
+          readonly chatId: string;
+          readonly path: string;
+          readonly file?: WorkspaceTextFile;
+      }
+    | {
           readonly type: "realtime";
           readonly event: RealtimeEvent;
       }
     | {
           readonly type: "background-error";
-          readonly action: "sendMessage" | "setTyping" | "sync" | "workspace";
+          readonly action: "sendMessage" | "setTyping" | "sync" | "workspace" | "workspace-file";
           readonly error: UserError;
           readonly chatId?: string;
           readonly clientMutationId?: string;

@@ -12,7 +12,9 @@ import type {
     PresenceSnapshot,
     ThreadSummary,
     UserSummary,
+    WorkspaceFileWriteInput,
     WorkspaceGitStatusEntry,
+    WorkspaceTextFile,
 } from "./types.js";
 import type {
     AccountBan,
@@ -91,6 +93,9 @@ export const backendOperations = {
     getChatMembers: get("/v0/chats/:chatId/members"),
     getMessages: get("/v0/chats/:chatId/messages", ["beforeSequence", "afterSequence", "limit"]),
     getWorkspace: get("/v0/chats/:chatId/workspace", ["directory", "cursor", "limit"]),
+    getWorkspaceFile: get("/v0/chats/:chatId/workspace/file", ["path"]),
+    writeWorkspaceFile: post("/v0/chats/:chatId/workspace/writeFile"),
+    deleteWorkspaceFile: post("/v0/chats/:chatId/workspace/deleteFile"),
     getMessage: get("/v0/messages/:messageId"),
     getThread: get("/v0/messages/:messageId/thread", ["beforeSequence", "afterSequence", "limit"]),
     getThreads: get("/v0/threads", ["before", "unreadOnly", "limit"]),
@@ -298,6 +303,13 @@ type DerivedBackendInput<K extends BackendOperation> = (typeof backendOperations
     : never;
 
 export interface KnownBackendInputs {
+    getWorkspaceFile: { readonly chatId: string; readonly path: string };
+    writeWorkspaceFile: { readonly chatId: string } & WorkspaceFileWriteInput;
+    deleteWorkspaceFile: {
+        readonly chatId: string;
+        readonly path: string;
+        readonly expectedVersion: string;
+    };
     updateProfile: {
         readonly firstName?: string;
         readonly lastName?: string | null;
@@ -718,6 +730,18 @@ export interface KnownBackendResults {
             readonly gitStatusPending: boolean;
             readonly nextCursor?: string;
         };
+    };
+    getWorkspaceFile: { readonly file: WorkspaceTextFile };
+    writeWorkspaceFile: {
+        readonly file: {
+            readonly path: string;
+            readonly size: number;
+            readonly version: string;
+            readonly created: boolean;
+        };
+    };
+    deleteWorkspaceFile: {
+        readonly file: { readonly path: string; readonly deletedVersion: string };
     };
     getMessage: { readonly message: MessageSummary };
     getThread: MessagePage & { readonly root: MessageSummary };

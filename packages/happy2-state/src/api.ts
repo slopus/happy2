@@ -6,7 +6,9 @@ import type {
     MessageSummary,
     SendMessageInput,
     SyncState,
+    WorkspaceFileWriteInput,
     WorkspaceGitStatusEntry,
+    WorkspaceTextFile,
 } from "./types.js";
 
 export interface WorkspaceListing {
@@ -26,6 +28,13 @@ export type WorkspaceFetchResult =
           readonly etag?: string;
           readonly workspace: WorkspaceListing;
       };
+
+export interface WorkspaceFileWriteResult {
+    readonly path: string;
+    readonly size: number;
+    readonly version: string;
+    readonly created: boolean;
+}
 
 export interface DifferenceResponse {
     readonly kind: "empty" | "difference" | "slice" | "reset";
@@ -128,6 +137,43 @@ export class Happy2Api {
         if (response.status === 304) return { notModified: true, etag };
         if (response.status < 200 || response.status >= 300) throw responseError(response);
         return { notModified: false, etag, workspace: response.body.workspace };
+    }
+
+    async workspaceFile(chatId: string, path: string): Promise<WorkspaceTextFile> {
+        const query = new URLSearchParams({ path });
+        const response = await this.get<{ file: WorkspaceTextFile }>(
+            `/v0/chats/${encodeURIComponent(chatId)}/workspace/file?${query.toString()}`,
+        );
+        return response.file;
+    }
+
+    async writeWorkspaceFile(
+        chatId: string,
+        input: WorkspaceFileWriteInput,
+        idempotencyKey: string,
+    ): Promise<WorkspaceFileWriteResult> {
+        const response = await this.post<{ file: WorkspaceFileWriteResult }>(
+            `/v0/chats/${encodeURIComponent(chatId)}/workspace/writeFile`,
+            input,
+            idempotencyKey,
+        );
+        return response.file;
+    }
+
+    async deleteWorkspaceFile(
+        chatId: string,
+        path: string,
+        expectedVersion: string,
+        idempotencyKey: string,
+    ): Promise<{ readonly path: string; readonly deletedVersion: string }> {
+        const response = await this.post<{
+            file: { readonly path: string; readonly deletedVersion: string };
+        }>(
+            `/v0/chats/${encodeURIComponent(chatId)}/workspace/deleteFile`,
+            { path, expectedVersion },
+            idempotencyKey,
+        );
+        return response.file;
     }
 
     async difference(state: SyncState): Promise<DifferenceResponse> {

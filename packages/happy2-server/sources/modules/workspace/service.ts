@@ -1,16 +1,29 @@
 import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { watch, type FSWatcher } from "node:fs";
-import { lstat, readdir, realpath } from "node:fs/promises";
-import { join, sep } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
+import { constants, watch, type FSWatcher } from "node:fs";
+import {
+    link,
+    lstat,
+    open,
+    readdir,
+    realpath,
+    rename,
+    unlink,
+    type FileHandle,
+} from "node:fs/promises";
+import { dirname, join, sep } from "node:path";
 import type { CollaborationRepository } from "../collaboration/repository.js";
 import { realtimeTopics, type PubSub } from "../realtime/index.js";
 import {
     WorkspaceError,
     type WorkspaceDirectoryPage,
+    type WorkspaceFileDeleteResult,
+    type WorkspaceFileWriteResult,
     type WorkspaceGitStatus,
     type WorkspaceGitStatusEntry,
     type WorkspaceSnapshot,
+    type WorkspaceTextFile,
+    type WorkspaceTextPatch,
 } from "./types.js";
 
 const CHANGE_DEBOUNCE_MS = 20;
@@ -26,6 +39,7 @@ const MAX_PRELOAD_DEPTH = 3;
 const MAX_PRELOAD_PATHS = 2_500;
 const MAX_PRELOAD_PATH_BYTES = 192 * 1024;
 const MAX_WARM_WORKSPACE_INDEXES = 8;
+export const MAX_WORKSPACE_TEXT_FILE_BYTES = 4 * 1024 * 1024;
 
 /**
  * These directories remain visible but collapsed during adaptive preload. They
@@ -66,6 +80,11 @@ interface WorkspaceCursor {
     readonly treeGeneration: number;
 }
 
+interface IndexedTextFile extends WorkspaceTextFile {
+    readonly fullPath: string;
+    readonly mode: number;
+}
+
 export class WorkspaceService {
     private readonly indexes = new Map<string, WorkspaceIndex>();
     private readonly indexCreations = new Map<string, Promise<WorkspaceIndex>>();
@@ -96,6 +115,45 @@ export class WorkspaceService {
             directory: canonicalDirectory(input.directory),
             cursor: input.cursor,
             limit: input.limit ?? DEFAULT_DIRECTORY_PAGE_LIMIT,
+        });
+    }
+
+    async getFile(input: {
+        userId: string;
+        chatId: string;
+        path: string;
+    }): Promise<WorkspaceTextFile> {
+        const index = await this.authorizedIndex(input.userId, input.chatId);
+        return index.getFile(canonicalFilePath(input.path));
+    }
+
+    async writeFile(input: {
+        userId: string;
+        chatId: string;
+        path: string;
+        expectedVersion: string | null;
+        content?: string;
+        patch?: WorkspaceTextPatch;
+    }): Promise<WorkspaceFileWriteResult> {
+        const index = await this.authorizedIndex(input.userId, input.chatId);
+        return index.writeFile({
+            path: canonicalFilePath(input.path),
+            expectedVersion: input.expectedVersion,
+            content: input.content,
+            patch: input.patch,
+        });
+    }
+
+    async deleteFile(input: {
+        userId: string;
+        chatId: string;
+        path: string;
+        expectedVersion: string;
+    }): Promise<WorkspaceFileDeleteResult> {
+        const index = await this.authorizedIndex(input.userId, input.chatId);
+        return index.deleteFile({
+            path: canonicalFilePath(input.path),
+            expectedVersion: input.expectedVersion,
         });
     }
 
@@ -207,6 +265,7 @@ class WorkspaceIndex {
     private unknownChange = false;
     private warm = true;
     private readonly chatIds = new Set<string>();
+    private mutationTail: Promise<void> = Promise.resolve();
 
     constructor(
         private readonly root: string,
@@ -371,6 +430,63 @@ class WorkspaceIndex {
         };
     }
 
+    async getFile(path: string): Promise<WorkspaceTextFile> {
+        this.ensureWatcher();
+        const file = await this.readTextFile(path);
+        return publicTextFile(file);
+    }
+
+    async writeFile(input: {
+        path: string;
+        expectedVersion: string | null;
+        content?: string;
+        patch?: WorkspaceTextPatch;
+    }): Promise<WorkspaceFileWriteResult> {
+        return this.mutate(async () => {
+            const current = await this.readTextFileIfPresent(input.path);
+            assertExpectedVersion(current, input.expectedVersion);
+            const nextContent = nextFileContent(current?.content ?? "", input);
+            assertTextFileSize(nextContent);
+            if (current?.content === nextContent)
+                return {
+                    path: current.path,
+                    size: current.size,
+                    version: current.version,
+                    created: false,
+                };
+
+            await this.replaceTextFile(input.path, nextContent, current);
+            const written = await this.readTextFileIfPresent(input.path);
+            if (!written || written.content !== nextContent)
+                throw workspaceConflict(written?.version ?? null);
+            return {
+                path: written.path,
+                size: written.size,
+                version: written.version,
+                created: current === undefined,
+            };
+        });
+    }
+
+    async deleteFile(input: {
+        path: string;
+        expectedVersion: string;
+    }): Promise<WorkspaceFileDeleteResult> {
+        return this.mutate(async () => {
+            const current = await this.readTextFileIfPresent(input.path);
+            assertExpectedVersion(current, input.expectedVersion);
+            const latest = await this.readTextFileIfPresent(input.path);
+            assertExpectedVersion(latest, input.expectedVersion);
+            try {
+                await unlink(latest!.fullPath);
+            } catch (error) {
+                if (isMissingPathError(error)) throw workspaceConflict(null);
+                throw error;
+            }
+            return { path: input.path, deletedVersion: input.expectedVersion };
+        });
+    }
+
     async close(): Promise<void> {
         if (this.closed) return;
         this.closed = true;
@@ -382,6 +498,122 @@ class WorkspaceIndex {
         this.deletedByDirectory.clear();
         this.gitStatusByPath.clear();
         this.cachedEntryCount = 0;
+    }
+
+    private async readTextFile(path: string): Promise<IndexedTextFile> {
+        const file = await this.readTextFileIfPresent(path);
+        if (!file) throw new WorkspaceError("not_found", "Workspace file was not found");
+        return file;
+    }
+
+    private async readTextFileIfPresent(path: string): Promise<IndexedTextFile | undefined> {
+        const fullPath = await this.validatedFilePath(path);
+        let handle;
+        try {
+            handle = await open(fullPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+        } catch (error) {
+            if (isUnavailableFileError(error)) return undefined;
+            throw error;
+        }
+        try {
+            const metadata = await handle.stat({ bigint: true });
+            if (!metadata.isFile())
+                throw new WorkspaceError("not_found", "Workspace file was not found");
+            if (metadata.size > BigInt(MAX_WORKSPACE_TEXT_FILE_BYTES))
+                throw new WorkspaceError(
+                    "too_large",
+                    `Workspace text files are limited to ${MAX_WORKSPACE_TEXT_FILE_BYTES} bytes`,
+                );
+            const buffer = await handle.readFile();
+            if (buffer.byteLength > MAX_WORKSPACE_TEXT_FILE_BYTES)
+                throw new WorkspaceError(
+                    "too_large",
+                    `Workspace text files are limited to ${MAX_WORKSPACE_TEXT_FILE_BYTES} bytes`,
+                );
+            let content: string;
+            try {
+                content = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+            } catch {
+                throw new WorkspaceError("not_text", "Workspace file is not valid UTF-8 text");
+            }
+            const observedNs =
+                metadata.ctimeNs > metadata.mtimeNs ? metadata.ctimeNs : metadata.mtimeNs;
+            const hash = createHash("sha256").update(buffer).digest("hex");
+            return {
+                path,
+                content,
+                size: buffer.byteLength,
+                version: `${observedNs.toString().padStart(20, "0")}.${hash}`,
+                fullPath,
+                mode: Number(metadata.mode & 0o777n),
+            };
+        } finally {
+            await handle.close();
+        }
+    }
+
+    private async replaceTextFile(
+        path: string,
+        content: string,
+        current: IndexedTextFile | undefined,
+    ): Promise<void> {
+        const fullPath = await this.validatedFilePath(path);
+        const parent = dirname(fullPath);
+        const temporaryPath = join(parent, `.happy2-write-${randomUUID()}.tmp`);
+        let temporary: FileHandle | undefined;
+        try {
+            temporary = await open(
+                temporaryPath,
+                constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+                current?.mode ?? 0o666,
+            );
+            await temporary.writeFile(content, "utf8");
+            await temporary.sync();
+            await temporary.close();
+            temporary = undefined;
+
+            const latest = await this.readTextFileIfPresent(path);
+            assertExpectedVersion(latest, current?.version ?? null);
+            if (!current) {
+                try {
+                    await link(temporaryPath, fullPath);
+                } catch (error) {
+                    if (isAlreadyExistsError(error)) {
+                        const conflicting = await this.readTextFileIfPresent(path);
+                        throw workspaceConflict(conflicting?.version ?? null);
+                    }
+                    throw error;
+                }
+                await unlink(temporaryPath);
+                return;
+            }
+            await rename(temporaryPath, fullPath);
+        } finally {
+            await temporary?.close().catch(() => undefined);
+            await unlink(temporaryPath).catch((error) => {
+                if (!isMissingPathError(error)) this.onError(error);
+            });
+        }
+    }
+
+    private async validatedFilePath(path: string): Promise<string> {
+        const parent = await this.validatedDirectoryPath(parentDirectory(path));
+        return join(parent, pathBasename(path));
+    }
+
+    private async mutate<T>(action: () => Promise<T>): Promise<T> {
+        const previous = this.mutationTail;
+        let release!: () => void;
+        const current = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        this.mutationTail = previous.then(() => current);
+        await previous;
+        try {
+            return await action();
+        } finally {
+            release();
+        }
     }
 
     private snapshot(paths: readonly string[], unloaded: Set<string>): WorkspaceSnapshot {
@@ -668,6 +900,94 @@ function canonicalDirectory(value: string): string {
     return value;
 }
 
+function canonicalFilePath(value: string): string {
+    if (!value || value.endsWith("/") || value.startsWith("/") || Buffer.byteLength(value) > 16_384)
+        throw new WorkspaceError("not_found", "Workspace file was not found");
+    const segments = value.split("/");
+    if (segments.some((segment) => !segment || segment === "." || segment === ".."))
+        throw new WorkspaceError("not_found", "Workspace file was not found");
+    return value;
+}
+
+function publicTextFile(file: IndexedTextFile): WorkspaceTextFile {
+    return {
+        path: file.path,
+        content: file.content,
+        size: file.size,
+        version: file.version,
+    };
+}
+
+function assertExpectedVersion(
+    current: IndexedTextFile | undefined,
+    expectedVersion: string | null,
+): void {
+    if (
+        (expectedVersion === null && current === undefined) ||
+        (expectedVersion !== null && current?.version === expectedVersion)
+    )
+        return;
+    throw workspaceConflict(current?.version ?? null);
+}
+
+function workspaceConflict(currentVersion: string | null): WorkspaceError {
+    return new WorkspaceError(
+        "conflict",
+        "Workspace file changed after it was read",
+        currentVersion,
+    );
+}
+
+function nextFileContent(
+    current: string,
+    input: { readonly content?: string; readonly patch?: WorkspaceTextPatch },
+): string {
+    if ((input.content === undefined) === (input.patch === undefined))
+        throw new WorkspaceError(
+            "invalid_patch",
+            "Provide exactly one of content or patch when writing a workspace file",
+        );
+    if (input.content !== undefined) {
+        assertValidUnicode(input.content);
+        return input.content;
+    }
+    let position = 0;
+    let result = "";
+    for (const edit of input.patch!.edits) {
+        if (
+            !Number.isSafeInteger(edit.start) ||
+            !Number.isSafeInteger(edit.end) ||
+            edit.start < position ||
+            edit.end < edit.start ||
+            edit.end > current.length
+        )
+            throw new WorkspaceError(
+                "invalid_patch",
+                "Workspace text edits must be sorted, non-overlapping, and within the file",
+            );
+        assertValidUnicode(edit.text);
+        result += current.slice(position, edit.start);
+        result += edit.text;
+        position = edit.end;
+    }
+    result += current.slice(position);
+    assertValidUnicode(result);
+    return result;
+}
+
+function assertTextFileSize(content: string): void {
+    if (Buffer.byteLength(content) > MAX_WORKSPACE_TEXT_FILE_BYTES)
+        throw new WorkspaceError(
+            "too_large",
+            `Workspace text files are limited to ${MAX_WORKSPACE_TEXT_FILE_BYTES} bytes`,
+        );
+}
+
+function assertValidUnicode(content: string): void {
+    if (Buffer.from(content, "utf8").toString("utf8") !== content)
+        throw new WorkspaceError("invalid_patch", "Workspace text must contain valid Unicode");
+}
+
 function canonicalGitPath(path: string): string | undefined {
     const normalized = path.replace(/^\.\//u, "");
     if (
@@ -804,6 +1124,19 @@ function isExpectedNoRepositoryError(error: unknown): boolean {
 function isMissingPathError(error: unknown): boolean {
     return Boolean(
         error && typeof error === "object" && (error as { code?: string }).code === "ENOENT",
+    );
+}
+
+function isUnavailableFileError(error: unknown): boolean {
+    if (!error || typeof error !== "object") return false;
+    return ["EISDIR", "ELOOP", "ENOENT", "ENOTDIR"].includes(
+        String((error as { code?: string }).code),
+    );
+}
+
+function isAlreadyExistsError(error: unknown): boolean {
+    return Boolean(
+        error && typeof error === "object" && (error as { code?: string }).code === "EEXIST",
     );
 }
 
