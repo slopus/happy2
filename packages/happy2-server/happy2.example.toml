@@ -17,9 +17,10 @@ url = "file:happy2.db"
 
 [agents]
 # The product server owns Rig sessions. Clients never access this socket or token.
-# By default, Server-started Rig keeps its socket, token, and session database
-# under .happy2/rig instead of reusing the user's global Rig daemon. Set the
-# standard RIG_SERVER_DIRECTORY environment variable to move that private state.
+# By default, Server-started Rig keeps its configuration, durable state, socket,
+# and token under .happy2/rig instead of reusing the user's global Rig daemon.
+# Set the standard RIG_HOME environment variable to an absolute path to move
+# that private Rig home.
 enabled = true
 # The bundled @slopus/rig executable is used unless command is explicitly set.
 # Root for server-owned agent/user and agent/chat sandboxes. Clients cannot override it.

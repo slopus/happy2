@@ -88,11 +88,15 @@ describe.sequential("the package runner", () => {
                 expect(fixture.config.agents.command).toContain(
                     "node_modules/@slopus/rig/dist/main.js",
                 );
+                expect((await stat(fixture.rigDirectory)).mode & 0o777).toBe(0o700);
                 await expect(stat(fixture.config.agents.socketPath)).resolves.toBeDefined();
                 await expect(stat(fixture.config.agents.tokenPath)).resolves.toBeDefined();
                 await expect(
                     stat(join(fixture.rigDirectory, "sessions.sqlite")),
                 ).resolves.toBeDefined();
+                expect(
+                    await readFile(join(fixture.rigDirectory, "runtime.toml"), "utf8"),
+                ).toContain("durable_global_event_queue = true");
                 expect((await readFile(fixture.config.agents.tokenPath, "utf8")).trim()).not.toBe(
                     "",
                 );
@@ -164,7 +168,8 @@ async function stopRig(config: ServerConfig, rigDirectory: string): Promise<void
     await execute(config.agents.command, ["daemon", "stop"], {
         env: {
             ...process.env,
-            RIG_SERVER_DIRECTORY: rigDirectory,
+            RIG_HOME: rigDirectory,
+            RIG_SERVER_DIRECTORY: "",
             RIG_SERVER_SOCKET_PATH: config.agents.socketPath,
             RIG_SERVER_TOKEN_PATH: config.agents.tokenPath,
         },

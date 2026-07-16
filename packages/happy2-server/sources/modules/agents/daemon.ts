@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { chmod, mkdir, readFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 
 export interface RigDaemonConfig {
@@ -23,9 +23,9 @@ interface RigMessage {
 interface RigSession {
     id: string;
     lastEventId?: string;
-    secretIds?: string[];
-    projectSecretIds?: string[];
-    sessionSecretIds?: string[];
+    secretIds: string[];
+    projectSecretIds: string[];
+    sessionSecretIds: string[];
     status: string;
     snapshot: { messages: RigMessage[] };
 }
@@ -165,7 +165,7 @@ export class RigDaemonClient {
                 const desired = new Set(desiredSecretIds);
                 const managed = new Set(managedSecretIds);
                 const session = await this.session(sessionId, signal);
-                const attached = new Set(session.sessionSecretIds ?? session.secretIds ?? []);
+                const attached = new Set(session.sessionSecretIds);
                 for (const secretId of [...desired].sort()) {
                     if (attached.has(secretId)) continue;
                     await this.connectedRequest(
@@ -355,8 +355,11 @@ export class RigDaemonClient {
     private async connect(): Promise<void> {
         this.token = await readToken(this.config.tokenPath);
         if (this.token && (await this.healthy())) return;
+        await mkdir(this.config.directory, { recursive: true, mode: 0o700 });
+        await chmod(this.config.directory, 0o700);
         await execute(this.config.command, ["daemon", "start"], {
-            RIG_SERVER_DIRECTORY: this.config.directory,
+            RIG_HOME: this.config.directory,
+            RIG_SERVER_DIRECTORY: "",
             RIG_SERVER_SOCKET_PATH: this.config.socketPath,
             RIG_SERVER_TOKEN_PATH: this.config.tokenPath,
         });

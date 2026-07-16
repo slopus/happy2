@@ -39,9 +39,11 @@ with SQLite, self-service password registration, and generated JWT/pepper
 material. Database, files, generated secrets, agent workspaces, and Rig runtime
 state live under `.happy2` in the invoking directory. Add `.happy2` to the
 project's ignore rules and preserve it as private application state. The
-package starts its bundled `@slopus/rig` executable with a project-private
-socket, token, and session database; it never connects to the user's global Rig
-daemon. Provide `--config /path/to/happy2.toml` or
+package starts its bundled `@slopus/rig` executable with a private Rig home under
+`.happy2/rig` by default, containing configuration, runtime settings, session
+state, socket, and token. Set `RIG_HOME` to an absolute path to relocate it. The
+package never connects to the user's global Rig daemon. Provide
+`--config /path/to/happy2.toml` or
 `HAPPY2_CONFIG=/path/to/happy2.toml` to override the defaults.
 
 Clients can discover the selected authentication method at `GET /v0/auth/methods`.
