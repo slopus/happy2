@@ -16,6 +16,7 @@ import {
     AgentRunCard,
     AppShell,
     ApprovalCard,
+    Banner,
     Box,
     Button,
     ChannelHeader,
@@ -25,6 +26,7 @@ import {
     EmptyState,
     EventCard,
     FileAttachment,
+    FileEditor,
     FilePanel,
     FormRow,
     InfoPanel,
@@ -49,6 +51,7 @@ import {
     type SelectOption,
     type ToneName,
 } from "happy2-ui";
+import { WorkspaceFileConflictError } from "happy2-state";
 import type {
     ChatSummary,
     ClientStateEventOf,
@@ -58,6 +61,7 @@ import type {
     PresenceSnapshot,
     UploadedFile,
     UserSummary,
+    WorkspaceTextFile,
 } from "happy2-state";
 import { type AuthSession } from "../components/AuthGate";
 import {
@@ -124,6 +128,24 @@ const modalStackStyle: JSX.CSSProperties = {
     display: "flex",
     "flex-direction": "column",
     gap: "8px",
+};
+const fileEditorOverlayStyle: JSX.CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    "align-items": "center",
+    "justify-content": "center",
+    padding: "24px",
+    background: "rgba(10, 9, 14, 0.6)",
+    "z-index": 40,
+};
+const fileEditorCardStyle: JSX.CSSProperties = {
+    width: "min(1040px, 94vw)",
+    height: "min(760px, 88vh)",
+    "border-radius": "14px",
+    overflow: "hidden",
+    border: "1px solid var(--happy2-border)",
+    "box-shadow": "0 24px 60px rgba(0, 0, 0, 0.5)",
 };
 const modalActionsStyle: JSX.CSSProperties = {
     display: "flex",
@@ -374,6 +396,13 @@ export function ChatView(props: ChatViewProps) {
     const [workspaceExpanded, setWorkspaceExpanded] = createSignal<string[]>([]);
     const [workspaceLoading, setWorkspaceLoading] = createSignal<string[]>([]);
     const [workspaceSelected, setWorkspaceSelected] = createSignal<string>();
+    const [openFilePath, setOpenFilePath] = createSignal<string>();
+    const [fileBase, setFileBase] = createSignal<WorkspaceTextFile>();
+    const [fileDraft, setFileDraft] = createSignal("");
+    const [fileSaving, setFileSaving] = createSignal(false);
+    const [fileConflict, setFileConflict] = createSignal(false);
+    const [fileDiskChanged, setFileDiskChanged] = createSignal(false);
+    const [fileMissing, setFileMissing] = createSignal(false);
     const [panelMembers, setPanelMembers] = createSignal<MemberItem[]>([]);
     const [starredChats, setStarredChats] = createSignal<Record<string, boolean>>({});
     const [lightbox, setLightbox] = createSignal<{
@@ -533,6 +562,131 @@ export function ChatView(props: ChatViewProps) {
         setWorkspaceExpanded([]);
         setWorkspaceLoading([]);
         setWorkspaceSelected(undefined);
+        closeWorkspaceFile();
+    }
+
+    const fileDirty = () => {
+        const base = fileBase();
+        return Boolean(openFilePath()) && base !== undefined && fileDraft() !== base.content;
+    };
+    const fileStatus = () => {
+        if (fileSaving()) return "Saving…";
+        if (fileMissing()) return "Removed on disk";
+        if (fileConflict()) return "Conflict";
+        if (fileDiskChanged()) return "Changed on disk";
+        if (fileDirty()) return "Unsaved";
+        const base = fileBase();
+        return base ? formatBytes(base.size) : "";
+    };
+    const fileEditorBanner = (): JSX.Element => {
+        if (fileMissing())
+            return (
+                <Banner action={{ label: "Close", onClick: closeWorkspaceFile }} tone="danger">
+                    This file was removed on disk.
+                </Banner>
+            );
+        if (fileConflict())
+            return (
+                <Banner
+                    action={{ label: "Reload", onClick: () => void reloadWorkspaceFile() }}
+                    tone="danger"
+                >
+                    This file changed on disk and your edits overlap. Reload to discard your changes
+                    and load the latest.
+                </Banner>
+            );
+        if (fileDiskChanged())
+            return (
+                <Banner
+                    action={{ label: "Reload", onClick: () => void reloadWorkspaceFile() }}
+                    tone="warning"
+                >
+                    This file changed on disk. Saving merges your edits; Reload discards them.
+                </Banner>
+            );
+        return undefined;
+    };
+
+    function resetFileEditorState() {
+        setOpenFilePath(undefined);
+        setFileBase(undefined);
+        setFileDraft("");
+        setFileSaving(false);
+        setFileConflict(false);
+        setFileDiskChanged(false);
+        setFileMissing(false);
+    }
+
+    /* Open one file in the editor overlay. The state loads the versioned text and
+       remembers a base for conflict-safe writes; the "workspace-file" stream keeps
+       it current while it is open. */
+    async function openWorkspaceFile(path: string) {
+        const model = state();
+        const chatId = activeConversationId();
+        if (!model || !chatId) return;
+        resetFileEditorState();
+        setOpenFilePath(path);
+        try {
+            const file = await model.readWorkspaceFile(chatId, path);
+            if (openFilePath() !== path || activeConversationId() !== chatId) return;
+            setFileBase(file);
+            setFileDraft(file.content);
+        } catch (reason) {
+            if (openFilePath() === path) {
+                setStatusHint(errorMessage(reason));
+                resetFileEditorState();
+            }
+        }
+    }
+
+    /* Conflict-safe save: the state diffs the draft against the base version and,
+       if the file moved underneath, reapplies non-overlapping edits automatically;
+       only a genuine overlap rejects with a conflict. */
+    async function saveWorkspaceFile() {
+        const model = state();
+        const chatId = activeConversationId();
+        const path = openFilePath();
+        const base = fileBase();
+        if (!model || !chatId || !path || !base || !fileDirty() || fileSaving()) return;
+        setFileSaving(true);
+        setFileConflict(false);
+        try {
+            const result = await model.writeWorkspaceFile(chatId, {
+                path,
+                expectedVersion: base.version,
+                content: fileDraft(),
+            });
+            if (openFilePath() !== path || activeConversationId() !== chatId) return;
+            setFileBase(result);
+            setFileDraft(result.content);
+            setFileDiskChanged(false);
+            setFileMissing(false);
+            setStatusHint(undefined);
+        } catch (reason) {
+            if (openFilePath() !== path) return;
+            if (reason instanceof WorkspaceFileConflictError) setFileConflict(true);
+            else setStatusHint(errorMessage(reason));
+        } finally {
+            if (openFilePath() === path) setFileSaving(false);
+        }
+    }
+
+    function revertWorkspaceFile() {
+        const base = fileBase();
+        if (base) setFileDraft(base.content);
+    }
+
+    async function reloadWorkspaceFile() {
+        const path = openFilePath();
+        if (path) await openWorkspaceFile(path);
+    }
+
+    function closeWorkspaceFile() {
+        const model = state();
+        const chatId = activeConversationId();
+        const path = openFilePath();
+        resetFileEditorState();
+        if (model && chatId && path) void model.unloadWorkspaceFile(chatId, path);
     }
 
     /* Load the adaptive initial tree for the active chat and show the panel.
@@ -605,6 +759,7 @@ export function ChatView(props: ChatViewProps) {
     function selectWorkspaceEntry(path: string) {
         setWorkspaceSelected(path);
         if (path.endsWith("/")) void toggleWorkspaceDirectory(path);
+        else void openWorkspaceFile(path);
     }
 
     function markWorkspaceLoading(path: string) {
@@ -1745,6 +1900,27 @@ export function ChatView(props: ChatViewProps) {
                 }
                 setWorkspace(current);
             }),
+            /* Keep the open file editor honest about the file on disk. A clean
+               editor follows external changes; a dirty one raises a reload/merge
+               banner rather than silently clobbering local edits. */
+            model.subscribe("workspace-file", (event) => {
+                if (event.chatId !== activeConversationId() || event.path !== openFilePath())
+                    return;
+                if (event.reason !== "sync") return;
+                if (!event.file) {
+                    setFileMissing(true);
+                    setFileDiskChanged(true);
+                    return;
+                }
+                if (fileDirty()) {
+                    setFileDiskChanged(true);
+                    return;
+                }
+                setFileBase(event.file);
+                setFileDraft(event.file.content);
+                setFileDiskChanged(false);
+                setFileMissing(false);
+            }),
         );
     });
     onCleanup(() => {
@@ -2140,6 +2316,25 @@ export function ChatView(props: ChatViewProps) {
                     value={draft()}
                 />
             </AppShell>
+            <Show when={openFilePath()}>
+                <Box style={fileEditorOverlayStyle}>
+                    <Box style={fileEditorCardStyle}>
+                        <FileEditor
+                            banner={fileEditorBanner()}
+                            data-testid="workspace-file-editor"
+                            dirty={fileDirty()}
+                            onClose={closeWorkspaceFile}
+                            onRevert={revertWorkspaceFile}
+                            onSave={() => void saveWorkspaceFile()}
+                            onValueChange={setFileDraft}
+                            path={openFilePath()!}
+                            saving={fileSaving()}
+                            status={fileStatus()}
+                            value={fileDraft()}
+                        />
+                    </Box>
+                </Box>
+            </Show>
             <Show when={directoryOpen()}>
                 <Box onClick={() => setDirectoryOpen(false)} style={overlayStyle}>
                     <Box onClick={(event) => event.stopPropagation()}>

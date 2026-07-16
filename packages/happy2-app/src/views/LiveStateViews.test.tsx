@@ -1449,6 +1449,155 @@ describe("live views use happy2-state", () => {
         await state.whenIdle();
         state.stop();
     });
+
+    it("opens a workspace file in the editor and saves an edit conflict-safely", async () => {
+        const server = baseServer([
+            chat({ id: "chat-1", name: "Repo", slug: "repo", membershipRole: "member" }),
+        ]);
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, { users: [userSummary()], presence: [], statuses: [] }),
+        );
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            /\/v0\/chats\/[^/]+\/members/,
+            jsonResponse(200, { users: [userSummary()], memberships: [] }),
+        );
+        server.respond(
+            "GET",
+            (path) => path.includes("/messages?limit=100"),
+            jsonResponse(200, { messages: [], chatPts: "0", hasMore: false }),
+        );
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/workspace",
+            jsonResponse(200, {
+                workspace: {
+                    paths: ["src/"],
+                    gitStatus: [],
+                    revision: "r1",
+                    unloadedDirectories: ["src/"],
+                    gitStatusPending: false,
+                },
+            }),
+        );
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/workspace?directory=src%2F",
+            jsonResponse(200, {
+                workspace: {
+                    directory: "src/",
+                    paths: ["src/index.ts"],
+                    gitStatus: [{ path: "src/index.ts", status: "modified" }],
+                    revision: "r1",
+                    unloadedDirectories: [],
+                    gitStatusPending: false,
+                },
+            }),
+        );
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/workspace/file?path=src%2Findex.ts",
+            jsonResponse(200, {
+                file: {
+                    path: "src/index.ts",
+                    content: "export const value = 1;\n",
+                    size: 24,
+                    version: "f1",
+                },
+            }),
+        );
+        server.respond(
+            "POST",
+            "/v0/chats/chat-1/workspace/writeFile",
+            jsonResponse(200, {
+                file: { path: "src/index.ts", size: 24, version: "f2", created: false },
+            }),
+        );
+
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        await waitFor(() =>
+            expect(
+                view.container.querySelector('[data-happy2-ui="channel-header-title"]')
+                    ?.textContent,
+            ).toContain("Repo"),
+        );
+        fireEvent.click(view.getByRole("button", { name: "Workspace files" }));
+        const panel = await waitFor(() => {
+            const element = view.container.querySelector('[data-testid="workspace-file-panel"]');
+            if (!element) throw new Error("file panel not shown");
+            return element;
+        });
+        await waitFor(() => expect(panel.querySelector('[data-path="src/"]')).not.toBeNull());
+        fireEvent.click(
+            panel.querySelector('[data-path="src/"] [data-happy2-ui="file-tree-chevron"]')!,
+        );
+        await waitFor(() =>
+            expect(panel.querySelector('[data-path="src/index.ts"]')).not.toBeNull(),
+        );
+
+        /* No file content is fetched until a file is actually opened. */
+        expect(server.requests.some(({ path }) => path.includes("/workspace/file"))).toBe(false);
+        fireEvent.click(
+            panel.querySelector('[data-path="src/index.ts"] [data-happy2-ui="file-tree-entry"]')!,
+        );
+
+        const editor = await waitFor(() => {
+            const element = view.container.querySelector('[data-testid="workspace-file-editor"]');
+            if (!element) throw new Error("editor not shown");
+            return element;
+        });
+        const area = await waitFor(() => {
+            const element = editor.querySelector<HTMLTextAreaElement>(
+                '[data-happy2-ui="file-editor-area"]',
+            );
+            if (!element || element.value !== "export const value = 1;\n")
+                throw new Error("file content not loaded");
+            return element;
+        });
+        const saveButton = () =>
+            Array.from(
+                editor.querySelectorAll<HTMLButtonElement>(
+                    '[data-happy2-ui="file-editor-actions"] [data-happy2-ui="button"]',
+                ),
+            ).find((button) => button.textContent === "Save")!;
+        /* Clean file: Save is disabled until an edit makes it dirty. */
+        expect(saveButton().disabled).toBe(true);
+
+        fireEvent.input(area, { target: { value: "export const value = 2;\n" } });
+        await waitFor(() => expect(saveButton().disabled).toBe(false));
+        fireEvent.click(saveButton());
+
+        await waitFor(() => {
+            const write = server.requests.find(
+                ({ method, path }) =>
+                    method === "POST" && path === "/v0/chats/chat-1/workspace/writeFile",
+            );
+            expect(write?.body).toEqual({
+                path: "src/index.ts",
+                expectedVersion: "f1",
+                content: "export const value = 2;\n",
+            });
+        });
+        /* After a successful save the editor is clean again. */
+        await waitFor(() => expect(saveButton().disabled).toBe(true));
+
+        view.unmount();
+        await state.whenIdle();
+        state.stop();
+    });
 });
 
 function baseServer(chats: readonly ChatSummary[]) {

@@ -1,0 +1,163 @@
+/*
+ * C-054 FileEditor — single-file text editor surface.
+ *
+ * A column that fills its container: a 52px surface header (name + directory
+ * subtitle, unsaved marker, Save / Revert / Close), an optional alert banner,
+ * a monospace code body that fills and scrolls, and a hairline status bar.
+ * Colors and type are theme tokens only.
+ */
+
+.happy2-file-editor,
+.happy2-file-editor * {
+    box-sizing: border-box;
+}
+
+.happy2-file-editor {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    background: var(--happy2-bg-surface);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Header ----------------------------------------------------------- */
+
+.happy2-file-editor__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    height: 52px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--happy2-border);
+}
+
+.happy2-file-editor__glyph {
+    display: flex;
+    flex: none;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-file-editor__heading {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.happy2-file-editor__name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.happy2-file-editor__name {
+    display: block;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 18px;
+    letter-spacing: -0.01em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-file-editor__marker {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-accent);
+}
+
+.happy2-file-editor__subtitle {
+    display: block;
+    overflow: hidden;
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-file-editor__actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ---- Banner slot ------------------------------------------------------ */
+
+.happy2-file-editor__banner {
+    flex: none;
+    padding: 8px 12px 0;
+}
+
+/* ---- Code body -------------------------------------------------------- */
+
+.happy2-file-editor__area {
+    display: block;
+    flex: 1 1 0%;
+    width: 100%;
+    min-height: 0;
+    margin: 0;
+    padding: 12px;
+    border: none;
+    outline: none;
+    background: var(--happy2-bg-code);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-mono);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 20px;
+    tab-size: 4;
+    resize: none;
+    white-space: pre;
+    overflow: auto;
+}
+
+.happy2-file-editor__area::placeholder {
+    color: var(--happy2-text-faint);
+}
+
+.happy2-file-editor__area:read-only {
+    color: var(--happy2-text-secondary);
+}
+
+/* ---- Status bar ------------------------------------------------------- */
+
+.happy2-file-editor__status {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    height: 28px;
+    padding: 0 12px;
+    border-top: 1px solid var(--happy2-border);
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+}
+
+.happy2-file-editor__path {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-file-editor__status-text {
+    flex: none;
+    color: var(--happy2-text-secondary);
+}

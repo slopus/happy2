@@ -72,6 +72,7 @@ export {
     type FileTreeProps,
 } from "./FileTree";
 export { FilePanel, type FilePanelProps } from "./FilePanel";
+export { FileEditor, type FileEditorProps } from "./FileEditor";
 export { Icon, type IconName, iconNames, type IconProps } from "./Icon";
 export {
     DayDivider,
