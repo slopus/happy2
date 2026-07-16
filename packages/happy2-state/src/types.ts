@@ -222,6 +222,38 @@ export interface ChatBookmarkSummary {
     readonly createdAt: string;
 }
 
+export type WorkspaceGitStatus =
+    | "added"
+    | "deleted"
+    | "ignored"
+    | "modified"
+    | "renamed"
+    | "untracked";
+
+export interface WorkspaceGitStatusEntry {
+    readonly path: string;
+    readonly status: WorkspaceGitStatus;
+}
+
+export interface WorkspaceDirectoryLoad {
+    readonly directory: string;
+    readonly loadedPathCount: number;
+    readonly pageCount: number;
+    readonly complete: boolean;
+}
+
+/** The currently materialized, memory-only portion of one channel workspace. */
+export interface ClientWorkspace {
+    readonly chatId: string;
+    readonly requestedDirectories: readonly string[];
+    readonly paths: readonly string[];
+    readonly gitStatus: readonly WorkspaceGitStatusEntry[];
+    readonly revision: string;
+    readonly unloadedDirectories: readonly string[];
+    readonly gitStatusPending: boolean;
+    readonly directories: readonly WorkspaceDirectoryLoad[];
+}
+
 export type RealtimeEvent =
     | {
           readonly type: "sync";
@@ -250,6 +282,11 @@ export type RealtimeEvent =
           readonly senderUserId: string;
           readonly recipientUserId?: string;
           readonly signal: Readonly<Record<string, unknown>>;
+          readonly occurredAt: number;
+      }
+    | {
+          readonly type: "workspace.changed";
+          readonly chatId: string;
           readonly occurredAt: number;
       };
 
@@ -295,6 +332,7 @@ export interface ClientStateSnapshot {
     readonly sync?: SyncState;
     readonly chats: readonly ChatSummary[];
     readonly messagesByChat: Readonly<Record<string, readonly ClientMessage[]>>;
+    readonly workspacesByChat: Readonly<Record<string, ClientWorkspace>>;
     readonly typing: readonly TypingState[];
     readonly presence: readonly PresenceSnapshot[];
     /** Latest successful response for each named backend operation. */
@@ -342,12 +380,18 @@ export type ClientStateEvent =
           readonly status: PresenceSnapshot["status"];
       }
     | {
+          readonly type: "workspace";
+          readonly reason: "initial" | "directory" | "sync" | "removed";
+          readonly chatId: string;
+          readonly directories: readonly string[];
+      }
+    | {
           readonly type: "realtime";
           readonly event: RealtimeEvent;
       }
     | {
           readonly type: "background-error";
-          readonly action: "sendMessage" | "setTyping" | "sync";
+          readonly action: "sendMessage" | "setTyping" | "sync" | "workspace";
           readonly error: UserError;
           readonly chatId?: string;
           readonly clientMutationId?: string;

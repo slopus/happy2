@@ -1,0 +1,206 @@
+/*
+ * C-052 FileTree — code-editor file/folder explorer.
+ *
+ * A column of 28px rows. Each row is a fixed 16px disclosure slot (chevron for
+ * directories) followed by a flexible entry button: a 14px kind icon, an
+ * elliptical name, and an optional single-letter git decoration. Depth is
+ * expressed as left padding on the row (8px base + 16px per level), so nested
+ * names align under their parent's name. Colors and type are theme tokens only.
+ */
+
+.happy2-file-tree,
+.happy2-file-tree * {
+    box-sizing: border-box;
+}
+
+.happy2-file-tree {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    color: var(--happy2-text);
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* ---- Row -------------------------------------------------------------- */
+
+.happy2-file-tree__row {
+    display: flex;
+    flex: none;
+    align-items: center;
+    height: 28px;
+    border-radius: var(--happy2-radius-sm);
+}
+
+.happy2-file-tree__row:hover {
+    background: var(--happy2-bg-hover);
+}
+
+.happy2-file-tree__row[data-selected] {
+    background: var(--happy2-accent-soft);
+}
+
+/* ---- Disclosure ------------------------------------------------------- */
+
+.happy2-file-tree__disc {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 28px;
+}
+
+.happy2-file-tree__chevron {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--happy2-text-muted);
+    cursor: pointer;
+}
+
+.happy2-file-tree__chevron:hover {
+    color: var(--happy2-text);
+}
+
+/* ---- Entry ------------------------------------------------------------ */
+
+.happy2-file-tree__entry {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    height: 28px;
+    margin: 0;
+    padding: 0 10px 0 2px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.happy2-file-tree__icon {
+    display: flex;
+    flex: none;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-file-tree__name {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--happy2-text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+    letter-spacing: -0.01em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-file-tree__row[data-kind="directory"] .happy2-file-tree__name {
+    color: var(--happy2-text);
+    font-weight: 600;
+}
+
+.happy2-file-tree__row[data-selected] .happy2-file-tree__name {
+    color: var(--happy2-text);
+}
+
+.happy2-file-tree__status {
+    display: block;
+    flex: none;
+    min-width: 14px;
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    font-feature-settings: "tnum" 1;
+}
+
+/* ---- Git status decorations ------------------------------------------ */
+
+.happy2-file-tree__row[data-status="added"] .happy2-file-tree__name,
+.happy2-file-tree__row[data-status="added"] .happy2-file-tree__status,
+.happy2-file-tree__row[data-status="untracked"] .happy2-file-tree__name,
+.happy2-file-tree__row[data-status="untracked"] .happy2-file-tree__status {
+    color: var(--happy2-success);
+}
+
+.happy2-file-tree__row[data-status="modified"] .happy2-file-tree__name,
+.happy2-file-tree__row[data-status="modified"] .happy2-file-tree__status {
+    color: var(--happy2-warning);
+}
+
+.happy2-file-tree__row[data-status="renamed"] .happy2-file-tree__name,
+.happy2-file-tree__row[data-status="renamed"] .happy2-file-tree__status {
+    color: var(--happy2-info);
+}
+
+.happy2-file-tree__row[data-status="deleted"] .happy2-file-tree__name,
+.happy2-file-tree__row[data-status="deleted"] .happy2-file-tree__status {
+    color: var(--happy2-danger);
+}
+
+.happy2-file-tree__row[data-status="deleted"] .happy2-file-tree__name {
+    text-decoration: line-through;
+}
+
+.happy2-file-tree__row[data-status="ignored"] .happy2-file-tree__icon,
+.happy2-file-tree__row[data-status="ignored"] .happy2-file-tree__name,
+.happy2-file-tree__row[data-status="ignored"] .happy2-file-tree__status {
+    color: var(--happy2-text-faint);
+}
+
+/* ---- Paging, loading, and empty affordances -------------------------- */
+
+.happy2-file-tree__more {
+    display: flex;
+    align-items: center;
+    height: 24px;
+    margin: 0;
+    padding: 0 10px;
+    border: none;
+    background: transparent;
+    color: var(--happy2-accent);
+    font-family: var(--happy2-font-ui);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.happy2-file-tree__more:hover {
+    color: var(--happy2-accent-strong);
+}
+
+.happy2-file-tree__loading,
+.happy2-file-tree__status-line {
+    display: flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 10px;
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+}
+
+.happy2-file-tree__status-line {
+    padding: 8px 12px;
+}

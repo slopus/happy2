@@ -12,6 +12,7 @@ import type {
     PresenceSnapshot,
     ThreadSummary,
     UserSummary,
+    WorkspaceGitStatusEntry,
 } from "./types.js";
 import type {
     AccountBan,
@@ -89,6 +90,7 @@ export const backendOperations = {
     getChat: get("/v0/chats/:chatId"),
     getChatMembers: get("/v0/chats/:chatId/members"),
     getMessages: get("/v0/chats/:chatId/messages", ["beforeSequence", "afterSequence", "limit"]),
+    getWorkspace: get("/v0/chats/:chatId/workspace", ["directory", "cursor", "limit"]),
     getMessage: get("/v0/messages/:messageId"),
     getThread: get("/v0/messages/:messageId/thread", ["beforeSequence", "afterSequence", "limit"]),
     getThreads: get("/v0/threads", ["before", "unreadOnly", "limit"]),
@@ -706,6 +708,17 @@ export interface KnownBackendResults {
         readonly memberships: readonly JsonObject[];
     };
     getMessages: MessagePage;
+    getWorkspace: {
+        readonly workspace: {
+            readonly directory?: string;
+            readonly paths: readonly string[];
+            readonly gitStatus: readonly WorkspaceGitStatusEntry[];
+            readonly revision: string;
+            readonly unloadedDirectories: readonly string[];
+            readonly gitStatusPending: boolean;
+            readonly nextCursor?: string;
+        };
+    };
     getMessage: { readonly message: MessageSummary };
     getThread: MessagePage & { readonly root: MessageSummary };
     getThreads: { readonly threads: readonly ThreadSummary[]; readonly nextCursor?: string };

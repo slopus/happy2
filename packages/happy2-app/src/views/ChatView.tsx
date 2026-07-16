@@ -25,6 +25,7 @@ import {
     EmptyState,
     EventCard,
     FileAttachment,
+    FilePanel,
     FormRow,
     InfoPanel,
     Lightbox,
@@ -38,6 +39,7 @@ import {
     ThreadPanel,
     type ApprovalResolution,
     type ContextItem,
+    type FileTreeNode,
     type InfoPanelProfile,
     type MemberItem,
     type MemberRole,
@@ -50,6 +52,7 @@ import {
 import type {
     ChatSummary,
     ClientStateEventOf,
+    ClientWorkspace,
     FileSummary,
     MessageSummary,
     PresenceSnapshot,
@@ -249,6 +252,86 @@ function groupedWithPrevious(entries: WorkspaceEntry[], index: number, message: 
     return previous?.kind === "message" && previous.author === message.author;
 }
 
+/*
+ * Fold the client workspace's flat, sorted path list into the nested tree the
+ * FileTree component renders. Directory paths carry a trailing slash; every
+ * other segment on the way to a leaf is an intermediate directory. Per-directory
+ * disclosure (`expanded`), in-flight paging (`loading`), and "more pages remain"
+ * (`hasMore`) are layered on from the host's own UI intent and the state's
+ * reported directory load progress. Directories sort before files at each level.
+ */
+function workspaceNodes(
+    workspace: ClientWorkspace,
+    expanded: ReadonlySet<string>,
+    loading: ReadonlySet<string>,
+): FileTreeNode[] {
+    const statusByPath = new Map(workspace.gitStatus.map((entry) => [entry.path, entry.status]));
+    const incomplete = new Set(
+        workspace.directories
+            .filter((directory) => !directory.complete)
+            .map((directory) => directory.directory),
+    );
+    const roots: FileTreeNode[] = [];
+    const directories = new Map<string, FileTreeNode>();
+
+    const ensureDirectory = (
+        path: string,
+        name: string,
+        siblings: FileTreeNode[],
+    ): FileTreeNode => {
+        let node = directories.get(path);
+        if (!node) {
+            node = { id: path, name, kind: "directory", children: [] };
+            directories.set(path, node);
+            siblings.push(node);
+        }
+        return node;
+    };
+
+    for (const path of workspace.paths) {
+        const isDirectory = path.endsWith("/");
+        const segments = (isDirectory ? path.slice(0, -1) : path).split("/");
+        let siblings = roots;
+        let prefix = "";
+        segments.forEach((segment, index) => {
+            if (index === segments.length - 1 && !isDirectory) {
+                const filePath = prefix + segment;
+                siblings.push({
+                    id: filePath,
+                    name: segment,
+                    kind: "file",
+                    gitStatus: statusByPath.get(filePath),
+                });
+                return;
+            }
+            const directoryPath = `${prefix}${segment}/`;
+            const node = ensureDirectory(directoryPath, segment, siblings);
+            siblings = node.children!;
+            prefix = directoryPath;
+        });
+    }
+
+    for (const [path, node] of directories) {
+        node.gitStatus = statusByPath.get(path);
+        node.expanded = expanded.has(path);
+        node.loading = loading.has(path);
+        node.hasMore = incomplete.has(path);
+    }
+
+    const sortLevel = (list: FileTreeNode[]): FileTreeNode[] => {
+        list.sort((left, right) =>
+            left.kind === right.kind
+                ? left.name.localeCompare(right.name)
+                : left.kind === "directory"
+                  ? -1
+                  : 1,
+        );
+        for (const node of list) if (node.children) sortLevel(node.children);
+        return list;
+    };
+    return sortLevel(roots);
+}
+
 export function ChatView(props: ChatViewProps) {
     const connected = Boolean(props.session);
     const [activeConversationId, setActiveConversationId] = createSignal(
@@ -286,7 +369,11 @@ export function ChatView(props: ChatViewProps) {
     const commitThread = (next: WorkspaceEntry[]) =>
         setThreadStore("list", reconcile(next, { key: "id" }));
     const [threadDraft, setThreadDraft] = createSignal("");
-    const [panelMode, setPanelMode] = createSignal<"info" | "thread">();
+    const [panelMode, setPanelMode] = createSignal<"info" | "thread" | "files">();
+    const [workspace, setWorkspace] = createSignal<ClientWorkspace>();
+    const [workspaceExpanded, setWorkspaceExpanded] = createSignal<string[]>([]);
+    const [workspaceLoading, setWorkspaceLoading] = createSignal<string[]>([]);
+    const [workspaceSelected, setWorkspaceSelected] = createSignal<string>();
     const [panelMembers, setPanelMembers] = createSignal<MemberItem[]>([]);
     const [starredChats, setStarredChats] = createSignal<Record<string, boolean>>({});
     const [lightbox, setLightbox] = createSignal<{
@@ -423,6 +510,110 @@ export function ChatView(props: ChatViewProps) {
                 ? { ...reaction, count: reaction.count + 1, active: true }
                 : reaction,
         );
+
+    const workspaceTree = createMemo<FileTreeNode[]>(() => {
+        const current = workspace();
+        if (!current) return [];
+        return workspaceNodes(current, new Set(workspaceExpanded()), new Set(workspaceLoading()));
+    });
+    const workspaceSubtitle = () => {
+        const current = workspace();
+        return current ? `rev ${current.revision}` : undefined;
+    };
+    const workspaceNote = () => {
+        const current = workspace();
+        if (!current) return undefined;
+        if (current.gitStatusPending) return "Checking git status…";
+        const count = current.gitStatus.length;
+        return count === 0 ? "No changes" : `${count} ${count === 1 ? "change" : "changes"}`;
+    };
+
+    function resetWorkspacePanel() {
+        setWorkspace(undefined);
+        setWorkspaceExpanded([]);
+        setWorkspaceLoading([]);
+        setWorkspaceSelected(undefined);
+    }
+
+    /* Load the adaptive initial tree for the active chat and show the panel.
+       The workspace panel is on-demand: nothing is fetched until it is opened,
+       and once open it reconciles live through the "workspace" subscription. */
+    async function openFilesPanel() {
+        setThreadRootId(undefined);
+        commitThread([]);
+        resetWorkspacePanel();
+        setPanelMode("files");
+        const model = state();
+        const chatId = activeConversationId();
+        if (!props.session || !model || !chatId) return;
+        startBusy();
+        try {
+            const loaded = await model.loadWorkspace(chatId);
+            if (panelMode() === "files" && activeConversationId() === chatId) setWorkspace(loaded);
+        } catch (reason) {
+            setStatusHint(errorMessage(reason));
+        } finally {
+            finishBusy();
+        }
+    }
+
+    function toggleFilesPanel() {
+        if (panelMode() === "files") setPanelMode(undefined);
+        else void openFilesPanel();
+    }
+
+    /* Expand/collapse a directory by asking the state for the new requested set;
+       the state fetches only the newly requested directories and returns one
+       aggregate ready for the tree. Loading is tracked per directory so its
+       row shows a placeholder while the page is in flight. */
+    async function toggleWorkspaceDirectory(path: string) {
+        const model = state();
+        const chatId = activeConversationId();
+        if (!model || !chatId) return;
+        const next = new Set(workspaceExpanded());
+        const expanding = !next.has(path);
+        if (expanding) next.add(path);
+        else next.delete(path);
+        const requested = [...next];
+        setWorkspaceExpanded(requested);
+        if (expanding) markWorkspaceLoading(path);
+        try {
+            const result = await model.syncWorkspace(chatId, requested);
+            if (activeConversationId() === chatId) setWorkspace(result);
+        } catch (reason) {
+            setStatusHint(errorMessage(reason));
+        } finally {
+            clearWorkspaceLoading(path);
+        }
+    }
+
+    async function loadMoreWorkspaceDirectory(path: string) {
+        const model = state();
+        const chatId = activeConversationId();
+        if (!model || !chatId) return;
+        markWorkspaceLoading(path);
+        try {
+            const result = await model.loadMoreWorkspaceDirectory(chatId, path);
+            if (activeConversationId() === chatId) setWorkspace(result);
+        } catch (reason) {
+            setStatusHint(errorMessage(reason));
+        } finally {
+            clearWorkspaceLoading(path);
+        }
+    }
+
+    function selectWorkspaceEntry(path: string) {
+        setWorkspaceSelected(path);
+        if (path.endsWith("/")) void toggleWorkspaceDirectory(path);
+    }
+
+    function markWorkspaceLoading(path: string) {
+        setWorkspaceLoading((current) => (current.includes(path) ? current : [...current, path]));
+    }
+
+    function clearWorkspaceLoading(path: string) {
+        setWorkspaceLoading((current) => current.filter((item) => item !== path));
+    }
 
     function applyNavigation(
         chats = serverChats(),
@@ -760,6 +951,7 @@ export function ChatView(props: ChatViewProps) {
         setThreadRootId(undefined);
         commitThread([]);
         setPanelMode(undefined);
+        resetWorkspacePanel();
         if (!props.session) {
             setActiveConversationId(id);
             return;
@@ -895,6 +1087,7 @@ export function ChatView(props: ChatViewProps) {
         setThreadRootId(undefined);
         commitThread([]);
         setPanelMode(undefined);
+        resetWorkspacePanel();
         startBusy();
         try {
             await model.execute("leaveChat", { chatId: chat.id });
@@ -1453,6 +1646,7 @@ export function ChatView(props: ChatViewProps) {
         setManualEmptySelection(false);
         setDirectoryOpen(false);
         setPanelMode(undefined);
+        resetWorkspacePanel();
         setActiveConversationId(id);
         void loadConversation(id);
     }
@@ -1538,6 +1732,19 @@ export function ChatView(props: ChatViewProps) {
                 );
             }),
             model.subscribe("background-error", (event) => setStatusHint(event.error.message)),
+            /* Keep an open files panel current: realtime hints reconcile the
+               materialized tree in the state, and this mirrors the reconciled
+               durable snapshot into the panel. Ignored while the panel is
+               closed or focused on another chat. */
+            model.subscribe("workspace", (event) => {
+                if (event.chatId !== activeConversationId() || panelMode() !== "files") return;
+                const current = model.get().workspacesByChat[event.chatId];
+                if (event.reason === "removed" || !current) {
+                    resetWorkspacePanel();
+                    return;
+                }
+                setWorkspace(current);
+            }),
         );
     });
     onCleanup(() => {
@@ -1691,6 +1898,20 @@ export function ChatView(props: ChatViewProps) {
                                 </Box>
                             </Show>
                         </InfoPanel>
+                    ) : panelMode() === "files" ? (
+                        <FilePanel
+                            data-testid="workspace-file-panel"
+                            emptyLabel="No files in this workspace yet."
+                            loading={workspace() === undefined}
+                            nodes={workspaceTree()}
+                            note={workspaceNote()}
+                            onClose={() => setPanelMode(undefined)}
+                            onLoadMore={(path) => void loadMoreWorkspaceDirectory(path)}
+                            onSelect={(path) => selectWorkspaceEntry(path)}
+                            onToggle={(path) => void toggleWorkspaceDirectory(path)}
+                            selectedId={workspaceSelected()}
+                            subtitle={workspaceSubtitle()}
+                        />
                     ) : !connected ? (
                         <AgentDesk done={deskDone} queued={deskQueued} running={deskRunning} />
                     ) : undefined
@@ -1698,23 +1919,36 @@ export function ChatView(props: ChatViewProps) {
             >
                 <ChannelHeader
                     actions={
-                        <Show
-                            when={
-                                connected &&
-                                activeChat()?.kind !== "dm" &&
-                                activeChat() &&
-                                !activeChat()?.membershipRole
-                            }
-                        >
-                            <Button
-                                disabled={busy()}
-                                onClick={() => void joinActiveChannel()}
-                                size="small"
-                                variant="secondary"
+                        <>
+                            <Show when={connected && Boolean(activeConversationId())}>
+                                <Button
+                                    aria-label="Workspace files"
+                                    aria-pressed={panelMode() === "files" ? "true" : "false"}
+                                    icon="files"
+                                    iconOnly
+                                    onClick={toggleFilesPanel}
+                                    size="small"
+                                    variant={panelMode() === "files" ? "secondary" : "ghost"}
+                                />
+                            </Show>
+                            <Show
+                                when={
+                                    connected &&
+                                    activeChat()?.kind !== "dm" &&
+                                    activeChat() &&
+                                    !activeChat()?.membershipRole
+                                }
                             >
-                                Join
-                            </Button>
-                        </Show>
+                                <Button
+                                    disabled={busy()}
+                                    onClick={() => void joinActiveChannel()}
+                                    size="small"
+                                    variant="secondary"
+                                >
+                                    Join
+                                </Button>
+                            </Show>
+                        </>
                     }
                     agentCount={conversation().agentCount}
                     icon={conversation().icon}

@@ -185,6 +185,44 @@ members of group DMs and channels—including multiple agents in one channel—b
 those conversations remain dormant until mention-based collaboration is
 implemented.
 
+Every public or private channel also owns a shared server-side workspace at
+`default_cwd/channels/<chat-id>`. A current channel member can read its file-tree
+snapshot from `GET /v0/chats/:chatId/workspace`; public-channel discovery alone
+does not reveal workspace contents. Paths are canonical `@pierre/trees` input
+(directory paths end in `/`), absolute server paths are never returned, and
+directory symlinks are listed without being traversed.
+
+The first request lazily creates a process-local partial index and starts its
+recursive monitor before reading the root. Adaptive preload returns at most
+2,500 paths, 192 KiB of encoded path data, three levels, and 128 inspected
+directories. A directory with more than 400 direct children remains collapsed.
+The default-deferred basenames are `.git`, `.next`, `.pnpm`, `.turbo`, `.yarn`,
+`.cache`, `build`, `coverage`, `dist`, `node_modules`, `target`, and `vendor`.
+These entries are visible and fully accessible; the preload simply does not
+descend into them. `unloadedDirectories` identifies every visible directory
+whose children still need to be loaded.
+
+`GET /v0/chats/:chatId/workspace?directory=<canonical-directory>` pages one
+directory's direct children, including the root when `directory` is empty. The
+default page is 250 entries, callers may request up to 1,000, and an adaptive
+128 KiB path-data ceiling can end a page earlier. `nextCursor` continues the
+same directory; a filesystem change invalidates it with `409
+workspace_cursor_stale`. All entries—including hidden files and the contents of
+`.git/`—remain reachable through these pages.
+
+Directory listings use a per-channel LRU capped at 20,000 entries. At most 8
+partial indexes stay warm; cooling an older index releases its directory and
+Git caches but keeps its lightweight monitor active, and the next request warms
+it again. Git status initializes and refreshes in the background, so a cold
+tree response does not wait for Git. Responses expose `gitStatusPending` and a
+process-local `revision`; completion publishes the same `workspace.changed` SSE
+invalidation as a filesystem mutation. File changes are coalesced for 20 ms,
+invalidate only affected directory-cache branches when the watcher supplies a
+path, and cause clients to reconcile through the HTTP snapshot. Successful
+responses provide a private, revalidated `ETag`, allowing an unchanged
+reconciliation to return no body over a slow connection. All indexes and
+monitors close with the server.
+
 If the configured socket is unavailable, Happy (2) runs `rig daemon start` without
 a shell and passes the configured socket and token paths through Rig's standard
 environment variables. User turns are ordinary chat messages. The message and

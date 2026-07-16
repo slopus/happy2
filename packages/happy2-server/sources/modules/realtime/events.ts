@@ -106,7 +106,19 @@ export interface CallSignalEvent {
     readonly occurredAt: number;
 }
 
-export type RealtimeEvent = SyncHintEvent | TypingEvent | PresenceEvent | CallSignalEvent;
+/** Ephemeral invalidation only; clients reconcile the current tree through HTTP. */
+export interface WorkspaceChangedEvent {
+    readonly type: "workspace.changed";
+    readonly chatId: string;
+    readonly occurredAt: number;
+}
+
+export type RealtimeEvent =
+    | SyncHintEvent
+    | TypingEvent
+    | PresenceEvent
+    | CallSignalEvent
+    | WorkspaceChangedEvent;
 export type RealtimeEventType = RealtimeEvent["type"];
 
 export type RealtimeTopic =
@@ -201,6 +213,10 @@ export function assertRealtimeEvent(
                 assertRealtimeId(event.recipientUserId, "recipient user id", limits);
             assertTimestamp(event.occurredAt, "call occurredAt");
             assertCallSignal(event.signal, limits);
+            return;
+        case "workspace.changed":
+            assertRealtimeId(event.chatId, "chat id", limits);
+            assertTimestamp(event.occurredAt, "workspace change occurredAt");
             return;
         default:
             throw new Error("Invalid realtime event type");

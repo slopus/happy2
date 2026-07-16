@@ -65,6 +65,13 @@ export {
 } from "./DiffSnippet";
 export type { Dimension } from "./dimensions";
 export { EventCard, type EventCardProps } from "./EventCard";
+export {
+    FileTree,
+    type FileTreeGitStatus,
+    type FileTreeNode,
+    type FileTreeProps,
+} from "./FileTree";
+export { FilePanel, type FilePanelProps } from "./FilePanel";
 export { Icon, type IconName, iconNames, type IconProps } from "./Icon";
 export {
     DayDivider,

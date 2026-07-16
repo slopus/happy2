@@ -485,6 +485,18 @@ export class CollaborationRepository {
         return Boolean(await this.chatAccessDb(this.db, userId, chatId, false));
     }
 
+    async canAccessChannelWorkspace(userId: string, chatId: string): Promise<boolean> {
+        const chat = await this.chatAccessDb(this.db, userId, chatId, true);
+        return Boolean(chat && chat.kind !== "dm");
+    }
+
+    async getWorkspaceChannel(userId: string, chatId: string): Promise<ChatSummary> {
+        const chat = await this.chatAccessDb(this.db, userId, chatId, true);
+        if (!chat || chat.kind === "dm")
+            throw new CollaborationError("not_found", "Channel workspace was not found");
+        return chat;
+    }
+
     async canPostToChat(userId: string, chatId: string): Promise<boolean> {
         const chat = await this.chatAccessDb(this.db, userId, chatId, true);
         return Boolean(

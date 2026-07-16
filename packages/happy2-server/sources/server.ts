@@ -24,6 +24,7 @@ import { OperationsRepository } from "./modules/operations/repository.js";
 import { DataExportWorker } from "./modules/operations/export-worker.js";
 import { OperationsError } from "./modules/operations/types.js";
 import { LocalPubSub, realtimeTopics, type PubSub } from "./modules/realtime/index.js";
+import { WorkspaceService } from "./modules/workspace/index.js";
 import {
     createRateLimitHook,
     DatabaseIdempotencyStore,
@@ -42,6 +43,7 @@ import { registerFileRoutes } from "./routes/files.js";
 import { registerIntegrationRoutes } from "./routes/integrations.js";
 import { registerOperationsRoutes } from "./routes/operations.js";
 import { registerSyncRoutes } from "./routes/sync.js";
+import { registerWorkspaceRoutes } from "./routes/workspace.js";
 
 interface Services {
     database: Database;
@@ -137,6 +139,7 @@ export async function buildServer(
     let dataExportWorker: DataExportWorker | undefined;
     let unsubscribeWebhookEvents: (() => void) | undefined;
     let agentService: AgentService | undefined;
+    let workspaceService: WorkspaceService | undefined;
     let expiryTimer: NodeJS.Timeout | undefined;
     let pendingSweep: Promise<void> = Promise.resolve();
     const productServer = config.server.role !== "auth";
@@ -186,6 +189,12 @@ export async function buildServer(
         webhookTransport = services.webhookTransport ?? new NodeWebhookTransport();
         fileStorage = services.fileStorage ?? new FileStorage(config, services.database);
         dataExportWorker = new DataExportWorker(operations, services.database, fileStorage);
+        workspaceService = new WorkspaceService(
+            collaboration,
+            pubsub,
+            config.agents.defaultCwd,
+            (error) => app.log.error(error),
+        );
         registerFileRoutes(
             app,
             config,
@@ -232,6 +241,7 @@ export async function buildServer(
             },
         });
         registerSyncRoutes(app, auth, collaboration, pubsub);
+        registerWorkspaceRoutes(app, auth, workspaceService);
         await agentService?.start();
 
         unsubscribeWebhookEvents = pubsub.subscribe(realtimeTopics.server, async (event) => {
@@ -313,6 +323,7 @@ export async function buildServer(
         expiryTimer.unref();
     }
     app.addHook("onClose", async () => {
+        await workspaceService?.close();
         await agentService?.close();
         if (expiryTimer) clearInterval(expiryTimer);
         await pendingSweep;

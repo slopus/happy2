@@ -1,0 +1,44 @@
+/*
+ * C-053 FilePanel — workspace file-tree side panel.
+ *
+ * A column that fills the panel region: a 52px surface header (shared with
+ * ChannelHeader / InfoPanel / ThreadPanel), an optional note strip, then a
+ * FileTree body that fills and scrolls. Colors and type are theme tokens only.
+ */
+
+.happy2-file-panel,
+.happy2-file-panel__body {
+    box-sizing: border-box;
+}
+
+.happy2-file-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    color: var(--happy2-text);
+}
+
+.happy2-file-panel__header {
+    flex: none;
+}
+
+.happy2-file-panel__note {
+    flex: none;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--happy2-border);
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+}
+
+.happy2-file-panel__body {
+    flex: 1 1 0%;
+    min-height: 0;
+    padding: 6px;
+    overflow-x: hidden;
+    overflow-y: auto;
+}

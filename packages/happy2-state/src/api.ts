@@ -6,7 +6,26 @@ import type {
     MessageSummary,
     SendMessageInput,
     SyncState,
+    WorkspaceGitStatusEntry,
 } from "./types.js";
+
+export interface WorkspaceListing {
+    readonly directory?: string;
+    readonly paths: readonly string[];
+    readonly gitStatus: readonly WorkspaceGitStatusEntry[];
+    readonly revision: string;
+    readonly unloadedDirectories: readonly string[];
+    readonly gitStatusPending: boolean;
+    readonly nextCursor?: string;
+}
+
+export type WorkspaceFetchResult =
+    | { readonly notModified: true; readonly etag?: string }
+    | {
+          readonly notModified: false;
+          readonly etag?: string;
+          readonly workspace: WorkspaceListing;
+      };
 
 export interface DifferenceResponse {
     readonly kind: "empty" | "difference" | "slice" | "reset";
@@ -86,6 +105,31 @@ export class Happy2Api {
         return this.get(`/v0/chats/${encodeURIComponent(chatId)}/messages?limit=100`);
     }
 
+    async workspace(
+        chatId: string,
+        input: {
+            readonly directory?: string;
+            readonly cursor?: string;
+            readonly limit?: number;
+            readonly etag?: string;
+        } = {},
+    ): Promise<WorkspaceFetchResult> {
+        const query = new URLSearchParams();
+        if (input.directory !== undefined) query.set("directory", input.directory);
+        if (input.cursor !== undefined) query.set("cursor", input.cursor);
+        if (input.limit !== undefined) query.set("limit", String(input.limit));
+        const encoded = query.toString();
+        const response = await this.transport.request<{ workspace: WorkspaceListing }>({
+            method: "GET",
+            path: `/v0/chats/${encodeURIComponent(chatId)}/workspace${encoded ? `?${encoded}` : ""}`,
+            headers: input.etag ? { "if-none-match": input.etag } : undefined,
+        });
+        const etag = header(response.headers, "etag");
+        if (response.status === 304) return { notModified: true, etag };
+        if (response.status < 200 || response.status >= 300) throw responseError(response);
+        return { notModified: false, etag, workspace: response.body.workspace };
+    }
+
     async difference(state: SyncState): Promise<DifferenceResponse> {
         return this.post("/v0/sync/getDifference", { state, limit: 500 });
     }
@@ -160,15 +204,17 @@ export class Happy2Api {
 
     private async request<T>(request: HttpRequest): Promise<T> {
         const response = await this.transport.request<T>(request);
-        if (response.status < 200 || response.status >= 300) {
-            const body = object(response.body);
-            throw new ApiResponseError(
-                response,
-                string(body?.message) ?? string(body?.error) ?? "The server request failed.",
-            );
-        }
+        if (response.status < 200 || response.status >= 300) throw responseError(response);
         return response.body;
     }
+}
+
+function responseError(response: HttpResponse<unknown>): ApiResponseError {
+    const body = object(response.body);
+    return new ApiResponseError(
+        response,
+        string(body?.message) ?? string(body?.error) ?? "The server request failed.",
+    );
 }
 
 function object(value: unknown): Record<string, unknown> | undefined {

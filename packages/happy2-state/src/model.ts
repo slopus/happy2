@@ -10,6 +10,7 @@ import {
 import { TransportError, type ClientTransport } from "./transport.js";
 import type {
     ChatSummary,
+    ClientWorkspace,
     ClientMessage,
     ClientStateEvent,
     ClientStateEventOf,
@@ -25,6 +26,16 @@ import type {
     TypingState,
 } from "./types.js";
 import { UserError } from "./types.js";
+import {
+    clientWorkspace,
+    createWorkspaceRecord,
+    removeWorkspaceDirectory,
+    replaceWorkspaceInitial,
+    setWorkspaceDirectory,
+    setWorkspaceRequestedDirectories,
+    type WorkspaceDirectoryRecord,
+    type WorkspaceRecord,
+} from "./workspace.js";
 
 export interface RetryPolicy {
     /** Total attempts, including the first request. */
@@ -52,6 +63,20 @@ export interface ClientState extends AsyncDisposable {
     start(): Promise<void>;
     stop(): void;
     loadMessages(chatId: string): Promise<readonly ClientMessage[]>;
+    /** Lazily loads the adaptive initial tree for a channel workspace. */
+    loadWorkspace(chatId: string): Promise<ClientWorkspace>;
+    /**
+     * Makes the workspace match the host's currently requested (usually expanded)
+     * directories and returns one aggregate ready for the file-tree component.
+     */
+    syncWorkspace(
+        chatId: string,
+        requestedDirectories: readonly string[],
+    ): Promise<ClientWorkspace>;
+    /** Convenience action that adds one directory to the requested set. */
+    loadWorkspaceDirectory(chatId: string, directory: string): Promise<ClientWorkspace>;
+    /** Loads at most one additional page for an already expanded directory. */
+    loadMoreWorkspaceDirectory(chatId: string, directory: string): Promise<ClientWorkspace>;
     createChannel(input: CreateChannelInput): Promise<ChatSummary>;
     createAgent(input: CreateAgentInput): Promise<ChatSummary>;
     createDirectMessage(userId: string): Promise<ChatSummary>;
@@ -93,11 +118,18 @@ class ClientStateModel implements ClientState {
     private readonly typingOccurredAt = new Map<string, number>();
     private readonly presenceOccurredAt = new Map<string, number>();
     private readonly typingTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    private readonly workspaceRecords = new Map<string, WorkspaceRecord>();
+    private readonly workspaceChains = new Map<string, Promise<void>>();
+    private readonly workspaceEpochs = new Map<string, number>();
+    private readonly workspaceHints = new Map<string, number>();
+    private readonly workspaceReconcileAgain = new Set<string>();
+    private readonly workspaceReconcilePromises = new Map<string, Promise<void>>();
     private snapshot: ClientStateSnapshot = freezeSnapshot({
         revision: 0,
         status: "idle",
         chats: [],
         messagesByChat: {},
+        workspacesByChat: {},
         typing: [],
         presence: [],
         operationResults: {},
@@ -179,6 +211,139 @@ class ClientStateModel implements ClientState {
             const messages = response.messages.map(sentMessage);
             this.replaceMessages(chatId, messages, "initial", messages.map(messageId));
             return this.snapshot.messagesByChat[chatId] ?? [];
+        } catch (error) {
+            throw userError(error);
+        }
+    }
+
+    async loadWorkspace(chatId: string): Promise<ClientWorkspace> {
+        this.assertActive();
+        const loaded = this.workspaceRecords.get(chatId);
+        if (loaded) return clientWorkspace(chatId, loaded);
+        const hint = this.workspaceHints.get(chatId) ?? 0;
+        try {
+            const workspace = await this.enqueueWorkspace(chatId, async () => {
+                const current = this.workspaceRecords.get(chatId);
+                if (current) return clientWorkspace(chatId, current);
+                const epoch = this.workspaceEpochs.get(chatId) ?? 0;
+                const response = await this.retryRead(() => this.api.workspace(chatId));
+                if (response.notModified)
+                    throw new Error("An unloaded workspace cannot be not modified");
+                if (this.stopped)
+                    throw new UserError("This client state instance has been stopped.");
+                if ((this.workspaceEpochs.get(chatId) ?? 0) !== epoch)
+                    throw new UserError("Channel workspace is no longer available.", "not_found");
+                const record = createWorkspaceRecord(response.workspace, response.etag);
+                this.commitWorkspace(chatId, record, "initial", []);
+                return clientWorkspace(chatId, record);
+            });
+            if ((this.workspaceHints.get(chatId) ?? 0) !== hint)
+                this.queueWorkspaceReconcile(chatId);
+            return workspace;
+        } catch (error) {
+            throw userError(error);
+        }
+    }
+
+    async loadWorkspaceDirectory(chatId: string, directory: string): Promise<ClientWorkspace> {
+        this.assertActive();
+        await this.loadWorkspace(chatId);
+        const requested = [...this.requireWorkspace(chatId).requestedDirectories];
+        if (!requested.includes(directory)) requested.push(directory);
+        return this.syncWorkspace(chatId, requested);
+    }
+
+    async syncWorkspace(
+        chatId: string,
+        requestedDirectories: readonly string[],
+    ): Promise<ClientWorkspace> {
+        this.assertActive();
+        await this.loadWorkspace(chatId);
+        const requested = [...new Set(requestedDirectories)].sort(compareWorkspacePaths);
+        try {
+            return await this.enqueueWorkspace(chatId, async () => {
+                const current = this.requireWorkspace(chatId);
+                let next = current;
+                let changed =
+                    next.requestedDirectories.length !== requested.length ||
+                    next.requestedDirectories.some(
+                        (directory, index) => directory !== requested[index],
+                    );
+                next = setWorkspaceRequestedDirectories(next, requested);
+                const desired = new Set(requested);
+                for (const directory of next.directories.keys()) {
+                    if (desired.has(directory)) continue;
+                    next = removeWorkspaceDirectory(next, directory);
+                    changed = true;
+                }
+
+                const aggregate = clientWorkspace(chatId, next);
+                const visible = new Set(aggregate.paths);
+                const unloaded = new Set(aggregate.unloadedDirectories);
+                const missing = requested.filter(
+                    (directory) =>
+                        !next.directories.has(directory) &&
+                        (unloaded.has(directory) || !visible.has(directory)),
+                );
+                const loaded = new Map<string, WorkspaceDirectoryRecord>();
+                let nextIndex = 0;
+                const worker = async (): Promise<void> => {
+                    while (nextIndex < missing.length) {
+                        const directory = missing[nextIndex++]!;
+                        loaded.set(directory, {
+                            pages: await this.fetchWorkspaceDirectory(chatId, directory, 1),
+                        });
+                    }
+                };
+                await Promise.all(
+                    Array.from({ length: Math.min(4, missing.length) }, () => worker()),
+                );
+                for (const [directory, value] of loaded) {
+                    next = setWorkspaceDirectory(next, directory, value);
+                    changed = true;
+                }
+                if (!changed) return clientWorkspace(chatId, next);
+                this.assertCurrentWorkspace(chatId, current);
+                this.commitWorkspace(chatId, next, "directory", requested);
+                return clientWorkspace(chatId, next);
+            });
+        } catch (error) {
+            throw userError(error);
+        }
+    }
+
+    async loadMoreWorkspaceDirectory(chatId: string, directory: string): Promise<ClientWorkspace> {
+        this.assertActive();
+        await this.loadWorkspaceDirectory(chatId, directory);
+        try {
+            return await this.enqueueWorkspace(chatId, async () => {
+                const current = this.requireWorkspace(chatId);
+                const loaded = current.directories.get(directory);
+                if (!loaded) return clientWorkspace(chatId, current);
+                const cursor = loaded.pages.at(-1)?.nextCursor;
+                if (!cursor) return clientWorkspace(chatId, current);
+                let pages: readonly import("./api.js").WorkspaceListing[];
+                try {
+                    const response = await this.retryRead(() =>
+                        this.api.workspace(chatId, { directory, cursor }),
+                    );
+                    if (response.notModified)
+                        throw new Error("A directory page cannot be not modified");
+                    this.assertWorkspaceDirectory(response.workspace, directory);
+                    pages = [...loaded.pages, response.workspace];
+                } catch (error) {
+                    if (!isStaleWorkspaceCursor(error)) throw error;
+                    pages = await this.fetchWorkspaceDirectory(
+                        chatId,
+                        directory,
+                        loaded.pages.length + 1,
+                    );
+                }
+                const next = setWorkspaceDirectory(current, directory, { pages });
+                this.assertCurrentWorkspace(chatId, current);
+                this.commitWorkspace(chatId, next, "directory", [directory]);
+                return clientWorkspace(chatId, next);
+            });
         } catch (error) {
             throw userError(error);
         }
@@ -401,6 +566,11 @@ class ClientStateModel implements ClientState {
             if (this.snapshot.sync) this.queueSync();
             return;
         }
+        if (event.type === "workspace.changed") {
+            this.workspaceHints.set(event.chatId, (this.workspaceHints.get(event.chatId) ?? 0) + 1);
+            if (this.workspaceRecords.has(event.chatId)) this.queueWorkspaceReconcile(event.chatId);
+            return;
+        }
         if (event.type === "typing") this.applyTyping(event);
         else if (event.type === "presence") this.applyPresence(event);
     }
@@ -556,15 +726,33 @@ class ClientStateModel implements ClientState {
         const chats = await this.api.chats();
         if (this.stopped) return;
         const visible = new Set(chats.chats.map((chat) => chat.id));
+        const removedChatIds = [...previousChatIds].filter((chatId) => !visible.has(chatId));
+        for (const chatId of removedChatIds) this.invalidateWorkspace(chatId);
         const messagesByChat = Object.fromEntries(
             Object.entries(this.snapshot.messagesByChat).filter(([chatId]) => visible.has(chatId)),
         );
-        this.replaceSnapshot({ sync: state, chats: [...chats.chats], messagesByChat });
+        const workspacesByChat = { ...this.snapshot.workspacesByChat };
+        const removedWorkspaceIds: string[] = [];
+        for (const chatId of this.workspaceRecords.keys()) {
+            if (visible.has(chatId)) continue;
+            this.workspaceRecords.delete(chatId);
+            this.workspaceReconcileAgain.delete(chatId);
+            delete workspacesByChat[chatId];
+            removedWorkspaceIds.push(chatId);
+        }
+        this.replaceSnapshot({
+            sync: state,
+            chats: [...chats.chats],
+            messagesByChat,
+            workspacesByChat,
+        });
+        for (const chatId of removedWorkspaceIds)
+            this.emit({ type: "workspace", reason: "removed", chatId, directories: [] });
         this.emit({
             type: "chats",
             reason: "sync",
             chatIds: chats.chats.map((chat) => chat.id),
-            removedChatIds: [...previousChatIds].filter((chatId) => !visible.has(chatId)),
+            removedChatIds,
         });
         await Promise.all(
             loadedChatIds
@@ -656,8 +844,20 @@ class ClientStateModel implements ClientState {
         for (const id of removedIds) chats.delete(id);
         for (const chat of changed) chats.set(chat.id, chat);
         const messagesByChat = { ...this.snapshot.messagesByChat };
-        for (const id of removedIds) delete messagesByChat[id];
-        this.replaceSnapshot({ chats: [...chats.values()], messagesByChat });
+        const workspacesByChat = { ...this.snapshot.workspacesByChat };
+        const removedWorkspaceIds: string[] = [];
+        for (const id of removedIds) {
+            this.invalidateWorkspace(id);
+            delete messagesByChat[id];
+            if (this.workspaceRecords.delete(id) || workspacesByChat[id]) {
+                delete workspacesByChat[id];
+                this.workspaceReconcileAgain.delete(id);
+                removedWorkspaceIds.push(id);
+            }
+        }
+        this.replaceSnapshot({ chats: [...chats.values()], messagesByChat, workspacesByChat });
+        for (const chatId of removedWorkspaceIds)
+            this.emit({ type: "workspace", reason: "removed", chatId, directories: [] });
         this.emit({
             type: "chats",
             reason,
@@ -692,6 +892,173 @@ class ClientStateModel implements ClientState {
             messagesByChat: { ...this.snapshot.messagesByChat, [chatId]: [...messages] },
         });
         this.emit({ type: "messages", reason, chatId, messageIds: [...ids] });
+    }
+
+    private enqueueWorkspace<T>(chatId: string, action: () => Promise<T>): Promise<T> {
+        const previous = this.workspaceChains.get(chatId) ?? Promise.resolve();
+        const result = previous.catch(() => undefined).then(action);
+        const settled = result.then(
+            () => undefined,
+            () => undefined,
+        );
+        this.workspaceChains.set(chatId, settled);
+        void settled.finally(() => {
+            if (this.workspaceChains.get(chatId) === settled) this.workspaceChains.delete(chatId);
+        });
+        return result;
+    }
+
+    private queueWorkspaceReconcile(chatId: string): void {
+        this.workspaceReconcileAgain.add(chatId);
+        if (this.workspaceReconcilePromises.has(chatId) || this.stopped) return;
+        const task = this.enqueueWorkspace(chatId, async () => {
+            while (this.workspaceReconcileAgain.delete(chatId) && !this.stopped) {
+                const current = this.workspaceRecords.get(chatId);
+                if (!current) return;
+                try {
+                    const next = await this.reconcileWorkspace(chatId, current);
+                    if (next) {
+                        if (this.workspaceRecords.get(chatId) !== current) return;
+                        this.commitWorkspace(chatId, next, "sync", [...next.directories.keys()]);
+                    }
+                } catch (error) {
+                    if (isMissingWorkspace(error)) {
+                        this.removeWorkspace(chatId);
+                        return;
+                    }
+                    this.emit({
+                        type: "background-error",
+                        action: "workspace",
+                        error: userError(error, "Could not synchronize workspace files."),
+                        chatId,
+                    });
+                    return;
+                }
+            }
+        }).finally(() => {
+            this.workspaceReconcilePromises.delete(chatId);
+            if (this.workspaceReconcileAgain.has(chatId)) this.queueWorkspaceReconcile(chatId);
+        });
+        this.workspaceReconcilePromises.set(chatId, task);
+        this.track(task);
+    }
+
+    private async reconcileWorkspace(
+        chatId: string,
+        current: WorkspaceRecord,
+    ): Promise<WorkspaceRecord | undefined> {
+        const response = await this.retryRead(() =>
+            this.api.workspace(chatId, { etag: current.initialEtag }),
+        );
+        if (response.notModified) return undefined;
+
+        const entries = [...current.directories];
+        const directories = new Map<string, WorkspaceDirectoryRecord>();
+        let nextIndex = 0;
+        const worker = async (): Promise<void> => {
+            while (nextIndex < entries.length) {
+                const [directory, loaded] = entries[nextIndex++]!;
+                try {
+                    const pages = await this.fetchWorkspaceDirectory(
+                        chatId,
+                        directory,
+                        loaded.pages.length,
+                    );
+                    directories.set(directory, { pages });
+                } catch (error) {
+                    if (!isMissingWorkspace(error)) throw error;
+                }
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(4, entries.length) }, () => worker()));
+        let next = replaceWorkspaceInitial(current, response.workspace, response.etag, directories);
+        const unloaded = new Set(clientWorkspace(chatId, next).unloadedDirectories);
+        for (const directory of next.requestedDirectories) {
+            if (next.directories.has(directory) || !unloaded.has(directory)) continue;
+            const pages = await this.fetchWorkspaceDirectory(chatId, directory, 1);
+            next = setWorkspaceDirectory(next, directory, { pages });
+        }
+        return next;
+    }
+
+    private async fetchWorkspaceDirectory(
+        chatId: string,
+        directory: string,
+        pageCount: number,
+    ): Promise<readonly import("./api.js").WorkspaceListing[]> {
+        let lastError: unknown;
+        for (let restart = 0; restart < 3; restart += 1) {
+            const pages: import("./api.js").WorkspaceListing[] = [];
+            let cursor: string | undefined;
+            try {
+                while (pages.length < pageCount) {
+                    const response = await this.retryRead(() =>
+                        this.api.workspace(chatId, { directory, cursor }),
+                    );
+                    if (response.notModified)
+                        throw new Error("A directory page cannot be not modified");
+                    this.assertWorkspaceDirectory(response.workspace, directory);
+                    pages.push(response.workspace);
+                    cursor = response.workspace.nextCursor;
+                    if (!cursor) break;
+                }
+                return pages;
+            } catch (error) {
+                lastError = error;
+                if (!isStaleWorkspaceCursor(error)) throw error;
+            }
+        }
+        throw lastError;
+    }
+
+    private assertWorkspaceDirectory(
+        workspace: import("./api.js").WorkspaceListing,
+        expected: string,
+    ): void {
+        if (workspace.directory !== expected)
+            throw new Error("The server returned a mismatched workspace directory");
+    }
+
+    private requireWorkspace(chatId: string): WorkspaceRecord {
+        const workspace = this.workspaceRecords.get(chatId);
+        if (!workspace) throw new Error("Workspace was not loaded");
+        return workspace;
+    }
+
+    private assertCurrentWorkspace(chatId: string, expected: WorkspaceRecord): void {
+        if (this.workspaceRecords.get(chatId) !== expected)
+            throw new UserError("Channel workspace is no longer available.", "not_found");
+    }
+
+    private invalidateWorkspace(chatId: string): void {
+        this.workspaceEpochs.set(chatId, (this.workspaceEpochs.get(chatId) ?? 0) + 1);
+        this.workspaceReconcileAgain.delete(chatId);
+    }
+
+    private commitWorkspace(
+        chatId: string,
+        record: WorkspaceRecord,
+        reason: Extract<ClientStateEvent, { type: "workspace" }>["reason"],
+        directories: readonly string[],
+    ): void {
+        this.workspaceRecords.set(chatId, record);
+        this.replaceSnapshot({
+            workspacesByChat: {
+                ...this.snapshot.workspacesByChat,
+                [chatId]: clientWorkspace(chatId, record),
+            },
+        });
+        this.emit({ type: "workspace", reason, chatId, directories });
+    }
+
+    private removeWorkspace(chatId: string): void {
+        this.invalidateWorkspace(chatId);
+        if (!this.workspaceRecords.delete(chatId) && !this.snapshot.workspacesByChat[chatId])
+            return;
+        const workspacesByChat = { ...this.snapshot.workspacesByChat };
+        delete workspacesByChat[chatId];
+        this.replaceSnapshot({ workspacesByChat });
+        this.emit({ type: "workspace", reason: "removed", chatId, directories: [] });
     }
 
     private setStatus(status: ClientStateSnapshot["status"]): void {
@@ -813,10 +1180,23 @@ function freezeSnapshot(snapshot: ClientStateSnapshot): ClientStateSnapshot {
         ...snapshot,
         chats: [...snapshot.chats],
         messagesByChat,
+        workspacesByChat: { ...snapshot.workspacesByChat },
         typing: [...snapshot.typing],
         presence: [...snapshot.presence],
         operationResults: { ...snapshot.operationResults },
     });
+}
+
+function isStaleWorkspaceCursor(error: unknown): boolean {
+    return error instanceof ApiResponseError && error.code === "workspace_cursor_stale";
+}
+
+function isMissingWorkspace(error: unknown): boolean {
+    return error instanceof ApiResponseError && error.code === "not_found";
+}
+
+function compareWorkspacePaths(left: string, right: string): number {
+    return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function deepFreeze<T>(value: T): T {

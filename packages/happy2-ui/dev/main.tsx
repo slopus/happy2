@@ -25,6 +25,8 @@ import { EmojiPickerPage } from "./pages/EmojiPickerPage";
 import { EmptyStatePage } from "./pages/EmptyStatePage";
 import { EventCardPage } from "./pages/EventCardPage";
 import { FileAttachmentPage } from "./pages/FileAttachmentPage";
+import { FilePanelPage } from "./pages/FilePanelPage";
+import { FileTreePage } from "./pages/FileTreePage";
 import { FormRowPage } from "./pages/FormRowPage";
 import { IconPage } from "./pages/IconPage";
 import { InfoPanelPage } from "./pages/InfoPanelPage";
@@ -131,6 +133,8 @@ const components: Array<{ id: string; label: string; number: string; page: () =>
         number: "C-051",
         page: AgentImageDetailPage,
     },
+    { id: "file-tree", label: "File tree", number: "C-052", page: FileTreePage },
+    { id: "file-panel", label: "File panel", number: "C-053", page: FilePanelPage },
 ];
 
 function componentFromHash(): string {

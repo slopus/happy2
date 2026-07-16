@@ -186,13 +186,22 @@ describe("live views use happy2-state", () => {
                     '[data-happy2-ui="channel-header-actions"] button',
                 ),
             ).find((button) => button.textContent?.trim() === label);
+        /* The icon-only workspace-files toggle also lives in the actions slot;
+           filter to the text actions so this stays a "Join is offered" check. */
         expect(
             Array.from(
                 view.container.querySelectorAll<HTMLButtonElement>(
                     '[data-happy2-ui="channel-header-actions"] button',
                 ),
-            ).map((button) => button.textContent?.trim()),
+            )
+                .map((button) => button.textContent?.trim())
+                .filter(Boolean),
         ).toEqual(["Join"]);
+        expect(
+            view.container.querySelector(
+                '[data-happy2-ui="channel-header-actions"] button[aria-label="Workspace files"]',
+            ),
+        ).not.toBeNull();
         await waitFor(() => expect(actionButton("Join")?.disabled).toBe(false));
         fireEvent.click(actionButton("Join")!);
         /* After joining, Leave moves into the channel overflow menu. */
@@ -1330,6 +1339,111 @@ describe("live views use happy2-state", () => {
         await state.whenIdle();
         await new Promise((resolve) => setTimeout(resolve, 0));
         expect(contactsCalls, "one in-flight plus exactly one trailing rerun").toBe(2);
+
+        view.unmount();
+        await state.whenIdle();
+        state.stop();
+    });
+
+    it("opens the workspace files panel on demand and expands directories lazily", async () => {
+        const server = baseServer([
+            chat({ id: "chat-1", name: "Repo", slug: "repo", membershipRole: "member" }),
+        ]);
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, { users: [userSummary()], presence: [], statuses: [] }),
+        );
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            /\/v0\/chats\/[^/]+\/members/,
+            jsonResponse(200, { users: [userSummary()], memberships: [] }),
+        );
+        server.respond(
+            "GET",
+            (path) => path.includes("/messages?limit=100"),
+            jsonResponse(200, { messages: [], chatPts: "0", hasMore: false }),
+        );
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/workspace",
+            jsonResponse(200, {
+                workspace: {
+                    paths: [".git/", "src/"],
+                    gitStatus: [{ path: "src/", status: "modified" }],
+                    revision: "r1",
+                    unloadedDirectories: [".git/", "src/"],
+                    gitStatusPending: false,
+                },
+            }),
+        );
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/workspace?directory=src%2F",
+            jsonResponse(200, {
+                workspace: {
+                    directory: "src/",
+                    paths: ["src/app.ts", "src/index.ts"],
+                    gitStatus: [{ path: "src/index.ts", status: "modified" }],
+                    revision: "r1",
+                    unloadedDirectories: [],
+                    gitStatusPending: false,
+                },
+            }),
+        );
+
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        await waitFor(() =>
+            expect(
+                view.container.querySelector('[data-happy2-ui="channel-header-title"]')
+                    ?.textContent,
+            ).toContain("Repo"),
+        );
+        /* Nothing is fetched until the panel is opened — files are on demand. */
+        expect(server.requests.some(({ path }) => path.includes("/workspace"))).toBe(false);
+
+        fireEvent.click(view.getByRole("button", { name: "Workspace files" }));
+
+        const panel = await waitFor(() => {
+            const element = view.container.querySelector('[data-testid="workspace-file-panel"]');
+            if (!element) throw new Error("file panel not shown");
+            return element;
+        });
+        await waitFor(() => expect(panel.querySelector('[data-path="src/"]')).not.toBeNull());
+        expect(panel.querySelector('[data-path=".git/"]')).not.toBeNull();
+        expect(panel.querySelector('[data-path="src/"]')?.getAttribute("data-status")).toBe(
+            "modified",
+        );
+        /* Collapsed until asked: no child rows and no directory page fetched yet. */
+        expect(panel.querySelector('[data-path="src/index.ts"]')).toBeNull();
+        expect(server.requests.some(({ path }) => path.includes("directory=src%2F"))).toBe(false);
+
+        fireEvent.click(
+            panel.querySelector('[data-path="src/"] [data-happy2-ui="file-tree-chevron"]')!,
+        );
+        await waitFor(() =>
+            expect(panel.querySelector('[data-path="src/index.ts"]')).not.toBeNull(),
+        );
+        expect(panel.querySelector('[data-path="src/app.ts"]')).not.toBeNull();
+        expect(panel.querySelector('[data-path="src/index.ts"]')?.getAttribute("data-status")).toBe(
+            "modified",
+        );
+        expect(
+            server.requests.filter(({ path }) =>
+                path.startsWith("/v0/chats/chat-1/workspace?directory=src%2F"),
+            ),
+        ).toHaveLength(1);
 
         view.unmount();
         await state.whenIdle();

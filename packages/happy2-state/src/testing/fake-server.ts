@@ -31,6 +31,7 @@ export interface FakeServerEvents {
         snapshot: PresenceSnapshot;
         occurredAt?: number;
     }): void;
+    workspaceChanged(input: { chatId: string; occurredAt?: number }): void;
     fail(error?: unknown): void;
 }
 
@@ -123,6 +124,9 @@ class FakeServerModel implements FakeServer {
         },
         presence: ({ change, snapshot, occurredAt = Date.now() }) => {
             this.events.emit({ type: "presence", change, snapshot, occurredAt });
+        },
+        workspaceChanged: ({ chatId, occurredAt = Date.now() }) => {
+            this.events.emit({ type: "workspace.changed", chatId, occurredAt });
         },
         fail: (error = new TransportError("Fake realtime stream failed.")) => {
             for (const observer of Array.from(this.observers)) observer.onError?.(error);

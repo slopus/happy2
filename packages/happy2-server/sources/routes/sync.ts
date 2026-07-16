@@ -369,6 +369,10 @@ async function visibleRealtimeEvent(
         }
         return { ...event, chats };
     }
+    if (event.type === "workspace.changed")
+        return (await repository.canAccessChannelWorkspace(userId, event.chatId))
+            ? event
+            : undefined;
     if (!(await repository.canAccessChat(userId, event.chatId))) return undefined;
     if (
         event.type === "call.signal" &&
