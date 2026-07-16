@@ -1,6 +1,7 @@
 node_modules
 .context
 .happy2
+.worktrees/
 dist
 coverage
 .vitest-attachments
