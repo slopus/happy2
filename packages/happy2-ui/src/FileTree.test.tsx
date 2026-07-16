@@ -27,6 +27,7 @@ const nodes: FileTreeNode[] = [
         children: [
             { id: "src/index.ts", name: "index.ts", kind: "file", gitStatus: "modified" },
             { id: "src/theme.css", name: "theme.css", kind: "file" },
+            { id: "src/logo.png", name: "logo.png", kind: "file" },
             { id: "src/new.ts", name: "new.ts", kind: "file", gitStatus: "added" },
             { id: "src/old.ts", name: "old.ts", kind: "file", gitStatus: "deleted" },
         ],
@@ -97,6 +98,7 @@ it("holds FileTree row grid, indentation, disclosure, git decorations, and selec
         "src/",
         "src/index.ts",
         "src/theme.css",
+        "src/logo.png",
         "src/new.ts",
         "src/old.ts",
         "docs/",
@@ -142,6 +144,26 @@ it("holds FileTree row grid, indentation, disclosure, git decorations, and selec
     expect(
         view.$(sel('[data-path="README.md"] [data-happy2-ui="file-tree-disc"]')).bounds().width,
     ).toBe(16);
+
+    /* ---- Kind icon: directories use the folder glyph, files resolve by type - */
+
+    const iconName = (path: string) =>
+        view
+            .$(
+                sel(
+                    `[data-path="${CSS.escape(path)}"] [data-happy2-ui="file-tree-icon"] [data-name]`,
+                ),
+            )
+            .element.getAttribute("data-name");
+
+    expect(iconName("src/"), "directory").toBe("files");
+    expect(iconName("docs/"), "directory").toBe("files");
+    expect(iconName("src/index.ts"), ".ts is code").toBe("code");
+    expect(iconName("src/theme.css"), ".css is braces").toBe("braces");
+    expect(iconName(".env"), ".env is braces").toBe("braces");
+    expect(iconName("src/logo.png"), ".png is image").toBe("image");
+    expect(iconName("notes.md"), ".md is doc").toBe("doc");
+    expect(iconName("README.md"), "README.md is doc").toBe("doc");
 
     /* ---- Directory typography ------------------------------------------ */
 

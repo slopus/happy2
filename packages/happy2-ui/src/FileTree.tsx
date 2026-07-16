@@ -1,5 +1,5 @@
 import { For, Show, splitProps, type JSX } from "solid-js";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 
 /** Git working-tree state of a file, mirrored from the workspace API. */
 export type FileTreeGitStatus =
@@ -65,6 +65,139 @@ const GIT_STATUS: Record<FileTreeGitStatus, { letter: string; label: string }> =
 const BASE_PADDING = 8;
 const DEFAULT_INDENT = 16;
 
+/**
+ * File-type icon vocabulary, keyed by lowercase extension. Everything a code
+ * explorer routinely shows maps to one of the shared Icon glyphs; anything
+ * unrecognized falls back to the generic `doc`. This is a visual decision the
+ * tree owns (like its git-status letters), derived purely from the file name —
+ * the caller never has to pick an icon.
+ */
+const EXTENSION_ICON: Record<string, IconName> = {
+    // Source code
+    ts: "code",
+    tsx: "code",
+    js: "code",
+    jsx: "code",
+    mjs: "code",
+    cjs: "code",
+    mts: "code",
+    cts: "code",
+    py: "code",
+    rb: "code",
+    go: "code",
+    rs: "code",
+    java: "code",
+    kt: "code",
+    kts: "code",
+    swift: "code",
+    c: "code",
+    h: "code",
+    cc: "code",
+    cpp: "code",
+    hpp: "code",
+    cxx: "code",
+    cs: "code",
+    php: "code",
+    lua: "code",
+    dart: "code",
+    scala: "code",
+    ex: "code",
+    exs: "code",
+    clj: "code",
+    hs: "code",
+    ml: "code",
+    sql: "code",
+    html: "code",
+    htm: "code",
+    vue: "code",
+    svelte: "code",
+    astro: "code",
+    // Data, config, and style — brace-delimited formats
+    json: "braces",
+    jsonc: "braces",
+    json5: "braces",
+    yaml: "braces",
+    yml: "braces",
+    toml: "braces",
+    xml: "braces",
+    ini: "braces",
+    env: "braces",
+    lock: "braces",
+    properties: "braces",
+    conf: "braces",
+    plist: "braces",
+    css: "braces",
+    scss: "braces",
+    sass: "braces",
+    less: "braces",
+    styl: "braces",
+    // Images
+    png: "image",
+    jpg: "image",
+    jpeg: "image",
+    gif: "image",
+    svg: "image",
+    webp: "image",
+    ico: "image",
+    bmp: "image",
+    avif: "image",
+    tiff: "image",
+    heic: "image",
+    // Shell scripts
+    sh: "terminal",
+    bash: "terminal",
+    zsh: "terminal",
+    fish: "terminal",
+    ps1: "terminal",
+    bat: "terminal",
+    cmd: "terminal",
+    // Keys and certificates
+    pem: "shield",
+    key: "shield",
+    crt: "shield",
+    cert: "shield",
+    cer: "shield",
+    p12: "shield",
+    pfx: "shield",
+    // Prose
+    md: "doc",
+    mdx: "doc",
+    markdown: "doc",
+    txt: "doc",
+    rst: "doc",
+    adoc: "doc",
+    pdf: "doc",
+};
+
+/** Bare filenames (no useful extension) that still have a conventional icon. */
+const FILENAME_ICON: Record<string, IconName> = {
+    dockerfile: "code",
+    makefile: "terminal",
+    ".gitignore": "settings",
+    ".gitattributes": "settings",
+    ".npmrc": "settings",
+    ".editorconfig": "settings",
+    ".prettierrc": "settings",
+    ".dockerignore": "settings",
+};
+
+/**
+ * Pick a file's row icon from its name. Directories always use the folder glyph;
+ * files resolve by a special-cased bare name first, then by extension, then the
+ * generic document fallback.
+ */
+function fileIcon(node: FileTreeNode): IconName {
+    if (node.kind === "directory") return "files";
+    const name = node.name.toLowerCase();
+    const special = FILENAME_ICON[name];
+    if (special) return special;
+    const dot = name.lastIndexOf(".");
+    // No dot, or a leading-dot dotfile with no further extension (e.g. ".env"
+    // reads "env"; ".gitignore" reads "gitignore" and falls through to doc).
+    const ext = dot > 0 ? name.slice(dot + 1) : dot === 0 ? name.slice(1) : "";
+    return EXTENSION_ICON[ext] ?? "doc";
+}
+
 function FileTreeRow(props: {
     node: FileTreeNode;
     depth: number;
@@ -122,7 +255,7 @@ function FileTreeRow(props: {
                     type="button"
                 >
                     <span class="happy2-file-tree__icon" data-happy2-ui="file-tree-icon">
-                        <Icon name={directory() ? "files" : "doc"} size={14} />
+                        <Icon name={fileIcon(node())} size={14} />
                     </span>
                     <span class="happy2-file-tree__name" data-happy2-ui="file-tree-name">
                         {node().name}
@@ -193,9 +326,10 @@ function FileTreeRow(props: {
 /**
  * C-052 FileTree — a props-only, indentable file/folder tree modeled on a
  * code-editor explorer. Directories disclose with a chevron and reveal their
- * (caller-materialized) children; files are leaves with an optional git-status
- * decoration. Selection, hover, per-directory loading, and a "Show more" paging
- * affordance are all driven by props — the tree never fetches or holds state.
+ * (caller-materialized) children; files are leaves that show a type icon
+ * resolved from their name plus an optional git-status decoration. Selection,
+ * hover, per-directory loading, and a "Show more" paging affordance are all
+ * driven by props — the tree never fetches or holds state.
  */
 export function FileTree(props: FileTreeProps) {
     const [local] = splitProps(props, [

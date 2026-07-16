@@ -2,7 +2,7 @@
  * C-052 FileTree — code-editor file/folder explorer.
  *
  * A column of 28px rows. Each row is a fixed 16px disclosure slot (chevron for
- * directories) followed by a flexible entry button: a 14px kind icon, an
+ * directories) followed by a flexible entry button: a 14px file-type icon, an
  * elliptical name, and an optional single-letter git decoration. Depth is
  * expressed as left padding on the row (8px base + 16px per level), so nested
  * names align under their parent's name. Colors and type are theme tokens only.

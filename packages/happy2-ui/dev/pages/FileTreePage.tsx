@@ -37,6 +37,7 @@ const sampleNodes: FileTreeNode[] = [
             },
             { id: "src/index.ts", name: "index.ts", kind: "file", gitStatus: "modified" },
             { id: "src/theme.css", name: "theme.css", kind: "file" },
+            { id: "src/logo.svg", name: "logo.svg", kind: "file" },
             { id: "src/notes.md", name: "notes.md", kind: "file", gitStatus: "renamed" },
         ],
     },
@@ -47,6 +48,8 @@ const sampleNodes: FileTreeNode[] = [
         expanded: true,
         loading: true,
     },
+    { id: "deploy.sh", name: "deploy.sh", kind: "file" },
+    { id: "package.json", name: "package.json", kind: "file", gitStatus: "modified" },
     { id: ".env.local", name: ".env.local", kind: "file", gitStatus: "untracked" },
     { id: "dist/", name: "dist", kind: "directory", gitStatus: "ignored" },
     { id: "README.md", name: "README.md", kind: "file" },
@@ -79,7 +82,7 @@ export function FileTreePage() {
     return (
         <ComponentPage
             number="C-052"
-            summary="A props-only file/folder explorer: 28px rows, chevron disclosure for directories, 16px-per-level indentation, kind icons, git-status decorations, selection, and a 'Show more' paging affordance."
+            summary="A props-only file/folder explorer: 28px rows, chevron disclosure for directories, 16px-per-level indentation, file-type icons resolved from each name, git-status decorations, selection, and a 'Show more' paging affordance."
             title="FileTree"
         >
             <Specimen
