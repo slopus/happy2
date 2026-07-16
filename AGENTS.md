@@ -8,6 +8,12 @@ layouts for mobile viewports.
 
 ## Feature development workflow
 
+Each worktree may contain work for only one feature at a time. Do not begin a
+second feature in a worktree before the current feature has been merged to
+`main`. If the user attempts to start another feature while the current one is
+still unmerged, stop and instruct them to create a new Conductor workspace
+(and therefore a separate Git worktree) for that feature.
+
 Build each feature in isolation, with an explicit boundary between its server
 and UI work. Do not mix unrelated features into the same implementation.
 
