@@ -12,6 +12,12 @@ export function registerAuthRoutes(
     app.get("/v0/auth/session", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return reply.code(401).send({ error: "unauthorized" });
+        if (!current.session)
+            return {
+                user: current.user,
+                authentication: "cloudflare_access",
+                expiresAt: current.cloudflareAccess!.expiresAt.toISOString(),
+            };
         return {
             user: current.user,
             sessionId: current.session.id,
@@ -100,9 +106,10 @@ export function registerAuthRoutes(
         return result ? result : reply.code(401).send({ error: "unauthorized" });
     });
     app.post("/v0/auth/logout", async (request, reply) => {
-        return (await auth.logout(request))
-            ? reply.code(204).send()
-            : reply.code(401).send({ error: "unauthorized" });
+        const result = await auth.logout(request);
+        if (result === "managed_by_cloudflare_access")
+            return reply.code(409).send({ error: "cloudflare_access_manages_session" });
+        return result ? reply.code(204).send() : reply.code(401).send({ error: "unauthorized" });
     });
 }
 

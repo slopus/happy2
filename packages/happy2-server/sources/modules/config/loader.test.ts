@@ -47,6 +47,39 @@ enabled = true
 redirect_url = "happy2://auth/magic-link"
 `),
         ).toThrow("only one authentication method");
+        expect(() =>
+            parseConfig(`${base}
+[auth.password]
+enabled = true
+
+[auth.cloudflare_access]
+enabled = true
+team_domain = "https://happy.cloudflareaccess.com"
+audience = "cloudflare-access-audience"
+`),
+        ).toThrow("only one authentication method");
+    });
+
+    it("loads a Cloudflare Access application and rejects unsafe team domains", () => {
+        const config = parseConfig(`${base}
+[auth.cloudflare_access]
+enabled = true
+team_domain = "https://happy.cloudflareaccess.com"
+audience = "cloudflare-access-audience"
+`);
+        expect(config.auth.cloudflareAccess).toEqual({
+            enabled: true,
+            teamDomain: "https://happy.cloudflareaccess.com",
+            audience: "cloudflare-access-audience",
+        });
+        expect(() =>
+            parseConfig(`${base}
+[auth.cloudflare_access]
+enabled = true
+team_domain = "https://cloudflareaccess.com.evil.example"
+audience = "cloudflare-access-audience"
+`),
+        ).toThrow("team_domain");
     });
 
     it("requires a desktop callback when magic links are enabled", () => {

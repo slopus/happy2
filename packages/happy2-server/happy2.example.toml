@@ -93,3 +93,11 @@ client_id = "replace-me"
 client_secret_env = "HAPPY2_OIDC_GOOGLE_CLIENT_SECRET"
 scopes = ["openid", "email", "profile"]
 redirect_path = "/v0/auth/oidc/google/callback"
+
+# Cloudflare Access authenticates the request at the proxy and forwards a signed
+# Cf-Access-Jwt-Assertion header. See README for the required Tunnel/origin setup.
+[auth.cloudflare_access]
+enabled = false
+team_domain = "https://replace-me.cloudflareaccess.com"
+# Copy the Application Audience (AUD) Tag from Cloudflare Zero Trust.
+audience = "replace-me"

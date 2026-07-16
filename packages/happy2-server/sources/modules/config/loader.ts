@@ -153,6 +153,7 @@ export function parseConfig(input: string): ServerConfig {
     const auth = table(root.auth ?? {}, "auth");
     const password = table(auth.password ?? {}, "auth.password");
     const magicLink = table(auth.magic_link ?? {}, "auth.magic_link");
+    const cloudflareAccess = table(auth.cloudflare_access ?? {}, "auth.cloudflare_access");
     const oidc = new Map<string, OidcProviderConfig>();
     for (const [id, value] of Object.entries(table(auth.oidc ?? {}, "auth.oidc"))) {
         const provider = table(value, `auth.oidc.${id}`);
@@ -184,10 +185,43 @@ export function parseConfig(input: string): ServerConfig {
     const magicRedirectUrl = string(magicLink.redirect_url, "auth.magic_link.redirect_url", true);
     if (magicEnabled && !magicRedirectUrl)
         throw new Error("auth.magic_link.redirect_url is required when magic links are enabled");
+    const cloudflareAccessEnabled = boolean(
+        cloudflareAccess.enabled,
+        "auth.cloudflare_access.enabled",
+    );
+    const cloudflareAccessTeamDomain = string(
+        cloudflareAccess.team_domain,
+        "auth.cloudflare_access.team_domain",
+        !cloudflareAccessEnabled,
+    );
+    const cloudflareAccessAudience = string(
+        cloudflareAccess.audience,
+        "auth.cloudflare_access.audience",
+        !cloudflareAccessEnabled,
+    );
+    let normalizedCloudflareAccessTeamDomain = cloudflareAccessTeamDomain;
+    if (cloudflareAccessEnabled) {
+        const teamDomain = new URL(cloudflareAccessTeamDomain!);
+        if (
+            teamDomain.protocol !== "https:" ||
+            !teamDomain.hostname.endsWith(".cloudflareaccess.com") ||
+            teamDomain.username ||
+            teamDomain.password ||
+            teamDomain.port ||
+            teamDomain.pathname !== "/" ||
+            teamDomain.search ||
+            teamDomain.hash
+        )
+            throw new Error(
+                "auth.cloudflare_access.team_domain must be an https Cloudflare Access team domain",
+            );
+        normalizedCloudflareAccessTeamDomain = teamDomain.origin;
+    }
     const enabledMethods = [
         boolean(password.enabled, "auth.password.enabled"),
         magicEnabled,
         oidc.size > 0,
+        cloudflareAccessEnabled,
     ].filter(Boolean).length;
     if (enabledMethods > 1) {
         throw new Error("only one authentication method can be enabled at a time");
@@ -279,6 +313,11 @@ export function parseConfig(input: string): ServerConfig {
                 redirectUrl: magicRedirectUrl,
             },
             oidc,
+            cloudflareAccess: {
+                enabled: cloudflareAccessEnabled,
+                teamDomain: normalizedCloudflareAccessTeamDomain,
+                audience: cloudflareAccessAudience,
+            },
         },
     };
 }

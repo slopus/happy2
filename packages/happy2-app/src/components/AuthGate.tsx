@@ -49,10 +49,11 @@ export function AuthGate(props: AuthGateProps) {
         "Checking the server and your saved session.",
     );
     let avatarUrl: string | undefined;
-    const token = () => localStorage.getItem(tokenKey);
+    const token = () => localStorage.getItem(tokenKey) ?? undefined;
 
-    async function resolveSession(value: string, allowRefresh = true) {
-        localStorage.setItem(tokenKey, value);
+    async function resolveSession(value?: string, allowRefresh = true) {
+        if (value) localStorage.setItem(tokenKey, value);
+        else localStorage.removeItem(tokenKey);
         setLoadingMessage("Loading your profile.");
         setMode("loading");
         const nextState = createClientState(createAuthenticatedTransport(props.serverUrl, value));
@@ -67,7 +68,7 @@ export function AuthGate(props: AuthGateProps) {
         } catch (reason) {
             nextState.stop();
             if (!(reason instanceof ServerError) || reason.status !== 401) throw reason;
-            if (allowRefresh) {
+            if (value && allowRefresh) {
                 try {
                     const refreshed = await client.refresh(value);
                     return resolveSession(refreshed.token, false);
@@ -75,11 +76,13 @@ export function AuthGate(props: AuthGateProps) {
                     if (!(refreshReason instanceof ServerError) || refreshReason.status !== 401)
                         throw refreshReason;
                     localStorage.removeItem(tokenKey);
+                    if (methods()?.method === "cloudflare_access")
+                        return resolveSession(undefined, false);
                     setMode("sign-in");
                     return;
                 }
             }
-            setMode("onboarding");
+            setMode(methods()?.method === "cloudflare_access" ? "onboarding" : "sign-in");
         }
     }
     async function loadAvatar(profile: User, model: ClientState): Promise<User> {
@@ -103,7 +106,10 @@ export function AuthGate(props: AuthGateProps) {
             setMethods(supported);
             const saved = token();
             if (saved) await resolveSession(saved);
-            else setMode("sign-in");
+            else if (supported.method === "cloudflare_access") {
+                setLoadingMessage("Checking your Cloudflare Access session.");
+                await resolveSession(undefined, false);
+            } else setMode("sign-in");
         } catch (reason) {
             setError(message(reason));
             setMode("unavailable");
@@ -128,7 +134,7 @@ export function AuthGate(props: AuthGateProps) {
     async function submitProfile(event: SubmitEvent) {
         event.preventDefault();
         const saved = token();
-        if (!saved) return setMode("sign-in");
+        if (!saved && methods()?.method !== "cloudflare_access") return setMode("sign-in");
         setPending(true);
         setError(undefined);
         try {
@@ -294,7 +300,9 @@ export function AuthGate(props: AuthGateProps) {
     return (
         <Show
             when={
-                mode() === "ready" && user() && token()
+                mode() === "ready" &&
+                user() &&
+                (token() || methods()?.method === "cloudflare_access")
                     ? state()
                         ? {
                               state: state()!,

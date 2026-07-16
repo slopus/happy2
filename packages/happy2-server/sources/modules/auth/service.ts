@@ -5,13 +5,15 @@ import { Database, type ActiveSession, type CreateProfile, type User } from "../
 import { hashPassword, randomToken, verifyPassword } from "./crypto.js";
 import { smtpTransport } from "./email.js";
 import { bearerToken, requestMetadata } from "./metadata.js";
+import { cloudflareAccessIdentity, type CloudflareAccessIdentity } from "./cloudflare-access.js";
 import { authorizationUrl, exchangeCode } from "./oidc.js";
 import { TokenService } from "./tokens.js";
 
 type Body = Record<string, unknown>;
 export interface AuthenticatedAccount {
-    session: ActiveSession;
     accountId: string;
+    session?: ActiveSession;
+    cloudflareAccess?: CloudflareAccessIdentity;
 }
 export interface Authenticated extends AuthenticatedAccount {
     user: User;
@@ -40,16 +42,30 @@ export class AuthService {
     /** Account authentication is reserved for account-management paths such as creating a profile. */
     async authenticateAccount(request: FastifyRequest): Promise<AuthenticatedAccount | undefined> {
         const token = bearerToken(request);
-        if (!token) return undefined;
-        try {
-            const claims = await this.tokens.verify(token);
-            const session = await this.database.findActiveSession(claims.sessionId);
-            return session && session.accountId === claims.accountId
-                ? { session, accountId: claims.accountId }
-                : undefined;
-        } catch {
-            return undefined;
+        if (token) {
+            try {
+                const claims = await this.tokens.verify(token);
+                const session = await this.database.findActiveSession(claims.sessionId);
+                return session && session.accountId === claims.accountId
+                    ? { session, accountId: claims.accountId }
+                    : undefined;
+            } catch {
+                return undefined;
+            }
         }
+        const identity = await cloudflareAccessIdentity(request, this.config.auth.cloudflareAccess);
+        if (!identity) return undefined;
+        const provider = `cloudflare-access:${this.config.auth.cloudflareAccess.teamDomain}`;
+        const account =
+            (await this.database.findOidcAccount(provider, identity.subject)) ??
+            (await this.database.findOrCreateOidcAccount(
+                provider,
+                identity.subject,
+                identity.email,
+            ));
+        return account.bannedAt || account.deletedAt
+            ? undefined
+            : { accountId: account.id, cloudflareAccess: identity };
     }
 
     /** Product routes use active Users, never bare authentication accounts. */
@@ -58,7 +74,7 @@ export class AuthService {
         if (!account) return undefined;
         const user = await this.database.findActiveUserByAccount(account.accountId);
         if (!user) return undefined;
-        await this.database.touchAccess(account.session.id, user.id);
+        await this.database.touchAccess(account.session?.id, user.id);
         return { ...account, user };
     }
 
@@ -165,7 +181,7 @@ export class AuthService {
     }
     async refresh(request: FastifyRequest): Promise<AuthToken | undefined> {
         const account = await this.authenticateAccount(request);
-        if (!account) return undefined;
+        if (!account?.session) return undefined;
         const session = await this.database.refreshSession(
             account.session.id,
             expiry(this.config),
@@ -178,9 +194,10 @@ export class AuthService {
               }
             : undefined;
     }
-    async logout(request: FastifyRequest): Promise<boolean> {
+    async logout(request: FastifyRequest): Promise<boolean | "managed_by_cloudflare_access"> {
         const account = await this.authenticateAccount(request);
         if (!account) return false;
+        if (!account.session) return "managed_by_cloudflare_access";
         await this.database.revokeSession(account.session.id, requestMetadata(request));
         return true;
     }

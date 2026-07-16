@@ -33,8 +33,13 @@ function createWindow() {
 
     window.once("ready-to-show", () => window.show());
 
+    const hostedServerUrl = process.env.HAPPY2_SERVER_URL;
     const devServerUrl = process.env.VITE_DEV_SERVER_URL;
-    if (devServerUrl) {
+    if (hostedServerUrl) {
+        const url = new URL(hostedServerUrl);
+        url.searchParams.set("desktop", "1");
+        void window.loadURL(url.toString());
+    } else if (devServerUrl) {
         void window.loadURL(devServerUrl);
     } else {
         void window.loadFile(path.join(dirname, "renderer", "index.html"));

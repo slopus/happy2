@@ -66,6 +66,7 @@ export function defaultConfig(): ServerConfig {
             password: { enabled: true, signupEnabled: true },
             magicLink: { enabled: false },
             oidc: new Map(),
+            cloudflareAccess: { enabled: false },
         },
     };
 }

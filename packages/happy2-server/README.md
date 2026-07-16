@@ -44,9 +44,9 @@ socket, token, and session database; it never connects to the user's global Rig
 daemon. Provide `--config /path/to/happy2.toml` or
 `HAPPY2_CONFIG=/path/to/happy2.toml` to override the defaults.
 
-Clients can discover the selected issuance method at `GET /v0/auth/methods`.
+Clients can discover the selected authentication method at `GET /v0/auth/methods`.
 The response includes the server role and one `method` value: `password`,
-`magic_link`, `oidc`, or `null` in validation-only API mode. Password responses
+`magic_link`, `oidc`, `cloudflare_access`, or `null` in validation-only API mode. Password responses
 also report `signupEnabled`; OIDC responses report `oidcProvider`.
 
 ## Profiles and avatar files
@@ -88,7 +88,7 @@ material, because the adjacent `.env` file is the durable key store.
 
 ## Authentication
 
-Choose exactly one of password, magic-link, or OIDC in `happy2.toml`; startup
+Choose exactly one of password, magic-link, OIDC, or Cloudflare Access in `happy2.toml`; startup
 rejects configurations that enable more than one method. Clients can learn the
 selected method from `GET /v0/auth/methods`.
 
@@ -100,6 +100,60 @@ selected method from `GET /v0/auth/methods`.
   handler; it submits the token to `POST /v0/auth/magic-link/verify`.
 - OIDC uses discovery, PKCE, a nonce, and remote JWKS validation. Provider
   secrets are referenced by environment-variable name in TOML.
+- Cloudflare Access validates the signed `Cf-Access-Jwt-Assertion` that Access
+  forwards after its policy permits the request. It uses the Access application
+  session rather than issuing a Happy (2) bearer token.
+
+### Cloudflare Access
+
+Cloudflare Access can provide all interactive authentication for a deployment.
+Create a **Self-hosted** HTTP application for the public Happy (2) hostname,
+attach the intended Access policy and identity providers, then configure this
+as the only enabled method:
+
+```toml
+[auth.password]
+enabled = false
+
+[auth.magic_link]
+enabled = false
+
+[auth.cloudflare_access]
+enabled = true
+team_domain = "https://your-team.cloudflareaccess.com"
+# Zero Trust → Access controls → Applications → your application →
+# Additional settings → Application Audience (AUD) Tag.
+audience = "your-access-application-aud-tag"
+```
+
+The server fetches the signing keys from the configured team domain and accepts
+only an RS256 application assertion whose issuer and audience match this
+configuration. It requires the Access JWT's `type`, `sub`, `email`, and expiry
+claims, then maps the `(team domain, sub)` identity to a Happy (2) account.
+As with the other methods, a newly authenticated account cannot use product
+routes until it has an active profile.
+
+Do not expose the origin directly. Use Cloudflare Tunnel or a network firewall
+that allows only Cloudflare to reach it; otherwise a captured valid assertion
+could be replayed directly to the origin until it expires. Happy (2) validates
+the assertion itself and deliberately does not trust identity headers or the
+`CF_Authorization` cookie. Cloudflare's browser/logout flow owns the session;
+use `https://your-happy-host/cdn-cgi/access/logout` to end it. Consequently,
+`POST /v0/auth/refresh` does not apply and `POST /v0/auth/logout` returns
+`cloudflare_access_manages_session`.
+
+The web bundle must be served from the protected hostname so browser requests,
+SSE, and the `CF_Authorization` cookie share one origin. To run the Electron
+desktop shell against that deployed bundle, start it with:
+
+```sh
+HAPPY2_SERVER_URL="https://happy.example.com" pnpm --filter happy2-desktop start
+```
+
+Electron loads the protected hostname in its own browser session, so Access
+performs its normal redirect before Happy (2) renders. Do not point the bundled
+local renderer at this hostname: that cross-origin arrangement cannot safely
+reuse Cloudflare's HttpOnly application cookie.
 
 On initial startup, external environment values win. If an auth-capable server
 has no JWT private key configured, it generates a 3072-bit RS256 key pair and

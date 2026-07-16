@@ -93,6 +93,32 @@ describe("App", () => {
         }
     });
 
+    it("continues with the same-origin Cloudflare Access session without asking for a password", async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response(JSON.stringify({ role: "all", method: "cloudflare_access" }), {
+                    status: 200,
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }),
+            );
+        vi.stubGlobal("fetch", fetchMock);
+        vi.stubGlobal("localStorage", {
+            getItem: vi.fn(() => null),
+            removeItem: vi.fn(),
+            setItem: vi.fn(),
+        });
+        try {
+            const { findByText } = render(() => <App serverUrl="/" />);
+            expect(await findByText("Make it yours.")).toBeTruthy();
+            expect(fetchMock.mock.calls[1]?.[1].headers.authorization).toBeUndefined();
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
     it("switches the conversation from the sidebar", () => {
         const { container, getByText, queryByText } = render(() => <App />);
 

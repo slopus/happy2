@@ -7,7 +7,7 @@ import {
     type RealtimeObserver,
 } from "happy2-state";
 
-export function createAuthenticatedTransport(baseUrl: string, token: string): ClientTransport {
+export function createAuthenticatedTransport(baseUrl: string, token?: string): ClientTransport {
     const base = baseUrl.replace(/\/$/, "");
     return {
         async request<T>(request: HttpRequest): Promise<HttpResponse<T>> {
@@ -22,7 +22,7 @@ export function createAuthenticatedTransport(baseUrl: string, token: string): Cl
                             ? {}
                             : { "content-type": "application/json" }),
                         ...request.headers,
-                        authorization: `Bearer ${token}`,
+                        ...(token ? { authorization: `Bearer ${token}` } : {}),
                     },
                     body:
                         request.body === undefined
@@ -69,14 +69,17 @@ export function createAuthenticatedTransport(baseUrl: string, token: string): Cl
 
 async function streamEvents(
     url: string,
-    token: string,
+    token: string | undefined,
     signal: AbortSignal,
     observer: RealtimeObserver,
 ): Promise<void> {
     let response: Response;
     try {
         response = await fetch(url, {
-            headers: { accept: "text/event-stream", authorization: `Bearer ${token}` },
+            headers: {
+                accept: "text/event-stream",
+                ...(token ? { authorization: `Bearer ${token}` } : {}),
+            },
             signal,
         });
     } catch (error) {

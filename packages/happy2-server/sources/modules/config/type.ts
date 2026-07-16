@@ -9,6 +9,14 @@ export interface OidcProviderConfig {
     redirectPath: string;
 }
 
+export interface CloudflareAccessConfig {
+    enabled: boolean;
+    /** Cloudflare Zero Trust team domain, for example https://team.cloudflareaccess.com. */
+    teamDomain?: string;
+    /** The immutable Application Audience (AUD) tag assigned by Cloudflare Access. */
+    audience?: string;
+}
+
 export interface ServerConfig {
     server: {
         role: ServerRole;
@@ -67,5 +75,6 @@ export interface ServerConfig {
         password: { enabled: boolean; signupEnabled: boolean };
         magicLink: { enabled: boolean; from?: string; redirectUrl?: string };
         oidc: Map<string, OidcProviderConfig>;
+        cloudflareAccess: CloudflareAccessConfig;
     };
 }

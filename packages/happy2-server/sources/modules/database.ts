@@ -171,6 +171,15 @@ export class Database {
         });
     }
 
+    async findOidcAccount(provider: string, subject: string): Promise<Account | undefined> {
+        const [identity] = await this.db
+            .select({ account: accounts })
+            .from(oidcIdentities)
+            .innerJoin(accounts, eq(accounts.id, oidcIdentities.accountId))
+            .where(and(eq(oidcIdentities.provider, provider), eq(oidcIdentities.subject, subject)));
+        return identity ? asAccount(identity.account) : undefined;
+    }
+
     async createSession(
         accountId: string,
         expiresAt: Date,
@@ -303,38 +312,41 @@ export class Database {
         return row ? asUser(row.user) : undefined;
     }
 
-    async touchAccess(sessionId: string, userId: string): Promise<void> {
+    async touchAccess(sessionId: string | undefined, userId: string): Promise<void> {
         const now = Date.now();
-        if (now - (this.accessTouches.get(sessionId) ?? 0) < 60_000) return;
-        this.accessTouches.set(sessionId, now);
+        const touchKey = sessionId ?? `external:${userId}`;
+        if (now - (this.accessTouches.get(touchKey) ?? 0) < 60_000) return;
+        this.accessTouches.set(touchKey, now);
         if (this.accessTouches.size > 10_000)
             this.accessTouches.delete(this.accessTouches.keys().next().value!);
         try {
-            const activeSessionAccount = this.db
-                .select({ id: accounts.id })
-                .from(accounts)
-                .where(
-                    and(
-                        eq(accounts.id, authSessions.accountId),
-                        eq(accounts.active, 1),
-                        isNull(accounts.bannedAt),
-                        isNull(accounts.deletedAt),
-                    ),
-                );
-            await this.db
-                .update(authSessions)
-                .set({ lastSeenAt: sql`CURRENT_TIMESTAMP` })
-                .where(
-                    and(
-                        eq(authSessions.id, sessionId),
-                        isNull(authSessions.revokedAt),
-                        sql`exists ${activeSessionAccount}`,
-                        or(
-                            isNull(authSessions.lastSeenAt),
-                            lt(authSessions.lastSeenAt, sql`datetime('now', '-1 minute')`),
+            if (sessionId) {
+                const activeSessionAccount = this.db
+                    .select({ id: accounts.id })
+                    .from(accounts)
+                    .where(
+                        and(
+                            eq(accounts.id, authSessions.accountId),
+                            eq(accounts.active, 1),
+                            isNull(accounts.bannedAt),
+                            isNull(accounts.deletedAt),
                         ),
-                    ),
-                );
+                    );
+                await this.db
+                    .update(authSessions)
+                    .set({ lastSeenAt: sql`CURRENT_TIMESTAMP` })
+                    .where(
+                        and(
+                            eq(authSessions.id, sessionId),
+                            isNull(authSessions.revokedAt),
+                            sql`exists ${activeSessionAccount}`,
+                            or(
+                                isNull(authSessions.lastSeenAt),
+                                lt(authSessions.lastSeenAt, sql`datetime('now', '-1 minute')`),
+                            ),
+                        ),
+                    );
+            }
             const activeUserAccount = this.db
                 .select({ id: accounts.id })
                 .from(accounts)

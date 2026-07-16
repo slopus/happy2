@@ -41,4 +41,22 @@ describe("Happy (2) server client", () => {
             code: "unauthorized",
         });
     });
+
+    it("uses the browser's same-origin Cloudflare Access session without a bearer token", async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValue(
+                new Response(
+                    JSON.stringify({ user: { id: "user", firstName: "Ada", username: "ada" } }),
+                    { status: 200 },
+                ),
+            );
+        vi.stubGlobal("fetch", fetchMock);
+
+        await expect(createServerClient("/").me()).resolves.toMatchObject({
+            user: { username: "ada" },
+        });
+        expect(fetchMock.mock.calls[0]?.[0]).toBe("/v0/me");
+        expect(fetchMock.mock.calls[0]?.[1].headers.authorization).toBeUndefined();
+    });
 });

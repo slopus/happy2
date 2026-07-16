@@ -53,4 +53,21 @@ describe("authenticated happy2-state transport", () => {
         expect(fetchMock.mock.calls[0]?.[0]).toBe("http://server/v0/sync/events");
         expect(fetchMock.mock.calls[0]?.[1].headers.authorization).toBe("Bearer secret");
     });
+
+    it("uses same-origin browser authentication when no Happy bearer token exists", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(
+            new Response(JSON.stringify({ chat: { id: "chat-1" } }), {
+                status: 200,
+                headers: { "content-type": "application/json" },
+            }),
+        );
+        vi.stubGlobal("fetch", fetchMock);
+        const transport = createAuthenticatedTransport("/");
+
+        await expect(
+            transport.request({ method: "GET", path: "/v0/chats/chat-1" }),
+        ).resolves.toMatchObject({ status: 200 });
+        expect(fetchMock.mock.calls[0]?.[0]).toBe("/v0/chats/chat-1");
+        expect(fetchMock.mock.calls[0]?.[1].headers.authorization).toBeUndefined();
+    });
 });
