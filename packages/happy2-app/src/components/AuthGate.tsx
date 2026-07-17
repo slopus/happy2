@@ -53,9 +53,21 @@ export function AuthGate(props: AuthGateProps) {
     let avatarUrl: string | undefined;
     const token = () => localStorage.getItem(tokenKey) ?? undefined;
 
-    async function resolveSession(value?: string, allowRefresh = true) {
+    async function resolveSession(
+        value?: string,
+        options: { profileRequired?: boolean; allowRefresh?: boolean } = {},
+    ) {
+        const { profileRequired = false, allowRefresh = true } = options;
         if (value) localStorage.setItem(tokenKey, value);
         else localStorage.removeItem(tokenKey);
+        /* A freshly issued token can already tell us the account has no active
+         * profile. Enter onboarding on the saved bearer without probing the
+         * protected /v0/me route, which intentionally answers 401 until a
+         * profile exists. */
+        if (profileRequired) {
+            setMode("onboarding");
+            return;
+        }
         setLoadingMessage("Loading your profile.");
         setMode("loading");
         const nextState = createClientState(createAuthenticatedTransport(props.serverUrl, value));
@@ -73,13 +85,16 @@ export function AuthGate(props: AuthGateProps) {
             if (value && allowRefresh) {
                 try {
                     const refreshed = await client.refresh(value);
-                    return resolveSession(refreshed.token, false);
+                    return resolveSession(refreshed.token, {
+                        profileRequired: refreshed.profileRequired,
+                        allowRefresh: false,
+                    });
                 } catch (refreshReason) {
                     if (!(refreshReason instanceof ServerError) || refreshReason.status !== 401)
                         throw refreshReason;
                     localStorage.removeItem(tokenKey);
                     if (methods()?.method === "cloudflare_access")
-                        return resolveSession(undefined, false);
+                        return resolveSession(undefined, { allowRefresh: false });
                     setMode("sign-in");
                     return;
                 }
@@ -110,7 +125,7 @@ export function AuthGate(props: AuthGateProps) {
             if (saved) await resolveSession(saved);
             else if (supported.method === "cloudflare_access") {
                 setLoadingMessage("Checking your Cloudflare Access session.");
-                await resolveSession(undefined, false);
+                await resolveSession(undefined, { allowRefresh: false });
             } else setMode("sign-in");
         } catch (reason) {
             setError(message(reason));
@@ -125,7 +140,7 @@ export function AuthGate(props: AuthGateProps) {
             const response = isRegistering()
                 ? await client.register(email(), password())
                 : await client.login(email(), password());
-            await resolveSession(response.token);
+            await resolveSession(response.token, { profileRequired: response.profileRequired });
         } catch (reason) {
             setError(message(reason));
             setMode("sign-in");
@@ -141,7 +156,7 @@ export function AuthGate(props: AuthGateProps) {
         setError(undefined);
         try {
             await client.createProfile({ firstName: firstName(), username: username() }, saved);
-            await resolveSession(saved, false);
+            await resolveSession(saved, { allowRefresh: false });
         } catch (reason) {
             setError(message(reason));
         } finally {

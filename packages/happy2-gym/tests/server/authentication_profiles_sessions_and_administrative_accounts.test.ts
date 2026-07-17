@@ -48,6 +48,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
             expect(registered.json()).toMatchObject({
                 token: expect.any(String),
                 expiresAt: expect.any(String),
+                profileRequired: true,
             });
             const provisionalToken = registered.json().token as string;
             const provisional = tokenClient(server, provisionalToken);
@@ -55,6 +56,13 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
             // An account cannot use product routes before it has an active profile.
             expect((await provisional.get("/v0/me")).statusCode).toBe(401);
             expect((await provisional.get("/v0/auth/session")).statusCode).toBe(401);
+            const provisionalRefresh = await provisional.post("/v0/auth/refresh");
+            expect(provisionalRefresh.statusCode).toBe(200);
+            expect(provisionalRefresh.json()).toMatchObject({
+                token: expect.any(String),
+                expiresAt: expect.any(String),
+                profileRequired: true,
+            });
 
             const createdProfile = await provisional.post("/v0/me/createProfile", {
                 firstName: "Ada",
@@ -101,6 +109,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
             const firstSessionId = beforeRefresh.json().sessionId as string;
             const refreshed = await provisional.post("/v0/auth/refresh");
             expect(refreshed.statusCode).toBe(200);
+            expect(refreshed.json().profileRequired).toBe(false);
             const refreshedToken = refreshed.json().token as string;
             const refreshedClient = tokenClient(server, refreshedToken);
             expect((await refreshedClient.get("/v0/auth/session")).json()).toMatchObject({
@@ -118,6 +127,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
 
             const secondLogin = await server.post("/v0/auth/password/login", { email, password });
             expect(secondLogin.statusCode).toBe(200);
+            expect(secondLogin.json().profileRequired).toBe(false);
             const secondClient = tokenClient(server, secondLogin.json().token as string);
             const secondSessionId = (await secondClient.get("/v0/auth/session")).json()
                 .sessionId as string;

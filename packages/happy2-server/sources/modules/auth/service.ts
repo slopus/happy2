@@ -21,6 +21,7 @@ export interface Authenticated extends AuthenticatedAccount {
 export interface AuthToken {
     token: string;
     expiresAt: string;
+    profileRequired: boolean;
 }
 
 export class AuthService {
@@ -191,6 +192,9 @@ export class AuthService {
             ? {
                   token: await this.tokens.issue(session.id, session.accountId),
                   expiresAt: session.expiresAt.toISOString(),
+                  profileRequired: !(await this.database.findActiveUserByAccount(
+                      session.accountId,
+                  )),
               }
             : undefined;
     }
@@ -210,6 +214,7 @@ export class AuthService {
         return {
             token: await this.tokens.issue(session.id, accountId),
             expiresAt: session.expiresAt.toISOString(),
+            profileRequired: !(await this.database.findActiveUserByAccount(accountId)),
         };
     }
 }

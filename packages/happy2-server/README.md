@@ -56,7 +56,9 @@ also report `signupEnabled`; OIDC responses report `oidcProvider`.
 Authentication creates an inactive account. `POST /v0/me/createProfile` (with the
 temporary bearer token) creates the product-level User profile—first name,
 optional last name, username, optional email, and optional phone—and activates
-the account. `GET /v0/me` reads the active profile and
+the account. Successful token-issuance responses include `profileRequired`, so a
+client can enter profile creation without probing a protected product route.
+`GET /v0/me` reads the active profile and
 `POST /v0/me/updateProfile` replaces its editable state. Product routes reject
 accounts that do not yet have an active profile.
 

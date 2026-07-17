@@ -17,7 +17,7 @@ export type AuthMethods = {
     signupEnabled?: boolean;
     oidcProvider?: string;
 };
-export type AuthToken = { token: string; expiresAt: string };
+export type AuthToken = { token: string; expiresAt: string; profileRequired: boolean };
 
 export class ServerError extends Error {
     constructor(
