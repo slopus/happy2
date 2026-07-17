@@ -47,6 +47,7 @@ import {
     type MemberRole,
     type MenuItem,
     type MessageImage,
+    type SidebarItem,
     type SidebarSection,
     type SelectOption,
     type ToneName,
@@ -781,16 +782,71 @@ export function ChatView(props: ChatViewProps) {
             const peer = peers[chat.id];
             if (peer) dmByUserId.set(peer.id, chat);
         }
+        /* Starred chats float into a dedicated section (ordered by the server's
+           `starOrder`) and are removed from their normal Agents/Channels/DMs
+           section so a chat never appears twice. Only chats we can actually
+           render — a joined channel or a DM/agent whose peer is loaded — are
+           eligible, so a starred-but-not-yet-hydrated chat is simply omitted
+           until its peer arrives. */
+        const starItem = (chat: ChatSummary): SidebarItem | undefined => {
+            if (chat.kind === "public_channel" || chat.kind === "private_channel") {
+                if (!chat.membershipRole) return undefined;
+                return {
+                    id: chat.id,
+                    kind: "channel" as const,
+                    label: chat.name ?? chat.slug ?? "Untitled channel",
+                    badge: displayedUnreadCount(chat),
+                };
+            }
+            const peer = peers[chat.id];
+            if (!peer) return undefined;
+            const agentPeer = peer.kind === "agent";
+            return {
+                id: chat.id,
+                kind: agentPeer ? ("agent" as const) : ("person" as const),
+                label: fullName(peer),
+                initials: initials(peer),
+                tone: toneFor(peer.id),
+                badge: displayedUnreadCount(chat),
+                online: agentPeer ? undefined : snapshots[peer.id]?.status === "online",
+            };
+        };
+        const starredSummaries = chats
+            .filter((chat) => chat.starred)
+            .sort((a, b) => (a.starOrder ?? Infinity) - (b.starOrder ?? Infinity));
+        const starredItems = starredSummaries
+            .map(starItem)
+            .filter((item): item is SidebarItem => item !== undefined);
+        const starredIds = new Set(starredItems.map((item) => item.id));
         const channels = chats.filter(
             (chat) =>
                 (chat.kind === "public_channel" || chat.kind === "private_channel") &&
-                chat.membershipRole,
+                chat.membershipRole &&
+                !starredIds.has(chat.id),
         );
-        const agents = users.filter((item) => item.kind === "agent" && dmByUserId.has(item.id));
+        const agents = users.filter(
+            (item) =>
+                item.kind === "agent" &&
+                dmByUserId.has(item.id) &&
+                !starredIds.has(dmByUserId.get(item.id)!.id),
+        );
         const directMessages = users.filter(
-            (item) => item.kind === "human" && item.id !== user()?.id && dmByUserId.has(item.id),
+            (item) =>
+                item.kind === "human" &&
+                item.id !== user()?.id &&
+                dmByUserId.has(item.id) &&
+                !starredIds.has(dmByUserId.get(item.id)!.id),
         );
         commitSidebar([
+            ...(starredItems.length > 0
+                ? [
+                      {
+                          id: "starred",
+                          label: "Starred",
+                          items: starredItems,
+                      },
+                  ]
+                : []),
             {
                 id: "agents",
                 label: "Agents",
@@ -1582,8 +1638,48 @@ export function ChatView(props: ChatViewProps) {
         }
     }
 
+    /* Star state is server-authoritative for real chats (`ChatSummary.starred`);
+       the local `starredChats` signal is only a fallback for the disconnected
+       dev harness, where `serverChats` is empty. */
+    const isStarred = (chatId: string): boolean => {
+        if (!chatId) return false;
+        const chat = serverChats().find((item) => item.id === chatId);
+        if (chat) return chat.starred;
+        return starredChats()[chatId] ?? false;
+    };
+
+    async function persistStar(chatId: string, starred: boolean) {
+        const model = state();
+        if (!model) return;
+        const previous = serverChats();
+        /* Optimistically flip the summary so the header, menu, and the new
+           Starred sidebar section update instantly, then reconcile ordering
+           (`starOrder`) from the server. Revert on failure. */
+        setServerChats((current) =>
+            current.map((chat) => (chat.id === chatId ? { ...chat, starred } : chat)),
+        );
+        applyNavigation();
+        startBusy();
+        try {
+            await model.execute("setChatStar", { chatId, starred });
+            await model.execute("getChats");
+            setStatusHint(undefined);
+        } catch (reason) {
+            setServerChats(previous);
+            applyNavigation();
+            setStatusHint(errorMessage(reason));
+        } finally {
+            finishBusy();
+        }
+    }
+
     const toggleStar = (chatId: string) => {
         if (!chatId) return;
+        const chat = serverChats().find((item) => item.id === chatId);
+        if (state() && chat) {
+            void persistStar(chatId, !chat.starred);
+            return;
+        }
         setStarredChats((current) => ({ ...current, [chatId]: !current[chatId] }));
     };
 
@@ -1752,7 +1848,7 @@ export function ChatView(props: ChatViewProps) {
 
     function channelMenuItems(): MenuItem[] {
         const chat = activeChat();
-        const starred = starredChats()[activeConversationId()];
+        const starred = isStarred(activeConversationId());
         const items: MenuItem[] = [
             { icon: "eye", id: "details", kind: "item", label: "View details" },
             { icon: "star", id: "star", kind: "item", label: starred ? "Unstar" : "Star channel" },
@@ -2138,8 +2234,8 @@ export function ChatView(props: ChatViewProps) {
                             : undefined
                     }
                     onTitleClick={activeConversationId() ? openInfoPanel : undefined}
-                    starLabel={starredChats()[activeConversationId()] ? "Unstar" : "Star channel"}
-                    starred={starredChats()[activeConversationId()] ?? false}
+                    starLabel={isStarred(activeConversationId()) ? "Unstar" : "Star channel"}
+                    starred={isStarred(activeConversationId())}
                     title={conversation().title}
                     topic={conversation().topic}
                 />

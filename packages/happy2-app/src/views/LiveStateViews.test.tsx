@@ -234,6 +234,123 @@ describe("live views use happy2-state", () => {
         state.stop();
     });
 
+    it("stars a channel through state and floats it into a Starred section", async () => {
+        const channel = chat({ id: "general", name: "General", slug: "general" });
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/sync/state",
+            jsonResponse(200, {
+                state: { protocolVersion: 1, generation: "g", sequence: "0" },
+                serverTime: "now",
+            }),
+        );
+        /* The star toggle persists to the server, then re-pulls chats; a dynamic
+           /v0/chats route reflects the server-authoritative `starred`/`starOrder`
+           so the reconciled summary is what drives the sidebar. */
+        let starred = false;
+        server.route("GET", "/v0/chats", () =>
+            jsonResponse(200, {
+                chats: [{ ...channel, starred, starOrder: starred ? 1 : undefined }],
+            }),
+        );
+        server.respond(
+            "POST",
+            "/v0/chats/general/markRead",
+            jsonResponse(200, { chat: { ...channel, unreadCount: 0 } }),
+        );
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, { users: [userSummary()], presence: [], statuses: [] }),
+        );
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            /\/v0\/chats\/[^/]+\/members/,
+            jsonResponse(200, { users: [userSummary()], memberships: [] }),
+        );
+        server.respond(
+            "GET",
+            (path) => path.includes("/messages?limit=100"),
+            jsonResponse(200, { messages: [], chatPts: "0", hasMore: false }),
+        );
+        server.route("POST", "/v0/chats/general/setStar", (request) => {
+            starred = (request.body as { starred: boolean }).starred;
+            return jsonResponse(200, { sync: { sequence: "1", chats: [], areas: [] } });
+        });
+
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        const channelItem = await waitFor(() => {
+            const item = view.container.querySelector<HTMLButtonElement>(
+                '[data-section-id="channels"] [data-item-id="general"]',
+            );
+            if (!item) throw new Error("channel row not shown");
+            return item;
+        });
+        fireEvent.click(channelItem);
+        await waitFor(() =>
+            expect(
+                view.container.querySelector('[data-happy2-ui="channel-header-title"]')
+                    ?.textContent,
+            ).toContain("General"),
+        );
+
+        fireEvent.click(
+            view.container.querySelector<HTMLButtonElement>(
+                '[data-happy2-ui="channel-header-menu"] button',
+            )!,
+        );
+        const starMenuItem = await waitFor(() => {
+            const item = view.container.querySelector<HTMLButtonElement>(
+                '[data-happy2-ui="channel-header-menu-popover"] [data-item-id="star"]',
+            );
+            if (!item) throw new Error("star menu item not shown");
+            return item;
+        });
+        fireEvent.click(starMenuItem);
+
+        await waitFor(() =>
+            expect(
+                server.requests.some(
+                    ({ method, path }) => method === "POST" && path === "/v0/chats/general/setStar",
+                ),
+            ).toBe(true),
+        );
+        expect(
+            server.requests.find(({ path }) => path === "/v0/chats/general/setStar")?.body,
+        ).toEqual({ starred: true });
+
+        /* Wait for the post-star `getChats` reconcile to land in durable state
+           (not just the optimistic paint) so the section reflects the
+           server-authoritative `starred`/`starOrder`. */
+        await waitFor(() =>
+            expect(state.get().chats.find(({ id }) => id === "general")?.starred).toBe(true),
+        );
+
+        await waitFor(() => {
+            const starredSection = view.container.querySelector('[data-section-id="starred"]');
+            expect(starredSection).not.toBeNull();
+            expect(starredSection?.querySelector('[data-item-id="general"]')).not.toBeNull();
+        });
+        /* A starred chat lives only in the Starred section, not in its normal
+           Channels section, so it never appears twice. */
+        expect(
+            view.container.querySelector('[data-section-id="channels"] [data-item-id="general"]'),
+        ).toBeNull();
+        state.stop();
+    });
+
     it("autosaves ordinary settings but requires confirmation for a username change", async () => {
         const server = baseServer([]);
         server.respond(
