@@ -90,6 +90,10 @@ const workspaceSections: SidebarSection[] = [
     },
 ];
 
+/* A tiny inline photo so the blueprint shows the image-avatar row state. */
+const PHOTO =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAT0lEQVR4nGPorvk+ufrTrOp3i6perqx8srHiwY6K2wfKrzNgFT1edokBq+j5srMMWEWvlZ5kwCp6r+QIA1bRp8X7GbCKvi3ezYBV9EvRNgD7aoNVazUeBQAAAABJRU5ErkJggg==";
+
 const treatmentSections: SidebarSection[] = [
     {
         id: "states",
@@ -120,6 +124,23 @@ const treatmentSections: SidebarSection[] = [
                 kind: "agent",
                 label: "Agent — working",
                 status: "working",
+                tone: "mint",
+            },
+            {
+                id: "kind-person-photo",
+                imageUrl: PHOTO,
+                initials: "MJ",
+                kind: "person",
+                label: "Person — photo avatar",
+                online: true,
+                tone: "rose",
+            },
+            {
+                id: "kind-agent-photo",
+                imageUrl: PHOTO,
+                initials: "CX",
+                kind: "agent",
+                label: "Agent — photo avatar",
                 tone: "mint",
             },
             { id: "kind-action", kind: "action", label: "Action — muted plus" },
@@ -224,7 +245,7 @@ export function SidebarPage() {
                 stage="app"
             >
                 <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
-                    <Frame height={392}>
+                    <Frame height={460}>
                         <Sidebar
                             activeItemId="active"
                             onItemSelect={() => {}}

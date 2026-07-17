@@ -775,3 +775,78 @@ it("keeps active row labels of every kind on the row midline", async () => {
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     await view.screenshot("Sidebar.states");
 }, 120_000);
+
+/* 8x8 patterned PNG (shared with the Avatar image test) — paints opaque ink in
+   every engine so the row's forwarded photo is measurable. */
+const FIXTURE_IMAGE =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAT0lEQVR4nGPorvk+ufrTrOp3i6perqx8srHiwY6K2wfKrzNgFT1edokBq+j5srMMWEWvlZ5kwCp6r+QIA1bRp8X7GbCKvi3ezYBV9EvRNgD7aoNVazUeBQAAAABJRU5ErkJggg==";
+
+/*
+ * A person or agent row with `imageUrl` paints the photo inside the xs avatar
+ * box and drops the initials fallback; the leading lane and avatar geometry are
+ * unchanged from the initials variant proven above.
+ */
+it("renders a photo avatar in the leading lane when a row supplies imageUrl", async () => {
+    const view = createRenderer();
+    view.render(
+        () => (
+            <Sidebar
+                activeItemId=""
+                data-testid="photo"
+                onItemSelect={() => {}}
+                sections={[
+                    {
+                        id: "people",
+                        items: [
+                            {
+                                id: "maya",
+                                imageUrl: FIXTURE_IMAGE,
+                                initials: "MJ",
+                                kind: "person",
+                                label: "Maya Johnson",
+                                online: true,
+                                tone: "rose",
+                            },
+                            {
+                                id: "scout",
+                                imageUrl: FIXTURE_IMAGE,
+                                initials: "SC",
+                                kind: "agent",
+                                label: "Scout",
+                                tone: "violet",
+                            },
+                        ],
+                    },
+                ]}
+                title="People"
+            />
+        ),
+        { width: 320, height: 138 },
+    );
+    await view.ready();
+
+    for (const [id, radius] of [
+        ["maya", "999px"],
+        ["scout", "6px"],
+    ] as const) {
+        const avatar = view.$(
+            `[data-testid="photo"] [data-item-id="${id}"] [data-happy2-ui="avatar"]`,
+        );
+        expect(avatar.bounds().width, `${id} avatar width`).toBe(20);
+        expect(avatar.bounds().height, `${id} avatar height`).toBe(20);
+        const image = view.$(
+            `[data-testid="photo"] [data-item-id="${id}"] [data-happy2-ui="avatar-image"]`,
+        );
+        expect(image.computedStyles(["border-radius", "object-fit"]), `${id} image`).toEqual({
+            "border-radius": radius,
+            "object-fit": "cover",
+        });
+        expect((await image.visibleMetrics()).pixelCount, `${id} image paints`).toBeGreaterThan(0);
+        expect(
+            view
+                .$(`[data-testid="photo"] [data-item-id="${id}"]`)
+                .element.querySelector('[data-happy2-ui="avatar-initials"]'),
+            `${id} initials hidden`,
+        ).toBeNull();
+    }
+}, 120_000);

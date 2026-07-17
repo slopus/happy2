@@ -8,6 +8,7 @@ export type SidebarItem = {
     badge?: number;
     icon?: IconName;
     id: string;
+    imageUrl?: string;
     initials?: string;
     kind: "view" | "channel" | "person" | "agent" | "action";
     label: string;
@@ -68,6 +69,7 @@ function SidebarRow(props: { active: boolean; item: SidebarItem; onSelect: (id: 
                     fallback={<Icon name={leadingIcon(item())} size={16} />}
                 >
                     <Avatar
+                        imageUrl={item().imageUrl}
                         initials={item().initials ?? item().label.slice(0, 1).toUpperCase()}
                         online={item().kind === "person" ? item().online : undefined}
                         size="xs"

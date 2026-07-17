@@ -68,6 +68,7 @@ import type {
     UserSummary,
     WorkspaceTextFile,
 } from "happy2-state";
+import { createAvatarImages } from "../avatarImages";
 import { type AuthSession } from "../components/AuthGate";
 import {
     chatSections,
@@ -97,8 +98,17 @@ export type ChatViewProps = {
     titleBar: JSX.Element;
 };
 
-type LiveThreadMessage = ThreadMessage & { serverMessage?: MessageSummary };
+type LiveThreadMessage = ThreadMessage & {
+    serverMessage?: MessageSummary;
+    /** Author id, used to resolve a live avatar from the contacts directory. */
+    senderId?: string;
+    /** Avatar file embedded with the message, a fallback before contacts load. */
+    photoFileId?: string;
+};
 type WorkspaceEntry = ThreadDivider | LiveThreadMessage;
+/* Roster row plus the source user's avatar file, so the info panel can resolve
+   a live image URL for the member without re-fetching membership. */
+type PanelMember = MemberItem & { photoFileId?: string };
 
 const asDivider = (entry: WorkspaceEntry): ThreadDivider | undefined =>
     entry.kind === "divider" ? entry : undefined;
@@ -222,7 +232,7 @@ function dayLabel(value: string): string {
 
 function toThreadMessage(
     message: MessageSummary,
-    currentUser?: Pick<UserSummary, "id" | "firstName" | "lastName">,
+    currentUser?: Pick<UserSummary, "id" | "firstName" | "lastName" | "photoFileId">,
     agentName?: string,
 ): LiveThreadMessage {
     const sender =
@@ -237,6 +247,8 @@ function toThreadMessage(
         initials: sender
             ? initials(sender)
             : (message.senderBot?.name ?? agentName ?? "R").slice(0, 2).toUpperCase(),
+        senderId: sender?.id,
+        photoFileId: sender?.photoFileId,
         tone: sender ? toneFor(sender.id) : "brand",
         agent: message.kind === "automated",
         generationStatus: deleted ? undefined : message.generationStatus,
@@ -257,7 +269,7 @@ function toThreadMessage(
 
 function toEntries(
     messages: readonly MessageSummary[],
-    currentUser?: Pick<UserSummary, "id" | "firstName" | "lastName">,
+    currentUser?: Pick<UserSummary, "id" | "firstName" | "lastName" | "photoFileId">,
     agentName?: string,
 ): WorkspaceEntry[] {
     const result: WorkspaceEntry[] = [];
@@ -412,7 +424,7 @@ export function ChatView(props: ChatViewProps) {
     const [fileConflict, setFileConflict] = createSignal(false);
     const [fileDiskChanged, setFileDiskChanged] = createSignal(false);
     const [fileMissing, setFileMissing] = createSignal(false);
-    const [panelMembers, setPanelMembers] = createSignal<MemberItem[]>([]);
+    const [panelMembers, setPanelMembers] = createSignal<PanelMember[]>([]);
     /* When set, the info panel shows this author's profile (opened by clicking a
        message avatar/name) instead of the active channel or DM peer. Cleared
        whenever the channel info panel is opened or the conversation changes. */
@@ -480,6 +492,25 @@ export function ChatView(props: ChatViewProps) {
 
     const user = () => props.session?.user;
     const state = () => props.session?.state;
+    /* Resolves users' photoFileIds to displayable image URLs and keeps them
+       live: reading `avatarImages.imageUrl(fileId)` inside render/memos
+       downloads the file once and re-renders when it resolves. */
+    const avatarImages = createAvatarImages(state);
+    /* Live userId -> avatar file map from the contacts directory, DM peers, and
+       self. Sourced from durable state so a synced profile change (which
+       refreshes contacts) repaints that user's avatar everywhere at once. */
+    const photoFileById = createMemo<Record<string, string | undefined>>(() => {
+        const map: Record<string, string | undefined> = {};
+        for (const contact of contacts()) map[contact.id] = contact.photoFileId;
+        for (const peer of Object.values(dmPeers())) map[peer.id] = peer.photoFileId;
+        const self = user();
+        if (self) map[self.id] = self.photoFileId;
+        return map;
+    });
+    /* Displayable avatar URL for a user, preferring the live directory photo and
+       falling back to a file embedded with the source record. */
+    const avatarFor = (userId?: string, fallbackFileId?: string) =>
+        avatarImages.imageUrl((userId ? photoFileById()[userId] : undefined) ?? fallbackFileId);
     const userName = () => user()?.firstName ?? "Steve";
     const userInitials = () => user()?.firstName.slice(0, 2).toUpperCase() ?? "ST";
     const activeChat = () => serverChats().find((chat) => chat.id === activeConversationId());
@@ -534,6 +565,23 @@ export function ChatView(props: ChatViewProps) {
             }))
             .filter((section) => section.items.length > 0);
     });
+    /* Overlay live avatar URLs onto person/agent rows, keeping the original row
+       identity for channels and avatarless people so the reconciled sidebar
+       does not churn when only presence changes. */
+    const sidebarSections = createMemo<SidebarSection[]>(() =>
+        filteredSidebar().map((section) => {
+            let changed = false;
+            const items = section.items.map((item) => {
+                if (item.kind !== "person" && item.kind !== "agent") return item;
+                const peer = dmPeers()[item.id];
+                const url = avatarFor(peer?.id, peer?.photoFileId);
+                if (!url) return item;
+                changed = true;
+                return { ...item, imageUrl: url };
+            });
+            return changed ? { ...section, items } : section;
+        }),
+    );
     const composerContext = createMemo<ContextItem[]>(() =>
         pendingFiles().map((file) => ({
             id: `file:${file.id}`,
@@ -1821,10 +1869,11 @@ export function ChatView(props: ChatViewProps) {
             const snapshots = presence();
             setPanelMembers(
                 response.users.map(
-                    (member): MemberItem => ({
+                    (member): PanelMember => ({
                         id: member.id,
                         initials: initials(member),
                         name: fullName(member),
+                        photoFileId: member.photoFileId,
                         presence: snapshots[member.id]?.status === "online" ? "online" : "offline",
                         role: memberRoleFor(member),
                         title: member.title,
@@ -1899,6 +1948,7 @@ export function ChatView(props: ChatViewProps) {
         const peer = infoPeer();
         if (!peer) return undefined;
         return {
+            imageUrl: avatarFor(peer.id, peer.photoFileId),
             initials: initials(peer),
             name: fullName(peer),
             presence: presence()[peer.id]?.status === "online" ? "online" : "offline",
@@ -1988,6 +2038,14 @@ export function ChatView(props: ChatViewProps) {
                 tone: member.tone,
             }),
         );
+    /* Overlay each member's live avatar URL reactively, so a synced photo
+       change repaints the roster without reloading membership. */
+    const panelMemberItems = createMemo<MemberItem[]>(() =>
+        panelMembers().map((member) => ({
+            ...member,
+            imageUrl: avatarFor(member.id, member.photoFileId),
+        })),
+    );
 
     function channelMenuItems(): MenuItem[] {
         const chat = activeChat();
@@ -2125,17 +2183,20 @@ export function ChatView(props: ChatViewProps) {
                 setPresence(snapshots);
                 applyNavigation(serverChats(), contacts(), dmPeers(), snapshots);
             }),
-            /* A `users` sync re-fetches contacts; when it lands, reconcile the
-               open agent's effort from that durable snapshot so an effort change
-               made elsewhere (another admin, another device) appears without a
-               refresh. Options are model-fixed, so only the value is reconciled. */
+            /* A `users` sync re-fetches contacts; when it lands, adopt the fresh
+               directory so the reactive avatar map repaints synced profile/avatar
+               changes across the sidebar, roster, and messages, and reconcile the
+               open agent's effort from the same durable snapshot so an effort
+               change made elsewhere (another admin, another device) appears
+               without a refresh. Options are model-fixed, so only the value is
+               reconciled. */
             model.subscribe("operation", (event) => {
                 if (event.operation !== "getContacts") return;
+                const refreshed = model.result("getContacts");
+                if (refreshed) setContacts([...refreshed.users]);
                 const peer = infoAgent();
                 if (!peer) return;
-                const fresh = model
-                    .result("getContacts")
-                    ?.users.find((item) => item.id === peer.id);
+                const fresh = refreshed?.users.find((item) => item.id === peer.id);
                 if (fresh?.agentEffort && !agentEffortBusy())
                     setAgentEffortValue(fresh.agentEffort);
             }),
@@ -2214,7 +2275,7 @@ export function ChatView(props: ChatViewProps) {
                             if (sectionId === "channels") setDirectoryOpen(true);
                             if (sectionId === "dms") void startDirectMessage();
                         }}
-                        sections={filteredSidebar()}
+                        sections={sidebarSections()}
                         title={user() ? `${user()!.firstName}’s Happy (2)` : "Happy (2)"}
                     />
                 }
@@ -2264,6 +2325,10 @@ export function ChatView(props: ChatViewProps) {
                                                         message(),
                                                     )}
                                                     gutterTime={message().gutterTime}
+                                                    imageUrl={avatarFor(
+                                                        message().senderId,
+                                                        message().photoFileId,
+                                                    )}
                                                     initials={message().initials}
                                                     menuItems={messageMenuItems(message())}
                                                     onAuthorSelect={
@@ -2302,7 +2367,7 @@ export function ChatView(props: ChatViewProps) {
                             }
                             data-testid="channel-info-panel"
                             leadingIcon={profileOverride() || infoPeer() ? undefined : "hash"}
-                            members={profileOverride() ? [] : panelMembers()}
+                            members={profileOverride() ? [] : panelMemberItems()}
                             onClose={() => {
                                 setPanelMode(undefined);
                                 setProfileOverride(undefined);
@@ -2520,6 +2585,10 @@ export function ChatView(props: ChatViewProps) {
                                                     item,
                                                 )}
                                                 gutterTime={item.gutterTime}
+                                                imageUrl={avatarFor(
+                                                    item.senderId,
+                                                    item.photoFileId,
+                                                )}
                                                 images={messageImages(item)}
                                                 initials={item.initials}
                                                 menuItems={messageMenuItems(item)}

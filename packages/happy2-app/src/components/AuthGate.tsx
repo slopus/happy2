@@ -17,6 +17,12 @@ export type AuthSession = {
     state: ClientState;
     user: User;
     updateUser: (user: User) => void;
+    /**
+     * Adopt a freshly uploaded avatar file as the current user's photo. Owns the
+     * displayable object URL (revoking the previous one) so the change shows live
+     * everywhere the session user is rendered.
+     */
+    setAvatar: (photoFileId: string) => Promise<void>;
 };
 type AuthGateProps = {
     serverUrl: string;
@@ -112,6 +118,15 @@ export function AuthGate(props: AuthGateProps) {
         } catch {
             return profile;
         }
+    }
+    async function setAvatar(photoFileId: string): Promise<void> {
+        const current = user();
+        const model = state();
+        if (!current || !model) return;
+        const contents = await model.execute("downloadFile", { fileId: photoFileId });
+        if (avatarUrl) URL.revokeObjectURL(avatarUrl);
+        avatarUrl = URL.createObjectURL(new Blob([contents]));
+        setUser({ ...current, photoFileId, avatarUrl });
     }
     onCleanup(() => {
         state()?.stop();
@@ -318,6 +333,19 @@ export function AuthGate(props: AuthGateProps) {
             </AuthScreen>
         </>
     );
+    /* One stable session object whose `state`/`user` are getters, so every
+       consumer reactively tracks profile and avatar changes instead of holding
+       the snapshot captured when the gate first opened. */
+    const session: AuthSession = {
+        get state() {
+            return state()!;
+        },
+        get user() {
+            return user()!;
+        },
+        updateUser: setUser,
+        setAvatar,
+    };
 
     /* True once the session is fully resolved and the workspace can take over. */
     const sessionReady = () =>
@@ -336,8 +364,7 @@ export function AuthGate(props: AuthGateProps) {
     };
 
     const renderScreen = (key: string | number) => {
-        if (key === "app")
-            return props.children({ state: state()!, user: user()!, updateUser: setUser });
+        if (key === "app") return props.children(session);
         return renderGate(key === "loading" ? "loading" : "form");
     };
 

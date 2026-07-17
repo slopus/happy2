@@ -434,5 +434,6 @@ function session(state: ReturnType<typeof createClientState>): AuthSession {
             kind: "human",
         },
         updateUser: () => undefined,
+        setAvatar: async () => undefined,
     };
 }

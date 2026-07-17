@@ -2139,6 +2139,7 @@ function session(state: ReturnType<typeof createClientState>): AuthSession {
         state,
         user: currentUser,
         updateUser: () => undefined,
+        setAvatar: async () => undefined,
     };
 }
 

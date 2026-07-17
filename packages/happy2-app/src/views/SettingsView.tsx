@@ -67,7 +67,9 @@ export function SettingsView(props: SettingsViewProps) {
         return <EmptyState description={empty.description} icon={empty.icon} title={empty.title} />;
     }
 
-    const imageUrl = user?.avatarUrl ?? props.profile.imageUrl;
+    const imageUrl = () => props.session?.user?.avatarUrl ?? props.profile.imageUrl;
+    const [avatarUploading, setAvatarUploading] = createSignal(false);
+    let avatarInput: HTMLInputElement | undefined;
 
     const [name, setName] = createSignal(initialName);
     const [handle, setHandle] = createSignal(user?.username ?? props.profile.username);
@@ -151,6 +153,36 @@ export function SettingsView(props: SettingsViewProps) {
             if (initialized()) void savePreferences();
             else queuePreferencesSave();
         }, 400);
+    }
+
+    async function changeAvatar(files: FileList | null) {
+        const session = props.session;
+        const file = files?.[0];
+        if (!session || !file) return;
+        if (!file.type.startsWith("image/")) {
+            setSaveError("Choose an image file for your avatar.");
+            if (avatarInput) avatarInput.value = "";
+            return;
+        }
+        setAvatarUploading(true);
+        setSavingCount((count) => count + 1);
+        try {
+            const body = new FormData();
+            body.set("visibility", "public");
+            body.set("file", file, file.name);
+            const uploaded = await session.state.execute("uploadAvatarFile", { body });
+            await session.state.execute("updateAvatar", { fileId: uploaded.file.id });
+            if (disposed) return;
+            await session.setAvatar(uploaded.file.id);
+            if (!disposed) setSaveError(undefined);
+        } catch (reason) {
+            if (!disposed) setSaveError(errorMessage(reason));
+        } finally {
+            if (avatarInput) avatarInput.value = "";
+            setAvatarUploading(false);
+            setSavingCount((count) => Math.max(0, count - 1));
+            refreshSavePending();
+        }
     }
 
     async function saveProfile() {
@@ -427,7 +459,29 @@ export function SettingsView(props: SettingsViewProps) {
                                           : "Retrieving your workspace preferences.")}
                             </Banner>
                             <ProfileCard
-                                imageUrl={imageUrl}
+                                actions={
+                                    <Show when={props.session}>
+                                        <input
+                                            accept="image/*"
+                                            hidden
+                                            onChange={(event) =>
+                                                void changeAvatar(event.currentTarget.files)
+                                            }
+                                            ref={(element) => (avatarInput = element)}
+                                            type="file"
+                                        />
+                                        <Button
+                                            disabled={avatarUploading()}
+                                            onClick={() => avatarInput?.click()}
+                                            size="small"
+                                            type="button"
+                                            variant="secondary"
+                                        >
+                                            {avatarUploading() ? "Uploading…" : "Change photo"}
+                                        </Button>
+                                    </Show>
+                                }
+                                imageUrl={imageUrl()}
                                 initials={initials()}
                                 name={name()}
                                 presence={props.profile.presence}
