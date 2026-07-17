@@ -22,6 +22,7 @@
 @import "./styles/segmented-control.css";
 @import "./styles/banner.css";
 @import "./styles/empty-state.css";
+@import "./styles/fade.css";
 @import "./styles/tabs.css";
 @import "./styles/toolbar.css";
 @import "./styles/menu.css";

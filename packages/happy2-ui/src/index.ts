@@ -76,6 +76,7 @@ export {
 } from "./DiffSnippet";
 export type { Dimension } from "./dimensions";
 export { EventCard, type EventCardProps } from "./EventCard";
+export { Fade, type FadeProps } from "./Fade";
 export {
     FileTree,
     type FileTreeGitStatus,

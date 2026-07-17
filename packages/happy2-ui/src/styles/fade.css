@@ -1,0 +1,38 @@
+/*
+ * Fade — full-bleed crossfade container. Layers stack absolutely inside a
+ * positioned box; the newest is last in the DOM, so it paints above the
+ * outgoing layer(s) and fades in over them. Outgoing layers hold at opacity 1
+ * (animation `both` fill) until Fade removes them, so the two screens blend
+ * rather than cutting. `isolation: isolate` keeps the stack from leaking into
+ * surrounding stacking contexts.
+ */
+
+.happy2-fade {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    isolation: isolate;
+}
+
+.happy2-fade__layer {
+    position: absolute;
+    inset: 0;
+    box-sizing: border-box;
+    animation: happy2-fade-in var(--happy2-fade-duration, 360ms) ease both;
+}
+
+@keyframes happy2-fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .happy2-fade__layer {
+        animation-duration: 1ms;
+    }
+}

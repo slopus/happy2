@@ -2,8 +2,10 @@ import { Match, Show, Switch, createSignal, onCleanup, onMount, type JSX } from 
 import { createClientState, type ClientState } from "happy2-state";
 import {
     AuthScreen,
+    type AuthScreenState,
     Banner,
     Button,
+    Fade,
     TextField,
     WindowDragRegion,
     onboardingBackgroundUrl,
@@ -147,10 +149,11 @@ export function AuthGate(props: AuthGateProps) {
         }
     }
     const isPasswordSignIn = () => mode() === "sign-in" && methods()?.method === "password";
+    const loadingHeadline = { kicker: "Connecting to your workspace", title: "One moment." };
     const headline = (): { kicker?: string; title: string; copy?: string } => {
         switch (mode()) {
             case "loading":
-                return { kicker: "Connecting to your workspace", title: "One moment." };
+                return loadingHeadline;
             case "unavailable":
                 return {
                     kicker: "Connection needed",
@@ -189,7 +192,10 @@ export function AuthGate(props: AuthGateProps) {
     const submitLabel = () =>
         pending() ? "Working…" : isRegistering() ? "Create account" : "Sign in";
 
-    const gate = (
+    /* The AuthScreen for one crossfade layer. `state` is fixed by the layer's
+     * screen key (not read live) so an outgoing loading layer keeps its spinner
+     * while the incoming form fades in over it — a real crossfade, not a morph. */
+    const renderGate = (state: AuthScreenState) => (
         <>
             <Show when={props.showWindowDragRegion}>
                 <WindowDragRegion />
@@ -197,11 +203,11 @@ export function AuthGate(props: AuthGateProps) {
             <AuthScreen
                 backgroundUrl={onboardingBackgroundUrl}
                 brand={{ name: "Happy (2)" }}
-                copy={headline().copy}
-                kicker={headline().kicker}
+                copy={state === "loading" ? undefined : headline().copy}
+                kicker={state === "loading" ? loadingHeadline.kicker : headline().kicker}
                 loadingLabel={loadingMessage()}
-                state={mode() === "loading" ? "loading" : "form"}
-                title={headline().title}
+                state={state}
+                title={state === "loading" ? loadingHeadline.title : headline().title}
                 footer={
                     <Show when={isPasswordSignIn() && methods()?.signupEnabled}>
                         <Button
@@ -297,26 +303,30 @@ export function AuthGate(props: AuthGateProps) {
             </AuthScreen>
         </>
     );
-    return (
-        <Show
-            when={
-                mode() === "ready" &&
-                user() &&
-                (token() || methods()?.method === "cloudflare_access")
-                    ? state()
-                        ? {
-                              state: state()!,
-                              user: user()!,
-                              updateUser: setUser,
-                          }
-                        : undefined
-                    : undefined
-            }
-            fallback={gate}
-        >
-            {(session) => props.children(session())}
-        </Show>
-    );
+
+    /* True once the session is fully resolved and the workspace can take over. */
+    const sessionReady = () =>
+        mode() === "ready" &&
+        !!user() &&
+        (!!token() || methods()?.method === "cloudflare_access") &&
+        !!state();
+
+    /* Coarse screen identity that drives the crossfade. Finer changes (loading
+     * message, sign-in vs. onboarding, error banners) stay within one key and
+     * update in place; only crossing these boundaries dissolves. */
+    const screenKey = (): "loading" | "auth" | "app" => {
+        if (sessionReady()) return "app";
+        if (mode() === "loading") return "loading";
+        return "auth";
+    };
+
+    const renderScreen = (key: string | number) => {
+        if (key === "app")
+            return props.children({ state: state()!, user: user()!, updateUser: setUser });
+        return renderGate(key === "loading" ? "loading" : "form");
+    };
+
+    return <Fade active={screenKey()} data-testid="auth-gate" render={renderScreen} />;
 }
 function message(reason: unknown): string {
     return reason instanceof Error ? reason.message : "Something went wrong.";

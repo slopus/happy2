@@ -26,6 +26,7 @@ import { DiffSnippetPage } from "./pages/DiffSnippetPage";
 import { EmojiPickerPage } from "./pages/EmojiPickerPage";
 import { EmptyStatePage } from "./pages/EmptyStatePage";
 import { EventCardPage } from "./pages/EventCardPage";
+import { FadePage } from "./pages/FadePage";
 import { FileAttachmentPage } from "./pages/FileAttachmentPage";
 import { FileEditorPage } from "./pages/FileEditorPage";
 import { FilePanelPage } from "./pages/FilePanelPage";
@@ -151,6 +152,7 @@ const components: Array<{ id: string; label: string; number: string; page: () =>
         number: "C-056",
         page: AgentSecretDetailPage,
     },
+    { id: "fade", label: "Fade", number: "C-057", page: FadePage },
 ];
 
 function componentFromHash(): string {

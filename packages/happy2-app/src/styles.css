@@ -1,10 +1,13 @@
 @import "tailwindcss" source(".");
 
 /* The AppShell fills its host; both hosts mount into #root, which must own
- * the window height for `height: 100%` to resolve. */
+ * the window height for `height: 100%` to resolve. The neutral chrome surface
+ * is painted on the root so there is no bright flash before the Solid tree
+ * mounts and the auth / app surfaces (which share this base) fade in. */
 html,
 body,
 #root {
     height: 100%;
     margin: 0;
+    background: var(--happy2-bg-chrome);
 }
