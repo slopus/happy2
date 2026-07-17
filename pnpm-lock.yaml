@@ -241,6 +241,12 @@ importers:
         specifier: ^0.1.1
         version: 0.1.1
     devDependencies:
+      '@babel/parser':
+        specifier: ^7.29.7
+        version: 7.29.7
+      '@babel/types':
+        specifier: ^7.29.7
+        version: 7.29.7
       '@types/istanbul-lib-coverage':
         specifier: ^2.0.6
         version: 2.0.6

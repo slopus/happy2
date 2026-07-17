@@ -1,3 +1,7 @@
+export type ChatWorkspaceTarget =
+    | { chatId: string; source: "channel" }
+    | { chatId: string; source: "rig"; cwd: string };
+
 export type WorkspaceGitStatus =
     | "added"
     | "deleted"

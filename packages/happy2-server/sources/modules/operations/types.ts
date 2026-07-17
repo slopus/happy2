@@ -21,6 +21,10 @@ export interface OperationsSyncHint {
     areas: string[];
 }
 
+export interface ClaimedDataExport extends DataExportJob {
+    claimStartedAt: string;
+}
+
 export interface AuditLogEntry {
     id: string;
     actorUserId?: string;

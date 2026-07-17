@@ -34,6 +34,7 @@
         "prepack": "pnpm run build",
         "test": "vitest run",
         "test:coverage-tooling": "vitest run --config tooling/server-coverage/vitest.config.ts",
+        "architecture:check": "tsx tooling/server-architecture/cli.ts",
         "test:coverage": "vitest run --coverage",
         "test:watch": "vitest",
         "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project tsconfig.tooling.json",
@@ -59,6 +60,8 @@
         "thumbhash": "^0.1.1"
     },
     "devDependencies": {
+        "@babel/parser": "^7.29.7",
+        "@babel/types": "^7.29.7",
         "@types/istanbul-lib-coverage": "^2.0.6",
         "@types/istanbul-lib-report": "^3.0.3",
         "@types/istanbul-reports": "^3.0.4",

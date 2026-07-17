@@ -11,6 +11,7 @@ export function createDatabase(client: Client): DrizzleDatabase {
 }
 
 const SQLITE_BUSY_RETRY_DELAYS_MS = [5, 10, 20, 40, 80, 160, 250, 400] as const;
+const activeTransactions = new WeakSet<object>();
 
 /** Retries a complete, rollback-safe SQLite operation without blocking the event loop. */
 export async function retrySqliteBusy<T>(operation: () => Promise<T>): Promise<T> {
@@ -23,6 +24,25 @@ export async function retrySqliteBusy<T>(operation: () => Promise<T>): Promise<T
             await new Promise((resolve) => setTimeout(resolve, delay));
         }
     }
+}
+
+/** Reuses an outer transaction or opens one retryable top-level SQLite transaction. */
+export function withTransaction<T>(
+    executor: DrizzleExecutor,
+    operation: (tx: DrizzleTransaction) => Promise<T>,
+): Promise<T> {
+    if (activeTransactions.has(executor)) return operation(executor as DrizzleTransaction);
+    const database = executor as DrizzleDatabase;
+    return retrySqliteBusy(() =>
+        database.transaction(async (transaction) => {
+            activeTransactions.add(transaction);
+            try {
+                return await operation(transaction);
+            } finally {
+                activeTransactions.delete(transaction);
+            }
+        }),
+    );
 }
 
 function isSqliteBusy(error: unknown, seen = new Set<unknown>()): boolean {

@@ -456,23 +456,52 @@ Merged evidence (2026-07-16, `5345c7e`):
 
 ### P0.1b — Functional server action architecture (server refactor)
 
-- [ ] Perform this as the immediately following, independently mergeable server task after P0.1a; do not mix it into coverage plumbing or begin P0.2 until it is merged.
-- [ ] Keep the complete Drizzle schema in one authoritative schema file, while removing `Database`, `*Repository`, and similar stateful/superclass concepts from application behavior.
-- [ ] Represent every server mutation as one exported async function in its own file; the filename must exactly match the function name (for example, `userCreateProfile.ts` exports `userCreateProfile`).
-- [ ] Put a short semantic doc comment above every exported action describing its observable purpose, changed durable invariant, material side effects/transaction expectations, and why the action boundary exists; review the implementation against that promise.
-- [ ] Name actions in lower camel case with the entity first and the operation second: `userCreateProfile`, `chatSendMessage`, `agentImageBuild`; never verb-first forms such as `createProfileUser`.
-- [ ] Organize action files by coherent product module (`user`, `chat`, `agent`, `file`, `setup`, `auth`, and so on); replace the ambiguous catch-all `collaboration` module with explicit ownership boundaries.
-- [ ] Pass a Drizzle executor/transaction as the first argument whenever an action reads or writes durable state; actions that do not touch durable state must not receive a fake database dependency.
-- [ ] Define one small transaction-composition abstraction that lets an outer action call nested actions using the same executor and lets a top-level action run transactionally or directly without duplicating business logic.
-- [ ] Keep module-private shared implementation only under that module's `impl/` or `utils/` directory. Caches, parsers, projections, SQL helpers, and other shared details must not become global service classes.
-- [ ] Do not require action initialization, lifecycle methods, process-global mutable instances, or dependency containers. Construction should be plain dependency values passed to functions.
-- [ ] Split queries into focused entity-first functions as well when doing so removes a repository/database facade; do not replace one giant class with one giant utility file or barrel containing business logic.
-- [ ] Preserve authorization, idempotency, transactions, sync sequence/event writes, realtime hints, restart behavior, and observable HTTP contracts exactly while moving behavior.
-- [ ] Add compile-time architecture checks that reject new `*Repository`/`Database` behavior classes, mismatched action filenames/exports, verb-first mutation names, and direct mutation SQL outside approved action/`impl` files.
-- [ ] Migrate incrementally by module with focused existing gym coverage after every slice, then delete the old class only when no production caller remains; never keep permanent dual implementations.
-- [ ] Update `AGENTS.md` with the final action/file/module/transaction rules once the architecture is proven, so all later server features use it by default.
+- [x] Perform this as the immediately following, independently mergeable server task after P0.1a; do not mix it into coverage plumbing or begin P0.2 until it is merged.
+- [x] Keep the complete Drizzle schema in one authoritative schema file, while removing `Database`, `*Repository`, and similar stateful/superclass concepts from application behavior.
+- [x] Represent every server mutation as one exported async function in its own file; the filename must exactly match the function name (for example, `userCreateProfile.ts` exports `userCreateProfile`).
+- [x] Put a short semantic doc comment above every exported action describing its observable purpose, changed durable invariant, material side effects/transaction expectations, and why the action boundary exists; review the implementation against that promise.
+- [x] Name actions in lower camel case with the entity first and the operation second: `userCreateProfile`, `chatSendMessage`, `agentImageBuild`; never verb-first forms such as `createProfileUser`.
+- [x] Organize action files by coherent product module (`user`, `chat`, `agent`, `file`, `setup`, `auth`, and so on); replace the ambiguous catch-all `collaboration` module with explicit ownership boundaries.
+- [x] Pass a Drizzle executor/transaction as the first argument whenever an action reads or writes durable state; actions that do not touch durable state must not receive a fake database dependency.
+- [x] Define one small transaction-composition abstraction that lets an outer action call nested actions using the same executor and lets a top-level action run transactionally or directly without duplicating business logic.
+- [x] Keep module-private shared implementation only under that module's `impl/` or `utils/` directory. Caches, parsers, projections, SQL helpers, and other shared details must not become global service classes.
+- [x] Do not require action initialization, lifecycle methods, process-global mutable instances, or dependency containers. Construction should be plain dependency values passed to functions.
+- [x] Split queries into focused entity-first functions as well when doing so removes a repository/database facade; do not replace one giant class with one giant utility file or barrel containing business logic.
+- [x] Preserve authorization, idempotency, transactions, sync sequence/event writes, realtime hints, restart behavior, and observable HTTP contracts exactly while moving behavior.
+- [x] Add compile-time architecture checks that reject new `*Repository`/`Database` behavior classes, mismatched action filenames/exports, verb-first mutation names, and direct mutation SQL outside approved action/`impl` files.
+- [x] Migrate incrementally by module with focused existing gym coverage after every slice, then delete the old class only when no production caller remains; never keep permanent dual implementations.
+- [x] Update `AGENTS.md` with the final action/file/module/transaction rules once the architecture is proven, so all later server features use it by default.
 
 Acceptance: every production server mutation has one discoverable entity-first function in a same-named file, composes through an explicit executor/transaction boundary, and no stateful database/repository superclass or initialization lifecycle remains.
+
+Coverage-baseline adjustment for this refactor (2026-07-16): splitting the existing
+behavior into same-named per-action files expands the authoritative production source
+universe from 72 to 555 files while removing facade/class boilerplate and consolidating
+duplicate sync actions, so the instrumented totals change to 10,900 statements, 7,704
+branches, 1,970 functions, and 9,786 lines. The post-refactor measurement is
+4,050/2,446/759/3,869 for unit coverage, 7,970/4,798/1,622/7,509 for Gym, and
+8,819/5,397/1,766/8,296 for the union (in statement/branch/function/line order). Unit
+thresholds use those exact stable ratios. Gym and combined retain the same small absolute
+timing-noise margins established and reviewed in P0.1a: 7,959/4,793/1,622/7,499 and
+8,815/5,388/1,766/8,284 respectively. This is a reviewable source-layout baseline
+regeneration, not an exclusion change; all production files, including files no test
+imports, remain in the coverage universe.
+
+Completion evidence (2026-07-16): the server now has 555 instrumented production source
+files with the complete Drizzle schema still owned by one file. Stateful database and
+repository behavior facades are gone; durable behavior is exposed as documented,
+entity-first, same-named action functions grouped by product module, with private shared
+code contained by each module and no cross-module private implementation imports.
+`DrizzleExecutor`, `DrizzleTransaction`, and `withTransaction` preserve direct and nested
+transaction composition, while the architecture checker enforces these boundaries.
+Verification passed with 23/23 architecture-tooling tests, 87/87 server unit tests,
+100/100 server Gym tests, 18/18 browser tests, 435/435 `happy2-ui` tests, and 67/67
+`happy2-app` tests, plus clean workspace typechecking, linting, formatting, and diff
+checks. Coverage measured 10,900 statements, 7,704 branches, 1,970 functions, and 9,786
+lines: unit 4,050/2,446/759/3,869 (exact floor), Gym 7,971/4,800/1,622/7,509 against
+7,959/4,793/1,622/7,499, and combined 8,820/5,399/1,766/8,296 against
+8,815/5,388/1,766/8,284. Six medium-effort review rounds in one persisted Opus session
+ended with `READY` after the final independent audit and full behavior rerun.
 
 ### P0.2 — Sandbox-provider discovery and selection (server feature)
 

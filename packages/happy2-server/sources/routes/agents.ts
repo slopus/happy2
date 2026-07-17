@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AgentService } from "../modules/agents/index.js";
 import type { AuthService } from "../modules/auth/service.js";
-import { CollaborationError } from "../modules/collaboration/types.js";
+import { CollaborationError } from "../modules/chat/types.js";
 
 const MAX_ID_LENGTH = 128;
 const MAX_IMAGE_NAME_LENGTH = 100;

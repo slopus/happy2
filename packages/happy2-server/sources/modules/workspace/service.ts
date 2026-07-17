@@ -1,3 +1,5 @@
+import { chatWorkspaceGetTarget } from "../chat/chatWorkspaceGetTarget.js";
+import { type DrizzleExecutor } from "../drizzle.js";
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { constants, watch, type FSWatcher } from "node:fs";
@@ -13,10 +15,10 @@ import {
     type FileHandle,
 } from "node:fs/promises";
 import { dirname, join, sep } from "node:path";
-import type { ChatWorkspaceTarget, CollaborationRepository } from "../collaboration/repository.js";
 import { realtimeTopics, type PubSub } from "../realtime/index.js";
 import {
     WorkspaceError,
+    type ChatWorkspaceTarget,
     type WorkspaceDirectoryPage,
     type WorkspaceFileDeleteResult,
     type WorkspaceFileWriteResult,
@@ -26,7 +28,6 @@ import {
     type WorkspaceTextFile,
     type WorkspaceTextPatch,
 } from "./types.js";
-
 const CHANGE_DEBOUNCE_MS = 20;
 const DEFAULT_DIRECTORY_PAGE_LIMIT = 250;
 const MAX_DIRECTORY_PAGE_LIMIT = 1_000;
@@ -60,51 +61,42 @@ export const DEFAULT_DEFERRED_WORKSPACE_DIRECTORIES: readonly string[] = Object.
     "target",
     "vendor",
 ]);
-
 const defaultDeferredDirectories = new Set(DEFAULT_DEFERRED_WORKSPACE_DIRECTORIES);
-
 interface IndexedEntry {
     readonly isDirectory: boolean;
     readonly name: string;
     readonly path: string;
 }
-
 interface PreloadQueueEntry {
     readonly depth: number;
     readonly directory: string;
 }
-
 interface WorkspaceCursor {
     readonly after: string;
     readonly directory: string;
     readonly gitGeneration: number;
     readonly treeGeneration: number;
 }
-
 interface IndexedTextFile extends WorkspaceTextFile {
     readonly fullPath: string;
     readonly mode: number;
 }
-
 export class WorkspaceService {
     private readonly indexes = new Map<string, WorkspaceIndex>();
     private readonly indexCreations = new Map<string, Promise<WorkspaceIndex>>();
     private readonly warmIndexes = new Map<string, WorkspaceIndex>();
     private readonly indexesByChat = new Map<string, WorkspaceIndex>();
     private closed = false;
-
     constructor(
-        private readonly repository: CollaborationRepository,
+        private readonly executor: DrizzleExecutor,
         private readonly pubsub: PubSub,
         private readonly workspacesRoot: string,
         private readonly onError: (error: unknown) => void = () => undefined,
     ) {}
-
     async getSnapshot(userId: string, chatId: string): Promise<WorkspaceSnapshot> {
         const index = await this.authorizedIndex(userId, chatId);
         return index.preload();
     }
-
     async getDirectory(input: {
         userId: string;
         chatId: string;
@@ -119,7 +111,6 @@ export class WorkspaceService {
             limit: input.limit ?? DEFAULT_DIRECTORY_PAGE_LIMIT,
         });
     }
-
     async getFile(input: {
         userId: string;
         chatId: string;
@@ -128,7 +119,6 @@ export class WorkspaceService {
         const index = await this.authorizedIndex(input.userId, input.chatId);
         return index.getFile(canonicalFilePath(input.path));
     }
-
     async writeFile(input: {
         userId: string;
         chatId: string;
@@ -145,7 +135,6 @@ export class WorkspaceService {
             patch: input.patch,
         });
     }
-
     async deleteFile(input: {
         userId: string;
         chatId: string;
@@ -158,7 +147,6 @@ export class WorkspaceService {
             expectedVersion: input.expectedVersion,
         });
     }
-
     async close(): Promise<void> {
         if (this.closed) return;
         this.closed = true;
@@ -177,10 +165,9 @@ export class WorkspaceService {
         this.warmIndexes.clear();
         this.indexesByChat.clear();
     }
-
     private async authorizedIndex(userId: string, chatId: string): Promise<WorkspaceIndex> {
         if (this.closed) throw new Error("Workspace service is closed");
-        const target = await this.repository.getChatWorkspaceTarget(userId, chatId);
+        const target = await chatWorkspaceGetTarget(this.executor, userId, chatId);
         const root = await workspaceRoot(target, this.workspacesRoot);
         const existing = this.indexes.get(root);
         if (existing) {
@@ -223,19 +210,16 @@ export class WorkspaceService {
             this.indexCreations.delete(root);
         }
     }
-
     private attachChat(chatId: string, index: WorkspaceIndex): void {
         const previous = this.indexesByChat.get(chatId);
         if (previous && previous !== index) previous.detachChat(chatId);
         index.attachChat(chatId);
         this.indexesByChat.set(chatId, index);
     }
-
     private touchWarmIndex(root: string, index: WorkspaceIndex): void {
         this.warmIndexes.delete(root);
         this.warmIndexes.set(root, index);
     }
-
     private coolOldIndexes(): void {
         while (this.warmIndexes.size > MAX_WARM_WORKSPACE_INDEXES) {
             const oldest = this.warmIndexes.entries().next().value as
@@ -247,7 +231,6 @@ export class WorkspaceService {
         }
     }
 }
-
 class WorkspaceIndex {
     private readonly directoryCache = new Map<string, readonly IndexedEntry[]>();
     private readonly deletedByDirectory = new Map<string, readonly WorkspaceGitStatusEntry[]>();
@@ -268,32 +251,33 @@ class WorkspaceIndex {
     private warm = true;
     private readonly chatIds = new Set<string>();
     private mutationTail: Promise<void> = Promise.resolve();
-
     constructor(
         private readonly root: string,
         private readonly pubsub: PubSub,
         private readonly onError: (error: unknown) => void,
     ) {}
-
     attachChat(chatId: string): void {
         this.chatIds.add(chatId);
     }
-
     detachChat(chatId: string): void {
         this.chatIds.delete(chatId);
     }
-
     async start(): Promise<void> {
         this.realRoot = await realpath(this.root);
         this.ensureWatcher();
         this.requestGitRefresh();
     }
-
     ensureWatcher(): void {
         if (this.closed || this.watcher) return;
-        const watcher = watch(this.root, { recursive: true }, (_eventType, filename) => {
-            this.queueChange(filename === null ? undefined : String(filename));
-        });
+        const watcher = watch(
+            this.root,
+            {
+                recursive: true,
+            },
+            (_eventType, filename) => {
+                this.queueChange(filename === null ? undefined : String(filename));
+            },
+        );
         watcher.unref();
         watcher.on("error", (error) => {
             if (this.closed || this.watcher !== watcher) return;
@@ -305,14 +289,12 @@ class WorkspaceIndex {
         });
         this.watcher = watcher;
     }
-
     warmUp(): void {
         if (this.closed || this.warm) return;
         this.warm = true;
         this.gitStatusPending = true;
         this.requestGitRefresh();
     }
-
     cool(): void {
         if (this.closed || !this.warm) return;
         this.warm = false;
@@ -322,16 +304,19 @@ class WorkspaceIndex {
         this.gitGeneration += 1;
         this.gitStatusPending = true;
     }
-
     async preload(): Promise<WorkspaceSnapshot> {
         this.ensureWatcher();
         const paths: string[] = [];
         const unloaded = new Set<string>();
-        const queue: PreloadQueueEntry[] = [{ depth: 0, directory: "" }];
+        const queue: PreloadQueueEntry[] = [
+            {
+                depth: 0,
+                directory: "",
+            },
+        ];
         let pathBytes = 0;
         let directoriesRead = 0;
         let stopped = false;
-
         while (queue.length > 0 && !stopped) {
             const current = queue.shift()!;
             if (
@@ -373,14 +358,15 @@ class WorkspaceIndex {
                 pathBytes += nextBytes;
                 if (!entry.isDirectory) continue;
                 if (current.depth + 1 < MAX_PRELOAD_DEPTH)
-                    queue.push({ directory: entry.path, depth: current.depth + 1 });
+                    queue.push({
+                        directory: entry.path,
+                        depth: current.depth + 1,
+                    });
                 else unloaded.add(entry.path);
             }
         }
-
         return this.snapshot(paths, unloaded);
     }
-
     async getDirectory(input: {
         directory: string;
         cursor?: string;
@@ -431,13 +417,11 @@ class WorkspaceIndex {
                 : {}),
         };
     }
-
     async getFile(path: string): Promise<WorkspaceTextFile> {
         this.ensureWatcher();
         const file = await this.readTextFile(path);
         return publicTextFile(file);
     }
-
     async writeFile(input: {
         path: string;
         expectedVersion: string | null;
@@ -456,7 +440,6 @@ class WorkspaceIndex {
                     version: current.version,
                     created: false,
                 };
-
             await this.replaceTextFile(input.path, nextContent, current);
             const written = await this.readTextFileIfPresent(input.path);
             if (!written || written.content !== nextContent)
@@ -469,7 +452,6 @@ class WorkspaceIndex {
             };
         });
     }
-
     async deleteFile(input: {
         path: string;
         expectedVersion: string;
@@ -485,10 +467,12 @@ class WorkspaceIndex {
                 if (isMissingPathError(error)) throw workspaceConflict(null);
                 throw error;
             }
-            return { path: input.path, deletedVersion: input.expectedVersion };
+            return {
+                path: input.path,
+                deletedVersion: input.expectedVersion,
+            };
         });
     }
-
     async close(): Promise<void> {
         if (this.closed) return;
         this.closed = true;
@@ -501,13 +485,11 @@ class WorkspaceIndex {
         this.gitStatusByPath.clear();
         this.cachedEntryCount = 0;
     }
-
     private async readTextFile(path: string): Promise<IndexedTextFile> {
         const file = await this.readTextFileIfPresent(path);
         if (!file) throw new WorkspaceError("not_found", "Workspace file was not found");
         return file;
     }
-
     private async readTextFileIfPresent(path: string): Promise<IndexedTextFile | undefined> {
         const fullPath = await this.validatedFilePath(path);
         let handle;
@@ -518,7 +500,9 @@ class WorkspaceIndex {
             throw error;
         }
         try {
-            const metadata = await handle.stat({ bigint: true });
+            const metadata = await handle.stat({
+                bigint: true,
+            });
             if (!metadata.isFile())
                 throw new WorkspaceError("not_found", "Workspace file was not found");
             if (metadata.size > BigInt(MAX_WORKSPACE_TEXT_FILE_BYTES))
@@ -534,7 +518,9 @@ class WorkspaceIndex {
                 );
             let content: string;
             try {
-                content = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+                content = new TextDecoder("utf-8", {
+                    fatal: true,
+                }).decode(buffer);
             } catch {
                 throw new WorkspaceError("not_text", "Workspace file is not valid UTF-8 text");
             }
@@ -553,7 +539,6 @@ class WorkspaceIndex {
             await handle.close();
         }
     }
-
     private async replaceTextFile(
         path: string,
         content: string,
@@ -573,7 +558,6 @@ class WorkspaceIndex {
             await temporary.sync();
             await temporary.close();
             temporary = undefined;
-
             const latest = await this.readTextFileIfPresent(path);
             assertExpectedVersion(latest, current?.version ?? null);
             if (!current) {
@@ -597,12 +581,10 @@ class WorkspaceIndex {
             });
         }
     }
-
     private async validatedFilePath(path: string): Promise<string> {
         const parent = await this.validatedDirectoryPath(parentDirectory(path));
         return join(parent, pathBasename(path));
     }
-
     private async mutate<T>(action: () => Promise<T>): Promise<T> {
         const previous = this.mutationTail;
         let release!: () => void;
@@ -617,14 +599,21 @@ class WorkspaceIndex {
             release();
         }
     }
-
     private snapshot(paths: readonly string[], unloaded: Set<string>): WorkspaceSnapshot {
         const gitStatus: WorkspaceGitStatusEntry[] = [];
         for (const path of paths) {
             const entry =
                 this.gitStatusByPath.get(path) ??
                 (path.endsWith("/") ? this.gitStatusByPath.get(path.slice(0, -1)) : undefined);
-            if (entry) gitStatus.push(entry.path === path ? entry : { ...entry, path });
+            if (entry)
+                gitStatus.push(
+                    entry.path === path
+                        ? entry
+                        : {
+                              ...entry,
+                              path,
+                          },
+                );
         }
         gitStatus.sort((left, right) => comparePaths(left.path, right.path));
         return {
@@ -635,7 +624,6 @@ class WorkspaceIndex {
             gitStatusPending: this.gitStatusPending,
         };
     }
-
     private async entriesForDirectory(directory: string): Promise<readonly IndexedEntry[]> {
         const entries = [...(await this.readDirectory(directory))];
         const known = new Set(entries.map((entry) => entry.path));
@@ -650,7 +638,6 @@ class WorkspaceIndex {
         entries.sort((left, right) => comparePaths(left.name, right.name));
         return entries;
     }
-
     private async readDirectory(directory: string): Promise<readonly IndexedEntry[]> {
         const cached = this.directoryCache.get(directory);
         if (cached) {
@@ -661,7 +648,9 @@ class WorkspaceIndex {
         const fullPath = await this.validatedDirectoryPath(directory);
         let dirents;
         try {
-            dirents = await readdir(fullPath, { withFileTypes: true });
+            dirents = await readdir(fullPath, {
+                withFileTypes: true,
+            });
         } catch (error) {
             if (isMissingPathError(error))
                 throw new WorkspaceError("not_found", "Workspace directory was not found");
@@ -670,13 +659,16 @@ class WorkspaceIndex {
         const entries = dirents
             .map((entry): IndexedEntry => {
                 const path = `${directory}${entry.name}${entry.isDirectory() ? "/" : ""}`;
-                return { isDirectory: entry.isDirectory(), name: entry.name, path };
+                return {
+                    isDirectory: entry.isDirectory(),
+                    name: entry.name,
+                    path,
+                };
             })
             .sort((left, right) => comparePaths(left.name, right.name));
         this.cacheDirectory(directory, entries);
         return entries;
     }
-
     private async validatedDirectoryPath(directory: string): Promise<string> {
         const segments = directory ? directory.slice(0, -1).split("/") : [];
         const expected = join(this.realRoot, ...segments);
@@ -695,7 +687,6 @@ class WorkspaceIndex {
             throw new WorkspaceError("not_found", "Workspace directory was not found");
         return actual;
     }
-
     private cacheDirectory(directory: string, entries: readonly IndexedEntry[]): void {
         if (entries.length > MAX_CACHED_DIRECTORY_ENTRIES) return;
         const previous = this.directoryCache.get(directory);
@@ -717,7 +708,6 @@ class WorkspaceIndex {
         this.directoryCache.set(directory, entries);
         this.cachedEntryCount += entries.length;
     }
-
     private queueChange(filename: string | undefined): void {
         if (this.closed) return;
         if (filename === undefined) this.unknownChange = true;
@@ -726,7 +716,6 @@ class WorkspaceIndex {
         this.changeTimer = setTimeout(() => this.flushChanges(), CHANGE_DEBOUNCE_MS);
         this.changeTimer.unref();
     }
-
     private flushChanges(): void {
         if (this.closed) return;
         if (this.changeTimer) clearTimeout(this.changeTimer);
@@ -740,7 +729,6 @@ class WorkspaceIndex {
         void this.publishChange();
         if (this.warm) this.requestGitRefresh();
     }
-
     private invalidatePath(nativePath: string): void {
         const normalized = sep === "/" ? nativePath : nativePath.replaceAll(sep, "/");
         if (!normalized || normalized.startsWith("/") || normalized.split("/").includes("..")) {
@@ -754,19 +742,16 @@ class WorkspaceIndex {
                 this.removeCachedDirectory(directory);
         }
     }
-
     private removeCachedDirectory(directory: string): void {
         const entries = this.directoryCache.get(directory);
         if (!entries) return;
         this.directoryCache.delete(directory);
         this.cachedEntryCount -= entries.length;
     }
-
     private clearDirectoryCache(): void {
         this.directoryCache.clear();
         this.cachedEntryCount = 0;
     }
-
     private requestGitRefresh(): void {
         if (this.closed || !this.warm) return;
         this.gitStatusPending = true;
@@ -797,7 +782,6 @@ class WorkspaceIndex {
                 if (this.gitRefreshAgain && !this.closed) this.requestGitRefresh();
             });
     }
-
     private replaceGitStatus(statuses: readonly WorkspaceGitStatusEntry[]): void {
         this.gitStatusByPath.clear();
         this.deletedByDirectory.clear();
@@ -812,7 +796,6 @@ class WorkspaceIndex {
         }
         for (const [directory, entries] of deleted) this.deletedByDirectory.set(directory, entries);
     }
-
     private publishChange(): Promise<void> {
         if (this.closed) return Promise.resolve();
         const occurredAt = Date.now();
@@ -829,7 +812,6 @@ class WorkspaceIndex {
         ).then(() => undefined);
     }
 }
-
 async function readGitStatus(
     root: string,
     onError: (error: unknown) => void,
@@ -855,7 +837,6 @@ async function readGitStatus(
     }
     return parseGitStatus(output);
 }
-
 function parseGitStatus(output: string): WorkspaceGitStatusEntry[] {
     const records = output.split("\0");
     const byPath = new Map<string, WorkspaceGitStatus>();
@@ -888,10 +869,12 @@ function parseGitStatus(output: string): WorkspaceGitStatusEntry[] {
         }
     }
     return [...byPath]
-        .map(([path, status]) => ({ path, status }))
+        .map(([path, status]) => ({
+            path,
+            status,
+        }))
         .sort((left, right) => comparePaths(left.path, right.path));
 }
-
 function canonicalDirectory(value: string): string {
     if (value === "") return "";
     if (!value.endsWith("/") || value.startsWith("/") || Buffer.byteLength(value) > 16_384)
@@ -901,7 +884,6 @@ function canonicalDirectory(value: string): string {
         throw new WorkspaceError("not_found", "Workspace directory was not found");
     return value;
 }
-
 function canonicalFilePath(value: string): string {
     if (!value || value.endsWith("/") || value.startsWith("/") || Buffer.byteLength(value) > 16_384)
         throw new WorkspaceError("not_found", "Workspace file was not found");
@@ -910,7 +892,6 @@ function canonicalFilePath(value: string): string {
         throw new WorkspaceError("not_found", "Workspace file was not found");
     return value;
 }
-
 function publicTextFile(file: IndexedTextFile): WorkspaceTextFile {
     return {
         path: file.path,
@@ -919,7 +900,6 @@ function publicTextFile(file: IndexedTextFile): WorkspaceTextFile {
         version: file.version,
     };
 }
-
 function assertExpectedVersion(
     current: IndexedTextFile | undefined,
     expectedVersion: string | null,
@@ -931,7 +911,6 @@ function assertExpectedVersion(
         return;
     throw workspaceConflict(current?.version ?? null);
 }
-
 function workspaceConflict(currentVersion: string | null): WorkspaceError {
     return new WorkspaceError(
         "conflict",
@@ -939,10 +918,12 @@ function workspaceConflict(currentVersion: string | null): WorkspaceError {
         currentVersion,
     );
 }
-
 function nextFileContent(
     current: string,
-    input: { readonly content?: string; readonly patch?: WorkspaceTextPatch },
+    input: {
+        readonly content?: string;
+        readonly patch?: WorkspaceTextPatch;
+    },
 ): string {
     if ((input.content === undefined) === (input.patch === undefined))
         throw new WorkspaceError(
@@ -976,7 +957,6 @@ function nextFileContent(
     assertValidUnicode(result);
     return result;
 }
-
 function assertTextFileSize(content: string): void {
     if (Buffer.byteLength(content) > MAX_WORKSPACE_TEXT_FILE_BYTES)
         throw new WorkspaceError(
@@ -984,12 +964,10 @@ function assertTextFileSize(content: string): void {
             `Workspace text files are limited to ${MAX_WORKSPACE_TEXT_FILE_BYTES} bytes`,
         );
 }
-
 function assertValidUnicode(content: string): void {
     if (Buffer.from(content, "utf8").toString("utf8") !== content)
         throw new WorkspaceError("invalid_patch", "Workspace text must contain valid Unicode");
 }
-
 function canonicalGitPath(path: string): string | undefined {
     const normalized = path.replace(/^\.\//u, "");
     if (
@@ -1002,13 +980,11 @@ function canonicalGitPath(path: string): string | undefined {
         return undefined;
     return normalized;
 }
-
 function statusFromXy(xy: string): WorkspaceGitStatus {
     if (xy.includes("D")) return "deleted";
     if (xy.includes("A")) return "added";
     return "modified";
 }
-
 function setStatus(
     statuses: Map<string, WorkspaceGitStatus>,
     path: string | undefined,
@@ -1018,7 +994,6 @@ function setStatus(
     const current = statuses.get(path);
     if (!current || statusPriority(status) > statusPriority(current)) statuses.set(path, status);
 }
-
 function statusPriority(status: WorkspaceGitStatus): number {
     switch (status) {
         case "deleted":
@@ -1035,11 +1010,9 @@ function statusPriority(status: WorkspaceGitStatus): number {
             return 1;
     }
 }
-
 function encodeCursor(cursor: WorkspaceCursor): string {
     return Buffer.from(JSON.stringify(cursor)).toString("base64url");
 }
-
 function decodeCursor(value: string): WorkspaceCursor {
     try {
         const decoded = JSON.parse(
@@ -1064,35 +1037,28 @@ function decodeCursor(value: string): WorkspaceCursor {
         throw new WorkspaceError("stale_cursor", "Workspace directory cursor is invalid");
     }
 }
-
 function directoryBasename(directory: string): string {
     return pathBasename(directory.slice(0, -1));
 }
-
 function parentDirectory(path: string): string {
     const withoutSlash = path.endsWith("/") ? path.slice(0, -1) : path;
     const separator = withoutSlash.lastIndexOf("/");
     return separator < 0 ? "" : `${withoutSlash.slice(0, separator)}/`;
 }
-
 function pathBasename(path: string): string {
     const withoutSlash = path.endsWith("/") ? path.slice(0, -1) : path;
     const separator = withoutSlash.lastIndexOf("/");
     return withoutSlash.slice(separator + 1);
 }
-
 function comparePaths(left: string, right: string): number {
     return left < right ? -1 : left > right ? 1 : 0;
 }
-
 function encodedPathBytes(path: string): number {
     return Buffer.byteLength(JSON.stringify(path)) + 1;
 }
-
 function isWithinRoot(root: string, path: string): boolean {
     return path === root || path.startsWith(`${root}${sep}`);
 }
-
 function gitOutput(root: string, arguments_: readonly string[]): Promise<string> {
     return new Promise((resolve, reject) => {
         execFile(
@@ -1100,7 +1066,10 @@ function gitOutput(root: string, arguments_: readonly string[]): Promise<string>
             ["-C", root, ...arguments_],
             {
                 encoding: "utf8",
-                env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+                env: {
+                    ...process.env,
+                    GIT_OPTIONAL_LOCKS: "0",
+                },
                 maxBuffer: GIT_MAX_BUFFER_BYTES,
                 timeout: GIT_TIMEOUT_MS,
                 windowsHide: true,
@@ -1112,40 +1081,60 @@ function gitOutput(root: string, arguments_: readonly string[]): Promise<string>
         );
     });
 }
-
 function isExpectedNoRepositoryError(error: unknown): boolean {
     if (!error || typeof error !== "object") return false;
-    const candidate = error as { code?: number | string; stderr?: string };
+    const candidate = error as {
+        code?: number | string;
+        stderr?: string;
+    };
     return (
         candidate.code === 128 ||
         candidate.code === "ENOENT" ||
         candidate.stderr?.includes("not a git repository") === true
     );
 }
-
 function isMissingPathError(error: unknown): boolean {
     return Boolean(
-        error && typeof error === "object" && (error as { code?: string }).code === "ENOENT",
+        error &&
+        typeof error === "object" &&
+        (
+            error as {
+                code?: string;
+            }
+        ).code === "ENOENT",
     );
 }
-
 function isUnavailableFileError(error: unknown): boolean {
     if (!error || typeof error !== "object") return false;
     return ["EISDIR", "ELOOP", "ENOENT", "ENOTDIR"].includes(
-        String((error as { code?: string }).code),
+        String(
+            (
+                error as {
+                    code?: string;
+                }
+            ).code,
+        ),
     );
 }
-
 function isAlreadyExistsError(error: unknown): boolean {
     return Boolean(
-        error && typeof error === "object" && (error as { code?: string }).code === "EEXIST",
+        error &&
+        typeof error === "object" &&
+        (
+            error as {
+                code?: string;
+            }
+        ).code === "EEXIST",
     );
 }
-
 async function workspaceRoot(target: ChatWorkspaceTarget, workspacesRoot: string): Promise<string> {
     const cwd =
         target.source === "rig" ? target.cwd : join(workspacesRoot, "channels", target.chatId);
-    if (target.source === "channel") await mkdir(cwd, { recursive: true, mode: 0o700 });
+    if (target.source === "channel")
+        await mkdir(cwd, {
+            recursive: true,
+            mode: 0o700,
+        });
     try {
         const root = await realpath(cwd);
         if (!(await lstat(root)).isDirectory())
@@ -1158,7 +1147,6 @@ async function workspaceRoot(target: ChatWorkspaceTarget, workspacesRoot: string
         throw error;
     }
 }
-
 export function workspaceDirectoryPageLimit(value: number | undefined): number {
     if (value === undefined) return DEFAULT_DIRECTORY_PAGE_LIMIT;
     if (!Number.isSafeInteger(value) || value < 1 || value > MAX_DIRECTORY_PAGE_LIMIT)

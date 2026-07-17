@@ -1,0 +1,27 @@
+import { type AgentImageDetails, CollaborationError } from "../chat/types.js";
+
+import { type DrizzleExecutor } from "../drizzle.js";
+import { agentImageDetailsSelection } from "./impl/agentImageDetailsSelection.js";
+import { agentImages } from "../schema.js";
+import { and, eq } from "drizzle-orm";
+import { asAgentImageDetails } from "./impl/asAgentImageDetails.js";
+
+import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+/**
+ * Returns full details for a non-system agent image after requiring an active server administrator.
+ * Hiding internal images and inaccessible identifiers as not-found keeps build configuration separate from runtime-owned definitions.
+ */
+export async function agentImageGet(
+    executor: DrizzleExecutor,
+    actorUserId: string,
+    imageId: string,
+): Promise<AgentImageDetails> {
+    await userRequireServerAdmin(executor, actorUserId);
+    const [image] = await executor
+        .select(agentImageDetailsSelection)
+        .from(agentImages)
+        .where(and(eq(agentImages.id, imageId), eq(agentImages.systemOnly, 0)))
+        .limit(1);
+    if (!image) throw new CollaborationError("not_found", "Agent image was not found");
+    return asAgentImageDetails(image);
+}

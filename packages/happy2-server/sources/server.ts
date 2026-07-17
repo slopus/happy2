@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { createClient, type Client } from "@libsql/client";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
@@ -10,27 +11,42 @@ import {
     type AgentDockerRuntime,
 } from "./modules/agents/index.js";
 import { TokenService } from "./modules/auth/tokens.js";
-import { AutomationRepository } from "./modules/automation/repository.js";
+import { automationRunDue } from "./modules/automation/automationRunDue.js";
+import { automationRunPendingEvents } from "./modules/automation/automationRunPendingEvents.js";
+import type { AutomationRuntime } from "./modules/automation/types.js";
 import type { ServerConfig } from "./modules/config/type.js";
-import { Database } from "./modules/database.js";
-import { CollaborationRepository } from "./modules/collaboration/repository.js";
-import { CollaborationError } from "./modules/collaboration/types.js";
+import { fileListStored } from "./modules/file/fileListStored.js";
+import { CollaborationError } from "./modules/chat/types.js";
+import { messageExpireDue } from "./modules/message/messageExpireDue.js";
+import { messageSendAutomated } from "./modules/message/messageSendAutomated.js";
+import { syncCompact } from "./modules/sync/syncCompact.js";
+import { syncGetState } from "./modules/sync/syncGetState.js";
+import { syncInitialize } from "./modules/sync/syncInitialize.js";
 import { FileStorage } from "./modules/files/storage.js";
-import { IntegrationRepository } from "./modules/integrations/repository.js";
-import { AesGcmSecretProtector } from "./modules/integrations/secrets.js";
+import { AesGcmSecretProtector, type SecretProtector } from "./modules/integrations/secrets.js";
+import { StrictWebhookUrlPolicy, type WebhookUrlPolicy } from "./modules/integrations/ssrf.js";
 import { NodeWebhookTransport } from "./modules/integrations/transport.js";
 import type { WebhookTransport } from "./modules/integrations/types.js";
-import { OperationsRepository } from "./modules/operations/repository.js";
-import { DataExportWorker } from "./modules/operations/export-worker.js";
+import { dataExportRunDue } from "./modules/data-export/dataExportRunDue.js";
 import { OperationsError } from "./modules/operations/types.js";
+import { accountBanExpireDue } from "./modules/moderation/accountBanExpireDue.js";
+import { moderationActionTake } from "./modules/moderation/moderationActionTake.js";
 import { LocalPubSub, realtimeTopics, type PubSub } from "./modules/realtime/index.js";
-import { SetupRepository } from "./modules/setup/index.js";
+import { createDatabase } from "./modules/drizzle.js";
+import { setupGetCurrentSyncHint } from "./modules/setup/index.js";
+import { scheduledMessagePublishDue } from "./modules/scheduled-message/scheduledMessagePublishDue.js";
+import { webhookDeliveryDispatchDue } from "./modules/webhook/webhookDeliveryDispatchDue.js";
+import { webhookDeliveryEnqueuePendingSyncEvents } from "./modules/webhook/webhookDeliveryEnqueuePendingSyncEvents.js";
+import { webhookDeliveryEnqueueSyncSequence } from "./modules/webhook/webhookDeliveryEnqueueSyncSequence.js";
 import { WorkspaceService } from "./modules/workspace/index.js";
 import {
     createRateLimitHook,
-    DatabaseIdempotencyStore,
     HttpRateLimiter,
     IdempotencyCoordinator,
+    idempotencyLeaseAcquire,
+    idempotencyLeaseComplete,
+    idempotencyLeaseRelease,
+    idempotencyRecordPurgeExpired,
     LocalRateLimitStore,
     registerIdempotencyHooks,
     type StoredHttpResponse,
@@ -48,14 +64,13 @@ import { registerSetupRoutes } from "./routes/setup.js";
 import { registerWorkspaceRoutes } from "./routes/workspace.js";
 
 interface Services {
-    database: Database;
+    client: Client;
     tokens: TokenService;
-    collaboration?: CollaborationRepository;
     pubsub?: PubSub;
     fileStorage?: FileStorage;
-    automation?: AutomationRepository;
-    integrations?: IntegrationRepository;
-    operations?: OperationsRepository;
+    integrationSecretProtector?: SecretProtector;
+    webhookUrlPolicy?: WebhookUrlPolicy;
+    now?: () => Date;
     webhookTransport?: WebhookTransport;
     rateLimiter?: HttpRateLimiter;
     idempotency?: IdempotencyCoordinator<StoredHttpResponse>;
@@ -73,10 +88,12 @@ export async function buildServer(
         trustProxy: config.server.trustedProxyHops,
     });
     const services = supplied ?? {
-        database: new Database(
-            config.database.url,
-            config.database.authTokenEnv ? process.env[config.database.authTokenEnv] : undefined,
-        ),
+        client: createClient({
+            url: config.database.url,
+            authToken: config.database.authTokenEnv
+                ? process.env[config.database.authTokenEnv]
+                : undefined,
+        }),
         tokens: await TokenService.create(config),
     };
     await app.register(cors, { origin: true, credentials: false });
@@ -91,14 +108,14 @@ export async function buildServer(
 
     registerBasicRoutes(app);
     const productServer = config.server.role !== "auth";
-    const setup = new SetupRepository(services.database.extensionClient());
+    const executor = createDatabase(services.client);
     let pubsub: PubSub | undefined = productServer
         ? (services.pubsub ??
           new LocalPubSub({
               onSubscriberError: (error) => app.log.error(error),
           }))
         : undefined;
-    const auth = new AuthService(config, services.database, services.tokens);
+    const auth = new AuthService(config, executor, services.tokens);
     const rateLimiter =
         services.rateLimiter ??
         new HttpRateLimiter(new LocalRateLimitStore(), {
@@ -130,7 +147,14 @@ export async function buildServer(
         services.idempotency ??
         (config.security.idempotency.enabled
             ? new IdempotencyCoordinator<StoredHttpResponse>(
-                  new DatabaseIdempotencyStore(services.database.extensionClient()),
+                  {
+                      acquire: (input) => idempotencyLeaseAcquire(executor, input),
+                      complete: (input) => idempotencyLeaseComplete(executor, input),
+                      release: (storageKey, leaseToken) =>
+                          idempotencyLeaseRelease(executor, storageKey, leaseToken),
+                      purgeExpired: (now, limit) =>
+                          idempotencyRecordPurgeExpired(executor, now, limit),
+                  },
                   {
                       leaseMs: config.security.idempotency.leaseSeconds * 1_000,
                       retentionMs: config.security.idempotency.retentionSeconds * 1_000,
@@ -142,10 +166,10 @@ export async function buildServer(
         app,
         config,
         auth,
-        setup,
+        executor,
         pubsub
             ? async (request, user) => {
-                  const hint = await setup.currentSyncHint([
+                  const hint = await setupGetCurrentSyncHint(executor, [
                       "users",
                       "user-onboarding",
                       ...(user.role === "admin" ? ["setup"] : []),
@@ -158,13 +182,8 @@ export async function buildServer(
               }
             : undefined,
     );
-    let collaboration: CollaborationRepository | undefined;
-    let automation: AutomationRepository | undefined;
-    let integrations: IntegrationRepository | undefined;
-    let operations: OperationsRepository | undefined;
     let webhookTransport: WebhookTransport | undefined;
     let fileStorage: FileStorage | undefined;
-    let dataExportWorker: DataExportWorker | undefined;
     let unsubscribeWebhookEvents: (() => void) | undefined;
     let agentService: AgentService | undefined;
     let workspaceService: WorkspaceService | undefined;
@@ -172,16 +191,30 @@ export async function buildServer(
     let pendingSweep: Promise<void> = Promise.resolve();
     if (productServer) {
         const livePubsub = pubsub!;
-        collaboration =
-            services.collaboration ??
-            new CollaborationRepository(services.database.extensionClient());
-        await collaboration.initialize();
-        registerSetupRoutes(app, auth, setup, livePubsub);
+        const now = services.now ?? (() => new Date());
+        const secretProtector =
+            services.integrationSecretProtector ??
+            integrationSecretProtector(config, Boolean(supplied));
+        const webhookUrlPolicy = services.webhookUrlPolicy ?? new StrictWebhookUrlPolicy();
+        const automationRuntime: AutomationRuntime = {
+            moderate: async (input) => {
+                try {
+                    const result = await moderationActionTake(executor, input);
+                    return { sync: result.sync };
+                } catch (error) {
+                    if (error instanceof OperationsError)
+                        throw new CollaborationError(error.code, error.message);
+                    throw error;
+                }
+            },
+        };
+        await syncInitialize(executor);
+        registerSetupRoutes(app, auth, executor, livePubsub);
         agentService =
             services.agents ??
             (config.agents.enabled
                 ? new AgentService(
-                      collaboration,
+                      executor,
                       livePubsub,
                       new RigDaemonClient(config.agents),
                       services.agentDocker ?? new LocalAgentDockerRuntime(),
@@ -189,53 +222,23 @@ export async function buildServer(
                       (error) => app.log.error(error),
                   )
                 : undefined);
-        operations =
-            services.operations ?? new OperationsRepository(collaboration.extensionClient());
-        automation =
-            services.automation ??
-            new AutomationRepository(collaboration.extensionClient(), collaboration, {
-                moderate: async (input) => {
-                    try {
-                        const result = await operations!.takeModerationAction(input);
-                        return { sync: result.sync };
-                    } catch (error) {
-                        if (error instanceof OperationsError)
-                            throw new CollaborationError(error.code, error.message);
-                        throw error;
-                    }
-                },
-            });
-        integrations =
-            services.integrations ??
-            new IntegrationRepository(collaboration.extensionClient(), {
-                secretProtector: integrationSecretProtector(config, Boolean(supplied)),
-            });
         webhookTransport = services.webhookTransport ?? new NodeWebhookTransport();
-        fileStorage = services.fileStorage ?? new FileStorage(config, services.database);
-        dataExportWorker = new DataExportWorker(operations, services.database, fileStorage);
+        fileStorage = services.fileStorage ?? new FileStorage(config, executor);
         workspaceService = new WorkspaceService(
-            collaboration,
+            executor,
             livePubsub,
             config.agents.defaultCwd,
             (error) => app.log.error(error),
         );
-        registerFileRoutes(
-            app,
-            config,
-            auth,
-            services.database,
-            services.tokens,
-            fileStorage,
-            collaboration,
-        );
-        registerCollaborationRoutes(app, auth, collaboration, livePubsub, agentService);
+        registerFileRoutes(app, config, auth, executor, services.tokens, fileStorage);
+        registerCollaborationRoutes(app, auth, executor, livePubsub, agentService);
         if (agentService) registerAgentRoutes(app, auth, agentService);
-        registerAutomationRoutes(app, auth, automation, livePubsub);
-        registerOperationsRoutes(app, auth, operations);
-        registerIntegrationRoutes(app, auth, integrations, {
+        registerAutomationRoutes(app, auth, executor, automationRuntime, livePubsub);
+        registerOperationsRoutes(app, auth, executor);
+        registerIntegrationRoutes(app, auth, executor, secretProtector, webhookUrlPolicy, now, {
             incomingWebhook: {
                 sendMessage: async (message) => {
-                    const sent = await collaboration!.sendAutomatedMessage({
+                    const sent = await messageSendAutomated(executor, {
                         actorUserId: message.actorUserId,
                         chatId: message.chatId,
                         text: message.text,
@@ -264,41 +267,50 @@ export async function buildServer(
                 });
             },
         });
-        registerSyncRoutes(app, auth, collaboration, livePubsub);
+        registerSyncRoutes(app, auth, executor, livePubsub);
         registerWorkspaceRoutes(app, auth, workspaceService);
         await agentService?.start();
 
         unsubscribeWebhookEvents = livePubsub.subscribe(realtimeTopics.server, async (event) => {
-            if (event.type === "sync") await integrations!.enqueueSyncSequence(event.sequence);
+            if (event.type === "sync")
+                await webhookDeliveryEnqueueSyncSequence(executor, now, event.sequence);
         });
 
         let sweepRunning = false;
         let lastCompactionAt = 0;
         let lastFileMaintenanceAt = 0;
-        let lastObservedSequence = BigInt((await collaboration.getState()).sequence);
+        let lastObservedSequence = BigInt((await syncGetState(executor)).sequence);
         expiryTimer = setInterval(() => {
-            if (sweepRunning || !collaboration || !pubsub) return;
+            if (sweepRunning || !pubsub) return;
             sweepRunning = true;
             const compact = Date.now() - lastCompactionAt >= 60_000;
             if (compact) lastCompactionAt = Date.now();
             const maintainFiles = Date.now() - lastFileMaintenanceAt >= 60 * 60_000;
             if (maintainFiles) lastFileMaintenanceAt = Date.now();
-            // Every repository shares one libSQL client. Run write-capable maintenance in
+            // Every action shares one libSQL client. Run write-capable maintenance in
             // sequence so the local SQLite adapter never opens competing write transactions.
             pendingSweep = (async () => {
-                const expiryHint = await collaboration!.expireDueMessages();
-                const scheduledHints = (await automation?.publishDueScheduledMessages()) ?? [];
-                const automationHints = (await automation?.runDueAutomations()) ?? [];
-                const eventAutomationHints = (await automation?.runPendingEventAutomations()) ?? [];
-                if (compact) await collaboration!.compactSync();
-                await operations?.expireDueBans();
-                await dataExportWorker?.runDue();
-                if (integrations && webhookTransport) {
-                    await integrations.enqueuePendingSyncEvents();
-                    await integrations.dispatchDueWebhooks(webhookTransport);
-                }
+                const expiryHint = await messageExpireDue(executor);
+                const scheduledHints = await scheduledMessagePublishDue(executor);
+                const automationHints = await automationRunDue(executor, automationRuntime);
+                const eventAutomationHints = await automationRunPendingEvents(
+                    executor,
+                    automationRuntime,
+                );
+                if (compact) await syncCompact(executor);
+                await accountBanExpireDue(executor);
+                if (fileStorage) await dataExportRunDue(executor, fileStorage);
+                await webhookDeliveryEnqueuePendingSyncEvents(executor, now);
+                if (webhookTransport)
+                    await webhookDeliveryDispatchDue(
+                        executor,
+                        webhookUrlPolicy,
+                        secretProtector,
+                        now,
+                        webhookTransport,
+                    );
                 if (maintainFiles && fileStorage) {
-                    const referencedFiles = await services.database.listStoredFiles();
+                    const referencedFiles = await fileListStored(executor);
                     await fileStorage.runMaintenance({ referencedFiles });
                 }
                 return { expiryHint, scheduledHints, automationHints, eventAutomationHints };
@@ -326,7 +338,7 @@ export async function buildServer(
                                 ),
                             );
                         }
-                        const state = await collaboration!.getState();
+                        const state = await syncGetState(executor);
                         const currentSequence = BigInt(state.sequence);
                         if (currentSequence > lastObservedSequence) {
                             lastObservedSequence = currentSequence;
@@ -353,13 +365,9 @@ export async function buildServer(
         await pendingSweep;
         unsubscribeWebhookEvents?.();
         if (!services.pubsub) await pubsub?.close();
-        if (!services.integrations) integrations?.close();
-        if (!services.operations) operations?.close();
-        if (!services.automation) automation?.close();
         if (!services.rateLimiter) await rateLimiter.close();
         if (!services.idempotency) await idempotency?.close();
-        if (!services.collaboration) collaboration?.close();
-        if (!supplied) services.database.close();
+        if (!supplied) services.client.close();
     });
     return app;
 }

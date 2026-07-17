@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AuthService } from "../modules/auth/service.js";
-import { CollaborationError } from "../modules/collaboration/types.js";
+import { CollaborationError } from "../modules/chat/types.js";
 import {
     MAX_WORKSPACE_TEXT_FILE_BYTES,
     WorkspaceError,

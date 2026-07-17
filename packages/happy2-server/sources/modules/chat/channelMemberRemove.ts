@@ -1,0 +1,160 @@
+import { CollaborationError, type MutationHint } from "./types.js";
+import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
+
+import { agentRigBindings, chatMembers, chats, users } from "../schema.js";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { chatHint } from "./chatHint.js";
+
+import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
+import { syncSequenceNext } from "../sync/syncSequenceNext.js";
+import { chatRequireManager } from "./chatRequireManager.js";
+
+/**
+ * Removes a managed chatMembers identity, repairs chats ownership when necessary, and detaches agentRigBindings that depended on the membership.
+ * The transaction prevents revoked users or agents from retaining channel authority through a stale role or runtime binding.
+ */
+export async function channelMemberRemove(
+    executor: DrizzleExecutor,
+    input: {
+        actorUserId: string;
+        chatId: string;
+        userId: string;
+    },
+): Promise<{
+    hint: MutationHint;
+}> {
+    return withTransaction(executor, async (tx) => {
+        const access = await chatRequireManager(tx, input.actorUserId, input.chatId);
+        if (access.kind === "dm")
+            throw new CollaborationError("invalid", "Direct-message membership is fixed");
+        if (access.isMain)
+            throw new CollaborationError(
+                "invalid",
+                "Members cannot be removed from the main channel",
+            );
+        const [target] = await tx
+            .select({
+                systemRole: users.systemRole,
+            })
+            .from(users)
+            .where(eq(users.id, input.userId))
+            .limit(1);
+        if (target?.systemRole === "service")
+            throw new CollaborationError(
+                "invalid",
+                "The Happy service agent must remain in every channel",
+            );
+        const [member] = await tx
+            .select({
+                role: chatMembers.role,
+            })
+            .from(chatMembers)
+            .where(
+                and(
+                    eq(chatMembers.chatId, input.chatId),
+                    eq(chatMembers.userId, input.userId),
+                    isNull(chatMembers.leftAt),
+                ),
+            )
+            .limit(1);
+        if (!member) throw new CollaborationError("not_found", "Member was not found");
+        if (member.role === "owner" && !access.isServerAdmin)
+            throw new CollaborationError("forbidden", "Only a server admin can remove an owner");
+        if (member.role === "owner") {
+            const [otherOwner] = await tx
+                .select({
+                    userId: chatMembers.userId,
+                })
+                .from(chatMembers)
+                .where(
+                    and(
+                        eq(chatMembers.chatId, input.chatId),
+                        ne(chatMembers.userId, input.userId),
+                        isNull(chatMembers.leftAt),
+                        eq(chatMembers.role, "owner"),
+                    ),
+                )
+                .orderBy(chatMembers.joinedAt, chatMembers.userId)
+                .limit(1);
+            let replacementOwnerId = otherOwner?.userId;
+            if (!replacementOwnerId) {
+                const [successor] = await tx
+                    .select({
+                        userId: chatMembers.userId,
+                    })
+                    .from(chatMembers)
+                    .where(
+                        and(
+                            eq(chatMembers.chatId, input.chatId),
+                            ne(chatMembers.userId, input.userId),
+                            isNull(chatMembers.leftAt),
+                        ),
+                    )
+                    .orderBy(
+                        sql`case ${chatMembers.role} when 'admin' then 0 else 1 end`,
+                        chatMembers.joinedAt,
+                        chatMembers.userId,
+                    )
+                    .limit(1);
+                if (!successor)
+                    throw new CollaborationError(
+                        "conflict",
+                        "The last channel owner cannot be removed",
+                    );
+                await tx
+                    .update(chatMembers)
+                    .set({
+                        role: "owner",
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    })
+                    .where(
+                        and(
+                            eq(chatMembers.chatId, input.chatId),
+                            eq(chatMembers.userId, successor.userId),
+                        ),
+                    );
+                replacementOwnerId = successor.userId;
+            }
+            await tx
+                .update(chats)
+                .set({
+                    ownerUserId: replacementOwnerId,
+                })
+                .where(and(eq(chats.id, input.chatId), eq(chats.ownerUserId, input.userId)));
+        }
+        const sequence = await syncSequenceNext(tx);
+        const mutation = await chatAdvanceWithSequence(
+            tx,
+            sequence,
+            input.actorUserId,
+            input.chatId,
+            "member.removed",
+            input.userId,
+            input.userId,
+        );
+        await tx
+            .update(chatMembers)
+            .set({
+                leftAt: sql`CURRENT_TIMESTAMP`,
+                syncSequence: sequence,
+            })
+            .where(
+                and(
+                    eq(chatMembers.chatId, input.chatId),
+                    eq(chatMembers.userId, input.userId),
+                    isNull(chatMembers.leftAt),
+                ),
+            );
+        await tx
+            .delete(agentRigBindings)
+            .where(
+                and(
+                    eq(agentRigBindings.chatId, input.chatId),
+                    eq(agentRigBindings.userId, input.userId),
+                ),
+            );
+        return {
+            hint: chatHint(sequence, input.chatId, mutation.pts),
+        };
+    });
+}

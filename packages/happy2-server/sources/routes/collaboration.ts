@@ -1,36 +1,94 @@
+import { userSetBanned } from "../modules/user/userSetBanned.js";
+import { userDelete } from "../modules/user/userDelete.js";
+import { userAdministrationUpdate } from "../modules/user/userAdministrationUpdate.js";
+import { userAdministrationList } from "../modules/user/userAdministrationList.js";
+import { threadSubscriptionSet } from "../modules/thread/threadSubscriptionSet.js";
+import { threadMarkRead } from "../modules/thread/threadMarkRead.js";
+import { threadListMine } from "../modules/thread/threadListMine.js";
+import { serverProfileUpdate } from "../modules/server-profile/serverProfileUpdate.js";
+import { serverProfileGet } from "../modules/server-profile/serverProfileGet.js";
+import { searchPageGet } from "../modules/search/searchPageGet.js";
+import { presenceSettingUpdate } from "../modules/presence/presenceSettingUpdate.js";
+import { presenceSettingList } from "../modules/presence/presenceSettingList.js";
+import { notificationPreferenceUpdate } from "../modules/notification/notificationPreferenceUpdate.js";
+import { notificationPreferenceGet } from "../modules/notification/notificationPreferenceGet.js";
+import { notificationMarkRead } from "../modules/notification/notificationMarkRead.js";
+import { notificationList } from "../modules/notification/notificationList.js";
+import { messageSendAutomated } from "../modules/message/messageSendAutomated.js";
+import { messageSend } from "../modules/message/messageSend.js";
+import { messageRevisionList } from "../modules/message/messageRevisionList.js";
+import { messageReactionSet } from "../modules/message/messageReactionSet.js";
+import { messagePinSet } from "../modules/message/messagePinSet.js";
+import { messageList } from "../modules/message/messageList.js";
+import { messageGet } from "../modules/message/messageGet.js";
+import { messageForward } from "../modules/message/messageForward.js";
+import { messageEdit } from "../modules/message/messageEdit.js";
+import { messageDelete } from "../modules/message/messageDelete.js";
+import { fileList } from "../modules/file/fileList.js";
+import { directMessageCreateGroup } from "../modules/chat/directMessageCreateGroup.js";
+import { directMessageCreate } from "../modules/chat/directMessageCreate.js";
+import { customEmojiList } from "../modules/emoji/customEmojiList.js";
+import { customEmojiDelete } from "../modules/emoji/customEmojiDelete.js";
+import { customEmojiCreate } from "../modules/emoji/customEmojiCreate.js";
+import { contactList } from "../modules/user/contactList.js";
+import { chatStarSet } from "../modules/chat/chatStarSet.js";
+import { chatStarReorder } from "../modules/chat/chatStarReorder.js";
+import { chatPinList } from "../modules/chat/chatPinList.js";
+import { chatNotificationPreferenceSet } from "../modules/notification/chatNotificationPreferenceSet.js";
+import { chatMembershipList } from "../modules/chat/chatMembershipList.js";
+import { chatMarkRead } from "../modules/chat/chatMarkRead.js";
+import { chatList } from "../modules/chat/chatList.js";
+import { chatGet } from "../modules/chat/chatGet.js";
+import { chatBookmarkList } from "../modules/chat/chatBookmarkList.js";
+import { chatBookmarkDelete } from "../modules/chat/chatBookmarkDelete.js";
+import { chatBookmarkCreate } from "../modules/chat/chatBookmarkCreate.js";
+import { channelUpdate } from "../modules/chat/channelUpdate.js";
+import { channelTopicUpdate } from "../modules/chat/channelTopicUpdate.js";
+import { channelSetArchived } from "../modules/chat/channelSetArchived.js";
+import { channelPolicyUpdate } from "../modules/chat/channelPolicyUpdate.js";
+import { channelMemberSetRole } from "../modules/chat/channelMemberSetRole.js";
+import { channelMemberRemove } from "../modules/chat/channelMemberRemove.js";
+import { channelMemberAdd } from "../modules/chat/channelMemberAdd.js";
+import { channelLeave } from "../modules/chat/channelLeave.js";
+import { channelJoinPublic } from "../modules/chat/channelJoinPublic.js";
+import { channelDirectoryList } from "../modules/chat/channelDirectoryList.js";
+import { channelDelete } from "../modules/chat/channelDelete.js";
+import { channelCreate } from "../modules/chat/channelCreate.js";
+import { callParticipationUpdate } from "../modules/call/callParticipationUpdate.js";
+import { callList } from "../modules/call/callList.js";
+import { callGet } from "../modules/call/callGet.js";
+import { callEnd } from "../modules/call/callEnd.js";
+import { callCreate } from "../modules/call/callCreate.js";
+import { agentChatGetDirectContext } from "../modules/agent/agentChatGetDirectContext.js";
+import { type DrizzleExecutor } from "../modules/drizzle.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AuthService } from "../modules/auth/service.js";
 import type { AgentService } from "../modules/agents/index.js";
-import type { CollaborationRepository } from "../modules/collaboration/repository.js";
-import { CollaborationError, type MutationHint } from "../modules/collaboration/types.js";
+import { CollaborationError, type MutationHint } from "../modules/chat/types.js";
 import {
     realtimeTopics,
     type PubSub,
     type RealtimeTopic,
     type SyncHintEvent,
 } from "../modules/realtime/index.js";
-
 const MAX_ID_LENGTH = 128;
 const MAX_MESSAGE_LENGTH = 40_000;
 const MAX_ATTACHMENTS = 20;
 const MAX_FORWARD_TARGETS = 20;
 const MAX_SELF_DESTRUCT_SECONDS = 31_536_000;
-
 type AuthenticatedHandler = (
     request: FastifyRequest,
     reply: FastifyReply,
     userId: string,
 ) => Promise<unknown>;
-
 interface PublishAudience {
     server?: boolean;
     userIds?: readonly string[];
 }
-
 export function registerCollaborationRoutes(
     app: FastifyInstance,
     auth: AuthService,
-    repository: CollaborationRepository,
+    executor: DrizzleExecutor,
     pubsub: PubSub,
     agents?: AgentService,
 ): void {
@@ -38,21 +96,26 @@ export function registerCollaborationRoutes(
         "/v0/chats",
         authenticated(auth, async (request, _reply, userId) => {
             emptyQuery(request);
-            return { chats: await repository.listChats(userId) };
+            return {
+                chats: await chatList(executor, userId),
+            };
         }),
     );
     app.get(
         "/v0/chats/:chatId",
         authenticated(auth, async (request, _reply, userId) => {
             emptyQuery(request);
-            return { chat: await repository.getChat(userId, pathId(request, "chatId")) };
+            return {
+                chat: await chatGet(executor, userId, pathId(request, "chatId")),
+            };
         }),
     );
     app.get(
         "/v0/chats/:chatId/members",
         authenticated(auth, async (request, _reply, userId) => {
             emptyQuery(request);
-            const memberships = await repository.listChatMemberships(
+            const memberships = await chatMembershipList(
+                executor,
                 userId,
                 pathId(request, "chatId"),
             );
@@ -67,7 +130,11 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, userId) => {
             const chatId = pathId(request, "chatId");
             const page = messagePage(request, ["beforeSequence", "afterSequence", "limit"]);
-            return repository.listMessages({ userId, chatId, ...page });
+            return messageList(executor, {
+                userId,
+                chatId,
+                ...page,
+            });
         }),
     );
     app.get(
@@ -75,32 +142,35 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, userId) => {
             emptyQuery(request);
             return {
-                message: await repository.getMessage(userId, pathId(request, "messageId")),
+                message: await messageGet(executor, userId, pathId(request, "messageId")),
             };
         }),
     );
     app.get(
         "/v0/messages/:messageId/thread",
         authenticated(auth, async (request, _reply, userId) => {
-            const selected = await repository.getMessage(userId, pathId(request, "messageId"));
+            const selected = await messageGet(executor, userId, pathId(request, "messageId"));
             const root = selected.threadRootMessageId
-                ? await repository.getMessage(userId, selected.threadRootMessageId)
+                ? await messageGet(executor, userId, selected.threadRootMessageId)
                 : selected;
             const page = messagePage(request, ["beforeSequence", "afterSequence", "limit"]);
-            const result = await repository.listMessages({
+            const result = await messageList(executor, {
                 userId,
                 chatId: root.chatId,
                 threadRootMessageId: root.id,
                 ...page,
             });
-            return { root, ...result };
+            return {
+                root,
+                ...result,
+            };
         }),
     );
     app.get(
         "/v0/threads",
         authenticated(auth, async (request, _reply, userId) => {
             const query = requestQuery(request, ["before", "unreadOnly", "limit"]);
-            return repository.listMyThreads({
+            return threadListMine(executor, {
                 userId,
                 before: optionalQueryString(query, "before", MAX_ID_LENGTH),
                 unreadOnly: optionalQueryBoolean(query, "unreadOnly"),
@@ -112,7 +182,7 @@ export function registerCollaborationRoutes(
         "/v0/notifications",
         authenticated(auth, async (request, _reply, userId) => {
             const query = requestQuery(request, ["before", "unreadOnly", "limit"]);
-            return repository.listNotifications({
+            return notificationList(executor, {
                 userId,
                 before: optionalQueryString(query, "before", MAX_ID_LENGTH),
                 unreadOnly: optionalQueryBoolean(query, "unreadOnly"),
@@ -124,24 +194,27 @@ export function registerCollaborationRoutes(
         "/v0/notifications/markRead",
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["notificationIds", "all"]);
-            const result = await repository.markNotificationsRead({
+            const result = await notificationMarkRead(executor, {
                 actorUserId: userId,
                 notificationIds: has(body, "notificationIds")
                     ? idArrayField(body, "notificationIds", 500, true)
                     : undefined,
                 all: has(body, "all") ? booleanField(body, "all") : undefined,
             });
-            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
-            return { sync: result.hint };
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [userId],
+            });
+            return {
+                sync: result.hint,
+            };
         }),
     );
-
     app.post(
         "/v0/chats/createDirectMessage",
         authenticated(auth, async (request, reply, userId) => {
             const body = requestBody(request, ["userId"]);
             const otherUserId = idField(body, "userId");
-            const result = await repository.createDirectMessage(userId, otherUserId);
+            const result = await directMessageCreate(executor, userId, otherUserId);
             if (result.hint)
                 await publishHints(request, pubsub, [result.hint], {
                     userIds: [userId, otherUserId],
@@ -156,7 +229,7 @@ export function registerCollaborationRoutes(
         "/v0/chats/createGroupDirectMessage",
         authenticated(auth, async (request, reply, userId) => {
             const body = requestBody(request, ["userIds", "name"]);
-            const result = await repository.createGroupDirectMessage({
+            const result = await directMessageCreateGroup(executor, {
                 actorUserId: userId,
                 userIds: idArrayField(body, "userIds", 49, false),
                 name: has(body, "name") ? trimmedString(body, "name", 100) : undefined,
@@ -185,8 +258,13 @@ export function registerCollaborationRoutes(
                 name: trimmedString(body, "name", 100),
                 username: agentUsername(body),
             });
-            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
-            return reply.code(201).send({ chat: result.chat, sync: result.hint });
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [userId],
+            });
+            return reply.code(201).send({
+                chat: result.chat,
+                sync: result.hint,
+            });
         }),
     );
     app.post(
@@ -194,7 +272,7 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, reply, userId) => {
             const body = requestBody(request, ["kind", "name", "slug", "topic", "autoJoin"]);
             const kind = enumField(body, "kind", ["public_channel", "private_channel"] as const);
-            const result = await repository.createChannel({
+            const result = await channelCreate(executor, {
                 actorUserId: userId,
                 kind,
                 name: trimmedString(body, "name", 100),
@@ -206,7 +284,10 @@ export function registerCollaborationRoutes(
                 server: kind === "public_channel" || result.chat.autoJoin,
                 userIds: [userId],
             });
-            return reply.code(201).send({ chat: result.chat, sync: result.hint });
+            return reply.code(201).send({
+                chat: result.chat,
+                sync: result.hint,
+            });
         }),
     );
     app.post(
@@ -214,13 +295,17 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["topic"]);
             requireField(body, "topic");
-            const result = await repository.updateTopic(
+            const result = await channelTopicUpdate(
+                executor,
                 userId,
                 pathId(request, "chatId"),
                 nullableTrimmedString(body, "topic", 500),
             );
             await publishHints(request, pubsub, [result.hint]);
-            return { chat: result.chat, sync: result.hint };
+            return {
+                chat: result.chat,
+                sync: result.hint,
+            };
         }),
     );
     app.post(
@@ -237,7 +322,7 @@ export function registerCollaborationRoutes(
             ]);
             if (Object.keys(body).length === 0)
                 throw new InvalidRequest("At least one channel field is required");
-            const result = await repository.updateChannel({
+            const result = await channelUpdate(executor, {
                 actorUserId: userId,
                 chatId: pathId(request, "chatId"),
                 name: has(body, "name") ? trimmedString(body, "name", 100) : undefined,
@@ -262,7 +347,10 @@ export function registerCollaborationRoutes(
             await publishHints(request, pubsub, [result.hint], {
                 server: result.chat.kind === "public_channel" || result.chat.autoJoin,
             });
-            return { chat: result.chat, sync: result.hint };
+            return {
+                chat: result.chat,
+                sync: result.hint,
+            };
         }),
     );
     app.post(
@@ -277,7 +365,7 @@ export function registerCollaborationRoutes(
             ]);
             if (Object.keys(body).length === 0)
                 throw new InvalidRequest("At least one policy field is required");
-            const result = await repository.updateChannelPolicies({
+            const result = await channelPolicyUpdate(executor, {
                 actorUserId: userId,
                 chatId: pathId(request, "chatId"),
                 retentionMode: optionalEnumField(body, "retentionMode", [
@@ -306,7 +394,10 @@ export function registerCollaborationRoutes(
                 ] as const),
             });
             await publishHints(request, pubsub, [result.hint]);
-            return { chat: result.chat, sync: result.hint };
+            return {
+                chat: result.chat,
+                sync: result.hint,
+            };
         }),
     );
     for (const [path, archived] of [
@@ -320,7 +411,7 @@ export function registerCollaborationRoutes(
                     request.body === undefined || request.body === null
                         ? {}
                         : requestBody(request, ["reason"]);
-                const result = await repository.setChannelArchived({
+                const result = await channelSetArchived(executor, {
                     actorUserId: userId,
                     chatId: pathId(request, "chatId"),
                     archived,
@@ -331,14 +422,17 @@ export function registerCollaborationRoutes(
                 await publishHints(request, pubsub, [result.hint], {
                     server: result.chat.kind === "public_channel",
                 });
-                return { chat: result.chat, sync: result.hint };
+                return {
+                    chat: result.chat,
+                    sync: result.hint,
+                };
             }),
         );
     app.post(
         "/v0/chats/:chatId/deleteChannel",
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["reason"]);
-            const result = await repository.deleteChannel({
+            const result = await channelDelete(executor, {
                 actorUserId: userId,
                 chatId: pathId(request, "chatId"),
                 reason: has(body, "reason")
@@ -348,25 +442,36 @@ export function registerCollaborationRoutes(
             await publishHints(request, pubsub, [result.hint], {
                 userIds: result.memberUserIds,
             });
-            return { sync: result.hint };
+            return {
+                sync: result.hint,
+            };
         }),
     );
     app.post(
         "/v0/chats/:chatId/join",
         authenticated(auth, async (request, _reply, userId) => {
             emptyBody(request);
-            const result = await repository.joinPublicChannel(userId, pathId(request, "chatId"));
-            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
-            return { chat: result.chat, sync: result.hint };
+            const result = await channelJoinPublic(executor, userId, pathId(request, "chatId"));
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [userId],
+            });
+            return {
+                chat: result.chat,
+                sync: result.hint,
+            };
         }),
     );
     app.post(
         "/v0/chats/:chatId/leave",
         authenticated(auth, async (request, _reply, userId) => {
             emptyBody(request);
-            const result = await repository.leaveChannel(userId, pathId(request, "chatId"));
-            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
-            return { sync: result.hint };
+            const result = await channelLeave(executor, userId, pathId(request, "chatId"));
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [userId],
+            });
+            return {
+                sync: result.hint,
+            };
         }),
     );
     app.post(
@@ -374,14 +479,18 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["userId", "role"]);
             const addedUserId = idField(body, "userId");
-            const result = await repository.addChannelMember({
+            const result = await channelMemberAdd(executor, {
                 actorUserId: userId,
                 chatId: pathId(request, "chatId"),
                 userId: addedUserId,
                 role: optionalEnumField(body, "role", ["owner", "admin", "member"] as const),
             });
-            await publishHints(request, pubsub, [result.hint], { userIds: [addedUserId] });
-            return { sync: result.hint };
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [addedUserId],
+            });
+            return {
+                sync: result.hint,
+            };
         }),
     );
     app.post(
@@ -389,13 +498,17 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["userId"]);
             const removedUserId = idField(body, "userId");
-            const result = await repository.removeChannelMember({
+            const result = await channelMemberRemove(executor, {
                 actorUserId: userId,
                 chatId: pathId(request, "chatId"),
                 userId: removedUserId,
             });
-            await publishHints(request, pubsub, [result.hint], { userIds: [removedUserId] });
-            return { sync: result.hint };
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [removedUserId],
+            });
+            return {
+                sync: result.hint,
+            };
         }),
     );
     app.post(
@@ -403,40 +516,54 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["userId", "role"]);
             const targetUserId = idField(body, "userId");
-            const result = await repository.setChannelMemberRole({
+            const result = await channelMemberSetRole(executor, {
                 actorUserId: userId,
                 chatId: pathId(request, "chatId"),
                 userId: targetUserId,
                 role: enumField(body, "role", ["owner", "admin", "member"] as const),
             });
-            await publishHints(request, pubsub, [result.hint], { userIds: [targetUserId] });
-            return { sync: result.hint };
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [targetUserId],
+            });
+            return {
+                sync: result.hint,
+            };
         }),
     );
     app.post(
         "/v0/chats/:chatId/setStar",
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["starred"]);
-            const result = await repository.setStar(
+            const result = await chatStarSet(
+                executor,
                 userId,
                 pathId(request, "chatId"),
                 booleanField(body, "starred"),
             );
-            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
-            return { sync: result.hint };
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [userId],
+            });
+            return {
+                sync: result.hint,
+            };
         }),
     );
     app.post(
         "/v0/chats/:chatId/markRead",
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["messageId"]);
-            const result = await repository.markChatRead({
+            const result = await chatMarkRead(executor, {
                 actorUserId: userId,
                 chatId: pathId(request, "chatId"),
                 messageId: optionalIdField(body, "messageId"),
             });
-            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
-            return { chat: result.chat, sync: result.hint };
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [userId],
+            });
+            return {
+                chat: result.chat,
+                sync: result.hint,
+            };
         }),
     );
     app.post(
@@ -450,7 +577,7 @@ export function registerCollaborationRoutes(
             ]);
             if (Object.keys(body).length === 0)
                 throw new InvalidRequest("At least one preference is required");
-            const result = await repository.setChatNotificationPreferences({
+            const result = await chatNotificationPreferenceSet(executor, {
                 actorUserId: userId,
                 chatId: pathId(request, "chatId"),
                 notificationLevel: optionalEnumField(body, "notificationLevel", [
@@ -466,28 +593,37 @@ export function registerCollaborationRoutes(
                     ? booleanField(body, "showMessagePreviews")
                     : undefined,
             });
-            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
-            return { chat: result.chat, sync: result.hint };
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [userId],
+            });
+            return {
+                chat: result.chat,
+                sync: result.hint,
+            };
         }),
     );
     app.post(
         "/v0/chats/reorderStarred",
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["chatIds"]);
-            const result = await repository.reorderStarred(
+            const result = await chatStarReorder(
+                executor,
                 userId,
                 idArrayField(body, "chatIds", 1_000, true),
             );
-            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
-            return { sync: result.hint };
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [userId],
+            });
+            return {
+                sync: result.hint,
+            };
         }),
     );
-
     app.post(
         "/v0/chats/:chatId/sendMessage",
         authenticated(auth, async (request, reply, userId) => {
             const chatId = pathId(request, "chatId");
-            const agentContext = await repository.getDirectAgentChatContext(userId, chatId);
+            const agentContext = await agentChatGetDirectContext(executor, userId, chatId);
             if (agentContext && !agents)
                 return reply.code(503).send({
                     error: "agents_unavailable",
@@ -511,14 +647,17 @@ export function registerCollaborationRoutes(
             const text = messageText(body, attachmentFileIds?.length ?? 0);
             const agentTurn =
                 agentContext && text
-                    ? await agents!.prepareTurn({ actorUserId: userId, chatId })
+                    ? await agents!.prepareTurn({
+                          actorUserId: userId,
+                          chatId,
+                      })
                     : undefined;
             const selfDestructSeconds = optionalPositiveIntegerField(
                 body,
                 "selfDestructSeconds",
                 MAX_SELF_DESTRUCT_SECONDS,
             );
-            const result = await repository.sendMessage({
+            const result = await messageSend(executor, {
                 actorUserId: userId,
                 chatId,
                 text,
@@ -541,13 +680,16 @@ export function registerCollaborationRoutes(
             });
             if (agentTurn) agents!.startTurn(chatId);
             await publishHints(request, pubsub, [result.hint]);
-            return reply.code(201).send({ message: result.message, sync: result.hint });
+            return reply.code(201).send({
+                message: result.message,
+                sync: result.hint,
+            });
         }),
     );
     app.post(
         "/v0/messages/:messageId/sendThreadMessage",
         authenticated(auth, async (request, reply, userId) => {
-            const selected = await repository.getMessage(userId, pathId(request, "messageId"));
+            const selected = await messageGet(executor, userId, pathId(request, "messageId"));
             const rootMessageId = selected.threadRootMessageId ?? selected.id;
             const body = requestBody(request, [
                 "text",
@@ -568,7 +710,7 @@ export function registerCollaborationRoutes(
                 "selfDestructSeconds",
                 MAX_SELF_DESTRUCT_SECONDS,
             );
-            const result = await repository.sendMessage({
+            const result = await messageSend(executor, {
                 actorUserId: userId,
                 chatId: selected.chatId,
                 text: messageText(body, attachmentFileIds?.length ?? 0),
@@ -589,16 +731,19 @@ export function registerCollaborationRoutes(
                 clientMutationId: optionalTokenField(body, "clientMutationId"),
             });
             await publishHints(request, pubsub, [result.hint]);
-            return reply.code(201).send({ message: result.message, sync: result.hint });
+            return reply.code(201).send({
+                message: result.message,
+                sync: result.hint,
+            });
         }),
     );
     app.post(
         "/v0/messages/:messageId/updateThreadSubscription",
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["subscribed", "notificationLevel"]);
-            const selected = await repository.getMessage(userId, pathId(request, "messageId"));
+            const selected = await messageGet(executor, userId, pathId(request, "messageId"));
             const rootMessageId = selected.threadRootMessageId ?? selected.id;
-            const result = await repository.setThreadSubscription({
+            const result = await threadSubscriptionSet(executor, {
                 actorUserId: userId,
                 threadRootMessageId: rootMessageId,
                 subscribed: booleanField(body, "subscribed"),
@@ -608,39 +753,50 @@ export function registerCollaborationRoutes(
                     "none",
                 ] as const),
             });
-            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
-            return { sync: result.hint };
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [userId],
+            });
+            return {
+                sync: result.hint,
+            };
         }),
     );
     app.post(
         "/v0/messages/:messageId/markThreadRead",
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["throughMessageId"]);
-            const selected = await repository.getMessage(userId, pathId(request, "messageId"));
+            const selected = await messageGet(executor, userId, pathId(request, "messageId"));
             const rootMessageId = selected.threadRootMessageId ?? selected.id;
-            const result = await repository.markThreadRead({
+            const result = await threadMarkRead(executor, {
                 actorUserId: userId,
                 threadRootMessageId: rootMessageId,
                 messageId: optionalIdField(body, "throughMessageId"),
             });
-            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
-            return { sync: result.hint };
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [userId],
+            });
+            return {
+                sync: result.hint,
+            };
         }),
     );
     app.post(
         "/v0/messages/:messageId/deleteMessage",
         authenticated(auth, async (request, _reply, userId) => {
             emptyBody(request);
-            const result = await repository.deleteMessage(userId, pathId(request, "messageId"));
+            const result = await messageDelete(executor, userId, pathId(request, "messageId"));
             await publishHints(request, pubsub, [result.hint]);
-            return { message: result.message, sync: result.hint };
+            return {
+                message: result.message,
+                sync: result.hint,
+            };
         }),
     );
     app.post(
         "/v0/messages/:messageId/editMessage",
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["text", "reason", "expectedRevision"]);
-            const result = await repository.editMessage({
+            const result = await messageEdit(executor, {
                 actorUserId: userId,
                 messageId: pathId(request, "messageId"),
                 text: messageText(body, 0),
@@ -654,7 +810,10 @@ export function registerCollaborationRoutes(
                 ),
             });
             await publishHints(request, pubsub, [result.hint]);
-            return { message: result.message, sync: result.hint };
+            return {
+                message: result.message,
+                sync: result.hint,
+            };
         }),
     );
     app.get(
@@ -662,7 +821,8 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, userId) => {
             emptyQuery(request);
             return {
-                revisions: await repository.listMessageRevisions(
+                revisions: await messageRevisionList(
+                    executor,
                     userId,
                     pathId(request, "messageId"),
                 ),
@@ -673,68 +833,81 @@ export function registerCollaborationRoutes(
         "/v0/messages/:messageId/forwardMessage",
         authenticated(auth, async (request, reply, userId) => {
             const body = requestBody(request, ["targetChatIds", "clientMutationId"]);
-            const result = await repository.forwardMessage({
+            const result = await messageForward(executor, {
                 actorUserId: userId,
                 messageId: pathId(request, "messageId"),
                 targetChatIds: idArrayField(body, "targetChatIds", MAX_FORWARD_TARGETS, false),
                 clientMutationId: optionalTokenField(body, "clientMutationId"),
             });
             await publishHints(request, pubsub, result.hints);
-            return reply.code(201).send({ messages: result.messages, sync: result.hints });
+            return reply.code(201).send({
+                messages: result.messages,
+                sync: result.hints,
+            });
         }),
     );
     app.post(
         "/v0/messages/:messageId/addReaction",
         authenticated(auth, async (request, _reply, userId) => {
             const reaction = reactionBody(request);
-            const result = await repository.setReaction({
+            const result = await messageReactionSet(executor, {
                 actorUserId: userId,
                 messageId: pathId(request, "messageId"),
                 ...reaction,
                 active: true,
             });
             await publishHints(request, pubsub, [result.hint]);
-            return { message: result.message, sync: result.hint };
+            return {
+                message: result.message,
+                sync: result.hint,
+            };
         }),
     );
     app.post(
         "/v0/messages/:messageId/removeReaction",
         authenticated(auth, async (request, _reply, userId) => {
             const reaction = reactionBody(request);
-            const result = await repository.setReaction({
+            const result = await messageReactionSet(executor, {
                 actorUserId: userId,
                 messageId: pathId(request, "messageId"),
                 ...reaction,
                 active: false,
             });
             await publishHints(request, pubsub, [result.hint]);
-            return { message: result.message, sync: result.hint };
+            return {
+                message: result.message,
+                sync: result.hint,
+            };
         }),
     );
     app.post(
         "/v0/messages/:messageId/pinMessage",
         authenticated(auth, async (request, _reply, userId) => {
             emptyBody(request);
-            const result = await repository.setMessagePinned({
+            const result = await messagePinSet(executor, {
                 actorUserId: userId,
                 messageId: pathId(request, "messageId"),
                 pinned: true,
             });
             await publishHints(request, pubsub, [result.hint]);
-            return { sync: result.hint };
+            return {
+                sync: result.hint,
+            };
         }),
     );
     app.post(
         "/v0/messages/:messageId/unpinMessage",
         authenticated(auth, async (request, _reply, userId) => {
             emptyBody(request);
-            const result = await repository.setMessagePinned({
+            const result = await messagePinSet(executor, {
                 actorUserId: userId,
                 messageId: pathId(request, "messageId"),
                 pinned: false,
             });
             await publishHints(request, pubsub, [result.hint]);
-            return { sync: result.hint };
+            return {
+                sync: result.hint,
+            };
         }),
     );
     app.get(
@@ -742,7 +915,7 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, userId) => {
             emptyQuery(request);
             return {
-                pins: await repository.listChatPins(userId, pathId(request, "chatId")),
+                pins: await chatPinList(executor, userId, pathId(request, "chatId")),
             };
         }),
     );
@@ -751,7 +924,7 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, userId) => {
             emptyQuery(request);
             return {
-                bookmarks: await repository.listChatBookmarks(userId, pathId(request, "chatId")),
+                bookmarks: await chatBookmarkList(executor, userId, pathId(request, "chatId")),
             };
         }),
     );
@@ -776,7 +949,7 @@ export function registerCollaborationRoutes(
                 (kind === "file" && (!fileId || url || messageId))
             )
                 throw new InvalidRequest("Bookmark target does not match its kind");
-            const result = await repository.createChatBookmark({
+            const result = await chatBookmarkCreate(executor, {
                 actorUserId: userId,
                 chatId: pathId(request, "chatId"),
                 kind,
@@ -789,32 +962,39 @@ export function registerCollaborationRoutes(
                     : undefined,
             });
             await publishHints(request, pubsub, [result.hint]);
-            return reply.code(201).send({ bookmark: result.bookmark, sync: result.hint });
+            return reply.code(201).send({
+                bookmark: result.bookmark,
+                sync: result.hint,
+            });
         }),
     );
     app.post(
         "/v0/chats/:chatId/deleteBookmark",
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["bookmarkId"]);
-            const result = await repository.deleteChatBookmark({
+            const result = await chatBookmarkDelete(executor, {
                 actorUserId: userId,
                 chatId: pathId(request, "chatId"),
                 bookmarkId: idField(body, "bookmarkId"),
             });
             await publishHints(request, pubsub, [result.hint]);
-            return { sync: result.hint };
+            return {
+                sync: result.hint,
+            };
         }),
     );
-
     app.get(
         "/v0/contacts",
         authenticated(auth, async (request) => {
             emptyQuery(request);
-            const users = await repository.listContacts();
+            const users = await contactList(executor);
             return {
                 users,
                 presence: await pubsub.getPresenceSnapshot(users.map((user) => user.id)),
-                statuses: await repository.listPresenceSettings(users.map((user) => user.id)),
+                statuses: await presenceSettingList(
+                    executor,
+                    users.map((user) => user.id),
+                ),
             };
         }),
     );
@@ -822,11 +1002,14 @@ export function registerCollaborationRoutes(
         "/v0/directory/users",
         authenticated(auth, async (request) => {
             emptyQuery(request);
-            const users = await repository.listContacts();
+            const users = await contactList(executor);
             return {
                 users,
                 presence: await pubsub.getPresenceSnapshot(users.map((user) => user.id)),
-                statuses: await repository.listPresenceSettings(users.map((user) => user.id)),
+                statuses: await presenceSettingList(
+                    executor,
+                    users.map((user) => user.id),
+                ),
             };
         }),
     );
@@ -835,10 +1018,10 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, userId) => {
             emptyQuery(request);
             const [users, channels, customEmoji, server] = await Promise.all([
-                repository.listContacts(),
-                repository.listDirectoryChannels(userId),
-                repository.listCustomEmoji(),
-                repository.getServerProfile(),
+                contactList(executor),
+                channelDirectoryList(executor, userId),
+                customEmojiList(executor),
+                serverProfileGet(executor),
             ]);
             return {
                 server,
@@ -846,7 +1029,10 @@ export function registerCollaborationRoutes(
                 channels,
                 customEmoji,
                 presence: await pubsub.getPresenceSnapshot(users.map((user) => user.id)),
-                statuses: await repository.listPresenceSettings(users.map((user) => user.id)),
+                statuses: await presenceSettingList(
+                    executor,
+                    users.map((user) => user.id),
+                ),
             };
         }),
     );
@@ -854,10 +1040,13 @@ export function registerCollaborationRoutes(
         "/v0/presence",
         authenticated(auth, async (request) => {
             emptyQuery(request);
-            const users = await repository.listContacts();
+            const users = await contactList(executor);
             return {
                 presence: await pubsub.getPresenceSnapshot(users.map((user) => user.id)),
-                statuses: await repository.listPresenceSettings(users.map((user) => user.id)),
+                statuses: await presenceSettingList(
+                    executor,
+                    users.map((user) => user.id),
+                ),
             };
         }),
     );
@@ -873,7 +1062,7 @@ export function registerCollaborationRoutes(
             ]);
             if (Object.keys(body).length === 0)
                 throw new InvalidRequest("At least one presence field is required");
-            const result = await repository.updatePresenceSettings({
+            const result = await presenceSettingUpdate(executor, {
                 actorUserId: userId,
                 availability: optionalEnumField(body, "availability", [
                     "automatic",
@@ -886,15 +1075,22 @@ export function registerCollaborationRoutes(
                 statusExpiresAt: optionalNullableDateField(body, "statusExpiresAt"),
                 dndUntil: optionalNullableDateField(body, "dndUntil"),
             });
-            await publishHints(request, pubsub, [result.hint], { server: true });
-            return { status: result.presence, sync: result.hint };
+            await publishHints(request, pubsub, [result.hint], {
+                server: true,
+            });
+            return {
+                status: result.presence,
+                sync: result.hint,
+            };
         }),
     );
     app.get(
         "/v0/me/notificationPreferences",
         authenticated(auth, async (request, _reply, userId) => {
             emptyQuery(request);
-            return { preferences: await repository.getNotificationPreferences(userId) };
+            return {
+                preferences: await notificationPreferenceGet(executor, userId),
+            };
         }),
     );
     app.post(
@@ -914,7 +1110,7 @@ export function registerCollaborationRoutes(
             ]);
             if (Object.keys(body).length === 0)
                 throw new InvalidRequest("At least one notification preference is required");
-            const result = await repository.updateNotificationPreferences({
+            const result = await notificationPreferenceUpdate(executor, {
                 actorUserId: userId,
                 directMessages: optionalEnumField(body, "directMessages", ["all", "none"] as const),
                 mentions: optionalEnumField(body, "mentions", ["all", "none"] as const),
@@ -935,15 +1131,22 @@ export function registerCollaborationRoutes(
                 dndEndMinutes: optionalNullableMinute(body, "dndEndMinutes"),
                 timezone: nullableStringUpdate(body, "timezone", 100),
             });
-            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
-            return { preferences: result.preferences, sync: result.hint };
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [userId],
+            });
+            return {
+                preferences: result.preferences,
+                sync: result.hint,
+            };
         }),
     );
     app.get(
         "/v0/directory/channels",
         authenticated(auth, async (request, _reply, userId) => {
             emptyQuery(request);
-            return { channels: await repository.listDirectoryChannels(userId) };
+            return {
+                channels: await channelDirectoryList(executor, userId),
+            };
         }),
     );
     app.get(
@@ -952,7 +1155,7 @@ export function registerCollaborationRoutes(
             const query = requestQuery(request, ["q", "cursor", "limit"]);
             const search = queryString(query, "q", 200);
             if (search.trim().length === 0) throw new InvalidRequest("Search query is required");
-            return repository.searchPage({
+            return searchPageGet(executor, {
                 userId,
                 query: search.trim(),
                 cursor: optionalQueryString(query, "cursor", 1_024),
@@ -964,7 +1167,7 @@ export function registerCollaborationRoutes(
         "/v0/files",
         authenticated(auth, async (request, _reply, userId) => {
             const query = requestQuery(request, ["kind", "before", "limit"]);
-            return repository.listFiles({
+            return fileList(executor, {
                 userId,
                 kind: optionalQueryEnum(query, "kind", ["file", "photo", "video", "gif"] as const),
                 before: optionalQueryString(query, "before", 64),
@@ -972,13 +1175,12 @@ export function registerCollaborationRoutes(
             });
         }),
     );
-
     app.get(
         "/v0/calls",
         authenticated(auth, async (request, _reply, userId) => {
             const query = requestQuery(request, ["chatId", "limit"]);
             return {
-                calls: await repository.listCalls({
+                calls: await callList(executor, {
                     userId,
                     chatId: optionalQueryString(query, "chatId", MAX_ID_LENGTH),
                     limit: queryLimit(query, "limit", 50, 100),
@@ -990,14 +1192,16 @@ export function registerCollaborationRoutes(
         "/v0/calls/:callId",
         authenticated(auth, async (request, _reply, userId) => {
             emptyQuery(request);
-            return { call: await repository.getCall(userId, pathId(request, "callId")) };
+            return {
+                call: await callGet(executor, userId, pathId(request, "callId")),
+            };
         }),
     );
     app.post(
         "/v0/chats/:chatId/createCall",
         authenticated(auth, async (request, reply, userId) => {
             const body = requestBody(request, ["kind", "invitedUserIds"]);
-            const result = await repository.createCall({
+            const result = await callCreate(executor, {
                 actorUserId: userId,
                 chatId: pathId(request, "chatId"),
                 kind: enumField(body, "kind", ["audio", "video"] as const),
@@ -1008,7 +1212,10 @@ export function registerCollaborationRoutes(
             await publishHints(request, pubsub, [result.hint], {
                 userIds: [userId, ...result.invitedUserIds],
             });
-            return reply.code(201).send({ call: result.call, sync: result.hint });
+            return reply.code(201).send({
+                call: result.call,
+                sync: result.hint,
+            });
         }),
     );
     for (const [path, action] of [
@@ -1020,7 +1227,7 @@ export function registerCollaborationRoutes(
             `/v0/calls/:callId/${path}`,
             authenticated(auth, async (request, _reply, userId) => {
                 emptyBody(request);
-                const result = await repository.updateCallParticipation({
+                const result = await callParticipationUpdate(executor, {
                     actorUserId: userId,
                     callId: pathId(request, "callId"),
                     action,
@@ -1028,14 +1235,17 @@ export function registerCollaborationRoutes(
                 await publishHints(request, pubsub, [result.hint], {
                     userIds: result.call.participants.map((participant) => participant.userId),
                 });
-                return { call: result.call, sync: result.hint };
+                return {
+                    call: result.call,
+                    sync: result.hint,
+                };
             }),
         );
     app.post(
         "/v0/calls/:callId/endCall",
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["reason"]);
-            const result = await repository.endCall({
+            const result = await callEnd(executor, {
                 actorUserId: userId,
                 callId: pathId(request, "callId"),
                 reason: has(body, "reason")
@@ -1045,52 +1255,68 @@ export function registerCollaborationRoutes(
             await publishHints(request, pubsub, [result.hint], {
                 userIds: result.call.participants.map((participant) => participant.userId),
             });
-            return { call: result.call, sync: result.hint };
+            return {
+                call: result.call,
+                sync: result.hint,
+            };
         }),
     );
-
     app.get(
         "/v0/customEmoji",
         authenticated(auth, async (request) => {
             emptyQuery(request);
-            return { emoji: await repository.listCustomEmoji() };
+            return {
+                emoji: await customEmojiList(executor),
+            };
         }),
     );
     app.post(
         "/v0/customEmoji/createCustomEmoji",
         authenticated(auth, async (request, reply, userId) => {
             const body = requestBody(request, ["name", "fileId"]);
-            const result = await repository.createCustomEmoji({
+            const result = await customEmojiCreate(executor, {
                 actorUserId: userId,
                 name: emojiName(body),
                 fileId: idField(body, "fileId"),
             });
-            await publishHints(request, pubsub, [result.hint], { server: true });
-            return reply.code(201).send({ emoji: result.emoji, sync: result.hint });
+            await publishHints(request, pubsub, [result.hint], {
+                server: true,
+            });
+            return reply.code(201).send({
+                emoji: result.emoji,
+                sync: result.hint,
+            });
         }),
     );
     app.post(
         "/v0/customEmoji/:emojiId/deleteCustomEmoji",
         authenticated(auth, async (request, _reply, userId) => {
             emptyBody(request);
-            const result = await repository.deleteCustomEmoji(userId, pathId(request, "emojiId"));
-            await publishHints(request, pubsub, [result.hint], { server: true });
-            return { sync: result.hint };
+            const result = await customEmojiDelete(executor, userId, pathId(request, "emojiId"));
+            await publishHints(request, pubsub, [result.hint], {
+                server: true,
+            });
+            return {
+                sync: result.hint,
+            };
         }),
     );
-
     app.get(
         "/v0/server",
         authenticated(auth, async (request) => {
             emptyQuery(request);
-            return { server: await repository.getServerProfile() };
+            return {
+                server: await serverProfileGet(executor),
+            };
         }),
     );
     app.get(
         "/v0/admin/users",
         authenticated(auth, async (request, _reply, userId) => {
             emptyQuery(request);
-            return { users: await repository.listAdminUsers(userId) };
+            return {
+                users: await userAdministrationList(executor, userId),
+            };
         }),
     );
     app.post(
@@ -1105,7 +1331,7 @@ export function registerCollaborationRoutes(
                     ? null
                     : (nullableTrimmedString(body, "title", 200) ?? null)
                 : undefined;
-            const result = await repository.updateUserAdministration({
+            const result = await userAdministrationUpdate(executor, {
                 actorUserId,
                 userId: targetUserId,
                 title,
@@ -1115,7 +1341,10 @@ export function registerCollaborationRoutes(
                 server: true,
                 userIds: [targetUserId],
             });
-            return { user: result.user, sync: result.hint };
+            return {
+                user: result.user,
+                sync: result.hint,
+            };
         }),
     );
     app.post(
@@ -1123,7 +1352,7 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, actorUserId) => {
             emptyBody(request);
             const targetUserId = pathId(request, "userId");
-            const result = await repository.setUserBanned({
+            const result = await userSetBanned(executor, {
                 actorUserId,
                 userId: targetUserId,
                 banned: true,
@@ -1132,7 +1361,9 @@ export function registerCollaborationRoutes(
                 server: true,
                 userIds: [targetUserId],
             });
-            return { sync: result.hint };
+            return {
+                sync: result.hint,
+            };
         }),
     );
     app.post(
@@ -1140,7 +1371,7 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, actorUserId) => {
             emptyBody(request);
             const targetUserId = pathId(request, "userId");
-            const result = await repository.setUserBanned({
+            const result = await userSetBanned(executor, {
                 actorUserId,
                 userId: targetUserId,
                 banned: false,
@@ -1149,7 +1380,9 @@ export function registerCollaborationRoutes(
                 server: true,
                 userIds: [targetUserId],
             });
-            return { sync: result.hint };
+            return {
+                sync: result.hint,
+            };
         }),
     );
     app.post(
@@ -1157,7 +1390,7 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, actorUserId) => {
             emptyBody(request);
             const targetUserId = pathId(request, "userId");
-            const result = await repository.deleteUser({
+            const result = await userDelete(executor, {
                 actorUserId,
                 userId: targetUserId,
             });
@@ -1165,7 +1398,9 @@ export function registerCollaborationRoutes(
                 server: true,
                 userIds: [targetUserId],
             });
-            return { sync: result.hint };
+            return {
+                sync: result.hint,
+            };
         }),
     );
     app.post(
@@ -1180,7 +1415,7 @@ export function registerCollaborationRoutes(
             ]);
             if (Object.keys(body).length === 0)
                 throw new InvalidRequest("At least one server field is required");
-            const result = await repository.updateServerProfile({
+            const result = await serverProfileUpdate(executor, {
                 actorUserId,
                 name: has(body, "name") ? trimmedString(body, "name", 100) : undefined,
                 title: has(body, "title")
@@ -1201,8 +1436,13 @@ export function registerCollaborationRoutes(
                     MAX_SELF_DESTRUCT_SECONDS * 100,
                 ),
             });
-            await publishHints(request, pubsub, [result.hint], { server: true });
-            return { server: result.server, sync: result.hint };
+            await publishHints(request, pubsub, [result.hint], {
+                server: true,
+            });
+            return {
+                server: result.server,
+                sync: result.hint,
+            };
         }),
     );
     app.post(
@@ -1220,7 +1460,7 @@ export function registerCollaborationRoutes(
                 "attachmentFileIds",
                 MAX_ATTACHMENTS,
             );
-            const result = await repository.sendAutomatedMessage({
+            const result = await messageSendAutomated(executor, {
                 actorUserId,
                 chatId: idField(body, "chatId"),
                 text: messageText(body, attachmentFileIds?.length ?? 0),
@@ -1229,29 +1469,39 @@ export function registerCollaborationRoutes(
                 clientMutationId: optionalTokenField(body, "clientMutationId"),
             });
             await publishHints(request, pubsub, [result.hint]);
-            return reply.code(201).send({ message: result.message, sync: result.hint });
+            return reply.code(201).send({
+                message: result.message,
+                sync: result.hint,
+            });
         }),
     );
 }
-
 function authenticated(auth: AuthService, handler: AuthenticatedHandler) {
     return async (request: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
         const current = await auth.authenticate(request);
-        if (!current) return reply.code(401).send({ error: "unauthorized" });
+        if (!current)
+            return reply.code(401).send({
+                error: "unauthorized",
+            });
         try {
             return await handler(request, reply, current.user.id);
         } catch (error) {
             if (error instanceof InvalidRequest)
-                return reply.code(400).send({ error: "invalid_request", message: error.message });
+                return reply.code(400).send({
+                    error: "invalid_request",
+                    message: error.message,
+                });
             if (error instanceof CollaborationError) {
                 const status = collaborationStatus(error.code);
-                return reply.code(status).send({ error: error.code, message: error.message });
+                return reply.code(status).send({
+                    error: error.code,
+                    message: error.message,
+                });
             }
             throw error;
         }
     };
 }
-
 function collaborationStatus(code: CollaborationError["code"]): 400 | 403 | 404 | 409 {
     switch (code) {
         case "invalid":
@@ -1266,51 +1516,61 @@ function collaborationStatus(code: CollaborationError["code"]): 400 | 403 | 404 
             return 409;
     }
 }
-
 async function publishHints(
     request: FastifyRequest,
     pubsub: PubSub,
     hints: readonly MutationHint[],
     audience: PublishAudience = {},
 ): Promise<void> {
-    const publications: Array<{ topic: RealtimeTopic; event: SyncHintEvent }> = [];
+    const publications: Array<{
+        topic: RealtimeTopic;
+        event: SyncHintEvent;
+    }> = [];
     for (const hint of hints) {
-        const event: SyncHintEvent = { type: "sync", ...hint };
+        const event: SyncHintEvent = {
+            type: "sync",
+            ...hint,
+        };
         const topics = new Set<RealtimeTopic>();
         for (const chat of hint.chats) topics.add(realtimeTopics.chat(chat.chatId));
         for (const userId of audience.userIds ?? []) topics.add(realtimeTopics.user(userId));
         if (audience.server || hint.areas.some((area) => area !== "preferences"))
             topics.add(realtimeTopics.server);
-        for (const topic of topics) publications.push({ topic, event });
+        for (const topic of topics)
+            publications.push({
+                topic,
+                event,
+            });
     }
     const results = await Promise.allSettled(
         publications.map(({ topic, event }) => pubsub.publish(topic, event)),
     );
     for (const result of results) {
         if (result.status === "rejected")
-            request.log.warn({ err: result.reason }, "Could not publish realtime sync hint");
+            request.log.warn(
+                {
+                    err: result.reason,
+                },
+                "Could not publish realtime sync hint",
+            );
     }
 }
-
 function requestBody(request: FastifyRequest, allowed: readonly string[]): Record<string, unknown> {
     const body = record(request.body, "Request body");
     onlyKeys(body, allowed, "request body");
     return body;
 }
-
 function agentUsername(body: Record<string, unknown>): string {
     const username = trimmedString(body, "username", 32).toLowerCase();
     if (!/^[a-z0-9][a-z0-9_.-]{1,31}$/u.test(username))
         throw new InvalidRequest("username must contain 2-32 safe characters");
     return username;
 }
-
 function emptyBody(request: FastifyRequest): void {
     if (request.body === undefined || request.body === null) return;
     const body = record(request.body, "Request body");
     onlyKeys(body, [], "request body");
 }
-
 function requestQuery(
     request: FastifyRequest,
     allowed: readonly string[],
@@ -1319,45 +1579,36 @@ function requestQuery(
     onlyKeys(query, allowed, "query");
     return query;
 }
-
 function emptyQuery(request: FastifyRequest): void {
     requestQuery(request, []);
 }
-
 function pathId(request: FastifyRequest, key: string): string {
     const params = record(request.params, "Path parameters");
     return id(params[key], key);
 }
-
 function record(value: unknown, name: string): Record<string, unknown> {
     if (!value || typeof value !== "object" || Array.isArray(value))
         throw new InvalidRequest(`${name} must be an object`);
     return value as Record<string, unknown>;
 }
-
 function onlyKeys(value: Record<string, unknown>, allowed: readonly string[], name: string): void {
     const unexpected = Object.keys(value).filter((key) => !allowed.includes(key));
     if (unexpected.length > 0)
         throw new InvalidRequest(`Unexpected ${name} field: ${unexpected[0]}`);
 }
-
 function requireField(value: Record<string, unknown>, key: string): void {
     if (!has(value, key)) throw new InvalidRequest(`${key} is required`);
 }
-
 function has(value: Record<string, unknown>, key: string): boolean {
     return Object.prototype.hasOwnProperty.call(value, key);
 }
-
 function idField(body: Record<string, unknown>, key: string): string {
     requireField(body, key);
     return id(body[key], key);
 }
-
 function optionalIdField(body: Record<string, unknown>, key: string): string | undefined {
     return has(body, key) ? id(body[key], key) : undefined;
 }
-
 function id(value: unknown, name: string): string {
     if (
         typeof value !== "string" ||
@@ -1369,7 +1620,6 @@ function id(value: unknown, name: string): string {
         throw new InvalidRequest(`${name} must be a valid identifier`);
     return value;
 }
-
 function idArrayField(
     body: Record<string, unknown>,
     key: string,
@@ -1379,7 +1629,6 @@ function idArrayField(
     requireField(body, key);
     return idArray(body[key], key, maximum, allowEmpty);
 }
-
 function optionalIdArrayField(
     body: Record<string, unknown>,
     key: string,
@@ -1387,7 +1636,6 @@ function optionalIdArrayField(
 ): string[] | undefined {
     return has(body, key) ? idArray(body[key], key, maximum, true) : undefined;
 }
-
 function idArray(value: unknown, name: string, maximum: number, allowEmpty: boolean): string[] {
     if (!Array.isArray(value) || (!allowEmpty && value.length === 0) || value.length > maximum)
         throw new InvalidRequest(
@@ -1398,7 +1646,6 @@ function idArray(value: unknown, name: string, maximum: number, allowEmpty: bool
         throw new InvalidRequest(`${name} must not contain duplicates`);
     return result;
 }
-
 function trimmedString(body: Record<string, unknown>, key: string, maximum: number): string {
     requireField(body, key);
     const value = body[key];
@@ -1408,7 +1655,6 @@ function trimmedString(body: Record<string, unknown>, key: string, maximum: numb
         throw new InvalidRequest(`${key} must be between 1 and ${maximum} characters`);
     return result;
 }
-
 function nullableTrimmedString(
     body: Record<string, unknown>,
     key: string,
@@ -1423,7 +1669,6 @@ function nullableTrimmedString(
         throw new InvalidRequest(`${key} must be at most ${maximum} characters`);
     return result;
 }
-
 function enumField<const T extends readonly string[]>(
     body: Record<string, unknown>,
     key: string,
@@ -1435,7 +1680,6 @@ function enumField<const T extends readonly string[]>(
         throw new InvalidRequest(`${key} must be one of: ${values.join(", ")}`);
     return value as T[number];
 }
-
 function optionalEnumField<const T extends readonly string[]>(
     body: Record<string, unknown>,
     key: string,
@@ -1443,20 +1687,17 @@ function optionalEnumField<const T extends readonly string[]>(
 ): T[number] | undefined {
     return has(body, key) ? enumField(body, key, values) : undefined;
 }
-
 function booleanField(body: Record<string, unknown>, key: string): boolean {
     requireField(body, key);
     if (typeof body[key] !== "boolean") throw new InvalidRequest(`${key} must be a boolean`);
     return body[key];
 }
-
 function channelSlug(body: Record<string, unknown>): string {
     const slug = trimmedString(body, "slug", 64).toLowerCase();
     if (!/^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/.test(slug) && !/^[a-z0-9]$/.test(slug))
         throw new InvalidRequest("slug may contain lowercase letters, numbers, and inner hyphens");
     return slug;
 }
-
 function emojiName(body: Record<string, unknown>): string {
     const name = trimmedString(body, "name", 32).toLowerCase();
     if (!/^[a-z0-9][a-z0-9_-]*$/.test(name))
@@ -1465,7 +1706,6 @@ function emojiName(body: Record<string, unknown>): string {
         );
     return name;
 }
-
 function messageText(body: Record<string, unknown>, attachmentCount: number): string {
     if (!has(body, "text")) {
         if (attachmentCount > 0) return "";
@@ -1480,7 +1720,6 @@ function messageText(body: Record<string, unknown>, attachmentCount: number): st
         throw new InvalidRequest("A message requires text or an attachment");
     return body.text;
 }
-
 function optionalTokenField(body: Record<string, unknown>, key: string): string | undefined {
     if (!has(body, key)) return undefined;
     const value = body[key];
@@ -1494,7 +1733,6 @@ function optionalTokenField(body: Record<string, unknown>, key: string): string 
         throw new InvalidRequest(`${key} must be a non-empty token of at most 128 characters`);
     return value;
 }
-
 function optionalPositiveIntegerField(
     body: Record<string, unknown>,
     key: string,
@@ -1506,7 +1744,6 @@ function optionalPositiveIntegerField(
         throw new InvalidRequest(`${key} must be an integer between 1 and ${maximum}`);
     return value;
 }
-
 function optionalNullablePositiveIntegerField(
     body: Record<string, unknown>,
     key: string,
@@ -1516,14 +1753,19 @@ function optionalNullablePositiveIntegerField(
     if (body[key] === null) return null;
     return optionalPositiveIntegerField(body, key, maximum);
 }
-
-function reactionBody(request: FastifyRequest): { emoji?: string; customEmojiId?: string } {
+function reactionBody(request: FastifyRequest): {
+    emoji?: string;
+    customEmojiId?: string;
+} {
     const body = requestBody(request, ["emoji", "customEmojiId"]);
     const hasEmoji = has(body, "emoji");
     const hasCustom = has(body, "customEmojiId");
     if (hasEmoji === hasCustom)
         throw new InvalidRequest("Exactly one of emoji or customEmojiId is required");
-    if (hasCustom) return { customEmojiId: id(body.customEmojiId, "customEmojiId") };
+    if (hasCustom)
+        return {
+            customEmojiId: id(body.customEmojiId, "customEmojiId"),
+        };
     if (
         typeof body.emoji !== "string" ||
         body.emoji.length === 0 ||
@@ -1532,13 +1774,18 @@ function reactionBody(request: FastifyRequest): { emoji?: string; customEmojiId?
         hasControlCharacters(body.emoji)
     )
         throw new InvalidRequest("emoji must be between 1 and 32 characters");
-    return { emoji: body.emoji };
+    return {
+        emoji: body.emoji,
+    };
 }
-
 function messagePage(
     request: FastifyRequest,
     allowed: readonly string[],
-): { beforeSequence?: number; afterSequence?: number; limit: number } {
+): {
+    beforeSequence?: number;
+    afterSequence?: number;
+    limit: number;
+} {
     const query = requestQuery(request, allowed);
     const beforeSequence = optionalPositiveQueryInteger(query, "beforeSequence");
     const afterSequence = optionalPositiveQueryInteger(query, "afterSequence");
@@ -1550,7 +1797,6 @@ function messagePage(
         limit: queryLimit(query, "limit", 100, 200),
     };
 }
-
 function queryLimit(
     query: Record<string, unknown>,
     key: string,
@@ -1566,7 +1812,6 @@ function queryLimit(
         throw new InvalidRequest(`${key} must not exceed ${maximum}`);
     return parsed;
 }
-
 function optionalPositiveQueryInteger(
     query: Record<string, unknown>,
     key: string,
@@ -1579,7 +1824,6 @@ function optionalPositiveQueryInteger(
     if (!Number.isSafeInteger(parsed)) throw new InvalidRequest(`${key} is too large`);
     return parsed;
 }
-
 function queryString(query: Record<string, unknown>, key: string, maximum: number): string {
     if (!has(query, key) || typeof query[key] !== "string")
         throw new InvalidRequest(`${key} is required`);
@@ -1587,7 +1831,6 @@ function queryString(query: Record<string, unknown>, key: string, maximum: numbe
         throw new InvalidRequest(`${key} must be at most ${maximum} characters`);
     return query[key];
 }
-
 function optionalQueryString(
     query: Record<string, unknown>,
     key: string,
@@ -1596,7 +1839,6 @@ function optionalQueryString(
     if (!has(query, key)) return undefined;
     return queryString(query, key, maximum);
 }
-
 function optionalQueryEnum<const T extends readonly string[]>(
     query: Record<string, unknown>,
     key: string,
@@ -1608,14 +1850,12 @@ function optionalQueryEnum<const T extends readonly string[]>(
         throw new InvalidRequest(`${key} must be one of: ${values.join(", ")}`);
     return value as T[number];
 }
-
 function optionalQueryBoolean(query: Record<string, unknown>, key: string): boolean | undefined {
     if (!has(query, key)) return undefined;
     if (query[key] !== "true" && query[key] !== "false")
         throw new InvalidRequest(`${key} must be true or false`);
     return query[key] === "true";
 }
-
 function optionalNullableDateField(
     body: Record<string, unknown>,
     key: string,
@@ -1626,7 +1866,6 @@ function optionalNullableDateField(
         throw new InvalidRequest(`${key} must be an ISO date-time or null`);
     return new Date(body[key]).toISOString();
 }
-
 function nullableStringUpdate(
     body: Record<string, unknown>,
     key: string,
@@ -1636,7 +1875,6 @@ function nullableStringUpdate(
     if (body[key] === null) return null;
     return nullableTrimmedString(body, key, maximum) ?? null;
 }
-
 function optionalNullableMinute(
     body: Record<string, unknown>,
     key: string,
@@ -1648,7 +1886,6 @@ function optionalNullableMinute(
         throw new InvalidRequest(`${key} must be an integer from 0 through 1439 or null`);
     return value as number;
 }
-
 function httpUrlField(body: Record<string, unknown>, key: string): string {
     const value = trimmedString(body, key, 2_048);
     let parsed: URL;
@@ -1661,7 +1898,6 @@ function httpUrlField(body: Record<string, unknown>, key: string): string {
         throw new InvalidRequest(`${key} must use http or https`);
     return parsed.toString();
 }
-
 function hasControlCharacters(value: string, allowLineBreaks = false): boolean {
     for (const character of value) {
         const code = character.charCodeAt(0);
@@ -1670,5 +1906,4 @@ function hasControlCharacters(value: string, allowLineBreaks = false): boolean {
     }
     return false;
 }
-
 class InvalidRequest extends Error {}

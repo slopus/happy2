@@ -1,3 +1,6 @@
+import { fileFind } from "../file/fileFind.js";
+import { fileCreate } from "../file/fileCreate.js";
+import { type DrizzleExecutor } from "../drizzle.js";
 import { basename, join } from "node:path";
 import { Transform, type Readable, type Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -5,7 +8,8 @@ import { createId } from "@paralleldrive/cuid2";
 import sharp from "sharp";
 import { rgbaToThumbHash } from "thumbhash";
 import type { ServerConfig } from "../config/type.js";
-import type { Database, StoredFile, User } from "../database.js";
+import type { StoredFile } from "../file/types.js";
+import type { User } from "../user/types.js";
 import { BuiltinMediaProcessor, type MediaAnalysis, type MediaProcessor } from "./media.js";
 import {
     LocalFileStorageProvider,
@@ -31,13 +35,14 @@ import {
     type QuotaScope,
 } from "./quota.js";
 import { CommandMalwareScanner, DisabledMalwareScanner, type MalwareScanner } from "./scanner.js";
-
 const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
 const MAX_AVATAR_SIDE = 2048;
 type SharpInstance = ReturnType<typeof sharp>;
 type SharpMetadata = Awaited<ReturnType<SharpInstance["metadata"]>>;
-type PersistedScan = { status: "clean" | "failed" | "skipped"; result?: unknown };
-
+type PersistedScan = {
+    status: "clean" | "failed" | "skipped";
+    result?: unknown;
+};
 export interface FileStorageFileSystem {
     mkdir(path: string): Promise<unknown>;
     readHeader(path: string, maximumBytes: number): Promise<Buffer>;
@@ -45,24 +50,27 @@ export interface FileStorageFileSystem {
     rename(from: string, to: string): Promise<unknown>;
     rm(path: string): Promise<unknown>;
     writeFile(path: string, contents: Buffer): Promise<unknown>;
-    createReadStream(path: string, range?: { start: number; end: number }): Readable;
+    createReadStream(
+        path: string,
+        range?: {
+            start: number;
+            end: number;
+        },
+    ): Readable;
     createWriteStream(path: string): Writable;
 }
-
 export class InvalidUploadError extends Error {
     constructor(message: string, options?: ErrorOptions) {
         super(message, options);
         this.name = "InvalidUploadError";
     }
 }
-
 export class UploadRejectedError extends Error {
     constructor(readonly reason: "malware" | "scanner_unavailable") {
         super("Upload was rejected by the file safety policy");
         this.name = "UploadRejectedError";
     }
 }
-
 export class FileQuotaExceededError extends InvalidUploadError {
     constructor(
         readonly scope: QuotaScope,
@@ -72,23 +80,20 @@ export class FileQuotaExceededError extends InvalidUploadError {
         this.name = "FileQuotaExceededError";
     }
 }
-
 export interface FileStorageOptions {
     provider?: FileStorageProvider;
     quota?: FileQuotaPolicy;
     scanner?: MalwareScanner;
     mediaProcessor?: MediaProcessor;
 }
-
 export class FileStorage {
     private readonly provider: FileStorageProvider;
     private readonly quota: FileQuotaPolicy;
     private readonly scanner: MalwareScanner;
     private readonly mediaProcessor: MediaProcessor;
-
     constructor(
         private readonly config: ServerConfig,
-        private readonly database: Pick<Database, "createFile" | "findFile">,
+        private readonly executor: DrizzleExecutor,
         optionsOrFileSystem: FileStorageOptions | FileStorageFileSystem = {},
     ) {
         const options: FileStorageOptions = isFileStorageFileSystem(optionsOrFileSystem)
@@ -121,16 +126,19 @@ export class FileStorage {
         this.scanner = options.scanner ?? configuredScanner(config);
         this.mediaProcessor = options.mediaProcessor ?? new BuiltinMediaProcessor();
     }
-
     async saveAvatarUpload(user: User, input: Buffer, isPublic: boolean): Promise<StoredFile> {
         if (input.length === 0 || input.length > MAX_AVATAR_BYTES)
             throw new InvalidUploadError("Avatar file must be at most 10 MB");
-        const image = sharp(input, { limitInputPixels: MAX_AVATAR_SIDE * MAX_AVATAR_SIDE });
+        const image = sharp(input, {
+            limitInputPixels: MAX_AVATAR_SIDE * MAX_AVATAR_SIDE,
+        });
         let metadata: SharpMetadata;
         try {
             metadata = await image.metadata();
         } catch (error) {
-            throw new InvalidUploadError("Avatar must be a valid image", { cause: error });
+            throw new InvalidUploadError("Avatar must be a valid image", {
+                cause: error,
+            });
         }
         if (
             !metadata.width ||
@@ -144,7 +152,9 @@ export class FileStorage {
         try {
             [thumbnail, encoded] = await Promise.all([avatarThumbnail(image), encodeAvatar(image)]);
         } catch (error) {
-            throw new InvalidUploadError("Avatar could not be decoded", { cause: error });
+            throw new InvalidUploadError("Avatar could not be decoded", {
+                cause: error,
+            });
         }
         const thumbhash = Buffer.from(
             rgbaToThumbHash(thumbnail.info.width, thumbnail.info.height, thumbnail.data),
@@ -185,16 +195,22 @@ export class FileStorage {
             throw mapQuotaError(error);
         }
     }
-
     async saveAttachmentUpload(
         user: User,
         input: Readable,
-        upload: { filename?: string; contentType?: string },
+        upload: {
+            filename?: string;
+            contentType?: string;
+        },
     ): Promise<StoredFile> {
         const reservationId = createId();
         let staged: StagedObject;
         try {
-            await this.quota.reserve({ id: reservationId, ownerUserId: user.id, bytes: 1 });
+            await this.quota.reserve({
+                id: reservationId,
+                ownerUserId: user.id,
+                bytes: 1,
+            });
             staged = await this.provider.stage(input, this.config.files.maxUploadBytes, {
                 id: reservationId,
                 onBytes: (bytes) => this.quota.resizeReservation(reservationId, bytes),
@@ -203,7 +219,11 @@ export class FileStorage {
             await this.quota.release(reservationId);
             if (
                 error instanceof UploadLimitError ||
-                (error as { code?: unknown }).code === "FST_REQ_FILE_TOO_LARGE"
+                (
+                    error as {
+                        code?: unknown;
+                    }
+                ).code === "FST_REQ_FILE_TOO_LARGE"
             )
                 throw new InvalidUploadError("Attachment exceeds the configured upload limit", {
                     cause: error,
@@ -225,10 +245,13 @@ export class FileStorage {
             reservationId,
         );
     }
-
     async createResumableUpload(
         user: User,
-        input: { filename?: string; contentType?: string; size: number },
+        input: {
+            filename?: string;
+            contentType?: string;
+            size: number;
+        },
     ): Promise<ResumableUpload> {
         if (
             !Number.isSafeInteger(input.size) ||
@@ -238,7 +261,11 @@ export class FileStorage {
             throw new InvalidUploadError("Upload size is outside the configured limit");
         const id = createId();
         try {
-            await this.quota.reserve({ id, ownerUserId: user.id, bytes: input.size });
+            await this.quota.reserve({
+                id,
+                ownerUserId: user.id,
+                bytes: input.size,
+            });
             return await this.provider.createResumable({
                 id,
                 ownerUserId: user.id,
@@ -251,7 +278,6 @@ export class FileStorage {
             throw mapQuotaError(error);
         }
     }
-
     async resumableUploadState(
         userId: string,
         uploadId: string,
@@ -259,7 +285,6 @@ export class FileStorage {
         const upload = await this.provider.resumableState(uploadId);
         return upload?.ownerUserId === userId ? upload : undefined;
     }
-
     async appendResumableUpload(
         userId: string,
         uploadId: string,
@@ -275,16 +300,15 @@ export class FileStorage {
             this.config.files.resumableChunkBytes,
         );
     }
-
     async completeResumableUpload(user: User, uploadId: string): Promise<StoredFile | undefined> {
         const completed = await this.provider.completedResumable(uploadId);
         if (completed)
             return completed.ownerUserId === user.id
-                ? await this.database.findFile(completed.fileId)
+                ? await fileFind(this.executor, completed.fileId)
                 : undefined;
         const state = await this.resumableUploadState(user.id, uploadId);
         if (!state) return undefined;
-        const durable = await this.database.findFile(uploadId);
+        const durable = await fileFind(this.executor, uploadId);
         if (durable) {
             await this.provider
                 .recordResumableCompletion({
@@ -302,7 +326,10 @@ export class FileStorage {
             file = await this.saveStagedAttachment(
                 user,
                 staged,
-                { filename: upload.filename, contentType: upload.contentType },
+                {
+                    filename: upload.filename,
+                    contentType: upload.contentType,
+                },
                 upload.id,
             );
         } catch (error) {
@@ -319,7 +346,6 @@ export class FileStorage {
             .catch(() => undefined);
         return file;
     }
-
     async cancelResumableUpload(userId: string, uploadId: string): Promise<boolean> {
         const state = await this.resumableUploadState(userId, uploadId);
         if (!state) return false;
@@ -327,15 +353,20 @@ export class FileStorage {
         if (cancelled) await this.quota.release(uploadId);
         return cancelled;
     }
-
     open(file: StoredFile, range?: ByteRange): Readable {
         return this.provider.open(file.storageName, range);
     }
-
     async variant(
         file: StoredFile,
         variant: MediaVariant,
-    ): Promise<{ size: number; contentType: "image/webp"; stream: Readable } | undefined> {
+    ): Promise<
+        | {
+              size: number;
+              contentType: "image/webp";
+              stream: Readable;
+          }
+        | undefined
+    > {
         const size = await this.provider.variantSize(file.storageName, variant);
         return size === undefined
             ? undefined
@@ -345,7 +376,6 @@ export class FileStorage {
                   stream: this.provider.openVariant(file.storageName, variant),
               };
     }
-
     async variantSizes(file: StoredFile): Promise<Partial<Record<MediaVariant, number>>> {
         const [thumbnail, preview] = await Promise.allSettled([
             this.provider.variantSize(file.storageName, "thumbnail"),
@@ -421,13 +451,18 @@ export class FileStorage {
             );
             await this.quota.reconcileCommitted(committed);
         }
-        return { ...cleanup, deletedOrphanStorageNames };
+        return {
+            ...cleanup,
+            deletedOrphanStorageNames,
+        };
     }
-
     private async saveStagedAttachment(
         user: User,
         staged: StagedObject,
-        upload: { filename?: string; contentType?: string },
+        upload: {
+            filename?: string;
+            contentType?: string;
+        },
         resumableReservationId?: string,
     ): Promise<StoredFile> {
         let fileId: string | undefined;
@@ -472,11 +507,13 @@ export class FileStorage {
             throw mapQuotaError(error);
         }
     }
-
     private async prepareQuota(id: string, ownerUserId: string, bytes: number): Promise<void> {
-        await this.quota.reserve({ id, ownerUserId, bytes });
+        await this.quota.reserve({
+            id,
+            ownerUserId,
+            bytes,
+        });
     }
-
     private async assertSafe(staged: StagedObject): Promise<PersistedScan> {
         const result = await this.scanner.scan(staged.inspectionPath);
         if (result.verdict === "clean")
@@ -484,7 +521,12 @@ export class FileStorage {
                 status: this.scanner instanceof DisabledMalwareScanner ? "skipped" : "clean",
             };
         if (result.verdict === "error" && this.config.files.malwareScanFailureMode === "allow")
-            return { status: "failed", result: { message: result.message } };
+            return {
+                status: "failed",
+                result: {
+                    message: result.message,
+                },
+            };
         await this.provider.quarantine(
             staged,
             result.verdict === "infected" ? "malware" : "scanner_unavailable",
@@ -493,7 +535,6 @@ export class FileStorage {
             result.verdict === "infected" ? "malware" : "scanner_unavailable",
         );
     }
-
     private async commitFile(
         file: StoredFile,
         staged: StagedObject,
@@ -511,7 +552,7 @@ export class FileStorage {
             ][]) {
                 if (contents) await this.provider.writeVariant(file.storageName, variant, contents);
             }
-            await this.database.createFile(file, scan);
+            await fileCreate(this.executor, file, scan);
             // Once the database row exists the upload is durable. A failed
             // ledger state transition remains a conservative reservation and
             // is repaired by the next authoritative maintenance pass.
@@ -523,8 +564,13 @@ export class FileStorage {
             throw error;
         }
     }
-
-    createReadStream(file: StoredFile, range?: { start: number; end: number }): Readable {
+    createReadStream(
+        file: StoredFile,
+        range?: {
+            start: number;
+            end: number;
+        },
+    ): Readable {
         return this.open(file, range);
     }
 }
@@ -537,12 +583,10 @@ class FileSystemStorageProvider implements FileStorageProvider {
     private readonly uploads = new Map<string, ResumableUpload>();
     private readonly completions = new Map<string, CompletedResumableUpload>();
     private readonly quarantineTimes = new Map<string, number>();
-
     constructor(
         private readonly directory: string,
         private readonly fileSystem: FileStorageFileSystem,
     ) {}
-
     async stage(
         input: Readable,
         maximumBytes: number,
@@ -571,26 +615,38 @@ class FileSystemStorageProvider implements FileStorageProvider {
         });
         try {
             await pipeline(input, limiter, this.fileSystem.createWriteStream(path));
-            if ((input as Readable & { truncated?: boolean }).truncated)
+            if (
+                (
+                    input as Readable & {
+                        truncated?: boolean;
+                    }
+                ).truncated
+            )
                 throw new UploadLimitError("Upload exceeds the configured limit");
             this.sizes.set(path, size);
-            return { id, size, inspectionPath: path };
+            return {
+                id,
+                size,
+                inspectionPath: path,
+            };
         } catch (error) {
             await this.fileSystem.rm(path);
             this.sizes.delete(path);
             throw error;
         }
     }
-
     async stageBuffer(input: Buffer, suppliedId?: string): Promise<StagedObject> {
         const id = suppliedId ?? createId();
         const path = this.stagingPath(id);
         await this.fileSystem.mkdir(join(this.directory, ".staging"));
         await this.fileSystem.writeFile(path, input);
         this.sizes.set(path, input.length);
-        return { id, size: input.length, inspectionPath: path };
+        return {
+            id,
+            size: input.length,
+            inspectionPath: path,
+        };
     }
-
     async commit(staged: StagedObject, storageName: string): Promise<void> {
         const target = this.objectPath(storageName);
         await this.fileSystem.rename(staged.inspectionPath, target);
@@ -598,12 +654,10 @@ class FileSystemStorageProvider implements FileStorageProvider {
         this.sizes.set(target, staged.size);
         this.committed.set(storageName, Date.now());
     }
-
     async discard(staged: StagedObject): Promise<void> {
         await this.fileSystem.rm(staged.inspectionPath);
         this.sizes.delete(staged.inspectionPath);
     }
-
     async quarantine(staged: StagedObject): Promise<void> {
         const target = join(this.directory, ".quarantine", `${staged.id}.blob`);
         await this.fileSystem.mkdir(join(this.directory, ".quarantine"));
@@ -613,37 +667,30 @@ class FileSystemStorageProvider implements FileStorageProvider {
         this.sizes.set(target, size);
         this.quarantineTimes.set(target, Date.now());
     }
-
     open(storageName: string, range?: ByteRange): Readable {
         return this.fileSystem.createReadStream(this.objectPath(storageName), range);
     }
-
     pathFor(storageName: string): string {
         return this.objectPath(storageName);
     }
-
     async sizeOf(storageName: string): Promise<number | undefined> {
         return this.knownSize(this.objectPath(storageName));
     }
-
     async writeVariant(storageName: string, variant: MediaVariant, input: Buffer): Promise<void> {
         const path = this.variantPath(storageName, variant);
         await this.fileSystem.writeFile(path, input);
         this.sizes.set(path, input.length);
         this.variants.set(`${storageName}:${variant}`, input.length);
     }
-
     openVariant(storageName: string, variant: MediaVariant): Readable {
         return this.fileSystem.createReadStream(this.variantPath(storageName, variant));
     }
-
     async variantSize(storageName: string, variant: MediaVariant): Promise<number | undefined> {
         return (
             this.variants.get(`${storageName}:${variant}`) ??
             (await this.knownSize(this.variantPath(storageName, variant)))
         );
     }
-
     async delete(storageName: string): Promise<void> {
         await Promise.all([
             this.fileSystem.rm(this.objectPath(storageName)),
@@ -657,7 +704,6 @@ class FileSystemStorageProvider implements FileStorageProvider {
             this.variants.delete(`${storageName}:${variant}`);
         }
     }
-
     async committedBytes(): Promise<number> {
         let total = 0;
         for (const name of this.committed.keys())
@@ -665,36 +711,45 @@ class FileSystemStorageProvider implements FileStorageProvider {
         for (const size of this.variants.values()) total += size;
         return total;
     }
-
     async createResumable(
         input: Omit<ResumableUpload, "offset" | "createdAt" | "updatedAt">,
     ): Promise<ResumableUpload> {
         if (await this.resumableState(input.id)) throw new Error("Upload already exists");
         const now = new Date().toISOString();
-        const upload = { ...input, offset: 0, createdAt: now, updatedAt: now };
+        const upload = {
+            ...input,
+            offset: 0,
+            createdAt: now,
+            updatedAt: now,
+        };
         await this.fileSystem.mkdir(join(this.directory, ".uploads"));
         await this.fileSystem.writeFile(this.uploadPath(input.id), Buffer.alloc(0));
         this.sizes.set(this.uploadPath(input.id), 0);
         await this.writeUploadManifest(upload);
         this.uploads.set(input.id, upload);
-        return { ...upload };
+        return {
+            ...upload,
+        };
     }
-
     async resumableState(uploadId: string): Promise<ResumableUpload | undefined> {
         const cached = this.uploads.get(uploadId);
-        if (cached) return { ...cached };
+        if (cached)
+            return {
+                ...cached,
+            };
         try {
             const source = await this.fileSystem.imageSource(this.uploadManifestPath(uploadId));
             const upload = parseUpload(Buffer.from(source).toString("utf8"));
             this.uploads.set(uploadId, upload);
             this.sizes.set(this.uploadPath(uploadId), upload.offset);
-            return { ...upload };
+            return {
+                ...upload,
+            };
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
             throw error;
         }
     }
-
     async appendResumable(
         uploadId: string,
         expectedOffset: number,
@@ -717,12 +772,14 @@ class FileSystemStorageProvider implements FileStorageProvider {
         await this.writeUploadManifest(upload);
         this.uploads.set(uploadId, upload);
         this.sizes.set(path, contents.length);
-        return { ...upload };
+        return {
+            ...upload,
+        };
     }
-
-    async finishResumable(
-        uploadId: string,
-    ): Promise<{ upload: ResumableUpload; staged: StagedObject }> {
+    async finishResumable(uploadId: string): Promise<{
+        upload: ResumableUpload;
+        staged: StagedObject;
+    }> {
         const upload = await this.resumableState(uploadId);
         if (!upload) throw new UploadNotFoundError();
         if (upload.offset !== upload.size)
@@ -740,25 +797,34 @@ class FileSystemStorageProvider implements FileStorageProvider {
         this.sizes.delete(this.uploadPath(uploadId));
         this.sizes.set(inspectionPath, upload.size);
         return {
-            upload: { ...upload },
-            staged: { id: uploadId, size: upload.size, inspectionPath },
+            upload: {
+                ...upload,
+            },
+            staged: {
+                id: uploadId,
+                size: upload.size,
+                inspectionPath,
+            },
         };
     }
-
     async completedResumable(uploadId: string): Promise<CompletedResumableUpload | undefined> {
         const cached = this.completions.get(uploadId);
-        if (cached) return { ...cached };
+        if (cached)
+            return {
+                ...cached,
+            };
         try {
             const source = await this.fileSystem.imageSource(this.receiptPath(uploadId));
             const completion = parseCompletion(Buffer.from(source).toString("utf8"));
             this.completions.set(uploadId, completion);
-            return { ...completion };
+            return {
+                ...completion,
+            };
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
             throw error;
         }
     }
-
     async recordResumableCompletion(completion: CompletedResumableUpload): Promise<void> {
         await this.fileSystem.mkdir(join(this.directory, ".receipts"));
         await this.fileSystem.writeFile(
@@ -767,9 +833,10 @@ class FileSystemStorageProvider implements FileStorageProvider {
         );
         await this.fileSystem.rm(this.uploadManifestPath(completion.uploadId));
         this.uploads.delete(completion.uploadId);
-        this.completions.set(completion.uploadId, { ...completion });
+        this.completions.set(completion.uploadId, {
+            ...completion,
+        });
     }
-
     async cancelResumable(uploadId: string): Promise<boolean> {
         if (!(await this.resumableState(uploadId))) return false;
         this.uploads.delete(uploadId);
@@ -781,7 +848,6 @@ class FileSystemStorageProvider implements FileStorageProvider {
         this.sizes.delete(this.uploadPath(uploadId));
         return true;
     }
-
     async cleanup(before: Date, quarantineBefore: Date): Promise<CleanupResult> {
         const expiredUploadIds: string[] = [];
         for (const [id, upload] of this.uploads) {
@@ -799,9 +865,12 @@ class FileSystemStorageProvider implements FileStorageProvider {
             deletedQuarantineObjects += 1;
             deletedQuarantineIds.push(basename(path, ".blob"));
         }
-        return { expiredUploadIds, deletedQuarantineIds, deletedQuarantineObjects };
+        return {
+            expiredUploadIds,
+            deletedQuarantineIds,
+            deletedQuarantineObjects,
+        };
     }
-
     async cleanupOrphans(referencedStorageNames: Set<string>, before: Date): Promise<string[]> {
         const deleted: string[] = [];
         for (const [storageName, createdAt] of this.committed) {
@@ -811,30 +880,24 @@ class FileSystemStorageProvider implements FileStorageProvider {
         }
         return deleted;
     }
-
     private stagingPath(id: string): string {
         return join(this.directory, ".staging", `${id}.part`);
     }
-
     private uploadPath(id: string): string {
         return join(this.directory, ".uploads", `${id}.part`);
     }
-
     private uploadManifestPath(id: string): string {
         return join(this.directory, ".uploads", `${id}.json`);
     }
-
     private receiptPath(id: string): string {
         return join(this.directory, ".receipts", `${id}.json`);
     }
-
     private async writeUploadManifest(upload: ResumableUpload): Promise<void> {
         await this.fileSystem.writeFile(
             this.uploadManifestPath(upload.id),
             Buffer.from(JSON.stringify(upload)),
         );
     }
-
     private async knownSize(path: string): Promise<number | undefined> {
         const cached = this.sizes.get(path);
         if (cached !== undefined) return cached;
@@ -848,70 +911,83 @@ class FileSystemStorageProvider implements FileStorageProvider {
             throw error;
         }
     }
-
     private objectPath(storageName: string): string {
         return join(this.directory, storageName);
     }
-
     private variantPath(storageName: string, variant: MediaVariant): string {
         return join(this.directory, `.${storageName}.${variant}.webp`);
     }
 }
-
 const compatibilityQuotaLedgers = new WeakMap<
     FileStorageFileSystem,
-    Map<string, { ownerUserId: string; bytes: number; committed: boolean }>
+    Map<
+        string,
+        {
+            ownerUserId: string;
+            bytes: number;
+            committed: boolean;
+        }
+    >
 >();
-
 class MemoryFileQuotaPolicy implements FileQuotaPolicy {
     private readonly entries: Map<
         string,
-        { ownerUserId: string; bytes: number; committed: boolean }
+        {
+            ownerUserId: string;
+            bytes: number;
+            committed: boolean;
+        }
     >;
-
     constructor(
-        private readonly limits: { perUserBytes: number; serverBytes: number },
+        private readonly limits: {
+            perUserBytes: number;
+            serverBytes: number;
+        },
         fileSystem: FileStorageFileSystem,
     ) {
         const entries = compatibilityQuotaLedgers.get(fileSystem) ?? new Map();
         compatibilityQuotaLedgers.set(fileSystem, entries);
         this.entries = entries;
     }
-
     async reserve(input: { id: string; ownerUserId: string; bytes: number }): Promise<void> {
         if (this.entries.has(input.id)) throw new Error("Quota reservation already exists");
         this.assertCapacity(input.ownerUserId, input.bytes);
-        this.entries.set(input.id, { ...input, committed: false });
+        this.entries.set(input.id, {
+            ...input,
+            committed: false,
+        });
     }
-
     async resizeReservation(id: string, actualBytes: number): Promise<void> {
         const entry = this.required(id);
         this.assertCapacity(entry.ownerUserId, actualBytes - entry.bytes);
         entry.bytes = actualBytes;
     }
-
     async commit(id: string, actualBytes: number): Promise<void> {
         await this.resizeReservation(id, actualBytes);
         this.required(id).committed = true;
     }
-
     async release(id: string): Promise<void> {
         this.entries.delete(id);
     }
-
     async reconcileCommitted(
-        files: Iterable<{ id: string; ownerUserId: string; bytes: number }>,
+        files: Iterable<{
+            id: string;
+            ownerUserId: string;
+            bytes: number;
+        }>,
     ): Promise<void> {
         for (const [id, entry] of this.entries) if (entry.committed) this.entries.delete(id);
-        for (const file of files) this.entries.set(file.id, { ...file, committed: true });
+        for (const file of files)
+            this.entries.set(file.id, {
+                ...file,
+                committed: true,
+            });
     }
-
     private required(id: string) {
         const entry = this.entries.get(id);
         if (!entry) throw new Error("Quota reservation does not exist");
         return entry;
     }
-
     private assertCapacity(ownerUserId: string, addedBytes: number): void {
         if (addedBytes <= 0) return;
         const userBytes = [...this.entries.values()]
@@ -927,10 +1003,8 @@ class MemoryFileQuotaPolicy implements FileQuotaPolicy {
             throw new QuotaExceededError("server", this.limits.serverBytes);
     }
 }
-
 class FileSystemMediaProcessor implements MediaProcessor {
     constructor(private readonly fileSystem: FileStorageFileSystem) {}
-
     async inspect(path: string, suppliedContentType?: string): Promise<MediaAnalysis> {
         const header = await this.fileSystem.readHeader(path, 64);
         const signature = memoryMediaSignature(header);
@@ -940,27 +1014,52 @@ class FileSystemMediaProcessor implements MediaProcessor {
             "application/octet-stream";
         const kind = signature?.kind ?? (contentType.startsWith("video/") ? "video" : "file");
         if (kind !== "photo" && kind !== "gif")
-            return { kind, contentType, width: 0, height: 0, thumbhash: "", variants: {} };
+            return {
+                kind,
+                contentType,
+                width: 0,
+                height: 0,
+                thumbhash: "",
+                variants: {},
+            };
         try {
             const source = await this.fileSystem.imageSource(path);
-            const image = sharp(source, { limitInputPixels: 100_000_000, animated: false });
+            const image = sharp(source, {
+                limitInputPixels: 100_000_000,
+                animated: false,
+            });
             const metadata = await image.metadata();
             const thumbhashInput = await image
                 .clone()
-                .resize(100, 100, { fit: "inside", withoutEnlargement: true })
+                .resize(100, 100, {
+                    fit: "inside",
+                    withoutEnlargement: true,
+                })
                 .ensureAlpha()
                 .raw()
-                .toBuffer({ resolveWithObject: true });
+                .toBuffer({
+                    resolveWithObject: true,
+                });
             const [thumbnail, preview] = await Promise.all([
                 image
                     .clone()
-                    .resize(320, 320, { fit: "inside", withoutEnlargement: true })
-                    .webp({ quality: 78 })
+                    .resize(320, 320, {
+                        fit: "inside",
+                        withoutEnlargement: true,
+                    })
+                    .webp({
+                        quality: 78,
+                    })
                     .toBuffer(),
                 image
                     .clone()
-                    .resize(1600, 1600, { fit: "inside", withoutEnlargement: true })
-                    .webp({ quality: 84 })
+                    .resize(1600, 1600, {
+                        fit: "inside",
+                        withoutEnlargement: true,
+                    })
+                    .webp({
+                        quality: 84,
+                    })
                     .toBuffer(),
             ]);
             return {
@@ -979,41 +1078,69 @@ class FileSystemMediaProcessor implements MediaProcessor {
                         thumbhashInput.data,
                     ),
                 ).toString("base64url"),
-                variants: { thumbnail, preview },
+                variants: {
+                    thumbnail,
+                    preview,
+                },
             };
         } catch {
-            return { kind: "file", contentType, width: 0, height: 0, thumbhash: "", variants: {} };
+            return {
+                kind: "file",
+                contentType,
+                width: 0,
+                height: 0,
+                thumbhash: "",
+                variants: {},
+            };
         }
     }
 }
-
 function isFileStorageFileSystem(
     value: FileStorageOptions | FileStorageFileSystem,
 ): value is FileStorageFileSystem {
     return typeof (value as FileStorageFileSystem).createWriteStream === "function";
 }
-
-function memoryMediaSignature(
-    header: Buffer,
-): { kind: "photo" | "gif" | "video"; contentType: string } | undefined {
+function memoryMediaSignature(header: Buffer):
+    | {
+          kind: "photo" | "gif" | "video";
+          contentType: string;
+      }
+    | undefined {
     if (header.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])))
-        return { kind: "photo", contentType: "image/jpeg" };
+        return {
+            kind: "photo",
+            contentType: "image/jpeg",
+        };
     if (header.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex")))
-        return { kind: "photo", contentType: "image/png" };
+        return {
+            kind: "photo",
+            contentType: "image/png",
+        };
     if (header.subarray(0, 6).toString("ascii").startsWith("GIF8"))
-        return { kind: "gif", contentType: "image/gif" };
+        return {
+            kind: "gif",
+            contentType: "image/gif",
+        };
     if (
         header.subarray(0, 4).toString("ascii") === "RIFF" &&
         header.subarray(8, 12).toString("ascii") === "WEBP"
     )
-        return { kind: "photo", contentType: "image/webp" };
+        return {
+            kind: "photo",
+            contentType: "image/webp",
+        };
     if (header.subarray(4, 8).toString("ascii") === "ftyp")
-        return { kind: "video", contentType: "video/mp4" };
+        return {
+            kind: "video",
+            contentType: "video/mp4",
+        };
     if (header.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3])))
-        return { kind: "video", contentType: "video/webm" };
+        return {
+            kind: "video",
+            contentType: "video/webm",
+        };
     return undefined;
 }
-
 async function readStream(input: Readable, maximumBytes: number): Promise<Buffer> {
     const chunks: Buffer[] = [];
     let size = 0;
@@ -1026,7 +1153,6 @@ async function readStream(input: Readable, maximumBytes: number): Promise<Buffer
     }
     return Buffer.concat(chunks);
 }
-
 function configuredScanner(config: ServerConfig): MalwareScanner {
     return config.files.malwareScannerCommand
         ? new CommandMalwareScanner(
@@ -1036,7 +1162,6 @@ function configuredScanner(config: ServerConfig): MalwareScanner {
           )
         : new DisabledMalwareScanner();
 }
-
 function normalizedFilename(filename: string | undefined): string {
     const localName = filename?.trim().replaceAll("\\", "/") || "attachment";
     const normalized = [...basename(localName)]
@@ -1044,33 +1169,41 @@ function normalizedFilename(filename: string | undefined): string {
         .join("");
     return (normalized || "attachment").slice(0, 255);
 }
-
 function safeContentType(value: string | undefined): string | undefined {
     return value && /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i.test(value)
         ? value.toLowerCase()
         : undefined;
 }
-
 function mapQuotaError(error: unknown): unknown {
     if (error instanceof QuotaExceededError)
         return new FileQuotaExceededError(error.scope, error.limit);
     return error;
 }
-
 function avatarThumbnail(image: SharpInstance) {
     return image
         .clone()
-        .resize(100, 100, { fit: "cover" })
+        .resize(100, 100, {
+            fit: "cover",
+        })
         .ensureAlpha()
         .raw()
-        .toBuffer({ resolveWithObject: true });
+        .toBuffer({
+            resolveWithObject: true,
+        });
 }
-
 function encodeAvatar(image: SharpInstance) {
     return image
         .clone()
         .rotate()
-        .resize(1024, 1024, { fit: "cover" })
-        .jpeg({ quality: 88, progressive: true, mozjpeg: true })
-        .toBuffer({ resolveWithObject: true });
+        .resize(1024, 1024, {
+            fit: "cover",
+        })
+        .jpeg({
+            quality: 88,
+            progressive: true,
+            mozjpeg: true,
+        })
+        .toBuffer({
+            resolveWithObject: true,
+        });
 }

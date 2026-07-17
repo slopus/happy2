@@ -2,24 +2,28 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AuthService } from "../modules/auth/service.js";
 import {
     SetupError,
-    type SetupRepository,
+    setupChooseRegistrationPolicy,
+    setupGetCombinedStatus,
+    setupGetPublicStatus,
     type SetupSyncHint,
     type UserOnboardingStep,
 } from "../modules/setup/index.js";
+import type { DrizzleExecutor } from "../modules/drizzle.js";
 import { realtimeTopics, type PubSub } from "../modules/realtime/index.js";
+import { userOnboardingUpdateStep } from "../modules/user/userOnboardingUpdateStep.js";
 
 export function registerSetupRoutes(
     app: FastifyInstance,
     auth: AuthService,
-    setup: SetupRepository,
+    executor: DrizzleExecutor,
     pubsub: PubSub,
 ): void {
-    app.get("/v0/setup/status", async () => setup.getPublicStatus());
+    app.get("/v0/setup/status", async () => setupGetPublicStatus(executor));
 
     app.get("/v0/setup", async (request, reply) => {
         const current = await auth.authenticateAccount(request);
         if (!current) return unauthorized(reply);
-        return setup.getCombinedStatus(current.accountId);
+        return setupGetCombinedStatus(executor, current.accountId);
     });
 
     app.post("/v0/me/updateOnboardingStep", async (request, reply) => {
@@ -29,10 +33,14 @@ export function registerSetupRoutes(
             const body = requestBody(request, ["step", "state"]);
             const step = onboardingStep(body.step);
             const state = onboardingOutcome(body.state);
-            const hint = await setup.updateUserStep({ userId: current.user.id, step, state });
+            const hint = await userOnboardingUpdateStep(executor, {
+                userId: current.user.id,
+                step,
+                state,
+            });
             if (hint) await publishUserHint(request, pubsub, current.user.id, hint);
             return {
-                onboarding: await setup.getCombinedStatus(current.accountId),
+                onboarding: await setupGetCombinedStatus(executor, current.accountId),
                 ...(hint ? { sync: hint } : {}),
             };
         } catch (error) {
@@ -47,10 +55,14 @@ export function registerSetupRoutes(
             const body = requestBody(request, ["enabled"]);
             if (typeof body.enabled !== "boolean")
                 throw new SetupError("invalid", "enabled must be a boolean");
-            const hint = await setup.chooseRegistrationPolicy(current.user.id, body.enabled);
+            const hint = await setupChooseRegistrationPolicy(
+                executor,
+                current.user.id,
+                body.enabled,
+            );
             if (hint) await publishServerHint(request, pubsub, hint);
             return {
-                onboarding: await setup.getCombinedStatus(current.accountId),
+                onboarding: await setupGetCombinedStatus(executor, current.accountId),
                 ...(hint ? { sync: hint } : {}),
             };
         } catch (error) {

@@ -16,13 +16,18 @@ import {
 import {
     buildServer,
     AesGcmSecretProtector,
-    CollaborationRepository,
-    Database,
+    accountCreatePassword,
+    createDatabase,
     defaultConfig,
     FileStorage,
-    IntegrationRepository,
-    SetupRepository,
+    setupChooseRegistrationPolicy,
+    setupRecordOperationalStep,
+    serverSchemaMigrate,
+    sessionCreate,
+    syncInitialize,
     TokenService,
+    userOnboardingUpdateStep,
+    userCreateProfile,
     type FileStorageFileSystem,
     type AgentDockerRuntime,
     type ServerConfig,
@@ -95,38 +100,32 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
     const fileSystem = new MemoryFileSystem();
     const config = gymConfig(databaseUrl);
     options.configure?.(config);
-    const database = new Database(client);
+    const executor = createDatabase(client);
     const tokenKeys = generateKeys();
     const integrationProtector = new AesGcmSecretProtector(randomBytes(32));
     let app: FastifyInstance | undefined;
-    let integrations: IntegrationRepository | undefined;
 
     try {
-        await database.migrate();
+        await serverSchemaMigrate(client);
         const tokens = await TokenService.create(config, tokenKeys);
-        const collaboration = new CollaborationRepository(client);
-        integrations = new IntegrationRepository(client, {
-            secretProtector: integrationProtector,
-        });
+        await syncInitialize(executor);
         app = await buildServer(config, {
-            database,
+            client,
             tokens,
-            collaboration,
-            integrations,
-            fileStorage: new FileStorage(config, database, fileSystem),
+            integrationSecretProtector: integrationProtector,
+            fileStorage: new FileStorage(config, executor, fileSystem),
             agentDocker: options.agentDocker,
             logger: false,
         });
         return new GymServerInstance(
             app,
             config,
-            database,
+            executor,
             tokens,
             client,
             fileSystem,
             tokenKeys,
             integrationProtector,
-            integrations,
             options.agentDocker,
             async () => {
                 if (databaseDirectory)
@@ -135,8 +134,6 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
         );
     } catch (error) {
         await app?.close();
-        integrations?.close();
-        database.close();
         client.close();
         fileSystem.reset();
         if (databaseDirectory) await rm(databaseDirectory, { force: true, recursive: true });
@@ -161,13 +158,12 @@ class GymServerInstance implements GymServer {
     constructor(
         private app: FastifyInstance,
         readonly config: ServerConfig,
-        private readonly database: Database,
+        private readonly executor: ReturnType<typeof createDatabase>,
         private tokens: TokenService,
         private readonly client: Client,
         private readonly fileSystem: MemoryFileSystem,
         private readonly tokenKeys: { privateKey: string; publicKey: string },
         private readonly integrationProtector: AesGcmSecretProtector,
-        private integrations: IntegrationRepository,
         private readonly agentDocker: AgentDockerRuntime | undefined,
         private readonly cleanupDatabase: () => Promise<void>,
     ) {}
@@ -196,8 +192,9 @@ class GymServerInstance implements GymServer {
         this.assertOpen();
         const sequence = ++this.userSequence;
         const email = input.email ?? `user-${sequence}@gym.invalid`;
-        const account = await this.database.createPasswordAccount(email, "gym-server-disabled");
-        const user = await this.database.createProfile(
+        const account = await accountCreatePassword(this.executor, email, "gym-server-disabled");
+        const user = await userCreateProfile(
+            this.executor,
             account.id,
             {
                 firstName: input.firstName ?? `User ${sequence}`,
@@ -208,7 +205,6 @@ class GymServerInstance implements GymServer {
             },
             sequence === 1 ? {} : { provisioned: true },
         );
-        const setup = new SetupRepository(this.client);
         if (sequence === 1) {
             for (const step of [
                 "sandbox_provider_selected",
@@ -217,20 +213,25 @@ class GymServerInstance implements GymServer {
                 "base_image_build_requested",
                 "base_image_ready",
             ] as const)
-                await setup.recordOperationalStep({
+                await setupRecordOperationalStep(this.executor, {
                     step,
                     state: "complete",
                     actorUserId: user.id,
                 });
-            await setup.chooseRegistrationPolicy(user.id, true);
+            await setupChooseRegistrationPolicy(this.executor, user.id, true);
         }
-        await setup.updateUserStep({ userId: user.id, step: "avatar", state: "skipped" });
-        await setup.updateUserStep({
+        await userOnboardingUpdateStep(this.executor, {
+            userId: user.id,
+            step: "avatar",
+            state: "skipped",
+        });
+        await userOnboardingUpdateStep(this.executor, {
             userId: user.id,
             step: "desktop_notifications",
             state: "skipped",
         });
-        const session = await this.database.createSession(
+        const session = await sessionCreate(
+            this.executor,
             account.id,
             new Date(Date.now() + this.config.jwt.expiryDays * 86_400_000),
             {},
@@ -247,7 +248,7 @@ class GymServerInstance implements GymServer {
         registrationEnabled: boolean;
     }): Promise<void> {
         this.assertOpen();
-        const setup = new SetupRepository(this.client);
+        const executor = createDatabase(this.client);
         for (const step of [
             "sandbox_provider_selected",
             "sandbox_provider_validated",
@@ -255,12 +256,12 @@ class GymServerInstance implements GymServer {
             "base_image_build_requested",
             "base_image_ready",
         ] as const)
-            await setup.recordOperationalStep({
+            await setupRecordOperationalStep(executor, {
                 step,
                 state: "complete",
                 actorUserId: input.actorUserId,
             });
-        await setup.chooseRegistrationPolicy(input.actorUserId, input.registrationEnabled);
+        await setupChooseRegistrationPolicy(executor, input.actorUserId, input.registrationEnabled);
     }
 
     as(user: GymUser): GymRequestClient {
@@ -276,18 +277,13 @@ class GymServerInstance implements GymServer {
     async restart(): Promise<void> {
         this.assertOpen();
         await this.app.close();
-        this.integrations.close();
         this.tokens = await TokenService.create(this.config, this.tokenKeys);
-        const collaboration = new CollaborationRepository(this.client);
-        this.integrations = new IntegrationRepository(this.client, {
-            secretProtector: this.integrationProtector,
-        });
+        await syncInitialize(createDatabase(this.client));
         this.app = await buildServer(this.config, {
-            database: this.database,
+            client: this.client,
             tokens: this.tokens,
-            collaboration,
-            integrations: this.integrations,
-            fileStorage: new FileStorage(this.config, this.database, this.fileSystem),
+            integrationSecretProtector: this.integrationProtector,
+            fileStorage: new FileStorage(this.config, createDatabase(this.client), this.fileSystem),
             agentDocker: this.agentDocker,
             logger: false,
         });
@@ -299,8 +295,6 @@ class GymServerInstance implements GymServer {
         try {
             await this.app.close();
         } finally {
-            this.integrations.close();
-            this.database.close();
             this.client.close();
             this.fileSystem.reset();
             await this.cleanupDatabase();

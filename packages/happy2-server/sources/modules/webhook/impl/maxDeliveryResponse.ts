@@ -1,0 +1,1 @@
+export const MAX_DELIVERY_RESPONSE = 16_000;

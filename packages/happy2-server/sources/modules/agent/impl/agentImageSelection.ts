@@ -1,0 +1,21 @@
+import { agentImages } from "../../schema.js";
+export const agentImageSelection = {
+    id: agentImages.id,
+    name: agentImages.name,
+    definition_hash: agentImages.definitionHash,
+    docker_tag: agentImages.dockerTag,
+    builtin_key: agentImages.builtinKey,
+    status: agentImages.status,
+    build_attempt: agentImages.buildAttempt,
+    build_progress: agentImages.buildProgress,
+    last_build_log_line: agentImages.lastBuildLogLine,
+    build_log_updated_at: agentImages.buildLogUpdatedAt,
+    docker_image_id: agentImages.dockerImageId,
+    last_error: agentImages.lastError,
+    build_requested_at: agentImages.buildRequestedAt,
+    build_started_at: agentImages.buildStartedAt,
+    ready_at: agentImages.readyAt,
+    created_by_user_id: agentImages.createdByUserId,
+    created_at: agentImages.createdAt,
+    updated_at: agentImages.updatedAt,
+};

@@ -1,5 +1,5 @@
 import type { FastifyRequest } from "fastify";
-import type { RequestMetadata } from "../database.js";
+import type { RequestMetadata } from "./types.js";
 
 function header(request: FastifyRequest, name: string): string | undefined {
     const value = request.headers[name];

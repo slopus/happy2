@@ -1,21 +1,33 @@
+import { userUpdateProfile } from "../user/userUpdateProfile.js";
+import { userTouchAccess } from "../user/userTouchAccess.js";
+import { userFindActiveByAccount } from "../user/userFindActiveByAccount.js";
+import { userCreateProfile } from "../user/userCreateProfile.js";
+import { sessionRevoke } from "./sessionRevoke.js";
+import { sessionRefresh } from "./sessionRefresh.js";
+import { sessionFindActive } from "./sessionFindActive.js";
+import { sessionCreate } from "./sessionCreate.js";
+import { oidcStateCreate } from "./oidcStateCreate.js";
+import { oidcStateConsume } from "./oidcStateConsume.js";
+import { magicLinkCreate } from "./magicLinkCreate.js";
+import { magicLinkConsume } from "./magicLinkConsume.js";
+import { accountRegisterPassword } from "./accountRegisterPassword.js";
+import { accountFindPassword } from "./accountFindPassword.js";
+import { accountFindOrCreateOidc } from "./accountFindOrCreateOidc.js";
+import { accountFindOidc } from "./accountFindOidc.js";
+import { type DrizzleExecutor } from "../drizzle.js";
 import { createId } from "@paralleldrive/cuid2";
 import type { FastifyRequest } from "fastify";
 import type { ServerConfig } from "../config/type.js";
-import {
-    AccountExistsError,
-    Database,
-    RegistrationClosedError,
-    type ActiveSession,
-    type CreateProfile,
-    type User,
-} from "../database.js";
+import { AccountExistsError, RegistrationClosedError } from "./errors.js";
+import type { ActiveSession } from "./types.js";
+import type { CreateProfile, User } from "../user/types.js";
 import { hashPassword, randomToken, verifyPassword } from "./crypto.js";
 import { smtpTransport } from "./email.js";
 import { bearerToken, requestMetadata } from "./metadata.js";
 import { cloudflareAccessIdentity, type CloudflareAccessIdentity } from "./cloudflare-access.js";
 import { authorizationUrl, exchangeCode } from "./oidc.js";
 import { TokenService } from "./tokens.js";
-
+import { accessTouchThrottle } from "./impl/accessTouchThrottle.js";
 type Body = Record<string, unknown>;
 export interface AuthenticatedAccount {
     accountId: string;
@@ -30,12 +42,12 @@ export interface AuthToken {
     expiresAt: string;
     profileRequired: boolean;
 }
-
 export class AuthService {
     private readonly passwordPepper: string | undefined;
+    private readonly shouldTouchAccess = accessTouchThrottle();
     constructor(
         private readonly config: ServerConfig,
-        private readonly database: Database,
+        private readonly executor: DrizzleExecutor,
         private readonly tokens: TokenService,
     ) {
         this.passwordPepper = config.auth.password.enabled
@@ -53,9 +65,12 @@ export class AuthService {
         if (token) {
             try {
                 const claims = await this.tokens.verify(token);
-                const session = await this.database.findActiveSession(claims.sessionId);
+                const session = await sessionFindActive(this.executor, claims.sessionId);
                 return session && session.accountId === claims.accountId
-                    ? { session, accountId: claims.accountId }
+                    ? {
+                          session,
+                          accountId: claims.accountId,
+                      }
                     : undefined;
             } catch {
                 return undefined;
@@ -64,10 +79,11 @@ export class AuthService {
         const identity = await cloudflareAccessIdentity(request, this.config.auth.cloudflareAccess);
         if (!identity) return undefined;
         const provider = `cloudflare-access:${this.config.auth.cloudflareAccess.teamDomain}`;
-        let account = await this.database.findOidcAccount(provider, identity.subject);
+        let account = await accountFindOidc(this.executor, provider, identity.subject);
         if (!account) {
             try {
-                account = await this.database.findOrCreateOidcAccount(
+                account = await accountFindOrCreateOidc(
+                    this.executor,
                     provider,
                     identity.subject,
                     identity.email,
@@ -79,19 +95,25 @@ export class AuthService {
         }
         return account.bannedAt || account.deletedAt
             ? undefined
-            : { accountId: account.id, cloudflareAccess: identity };
+            : {
+                  accountId: account.id,
+                  cloudflareAccess: identity,
+              };
     }
 
     /** Product routes use active Users, never bare authentication accounts. */
     async authenticate(request: FastifyRequest): Promise<Authenticated | undefined> {
         const account = await this.authenticateAccount(request);
         if (!account) return undefined;
-        const user = await this.database.findActiveUserByAccount(account.accountId);
+        const user = await userFindActiveByAccount(this.executor, account.accountId);
         if (!user) return undefined;
-        await this.database.touchAccess(account.session?.id, user.id);
-        return { ...account, user };
+        if (this.shouldTouchAccess(account.session?.id, user.id))
+            await userTouchAccess(this.executor, account.session?.id, user.id);
+        return {
+            ...account,
+            user,
+        };
     }
-
     async registerPassword(
         body: unknown,
         request: FastifyRequest,
@@ -100,7 +122,8 @@ export class AuthService {
         const accountPassword = validatedPassword(body);
         if (!accountEmail || !accountPassword) return "invalid";
         try {
-            const account = await this.database.registerPasswordAccount(
+            const account = await accountRegisterPassword(
+                this.executor,
                 accountEmail,
                 await hashPassword(accountPassword, this.passwordPepper!),
             );
@@ -115,7 +138,7 @@ export class AuthService {
         const accountEmail = email(body);
         const accountPassword = value(body, "password");
         if (!accountEmail || !accountPassword) return undefined;
-        const account = await this.database.findPasswordAccount(accountEmail);
+        const account = await accountFindPassword(this.executor, accountEmail);
         if (
             !account?.passwordHash ||
             account.bannedAt ||
@@ -134,7 +157,7 @@ export class AuthService {
         const profile = validatedProfile(body);
         if (!profile) return "invalid";
         try {
-            return await this.database.createProfile(account.accountId, profile);
+            return await userCreateProfile(this.executor, account.accountId, profile);
         } catch (error) {
             if (error instanceof RegistrationClosedError) return "registration_closed";
             throw error;
@@ -148,14 +171,13 @@ export class AuthService {
         if (!current) return "unauthorized";
         const profile = validatedProfile(body);
         if (!profile) return "invalid";
-        return (await this.database.updateProfile(current.user.id, profile)) ?? "unauthorized";
+        return (await userUpdateProfile(this.executor, current.user.id, profile)) ?? "unauthorized";
     }
-
     async requestMagicLink(body: unknown): Promise<boolean> {
         const accountEmail = email(body);
         if (!accountEmail) return false;
         const token = randomToken();
-        if (!(await this.database.createMagicLink(accountEmail, token))) return false;
+        if (!(await magicLinkCreate(this.executor, accountEmail, token))) return false;
         const link = new URL(this.config.auth.magicLink.redirectUrl!);
         link.searchParams.set("token", token);
         await smtpTransport().sendMail({
@@ -169,12 +191,11 @@ export class AuthService {
     async verifyMagicLink(body: unknown, request: FastifyRequest): Promise<AuthToken | undefined> {
         const token = value(body, "token");
         if (!token) return undefined;
-        const account = await this.database.consumeMagicLink(token);
+        const account = await magicLinkConsume(this.executor, token);
         return account && !account.bannedAt && !account.deletedAt
             ? this.issue(account.id, request)
             : undefined;
     }
-
     async startOidc(providerName: string): Promise<string | undefined> {
         const provider = this.config.auth.oidc.get(providerName);
         if (!provider) return undefined;
@@ -182,17 +203,21 @@ export class AuthService {
         const verifier = randomToken();
         const nonce = randomToken();
         const redirectUri = `${this.config.server.publicUrl}${provider.redirectPath}`;
-        await this.database.createOidcState(state, provider.id, verifier, nonce, redirectUri);
+        await oidcStateCreate(this.executor, state, provider.id, verifier, nonce, redirectUri);
         return authorizationUrl(provider, redirectUri, state, verifier, nonce);
     }
     async completeOidc(
         providerName: string,
-        query: { code?: string; state?: string; error?: string },
+        query: {
+            code?: string;
+            state?: string;
+            error?: string;
+        },
         request: FastifyRequest,
     ): Promise<AuthToken | "authorization_failed" | "invalid_state" | "registration_closed"> {
         const provider = this.config.auth.oidc.get(providerName);
         if (!provider || !query.code || !query.state || query.error) return "authorization_failed";
-        const state = await this.database.consumeOidcState(query.state);
+        const state = await oidcStateConsume(this.executor, query.state);
         if (!state || state.provider !== provider.id) return "invalid_state";
         const identity = await exchangeCode(
             provider,
@@ -203,7 +228,8 @@ export class AuthService {
         );
         let account;
         try {
-            account = await this.database.findOrCreateOidcAccount(
+            account = await accountFindOrCreateOidc(
+                this.executor,
                 provider.id,
                 identity.subject,
                 identity.email,
@@ -218,7 +244,8 @@ export class AuthService {
     async refresh(request: FastifyRequest): Promise<AuthToken | undefined> {
         const account = await this.authenticateAccount(request);
         if (!account?.session) return undefined;
-        const session = await this.database.refreshSession(
+        const session = await sessionRefresh(
+            this.executor,
             account.session.id,
             expiry(this.config),
             requestMetadata(request),
@@ -227,7 +254,8 @@ export class AuthService {
             ? {
                   token: await this.tokens.issue(session.id, session.accountId),
                   expiresAt: session.expiresAt.toISOString(),
-                  profileRequired: !(await this.database.findActiveUserByAccount(
+                  profileRequired: !(await userFindActiveByAccount(
+                      this.executor,
                       session.accountId,
                   )),
               }
@@ -237,11 +265,12 @@ export class AuthService {
         const account = await this.authenticateAccount(request);
         if (!account) return false;
         if (!account.session) return "managed_by_cloudflare_access";
-        await this.database.revokeSession(account.session.id, requestMetadata(request));
+        await sessionRevoke(this.executor, account.session.id, requestMetadata(request));
         return true;
     }
     private async issue(accountId: string, request: FastifyRequest): Promise<AuthToken> {
-        const session = await this.database.createSession(
+        const session = await sessionCreate(
+            this.executor,
             accountId,
             expiry(this.config),
             requestMetadata(request),
@@ -249,11 +278,10 @@ export class AuthService {
         return {
             token: await this.tokens.issue(session.id, accountId),
             expiresAt: session.expiresAt.toISOString(),
-            profileRequired: !(await this.database.findActiveUserByAccount(accountId)),
+            profileRequired: !(await userFindActiveByAccount(this.executor, accountId)),
         };
     }
 }
-
 function value(body: unknown, key: string): string | undefined {
     const found = (body as Body | undefined)?.[key];
     return typeof found === "string" ? found : undefined;
@@ -281,7 +309,13 @@ function validatedProfile(body: unknown): CreateProfile | undefined {
     const profileEmail = suppliedEmail ? email(body) : undefined;
     if (suppliedEmail && !profileEmail) return undefined;
     const phone = optional(value(body, "phone"), 32);
-    return { firstName, lastName, username, email: profileEmail, phone };
+    return {
+        firstName,
+        lastName,
+        username,
+        email: profileEmail,
+        phone,
+    };
 }
 function expiry(config: ServerConfig): Date {
     return new Date(Date.now() + config.jwt.expiryDays * 86_400_000);

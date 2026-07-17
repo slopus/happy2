@@ -2,19 +2,20 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ServerConfig } from "../modules/config/type.js";
 import { supportedAuthMethods } from "../modules/auth/methods.js";
 import { AuthService } from "../modules/auth/service.js";
-import type { User } from "../modules/database.js";
-import type { SetupRepository } from "../modules/setup/index.js";
+import type { User } from "../modules/user/types.js";
+import type { DrizzleExecutor } from "../modules/drizzle.js";
+import { setupGetRegistrationAvailability } from "../modules/setup/index.js";
 
 export function registerAuthRoutes(
     app: FastifyInstance,
     config: ServerConfig,
     auth: AuthService,
-    setup: SetupRepository,
+    executor: DrizzleExecutor,
     onProfileCreated?: (request: FastifyRequest, user: User) => Promise<void>,
 ): void {
     app.get("/v0/auth/methods", async () => {
         const methods = supportedAuthMethods(config);
-        const registration = await setup.registrationAvailability();
+        const registration = await setupGetRegistrationAvailability(executor);
         return {
             ...methods,
             ...(methods.method === "password" ? { signupEnabled: registration !== "closed" } : {}),

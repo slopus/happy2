@@ -1,3 +1,6 @@
+import { createDatabase, type DrizzleExecutor } from "../drizzle.js";
+import { createClient, type Client } from "@libsql/client";
+import { serverSchemaMigrate } from "../server/serverSchemaMigrate.js";
 import { generateKeyPairSync } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,58 +11,66 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { buildServer } from "../../server.js";
 import { TokenService } from "../auth/tokens.js";
 import { defaultConfig } from "../config/defaults.js";
-import { Database } from "../database.js";
-import { SetupRepository } from "../setup/index.js";
-
+import { setupChooseRegistrationPolicy, setupRecordOperationalStep } from "../setup/index.js";
 describe("file pipeline HTTP API", () => {
     let app: FastifyInstance;
-    let database: Database;
+    let client: Client;
+    let executor: DrizzleExecutor;
     let directory: string;
-
     beforeAll(() => {
         const pair = generateKeyPairSync("rsa", {
             modulusLength: 2048,
-            publicKeyEncoding: { type: "spki", format: "pem" },
-            privateKeyEncoding: { type: "pkcs8", format: "pem" },
+            publicKeyEncoding: {
+                type: "spki",
+                format: "pem",
+            },
+            privateKeyEncoding: {
+                type: "pkcs8",
+                format: "pem",
+            },
         });
         process.env.HAPPY2_JWT_PRIVATE_KEY_B64 = Buffer.from(pair.privateKey).toString("base64");
         process.env.HAPPY2_JWT_PUBLIC_KEY_B64 = Buffer.from(pair.publicKey).toString("base64");
         process.env.HAPPY2_PASSWORD_PEPPER = "file-route-test-pepper";
     });
-
     beforeEach(async () => {
         directory = await mkdtemp(join(tmpdir(), "happy2-file-routes-"));
         const config = defaultConfig();
         config.database.url = `file:${join(directory, "happy2.db")}`;
         config.files.directory = join(directory, "files");
         config.agents.enabled = false;
-        database = new Database(config.database.url);
-        await database.migrate();
+        client = createClient({ url: config.database.url });
+        executor = createDatabase(client);
+        await serverSchemaMigrate(client);
         app = await buildServer(config, {
-            database,
+            client,
             tokens: await TokenService.create(config),
         });
     });
-
     afterEach(async () => {
         await app.close();
-        database.close();
-        await rm(directory, { recursive: true, force: true });
+        client.close();
+        await rm(directory, {
+            recursive: true,
+            force: true,
+        });
     });
-
     it("persists resumable offsets and completes the attachment", async () => {
         const owner = await registerUser(app, "owner@example.com", "file_owner");
-        await completeSetup(database, owner.userId);
+        await completeSetup(executor, owner.userId);
         const stranger = await registerUser(app, "stranger@example.com", "file_stranger");
         const created = await app.inject({
             method: "POST",
             url: "/v0/files/createUpload",
             headers: bearer(owner.token),
-            payload: { filename: "resume.txt", contentType: "text/plain", size: 6 },
+            payload: {
+                filename: "resume.txt",
+                contentType: "text/plain",
+                size: 6,
+            },
         });
         expect(created.statusCode).toBe(201);
         const uploadId = created.json().upload.id as string;
-
         const first = await appendChunk(app, owner.token, uploadId, 0, Buffer.from("abc"));
         expect(first.statusCode).toBe(200);
         expect(first.json().upload.offset).toBe(3);
@@ -78,7 +89,6 @@ describe("file pipeline HTTP API", () => {
             headers: bearer(owner.token),
         });
         expect(incomplete.statusCode).toBe(409);
-
         await appendChunk(app, owner.token, uploadId, 3, Buffer.from("def"));
         const completed = await app.inject({
             method: "POST",
@@ -101,13 +111,17 @@ describe("file pipeline HTTP API", () => {
         });
         expect(download.body).toBe("abcdef");
     });
-
     it("serves generated previews only through the parent file's privacy check", async () => {
         const owner = await registerUser(app, "photo@example.com", "photo_owner");
-        await completeSetup(database, owner.userId);
+        await completeSetup(executor, owner.userId);
         const stranger = await registerUser(app, "viewer@example.com", "photo_viewer");
         const png = await sharp({
-            create: { width: 20, height: 10, channels: 4, background: "#336699" },
+            create: {
+                width: 20,
+                height: 10,
+                channels: 4,
+                background: "#336699",
+            },
         })
             .png()
             .toBuffer();
@@ -129,30 +143,40 @@ describe("file pipeline HTTP API", () => {
         expect(hidden.statusCode).toBe(404);
     });
 });
-
 async function registerUser(
     app: FastifyInstance,
     email: string,
     username: string,
-): Promise<{ token: string; userId: string }> {
+): Promise<{
+    token: string;
+    userId: string;
+}> {
     const registered = await app.inject({
         method: "POST",
         url: "/v0/auth/password/register",
-        payload: { email, password: "correct horse battery staple" },
+        payload: {
+            email,
+            password: "correct horse battery staple",
+        },
     });
     const token = registered.json().token as string;
     const profile = await app.inject({
         method: "POST",
         url: "/v0/me/createProfile",
         headers: bearer(token),
-        payload: { firstName: "Files", username, email },
+        payload: {
+            firstName: "Files",
+            username,
+            email,
+        },
     });
     expect(profile.statusCode).toBe(201);
-    return { token, userId: profile.json().user.id as string };
+    return {
+        token,
+        userId: profile.json().user.id as string,
+    };
 }
-
-async function completeSetup(database: Database, actorUserId: string): Promise<void> {
-    const setup = new SetupRepository(database.extensionClient());
+async function completeSetup(executor: DrizzleExecutor, actorUserId: string): Promise<void> {
     for (const step of [
         "sandbox_provider_selected",
         "sandbox_provider_validated",
@@ -160,10 +184,13 @@ async function completeSetup(database: Database, actorUserId: string): Promise<v
         "base_image_build_requested",
         "base_image_ready",
     ] as const)
-        await setup.recordOperationalStep({ step, state: "complete", actorUserId });
-    await setup.chooseRegistrationPolicy(actorUserId, true);
+        await setupRecordOperationalStep(executor, {
+            step,
+            state: "complete",
+            actorUserId,
+        });
+    await setupChooseRegistrationPolicy(executor, actorUserId, true);
 }
-
 function appendChunk(
     app: FastifyInstance,
     token: string,
@@ -173,17 +200,21 @@ function appendChunk(
 ) {
     return upload(app, token, "chunk.bin", "application/octet-stream", contents, {
         url: `/v0/files/${uploadId}/appendUpload`,
-        headers: { "upload-offset": String(offset) },
+        headers: {
+            "upload-offset": String(offset),
+        },
     });
 }
-
 function upload(
     app: FastifyInstance,
     token: string,
     filename: string,
     contentType: string,
     contents: Buffer,
-    options: { url?: string; headers?: Record<string, string> } = {},
+    options: {
+        url?: string;
+        headers?: Record<string, string>;
+    } = {},
 ) {
     const boundary = `happy2-file-${Date.now()}`;
     const payload = Buffer.concat([
@@ -204,7 +235,10 @@ function upload(
         payload,
     });
 }
-
-function bearer(token: string): { authorization: string } {
-    return { authorization: `Bearer ${token}` };
+function bearer(token: string): {
+    authorization: string;
+} {
+    return {
+        authorization: `Bearer ${token}`,
+    };
 }

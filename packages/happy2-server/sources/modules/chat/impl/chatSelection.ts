@@ -1,0 +1,38 @@
+import { chatMembers, chats, userChatPreferences } from "../../schema.js";
+
+import { sql } from "drizzle-orm";
+
+export const chatSelection = {
+    id: chats.id,
+    kind: chats.kind,
+    name: chats.name,
+    slug: chats.slug,
+    topic: chats.topic,
+    created_by_user_id: chats.createdByUserId,
+    dm_type: chats.dmType,
+    owner_user_id: chats.ownerUserId,
+    photo_file_id: chats.photoFileId,
+    is_listed: chats.isListed,
+    is_main: chats.isMain,
+    auto_join: chats.autoJoin,
+    archived_at: chats.archivedAt,
+    retention_mode: chats.retentionMode,
+    retention_seconds: chats.retentionSeconds,
+    default_expiry_mode: chats.defaultExpiryMode,
+    default_self_destruct_seconds: chats.defaultSelfDestructSeconds,
+    default_after_read_scope: chats.defaultAfterReadScope,
+    lifecycle_version: chats.lifecycleVersion,
+    pts: chats.pts,
+    last_message_sequence: chats.lastMessageSequence,
+    created_at: chats.createdAt,
+    updated_at: chats.updatedAt,
+    membership_role: chatMembers.role,
+    membership_epoch: chatMembers.membershipEpoch,
+    last_read_sequence: sql<number>`coalesce(${chatMembers.lastReadSequence}, 0)`,
+    unread_count: sql<number>`coalesce(${chatMembers.unreadCount}, 0)`,
+    mention_count: sql<number>`coalesce(${chatMembers.mentionCount}, 0)`,
+    starred: sql<number>`coalesce(${userChatPreferences.starred}, 0)`,
+    sort_order: userChatPreferences.sortOrder,
+    notification_level: sql<string>`coalesce(${userChatPreferences.notificationLevel}, 'all')`,
+    muted_until: userChatPreferences.mutedUntil,
+};

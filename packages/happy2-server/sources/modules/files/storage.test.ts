@@ -1,3 +1,5 @@
+import { userCreateProfile } from "../user/userCreateProfile.js";
+import { accountCreatePassword } from "../auth/accountCreatePassword.js";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -5,44 +7,56 @@ import { Readable } from "node:stream";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { defaultConfig } from "../config/defaults.js";
-import { Database, type User } from "../database.js";
+import type { User } from "../user/types.js";
+import { createDatabase, type DrizzleExecutor } from "../drizzle.js";
+import { createClient, type Client } from "@libsql/client";
+import { serverSchemaMigrate } from "../server/serverSchemaMigrate.js";
 import { UploadOffsetError } from "./provider.js";
 import type { MalwareScanner } from "./scanner.js";
 import { FileQuotaExceededError, FileStorage, UploadRejectedError } from "./storage.js";
-
 describe("attachment storage", () => {
     let directory: string;
-    let database: Database;
+    let client: Client;
+    let executor: DrizzleExecutor;
     let storage: FileStorage;
     let user: User;
-
     beforeEach(async () => {
         directory = await mkdtemp(join(tmpdir(), "happy2-files-"));
         const config = defaultConfig();
         config.database.url = `file:${join(directory, "happy2.db")}`;
         config.files.directory = join(directory, "files");
-        database = new Database(config.database.url);
-        await database.migrate();
-        const account = await database.createPasswordAccount("files@example.com", "unused");
-        user = await database.createProfile(
+        client = createClient({ url: config.database.url });
+        executor = createDatabase(client);
+        await serverSchemaMigrate(client);
+        const account = await accountCreatePassword(executor, "files@example.com", "unused");
+        user = await userCreateProfile(
+            executor,
             account.id,
             {
                 firstName: "Files",
                 username: "files_user",
             },
-            { provisioned: true },
+            {
+                provisioned: true,
+            },
         );
-        storage = new FileStorage(config, database);
+        storage = new FileStorage(config, executor);
     });
-
     afterEach(async () => {
-        database.close();
-        await rm(directory, { recursive: true, force: true });
+        client.close();
+        await rm(directory, {
+            recursive: true,
+            force: true,
+        });
     });
-
     it("recognizes photos, animated GIFs, videos, and generic files", async () => {
         const png = await sharp({
-            create: { width: 2, height: 3, channels: 4, background: "#ff0000" },
+            create: {
+                width: 2,
+                height: 3,
+                channels: 4,
+                background: "#ff0000",
+            },
         })
             .png()
             .toBuffer();
@@ -61,15 +75,28 @@ describe("attachment storage", () => {
             "notes.txt",
             "text/plain",
         );
-        expect(photo).toMatchObject({ kind: "photo", width: 2, height: 3 });
+        expect(photo).toMatchObject({
+            kind: "photo",
+            width: 2,
+            height: 3,
+        });
         expect(await storage.variant(photo, "thumbnail")).toMatchObject({
             contentType: "image/webp",
         });
-        expect(animation).toMatchObject({ kind: "gif", width: 1, height: 1 });
-        expect(video).toMatchObject({ kind: "video", contentType: "video/mp4" });
-        expect(file).toMatchObject({ kind: "file", contentType: "text/plain" });
+        expect(animation).toMatchObject({
+            kind: "gif",
+            width: 1,
+            height: 1,
+        });
+        expect(video).toMatchObject({
+            kind: "video",
+            contentType: "video/mp4",
+        });
+        expect(file).toMatchObject({
+            kind: "file",
+            contentType: "text/plain",
+        });
     });
-
     it("extracts dimensions and duration from an MP4 container", async () => {
         const movieHeader = Buffer.alloc(100);
         movieHeader.writeUInt32BE(1000, 12);
@@ -93,7 +120,6 @@ describe("attachment storage", () => {
             durationMs: 2500,
         });
     });
-
     it("resumes after recreating the service and rejects stale offsets", async () => {
         const upload = await storage.createResumableUpload(user, {
             filename: "resume.txt",
@@ -103,32 +129,38 @@ describe("attachment storage", () => {
         await storage.appendResumableUpload(user.id, upload.id, 0, Readable.from("abc"));
         await expect(
             storage.appendResumableUpload(user.id, upload.id, 0, Readable.from("x")),
-        ).rejects.toEqual(expect.objectContaining<Partial<UploadOffsetError>>({ actualOffset: 3 }));
-
-        storage = new FileStorage(config(), database);
-        expect(await storage.resumableUploadState(user.id, upload.id)).toMatchObject({ offset: 3 });
+        ).rejects.toEqual(
+            expect.objectContaining<Partial<UploadOffsetError>>({
+                actualOffset: 3,
+            }),
+        );
+        storage = new FileStorage(config(), executor);
+        expect(await storage.resumableUploadState(user.id, upload.id)).toMatchObject({
+            offset: 3,
+        });
         expect(await storage.resumableUploadState("another-user", upload.id)).toBeUndefined();
         await storage.appendResumableUpload(user.id, upload.id, 3, Readable.from("def"));
         const file = await storage.completeResumableUpload(user, upload.id);
-        expect(file).toMatchObject({ originalName: "resume.txt", size: 6 });
+        expect(file).toMatchObject({
+            originalName: "resume.txt",
+            size: 6,
+        });
         expect(await streamBuffer(storage.open(file!))).toEqual(Buffer.from("abcdef"));
     });
-
     it("enforces a durable per-user quota", async () => {
         const quotaConfig = config();
         quotaConfig.files.perUserQuotaBytes = 5;
-        storage = new FileStorage(quotaConfig, database);
+        storage = new FileStorage(quotaConfig, executor);
         await save(storage, user, Buffer.from("12345"), "one.txt", "text/plain");
         await expect(
             save(storage, user, Buffer.from("6"), "two.txt", "text/plain"),
         ).rejects.toBeInstanceOf(FileQuotaExceededError);
     });
-
     it("serializes quota reservations across local service instances", async () => {
         const quotaConfig = config();
         quotaConfig.files.perUserQuotaBytes = 4;
-        const first = new FileStorage(quotaConfig, database);
-        const second = new FileStorage(quotaConfig, database);
+        const first = new FileStorage(quotaConfig, executor);
+        const second = new FileStorage(quotaConfig, executor);
         const results = await Promise.allSettled([
             save(first, user, Buffer.from("123"), "one.txt", "text/plain"),
             save(second, user, Buffer.from("456"), "two.txt", "text/plain"),
@@ -139,37 +171,45 @@ describe("attachment storage", () => {
             FileQuotaExceededError,
         );
     });
-
     it("quarantines scanner detections without creating a file record", async () => {
         const scanner: MalwareScanner = {
-            scan: async () => ({ verdict: "infected", threat: "test signature" }),
+            scan: async () => ({
+                verdict: "infected",
+                threat: "test signature",
+            }),
         };
-        storage = new FileStorage(config(), database, { scanner });
+        storage = new FileStorage(config(), executor, {
+            scanner,
+        });
         await expect(
             save(storage, user, Buffer.from("unsafe"), "unsafe.bin", "application/octet-stream"),
         ).rejects.toBeInstanceOf(UploadRejectedError);
         const entries = await readdir(join(config().files.directory, ".quarantine"));
         expect(entries.some((entry) => entry.endsWith(".blob"))).toBe(true);
     });
-
     it("expires abandoned resumable uploads and releases their reservations", async () => {
         const quotaConfig = config();
         quotaConfig.files.perUserQuotaBytes = 4;
-        storage = new FileStorage(quotaConfig, database);
-        const upload = await storage.createResumableUpload(user, { size: 4 });
+        storage = new FileStorage(quotaConfig, executor);
+        const upload = await storage.createResumableUpload(user, {
+            size: 4,
+        });
         await storage.runMaintenance({
             now: new Date(Date.now() + quotaConfig.files.incompleteUploadExpirySeconds * 1000 + 1),
         });
         expect(await storage.resumableUploadState(user.id, upload.id)).toBeUndefined();
-        await expect(storage.createResumableUpload(user, { size: 4 })).resolves.toMatchObject({
+        await expect(
+            storage.createResumableUpload(user, {
+                size: 4,
+            }),
+        ).resolves.toMatchObject({
             size: 4,
         });
     });
-
     it("removes orphan objects and reconciles quota from authoritative records", async () => {
         const quotaConfig = config();
         quotaConfig.files.perUserQuotaBytes = 4;
-        storage = new FileStorage(quotaConfig, database);
+        storage = new FileStorage(quotaConfig, executor);
         const orphan = await save(storage, user, Buffer.from("1234"), "orphan.txt", "text/plain");
         const maintenance = await storage.runMaintenance({
             now: new Date(Date.now() + 1000),
@@ -179,9 +219,10 @@ describe("attachment storage", () => {
         expect(maintenance.deletedOrphanStorageNames).toContain(orphan.storageName);
         await expect(
             save(storage, user, Buffer.from("5678"), "replacement.txt", "text/plain"),
-        ).resolves.toMatchObject({ size: 4 });
+        ).resolves.toMatchObject({
+            size: 4,
+        });
     });
-
     function config() {
         const value = defaultConfig();
         value.database.url = `file:${join(directory, "happy2.db")}`;
@@ -189,7 +230,6 @@ describe("attachment storage", () => {
         return value;
     }
 });
-
 async function save(
     storage: FileStorage,
     user: User,
@@ -197,16 +237,17 @@ async function save(
     filename: string,
     contentType: string,
 ) {
-    return storage.saveAttachmentUpload(user, Readable.from(contents), { filename, contentType });
+    return storage.saveAttachmentUpload(user, Readable.from(contents), {
+        filename,
+        contentType,
+    });
 }
-
 function box(type: string, body: Buffer): Buffer {
     const header = Buffer.alloc(8);
     header.writeUInt32BE(body.length + header.length, 0);
     header.write(type, 4, "ascii");
     return Buffer.concat([header, body]);
 }
-
 async function streamBuffer(stream: Readable): Promise<Buffer> {
     const chunks: Buffer[] = [];
     for await (const chunk of stream) chunks.push(Buffer.from(chunk));

@@ -1,14 +1,62 @@
+import { rigEventMarkTrimmed } from "../agent/rigEventMarkTrimmed.js";
+import { rigEventGetCheckpoint } from "../agent/rigEventGetCheckpoint.js";
+import { rigEventCheckpoint } from "../agent/rigEventCheckpoint.js";
+import { agentUsernameIsAvailable } from "../agent/agentUsernameIsAvailable.js";
+import { agentTurnTakeNext } from "../agent/agentTurnTakeNext.js";
+import { agentTurnStreamReply } from "../agent/agentTurnStreamReply.js";
+import { agentTurnRenewLease } from "../agent/agentTurnRenewLease.js";
+import { agentTurnReleaseLeases } from "../agent/agentTurnReleaseLeases.js";
+import { agentTurnHasRunnable } from "../agent/agentTurnHasRunnable.js";
+import { agentTurnGetRunning } from "../agent/agentTurnGetRunning.js";
+import { agentTurnFail } from "../agent/agentTurnFail.js";
+import { agentTurnComplete } from "../agent/agentTurnComplete.js";
+import { agentTurnCheckpoint } from "../agent/agentTurnCheckpoint.js";
+import { agentSecretRecordRegistration } from "../agent/agentSecretRecordRegistration.js";
+import { agentSecretDetachFromChannel } from "../agent/agentSecretDetachFromChannel.js";
+import { agentSecretDetachFromAgent } from "../agent/agentSecretDetachFromAgent.js";
+import { agentSecretBindingList } from "../agent/agentSecretBindingList.js";
+import { agentSecretAuthorizeManagement } from "../agent/agentSecretAuthorizeManagement.js";
+import { agentSecretAttachToChannel } from "../agent/agentSecretAttachToChannel.js";
+import { agentSecretAttachToAgent } from "../agent/agentSecretAttachToAgent.js";
+import { agentSecretAssignmentList } from "../agent/agentSecretAssignmentList.js";
+import { agentSecretAssignmentDelete } from "../agent/agentSecretAssignmentDelete.js";
+import { agentRunAttach } from "../agent/agentRunAttach.js";
+import { agentImageTakeBuild } from "../agent/agentImageTakeBuild.js";
+import { agentImageSetDefault } from "../agent/agentImageSetDefault.js";
+import { agentImageRequestBuild } from "../agent/agentImageRequestBuild.js";
+import { agentImageRenewBuildLease } from "../agent/agentImageRenewBuildLease.js";
+import { agentImageReleaseBuildLeases } from "../agent/agentImageReleaseBuildLeases.js";
+import { agentImageRecordBuildOutput } from "../agent/agentImageRecordBuildOutput.js";
+import { agentImageListRequestedBuildIds } from "../agent/agentImageListRequestedBuildIds.js";
+import { agentImageList } from "../agent/agentImageList.js";
+import { agentImageGetReadyDefault } from "../agent/agentImageGetReadyDefault.js";
+import { agentImageGetChangeContext } from "../agent/agentImageGetChangeContext.js";
+import { agentImageGet } from "../agent/agentImageGet.js";
+import { agentImageFailBuild } from "../agent/agentImageFailBuild.js";
+import { agentImageEnsureDefinitions } from "../agent/agentImageEnsureDefinitions.js";
+import { agentImageCreate } from "../agent/agentImageCreate.js";
+import { agentImageCompleteBuild } from "../agent/agentImageCompleteBuild.js";
+import { agentImageCommitChange } from "../agent/agentImageCommitChange.js";
+import { agentEffortUpdate } from "../agent/agentEffortUpdate.js";
+import { agentEffortInitialize } from "../agent/agentEffortInitialize.js";
+import { agentEffortGetContext } from "../agent/agentEffortGetContext.js";
+import { agentEffortBindingList } from "../agent/agentEffortBindingList.js";
+import { agentCreate } from "../agent/agentCreate.js";
+import { agentChatListUnfinishedIds } from "../agent/agentChatListUnfinishedIds.js";
+import { agentChatGetDirectContext } from "../agent/agentChatGetDirectContext.js";
+import { agentChatBind } from "../agent/agentChatBind.js";
+import { type DrizzleExecutor } from "../drizzle.js";
 import { createId } from "@paralleldrive/cuid2";
 import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { CollaborationRepository, RigEventCheckpoint } from "../collaboration/repository.js";
+import type { RigEventCheckpoint } from "../agent/types.js";
 import {
     CollaborationError,
     type AgentSecretSummary,
     type MutationHint,
     type UserSummary,
-} from "../collaboration/types.js";
+} from "../chat/types.js";
 import { realtimeTopics, type AgentActivityPhase, type PubSub } from "../realtime/index.js";
 import {
     isRetryableRigError,
@@ -19,7 +67,6 @@ import {
 } from "./daemon.js";
 import { BUILTIN_AGENT_IMAGES } from "./builtin-images.js";
 import type { AgentDockerRuntime, AgentImageBuildUpdate } from "./docker.js";
-
 const IGNORED_EVENT_CHECKPOINT_INTERVAL = 100;
 const EVENT_RETRY_INTERVAL_MS = 100;
 const TYPING_TTL_MS = 30_000;
@@ -40,52 +87,55 @@ const AGENT_CONTAINER_SECURITY = {
     readonlyRootFilesystem: true,
     sharedMemoryBytes: 1024 * 1024 * 1024,
     tmpfs: [
-        { target: "/tmp", mode: 0o1777 },
-        { target: "/run", mode: 0o755 },
-        { target: "/var/tmp", mode: 0o1777 },
-        { target: "/var/run", mode: 0o755 },
+        {
+            target: "/tmp",
+            mode: 0o1777,
+        },
+        {
+            target: "/run",
+            mode: 0o755,
+        },
+        {
+            target: "/var/tmp",
+            mode: 0o1777,
+        },
+        {
+            target: "/var/run",
+            mode: 0o755,
+        },
     ],
 } as const;
-
-type AgentTurnWork = NonNullable<Awaited<ReturnType<CollaborationRepository["takeNextAgentTurn"]>>>;
-
+type AgentTurnWork = NonNullable<Awaited<ReturnType<typeof agentTurnTakeNext>>>;
 interface AgentSecretCreateInput {
     actorUserId: string;
     description: string;
     environment: Record<string, string>;
     id: string;
 }
-
 interface AgentSecretTargetInput {
     actorUserId: string;
     secretId: string;
 }
-
 interface AgentSecretAgentInput extends AgentSecretTargetInput {
     agentUserId: string;
 }
-
 interface AgentSecretChannelInput extends AgentSecretTargetInput {
     channelId: string;
 }
-
 interface ActiveAgentTurnStream {
     controller: AbortController;
     output: AgentReplyStreamOutput;
     task: Promise<void>;
 }
-
 interface AgentTurnSubmission {
     inspection: RigTurnInspection;
     lastSessionEventId?: string;
     runId?: string;
 }
-
 interface ActiveTypingRenewal {
     timer: ReturnType<typeof setInterval>;
     userMessageId: string;
 }
-
 interface ActiveAgentActivity {
     lastOccurredAt: number;
     phase: AgentActivityPhase;
@@ -94,12 +144,15 @@ interface ActiveAgentActivity {
     tokenCounts: Map<string, number>;
     userMessageId: string;
 }
-
 export class AgentService {
     private readonly workerId = createId();
     private readonly bindingCreations = new Map<
         string,
-        Promise<{ containerName: string; cwd: string; sessionId: string }>
+        Promise<{
+            containerName: string;
+            cwd: string;
+            sessionId: string;
+        }>
     >();
     private readonly imageBuilds = new Map<string, Promise<void>>();
     private readonly imageMutations = new Map<string, Promise<unknown>>();
@@ -114,20 +167,18 @@ export class AgentService {
     private readonly shutdown = new AbortController();
     private queueTask?: Promise<void>;
     private stopping = false;
-
     constructor(
-        private readonly repository: CollaborationRepository,
+        private readonly executor: DrizzleExecutor,
         private readonly pubsub: PubSub,
         private readonly daemon: RigDaemonClient,
         private readonly docker: AgentDockerRuntime,
         private readonly defaultCwd: string,
         private readonly onError: (error: unknown) => void = () => undefined,
     ) {}
-
     async createAgent(input: { actorUserId: string; name: string; username: string }) {
-        if (!(await this.repository.agentUsernameAvailable(input.username)))
+        if (!(await agentUsernameIsAvailable(this.executor, input.username)))
             throw new CollaborationError("conflict", "Agent username is already taken");
-        const image = await this.repository.getReadyDefaultAgentImage();
+        const image = await agentImageGetReadyDefault(this.executor);
         if (!image)
             throw new CollaborationError(
                 "conflict",
@@ -136,8 +187,14 @@ export class AgentService {
         const agentUserId = createId();
         const sandbox = sandboxDirectories(this.defaultCwd, agentUserId, input.actorUserId);
         await Promise.all([
-            mkdir(sandbox.home, { recursive: true, mode: 0o700 }),
-            mkdir(sandbox.workspace, { recursive: true, mode: 0o700 }),
+            mkdir(sandbox.home, {
+                recursive: true,
+                mode: 0o700,
+            }),
+            mkdir(sandbox.workspace, {
+                recursive: true,
+                mode: 0o700,
+            }),
         ]);
         const containerName = agentContainerName();
         await this.docker.createContainer(
@@ -159,7 +216,7 @@ export class AgentService {
                 undefined,
                 this.shutdown.signal,
             );
-            return await this.repository.createAgent({
+            return await agentCreate(this.executor, {
                 ...input,
                 agentUserId,
                 agentEffort: session.effort,
@@ -173,9 +230,9 @@ export class AgentService {
             throw error;
         }
     }
-
     async start(): Promise<void> {
-        await this.repository.ensureAgentImageDefinitions(
+        await agentImageEnsureDefinitions(
+            this.executor,
             BUILTIN_AGENT_IMAGES.map((definition) => {
                 const definitionHash = agentImageDefinitionHash(
                     definition.dockerfile,
@@ -188,7 +245,7 @@ export class AgentService {
                 };
             }),
         );
-        for (const imageId of await this.repository.listRequestedAgentImageBuildIds())
+        for (const imageId of await agentImageListRequestedBuildIds(this.executor))
             this.queueImageBuild(imageId);
         await this.daemon.ensureGlobalEventQueue(this.shutdown.signal);
         await this.reconcileAgentEfforts();
@@ -196,40 +253,45 @@ export class AgentService {
         this.queueTask = this.trackGlobalEvents().catch((error) => {
             if (!this.shutdown.signal.aborted) this.onError(error);
         });
-        const chatIds = await this.repository.listUnfinishedAgentChatIds();
+        const chatIds = await agentChatListUnfinishedIds(this.executor);
         for (const chatId of chatIds) this.startDrain(chatId);
     }
-
-    async prepareTurn(input: {
-        actorUserId: string;
-        chatId: string;
-    }): Promise<{ agentUserId: string; sessionId: string } | undefined> {
-        const context = await this.repository.getDirectAgentChatContext(
+    async prepareTurn(input: { actorUserId: string; chatId: string }): Promise<
+        | {
+              agentUserId: string;
+              sessionId: string;
+          }
+        | undefined
+    > {
+        const context = await agentChatGetDirectContext(
+            this.executor,
             input.actorUserId,
             input.chatId,
         );
         if (!context) return undefined;
         const binding = await this.ensureAgentBinding(input.actorUserId, input.chatId);
         return binding
-            ? { agentUserId: context.agentUserId, sessionId: binding.sessionId }
+            ? {
+                  agentUserId: context.agentUserId,
+                  sessionId: binding.sessionId,
+              }
             : undefined;
     }
-
     startTurn(chatId: string): void {
         this.startDrain(chatId);
     }
-
     async getAgentEffort(input: { actorUserId: string; agentUserId: string }) {
-        const context = await this.repository.getAgentEffortContext(
+        const context = await agentEffortGetContext(
+            this.executor,
             input.actorUserId,
             input.agentUserId,
         );
         return this.agentEffortConfiguration(context);
     }
-
     async changeAgentEffort(input: { actorUserId: string; agentUserId: string; effort: string }) {
         return this.serializeAgentConfiguration(input.agentUserId, async () => {
-            const context = await this.repository.getAgentEffortContext(
+            const context = await agentEffortGetContext(
+                this.executor,
                 input.actorUserId,
                 input.agentUserId,
                 true,
@@ -240,7 +302,7 @@ export class AgentService {
                     "invalid",
                     `Effort must be one of: ${configuration.options.join(", ")}`,
                 );
-            const result = await this.repository.updateAgentEffort(input);
+            const result = await agentEffortUpdate(this.executor, input);
             try {
                 await Promise.all(
                     context.sessionIds.map((sessionId) =>
@@ -255,22 +317,23 @@ export class AgentService {
                 agentUserId: input.agentUserId,
                 effort: input.effort,
                 options: configuration.options,
-                ...(result.hint ? { sync: result.hint } : {}),
+                ...(result.hint
+                    ? {
+                          sync: result.hint,
+                      }
+                    : {}),
             };
         });
     }
-
     listAgentImages(actorUserId: string) {
-        return this.repository.listAgentImages(actorUserId);
+        return agentImageList(this.executor, actorUserId);
     }
-
     getAgentImage(actorUserId: string, imageId: string) {
-        return this.repository.getAgentImage(actorUserId, imageId);
+        return agentImageGet(this.executor, actorUserId, imageId);
     }
-
     async createAgentImage(input: { actorUserId: string; dockerfile: string; name: string }) {
         const definitionHash = agentImageDefinitionHash(input.dockerfile);
-        const result = await this.repository.createAgentImage({
+        const result = await agentImageCreate(this.executor, {
             ...input,
             definitionHash,
             dockerTag: agentImageTag(definitionHash),
@@ -279,25 +342,25 @@ export class AgentService {
         this.queueImageBuild(result.image.id);
         return result.image;
     }
-
     async requestAgentImageBuild(input: { actorUserId: string; imageId: string }) {
-        const result = await this.repository.requestAgentImageBuild(input);
+        const result = await agentImageRequestBuild(this.executor, input);
         await this.publishAgentImageHint(result.hint);
         this.queueImageBuild(result.image.id);
         return result.image;
     }
-
     async setDefaultAgentImage(input: { actorUserId: string; imageId: string }) {
-        const result = await this.repository.setDefaultAgentImage(input);
+        const result = await agentImageSetDefault(this.executor, input);
         await this.publishAgentImageHint(result.hint);
         return result.image;
     }
-
     async changeAgentImage(input: {
         actorUserId: string;
         agentUserId: string;
         imageId: string;
-    }): Promise<{ user: UserSummary; sync?: MutationHint }> {
+    }): Promise<{
+        user: UserSummary;
+        sync?: MutationHint;
+    }> {
         const previous = this.imageMutations.get(input.agentUserId) ?? Promise.resolve();
         const mutation = previous
             .catch(() => undefined)
@@ -310,15 +373,19 @@ export class AgentService {
                 this.imageMutations.delete(input.agentUserId);
         }
     }
-
     private async changeAgentImageMutation(input: {
         actorUserId: string;
         agentUserId: string;
         imageId: string;
-    }): Promise<{ user: UserSummary; sync?: MutationHint }> {
-        const context = await this.repository.getAgentImageChangeContext(input);
-        if (context.currentImageId === context.image.id) return { user: context.user };
-
+    }): Promise<{
+        user: UserSummary;
+        sync?: MutationHint;
+    }> {
+        const context = await agentImageGetChangeContext(this.executor, input);
+        if (context.currentImageId === context.image.id)
+            return {
+                user: context.user,
+            };
         const replacements: Array<{
             chatId: string;
             containerName: string;
@@ -363,8 +430,7 @@ export class AgentService {
                     throw error;
                 }
             }
-
-            const result = await this.repository.commitAgentImageChange({
+            const result = await agentImageCommitChange(this.executor, {
                 ...input,
                 expectedImageId: context.currentImageId,
                 replacements,
@@ -375,9 +441,10 @@ export class AgentService {
                         this.docker.removeContainer(containerName),
                     ),
                 );
-                return { user: result.user };
+                return {
+                    user: result.user,
+                };
             }
-
             committed = true;
             await Promise.allSettled(
                 replacements.map(({ previousContainerName }) =>
@@ -387,9 +454,9 @@ export class AgentService {
                 for (const result of results)
                     if (result.status === "rejected") this.onError(result.reason);
             });
-            await this.reconcileSecretBindings({ agentUserId: input.agentUserId }).catch(
-                this.onError,
-            );
+            await this.reconcileSecretBindings({
+                agentUserId: input.agentUserId,
+            }).catch(this.onError);
             await this.publishAgentHint(result.sync);
             return result;
         } catch (error) {
@@ -405,9 +472,10 @@ export class AgentService {
             throw error;
         }
     }
-
-    async listAgentSecrets(actorUserId: string): Promise<{ secrets: AgentSecretSummary[] }> {
-        const assignments = await this.repository.listAgentSecretAssignments(actorUserId);
+    async listAgentSecrets(actorUserId: string): Promise<{
+        secrets: AgentSecretSummary[];
+    }> {
+        const assignments = await agentSecretAssignmentList(this.executor, actorUserId);
         const assignmentById = new Map(
             assignments.map((assignment) => [assignment.secretId, assignment]),
         );
@@ -423,17 +491,17 @@ export class AgentService {
             }),
         };
     }
-
-    async createAgentSecret(
-        input: AgentSecretCreateInput,
-    ): Promise<{ secret: AgentSecretSummary; sync: MutationHint }> {
+    async createAgentSecret(input: AgentSecretCreateInput): Promise<{
+        secret: AgentSecretSummary;
+        sync: MutationHint;
+    }> {
         return this.serializeAgentSecret(input.id, () => this.createAgentSecretMutation(input));
     }
-
-    private async createAgentSecretMutation(
-        input: AgentSecretCreateInput,
-    ): Promise<{ secret: AgentSecretSummary; sync: MutationHint }> {
-        await this.repository.authorizeAgentSecretManagement(input.actorUserId);
+    private async createAgentSecretMutation(input: AgentSecretCreateInput): Promise<{
+        secret: AgentSecretSummary;
+        sync: MutationHint;
+    }> {
+        await agentSecretAuthorizeManagement(this.executor, input.actorUserId);
         const secret = await this.daemon.registerSecret(
             {
                 id: input.id,
@@ -442,12 +510,12 @@ export class AgentService {
             },
             this.shutdown.signal,
         );
-        const sync = await this.repository.recordAgentSecretRegistration({
+        const sync = await agentSecretRecordRegistration(this.executor, {
             actorUserId: input.actorUserId,
             secretId: input.id,
         });
         await this.publishAgentHint(sync);
-        const assignments = await this.repository.listAgentSecretAssignments(input.actorUserId);
+        const assignments = await agentSecretAssignmentList(this.executor, input.actorUserId);
         const assignment = assignments.find((candidate) => candidate.secretId === secret.id);
         return {
             secret: {
@@ -458,20 +526,20 @@ export class AgentService {
             sync,
         };
     }
-
-    async deleteAgentSecret(
-        input: AgentSecretTargetInput,
-    ): Promise<{ removed: boolean; sync: MutationHint }> {
+    async deleteAgentSecret(input: AgentSecretTargetInput): Promise<{
+        removed: boolean;
+        sync: MutationHint;
+    }> {
         return this.serializeAgentSecret(input.secretId, () =>
             this.deleteAgentSecretMutation(input),
         );
     }
-
-    private async deleteAgentSecretMutation(
-        input: AgentSecretTargetInput,
-    ): Promise<{ removed: boolean; sync: MutationHint }> {
-        await this.repository.authorizeAgentSecretManagement(input.actorUserId);
-        const sync = await this.repository.deleteAgentSecretAssignments(input);
+    private async deleteAgentSecretMutation(input: AgentSecretTargetInput): Promise<{
+        removed: boolean;
+        sync: MutationHint;
+    }> {
+        await agentSecretAuthorizeManagement(this.executor, input.actorUserId);
+        const sync = await agentSecretAssignmentDelete(this.executor, input);
         let removed: boolean;
         try {
             removed = await this.daemon.unregisterSecret(input.secretId, this.shutdown.signal);
@@ -480,93 +548,119 @@ export class AgentService {
             throw error;
         }
         await this.publishAgentHint(sync);
-        return { removed, sync };
+        return {
+            removed,
+            sync,
+        };
     }
-
-    async attachAgentSecretToAgent(
-        input: AgentSecretAgentInput,
-    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+    async attachAgentSecretToAgent(input: AgentSecretAgentInput): Promise<{
+        secret: AgentSecretSummary;
+        sync?: MutationHint;
+    }> {
         return this.serializeAgentSecret(input.secretId, () =>
             this.attachAgentSecretToAgentMutation(input),
         );
     }
-
-    private async attachAgentSecretToAgentMutation(
-        input: AgentSecretAgentInput,
-    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+    private async attachAgentSecretToAgentMutation(input: AgentSecretAgentInput): Promise<{
+        secret: AgentSecretSummary;
+        sync?: MutationHint;
+    }> {
         await this.requireAgentSecret(input.actorUserId, input.secretId);
-        const sync = await this.repository.attachAgentSecretToAgent(input);
-        await this.reconcileSecretBindings({ agentUserId: input.agentUserId });
+        const sync = await agentSecretAttachToAgent(this.executor, input);
+        await this.reconcileSecretBindings({
+            agentUserId: input.agentUserId,
+        });
         if (sync) await this.publishAgentHint(sync);
         return {
             secret: await this.agentSecret(input.actorUserId, input.secretId),
-            ...(sync ? { sync } : {}),
+            ...(sync
+                ? {
+                      sync,
+                  }
+                : {}),
         };
     }
-
-    async detachAgentSecretFromAgent(
-        input: AgentSecretAgentInput,
-    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+    async detachAgentSecretFromAgent(input: AgentSecretAgentInput): Promise<{
+        secret: AgentSecretSummary;
+        sync?: MutationHint;
+    }> {
         return this.serializeAgentSecret(input.secretId, () =>
             this.detachAgentSecretFromAgentMutation(input),
         );
     }
-
-    private async detachAgentSecretFromAgentMutation(
-        input: AgentSecretAgentInput,
-    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+    private async detachAgentSecretFromAgentMutation(input: AgentSecretAgentInput): Promise<{
+        secret: AgentSecretSummary;
+        sync?: MutationHint;
+    }> {
         await this.requireAgentSecret(input.actorUserId, input.secretId);
-        const sync = await this.repository.detachAgentSecretFromAgent(input);
-        await this.reconcileSecretBindings({ agentUserId: input.agentUserId });
+        const sync = await agentSecretDetachFromAgent(this.executor, input);
+        await this.reconcileSecretBindings({
+            agentUserId: input.agentUserId,
+        });
         if (sync) await this.publishAgentHint(sync);
         return {
             secret: await this.agentSecret(input.actorUserId, input.secretId),
-            ...(sync ? { sync } : {}),
+            ...(sync
+                ? {
+                      sync,
+                  }
+                : {}),
         };
     }
-
-    async attachAgentSecretToChannel(
-        input: AgentSecretChannelInput,
-    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+    async attachAgentSecretToChannel(input: AgentSecretChannelInput): Promise<{
+        secret: AgentSecretSummary;
+        sync?: MutationHint;
+    }> {
         return this.serializeAgentSecret(input.secretId, () =>
             this.attachAgentSecretToChannelMutation(input),
         );
     }
-
-    private async attachAgentSecretToChannelMutation(
-        input: AgentSecretChannelInput,
-    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+    private async attachAgentSecretToChannelMutation(input: AgentSecretChannelInput): Promise<{
+        secret: AgentSecretSummary;
+        sync?: MutationHint;
+    }> {
         await this.requireAgentSecret(input.actorUserId, input.secretId);
-        const sync = await this.repository.attachAgentSecretToChannel(input);
-        await this.reconcileSecretBindings({ chatId: input.channelId });
+        const sync = await agentSecretAttachToChannel(this.executor, input);
+        await this.reconcileSecretBindings({
+            chatId: input.channelId,
+        });
         if (sync) await this.publishAgentHint(sync);
         return {
             secret: await this.agentSecret(input.actorUserId, input.secretId),
-            ...(sync ? { sync } : {}),
+            ...(sync
+                ? {
+                      sync,
+                  }
+                : {}),
         };
     }
-
-    async detachAgentSecretFromChannel(
-        input: AgentSecretChannelInput,
-    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+    async detachAgentSecretFromChannel(input: AgentSecretChannelInput): Promise<{
+        secret: AgentSecretSummary;
+        sync?: MutationHint;
+    }> {
         return this.serializeAgentSecret(input.secretId, () =>
             this.detachAgentSecretFromChannelMutation(input),
         );
     }
-
-    private async detachAgentSecretFromChannelMutation(
-        input: AgentSecretChannelInput,
-    ): Promise<{ secret: AgentSecretSummary; sync?: MutationHint }> {
+    private async detachAgentSecretFromChannelMutation(input: AgentSecretChannelInput): Promise<{
+        secret: AgentSecretSummary;
+        sync?: MutationHint;
+    }> {
         await this.requireAgentSecret(input.actorUserId, input.secretId);
-        const sync = await this.repository.detachAgentSecretFromChannel(input);
-        await this.reconcileSecretBindings({ chatId: input.channelId });
+        const sync = await agentSecretDetachFromChannel(this.executor, input);
+        await this.reconcileSecretBindings({
+            chatId: input.channelId,
+        });
         if (sync) await this.publishAgentHint(sync);
         return {
             secret: await this.agentSecret(input.actorUserId, input.secretId),
-            ...(sync ? { sync } : {}),
+            ...(sync
+                ? {
+                      sync,
+                  }
+                : {}),
         };
     }
-
     private async serializeAgentConfiguration<T>(
         agentUserId: string,
         action: () => Promise<T>,
@@ -581,7 +675,6 @@ export class AgentService {
                 this.agentConfigurationMutations.delete(agentUserId);
         }
     }
-
     private async serializeAgentSecret<T>(secretId: string, action: () => Promise<T>): Promise<T> {
         const previous = this.secretMutations.get(secretId) ?? Promise.resolve();
         const mutation = previous.catch(() => undefined).then(action);
@@ -593,13 +686,19 @@ export class AgentService {
                 this.secretMutations.delete(secretId);
         }
     }
-
     private async ensureAgentBinding(
         actorUserId: string,
         chatId: string,
-    ): Promise<{ containerName: string; cwd: string; sessionId: string } | undefined> {
+    ): Promise<
+        | {
+              containerName: string;
+              cwd: string;
+              sessionId: string;
+          }
+        | undefined
+    > {
         if (this.stopping) return undefined;
-        const context = await this.repository.getDirectAgentChatContext(actorUserId, chatId);
+        const context = await agentChatGetDirectContext(this.executor, actorUserId, chatId);
         if (!context) return undefined;
         if (context.binding) {
             if (context.agentEffort)
@@ -614,7 +713,7 @@ export class AgentService {
         const pending = this.bindingCreations.get(key);
         if (pending) return pending;
         const creation = this.serializeAgentConfiguration(context.agentUserId, async () => {
-            const latest = await this.repository.getDirectAgentChatContext(actorUserId, chatId);
+            const latest = await agentChatGetDirectContext(this.executor, actorUserId, chatId);
             if (!latest)
                 throw new CollaborationError("not_found", "Agent direct message was not found");
             if (latest.binding) {
@@ -628,8 +727,14 @@ export class AgentService {
                 latest.privateUserId,
             );
             await Promise.all([
-                mkdir(sandbox.home, { recursive: true, mode: 0o700 }),
-                mkdir(sandbox.workspace, { recursive: true, mode: 0o700 }),
+                mkdir(sandbox.home, {
+                    recursive: true,
+                    mode: 0o700,
+                }),
+                mkdir(sandbox.workspace, {
+                    recursive: true,
+                    mode: 0o700,
+                }),
             ]);
             const containerName = agentContainerName();
             await this.docker.createContainer(
@@ -651,7 +756,7 @@ export class AgentService {
                     latest.agentEffort,
                     this.shutdown.signal,
                 );
-                const binding = await this.repository.bindAgentChat({
+                const binding = await agentChatBind(this.executor, {
                     actorUserId,
                     agentUserId: latest.agentUserId,
                     chatId,
@@ -679,7 +784,6 @@ export class AgentService {
             this.bindingCreations.delete(key);
         }
     }
-
     async close(): Promise<void> {
         this.stopping = true;
         this.shutdown.abort();
@@ -704,18 +808,16 @@ export class AgentService {
             shutdownDeadline(),
         ]);
         await Promise.all([
-            this.repository.releaseAgentTurnLeases(this.workerId),
-            this.repository.releaseAgentImageBuildLeases(this.workerId),
+            agentTurnReleaseLeases(this.executor, this.workerId),
+            agentImageReleaseBuildLeases(this.executor, this.workerId),
         ]);
     }
-
     private queueImageBuild(imageId: string): void {
         if (this.stopping || this.imageBuilds.has(imageId) || this.pendingImageBuilds.has(imageId))
             return;
         this.pendingImageBuilds.add(imageId);
         this.drainImageBuildQueue();
     }
-
     private drainImageBuildQueue(): void {
         if (this.stopping || this.activeImageBuilds >= MAX_CONCURRENT_IMAGE_BUILDS) return;
         const imageId = this.pendingImageBuilds.values().next().value;
@@ -733,20 +835,23 @@ export class AgentService {
             });
         this.imageBuilds.set(imageId, task);
     }
-
     private async buildImage(imageId: string): Promise<void> {
-        const claimed = await this.repository.takeAgentImageBuild(imageId, this.workerId);
+        const claimed = await agentImageTakeBuild(this.executor, imageId, this.workerId);
         if (!claimed) return;
         const build = claimed.build;
         await this.publishAgentImageHint(claimed.hint);
         const output = new AgentImageBuildOutput(
             async ({ lastBuildLogLine, logChunk, progress }) => {
-                const hint = await this.repository.recordAgentImageBuildOutput({
+                const hint = await agentImageRecordBuildOutput(this.executor, {
                     imageId,
                     logChunk,
                     progress,
                     workerId: this.workerId,
-                    ...(lastBuildLogLine === undefined ? {} : { lastBuildLogLine }),
+                    ...(lastBuildLogLine === undefined
+                        ? {}
+                        : {
+                              lastBuildLogLine,
+                          }),
                 });
                 if (hint) await this.publishAgentImageHint(hint);
                 else if (!this.shutdown.signal.aborted)
@@ -760,8 +865,7 @@ export class AgentService {
         const renewal = setInterval(() => {
             if (renewalRunning || this.shutdown.signal.aborted) return;
             renewalRunning = true;
-            void this.repository
-                .renewAgentImageBuildLease(imageId, this.workerId)
+            void agentImageRenewBuildLease(this.executor, imageId, this.workerId)
                 .catch(this.onError)
                 .finally(() => {
                     renewalRunning = false;
@@ -771,7 +875,11 @@ export class AgentService {
         try {
             const result = await this.docker.buildImage(
                 {
-                    ...(build.buildContext ? { buildContext: build.buildContext } : {}),
+                    ...(build.buildContext
+                        ? {
+                              buildContext: build.buildContext,
+                          }
+                        : {}),
                     dockerfile: build.dockerfile,
                     tag: build.dockerTag,
                 },
@@ -781,7 +889,7 @@ export class AgentService {
                 },
             );
             await output.finish();
-            const completed = await this.repository.completeAgentImageBuild({
+            const completed = await agentImageCompleteBuild(this.executor, {
                 dockerImageId: result.imageId,
                 imageId,
                 workerId: this.workerId,
@@ -800,7 +908,7 @@ export class AgentService {
                 progress: output.currentProgress,
             });
             await output.finish().catch(this.onError);
-            const failed = await this.repository.failAgentImageBuild({
+            const failed = await agentImageFailBuild(this.executor, {
                 error: message,
                 imageId,
                 workerId: this.workerId,
@@ -811,32 +919,42 @@ export class AgentService {
             output.close();
         }
     }
-
     private async publishAgentImageHint(hint: {
         areas: string[];
-        chats: Array<{ chatId: string; pts: string }>;
+        chats: Array<{
+            chatId: string;
+            pts: string;
+        }>;
         sequence: string;
     }): Promise<void> {
         await this.publishAgentHint(hint);
     }
-
     private async publishAgentHint(hint: {
         areas: string[];
-        chats: Array<{ chatId: string; pts: string }>;
+        chats: Array<{
+            chatId: string;
+            pts: string;
+        }>;
         sequence: string;
     }): Promise<void> {
         try {
-            await this.pubsub.publish(realtimeTopics.server, { type: "sync", ...hint });
+            await this.pubsub.publish(realtimeTopics.server, {
+                type: "sync",
+                ...hint,
+            });
         } catch (error) {
             this.onError(error);
         }
     }
-
     private async agentEffortConfiguration(context: {
         agentUserId: string;
         effort?: string;
         sessionIds: string[];
-    }): Promise<{ agentUserId: string; effort: string; options: string[] }> {
+    }): Promise<{
+        agentUserId: string;
+        effort: string;
+        options: string[];
+    }> {
         if (!context.sessionIds.length)
             throw new CollaborationError("conflict", "Agent has no active Rig session");
         const configurations = await Promise.all(
@@ -848,11 +966,14 @@ export class AgentService {
             configurations.every((configuration) => configuration.options.includes(option)),
         );
         const effort = context.effort ?? configurations[0]!.effort;
-        return { agentUserId: context.agentUserId, effort, options };
+        return {
+            agentUserId: context.agentUserId,
+            effort,
+            options,
+        };
     }
-
     private async reconcileAgentEfforts(): Promise<void> {
-        const bindings = await this.repository.listAgentEffortBindings();
+        const bindings = await agentEffortBindingList(this.executor);
         const byAgent = new Map<string, typeof bindings>();
         for (const binding of bindings) {
             const group = byAgent.get(binding.agentUserId) ?? [];
@@ -870,7 +991,7 @@ export class AgentService {
                     )
                 ).effort;
             if (!configured) {
-                const hint = await this.repository.initializeAgentEffort(agentUserId, effort);
+                const hint = await agentEffortInitialize(this.executor, agentUserId, effort);
                 if (hint) await this.publishAgentHint(hint);
             }
             await Promise.all(
@@ -880,7 +1001,6 @@ export class AgentService {
             );
         }
     }
-
     private async reconcileSessionEffort(sessionId: string, effort: string): Promise<void> {
         const current = await this.daemon.effortConfiguration(sessionId, this.shutdown.signal);
         if (current.effort === effort) return;
@@ -891,28 +1011,25 @@ export class AgentService {
             );
         await this.daemon.changeEffort(sessionId, effort, this.shutdown.signal);
     }
-
     private async requireAgentSecret(actorUserId: string, secretId: string): Promise<void> {
-        await this.repository.authorizeAgentSecretManagement(actorUserId);
+        await agentSecretAuthorizeManagement(this.executor, actorUserId);
         const secrets = await this.daemon.listSecrets(this.shutdown.signal);
         if (!secrets.some((secret) => secret.id === secretId))
             throw new CollaborationError("not_found", "Agent secret was not found");
     }
-
     private async agentSecret(actorUserId: string, secretId: string): Promise<AgentSecretSummary> {
         const { secrets } = await this.listAgentSecrets(actorUserId);
         const secret = secrets.find((candidate) => candidate.id === secretId);
         if (!secret) throw new CollaborationError("not_found", "Agent secret was not found");
         return secret;
     }
-
     private async reconcileSecretBindings(
         input: {
             agentUserId?: string;
             chatId?: string;
         } = {},
     ): Promise<void> {
-        const bindings = await this.repository.listAgentSecretBindings(input);
+        const bindings = await agentSecretBindingList(this.executor, input);
         await Promise.all(
             bindings.map((binding) =>
                 this.daemon.reconcileSessionSecrets(
@@ -920,7 +1037,7 @@ export class AgentService {
                     async () => {
                         const [secrets, latestBindings] = await Promise.all([
                             this.daemon.listSecrets(this.shutdown.signal),
-                            this.repository.listAgentSecretBindings({
+                            agentSecretBindingList(this.executor, {
                                 agentUserId: binding.agentUserId,
                                 chatId: binding.chatId,
                             }),
@@ -942,9 +1059,8 @@ export class AgentService {
             ),
         );
     }
-
     private async trackGlobalEvents(): Promise<void> {
-        let checkpoint = await this.repository.getRigEventCheckpoint();
+        let checkpoint = await rigEventGetCheckpoint(this.executor);
         let reportedFailure = false;
         while (!this.stopping) {
             try {
@@ -954,7 +1070,8 @@ export class AgentService {
                     async (entry) => {
                         if (isRelevantRigEvent(entry.event)) {
                             await this.applyGlobalEvent(entry);
-                            checkpoint = await this.repository.checkpointRigEvent(
+                            checkpoint = await rigEventCheckpoint(
+                                this.executor,
                                 entry.cursor,
                                 ignoredSinceCheckpoint + 1,
                             );
@@ -964,7 +1081,8 @@ export class AgentService {
                         }
                         ignoredSinceCheckpoint += 1;
                         if (ignoredSinceCheckpoint < IGNORED_EVENT_CHECKPOINT_INTERVAL) return;
-                        checkpoint = await this.repository.checkpointRigEvent(
+                        checkpoint = await rigEventCheckpoint(
+                            this.executor,
                             entry.cursor,
                             ignoredSinceCheckpoint,
                         );
@@ -982,7 +1100,6 @@ export class AgentService {
             }
         }
     }
-
     private async trimGlobalEventsIfDue(
         checkpoint: RigEventCheckpoint,
     ): Promise<RigEventCheckpoint> {
@@ -992,16 +1109,15 @@ export class AgentService {
             Date.now() - sqliteTimestamp(checkpoint.lastTrimmedAt) >= TRIM_TIME_INTERVAL_MS;
         if (!trimDueByCount && !trimDueByTime) return checkpoint;
         await this.daemon.trimGlobalEvents(checkpoint.cursor, this.shutdown.signal);
-        return this.repository.markRigEventsTrimmed(checkpoint.cursor);
+        return rigEventMarkTrimmed(this.executor, checkpoint.cursor);
     }
-
     private async applyGlobalEvent(entry: RigGlobalEvent): Promise<void> {
         const event = entry.event;
         const runId = event.data.runId;
         if (event.type === "message_submitted" && runId) {
             const text = messageText(event.data.message);
             if (text)
-                await this.repository.attachAgentRun({
+                await agentRunAttach(this.executor, {
                     runId,
                     sessionId: event.sessionId,
                     text,
@@ -1009,7 +1125,7 @@ export class AgentService {
             return;
         }
         if (!runId || (event.type !== "run_finished" && event.type !== "run_error")) return;
-        let turn = await this.repository.getRunningAgentTurn(event.sessionId, runId);
+        let turn = await agentTurnGetRunning(this.executor, event.sessionId, runId);
         if (!turn) return;
         if (turn.runId === undefined || turn.baselineMessageCount === undefined) {
             const baselineMessageCount =
@@ -1019,7 +1135,7 @@ export class AgentService {
                     turn.text,
                     this.shutdown.signal,
                 ));
-            const checkpointed = await this.repository.checkpointAgentTurn({
+            const checkpointed = await agentTurnCheckpoint(this.executor, {
                 agentUserId: turn.agentUserId,
                 baselineMessageCount,
                 runId,
@@ -1027,7 +1143,11 @@ export class AgentService {
                 workerId: turn.workerId,
             });
             if (!checkpointed) return;
-            turn = { ...turn, baselineMessageCount, runId };
+            turn = {
+                ...turn,
+                baselineMessageCount,
+                runId,
+            };
         }
         if (event.type === "run_error") {
             await this.failTurn(turn, event.data.errorMessage ?? "Rig run failed.");
@@ -1049,7 +1169,6 @@ export class AgentService {
         }
         throw new Error(`Rig run ${runId} finished before its session snapshot was complete.`);
     }
-
     private startDrain(chatId: string): void {
         if (this.stopping || this.drains.has(chatId)) return;
         const task = this.drainChat(chatId)
@@ -1058,23 +1177,22 @@ export class AgentService {
                 this.drains.delete(chatId);
                 if (this.stopping) return;
                 try {
-                    if (await this.repository.hasRunnableAgentTurn(chatId)) this.startDrain(chatId);
+                    if (await agentTurnHasRunnable(this.executor, chatId)) this.startDrain(chatId);
                 } catch (error) {
                     this.onError(error);
                 }
             });
         this.drains.set(chatId, task);
     }
-
     private async drainChat(chatId: string): Promise<void> {
         for (;;) {
             if (this.stopping) return;
-            const input = await this.repository
-                .takeNextAgentTurn(chatId, this.workerId)
-                .catch((error) => {
+            const input = await agentTurnTakeNext(this.executor, chatId, this.workerId).catch(
+                (error) => {
                     this.onError(error);
                     return undefined;
-                });
+                },
+            );
             if (!input) return;
             try {
                 await this.startAgentActivity(input);
@@ -1105,7 +1223,6 @@ export class AgentService {
             }
         }
     }
-
     private async ensureTurnSubmitted(input: AgentTurnWork): Promise<AgentTurnSubmission> {
         let baselineMessageCount = input.baselineMessageCount;
         let lastSessionEventId = input.lastSessionEventId;
@@ -1126,7 +1243,7 @@ export class AgentService {
                 baselineMessageCount = checkpoint.messageCount;
                 lastSessionEventId = checkpoint.lastEventId;
             }
-            const checkpointed = await this.repository.checkpointAgentTurn({
+            const checkpointed = await agentTurnCheckpoint(this.executor, {
                 agentUserId: input.agentUserId,
                 baselineMessageCount,
                 lastSessionEventId,
@@ -1139,7 +1256,6 @@ export class AgentService {
                     `Agent turn ${input.userMessageId} lease was lost before submission.`,
                 );
         }
-
         const existing = await this.retryRig(() =>
             this.daemon.inspectTurn(
                 input.sessionId,
@@ -1151,12 +1267,22 @@ export class AgentService {
         if (runId || existing.kind !== "not_submitted")
             return {
                 inspection: existing,
-                ...(lastSessionEventId === undefined ? {} : { lastSessionEventId }),
-                ...(runId === undefined ? {} : { runId }),
+                ...(lastSessionEventId === undefined
+                    ? {}
+                    : {
+                          lastSessionEventId,
+                      }),
+                ...(runId === undefined
+                    ? {}
+                    : {
+                          runId,
+                      }),
             };
-
         for (;;) {
-            let submitted: { eventId: string; runId: string };
+            let submitted: {
+                eventId: string;
+                runId: string;
+            };
             try {
                 submitted = await this.daemon.submitTurn(
                     input.sessionId,
@@ -1176,8 +1302,16 @@ export class AgentService {
                 if (recovered.kind !== "not_submitted")
                     return {
                         inspection: recovered,
-                        ...(lastSessionEventId === undefined ? {} : { lastSessionEventId }),
-                        ...(runId === undefined ? {} : { runId }),
+                        ...(lastSessionEventId === undefined
+                            ? {}
+                            : {
+                                  lastSessionEventId,
+                              }),
+                        ...(runId === undefined
+                            ? {}
+                            : {
+                                  runId,
+                              }),
                     };
                 if (!isRetryableRigError(error)) throw error;
                 await delay(EVENT_RETRY_INTERVAL_MS, this.shutdown.signal);
@@ -1185,7 +1319,7 @@ export class AgentService {
             }
             runId = submitted.runId;
             lastSessionEventId = submitted.eventId;
-            const checkpointed = await this.repository.checkpointAgentTurn({
+            const checkpointed = await agentTurnCheckpoint(this.executor, {
                 agentUserId: input.agentUserId,
                 baselineMessageCount,
                 lastSessionEventId,
@@ -1198,13 +1332,14 @@ export class AgentService {
                     `Agent turn ${input.userMessageId} lease was lost after submission.`,
                 );
             return {
-                inspection: { kind: "running" },
+                inspection: {
+                    kind: "running",
+                },
                 lastSessionEventId,
                 runId,
             };
         }
     }
-
     private startTurnStream(input: AgentTurnWork, submission: AgentTurnSubmission): void {
         if (this.stopping || this.turnStreams.has(input.userMessageId)) return;
         const controller = new AbortController();
@@ -1221,7 +1356,7 @@ export class AgentService {
         const output = new AgentReplyStreamOutput(
             submission.lastSessionEventId,
             async (update) => {
-                const result = await this.repository.streamAgentTurnReply({
+                const result = await agentTurnStreamReply(this.executor, {
                     agentUserId: input.agentUserId,
                     actorUserId: input.actorUserId,
                     eventId: update.eventId,
@@ -1268,9 +1403,12 @@ export class AgentService {
                     }
                 }
             });
-        this.turnStreams.set(input.userMessageId, { controller, output, task });
+        this.turnStreams.set(input.userMessageId, {
+            controller,
+            output,
+            task,
+        });
     }
-
     private async consumeTurnStream(
         input: AgentTurnWork,
         submission: AgentTurnSubmission,
@@ -1293,7 +1431,7 @@ export class AgentService {
                             const submittedText = messageText(event.data.message);
                             if (event.data.runId && submittedText === input.text) {
                                 runId = event.data.runId;
-                                await this.repository.attachAgentRun({
+                                await agentRunAttach(this.executor, {
                                     runId,
                                     sessionId: input.sessionId,
                                     text: input.text,
@@ -1337,19 +1475,27 @@ export class AgentService {
             }
         }
     }
-
     private async stopTurnStream(input: AgentTurnWork): Promise<void> {
         const stream = this.turnStreams.get(input.userMessageId);
         if (!stream) return;
         stream.controller.abort();
         await stream.task;
     }
-
     private async publishAgentReplyHint(
         chatId: string,
-        hint: { areas: string[]; chats: Array<{ chatId: string; pts: string }>; sequence: string },
+        hint: {
+            areas: string[];
+            chats: Array<{
+                chatId: string;
+                pts: string;
+            }>;
+            sequence: string;
+        },
     ): Promise<void> {
-        const event = { type: "sync" as const, ...hint };
+        const event = {
+            type: "sync" as const,
+            ...hint,
+        };
         try {
             await Promise.all([
                 this.pubsub.publish(realtimeTopics.server, event),
@@ -1359,7 +1505,6 @@ export class AgentService {
             this.onError(error);
         }
     }
-
     private async retryRig<T>(action: () => Promise<T>): Promise<T> {
         for (;;) {
             try {
@@ -1370,10 +1515,9 @@ export class AgentService {
             }
         }
     }
-
     private async completeTurn(input: AgentTurnWork, text: string): Promise<void> {
         await this.stopTurnStream(input);
-        const result = await this.repository.completeAgentTurn({
+        const result = await agentTurnComplete(this.executor, {
             agentUserId: input.agentUserId,
             actorUserId: input.actorUserId,
             sessionId: input.sessionId,
@@ -1391,10 +1535,9 @@ export class AgentService {
         await this.stopTyping(input);
         this.startDrain(input.chatId);
     }
-
     private async failTurn(input: AgentTurnWork, error: string): Promise<void> {
         await this.stopTurnStream(input);
-        const result = await this.repository.failAgentTurn({
+        const result = await agentTurnFail(this.executor, {
             agentUserId: input.agentUserId,
             actorUserId: input.actorUserId,
             error,
@@ -1412,7 +1555,6 @@ export class AgentService {
         await this.stopTyping(input);
         this.startDrain(input.chatId);
     }
-
     private async startAgentActivity(input: AgentTurnWork): Promise<void> {
         if (this.agentActivities.has(input.userMessageId)) return;
         let activity!: ActiveAgentActivity;
@@ -1436,7 +1578,6 @@ export class AgentService {
             this.onError(error);
         }
     }
-
     private async updateAgentActivity(input: AgentTurnWork, event: RigEvent): Promise<void> {
         const activity = this.agentActivities.get(input.userMessageId);
         if (!activity) return;
@@ -1458,7 +1599,6 @@ export class AgentService {
             this.onError(error);
         }
     }
-
     private async stopAgentActivity(input: AgentTurnWork): Promise<void> {
         const activity = this.agentActivities.get(input.userMessageId);
         this.clearAgentActivity(input.userMessageId);
@@ -1469,13 +1609,11 @@ export class AgentService {
             this.onError(error);
         }
     }
-
     private clearAgentActivity(userMessageId: string): void {
         const activity = this.agentActivities.get(userMessageId);
         if (activity) clearInterval(activity.timer);
         this.agentActivities.delete(userMessageId);
     }
-
     private publishAgentActivity(
         input: AgentTurnWork,
         activity: ActiveAgentActivity,
@@ -1497,10 +1635,13 @@ export class AgentService {
             tokenCount,
             startedAt: activity.startedAt,
             occurredAt,
-            ...(active ? { expiresAt: occurredAt + AGENT_ACTIVITY_TTL_MS } : {}),
+            ...(active
+                ? {
+                      expiresAt: occurredAt + AGENT_ACTIVITY_TTL_MS,
+                  }
+                : {}),
         });
     }
-
     private async startTyping(input: AgentTurnWork): Promise<void> {
         if (this.typingRenewals.has(input.chatId)) return;
         try {
@@ -1510,12 +1651,11 @@ export class AgentService {
         }
         let renewal!: ActiveTypingRenewal;
         const timer = setInterval(() => {
-            void this.repository
-                .renewAgentTurnLease({
-                    agentUserId: input.agentUserId,
-                    userMessageId: input.userMessageId,
-                    workerId: input.workerId,
-                })
+            void agentTurnRenewLease(this.executor, {
+                agentUserId: input.agentUserId,
+                userMessageId: input.userMessageId,
+                workerId: input.workerId,
+            })
                 .then(async (renewed) => {
                     if (this.typingRenewals.get(input.chatId) !== renewal) return;
                     if (!renewed) {
@@ -1529,10 +1669,12 @@ export class AgentService {
                 .catch(this.onError);
         }, TYPING_RENEW_INTERVAL_MS);
         timer.unref();
-        renewal = { timer, userMessageId: input.userMessageId };
+        renewal = {
+            timer,
+            userMessageId: input.userMessageId,
+        };
         this.typingRenewals.set(input.chatId, renewal);
     }
-
     private async stopTyping(input: AgentTurnWork): Promise<void> {
         this.clearTypingRenewal(input.chatId, input.userMessageId);
         try {
@@ -1541,14 +1683,12 @@ export class AgentService {
             this.onError(error);
         }
     }
-
     private clearTypingRenewal(chatId: string, userMessageId?: string): void {
         const renewal = this.typingRenewals.get(chatId);
         if (userMessageId && renewal?.userMessageId !== userMessageId) return;
         if (renewal) clearInterval(renewal.timer);
         this.typingRenewals.delete(chatId);
     }
-
     private publishTyping(input: AgentTurnWork, active: boolean): Promise<void> {
         const occurredAt = Date.now();
         return this.pubsub.publish(realtimeTopics.chat(input.chatId), {
@@ -1557,18 +1697,20 @@ export class AgentService {
             userId: input.agentUserId,
             active,
             occurredAt,
-            ...(active ? { expiresAt: occurredAt + TYPING_TTL_MS } : {}),
+            ...(active
+                ? {
+                      expiresAt: occurredAt + TYPING_TTL_MS,
+                  }
+                : {}),
         });
     }
 }
-
 class AgentTurnStreamStopped extends Error {
     constructor(message: string) {
         super(message);
         this.name = "AgentTurnStreamStopped";
     }
 }
-
 class AgentReplyStreamOutput {
     private activeFlush?: Promise<void>;
     private failure?: unknown;
@@ -1579,7 +1721,6 @@ class AgentReplyStreamOutput {
         text: string;
     };
     private persistedTextLength = 0;
-
     constructor(
         private persistedEventId: string | undefined,
         private readonly persist: (update: {
@@ -1590,11 +1731,9 @@ class AgentReplyStreamOutput {
         }) => Promise<void>,
         private readonly onError: (error: unknown) => void,
     ) {}
-
     get lastEventId(): string | undefined {
         return this.persistedEventId;
     }
-
     add(update: { eventId: string; streamCommittedText: string; text: string }): void {
         if (this.failure) return;
         this.pending = update;
@@ -1612,7 +1751,6 @@ class AgentReplyStreamOutput {
             this.flushTimer.unref();
         }
     }
-
     async finish(): Promise<void> {
         if (this.flushTimer) clearTimeout(this.flushTimer);
         this.flushTimer = undefined;
@@ -1626,21 +1764,17 @@ class AgentReplyStreamOutput {
             await this.flushOnce();
         }
     }
-
     close(): void {
         if (this.flushTimer) clearTimeout(this.flushTimer);
         this.flushTimer = undefined;
     }
-
     private flushInBackground(): void {
         void this.flushAvailable().catch(this.onError);
     }
-
     private async flushAvailable(): Promise<void> {
         if (this.activeFlush) await this.activeFlush;
         if (this.pending && !this.failure) await this.flushOnce();
     }
-
     private flushOnce(): Promise<void> {
         if (this.activeFlush) return this.activeFlush;
         const update = this.pending;
@@ -1649,7 +1783,11 @@ class AgentReplyStreamOutput {
         const expectedEventId = this.persistedEventId;
         const task = this.persist({
             ...update,
-            ...(expectedEventId === undefined ? {} : { expectedEventId }),
+            ...(expectedEventId === undefined
+                ? {}
+                : {
+                      expectedEventId,
+                  }),
         })
             .then(() => {
                 this.persistedEventId = update.eventId;
@@ -1665,7 +1803,6 @@ class AgentReplyStreamOutput {
         return this.activeFlush;
     }
 }
-
 class AgentImageBuildOutput {
     private activeFlush?: Promise<void>;
     private buffer = "";
@@ -1675,7 +1812,6 @@ class AgentImageBuildOutput {
     private lastBuildLogLine?: string;
     private partialLine = "";
     private progress = 1;
-
     constructor(
         private readonly persist: (update: {
             lastBuildLogLine?: string;
@@ -1684,11 +1820,9 @@ class AgentImageBuildOutput {
         }) => Promise<void>,
         private readonly onError: (error: unknown) => void,
     ) {}
-
     get currentProgress(): number {
         return this.progress;
     }
-
     add(update: AgentImageBuildUpdate): void {
         if (this.failure) return;
         const logChunk = normalizeBuildLog(update.logChunk);
@@ -1717,7 +1851,6 @@ class AgentImageBuildOutput {
             this.flushTimer.unref();
         }
     }
-
     async finish(): Promise<void> {
         if (this.flushTimer) clearTimeout(this.flushTimer);
         this.flushTimer = undefined;
@@ -1731,21 +1864,17 @@ class AgentImageBuildOutput {
             await this.flushOnce();
         }
     }
-
     close(): void {
         if (this.flushTimer) clearTimeout(this.flushTimer);
         this.flushTimer = undefined;
     }
-
     private flushInBackground(): void {
         void this.flushAvailable().catch(this.onError);
     }
-
     private async flushAvailable(): Promise<void> {
         if (this.activeFlush) await this.activeFlush;
         if (this.dirty && !this.failure) await this.flushOnce();
     }
-
     private flushOnce(): Promise<void> {
         if (this.activeFlush) return this.activeFlush;
         if (!this.dirty) return Promise.resolve();
@@ -1754,7 +1883,9 @@ class AgentImageBuildOutput {
             progress: this.progress,
             ...(this.lastBuildLogLine === undefined
                 ? {}
-                : { lastBuildLogLine: this.lastBuildLogLine }),
+                : {
+                      lastBuildLogLine: this.lastBuildLogLine,
+                  }),
         };
         this.buffer = "";
         this.dirty = false;
@@ -1767,7 +1898,6 @@ class AgentImageBuildOutput {
         });
         return this.activeFlush;
     }
-
     private readLastLine(logChunk: string): void {
         const combined = this.partialLine + logChunk;
         const lines = combined.split("\n");
@@ -1775,14 +1905,12 @@ class AgentImageBuildOutput {
         for (const line of lines) this.rememberLine(line);
         if (this.partialLine) this.rememberLine(this.partialLine);
     }
-
     private rememberLine(line: string): void {
         const trimmed = line.trim();
         if (!trimmed) return;
         this.lastBuildLogLine = trimmed.slice(-MAX_BUILD_LOG_LINE_CHARACTERS);
     }
 }
-
 function isRelevantRigEvent(event: RigEvent): boolean {
     if (!event.data.runId) return false;
     return (
@@ -1791,18 +1919,15 @@ function isRelevantRigEvent(event: RigEvent): boolean {
         event.type === "run_error"
     );
 }
-
 function normalizeBuildLog(value: string): string {
     return value.replaceAll("\0", "").replaceAll("\r", "\n");
 }
-
 function messageText(message: RigEvent["data"]["message"]): string | undefined {
     return message?.blocks
         .filter((block) => block.type === "text" && block.text)
         .map((block) => block.text)
         .join("");
 }
-
 function agentLoopText(event: RigEvent): string | undefined {
     const loopEvent = event.data.event;
     const message = loopEvent?.partial ?? loopEvent?.message ?? loopEvent?.error;
@@ -1813,7 +1938,6 @@ function agentLoopText(event: RigEvent): string | undefined {
     if (textBlocks.length === 0) return undefined;
     return textBlocks.map((block) => block.text ?? "").join("");
 }
-
 function agentActivityPhase(event: RigEvent): AgentActivityPhase | undefined {
     if (event.type === "run_started") return "thinking";
     if (event.type === "agent_message")
@@ -1833,10 +1957,12 @@ function agentActivityPhase(event: RigEvent): AgentActivityPhase | undefined {
         return "thinking";
     return undefined;
 }
-
-function agentEventTokenCount(
-    event: RigEvent,
-): { messageId: string; tokenCount: number } | undefined {
+function agentEventTokenCount(event: RigEvent):
+    | {
+          messageId: string;
+          tokenCount: number;
+      }
+    | undefined {
     const message =
         event.type === "agent_message"
             ? event.data.message
@@ -1847,19 +1973,19 @@ function agentEventTokenCount(
     const tokenCount = message.usage?.totalTokens;
     if (typeof tokenCount !== "number" || !Number.isSafeInteger(tokenCount) || tokenCount < 0)
         return undefined;
-    return { messageId: message.id ?? "active-inference", tokenCount };
+    return {
+        messageId: message.id ?? "active-inference",
+        tokenCount,
+    };
 }
-
 function appendAgentText(committedText: string, nextText: string): string {
     if (!nextText) return committedText;
     return committedText ? `${committedText}\n\n${nextText}` : nextText;
 }
-
 function sqliteTimestamp(value: string): number {
     const normalized = value.includes("T") ? value : value.replace(" ", "T");
     return Date.parse(/[zZ]|[+-]\d\d:\d\d$/u.test(normalized) ? normalized : `${normalized}Z`);
 }
-
 function agentImageDefinitionHash(dockerfile: string, buildContext = ""): string {
     return createHash("sha256")
         .update("happy2-agent-image-v1\0")
@@ -1868,37 +1994,33 @@ function agentImageDefinitionHash(dockerfile: string, buildContext = ""): string
         .update(dockerfile)
         .digest("hex");
 }
-
 function agentImageTag(definitionHash: string): string {
     return `happy2-agent:${definitionHash}`;
 }
-
 function agentContainerName(): string {
     return `happy2-agent-${createId()}`;
 }
-
 function sandboxDirectories(root: string, agentUserId: string, privateUserId: string) {
     const sandbox = join(root, "agents", agentUserId, "users", privateUserId);
-    return { home: join(sandbox, "home"), workspace: join(sandbox, "workspace") };
+    return {
+        home: join(sandbox, "home"),
+        workspace: join(sandbox, "workspace"),
+    };
 }
-
 function agentImageBuildError(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
     return message.slice(0, 16_000) || "Agent image build failed";
 }
-
 function agentTurnStreamError(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
     return message.slice(0, 16_000) || "Agent reply stream failed";
 }
-
 function shutdownDeadline(): Promise<void> {
     return new Promise((resolve) => {
         const timer = setTimeout(resolve, 5_000);
         timer.unref();
     });
 }
-
 function delay(milliseconds: number, signal: AbortSignal): Promise<void> {
     if (signal.aborted) return Promise.resolve();
     return new Promise((resolve) => {
@@ -1910,6 +2032,8 @@ function delay(milliseconds: number, signal: AbortSignal): Promise<void> {
             signal.removeEventListener("abort", abort);
             resolve();
         }, milliseconds);
-        signal.addEventListener("abort", abort, { once: true });
+        signal.addEventListener("abort", abort, {
+            once: true,
+        });
     });
 }

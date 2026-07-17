@@ -1,5 +1,5 @@
 import { createClient } from "@libsql/client";
-import { SetupRepository } from "happy2-server";
+import { createDatabase, setupRecordOperationalStep } from "happy2-server";
 import { describe, expect, it } from "vitest";
 import { createGymServer, type GymRequestClient, type GymServer } from "../../sources/index.js";
 
@@ -246,7 +246,7 @@ describe("fresh server onboarding resumes and controls registration", () => {
 async function completeServerPrerequisites(server: GymServer, actorUserId: string): Promise<void> {
     const client = createClient({ url: server.config.database.url });
     try {
-        const setup = new SetupRepository(client);
+        const executor = createDatabase(client);
         for (const step of [
             "sandbox_provider_selected",
             "sandbox_provider_validated",
@@ -255,7 +255,7 @@ async function completeServerPrerequisites(server: GymServer, actorUserId: strin
             "base_image_ready",
         ] as const)
             for (const state of ["in_progress", "complete"] as const)
-                await setup.recordOperationalStep({ step, state, actorUserId });
+                await setupRecordOperationalStep(executor, { step, state, actorUserId });
     } finally {
         client.close();
     }
@@ -264,22 +264,22 @@ async function completeServerPrerequisites(server: GymServer, actorUserId: strin
 async function failProviderSelection(server: GymServer, actorUserId: string): Promise<void> {
     const client = createClient({ url: server.config.database.url });
     try {
-        const setup = new SetupRepository(client);
-        await setup.recordOperationalStep({
+        const executor = createDatabase(client);
+        await setupRecordOperationalStep(executor, {
             step: "sandbox_provider_selected",
             state: "in_progress",
             actorUserId,
             metadata: { provider: "docker", progress: 0 },
         });
         expect(
-            await setup.recordOperationalStep({
+            await setupRecordOperationalStep(executor, {
                 step: "sandbox_provider_selected",
                 state: "in_progress",
                 actorUserId,
                 metadata: { provider: "docker", progress: 25 },
             }),
         ).toMatchObject({ areas: ["setup"] });
-        await setup.recordOperationalStep({
+        await setupRecordOperationalStep(executor, {
             step: "sandbox_provider_selected",
             state: "failed",
             actorUserId,

@@ -1,6 +1,22 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AuthService } from "../modules/auth/service.js";
-import type { IntegrationRepository } from "../modules/integrations/repository.js";
+import { botCreate } from "../modules/bot/botCreate.js";
+import { botList } from "../modules/bot/botList.js";
+import { botRevoke } from "../modules/bot/botRevoke.js";
+import { botUpdate } from "../modules/bot/botUpdate.js";
+import type { DrizzleExecutor } from "../modules/drizzle.js";
+import { apiCredentialAuthenticate } from "../modules/integration/apiCredentialAuthenticate.js";
+import { apiCredentialCreate } from "../modules/integration/apiCredentialCreate.js";
+import { apiCredentialList } from "../modules/integration/apiCredentialList.js";
+import { apiCredentialRevoke } from "../modules/integration/apiCredentialRevoke.js";
+import { integrationCreate } from "../modules/integration/integrationCreate.js";
+import { integrationList } from "../modules/integration/integrationList.js";
+import { integrationRevoke } from "../modules/integration/integrationRevoke.js";
+import { slashCommandCreate } from "../modules/integration/slashCommandCreate.js";
+import { slashCommandInvoke } from "../modules/integration/slashCommandInvoke.js";
+import { slashCommandList } from "../modules/integration/slashCommandList.js";
+import type { SecretProtector } from "../modules/integrations/secrets.js";
+import type { WebhookUrlPolicy } from "../modules/integrations/ssrf.js";
 import {
     IntegrationError,
     integrationScopes,
@@ -8,20 +24,28 @@ import {
     type IntegrationRouteCallbacks,
     type IntegrationScope,
 } from "../modules/integrations/types.js";
+import { incomingWebhookCreate } from "../modules/webhook/incomingWebhookCreate.js";
+import { incomingWebhookInvoke } from "../modules/webhook/incomingWebhookInvoke.js";
+import { outgoingWebhookCreate } from "../modules/webhook/outgoingWebhookCreate.js";
+import { webhookDeliveryList } from "../modules/webhook/webhookDeliveryList.js";
+import { webhookSubscriptionList } from "../modules/webhook/webhookSubscriptionList.js";
 
 const MAX_ID = 128;
 
 export function registerIntegrationRoutes(
     app: FastifyInstance,
     auth: AuthService,
-    integrations: IntegrationRepository,
+    executor: DrizzleExecutor,
+    secretProtector: SecretProtector,
+    webhookUrlPolicy: WebhookUrlPolicy,
+    now: () => Date,
     callbacks: IntegrationRouteCallbacks,
 ): void {
     app.get("/v0/admin/bots", async (request, reply) => {
         const userId = await actor(auth, request, reply);
         if (!userId) return;
         try {
-            return { bots: await integrations.listBots(userId) };
+            return { bots: await botList(executor, userId) };
         } catch (error: unknown) {
             return handled(reply, error) ?? Promise.reject(error);
         }
@@ -33,7 +57,7 @@ export function registerIntegrationRoutes(
         try {
             const body = object(request.body);
             only(body, ["name", "username", "description", "photoFileId", "ownerUserId"]);
-            const result = await integrations.createBot({
+            const result = await botCreate(executor, {
                 actorUserId: userId,
                 name: requiredString(body.name, "name", 200),
                 username: requiredString(body.username, "username", 32),
@@ -54,7 +78,7 @@ export function registerIntegrationRoutes(
         try {
             const body = object(request.body);
             only(body, ["name", "username", "description", "photoFileId", "ownerUserId"]);
-            const result = await integrations.updateBot({
+            const result = await botUpdate(executor, {
                 actorUserId: userId,
                 botId: routeId(request, "botId"),
                 name: optionalString(body.name, "name", 200),
@@ -75,7 +99,7 @@ export function registerIntegrationRoutes(
         if (!userId) return;
         try {
             emptyBody(request.body);
-            const change = await integrations.revokeBot(userId, routeId(request, "botId"));
+            const change = await botRevoke(executor, userId, routeId(request, "botId"));
             await notify(request, callbacks, change);
             return { revoked: true, sync: change };
         } catch (error: unknown) {
@@ -87,7 +111,7 @@ export function registerIntegrationRoutes(
         const userId = await actor(auth, request, reply);
         if (!userId) return;
         try {
-            return { integrations: await integrations.listIntegrations(userId) };
+            return { integrations: await integrationList(executor, userId) };
         } catch (error: unknown) {
             return handled(reply, error) ?? Promise.reject(error);
         }
@@ -100,7 +124,7 @@ export function registerIntegrationRoutes(
             const body = object(request.body);
             only(body, ["kind", "name", "description", "botId", "scopes"]);
             const kind = enumeration(body.kind, "kind", ["app", "service_account"] as const);
-            const result = await integrations.createIntegration({
+            const result = await integrationCreate(executor, {
                 actorUserId: userId,
                 kind,
                 name: requiredString(body.name, "name", 200),
@@ -120,7 +144,8 @@ export function registerIntegrationRoutes(
         if (!userId) return;
         try {
             emptyBody(request.body);
-            const change = await integrations.revokeIntegration(
+            const change = await integrationRevoke(
+                executor,
                 userId,
                 routeId(request, "integrationId"),
             );
@@ -136,7 +161,8 @@ export function registerIntegrationRoutes(
         if (!userId) return;
         try {
             return {
-                credentials: await integrations.listApiCredentials(
+                credentials: await apiCredentialList(
+                    executor,
                     userId,
                     routeId(request, "integrationId"),
                 ),
@@ -153,7 +179,7 @@ export function registerIntegrationRoutes(
             rejectIdempotencyForSecretIssuance(request);
             const body = object(request.body);
             only(body, ["name", "scopes", "expiresAt"]);
-            const credential = await integrations.createApiCredential({
+            const credential = await apiCredentialCreate(executor, now, {
                 actorUserId: userId,
                 integrationId: routeId(request, "integrationId"),
                 name: requiredString(body.name, "name", 200),
@@ -171,7 +197,7 @@ export function registerIntegrationRoutes(
         if (!userId) return;
         try {
             emptyBody(request.body);
-            await integrations.revokeApiCredential(userId, routeId(request, "credentialId"));
+            await apiCredentialRevoke(executor, userId, routeId(request, "credentialId"));
             return { revoked: true };
         } catch (error: unknown) {
             return handled(reply, error) ?? Promise.reject(error);
@@ -185,7 +211,7 @@ export function registerIntegrationRoutes(
             rejectIdempotencyForSecretIssuance(request);
             const body = object(request.body);
             only(body, ["name", "description", "botId", "chatId"]);
-            const result = await integrations.createIncomingWebhook({
+            const result = await incomingWebhookCreate(executor, {
                 actorUserId: userId,
                 name: requiredString(body.name, "name", 200),
                 description: optionalString(body.description, "description", 2_000),
@@ -206,14 +232,19 @@ export function registerIntegrationRoutes(
             rejectIdempotencyForSecretIssuance(request);
             const body = object(request.body);
             only(body, ["name", "description", "url", "eventTypes", "chatId"]);
-            const result = await integrations.createOutgoingWebhook({
-                actorUserId: userId,
-                name: requiredString(body.name, "name", 200),
-                description: optionalString(body.description, "description", 2_000),
-                url: requiredString(body.url, "url", 2_048),
-                eventTypes: stringArray(body.eventTypes, "eventTypes", 50, 128),
-                chatId: optionalId(body.chatId, "chatId"),
-            });
+            const result = await outgoingWebhookCreate(
+                executor,
+                webhookUrlPolicy,
+                secretProtector,
+                {
+                    actorUserId: userId,
+                    name: requiredString(body.name, "name", 200),
+                    description: optionalString(body.description, "description", 2_000),
+                    url: requiredString(body.url, "url", 2_048),
+                    eventTypes: stringArray(body.eventTypes, "eventTypes", 50, 128),
+                    chatId: optionalId(body.chatId, "chatId"),
+                },
+            );
             await notify(request, callbacks, result.change);
             return reply.code(201).send({ ...result.value, sync: result.change });
         } catch (error: unknown) {
@@ -228,7 +259,8 @@ export function registerIntegrationRoutes(
             if (!userId) return;
             try {
                 return {
-                    subscriptions: await integrations.listWebhookSubscriptions(
+                    subscriptions: await webhookSubscriptionList(
+                        executor,
                         userId,
                         routeId(request, "integrationId"),
                     ),
@@ -244,7 +276,8 @@ export function registerIntegrationRoutes(
         if (!userId) return;
         try {
             return {
-                deliveries: await integrations.listWebhookDeliveries(
+                deliveries: await webhookDeliveryList(
+                    executor,
                     userId,
                     routeId(request, "integrationId"),
                     queryLimit(request),
@@ -262,7 +295,7 @@ export function registerIntegrationRoutes(
             rejectIdempotencyForSecretIssuance(request);
             const body = object(request.body);
             only(body, ["name", "description", "command", "usageHint", "handlerUrl", "botId"]);
-            const result = await integrations.createSlashCommand({
+            const result = await slashCommandCreate(executor, webhookUrlPolicy, secretProtector, {
                 actorUserId: userId,
                 name: requiredString(body.name, "name", 200),
                 description: optionalString(body.description, "description", 500),
@@ -282,7 +315,7 @@ export function registerIntegrationRoutes(
         const userId = await actor(auth, request, reply);
         if (!userId) return;
         try {
-            return { commands: await integrations.listSlashCommands(userId) };
+            return { commands: await slashCommandList(executor, userId) };
         } catch (error: unknown) {
             return handled(reply, error) ?? Promise.reject(error);
         }
@@ -294,7 +327,7 @@ export function registerIntegrationRoutes(
         try {
             const body = object(request.body);
             only(body, ["chatId", "command", "text"]);
-            const delivery = await integrations.invokeSlashCommand({
+            const delivery = await slashCommandInvoke(executor, now, {
                 actorUserId: userId,
                 chatId: id(body.chatId, "chatId"),
                 command: requiredString(body.command, "command", 65),
@@ -310,7 +343,8 @@ export function registerIntegrationRoutes(
         try {
             const body = object(request.body);
             only(body, ["text"]);
-            const result = await integrations.invokeIncomingWebhook(
+            const result = await incomingWebhookInvoke(
+                executor,
                 incomingWebhookToken(request),
                 requiredString(body.text, "text", 40_000, false),
                 callbacks.incomingWebhook,
@@ -324,7 +358,7 @@ export function registerIntegrationRoutes(
 
     app.post("/v0/integrations/sendMessage", async (request, reply) => {
         try {
-            const credential = await integrations.authenticateApiCredential(bearerToken(request), [
+            const credential = await apiCredentialAuthenticate(executor, bearerToken(request), [
                 "messages:write",
             ]);
             if (!credential)

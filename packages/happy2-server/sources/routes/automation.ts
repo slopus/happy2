@@ -1,8 +1,18 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AuthService } from "../modules/auth/service.js";
-import type { AutomationRepository } from "../modules/automation/repository.js";
-import { CollaborationError, type MutationHint } from "../modules/collaboration/types.js";
+import { automationCreate } from "../modules/automation/automationCreate.js";
+import { automationDelete } from "../modules/automation/automationDelete.js";
+import { automationList } from "../modules/automation/automationList.js";
+import { automationRunNow } from "../modules/automation/automationRunNow.js";
+import { automationRunWebhook } from "../modules/automation/automationRunWebhook.js";
+import { automationUpdate } from "../modules/automation/automationUpdate.js";
+import type { AutomationRuntime } from "../modules/automation/types.js";
+import { CollaborationError, type MutationHint } from "../modules/chat/types.js";
+import type { DrizzleExecutor } from "../modules/drizzle.js";
 import { realtimeTopics, type PubSub } from "../modules/realtime/index.js";
+import { scheduledMessageCancel } from "../modules/scheduled-message/scheduledMessageCancel.js";
+import { scheduledMessageList } from "../modules/scheduled-message/scheduledMessageList.js";
+import { scheduledMessageSchedule } from "../modules/scheduled-message/scheduledMessageSchedule.js";
 
 const MAX_ID = 128;
 const MAX_MESSAGE = 40_000;
@@ -10,13 +20,14 @@ const MAX_MESSAGE = 40_000;
 export function registerAutomationRoutes(
     app: FastifyInstance,
     auth: AuthService,
-    automation: AutomationRepository,
+    executor: DrizzleExecutor,
+    runtime: AutomationRuntime,
     pubsub: PubSub,
 ): void {
     app.get("/v0/scheduledMessages", async (request, reply) => {
         const userId = await actor(auth, request, reply);
         if (!userId) return;
-        return { messages: await automation.listScheduledMessages(userId) };
+        return { messages: await scheduledMessageList(executor, userId) };
     });
 
     app.post("/v0/chats/:chatId/scheduleMessage", async (request, reply) => {
@@ -40,7 +51,7 @@ export function registerAutomationRoutes(
             const scheduledFor = date(body.scheduledFor, "scheduledFor");
             if (Date.parse(scheduledFor) <= Date.now())
                 throw new RequestError("scheduledFor must be in the future");
-            const result = await automation.scheduleMessage({
+            const result = await scheduledMessageSchedule(executor, {
                 actorUserId: userId,
                 chatId: routeId(request, "chatId"),
                 text,
@@ -66,7 +77,8 @@ export function registerAutomationRoutes(
         if (!userId) return;
         try {
             emptyBody(request.body);
-            const hint = await automation.cancelScheduledMessage(
+            const hint = await scheduledMessageCancel(
+                executor,
                 userId,
                 routeId(request, "messageId"),
             );
@@ -81,7 +93,7 @@ export function registerAutomationRoutes(
         const userId = await actor(auth, request, reply);
         if (!userId) return;
         try {
-            return { automations: await automation.listAutomations(userId) };
+            return { automations: await automationList(executor, userId) };
         } catch (error) {
             return handled(reply, error) ?? Promise.reject(error);
         }
@@ -103,7 +115,7 @@ export function registerAutomationRoutes(
                 "timezone",
                 "nextRunAt",
             ]);
-            const result = await automation.createAutomation({
+            const result = await automationCreate(executor, {
                 actorUserId: userId,
                 name: requiredString(body.name, "name", 200),
                 chatId: optionalId(body.chatId, "chatId"),
@@ -141,7 +153,7 @@ export function registerAutomationRoutes(
         try {
             const body = object(request.body);
             only(body, ["active", "name", "triggerConfig", "actionConfig", "nextRunAt"]);
-            const result = await automation.updateAutomation({
+            const result = await automationUpdate(executor, {
                 actorUserId: userId,
                 automationId: routeId(request, "automationId"),
                 active: optionalBoolean(body.active, "active"),
@@ -173,10 +185,7 @@ export function registerAutomationRoutes(
         if (!userId) return;
         try {
             emptyBody(request.body);
-            const hint = await automation.deleteAutomation(
-                userId,
-                routeId(request, "automationId"),
-            );
+            const hint = await automationDelete(executor, userId, routeId(request, "automationId"));
             await publish(pubsub, hint);
             return { deleted: true, sync: hint };
         } catch (error) {
@@ -190,7 +199,9 @@ export function registerAutomationRoutes(
         try {
             const body = request.body === undefined ? {} : object(request.body);
             only(body, ["triggerEventId"]);
-            const result = await automation.runAutomationNow(
+            const result = await automationRunNow(
+                executor,
+                runtime,
                 userId,
                 routeId(request, "automationId"),
                 optionalId(body.triggerEventId, "triggerEventId"),
@@ -205,7 +216,9 @@ export function registerAutomationRoutes(
     app.post("/v0/automations/invokeWebhook", async (request, reply) => {
         try {
             emptyBody(request.body);
-            const result = await automation.runWebhookAutomation(
+            const result = await automationRunWebhook(
+                executor,
+                runtime,
                 automationWebhookToken(request),
                 idempotencyKey(request),
             );

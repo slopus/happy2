@@ -146,6 +146,26 @@ full naming, organization, harness, and lifecycle instructions.
   they are generated once and persisted to the `.env` beside the TOML file.
 - Prefer CUID2 for every newly generated identifier, including accounts, users,
   sessions, files, and other persisted records.
+- Keep every Drizzle table in the single authoritative
+  `packages/happy2-server/sources/modules/schema.ts` file. Persistence behavior
+  must not use `Database`, `*Repository`, store superclasses, or another
+  initialized database facade.
+- Put each durable server action in its own product-module file. The lower-camel
+  filename and exported async function must match exactly, with the entity first
+  and operation second (`userCreateProfile`, never `createUserProfile`). Pass the
+  `DrizzleExecutor`/transaction as the first argument, followed only by explicit
+  plain dependencies and input values.
+- Compose action transactions with `withTransaction`: it opens and retries one
+  complete top-level SQLite transaction, while a nested action reuses the outer
+  transaction and never starts or retries its own partial write. Do not wrap
+  `withTransaction` in an additional busy retry.
+- Put shared module-private SQL, projections, parsers, and caches only in that
+  module's `impl/` or `utils/` directory. Routes and long-lived services call
+  public actions, never persistence helpers. Keep helpers focused; do not
+  reconstruct a repository as a giant utility or barrel file.
+- Run `pnpm --dir packages/happy2-server architecture:check` for server changes;
+  it enforces the schema, facade, filename/export, entity-first, executor-first,
+  comment, and direct-mutation boundaries.
 - Every exported per-file server action must have a short doc comment directly
   above the function. State its observable semantic purpose, the durable state
   or invariant it changes, material side effects/transaction expectations, and

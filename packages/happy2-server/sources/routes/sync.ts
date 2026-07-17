@@ -1,9 +1,18 @@
+import { syncGetState } from "../modules/sync/syncGetState.js";
+import { syncGetDifference } from "../modules/sync/syncGetDifference.js";
+import { syncConsumerAcknowledge } from "../modules/sync/syncConsumerAcknowledge.js";
+import { chatWorkspaceCanAccess } from "../modules/chat/chatWorkspaceCanAccess.js";
+import { chatSyncGetDifference } from "../modules/sync/chatSyncGetDifference.js";
+import { chatList } from "../modules/chat/chatList.js";
+import { chatCanPost } from "../modules/chat/chatCanPost.js";
+import { chatCanAccess } from "../modules/chat/chatCanAccess.js";
+import { callCanSignal } from "../modules/call/callCanSignal.js";
+import { type DrizzleExecutor } from "../modules/drizzle.js";
 import { createId } from "@paralleldrive/cuid2";
 import type { ServerResponse } from "node:http";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AuthService } from "../modules/auth/service.js";
-import { CollaborationRepository } from "../modules/collaboration/repository.js";
-import { CollaborationError } from "../modules/collaboration/types.js";
+import { CollaborationError } from "../modules/chat/types.js";
 import {
     assertRealtimeEvent,
     assertRealtimeId,
@@ -17,7 +26,6 @@ import {
     type Unsubscribe,
     type WebRtcSignal,
 } from "../modules/realtime/index.js";
-
 const COMMON_DIFFERENCE_LIMIT = 500;
 const MAX_COMMON_DIFFERENCE_LIMIT = 1_000;
 const CHAT_DIFFERENCE_LIMIT = 100;
@@ -26,32 +34,31 @@ const DEFAULT_TYPING_TTL_MS = 10_000;
 const HEARTBEAT_MS = 15_000;
 const MAX_INITIAL_EVENTS = 256;
 const MAX_SSE_QUEUE_BYTES = 256 * 1024;
-
 type JsonObject = Record<string, unknown>;
-
 export function registerSyncRoutes(
     app: FastifyInstance,
     auth: AuthService,
-    repository: CollaborationRepository,
+    executor: DrizzleExecutor,
     pubsub: PubSub,
 ): void {
     // Presence connections are intentionally process-local, just like the current PubSub adapter.
     // Keeping ownership here prevents one user from touching another user's connection by id.
     const presenceOwners = new Map<string, string>();
-
     app.get("/v0/sync/state", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return unauthorized(reply);
-        return { state: await repository.getState(), serverTime: new Date().toISOString() };
+        return {
+            state: await syncGetState(executor),
+            serverTime: new Date().toISOString(),
+        };
     });
-
     app.post("/v0/sync/getDifference", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return unauthorized(reply);
         try {
             const body = object(request.body, "body");
             const state = object(body.state, "state");
-            return await repository.getDifference({
+            return await syncGetDifference(executor, {
                 userId: current.user.id,
                 generation: id(state.generation, "state.generation"),
                 fromSequence: sequence(state.sequence, "state.sequence"),
@@ -62,25 +69,25 @@ export function registerSyncRoutes(
             return handledError(reply, error) ?? Promise.reject(error);
         }
     });
-
     app.post("/v0/sync/acknowledge", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return unauthorized(reply);
         try {
             const body = object(request.body, "body");
             const state = object(body.state, "state");
-            await repository.acknowledgeSyncConsumer({
+            await syncConsumerAcknowledge(executor, {
                 userId: current.user.id,
                 deviceId: id(body.deviceId, "deviceId"),
                 generation: id(state.generation, "state.generation"),
                 sequence: sequence(state.sequence, "state.sequence"),
             });
-            return reply.code(202).send({ accepted: true });
+            return reply.code(202).send({
+                accepted: true,
+            });
         } catch (error) {
             return handledError(reply, error) ?? Promise.reject(error);
         }
     });
-
     app.post("/v0/chats/:chatId/getDifference", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return unauthorized(reply);
@@ -88,7 +95,7 @@ export function registerSyncRoutes(
             const chatId = routeId(request, "chatId");
             const body = object(request.body, "body");
             const state = object(body.state, "state");
-            return await repository.getChatDifference({
+            return await chatSyncGetDifference(executor, {
                 userId: current.user.id,
                 chatId,
                 membershipEpoch: id(state.membershipEpoch, "state.membershipEpoch"),
@@ -100,7 +107,6 @@ export function registerSyncRoutes(
             return handledError(reply, error) ?? Promise.reject(error);
         }
     });
-
     app.get("/v0/sync/events", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return unauthorized(reply);
@@ -109,12 +115,11 @@ export function registerSyncRoutes(
             reply,
             current.user.id,
             auth,
-            repository,
+            executor,
             pubsub,
             presenceOwners,
         );
     });
-
     app.post("/v0/chats/:chatId/setTyping", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return unauthorized(reply);
@@ -124,10 +129,14 @@ export function registerSyncRoutes(
             if (typeof body.active !== "boolean")
                 throw new RequestValidationError("active must be a boolean");
             const ttlMs = typingTtl(body.ttlMs);
-            if (!(await repository.canPostToChat(current.user.id, chatId))) {
-                return (await repository.canAccessChat(current.user.id, chatId))
-                    ? reply.code(403).send({ error: "forbidden" })
-                    : reply.code(404).send({ error: "not_found" });
+            if (!(await chatCanPost(executor, current.user.id, chatId))) {
+                return (await chatCanAccess(executor, current.user.id, chatId))
+                    ? reply.code(403).send({
+                          error: "forbidden",
+                      })
+                    : reply.code(404).send({
+                          error: "not_found",
+                      });
             }
             const occurredAt = Date.now();
             const event: RealtimeEvent = body.active
@@ -148,12 +157,13 @@ export function registerSyncRoutes(
                   };
             assertRealtimeEvent(event);
             await pubsub.publish(realtimeTopics.chat(chatId), event);
-            return reply.code(202).send({ accepted: true });
+            return reply.code(202).send({
+                accepted: true,
+            });
         } catch (error) {
             return handledError(reply, error) ?? Promise.reject(error);
         }
     });
-
     app.post("/v0/me/updatePresence", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return unauthorized(reply);
@@ -161,16 +171,21 @@ export function registerSyncRoutes(
             const body = object(request.body, "body");
             const connectionId = id(body.connectionId, "connectionId");
             if (presenceOwners.get(connectionId) !== current.user.id)
-                return reply.code(404).send({ error: "presence_connection_not_found" });
+                return reply.code(404).send({
+                    error: "presence_connection_not_found",
+                });
             const presence = await pubsub.recordPresenceActivity(connectionId);
             return presence
-                ? { presence }
-                : reply.code(404).send({ error: "presence_connection_not_found" });
+                ? {
+                      presence,
+                  }
+                : reply.code(404).send({
+                      error: "presence_connection_not_found",
+                  });
         } catch (error) {
             return handledError(reply, error) ?? Promise.reject(error);
         }
     });
-
     app.post("/v0/calls/:callId/sendSignal", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return unauthorized(reply);
@@ -182,14 +197,16 @@ export function registerSyncRoutes(
             if (recipientUserId === current.user.id)
                 throw new RequestValidationError("recipientUserId must identify another user");
             if (
-                !(await repository.canSignalCall({
+                !(await callCanSignal(executor, {
                     userId: current.user.id,
                     callId,
                     chatId,
                     recipientUserId,
                 }))
             )
-                return reply.code(404).send({ error: "call_or_recipient_not_found" });
+                return reply.code(404).send({
+                    error: "call_or_recipient_not_found",
+                });
             const event: CallSignalEvent = {
                 type: "call.signal",
                 callId,
@@ -204,32 +221,35 @@ export function registerSyncRoutes(
                 pubsub.publish(realtimeTopics.call(callId), event),
                 pubsub.publish(realtimeTopics.user(recipientUserId), event),
             ]);
-            return reply.code(202).send({ accepted: true });
+            return reply.code(202).send({
+                accepted: true,
+            });
         } catch (error) {
             return handledError(reply, error) ?? Promise.reject(error);
         }
     });
 }
-
 async function openEventStream(
     request: FastifyRequest,
     reply: FastifyReply,
     userId: string,
     auth: AuthService,
-    repository: CollaborationRepository,
+    executor: DrizzleExecutor,
     pubsub: PubSub,
     presenceOwners: Map<string, string>,
 ): Promise<void> {
     const connectionId = createId();
     const subscriptions = new Map<RealtimeTopic, Unsubscribe>();
-    const pending: Array<{ name: string; data: unknown }> = [];
+    const pending: Array<{
+        name: string;
+        data: unknown;
+    }> = [];
     let responseReady = false;
     let presenceConnected = false;
     let heartbeat: NodeJS.Timeout | undefined;
     let heartbeatRunning = false;
     let closed = false;
     let writer: SseWriter | undefined;
-
     const cleanup = (): void => {
         if (closed) return;
         closed = true;
@@ -245,12 +265,10 @@ async function openEventStream(
             });
         }
     };
-
     const terminate = (): void => {
         cleanup();
         if (!reply.raw.destroyed && !reply.raw.writableEnded) reply.raw.end();
     };
-
     const send = (name: string, data: unknown): void => {
         if (closed) return;
         if (!responseReady || !writer) {
@@ -260,18 +278,20 @@ async function openEventStream(
                 terminate();
                 return;
             }
-            pending.push({ name, data });
+            pending.push({
+                name,
+                data,
+            });
             return;
         }
         if (!writer.send(name, data)) terminate();
     };
-
     const ensureSubscription = (topic: RealtimeTopic): void => {
         if (closed || subscriptions.has(topic)) return;
         subscriptions.set(
             topic,
             pubsub.subscribe(topic, async (event) => {
-                const visible = await visibleRealtimeEvent(repository, userId, event);
+                const visible = await visibleRealtimeEvent(executor, userId, event);
                 if (!visible || closed) return;
                 if (visible.type === "sync") {
                     for (const chat of visible.chats)
@@ -281,9 +301,8 @@ async function openEventStream(
             }),
         );
     };
-
     const reconcileChatSubscriptions = async (): Promise<void> => {
-        const chats = await repository.listChats(userId);
+        const chats = await chatList(executor, userId);
         const expected = new Set(chats.map((chat) => realtimeTopics.chat(chat.id)));
         for (const topic of expected) ensureSubscription(topic);
         for (const [topic, unsubscribe] of subscriptions) {
@@ -293,11 +312,9 @@ async function openEventStream(
             }
         }
     };
-
     request.raw.once("aborted", cleanup);
     reply.raw.once("close", cleanup);
     reply.raw.once("error", cleanup);
-
     try {
         // Install the broad subscriptions before reading state. Anything delivered during setup is
         // queued, and durable changes are still recovered from the ready-state cursor.
@@ -306,25 +323,29 @@ async function openEventStream(
         ensureSubscription(realtimeTopics.server);
         await reconcileChatSubscriptions();
         if (closed) return;
-
-        await pubsub.connectPresence({ connectionId, userId });
+        await pubsub.connectPresence({
+            connectionId,
+            userId,
+        });
         if (closed) {
             await pubsub.disconnectPresence(connectionId);
             return;
         }
         presenceConnected = true;
         presenceOwners.set(connectionId, userId);
-        const state = await repository.getState();
+        const state = await syncGetState(executor);
         if (closed) return;
-
         reply.hijack();
         prepareSseResponse(reply);
         writer = new SseWriter(reply.raw, MAX_SSE_QUEUE_BYTES, terminate);
         responseReady = true;
-        send("ready", { connectionId, state, heartbeatMs: HEARTBEAT_MS });
+        send("ready", {
+            connectionId,
+            state,
+            heartbeatMs: HEARTBEAT_MS,
+        });
         for (const event of pending.splice(0)) send(event.name, event.data);
         if (closed) return;
-
         heartbeat = setInterval(() => {
             if (closed || heartbeatRunning) return;
             heartbeatRunning = true;
@@ -335,7 +356,7 @@ async function openEventStream(
                     return;
                 }
                 await reconcileChatSubscriptions();
-                const nextState = await repository.getState();
+                const nextState = await syncGetState(executor);
                 send("heartbeat", {
                     serverTime: new Date().toISOString(),
                     state: nextState,
@@ -355,9 +376,8 @@ async function openEventStream(
         throw error;
     }
 }
-
 async function visibleRealtimeEvent(
-    repository: CollaborationRepository,
+    executor: DrizzleExecutor,
     userId: string,
     event: RealtimeEvent,
 ): Promise<RealtimeEvent | undefined> {
@@ -365,13 +385,16 @@ async function visibleRealtimeEvent(
     if (event.type === "sync") {
         const chats = [];
         for (const chat of event.chats) {
-            if (await repository.canAccessChat(userId, chat.chatId)) chats.push(chat);
+            if (await chatCanAccess(executor, userId, chat.chatId)) chats.push(chat);
         }
-        return { ...event, chats };
+        return {
+            ...event,
+            chats,
+        };
     }
     if (event.type === "workspace.changed")
-        return (await repository.canAccessChatWorkspace(userId, event.chatId)) ? event : undefined;
-    if (!(await repository.canAccessChat(userId, event.chatId))) return undefined;
+        return (await chatWorkspaceCanAccess(executor, userId, event.chatId)) ? event : undefined;
+    if (!(await chatCanAccess(executor, userId, event.chatId))) return undefined;
     if (
         event.type === "call.signal" &&
         event.recipientUserId !== undefined &&
@@ -380,7 +403,6 @@ async function visibleRealtimeEvent(
         return undefined;
     return event;
 }
-
 function prepareSseResponse(reply: FastifyReply): void {
     // Fastify lifecycle hooks have already populated response headers (notably CORS); copying them
     // before the raw response is flushed preserves those headers after hijacking the response.
@@ -395,19 +417,16 @@ function prepareSseResponse(reply: FastifyReply): void {
     reply.raw.socket?.setKeepAlive(true);
     reply.raw.flushHeaders();
 }
-
 class SseWriter {
     private readonly queued: string[] = [];
     private queuedBytes = 0;
     private blocked = false;
     private closed = false;
-
     constructor(
         private readonly response: ServerResponse,
         private readonly maxQueuedBytes: number,
         private readonly onFailure: () => void,
     ) {}
-
     send(name: string, data: unknown): boolean {
         if (this.closed || this.response.destroyed || this.response.writableEnded) return false;
         const frame = `event: ${name}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -428,7 +447,6 @@ class SseWriter {
             return false;
         }
     }
-
     close(): void {
         if (this.closed) return;
         this.closed = true;
@@ -436,7 +454,6 @@ class SseWriter {
         this.queued.length = 0;
         this.queuedBytes = 0;
     }
-
     private readonly flush = (): void => {
         if (this.closed) return;
         this.blocked = false;
@@ -456,13 +473,11 @@ class SseWriter {
         }
     };
 }
-
 function object(value: unknown, name: string): JsonObject {
     if (!value || typeof value !== "object" || Array.isArray(value))
         throw new RequestValidationError(`${name} must be an object`);
     return value as JsonObject;
 }
-
 function id(value: unknown, name: string): string {
     if (typeof value !== "string") throw new RequestValidationError(`${name} must be a string`);
     try {
@@ -472,11 +487,9 @@ function id(value: unknown, name: string): string {
         throw new RequestValidationError(message(error));
     }
 }
-
 function routeId(request: FastifyRequest, name: string): string {
     return id((request.params as Record<string, unknown> | undefined)?.[name], name);
 }
-
 function sequence(value: unknown, name: string): number {
     if (typeof value !== "string")
         throw new RequestValidationError(`${name} must be an unsigned decimal string`);
@@ -490,18 +503,15 @@ function sequence(value: unknown, name: string): number {
         throw new RequestValidationError(`${name} exceeds the supported integer range`);
     return parsed;
 }
-
 function optionalSequence(value: unknown, name: string): number | undefined {
     return value === undefined ? undefined : sequence(value, name);
 }
-
 function limit(value: unknown, fallback: number, maximum: number): number {
     if (value === undefined) return fallback;
     if (!Number.isSafeInteger(value) || (value as number) < 1 || (value as number) > maximum)
         throw new RequestValidationError(`limit must be an integer between 1 and ${maximum}`);
     return value as number;
 }
-
 function typingTtl(value: unknown): number {
     if (value === undefined) return DEFAULT_TYPING_TTL_MS;
     if (
@@ -514,13 +524,15 @@ function typingTtl(value: unknown): number {
         );
     return value as number;
 }
-
 function webRtcSignal(value: unknown): WebRtcSignal {
     const signal = object(value, "signal");
     if (signal.kind === "offer" || signal.kind === "answer") {
         if (typeof signal.sdp !== "string")
             throw new RequestValidationError("signal.sdp must be a string");
-        return { kind: signal.kind, sdp: signal.sdp };
+        return {
+            kind: signal.kind,
+            sdp: signal.sdp,
+        };
     }
     if (signal.kind === "ice-candidate") {
         if (typeof signal.candidate !== "string")
@@ -567,10 +579,12 @@ function webRtcSignal(value: unknown): WebRtcSignal {
     }
     throw new RequestValidationError("signal.kind is invalid");
 }
-
 function handledError(reply: FastifyReply, error: unknown): FastifyReply | undefined {
     if (error instanceof RequestValidationError)
-        return reply.code(400).send({ error: "invalid_request", message: error.message });
+        return reply.code(400).send({
+            error: "invalid_request",
+            message: error.message,
+        });
     if (!(error instanceof CollaborationError)) return undefined;
     const status = {
         not_found: 404,
@@ -586,15 +600,17 @@ function handledError(reply: FastifyReply, error: unknown): FastifyReply | undef
             : error.code === "future_state"
               ? "future_sync_state"
               : error.code;
-    return reply.code(status).send({ error: responseCode, message: error.message });
+    return reply.code(status).send({
+        error: responseCode,
+        message: error.message,
+    });
 }
-
 function unauthorized(reply: FastifyReply): FastifyReply {
-    return reply.code(401).send({ error: "unauthorized" });
+    return reply.code(401).send({
+        error: "unauthorized",
+    });
 }
-
 function message(error: unknown): string {
     return error instanceof Error ? error.message : "Invalid request";
 }
-
 class RequestValidationError extends Error {}

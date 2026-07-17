@@ -3,9 +3,10 @@ import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import proxy from "@fastify/http-proxy";
 import staticFiles from "@fastify/static";
+import { createClient } from "@libsql/client";
 import { TokenService } from "./modules/auth/tokens.js";
 import type { ServerConfig } from "./modules/config/type.js";
-import { Database } from "./modules/database.js";
+import { serverSchemaMigrate } from "./modules/server/serverSchemaMigrate.js";
 import { buildServer } from "./server.js";
 
 export interface StandaloneHappy2 extends AsyncDisposable {
@@ -27,14 +28,16 @@ export async function startStandaloneHappy2(
     const webRoot = options.webRoot ?? join(import.meta.dirname, "web");
     await access(join(webRoot, "index.html"));
 
-    const database = new Database(
-        config.database.url,
-        config.database.authTokenEnv ? process.env[config.database.authTokenEnv] : undefined,
-    );
+    const client = createClient({
+        url: config.database.url,
+        authToken: config.database.authTokenEnv
+            ? process.env[config.database.authTokenEnv]
+            : undefined,
+    });
     let backend: FastifyInstance | undefined;
     let gateway: FastifyInstance | undefined;
     try {
-        await database.migrate();
+        await serverSchemaMigrate(client);
         const backendConfig: ServerConfig = {
             ...config,
             server: {
@@ -47,7 +50,7 @@ export async function startStandaloneHappy2(
             },
         };
         backend = await buildServer(backendConfig, {
-            database,
+            client,
             tokens: await TokenService.create(backendConfig),
             logger: options.logger,
         });
@@ -98,7 +101,7 @@ export async function startStandaloneHappy2(
                 try {
                     await backend?.close();
                 } finally {
-                    database.close();
+                    client.close();
                 }
             }
         };
@@ -112,7 +115,7 @@ export async function startStandaloneHappy2(
     } catch (error) {
         await gateway?.close().catch(() => undefined);
         await backend?.close().catch(() => undefined);
-        database.close();
+        client.close();
         throw error;
     }
 }
