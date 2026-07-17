@@ -1,6 +1,6 @@
 import { createClientState } from "happy2-state";
 import { describe, expect, it } from "vitest";
-import { createMockRigDaemon, MockAgentDockerRuntime } from "happy2-gym/rig";
+import { createMockRigDaemon, MockAgentSandboxRuntime } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
 import { createGymStateTransport } from "../../sources/state/index.js";
 
@@ -9,7 +9,7 @@ describe("agent turns through happy2-state and the real server", () => {
         await using rig = await createMockRigDaemon();
         rig.setAutomaticReply(undefined);
         await using server = await createGymServer({
-            agentDocker: new MockAgentDockerRuntime(),
+            agentSandbox: new MockAgentSandboxRuntime(),
             databaseMode: "file",
             configure(config) {
                 config.agents.enabled = true;

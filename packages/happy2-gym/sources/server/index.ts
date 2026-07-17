@@ -22,6 +22,7 @@ import {
     FileStorage,
     setupChooseRegistrationPolicy,
     setupRecordOperationalStep,
+    setupSandboxProviderSelect,
     serverSchemaMigrate,
     sessionCreate,
     syncInitialize,
@@ -29,7 +30,8 @@ import {
     userOnboardingUpdateStep,
     userCreateProfile,
     type FileStorageFileSystem,
-    type AgentDockerRuntime,
+    type AgentSandboxRuntime,
+    type SandboxProvider,
     type ServerConfig,
     type User,
 } from "happy2-server";
@@ -75,7 +77,8 @@ export interface GymServer extends GymRequestClient, AsyncDisposable {
 }
 
 export interface GymServerOptions {
-    agentDocker?: AgentDockerRuntime;
+    agentSandbox?: AgentSandboxRuntime;
+    sandboxProviders?: readonly SandboxProvider[];
     configure?: (config: ServerConfig) => void;
     /** Reuses an explicit database URL so tests can run independent server instances together. */
     databaseUrl?: string;
@@ -114,7 +117,8 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
             tokens,
             integrationSecretProtector: integrationProtector,
             fileStorage: new FileStorage(config, executor, fileSystem),
-            agentDocker: options.agentDocker,
+            agentSandbox: options.agentSandbox,
+            sandboxProviders: options.sandboxProviders,
             logger: false,
         });
         return new GymServerInstance(
@@ -126,7 +130,8 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
             fileSystem,
             tokenKeys,
             integrationProtector,
-            options.agentDocker,
+            options.agentSandbox,
+            options.sandboxProviders,
             async () => {
                 if (databaseDirectory)
                     await rm(databaseDirectory, { force: true, recursive: true });
@@ -164,7 +169,8 @@ class GymServerInstance implements GymServer {
         private readonly fileSystem: MemoryFileSystem,
         private readonly tokenKeys: { privateKey: string; publicKey: string },
         private readonly integrationProtector: AesGcmSecretProtector,
-        private readonly agentDocker: AgentDockerRuntime | undefined,
+        private readonly agentSandbox: AgentSandboxRuntime | undefined,
+        private readonly sandboxProviders: readonly SandboxProvider[] | undefined,
         private readonly cleanupDatabase: () => Promise<void>,
     ) {}
 
@@ -206,9 +212,12 @@ class GymServerInstance implements GymServer {
             sequence === 1 ? {} : { provisioned: true },
         );
         if (sequence === 1) {
+            const providerId = this.sandboxProviders?.[0]?.id ?? "docker";
+            await setupSandboxProviderSelect(this.executor, user.id, {
+                id: providerId,
+                version: `${providerId} gym runtime`,
+            });
             for (const step of [
-                "sandbox_provider_selected",
-                "sandbox_provider_validated",
                 "base_image_selected",
                 "base_image_build_requested",
                 "base_image_ready",
@@ -249,9 +258,12 @@ class GymServerInstance implements GymServer {
     }): Promise<void> {
         this.assertOpen();
         const executor = createDatabase(this.client);
+        const providerId = this.sandboxProviders?.[0]?.id ?? "docker";
+        await setupSandboxProviderSelect(executor, input.actorUserId, {
+            id: providerId,
+            version: `${providerId} gym runtime`,
+        });
         for (const step of [
-            "sandbox_provider_selected",
-            "sandbox_provider_validated",
             "base_image_selected",
             "base_image_build_requested",
             "base_image_ready",
@@ -284,7 +296,8 @@ class GymServerInstance implements GymServer {
             tokens: this.tokens,
             integrationSecretProtector: this.integrationProtector,
             fileStorage: new FileStorage(this.config, createDatabase(this.client), this.fileSystem),
-            agentDocker: this.agentDocker,
+            agentSandbox: this.agentSandbox,
+            sandboxProviders: this.sandboxProviders,
             logger: false,
         });
     }

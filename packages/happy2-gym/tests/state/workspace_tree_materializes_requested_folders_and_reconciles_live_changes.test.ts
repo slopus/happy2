@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createClientState } from "happy2-state";
 import { describe, expect, it } from "vitest";
-import { createMockRigDaemon, MockAgentDockerRuntime } from "happy2-gym/rig";
+import { createMockRigDaemon, MockAgentSandboxRuntime } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
 import { createGymStateTransport } from "../../sources/state/index.js";
 
@@ -10,7 +10,7 @@ describe("live workspace trees through happy2-state", () => {
     it("materializes requested folders in a direct chat and reconciles SSE hints", async () => {
         await using rig = await createMockRigDaemon();
         await using server = await createGymServer({
-            agentDocker: new MockAgentDockerRuntime(),
+            agentSandbox: new MockAgentSandboxRuntime(),
             configure(config) {
                 config.agents.enabled = true;
                 config.agents.socketPath = rig.socketPath;

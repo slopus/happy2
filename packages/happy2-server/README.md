@@ -69,6 +69,23 @@ setup and atomically becomes the administrator. All later registration attempts
 are closed while that administrator selects and validates a sandbox provider and
 builds the base agent image.
 
+After the bootstrap profile exists, an administrator calls
+`GET /v0/setup/sandboxProviders`. Each request performs fresh, time-bounded
+Docker and Podman command/engine probes and returns displayable health, version,
+and remediation details. The response always explains that agent code runs
+inside the selected sandbox. It includes `recommendedProviderId` only when
+exactly one provider is healthy; when both are healthy, the administrator must
+choose explicitly.
+
+`POST /v0/setup/selectSandboxProvider` with
+`{ "providerId": "docker" | "podman" }` probes the requested provider again and
+atomically completes both durable provider-selection and validation steps. An
+unhealthy, missing, or timed-out provider is returned as a displayable conflict
+and is not persisted. The provider choice is installation state, not a TOML
+deployment switch. Docker and Podman are discovered from `PATH`; every image
+build, agent sandbox creation, file transfer, terminal attachment, and cleanup
+uses the selected provider boundary after selection and across server restarts.
+
 The final server step is
 `POST /v0/setup/chooseRegistrationPolicy` with `{ "enabled": true | false }`.
 It succeeds only for an active server administrator after all preceding durable

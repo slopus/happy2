@@ -1,6 +1,6 @@
 import { createClientState } from "happy2-state";
 import { describe, expect, it } from "vitest";
-import { createMockRigDaemon, MockAgentDockerRuntime, type MockRigDaemon } from "happy2-gym/rig";
+import { createMockRigDaemon, MockAgentSandboxRuntime, type MockRigDaemon } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
 import { createGymStateTransport } from "../../sources/state/index.js";
 
@@ -62,7 +62,7 @@ describe("agent secrets across happy2-state and Rig", () => {
 
 function agentServer(rig: MockRigDaemon) {
     return createGymServer({
-        agentDocker: new MockAgentDockerRuntime(),
+        agentSandbox: new MockAgentSandboxRuntime(),
         configure(config) {
             config.agents.enabled = true;
             config.agents.socketPath = rig.socketPath;

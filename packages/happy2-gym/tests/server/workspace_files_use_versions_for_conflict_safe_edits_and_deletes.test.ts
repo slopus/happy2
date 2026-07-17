@@ -1,7 +1,7 @@
 import { symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createMockRigDaemon, MockAgentDockerRuntime } from "happy2-gym/rig";
+import { createMockRigDaemon, MockAgentSandboxRuntime } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
 
 interface TextFile {
@@ -15,7 +15,7 @@ describe("versioned workspace file editing", () => {
     it("creates, reads, patches, conflict-checks, and deletes the mounted Rig files", async () => {
         await using rig = await createMockRigDaemon();
         await using server = await createGymServer({
-            agentDocker: new MockAgentDockerRuntime(),
+            agentSandbox: new MockAgentSandboxRuntime(),
             configure(config) {
                 config.agents.enabled = true;
                 config.agents.socketPath = rig.socketPath;

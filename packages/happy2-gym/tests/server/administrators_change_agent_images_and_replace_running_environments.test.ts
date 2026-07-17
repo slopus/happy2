@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createMockRigDaemon, MockAgentDockerRuntime, type MockRigDaemon } from "happy2-gym/rig";
-import type { AgentContainerInput } from "happy2-server";
+import { createMockRigDaemon, MockAgentSandboxRuntime, type MockRigDaemon } from "happy2-gym/rig";
+import type { AgentSandboxCreateInput } from "happy2-server";
 import { createGymServer, type GymRequestClient, type GymServer } from "../../sources/index.js";
 
 interface AgentImage {
@@ -13,7 +13,7 @@ interface AgentImage {
 describe("administrator agent image changes", () => {
     it("replaces every idle environment, preserves workspaces, and blocks active changes", async () => {
         await using rig = await createMockRigDaemon();
-        const docker = new MockAgentDockerRuntime();
+        const docker = new MockAgentSandboxRuntime();
         await using server = await agentServer(rig, docker);
         const admin = await server.createUser({ username: "image_change_admin" });
         const owner = await server.createUser({ username: "image_change_owner" });
@@ -236,32 +236,35 @@ describe("administrator agent image changes", () => {
     });
 });
 
-class CleanupFailingDockerRuntime extends MockAgentDockerRuntime {
+class CleanupFailingDockerRuntime extends MockAgentSandboxRuntime {
     beforeNextContainer?: () => Promise<void>;
     failNextRemoval = false;
 
-    override async createContainer(
-        input: AgentContainerInput,
+    override async createSandbox(
+        input: AgentSandboxCreateInput,
         signal?: AbortSignal,
     ): Promise<void> {
-        await super.createContainer(input, signal);
+        await super.createSandbox(input, signal);
         const callback = this.beforeNextContainer;
         this.beforeNextContainer = undefined;
         await callback?.();
     }
 
-    override async removeContainer(containerName: string): Promise<void> {
+    override async removeSandbox(containerName: string): Promise<void> {
         if (this.failNextRemoval) {
             this.failNextRemoval = false;
             throw new Error("Docker cleanup deliberately failed");
         }
-        await super.removeContainer(containerName);
+        await super.removeSandbox(containerName);
     }
 }
 
-function agentServer(rig: MockRigDaemon, agentDocker: MockAgentDockerRuntime): Promise<GymServer> {
+function agentServer(
+    rig: MockRigDaemon,
+    agentSandbox: MockAgentSandboxRuntime,
+): Promise<GymServer> {
     return createGymServer({
-        agentDocker,
+        agentSandbox,
         databaseMode: "file",
         configure(config) {
             config.agents.enabled = true;

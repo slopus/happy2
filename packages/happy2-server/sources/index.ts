@@ -21,14 +21,7 @@ export { FileStorage, type FileStorageFileSystem } from "./modules/files/storage
 export * from "./modules/chat/types.js";
 export * from "./modules/realtime/index.js";
 export * from "./modules/setup/index.js";
+export * from "./modules/sandbox/index.js";
 export { userOnboardingUpdateStep } from "./modules/user/userOnboardingUpdateStep.js";
 export * from "./modules/workspace/index.js";
-export { LocalAgentDockerRuntime } from "./modules/agents/index.js";
-export type {
-    AgentContainerInput,
-    AgentDockerRuntime,
-    AgentImageBuildInput,
-    AgentImageBuildOptions,
-    AgentImageBuildUpdate,
-} from "./modules/agents/index.js";
 export { buildServer } from "./server.js";

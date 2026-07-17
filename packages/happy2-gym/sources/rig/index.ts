@@ -4,12 +4,20 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PassThrough } from "node:stream";
 import type {
-    AgentContainerInput,
-    AgentDockerRuntime,
+    AgentSandboxCreateInput,
+    AgentSandboxRuntime,
     AgentImageBuildInput,
     AgentImageBuildOptions,
     AgentImageBuildUpdate,
+    SandboxFileEgressInput,
+    SandboxFileIngressInput,
+    SandboxProbeOptions,
+    SandboxProvider,
+    SandboxProviderStatus,
+    SandboxTerminalHandle,
+    SandboxTerminalInput,
 } from "happy2-server";
 
 interface RigBlock {
@@ -781,10 +789,10 @@ export class MockRigDaemon implements AsyncDisposable {
     }
 }
 
-/** In-memory Docker boundary for server + Rig Gym tests. */
-export class MockAgentDockerRuntime implements AgentDockerRuntime {
+/** In-memory sandbox execution boundary for server + Rig Gym tests. */
+export class MockAgentSandboxRuntime implements AgentSandboxRuntime {
     readonly buildRequests: AgentImageBuildInput[] = [];
-    readonly createdContainers: AgentContainerInput[] = [];
+    readonly createdContainers: AgentSandboxCreateInput[] = [];
     readonly removedContainers: string[] = [];
     private buildsPaused = false;
     private readonly buildWaiters = new Set<() => void>();
@@ -830,12 +838,12 @@ export class MockAgentDockerRuntime implements AgentDockerRuntime {
         }
     }
 
-    async createContainer(input: AgentContainerInput, signal?: AbortSignal): Promise<void> {
+    async createSandbox(input: AgentSandboxCreateInput, signal?: AbortSignal): Promise<void> {
         if (signal?.aborted) throw abortError();
         this.createdContainers.push({ ...input });
     }
 
-    async removeContainer(containerName: string): Promise<void> {
+    async removeSandbox(containerName: string): Promise<void> {
         this.removedContainers.push(containerName);
     }
 
@@ -855,6 +863,66 @@ export class MockAgentDockerRuntime implements AgentDockerRuntime {
             if (signal?.aborted) abort();
             else signal?.addEventListener("abort", abort, { once: true });
         });
+    }
+}
+
+/** Programmable full provider used by onboarding discovery/selection Gym scenarios. */
+export class MockSandboxProvider extends MockAgentSandboxRuntime implements SandboxProvider {
+    readonly copiedFromSandbox: SandboxFileEgressInput[] = [];
+    readonly copiedToSandbox: SandboxFileIngressInput[] = [];
+    readonly locality = "local" as const;
+    probeCount = 0;
+    private status: SandboxProviderStatus;
+
+    constructor(
+        readonly id: string,
+        readonly displayName: string,
+        status: Omit<SandboxProviderStatus, "displayName" | "id"> = {
+            health: "healthy",
+            detail: `${displayName} is ready in Gym.`,
+            version: `${displayName} gym 1.0`,
+        },
+    ) {
+        super();
+        this.status = { id, displayName, ...status };
+    }
+
+    setStatus(status: Omit<SandboxProviderStatus, "displayName" | "id">): void {
+        this.status = { id: this.id, displayName: this.displayName, ...status };
+    }
+
+    async probe(options: SandboxProbeOptions = {}): Promise<SandboxProviderStatus> {
+        if (options.signal?.aborted) throw abortError();
+        this.probeCount += 1;
+        return { ...this.status };
+    }
+
+    async copyFileFromSandbox(input: SandboxFileEgressInput, signal?: AbortSignal): Promise<void> {
+        if (signal?.aborted) throw abortError();
+        this.copiedFromSandbox.push({ ...input });
+    }
+
+    async copyFileToSandbox(input: SandboxFileIngressInput, signal?: AbortSignal): Promise<void> {
+        if (signal?.aborted) throw abortError();
+        this.copiedToSandbox.push({ ...input });
+    }
+
+    attachTerminal(input: SandboxTerminalInput, signal?: AbortSignal): SandboxTerminalHandle {
+        if (signal?.aborted) throw abortError();
+        const stdin = new PassThrough();
+        const stdout = new PassThrough();
+        const stderr = new PassThrough();
+        return {
+            stdin,
+            stdout,
+            stderr,
+            wait: Promise.resolve({ exitCode: 0, signal: null }),
+            close() {
+                stdin.end();
+                stdout.end();
+                stderr.end();
+            },
+        };
     }
 }
 

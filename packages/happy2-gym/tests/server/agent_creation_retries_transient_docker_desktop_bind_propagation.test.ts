@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalAgentDockerRuntime } from "happy2-server";
+import { LocalOciSandboxProvider } from "happy2-server";
 import { describe, expect, it } from "vitest";
 import { createMockRigDaemon } from "happy2-gym/rig";
 import { createGymServer } from "../../sources/index.js";
@@ -31,7 +31,11 @@ if (args[0] === "create" && !fs.existsSync(${JSON.stringify(markerPath)})) {
 
         await using rig = await createMockRigDaemon();
         const server = await createGymServer({
-            agentDocker: new LocalAgentDockerRuntime(command),
+            agentSandbox: new LocalOciSandboxProvider({
+                id: "docker",
+                displayName: "Docker",
+                command,
+            }),
             databaseMode: "file",
             configure(config) {
                 config.agents.enabled = true;

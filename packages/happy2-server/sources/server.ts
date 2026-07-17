@@ -4,12 +4,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { AuthService } from "./modules/auth/service.js";
-import {
-    AgentService,
-    LocalAgentDockerRuntime,
-    RigDaemonClient,
-    type AgentDockerRuntime,
-} from "./modules/agents/index.js";
+import { AgentService, RigDaemonClient } from "./modules/agents/index.js";
 import { TokenService } from "./modules/auth/tokens.js";
 import { automationRunDue } from "./modules/automation/automationRunDue.js";
 import { automationRunPendingEvents } from "./modules/automation/automationRunPendingEvents.js";
@@ -34,6 +29,13 @@ import { moderationActionTake } from "./modules/moderation/moderationActionTake.
 import { LocalPubSub, realtimeTopics, type PubSub } from "./modules/realtime/index.js";
 import { createDatabase } from "./modules/drizzle.js";
 import { setupGetCurrentSyncHint } from "./modules/setup/index.js";
+import { setupSandboxProviderGetSelected } from "./modules/setup/setupSandboxProviderGetSelected.js";
+import {
+    localSandboxProviders,
+    SandboxProviderCatalog,
+    type AgentSandboxRuntime,
+    type SandboxProvider,
+} from "./modules/sandbox/index.js";
 import { scheduledMessagePublishDue } from "./modules/scheduled-message/scheduledMessagePublishDue.js";
 import { webhookDeliveryDispatchDue } from "./modules/webhook/webhookDeliveryDispatchDue.js";
 import { webhookDeliveryEnqueuePendingSyncEvents } from "./modules/webhook/webhookDeliveryEnqueuePendingSyncEvents.js";
@@ -75,7 +77,8 @@ interface Services {
     rateLimiter?: HttpRateLimiter;
     idempotency?: IdempotencyCoordinator<StoredHttpResponse>;
     agents?: AgentService;
-    agentDocker?: AgentDockerRuntime;
+    agentSandbox?: AgentSandboxRuntime;
+    sandboxProviders?: readonly SandboxProvider[];
     logger?: boolean;
 }
 
@@ -209,7 +212,25 @@ export async function buildServer(
             },
         };
         await syncInitialize(executor);
-        registerSetupRoutes(app, auth, executor, livePubsub);
+        const sandboxProviderCatalog = new SandboxProviderCatalog(
+            services.sandboxProviders ?? localSandboxProviders(),
+        );
+        registerSetupRoutes(app, auth, executor, livePubsub, sandboxProviderCatalog);
+        const sandboxRuntime = services.agentSandbox
+            ? async () => services.agentSandbox!
+            : async () => {
+                  const selected = await setupSandboxProviderGetSelected(executor);
+                  if (!selected)
+                      throw new Error(
+                          "A healthy sandbox provider must be selected before agent execution",
+                      );
+                  const provider = sandboxProviderCatalog.get(selected.id);
+                  if (!provider)
+                      throw new Error(
+                          `Selected sandbox provider ${selected.id} is not registered by this server`,
+                      );
+                  return provider;
+              };
         agentService =
             services.agents ??
             (config.agents.enabled
@@ -217,7 +238,7 @@ export async function buildServer(
                       executor,
                       livePubsub,
                       new RigDaemonClient(config.agents),
-                      services.agentDocker ?? new LocalAgentDockerRuntime(),
+                      sandboxRuntime,
                       config.agents.defaultCwd,
                       (error) => app.log.error(error),
                   )

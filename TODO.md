@@ -67,7 +67,7 @@ The following is already present and should be reused rather than rebuilt:
 The following structural gaps are confirmed:
 
 - [x] Durable server-onboarding and user-onboarding state/API landed in P0.1.
-- [ ] The runtime is hard-coded to the local `docker` CLI; there is no Docker/Podman detection, provider selection, or remote-provider boundary.
+- [x] P0.2 replaced the hard-coded local `docker` runtime with Docker/Podman discovery, durable provider selection, and a provider boundary capable of later remote implementations.
 - [ ] `App.tsx` uses component signals instead of routes. A refresh cannot restore a destination, and opening global search unmounts the current feature.
 - [ ] Selecting search results discards the result ID and only switches to Chat or Files, so people/messages/channels/files cannot be focused correctly.
 - [ ] `⌘K` is decorative text in `TitleBar`; no global shortcut or command palette behavior is wired.
@@ -505,16 +505,25 @@ ended with `READY` after the final independent audit and full behavior rerun.
 
 ### P0.2 — Sandbox-provider discovery and selection (server feature)
 
-- [ ] Define the provider interface around capabilities the current product needs: health probe, image build, container/session create, file ingress/egress, terminal attach, cleanup, and status reporting.
-- [ ] Implement local Docker and local Podman drivers without adding deployment-specific code switches; select the configured provider through durable setup/config state.
-- [ ] Probe Docker and Podman safely with bounded timeouts and return displayable version, health, and remediation details.
-- [ ] If exactly one healthy provider exists, recommend it but still explain that agent code runs inside its sandbox.
-- [ ] If both exist, require an explicit choice; if neither exists, show install/start guidance and continue probing reactively while setup is on screen.
-- [ ] Keep the public contract capable of later remote providers, but do not implement E2B/Daytona until a concrete feature requests them.
-- [ ] Replace direct `LocalAgentDockerRuntime` construction with the selected provider boundary while preserving current security settings and cleanup behavior.
-- [ ] Add gym tests for Docker only, Podman only, both, neither, unhealthy daemon, version probe timeout, persisted choice, and restart.
+- [x] Define the provider interface around capabilities the current product needs: health probe, image build, container/session create, file ingress/egress, terminal attach, cleanup, and status reporting.
+- [x] Implement local Docker and local Podman drivers without adding deployment-specific code switches; select the configured provider through durable setup/config state.
+- [x] Probe Docker and Podman safely with bounded timeouts and return displayable version, health, and remediation details.
+- [x] If exactly one healthy provider exists, recommend it but still explain that agent code runs inside its sandbox.
+- [x] If both exist, require an explicit choice; if neither exists, show install/start guidance and continue probing reactively while setup is on screen.
+- [x] Keep the public contract capable of later remote providers, but do not implement E2B/Daytona until a concrete feature requests them.
+- [x] Replace direct `LocalAgentDockerRuntime` construction with the selected provider boundary while preserving current security settings and cleanup behavior.
+- [x] Add gym tests for Docker only, Podman only, both, neither, unhealthy daemon, version probe timeout, persisted choice, and restart.
 
 Acceptance: server setup can prove where code will run, remembers the choice, and all agent image/container operations use that choice.
+
+Implementation evidence in progress (2026-07-17):
+
+- the server now exposes fresh, bounded Docker/Podman discovery through `GET /v0/setup/sandboxProviders` and administrator-only durable selection through `POST /v0/setup/selectSandboxProvider`; selection atomically completes the selected/validated setup steps, emits one setup sync hint, survives restart, is idempotent for the same provider, and rejects replacement;
+- `SandboxProvider` owns health/status, image build, sandbox create/remove, file ingress/egress and terminal attachment. The local Docker and Podman drivers preserve the readonly root, init, shared-memory, tmpfs, mount, lifecycle, cleanup and Docker Desktop retry contract, while the agent service resolves the durable provider for every image/container operation rather than caching process-local authority;
+- the focused provider unit suite passes 4/4 tests, including exact hardened container argv, Docker-only BuildKit behavior, Podman behavior, file and terminal operations, cleanup/retry, unavailable/unhealthy/timed-out probes, and a valid UTF-8 512-byte version bound;
+- the focused Gym suite passes 7/7 tests and covers anonymous/non-administrator non-disclosure, Docker-only, Podman-only, both healthy, both unavailable, unhealthy and timed-out status, explicit choice, rejected/repeated/replacement selection, provider routing, durable restart recovery, and reactive re-probing;
+- final-tree coverage measured unit 4,150/11,071 statements, 2,504/7,826 branches, 786/2,005 functions, and 3,960/9,939 lines; Gym 8,065/11,071, 4,858/7,826, 1,639/2,005, and 7,599/9,939; combined 8,988/11,071, 5,504/7,826, 1,803/2,005, and 8,452/9,939. Unit thresholds use those exact ratios. Gym floors retain the reviewed P0.1a timing margins at 8,053/4,851/1,639/7,589, and combined floors at 8,983/5,493/1,803/8,440. The Gym statement/line ratio is slightly diluted because P0.2 deliberately introduces the complete file/terminal provider boundary required by this task before later HTTP workflows consume those capabilities; absolute Gym coverage still rises, every currently observable provider workflow has black-box coverage, and combined coverage improves materially;
+- repository-wide `pnpm format` and `pnpm check` pass, including architecture/lint/typecheck gates, coverage tooling 23/23, server unit 89/89, normal and coverage Gym 44 files/107 tests, browser Gym 18/18, `happy2-state` 24/24, `happy2-ui` 435/435, `happy2-app` 67/67, the regenerated coverage gate, and every production build. The first persisted medium-effort Fable review requested five corrections; all were implemented, independently rerun, and confirmed `READY` in the same session with no blocking or actionable finding remaining.
 
 ### P0.3 — Base image selection/build orchestration (server feature)
 

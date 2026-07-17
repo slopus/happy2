@@ -3,7 +3,7 @@ import { mkdir, rename, symlink, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { createMockRigDaemon, MockAgentDockerRuntime, type MockRigDaemon } from "happy2-gym/rig";
+import { createMockRigDaemon, MockAgentSandboxRuntime, type MockRigDaemon } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient, type GymServer } from "../../sources/index.js";
 
 const executeFile = promisify(execFile);
@@ -317,7 +317,7 @@ describe("chat workspace files", () => {
 
 function agentServer(rig: MockRigDaemon) {
     return createGymServer({
-        agentDocker: new MockAgentDockerRuntime(),
+        agentSandbox: new MockAgentSandboxRuntime(),
         configure(config) {
             config.agents.enabled = true;
             config.agents.socketPath = rig.socketPath;

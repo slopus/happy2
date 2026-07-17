@@ -5,18 +5,22 @@ import {
     setupChooseRegistrationPolicy,
     setupGetCombinedStatus,
     setupGetPublicStatus,
+    setupSandboxProviderGetSelected,
+    setupSandboxProviderSelect,
     type SetupSyncHint,
     type UserOnboardingStep,
 } from "../modules/setup/index.js";
 import type { DrizzleExecutor } from "../modules/drizzle.js";
 import { realtimeTopics, type PubSub } from "../modules/realtime/index.js";
 import { userOnboardingUpdateStep } from "../modules/user/userOnboardingUpdateStep.js";
+import type { SandboxProviderCatalog } from "../modules/sandbox/index.js";
 
 export function registerSetupRoutes(
     app: FastifyInstance,
     auth: AuthService,
     executor: DrizzleExecutor,
     pubsub: PubSub,
+    sandboxProviders: SandboxProviderCatalog,
 ): void {
     app.get("/v0/setup/status", async () => setupGetPublicStatus(executor));
 
@@ -24,6 +28,59 @@ export function registerSetupRoutes(
         const current = await auth.authenticateAccount(request);
         if (!current) return unauthorized(reply);
         return setupGetCombinedStatus(executor, current.accountId);
+    });
+
+    app.get("/v0/setup/sandboxProviders", async (request, reply) => {
+        const current = await auth.authenticate(request);
+        if (!current) return unauthorized(reply);
+        const onboarding = await setupGetCombinedStatus(executor, current.accountId);
+        if (!onboarding.server.canManage)
+            return reply.code(403).send({
+                error: "forbidden",
+                message: "Server administrator permission is required",
+            });
+        const [discovery, selected] = await Promise.all([
+            sandboxProviders.discover(),
+            setupSandboxProviderGetSelected(executor),
+        ]);
+        return {
+            ...discovery,
+            ...(selected ? { selectedProviderId: selected.id } : {}),
+        };
+    });
+
+    app.post("/v0/setup/selectSandboxProvider", async (request, reply) => {
+        const current = await auth.authenticate(request);
+        if (!current) return unauthorized(reply);
+        try {
+            const onboarding = await setupGetCombinedStatus(executor, current.accountId);
+            if (!onboarding.server.canManage)
+                throw new SetupError("forbidden", "Server administrator permission is required");
+            const body = requestBody(request, ["providerId"]);
+            if (typeof body.providerId !== "string")
+                throw new SetupError("invalid", "providerId must be a string");
+            const provider = sandboxProviders.get(body.providerId);
+            if (!provider) throw new SetupError("not_found", "Sandbox provider was not found");
+            const status = await provider.probe();
+            if (status.health !== "healthy")
+                return reply.code(409).send({
+                    error: "sandbox_provider_unavailable",
+                    message: `${status.displayName} is not ready for agent code execution`,
+                    provider: status,
+                });
+            const hint = await setupSandboxProviderSelect(executor, current.user.id, {
+                id: provider.id,
+                version: status.version,
+            });
+            if (hint) await publishServerHint(request, pubsub, hint);
+            return {
+                provider: status,
+                onboarding: await setupGetCombinedStatus(executor, current.accountId),
+                ...(hint ? { sync: hint } : {}),
+            };
+        } catch (error) {
+            return handledError(reply, error) ?? Promise.reject(error);
+        }
     });
 
     app.post("/v0/me/updateOnboardingStep", async (request, reply) => {

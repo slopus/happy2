@@ -66,7 +66,7 @@ import {
     type RigTurnInspection,
 } from "./daemon.js";
 import { BUILTIN_AGENT_IMAGES } from "./builtin-images.js";
-import type { AgentDockerRuntime, AgentImageBuildUpdate } from "./docker.js";
+import type { AgentImageBuildUpdate, AgentSandboxRuntimeResolver } from "../sandbox/types.js";
 const IGNORED_EVENT_CHECKPOINT_INTERVAL = 100;
 const EVENT_RETRY_INTERVAL_MS = 100;
 const TYPING_TTL_MS = 30_000;
@@ -171,7 +171,7 @@ export class AgentService {
         private readonly executor: DrizzleExecutor,
         private readonly pubsub: PubSub,
         private readonly daemon: RigDaemonClient,
-        private readonly docker: AgentDockerRuntime,
+        private readonly sandboxRuntime: AgentSandboxRuntimeResolver,
         private readonly defaultCwd: string,
         private readonly onError: (error: unknown) => void = () => undefined,
     ) {}
@@ -197,7 +197,8 @@ export class AgentService {
             }),
         ]);
         const containerName = agentContainerName();
-        await this.docker.createContainer(
+        const runtime = await this.sandboxRuntime();
+        await runtime.createSandbox(
             {
                 agentUserId,
                 containerName,
@@ -226,7 +227,7 @@ export class AgentService {
                 sessionId: session.id,
             });
         } catch (error) {
-            await this.docker.removeContainer(containerName);
+            await runtime.removeSandbox(containerName);
             throw error;
         }
     }
@@ -395,10 +396,11 @@ export class AgentService {
             sessionId: string;
         }> = [];
         let committed = false;
+        const runtime = await this.sandboxRuntime();
         try {
             for (const binding of context.bindings) {
                 const containerName = agentContainerName();
-                await this.docker.createContainer(
+                await runtime.createSandbox(
                     {
                         agentUserId: input.agentUserId,
                         containerName,
@@ -426,7 +428,7 @@ export class AgentService {
                         sessionId: session.id,
                     });
                 } catch (error) {
-                    await this.docker.removeContainer(containerName);
+                    await runtime.removeSandbox(containerName);
                     throw error;
                 }
             }
@@ -437,9 +439,7 @@ export class AgentService {
             });
             if (!result.sync) {
                 await Promise.all(
-                    replacements.map(({ containerName }) =>
-                        this.docker.removeContainer(containerName),
-                    ),
+                    replacements.map(({ containerName }) => runtime.removeSandbox(containerName)),
                 );
                 return {
                     user: result.user,
@@ -448,7 +448,7 @@ export class AgentService {
             committed = true;
             await Promise.allSettled(
                 replacements.map(({ previousContainerName }) =>
-                    this.docker.removeContainer(previousContainerName),
+                    runtime.removeSandbox(previousContainerName),
                 ),
             ).then((results) => {
                 for (const result of results)
@@ -462,9 +462,7 @@ export class AgentService {
         } catch (error) {
             if (!committed)
                 await Promise.allSettled(
-                    replacements.map(({ containerName }) =>
-                        this.docker.removeContainer(containerName),
-                    ),
+                    replacements.map(({ containerName }) => runtime.removeSandbox(containerName)),
                 ).then((results) => {
                     for (const result of results)
                         if (result.status === "rejected") this.onError(result.reason);
@@ -737,7 +735,8 @@ export class AgentService {
                 }),
             ]);
             const containerName = agentContainerName();
-            await this.docker.createContainer(
+            const runtime = await this.sandboxRuntime();
+            await runtime.createSandbox(
                 {
                     agentUserId: latest.agentUserId,
                     containerName,
@@ -766,14 +765,14 @@ export class AgentService {
                     sessionId: session.id,
                 });
                 if (binding.containerName !== containerName)
-                    await this.docker.removeContainer(containerName);
+                    await runtime.removeSandbox(containerName);
                 await this.reconcileSecretBindings({
                     agentUserId: latest.agentUserId,
                     chatId,
                 });
                 return binding;
             } catch (error) {
-                await this.docker.removeContainer(containerName);
+                await runtime.removeSandbox(containerName);
                 throw error;
             }
         });
@@ -873,7 +872,8 @@ export class AgentService {
         }, IMAGE_BUILD_LEASE_RENEW_INTERVAL_MS);
         renewal.unref();
         try {
-            const result = await this.docker.buildImage(
+            const runtime = await this.sandboxRuntime();
+            const result = await runtime.buildImage(
                 {
                     ...(build.buildContext
                         ? {

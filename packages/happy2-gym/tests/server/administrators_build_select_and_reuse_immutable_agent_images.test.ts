@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { createMockRigDaemon, MockAgentDockerRuntime, type MockRigDaemon } from "happy2-gym/rig";
+import { createMockRigDaemon, MockAgentSandboxRuntime, type MockRigDaemon } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient, type GymServer } from "../../sources/index.js";
 
 interface AgentImage {
@@ -26,7 +26,7 @@ interface AgentImageDetails extends AgentImage {
 describe("administrator-managed immutable agent images", () => {
     it("gates agents, survives interrupted builds, and starts hardened Docker Rig sessions", async () => {
         await using rig = await createMockRigDaemon();
-        const docker = new MockAgentDockerRuntime();
+        const docker = new MockAgentSandboxRuntime();
         await using server = await agentServer(rig, docker);
         const admin = await server.createUser({ username: "image_admin" });
         const member = await server.createUser({ username: "image_member" });
@@ -194,7 +194,7 @@ describe("administrator-managed immutable agent images", () => {
 
     it("runs only one administrator-requested Docker build at a time", async () => {
         await using rig = await createMockRigDaemon();
-        const docker = new MockAgentDockerRuntime();
+        const docker = new MockAgentSandboxRuntime();
         docker.pauseBuilds();
         await using server = await agentServer(rig, docker);
         const admin = await server.createUser({ username: "serial_image_admin" });
@@ -227,9 +227,12 @@ describe("administrator-managed immutable agent images", () => {
     });
 });
 
-function agentServer(rig: MockRigDaemon, agentDocker: MockAgentDockerRuntime): Promise<GymServer> {
+function agentServer(
+    rig: MockRigDaemon,
+    agentSandbox: MockAgentSandboxRuntime,
+): Promise<GymServer> {
     return createGymServer({
-        agentDocker,
+        agentSandbox,
         databaseMode: "file",
         configure(config) {
             config.agents.enabled = true;

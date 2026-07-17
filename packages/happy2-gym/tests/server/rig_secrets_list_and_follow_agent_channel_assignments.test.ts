@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMockRigDaemon, MockAgentDockerRuntime, type MockRigDaemon } from "happy2-gym/rig";
+import { createMockRigDaemon, MockAgentSandboxRuntime, type MockRigDaemon } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
 
 describe("Rig-backed agent secrets", () => {
@@ -181,7 +181,7 @@ describe("Rig-backed agent secrets", () => {
 
 function agentServer(rig: MockRigDaemon) {
     return createGymServer({
-        agentDocker: new MockAgentDockerRuntime(),
+        agentSandbox: new MockAgentSandboxRuntime(),
         configure(config) {
             config.agents.enabled = true;
             config.agents.socketPath = rig.socketPath;

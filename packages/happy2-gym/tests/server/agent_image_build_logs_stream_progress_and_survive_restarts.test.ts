@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMockRigDaemon, MockAgentDockerRuntime, type MockRigDaemon } from "happy2-gym/rig";
+import { createMockRigDaemon, MockAgentSandboxRuntime, type MockRigDaemon } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient, type GymServer } from "../../sources/index.js";
 
 interface AgentImageSummary {
@@ -21,7 +21,7 @@ interface AgentImageDetails extends AgentImageSummary {
 describe("agent image build output", () => {
     it("streams durable progress and exposes list summaries plus inspectable details", async () => {
         await using rig = await createMockRigDaemon();
-        const docker = new MockAgentDockerRuntime();
+        const docker = new MockAgentSandboxRuntime();
         docker.pauseBuilds();
         await using server = await agentServer(rig, docker);
         const admin = await server.createUser({ username: "build_log_admin" });
@@ -128,7 +128,7 @@ describe("agent image build output", () => {
 
     it("persists a failed build log and replaces it with the retried attempt", async () => {
         await using rig = await createMockRigDaemon();
-        const docker = new MockAgentDockerRuntime();
+        const docker = new MockAgentSandboxRuntime();
         docker.failNextBuild("Dockerfile deliberately failed");
         await using server = await agentServer(rig, docker);
         const admin = await server.createUser({ username: "failed_log_admin" });
@@ -162,9 +162,12 @@ describe("agent image build output", () => {
     });
 });
 
-function agentServer(rig: MockRigDaemon, agentDocker: MockAgentDockerRuntime): Promise<GymServer> {
+function agentServer(
+    rig: MockRigDaemon,
+    agentSandbox: MockAgentSandboxRuntime,
+): Promise<GymServer> {
     return createGymServer({
-        agentDocker,
+        agentSandbox,
         databaseMode: "file",
         configure(config) {
             config.agents.enabled = true;
