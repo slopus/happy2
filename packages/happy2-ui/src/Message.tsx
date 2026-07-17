@@ -84,6 +84,10 @@ export type MessageProps = Omit<JSX.HTMLAttributes<HTMLDivElement>, "style"> & {
     images?: MessageImage[];
     /** Opens an image (by id) — wire to a web-modal lightbox, never a new tab. */
     onImageOpen?: (id: string) => void;
+    /** Makes the avatar and author name clickable to open the author's profile.
+     *  Only the leading message of a group renders an avatar/name, so grouped
+     *  follow-ups intentionally carry no profile affordance. */
+    onAuthorSelect?: () => void;
     initials?: string;
     /** Real actions for the overflow menu. No menu button renders when empty. */
     menuItems?: MenuItem[];
@@ -164,6 +168,7 @@ export function Message(props: MessageProps) {
         "onImageOpen",
         "initials",
         "menuItems",
+        "onAuthorSelect",
         "onMenuSelect",
         "onReactionAdd",
         "onReactionSelect",
@@ -193,6 +198,16 @@ export function Message(props: MessageProps) {
     );
     const hasAttachments = () => hasRenderableChild(attachments());
     const grouped = () => local.grouped || local.compact;
+    const authorActionLabel = () => `View ${local.author}’s profile`;
+    const renderAvatar = () => (
+        <Avatar
+            imageUrl={local.imageUrl}
+            initials={local.initials ?? deriveInitials(local.author)}
+            size="md"
+            tone={local.tone}
+            type={local.agent ? "agent" : "human"}
+        />
+    );
     const deliveryState = () => local.deliveryState ?? "sent";
     const hasReactionAction = () =>
         Boolean(local.onReactionAdd) ||
@@ -304,21 +319,43 @@ export function Message(props: MessageProps) {
                         </span>
                     }
                 >
-                    <Avatar
-                        imageUrl={local.imageUrl}
-                        initials={local.initials ?? deriveInitials(local.author)}
-                        size="md"
-                        tone={local.tone}
-                        type={local.agent ? "agent" : "human"}
-                    />
+                    <Show when={local.onAuthorSelect} fallback={renderAvatar()}>
+                        <button
+                            aria-label={authorActionLabel()}
+                            class="happy2-message__identity"
+                            data-happy2-ui="message-identity"
+                            onClick={() => local.onAuthorSelect?.()}
+                            type="button"
+                        >
+                            {renderAvatar()}
+                        </button>
+                    </Show>
                 </Show>
             </div>
             <div class="happy2-message__content" data-happy2-ui="message-content">
                 <Show when={!grouped()}>
                     <div class="happy2-message__meta" data-happy2-ui="message-meta">
-                        <span class="happy2-message__author" data-happy2-ui="message-author">
-                            {local.author}
-                        </span>
+                        <Show
+                            when={local.onAuthorSelect}
+                            fallback={
+                                <span
+                                    class="happy2-message__author"
+                                    data-happy2-ui="message-author"
+                                >
+                                    {local.author}
+                                </span>
+                            }
+                        >
+                            <button
+                                aria-label={authorActionLabel()}
+                                class="happy2-message__author happy2-message__author--button"
+                                data-happy2-ui="message-author"
+                                onClick={() => local.onAuthorSelect?.()}
+                                type="button"
+                            >
+                                {local.author}
+                            </button>
+                        </Show>
                         <Show when={local.agent}>
                             <Badge label="AGENT" variant="accent" />
                         </Show>

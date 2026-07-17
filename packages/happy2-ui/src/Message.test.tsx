@@ -407,6 +407,128 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     await view.screenshot("Message.test");
 });
 
+it("makes the avatar and author name a profile affordance without shifting geometry", async () => {
+    const view = createRenderer();
+    let humanOpens = 0;
+    const agentOpens: string[] = [];
+
+    view.render(
+        () =>
+            stage(
+                "id-human",
+                <Message
+                    author="Maya Johnson"
+                    body="Open my profile from the avatar or my name."
+                    onAuthorSelect={() => (humanOpens += 1)}
+                    time="10:42"
+                    tone="amber"
+                />,
+            ),
+        { width: 560, height: 80 },
+    );
+    view.render(
+        () =>
+            stage(
+                "id-agent",
+                <Message
+                    agent
+                    author="Codex"
+                    body="Agents open a profile too."
+                    initials="CX"
+                    onAuthorSelect={() => agentOpens.push("agent")}
+                    time="10:43"
+                    tone="mint"
+                />,
+            ),
+        { width: 560, height: 80 },
+    );
+    /* A grouped follow-up renders no avatar/name, so it carries no affordance
+       even when a handler is supplied. */
+    view.render(
+        () =>
+            stage(
+                "id-grouped",
+                <Message
+                    grouped
+                    author="Codex"
+                    body="No repeated identity to click."
+                    onAuthorSelect={() => agentOpens.push("grouped")}
+                    time="10:44"
+                />,
+            ),
+        { width: 560, height: 40 },
+    );
+    await view.ready();
+
+    /* ---- Avatar becomes a button but keeps the exact gutter geometry ------ */
+
+    const identity = view.$('[data-testid="id-human"] [data-happy2-ui="message-identity"]');
+    expect(identity.element.tagName).toBe("BUTTON");
+    expect(identity.element.getAttribute("type")).toBe("button");
+    expect(identity.element.getAttribute("aria-label")).toBe("View Maya Johnson’s profile");
+    expect(
+        identity.computedStyles(["cursor", "border-width", "padding-top", "background-color"]),
+    ).toEqual({
+        cursor: "pointer",
+        "border-width": "0px",
+        "padding-top": "0px",
+        "background-color": "rgba(0, 0, 0, 0)",
+    });
+    /* Identical to the non-interactive anatomy fixture: 20px pad + 36px avatar. */
+    const avatar = view.$('[data-testid="id-human"] [data-happy2-ui="avatar"]');
+    expect(avatar.bounds()).toEqual({ x: 20, y: 6, width: 36, height: 36 });
+    /* The button wraps the avatar tightly — no extra hit-area or offset. */
+    expect(identity.bounds()).toEqual({ x: 20, y: 6, width: 36, height: 36 });
+    const content = view.$('[data-testid="id-human"] [data-happy2-ui="message-content"]');
+    expect(content.bounds().x).toBe(68);
+
+    /* ---- Author name becomes a button with unchanged typography ----------- */
+
+    const author = view.$('[data-testid="id-human"] [data-happy2-ui="message-author"]');
+    expect(author.element.tagName).toBe("BUTTON");
+    expect(author.element.getAttribute("aria-label")).toBe("View Maya Johnson’s profile");
+    const authorMetrics = author.textMetrics();
+    expect(authorMetrics.text).toBe("Maya Johnson");
+    expect(authorMetrics.font.family).toBe("happy2 Figtree, system-ui, sans-serif");
+    expect(authorMetrics.font.size).toBe(14);
+    expect(authorMetrics.font.weight).toBe("700");
+    expect(authorMetrics.font.lineHeight).toBe(20);
+    expect(author.computedStyles(["color", "cursor", "text-align"])).toEqual({
+        color: "rgb(237, 234, 242)",
+        cursor: "pointer",
+        "text-align": "left",
+    });
+    expect((await author.visibleMetrics()).pixelCount).toBeGreaterThan(0);
+
+    /* Both the avatar and the name activate the same profile handler. */
+    (identity.element as HTMLButtonElement).click();
+    (author.element as HTMLButtonElement).click();
+    expect(humanOpens).toBe(2);
+
+    /* ---- Agent identity: badge still sits 8px after the name -------------- */
+
+    const agentAuthor = view.$('[data-testid="id-agent"] [data-happy2-ui="message-author"]');
+    expect(agentAuthor.element.tagName).toBe("BUTTON");
+    const badge = view.$('[data-testid="id-agent"] [data-happy2-ui="badge"]');
+    expect(badge.bounds().x - (agentAuthor.bounds().x + agentAuthor.bounds().width)).toBeCloseTo(
+        8,
+        6,
+    );
+    const agentIdentity = view.$('[data-testid="id-agent"] [data-happy2-ui="message-identity"]');
+    (agentIdentity.element as HTMLButtonElement).click();
+    (agentAuthor.element as HTMLButtonElement).click();
+    expect(agentOpens).toEqual(["agent", "agent"]);
+
+    /* ---- Grouped follow-up exposes no identity affordance ----------------- */
+
+    const groupedRoot = view.$('[data-testid="id-grouped"] [data-happy2-ui="message"]');
+    expect(groupedRoot.element.querySelector('[data-happy2-ui="message-identity"]')).toBeNull();
+    expect(groupedRoot.element.querySelector('[data-happy2-ui="message-author"]')).toBeNull();
+    expect(groupedRoot.element.querySelector('[data-happy2-ui="avatar"]')).toBeNull();
+
+    await view.screenshot("Message.identity.test");
+});
+
 it("keeps file attachments intrinsic inside the full-width attachment slot", async () => {
     const view = createRenderer();
     view.render(

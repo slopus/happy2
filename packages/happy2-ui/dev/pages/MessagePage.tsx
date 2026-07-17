@@ -480,6 +480,41 @@ export function MessagePage() {
                     "360px",
                 )}
             </Specimen>
+            <Specimen
+                detail="onAuthorSelect makes the avatar and author name clickable to open the author's profile — same geometry, adds cursor, hover, and focus ring; grouped follow-ups have no affordance"
+                label="Message — clickable identity"
+                number="13"
+                stage="app"
+            >
+                {channelFrame(
+                    <>
+                        <Message
+                            author="Maya Johnson"
+                            body="Tap my name or avatar to open my profile in the panel."
+                            onAuthorSelect={() => {}}
+                            time="10:42"
+                            tone="amber"
+                        />
+                        <Message
+                            agent
+                            author="Codex"
+                            body="Agent identities open a profile too."
+                            initials="CX"
+                            onAuthorSelect={() => {}}
+                            time="10:43"
+                            tone="mint"
+                        />
+                        <Message
+                            grouped
+                            author="Codex"
+                            body="Grouped follow-ups stay non-interactive — no repeated identity to click."
+                            onAuthorSelect={() => {}}
+                            time="10:44"
+                        />
+                    </>,
+                )}
+                <DimensionRule label="clickable avatar + name · grouped rows carry no profile affordance" />
+            </Specimen>
         </ComponentPage>
     );
 }

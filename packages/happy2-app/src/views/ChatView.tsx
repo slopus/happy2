@@ -387,6 +387,10 @@ export function ChatView(props: ChatViewProps) {
     const [fileDiskChanged, setFileDiskChanged] = createSignal(false);
     const [fileMissing, setFileMissing] = createSignal(false);
     const [panelMembers, setPanelMembers] = createSignal<MemberItem[]>([]);
+    /* When set, the info panel shows this author's profile (opened by clicking a
+       message avatar/name) instead of the active channel or DM peer. Cleared
+       whenever the channel info panel is opened or the conversation changes. */
+    const [profileOverride, setProfileOverride] = createSignal<InfoPanelProfile>();
     const [starredChats, setStarredChats] = createSignal<Record<string, boolean>>({});
     const [lightbox, setLightbox] = createSignal<{
         caption?: string;
@@ -1144,6 +1148,7 @@ export function ChatView(props: ChatViewProps) {
         setThreadRootId(undefined);
         commitThread([]);
         setPanelMode(undefined);
+        setProfileOverride(undefined);
         resetWorkspacePanel();
         if (!props.session) {
             setActiveConversationId(id);
@@ -1791,8 +1796,52 @@ export function ChatView(props: ChatViewProps) {
         }
     }
 
+    /* Build the sidebar profile for a message author. Connected messages carry a
+       full sender (or an agent bot); the no-server demo falls back to the row's
+       own display fields with a handle derived from the name. */
+    function messageProfile(message: LiveThreadMessage): InfoPanelProfile | undefined {
+        const sender = message.serverMessage?.sender;
+        if (sender) {
+            return {
+                initials: initials(sender),
+                name: fullName(sender),
+                presence: presence()[sender.id]?.status === "online" ? "online" : "offline",
+                title: sender.title,
+                tone: toneFor(sender.id),
+                username: sender.username,
+            };
+        }
+        const bot = message.serverMessage?.senderBot;
+        if (bot) {
+            return {
+                initials: bot.name.slice(0, 2).toUpperCase(),
+                name: bot.name,
+                tone: toneFor(bot.id),
+                username: bot.username,
+            };
+        }
+        if (connected) return undefined;
+        const handle = message.author.toLowerCase().replace(/[^a-z0-9]+/g, "");
+        if (!handle) return undefined;
+        return {
+            initials: message.initials ?? message.author.slice(0, 2).toUpperCase(),
+            name: message.author,
+            tone: message.tone,
+            username: handle,
+        };
+    }
+
+    /* Open a message author's profile in the info panel. Mirrors openInfoPanel
+       but pins an explicit profile and hides the channel roster/edit affordances. */
+    function openProfilePanel(profile: InfoPanelProfile) {
+        setProfileOverride(profile);
+        setPanelMembers([]);
+        setPanelMode("info");
+    }
+
     function openInfoPanel() {
         const chat = activeChat();
+        setProfileOverride(undefined);
         setPanelMode("info");
         if (chat) {
             setChannelNameDraft(chat.name ?? "");
@@ -2076,6 +2125,16 @@ export function ChatView(props: ChatViewProps) {
                                                     gutterTime={message().gutterTime}
                                                     initials={message().initials}
                                                     menuItems={messageMenuItems(message())}
+                                                    onAuthorSelect={
+                                                        messageProfile(message())
+                                                            ? () => {
+                                                                  const profile =
+                                                                      messageProfile(message());
+                                                                  if (profile)
+                                                                      openProfilePanel(profile);
+                                                              }
+                                                            : undefined
+                                                    }
                                                     onMenuSelect={(action) =>
                                                         void handleMessageMenu(message(), action)
                                                     }
@@ -2096,25 +2155,30 @@ export function ChatView(props: ChatViewProps) {
                     ) : panelMode() === "info" ? (
                         <InfoPanel
                             about={
-                                !infoPeer() && !canEditChannel()
+                                !profileOverride() && !infoPeer() && !canEditChannel()
                                     ? (conversation().topic ?? "No topic set yet.")
                                     : undefined
                             }
                             data-testid="channel-info-panel"
-                            leadingIcon={infoPeer() ? undefined : "hash"}
-                            members={panelMembers()}
-                            onClose={() => setPanelMode(undefined)}
-                            profile={infoProfile()}
+                            leadingIcon={profileOverride() || infoPeer() ? undefined : "hash"}
+                            members={profileOverride() ? [] : panelMembers()}
+                            onClose={() => {
+                                setPanelMode(undefined);
+                                setProfileOverride(undefined);
+                            }}
+                            profile={profileOverride() ?? infoProfile()}
                             subtitle={
-                                infoPeer()
-                                    ? "Direct message"
-                                    : canEditChannel()
-                                      ? "Edit details"
-                                      : "Details"
+                                profileOverride()
+                                    ? (profileOverride()!.title ?? "Profile")
+                                    : infoPeer()
+                                      ? "Direct message"
+                                      : canEditChannel()
+                                        ? "Edit details"
+                                        : "Details"
                             }
-                            title={conversation().title}
+                            title={profileOverride()?.name ?? conversation().title}
                         >
-                            <Show when={!infoPeer() && canEditChannel()}>
+                            <Show when={!profileOverride() && !infoPeer() && canEditChannel()}>
                                 <Box style={infoFormStyle}>
                                     <FormRow
                                         control={
@@ -2267,6 +2331,15 @@ export function ChatView(props: ChatViewProps) {
                                                 images={messageImages(item)}
                                                 initials={item.initials}
                                                 menuItems={messageMenuItems(item)}
+                                                onAuthorSelect={
+                                                    messageProfile(item)
+                                                        ? () => {
+                                                              const profile = messageProfile(item);
+                                                              if (profile)
+                                                                  openProfilePanel(profile);
+                                                          }
+                                                        : undefined
+                                                }
                                                 onImageOpen={(id) => void openImage(item, id)}
                                                 onMenuSelect={(action) =>
                                                     void handleMessageMenu(item, action)

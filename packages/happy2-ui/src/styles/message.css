@@ -125,6 +125,56 @@
     white-space: nowrap;
 }
 
+/* Clickable identity (opt-in via `onAuthorSelect`): the avatar and the author
+ * name become buttons that open the author's profile. Both reset all button
+ * chrome so they keep the exact geometry of the plain avatar/name — only the
+ * cursor, hover affordance, and focus ring are added. */
+.happy2-message__identity {
+    display: flex;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    /* Wraps the avatar at zero inset, so its corner must be a true parallel of
+     * the avatar's: circular for a human, the rounded square for an agent. */
+    border-radius: var(--happy2-radius-pill);
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: opacity 100ms ease;
+}
+
+.happy2-message[data-agent] .happy2-message__identity {
+    border-radius: 9px;
+}
+
+.happy2-message__identity:hover {
+    opacity: 0.86;
+}
+
+.happy2-message__author--button {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: inherit;
+    letter-spacing: inherit;
+    text-align: left;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.happy2-message__author--button:hover {
+    text-decoration: underline;
+}
+
+.happy2-message__identity:focus-visible,
+.happy2-message__author--button:focus-visible {
+    outline: 2px solid var(--happy2-accent);
+    outline-offset: 2px;
+}
+
 .happy2-message__time {
     display: block;
     font-family: var(--happy2-font-mono);

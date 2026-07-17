@@ -648,6 +648,89 @@ describe("live views use happy2-state", () => {
         state.stop();
     });
 
+    it("opens a message author's profile in the info panel and restores channel details", async () => {
+        const joined = chat({
+            id: "joined",
+            membershipRole: "owner",
+            name: "Joined",
+            slug: "joined",
+            topic: "Old topic",
+        });
+        const author: UserSummary = {
+            id: "grace",
+            firstName: "Grace",
+            lastName: "Hopper",
+            username: "grace",
+            title: "Rear Admiral",
+            role: "member",
+            kind: "human",
+        };
+        const note = sentMessage("Coordinating the release", { id: "note", sender: author });
+        const server = baseServer([joined]);
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, { users: [userSummary(), author], presence: [], statuses: [] }),
+        );
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            "/v0/chats/joined/members",
+            jsonResponse(200, { users: [userSummary(), author], memberships: [] }),
+        );
+        server.respond(
+            "GET",
+            (path) => path.includes("/v0/chats/joined/messages?limit=100"),
+            jsonResponse(200, { messages: [note], chatPts: "1", hasMore: false }),
+        );
+
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        await waitFor(() => expect(view.getByText("Coordinating the release")).toBeTruthy());
+        const row = view
+            .getByText("Coordinating the release")
+            .closest('[data-happy2-ui="message"]')!;
+
+        /* Both the avatar and the author name are profile buttons. */
+        const authorButton = row.querySelector('[data-happy2-ui="message-author"]')!;
+        expect(authorButton.tagName).toBe("BUTTON");
+        expect(authorButton.getAttribute("aria-label")).toBe("View Grace Hopper’s profile");
+        expect(row.querySelector('[data-happy2-ui="message-identity"]')?.tagName).toBe("BUTTON");
+
+        /* Clicking the name opens the sender's profile — no channel roster. */
+        fireEvent.click(authorButton);
+        await waitFor(() => expect(view.getByTestId("channel-info-panel")).toBeTruthy());
+        const panel = () => view.getByTestId("channel-info-panel");
+        expect(panel().querySelector('[data-happy2-ui="profile-card-name"]')?.textContent).toBe(
+            "Grace Hopper",
+        );
+        expect(panel().querySelector('[data-happy2-ui="profile-card-username"]')?.textContent).toBe(
+            "@grace",
+        );
+        expect(panel().querySelector('[data-happy2-ui="profile-card-title"]')?.textContent).toBe(
+            "Rear Admiral",
+        );
+        expect(panel().querySelector('[data-happy2-ui="info-panel-members"]')).toBeNull();
+
+        /* Opening the channel details clears the author override: the profile
+           gives way to the channel roster and edit form. */
+        fireEvent.click(view.getByRole("button", { name: "Open Joined details" }));
+        await waitFor(() =>
+            expect(panel().querySelector('[data-happy2-ui="info-panel-members"]')).toBeTruthy(),
+        );
+        expect(panel().querySelector('[data-happy2-ui="profile-card-name"]')).toBeNull();
+        state.stop();
+    });
+
     it("renders a local chat message before the server confirms it", async () => {
         const joined = chat({ id: "joined", name: "Joined", slug: "joined" });
         const server = baseServer([joined]);
