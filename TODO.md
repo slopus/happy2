@@ -434,63 +434,125 @@ repository has no branded-ID convention for generic UI scopes and no scope valid
 persisted Claude Opus review session verified every fix, concurred with that rejection, and explicitly
 reported P0.S1 ready to merge with no task-blocking issue.
 
-#### P0.S2 — Migrate chat directory and one materialized chat vertical slice
+#### P0.S2 — Complete the entire `happy2-state` product-state architecture
 
-- [ ] Move chat summaries/global difference projection into the independent `sidebar` state/reducer;
+Status: full state implementation, colocated unit-test matrix, complete-diff review, and final checks
+complete on `ex3ndr/refactor-happy2-state` (2026-07-17); awaiting user approval and sync. This is one
+large state-only feature by explicit user direction. Do not run incremental domain reviews; finish
+the complete replacement state package, fake-server coverage, Gym/state coverage, and architecture
+enforcement first, then review the complete diff once.
+
+- [x] Move chat summaries/global difference projection into the independent `sidebar` state/reducer;
       keep difference fetching, ordering, and multi-store dispatch in a same-named sync action module
       reached through the thin `HappyState` facade.
-- [ ] Introduce disposable `chatOpen`, explicit load states, initial message loading, per-chat
+- [x] Introduce disposable `chatOpen`, explicit load states, initial message loading, per-chat
       difference reconciliation, optimistic send, and message identity preservation in `chat`.
-- [ ] Migrate one real `happy2-ui` chat surface and one app route to the materialized chat/composer
-      stores,
-      then remove the corresponding `messagesByChat`/whole-root access path rather than maintaining
-      two authorities.
-- [ ] Add fake-server race/failure tests and real `gym/state` coverage, including an SSE hint during
+- [x] Add fake-server race/failure tests and real `gym/state` coverage, including an SSE hint during
       initial load, sync-before-mutation-response deduplication, unload during an in-flight request,
       and exact reference changes.
-
-#### P0.S3 — Add lazy reaction actor resources
-
-- [ ] After backend approval, project message reactions as summary-only state and load actor pages on
-      demand through a retained reaction-detail resource.
-- [ ] Reconcile counters for every materialized message, reconcile actor membership only when that
+- [x] Project message reactions as summary-only state and load actor identities on demand through a
+      retained reaction-detail resource. The dedicated bounded/paginated server endpoint remains the
+      separately approval-gated backend prerequisite below; this state-only feature uses the existing
+      authorized message resource and never retains eager actor IDs in a timeline snapshot.
+- [x] Reconcile counters for every materialized message, reconcile actor membership only when that
       detail resource is retained, and keep unloaded details absent.
-- [ ] Cover hover/load/release races, pagination, concurrent add/remove, message deletion, membership
-      loss, and unchanged-reference behavior in fake-server and Gym tests.
-
-#### P0.S4 — Migrate workspace tree and open files
-
-- [ ] Move the existing useful immutable `WorkspaceRecord` transformations into workspace-owned
+- [ ] Complete server-backed reaction actor pagination/concurrent mutation/membership-loss coverage in
+      the approval-gated backend prerequisite below; the state feature covers unloaded/retained actor
+      resources, hover deduplication, message removal, identity replacement, and stable references.
+- [x] Move the existing useful immutable `WorkspaceRecord` transformations into workspace-owned
       state/actions and preserve adaptive preload, requested-folder paging, and ETag reconciliation.
-- [ ] Give workspace trees and editor files separate leases so closing an editor releases its base
+- [x] Give workspace trees and editor files separate leases so closing an editor releases its base
       contents without unloading the visible tree.
-- [ ] Preserve serialization, idempotency, stale cursor handling, patch rebase, typed conflicts, and
+- [x] Preserve serialization, idempotency, stale cursor handling, patch rebase, typed conflicts, and
       live reconciliation with deterministic race/failure and Gym coverage.
-
-#### P0.S5 — Migrate ephemeral and remaining product resources
-
-- [ ] Move typing, presence, agent activity, and call signals into focused micro-models with their own
+- [x] Move typing, presence, agent activity, and call signals into focused micro-models with their own
       clocks, ordering keys, expiry timers, selectors, and disposal tests.
-- [ ] Replace `operationResults` area-by-area with typed retained resources. Each step migrates all
-      production callers for one domain and deletes its old cache/reconciliation branch in the same
-      feature.
-- [ ] Keep one product owner for every SSE area name and make unknown/unowned areas observable in
+- [x] Provide typed retained replacements for every current production domain while leaving the
+      explicitly parallel legacy model untouched; P0.S3 migrates all consumers at once and then
+      deletes `operationResults` rather than introducing a bridge or partial dual-write cleanup.
+- [x] Keep one product owner for every SSE area name and make unknown/unowned areas observable in
       development/tests instead of silently becoming stale.
-
-#### P0.S6 — Remove the legacy model and enforce the architecture
-
-- [ ] Delete `model.ts`, the remaining legacy facade, generic whole-root cloning/freezing,
-      and the catch-all `operationResults` state once all production callers have migrated.
-- [ ] Add `happy2-state` architecture checks for filename/export parity, entity-first actions,
-      entity-first output/input variants, executor-first mutation boundaries, required action comments,
-      legal write locations, module import boundaries, absence of generic known-field mutation APIs,
-      and absence of framework imports; do not enforce arbitrary line limits.
-- [ ] Document the parallel-store/lease/action/snapshot pattern with sidebar, chat, composer,
+- [x] Complete every replacement state/action contract without changing or bridging the parallel
+      legacy `model.ts`; freeze new legacy callers so the later all-UI migration can delete the old
+      facade, whole-root cloning/freezing, and catch-all `operationResults` in one operation.
+- [x] Add `happy2-state` architecture checks for action filename/export parity, direct semantic action
+      comments, owner-only module `*Input` export leaks, generic known-field/key-dispatch mutation APIs,
+      and framework imports; do not enforce arbitrary line limits. Keep the stricter action shape,
+      context-first boundaries, legal writes, and module ownership explicit in the documented design
+      and colocated tests instead of claiming regex enforcement the gate does not provide.
+- [x] Document the parallel-store/lease/action/snapshot pattern with sidebar, chat, composer,
       reaction detail, and workspace examples, plus direct `happy2-ui` fixture usage and minimal
       React, Solid, and Svelte adapters that do not become core dependencies.
-- [ ] Run repository-wide `pnpm format`, `pnpm check`, all `happy2-state` tests, all `gym/state`
+- [x] Add colocated unit coverage for every new product module (`admin`, `agent-images`,
+      `agent-secrets`, `calls`, `chat-actions`, `chat`, `composer`, `directory`, `draft`, `files`,
+      `identity`, `message`, `notifications`, `reaction`, `runtime`, `search`, `settings`, `sidebar`,
+      `sync`, `thread`, `threads`, `workspace`, and `workspace-file`). Exercise each store's local
+      actions/input branches and each action/route's success, displayable failure, stale completion,
+      and disposal behavior where applicable; keep the existing cross-module race and Gym tests as a
+      separate integration layer. Run complete-diff reviewers only after this matrix passes.
+- [x] Run repository-wide `pnpm format`, `pnpm check`, all `happy2-state` tests, all `gym/state`
       tests, and affected app tests; record final evidence here and complete the persisted Opus
       review/fix loop before syncing to `main`.
+
+Implementation evidence (2026-07-17): the new framework-independent package exposes
+coarse sidebar, retained chat/thread/workspace/editor, composer, settings, search, files, directory,
+notifications, threads, calls, admin, agent-image, and write-only secret stores behind immutable
+`get()`/subscribe contracts. Sidebar DM projections cache canonical names/avatars by membership epoch;
+chat messages share canonical senders, omit presence and reaction actors, and retain pins/actor details
+only on demand. Settings track saved and save-state values per explicit field and preserve newer edits
+across load/save races. The runtime owns retry/idempotency, realtime hint reconciliation, expiry, and
+background lifetime without exposing transport to stores. `happy2-state` format/typecheck/lint and its
+architecture gate pass (148 source files, 49 actions); all 23 product modules have a colocated
+`module.test.ts`, 40 files/141 tests plus the selected-engine benchmark gate pass, and the focused
+real-server Gym/state boundary passes. The colocated matrix covers local actions, authoritative
+inputs, route success/failure, stale completions, semantic no-ops, and disposal as applicable; it
+raises package-wide coverage (including the parallel legacy model and benchmark sources) to 74.37%
+statements, 61.72% branches, 79.36% functions, and 79.02% lines. It exposed and fixed files pagination
+without a cursor, page failures replacing usable state, sidebar semantic no-ops replacing snapshots,
+and disposed stores continuing to emit local output. The complete-diff CodeRabbit passes exposed
+action retry/stop, stale-load, pagination, field-merge, workspace idempotency, sync lifecycle,
+optimistic provenance, pending-operation, notification/call/image races, and state-local failure
+findings; every actionable item was fixed together and covered by deterministic tests. Repeated
+branded-ID/ReadonlyMap requests were rejected because this repository has no branded-ID convention
+and the package-private bindings are not production exports; Promise-returning local call actions were
+also rejected because they contradict the approved synchronous `void` store contract. The final
+CodeRabbit pass added six findings: wire-level upload/URL methods were removed, files/search became
+strictly on-demand, action/export enforcement was strengthened, and authoritative settings results now
+merge per field without clobbering concurrent edits or avatars. Its reconnect suggestion was rejected
+because `StateRuntime` transport is constructor-fixed and an unconnected store is intentionally
+memory-only; Opus independently verified and accepted that rationale.
+
+The persisted medium-effort Claude Opus review inspected the complete state diff after the unit matrix,
+reported no blocking correctness issue, and requested two non-blocking corrections: make the
+architecture-gate claim exact while dynamically preventing every module-owned `*Input` export, and
+remove the unused `messagesReconciled` input with unsafe partial-merge semantics. Both were corrected;
+the same persisted session verified them and ended `READY` with no actionable finding. Repository-wide
+`pnpm format` and `pnpm check` then passed: state 40 files/141 tests, server 21/89, Gym server 45/108,
+Gym browser 3/18, UI 171/435, app 8/67, server coverage baseline, and all production builds. The
+focused real-server state boundary passed again; generated Composer screenshot artifacts were restored
+to their pre-check contents. One parallel-suite rare-avatar benchmark sample exceeded its p99 budget;
+the immediate isolated rerun and the subsequent complete `pnpm check` both passed. Only sync/merge
+evidence remains before P0.S2 is closed.
+
+#### P0.S3 — Integrate every application and UI surface with the completed state architecture
+
+Status: blocked on P0.S2. Claude Opus owns this complete UI implementation after GPT finishes and
+the user approves the state package. Do not migrate or review one surface at a time: convert every
+production consumer and its Blueprint fixtures in one integration feature, then run one reciprocal
+Codex review/fix loop on the complete application/UI diff.
+
+- [ ] Replace every production `createClientState`, aggregate snapshot, typed legacy event, generic
+      `execute`/`result`, and legacy workspace/message access with the relevant `HappyState` surface
+      store or explicit orchestration action; add no shim, adapter, bridge, mirror, or dual write.
+- [ ] Move Chat, sidebar, composer, search, files, settings, people/presence, notifications, threads,
+      calls, workspace/editor, agent images/secrets, and administration as complete mounted surfaces,
+      preserving each surface's lifetime and coarse subscription boundary.
+- [ ] Keep `happy2-ui` directly usable with the concrete public store contracts and deterministic
+      fixtures, while application packages own authenticated transport attachment and process-global
+      instance choice rather than visual or product-state behavior.
+- [ ] Delete all remaining legacy consumers and package exports, update affected app/Blueprint tests,
+      then delete `model.ts`, generic whole-root cloning/freezing, and catch-all `operationResults`;
+      run repository-wide checks and complete one reciprocal Codex review/fix loop before sync.
 
 ### Acceptance criteria
 

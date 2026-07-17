@@ -208,6 +208,23 @@ export interface CallSummary {
     readonly updatedAt: string;
 }
 
+export type WebRtcSignal =
+    | {
+          readonly kind: "offer" | "answer";
+          readonly sdp: string;
+      }
+    | {
+          readonly kind: "ice-candidate";
+          readonly candidate: string;
+          readonly sdpMid?: string | null;
+          readonly sdpMLineIndex?: number | null;
+          readonly usernameFragment?: string | null;
+      }
+    | {
+          readonly kind: "hangup";
+          readonly reason?: "ended" | "declined" | "busy" | "failed";
+      };
+
 export interface ChatPinSummary {
     readonly id: string;
     readonly chatId: string;
@@ -335,7 +352,7 @@ export type RealtimeEvent =
           readonly chatId: string;
           readonly senderUserId: string;
           readonly recipientUserId?: string;
-          readonly signal: Readonly<Record<string, unknown>>;
+          readonly signal: WebRtcSignal;
           readonly occurredAt: number;
       }
     | {

@@ -26,6 +26,11 @@ export class StoreRegistry<Key, Value extends RegistryValue> {
         return this.entries.get(key)?.value;
     }
 
+    /** Iterates only currently retained values; callers cannot mutate registry ownership. */
+    *values(): IterableIterator<readonly [Key, Value]> {
+        for (const [key, entry] of this.entries) yield [key, entry.value] as const;
+    }
+
     release(key: Key): void {
         const entry = this.entries.get(key);
         if (!entry) return;

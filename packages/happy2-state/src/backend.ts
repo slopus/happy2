@@ -12,6 +12,7 @@ import type {
     PresenceSnapshot,
     ThreadSummary,
     UserSummary,
+    WebRtcSignal,
     WorkspaceFileWriteInput,
     WorkspaceGitStatusEntry,
     WorkspaceTextFile,
@@ -460,7 +461,7 @@ export interface KnownBackendInputs {
         readonly callId: string;
         readonly chatId: string;
         readonly recipientUserId: string;
-        readonly signal: JsonObject;
+        readonly signal: WebRtcSignal;
     };
     createCustomEmoji: { readonly name: string; readonly fileId: string };
     deleteCustomEmoji: { readonly emojiId: string };
@@ -870,6 +871,7 @@ export interface KnownBackendResults {
     joinChat: ChatResult;
     markChatRead: ChatResult;
     updateChatNotificationPreferences: ChatResult;
+    setChatStar: ChatResult;
     sendMessage: MessageResult;
     sendThreadMessage: MessageResult;
     deleteMessage: MessageResult;

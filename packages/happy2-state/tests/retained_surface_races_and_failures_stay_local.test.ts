@@ -1,0 +1,332 @@
+import { describe, expect, it, vi } from "vitest";
+import type {
+    AgentImageDetails,
+    AgentImageSummary,
+    NotificationPreferences,
+} from "../src/resources.js";
+import type { CallSummary, NotificationSummary, PresenceSettingsSummary } from "../src/types.js";
+import { callsLoad } from "../src/modules/calls/callsRoute.js";
+import { callsStoreCreateBinding } from "../src/modules/calls/callsStore.js";
+import { agentImagesOutputRoute } from "../src/modules/agent-images/agentImagesRoute.js";
+import { agentImagesStoreCreateBinding } from "../src/modules/agent-images/agentImagesStore.js";
+import { notificationsLoad } from "../src/modules/notifications/notificationsRoute.js";
+import { notificationsStoreCreateBinding } from "../src/modules/notifications/notificationsStore.js";
+import { StateRuntime } from "../src/modules/runtime/stateRuntime.js";
+import { settingsStoreCreateBinding } from "../src/modules/settings/settingsStore.js";
+import { IdentityCatalog } from "../src/modules/identity/identityCatalog.js";
+import { createFakeServer, jsonResponse } from "../src/testing/index.js";
+
+describe("retained surface races and failures", () => {
+    it("rejects invalid retry policies and does not issue another request after stop", async () => {
+        expect(() => new StateRuntime({ retry: { attempts: 0 } })).toThrow(RangeError);
+        const server = createFakeServer();
+        server.failNext("GET", "/v0/chats");
+        server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+        let releaseSleep!: () => void;
+        const runtime = new StateRuntime({
+            transport: server.transport,
+            sleep: () => new Promise<void>((resolve) => (releaseSleep = resolve)),
+        });
+        const request = runtime.operation("getChats");
+        await vi.waitFor(() => expect(releaseSleep).toBeTypeOf("function"));
+        runtime.stop();
+        releaseSleep();
+        await expect(request).rejects.toThrow("stopped");
+        expect(server.requests).toHaveLength(1);
+    });
+
+    it("merges a loaded settings document field by field around a newer local edit", () => {
+        const binding = settingsStoreCreateBinding({
+            profile: {
+                id: "user-1",
+                firstName: "Ada",
+                username: "ada",
+                photoFileId: "avatar-old",
+            },
+        });
+        binding.store.displayNameUpdate("Grace", "Hopper");
+        binding.settingsInput({
+            type: "settingsLoaded",
+            profile: {
+                id: "user-1",
+                firstName: "Augusta",
+                username: "lovelace",
+                photoFileId: "avatar-remote",
+            },
+            presence: presence(),
+            notifications: notifications(),
+            avatarRevision: 0,
+        });
+        expect(binding.store.get().profile).toMatchObject({
+            firstName: "Grace",
+            lastName: "Hopper",
+            username: "lovelace",
+            photoFileId: "avatar-remote",
+        });
+        expect(binding.store.get().fields.displayName).toMatchObject({
+            saved: { firstName: "Augusta" },
+            save: { type: "dirty" },
+        });
+        expect(binding.store.get().fields.username).toEqual({
+            saved: "lovelace",
+            save: { type: "clean" },
+        });
+        binding.settingsInput({ type: "avatarSaved", fileId: "avatar-local" });
+        binding.settingsInput({
+            type: "settingsLoaded",
+            profile: {
+                id: "user-1",
+                firstName: "Augusta",
+                username: "lovelace",
+                photoFileId: "avatar-stale",
+            },
+            presence: presence(),
+            notifications: notifications(),
+            avatarRevision: 0,
+        });
+        expect(binding.store.get().profile.photoFileId).toBe("avatar-local");
+        binding.dispose();
+    });
+
+    it("discards an older calls load after a newer load completes", async () => {
+        const server = createFakeServer();
+        let releaseFirst!: () => void;
+        let firstStarted!: () => void;
+        const started = new Promise<void>((resolve) => (firstStarted = resolve));
+        server.route("GET", "/v0/calls?limit=100", async (_request, { requestNumber }) => {
+            if (requestNumber === 1) {
+                firstStarted();
+                await new Promise<void>((resolve) => (releaseFirst = resolve));
+                return jsonResponse(200, { calls: [call("old")] });
+            }
+            return jsonResponse(200, { calls: [call("new")] });
+        });
+        const runtime = new StateRuntime({ transport: server.transport });
+        const identities = new IdentityCatalog();
+        const calls = callsStoreCreateBinding();
+        const context = { runtime, identities, calls };
+        const first = callsLoad(context);
+        await started;
+        await callsLoad(context);
+        releaseFirst();
+        await first;
+        expect(calls.store.get().calls).toMatchObject({
+            type: "ready",
+            value: [{ id: "new" }],
+        });
+        runtime.stop();
+        calls.dispose();
+    });
+
+    it("keeps concurrent agent-image pending operations independent", () => {
+        const images = agentImagesStoreCreateBinding();
+        images.store.imageBuild("image-1");
+        images.store.defaultImageSet("image-2");
+        images.store.imageCreate("Custom", "FROM scratch");
+        images.agentImagesInput({
+            type: "imageUpserted",
+            image: image("image-1"),
+            completed: "build",
+        });
+        expect(images.store.get().pending).toEqual({
+            buildImageIds: [],
+            defaultImageId: "image-2",
+            creating: true,
+        });
+        images.agentImagesInput({
+            type: "imageUpserted",
+            image: image("image-2"),
+            defaultImageId: "image-2",
+            completed: "default",
+        });
+        expect(images.store.get().pending).toEqual({ buildImageIds: [], creating: true });
+        images.dispose();
+    });
+
+    it("ignores details returned for an image that is no longer selected", async () => {
+        const server = createFakeServer();
+        let releaseFirst!: () => void;
+        server.route(
+            "GET",
+            (path) => path.startsWith("/v0/admin/agentImages/"),
+            async (request) => {
+                const id = request.path.split("/").at(-1)!;
+                if (id === "image-1")
+                    await new Promise<void>((resolve) => (releaseFirst = resolve));
+                return jsonResponse(200, { image: imageDetails(id) });
+            },
+        );
+        const runtime = new StateRuntime({ transport: server.transport });
+        let binding: ReturnType<typeof agentImagesStoreCreateBinding>;
+        const tasks: Promise<void>[] = [];
+        binding = agentImagesStoreCreateBinding((event) =>
+            tasks.push(agentImagesOutputRoute({ runtime, images: binding }, event)),
+        );
+        binding.store.imageSelect("image-1");
+        await vi.waitFor(() => expect(releaseFirst).toBeTypeOf("function"));
+        binding.store.imageSelect("image-2");
+        await tasks[1];
+        releaseFirst();
+        await tasks[0];
+        expect(binding.store.get().selectedImageId).toBe("image-2");
+        expect(binding.store.get().details["image-2"]).toMatchObject({
+            type: "ready",
+            value: { id: "image-2" },
+        });
+        expect(binding.store.get().details["image-1"]?.type).toBe("loading");
+        runtime.stop();
+        binding.dispose();
+    });
+
+    it("keeps the newest notification page when append requests overlap", async () => {
+        const server = createFakeServer();
+        let releaseFirst!: () => void;
+        let requests = 0;
+        server.route(
+            "GET",
+            (path) => path.startsWith("/v0/notifications?"),
+            async () => {
+                requests += 1;
+                if (requests === 1) {
+                    await new Promise<void>((resolve) => (releaseFirst = resolve));
+                    return jsonResponse(200, {
+                        notifications: [notification("old")],
+                        nextCursor: "old-cursor",
+                    });
+                }
+                return jsonResponse(200, {
+                    notifications: [notification("new")],
+                    nextCursor: "new-cursor",
+                });
+            },
+        );
+        const runtime = new StateRuntime({ transport: server.transport });
+        const identities = new IdentityCatalog();
+        const center = notificationsStoreCreateBinding();
+        center.notificationsInput({
+            type: "notificationsLoaded",
+            notifications: [],
+            nextCursor: "cursor",
+        });
+        const first = notificationsLoad({ runtime, identities, notifications: center }, true);
+        await vi.waitFor(() => expect(releaseFirst).toBeTypeOf("function"));
+        await notificationsLoad({ runtime, identities, notifications: center }, true);
+        releaseFirst();
+        await first;
+        expect(center.store.get()).toMatchObject({
+            nextCursor: "new-cursor",
+            notifications: { type: "ready", value: [{ id: "new" }] },
+        });
+        runtime.stop();
+        center.dispose();
+    });
+
+    it("shares one canonical identity across notification and call projections", async () => {
+        const server = createFakeServer();
+        const user = {
+            id: "user-2",
+            username: "ada",
+            firstName: "Ada",
+            role: "member",
+            kind: "human",
+            photoFileId: "avatar-2",
+        } as const;
+        server.respond(
+            "GET",
+            "/v0/notifications?limit=100",
+            jsonResponse(200, {
+                notifications: [{ ...notification("notification-1"), actorUserId: user.id }],
+            }),
+        );
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, { users: [user], presence: [], statuses: [] }),
+        );
+        server.respond(
+            "GET",
+            "/v0/calls?limit=100",
+            jsonResponse(200, {
+                calls: [
+                    {
+                        ...call("call-1"),
+                        participants: [{ userId: user.id, status: "joined" }],
+                    },
+                ],
+            }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport });
+        const identities = new IdentityCatalog();
+        const center = notificationsStoreCreateBinding();
+        const calls = callsStoreCreateBinding();
+        await notificationsLoad({ runtime, identities, notifications: center });
+        await callsLoad({ runtime, identities, calls });
+        const loadedNotifications = center.store.get().notifications;
+        const loadedCalls = calls.store.get().calls;
+        const notificationActor =
+            loadedNotifications.type === "ready" ? loadedNotifications.value[0]?.actor : undefined;
+        const callParticipant =
+            loadedCalls.type === "ready"
+                ? loadedCalls.value[0]?.participants[0]?.identity
+                : undefined;
+        expect(notificationActor).toMatchObject({
+            id: "user-2",
+            displayName: "Ada",
+            photoFileId: "avatar-2",
+        });
+        expect(callParticipant).toBe(notificationActor);
+        runtime.stop();
+        calls.dispose();
+        center.dispose();
+    });
+});
+
+function presence(): PresenceSettingsSummary {
+    return { userId: "user-1", availability: "automatic", updatedAt: "now" };
+}
+
+function notifications(): NotificationPreferences {
+    return {
+        directMessages: "all",
+        mentions: "all",
+        threadReplies: "all",
+        reactions: "all",
+        calls: "all",
+        emailNotifications: false,
+        desktopNotifications: true,
+    };
+}
+
+function call(id: string): CallSummary {
+    return {
+        id,
+        chatId: "chat-1",
+        kind: "audio",
+        status: "ringing",
+        participants: [],
+        createdAt: "now",
+        updatedAt: "now",
+    };
+}
+
+function image(id: string): AgentImageSummary {
+    return {
+        id,
+        name: id,
+        definitionHash: "hash",
+        dockerTag: "tag",
+        status: "ready",
+        buildAttempt: 1,
+        buildProgress: 100,
+        createdAt: "now",
+        updatedAt: "now",
+    };
+}
+
+function imageDetails(id: string): AgentImageDetails {
+    return { ...image(id), dockerfile: "FROM scratch", buildLog: "", buildLogTruncated: false };
+}
+
+function notification(id: string): NotificationSummary {
+    return { id, kind: "system", createdAt: "now" };
+}

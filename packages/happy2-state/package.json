@@ -17,6 +17,7 @@
         "format": "oxfmt --write .",
         "format:check": "oxfmt --check .",
         "lint": "oxlint .",
+        "architecture:check": "node --import tsx scripts/architecture-check.mts",
         "clean": "rm -rf coverage"
     },
     "dependencies": {

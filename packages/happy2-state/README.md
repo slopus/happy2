@@ -1,100 +1,119 @@
 # happy2-state
 
-`happy2-state` owns Happy (2)'s framework-independent, in-memory client state. It
-does not authenticate, persist data, create a singleton, or render UI. A host
-creates an instance with an already authenticated `ClientTransport`.
+`happy2-state` is Happy (2)'s framework-independent, memory-only product-state boundary. A host may
+attach an already authenticated transport, but authentication, desktop persistence, framework hooks,
+and the decision to create a process-global instance stay outside this package.
+
+## Parallel surface stores
+
+`HappyState` is a registry and action router, not a render store. It has no aggregate snapshot.
+Mounted product surfaces subscribe to independent coarse stores:
 
 ```ts
-import { createClientState } from "happy2-state";
+const state = happyStateCreate({ transport });
+await state.syncStart();
 
-const state = createClientState(transport);
-state.subscribe("messages", ({ chatId, reason }) => {
-    // Ask state.get() for the new immutable snapshot and update the UI.
+const sidebar = state.sidebar();
+using chat = state.chatOpen(chatId);
+const composer = state.composer(chatId);
+using workspace = state.workspaceOpen(chatId);
+using file = state.workspaceFileOpen(chatId, "src/index.ts");
+```
+
+Other complete surface stores are `directory()`, `search()`, `files()`, `settings()`, `admin()`,
+`agentImages()`, `agentSecrets()`, `notifications()`, `threads()`, `calls()`, and retained
+`threadOpen(id)`.
+Rendering thousands of messages or avatar occurrences still creates one chat subscription; messages
+contain canonical `{ id, displayName, kind, photoFileId }` sender projections and deliberately omit
+presence. Rare identity changes replace only affected rows. Presence updates only stores that render
+it.
+
+Sidebar rows are also render-ready: channels expose their display label directly, while direct
+messages cache canonical participant/name/avatar projections by membership epoch. A normal sync
+difference reuses that projection; only a newly seen DM or actual membership change reloads members.
+
+Every public snapshot is deeply readonly. A semantic no-op retains the snapshot reference. A real
+change replaces only its changed leaf and ancestors inside that one store; unrelated stores neither
+evaluate nor notify. Zustand vanilla is an internal synchronous setter only—no Zustand hook, selector,
+shallow wrapper, transaction API, or engine type appears in the public contract.
+
+## Local actions, output, and authoritative input
+
+Stores expose safe, explicit local commands. They synchronously update their own snapshot, return
+`void`, then optionally emit a closed typed output event to their creator:
+
+```ts
+composer.textUpdate("hello");
+composer.attachmentAdd({ id: "local-1", name: "design.png" });
+composer.textSubmit();
+
+settings.displayNameUpdate("Ada", "Lovelace");
+settings.desktopNotificationsUpdate(true);
+```
+
+Settings retain saved values plus `clean/dirty/saving/error` state for every explicit field. The
+coarse settings subscription therefore renders the whole screen without one store per control, while
+an in-flight response can confirm submitted fields without overwriting newer edits.
+
+The owner routes output through product actions. Server confirmations, failures, reconciliation, and
+test-fixture input enter through separate package-private closed unions. Application code cannot
+manufacture a saved message, successful secret mutation, confirmed file write, or other authoritative
+state. There is no generic `getField`, `setField`, string path, or catch-all operation-result cache in
+the new model.
+
+Network retries generate one idempotency key per logical mutation and reuse it across every retry.
+Explicitly awaited actions reject with displayable `UserError`; optimistic/background commands
+return immediately and report terminal failure through state events, with the retained store or
+configured background-error observer providing the corresponding notification surface.
+
+## Leases and optional resources
+
+`chatOpen`, `threadOpen`, `workspaceOpen`, and `workspaceFileOpen` return ref-counted disposable
+handles. The final release drops their denormalized payload and makes in-flight completions harmless.
+Chat members, pins, reaction actors, and agent effort are discriminated loadables fetched only after
+their explicit retain action; an SSE hint never materializes an unloaded resource.
+
+Workspace trees preserve adaptive preload, retained directory depth, stale-cursor recovery, and ETag
+revalidation. Editor files have a separate lease and serialized save/delete queue. Conflicting saves
+fetch the latest version and conservatively rebase non-overlapping UTF-16 patches; unsafe overlap is a
+typed `WorkspaceFileConflictError`.
+
+Realtime events are delivery hints. Durable data advances through global/per-chat differences or an
+area refetch. Typing, agent activity, presence, and call signalling are explicitly ephemeral and own
+ordering/expiry/lifetime rules.
+
+## UI adapters
+
+The core contract is `ReadonlyStore<T>`, so adapters stay trivial and live in the consuming UI:
+
+```ts
+// React
+const snapshot = useSyncExternalStore(store.subscribe, store.get, store.get);
+
+// Solid
+const [snapshot, setSnapshot] = createSignal(store.get());
+onCleanup(store.subscribe(() => setSnapshot(store.get())));
+
+// Svelte 5
+const snapshot = createSubscriber((update) => store.subscribe(update));
+const value = $derived.by(() => {
+    snapshot();
+    return store.get();
 });
-await state.start();
 ```
 
-Promise actions such as `createChannel` retry transient failures with a stable
-idempotency key and reject with `UserError`. Background actions such as
-`sendMessage` return immediately, publish optimistic state, then publish either
-confirmation or a typed `background-error` event.
+Blueprint fixtures can construct unconnected stores and use the exact same commands without auth,
+transport, timers, or a live server.
 
-The named `execute()` facade covers every backend capability outside
-authentication itself: health, profile, collaboration, messages, directory,
-presence, calls, files and resumable uploads, sync, automation, integrations,
-moderation, exports, backups, retention, and administration. Operation names,
-path/query parameters, important request bodies, and resource responses are
-typed; application code never supplies a URL. The latest successful result for
-each operation is available through `result()` and the immutable
-`operationResults` snapshot. Durable sync automatically refreshes previously
-loaded non-chat areas as well as chat differences.
+## Parallel legacy migration
 
-```ts
-const { backups } = await state.execute("getBackups", { limit: 25 });
-const latest = state.result("getBackups");
-```
-
-Rig-backed agent secrets use the same typed facade. `getAgentSecrets` materializes
-masked metadata only; create/delete and agent/channel attach/detach actions never
-place a secret value in a state snapshot or operation event. Once loaded, the
-list reconciles automatically from durable `agent-secrets` sync hints.
-
-Chat workspaces are lazy live trees. Calling `start()` does not load any
-workspace. A host declares the directories it currently needs—normally the
-expanded folders in the file tree—and state materializes only those layers:
-
-```ts
-const workspace = await state.syncWorkspace(chatId, expandedDirectories);
-
-tree.resetPaths(workspace.paths);
-tree.setGitStatus(workspace.gitStatus);
-```
-
-`workspacesByChat[chatId]` is the immutable aggregate to pass to the tree. It
-contains the adaptive server preload plus the requested directory pages,
-`requestedDirectories`, `unloadedDirectories`, Git annotations, and
-page-completion metadata. Calling
-`syncWorkspace` again drops layers for folders that are no longer requested;
-`loadMoreWorkspaceDirectory` adds one bounded page for an exceptionally wide
-folder. Once a workspace has been loaded, `workspace.changed` realtime hints
-conditionally reconcile the preload and every requested directory. The hints
-never mutate state directly, and unchanged trees use `ETag` revalidation with
-no response body.
-
-Editor files are a separate lazy layer. Reading a file materializes its UTF-8
-contents and opaque filesystem `version` under
-`workspaceFilesByChat[chatId][path]`. Supply that last-read version when saving
-or deleting:
-
-```ts
-const opened = await state.readWorkspaceFile(chatId, "src/example.ts");
-const saved = await state.writeWorkspaceFile(chatId, {
-    path: opened.path,
-    expectedVersion: opened.version,
-    content: nextContents,
-});
-await state.deleteWorkspaceFile(chatId, saved.path, saved.version);
-```
-
-Writes may instead contain sorted, non-overlapping UTF-16 `patch.edits`. A
-server conflict makes state fetch the latest file and conservatively reapply
-edits that do not overlap the external changed range. Each resulting server
-attempt has its own idempotency key, while network retries of that attempt reuse
-the same key. An unsafe merge rejects with `WorkspaceFileConflictError`, which
-contains the latest file and attempted contents for an editor conflict view.
-Realtime workspace hints reconcile only already-materialized editor files;
-unopened files remain unloaded. Call `unloadWorkspaceFile` when an editor closes
-to release its base contents and stop live reconciliation. Files are UTF-8 text
-up to 4 MiB.
-
-Multipart uploads and one-time secret issuance are intentionally single-attempt
-operations because the server rejects HTTP idempotency keys for those routes.
-Use the resumable upload operations for retryable file transfer. All other JSON
-mutations retry with one stable idempotency key.
+`createClientState` and its aggregate legacy model remain exported temporarily and operate completely
+independently. There is intentionally no shim, adapter, mirror, bridge, or dual write. Each UI surface
+will move wholly to its new store in the following integration feature; only after every consumer has
+migrated will the legacy model and `operationResults` be deleted.
 
 ## Testing
 
-`happy2-state/testing` exports a programmable fake server with request history,
-route handlers, queued responses, one-shot failures, and a realtime event
-facade. `gym/state` adapts the repository's complete in-memory Fastify/SQLite
-server to the same transport contract for black-box tests.
+`happy2-state/testing` exports a programmable fake server with request history, deferred handlers,
+queued responses, failures, and realtime events. `gym/state` exercises the same boundary against the
+real in-memory Fastify/SQLite server.
