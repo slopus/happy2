@@ -131,6 +131,7 @@ export interface RigEventCheckpoint {
 
 export interface AgentChatContext {
     agentUserId: string;
+    agentEffort?: string;
     chatId: string;
     image: AgentExecutionImage;
     privateUserId: string;
@@ -165,6 +166,12 @@ export interface AgentSecretBinding {
     chatId: string;
     secretIds: string[];
     sessionId: string;
+}
+
+export interface AgentEffortContext {
+    agentUserId: string;
+    effort?: string;
+    sessionIds: string[];
 }
 
 const MAX_AGENT_IMAGE_BUILD_LOG_CHARACTERS = 2_000_000;
@@ -218,6 +225,7 @@ const userSelection = {
     role: users.role,
     user_kind: users.kind,
     agent_image_id: users.agentImageId,
+    agent_effort: users.agentEffort,
     created_by_user_id: users.createdByUserId,
 };
 
@@ -1750,6 +1758,7 @@ export class CollaborationRepository {
 
     async createAgent(input: {
         agentUserId: string;
+        agentEffort: string;
         actorUserId: string;
         containerName: string;
         imageId: string;
@@ -1793,6 +1802,7 @@ export class CollaborationRepository {
                 username: input.username,
                 kind: "agent",
                 agentImageId: input.imageId,
+                agentEffort: input.agentEffort,
             });
             await tx.insert(chats).values({
                 id: chatId,
@@ -1846,6 +1856,115 @@ export class CollaborationRepository {
         return !existing;
     }
 
+    async getAgentEffortContext(
+        actorUserId: string,
+        agentUserId: string,
+        requireManagement = false,
+    ): Promise<AgentEffortContext> {
+        return this.agentEffortContextDb(this.db, actorUserId, agentUserId, requireManagement);
+    }
+
+    async listAgentEffortBindings(): Promise<
+        Array<{ agentUserId: string; effort?: string; sessionId: string }>
+    > {
+        return this.db
+            .select({
+                agentUserId: agentRigBindings.userId,
+                effort: users.agentEffort,
+                sessionId: agentRigBindings.sessionId,
+            })
+            .from(agentRigBindings)
+            .innerJoin(users, eq(users.id, agentRigBindings.userId))
+            .where(and(eq(users.kind, "agent"), isNull(users.deletedAt)))
+            .orderBy(agentRigBindings.userId, agentRigBindings.chatId)
+            .then((rows) =>
+                rows.map((row) => ({
+                    agentUserId: row.agentUserId,
+                    ...(row.effort ? { effort: row.effort } : {}),
+                    sessionId: row.sessionId,
+                })),
+            );
+    }
+
+    async initializeAgentEffort(
+        agentUserId: string,
+        effort: string,
+    ): Promise<MutationHint | undefined> {
+        return this.writeDb(async (tx) => {
+            const [agent] = await tx
+                .select({ effort: users.agentEffort })
+                .from(users)
+                .where(
+                    and(
+                        eq(users.id, agentUserId),
+                        eq(users.kind, "agent"),
+                        isNull(users.deletedAt),
+                    ),
+                )
+                .limit(1);
+            if (!agent || agent.effort) return undefined;
+            const sequence = await this.nextSequence(tx);
+            await tx
+                .update(users)
+                .set({ agentEffort: effort, syncSequence: sequence })
+                .where(and(eq(users.id, agentUserId), isNull(users.agentEffort)));
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "user.agentEffortInitialized",
+                entityId: agentUserId,
+            });
+            return areaHint(sequence, "users");
+        });
+    }
+
+    async updateAgentEffort(input: {
+        actorUserId: string;
+        agentUserId: string;
+        effort: string;
+    }): Promise<{ user: UserSummary; hint?: MutationHint }> {
+        return this.writeDb(async (tx) => {
+            const context = await this.agentEffortContextDb(
+                tx,
+                input.actorUserId,
+                input.agentUserId,
+                true,
+            );
+            if (context.effort === input.effort) {
+                const [user] = await tx
+                    .select(userSelection)
+                    .from(users)
+                    .where(eq(users.id, input.agentUserId));
+                if (!user) throw new Error("Agent effort target is missing");
+                return { user: asUser(user) };
+            }
+            const sequence = await this.nextSequence(tx);
+            await tx
+                .update(users)
+                .set({ agentEffort: input.effort, syncSequence: sequence })
+                .where(eq(users.id, input.agentUserId));
+            await this.insertSyncEvent(tx, {
+                sequence,
+                kind: "user.agentEffortChanged",
+                entityId: input.agentUserId,
+                actorUserId: input.actorUserId,
+            });
+            await this.appendAuditDb(tx, {
+                actorUserId: input.actorUserId,
+                action: "agent.effort_changed",
+                targetType: "user",
+                targetId: input.agentUserId,
+                before: { effort: context.effort },
+                after: { effort: input.effort },
+            });
+            const [user] = await tx
+                .select(userSelection)
+                .from(users)
+                .where(eq(users.id, input.agentUserId));
+            if (!user) throw new Error("Updated agent is missing");
+            return { user: asUser(user), hint: areaHint(sequence, "users") };
+        });
+    }
+
     async getDirectAgentChatContext(
         userId: string,
         chatId: string,
@@ -1856,6 +1975,7 @@ export class CollaborationRepository {
             this.db
                 .select({
                     userId: users.id,
+                    effort: users.agentEffort,
                     imageId: agentImages.id,
                     dockerTag: agentImages.dockerTag,
                     dockerImageId: agentImages.dockerImageId,
@@ -1906,6 +2026,7 @@ export class CollaborationRepository {
             .limit(1);
         return {
             agentUserId: agent.userId,
+            ...(agent.effort ? { agentEffort: agent.effort } : {}),
             chatId,
             image: {
                 id: agent.imageId,
@@ -6884,6 +7005,53 @@ export class CollaborationRepository {
         if (!row) throw new CollaborationError("not_found", "User was not found");
     }
 
+    private async agentEffortContextDb(
+        executor: DrizzleExecutor,
+        actorUserId: string,
+        agentUserId: string,
+        requireManagement: boolean,
+    ): Promise<AgentEffortContext> {
+        await this.requireActiveUserDb(executor, actorUserId);
+        const [[actor], [agent], bindings] = await Promise.all([
+            executor
+                .select({ role: users.role })
+                .from(users)
+                .where(eq(users.id, actorUserId))
+                .limit(1),
+            executor
+                .select({
+                    createdByUserId: users.createdByUserId,
+                    effort: users.agentEffort,
+                    id: users.id,
+                })
+                .from(users)
+                .where(
+                    and(
+                        eq(users.id, agentUserId),
+                        eq(users.kind, "agent"),
+                        isNull(users.deletedAt),
+                    ),
+                )
+                .limit(1),
+            executor
+                .select({ sessionId: agentRigBindings.sessionId })
+                .from(agentRigBindings)
+                .where(eq(agentRigBindings.userId, agentUserId))
+                .orderBy(agentRigBindings.chatId),
+        ]);
+        if (!agent) throw new CollaborationError("not_found", "Agent was not found");
+        if (requireManagement && actor?.role !== "admin" && agent.createdByUserId !== actorUserId)
+            throw new CollaborationError(
+                "forbidden",
+                "Only the agent creator or a server admin can change its effort",
+            );
+        return {
+            agentUserId: agent.id,
+            ...(agent.effort ? { effort: agent.effort } : {}),
+            sessionIds: bindings.map((binding) => binding.sessionId),
+        };
+    }
+
     private async requireActiveIdentityDb(
         executor: DrizzleExecutor,
         userId: string,
@@ -7901,6 +8069,7 @@ export class CollaborationRepository {
             targetType: string;
             targetId?: string;
             chatId?: string;
+            before?: Record<string, unknown>;
             after?: Record<string, unknown>;
         },
     ): Promise<void> {
@@ -7911,6 +8080,7 @@ export class CollaborationRepository {
             targetType: input.targetType,
             targetId: input.targetId,
             chatId: input.chatId,
+            beforeJson: input.before ? JSON.stringify(input.before) : null,
             afterJson: input.after ? JSON.stringify(input.after) : null,
         });
     }
@@ -8062,6 +8232,7 @@ function asUser(row: Record<string, unknown>): UserSummary {
         role: text(row.role) as "member" | "admin",
         kind: text(row.user_kind, "human") as "human" | "agent",
         agentImageId: optionalText(row.agent_image_id),
+        agentEffort: optionalText(row.agent_effort),
         createdByUserId: optionalText(row.created_by_user_id),
     };
 }

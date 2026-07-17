@@ -98,6 +98,186 @@ describe("live views use happy2-state", () => {
         });
     });
 
+    it("changes an agent's reasoning effort from its info panel and reconciles a sync", async () => {
+        const agent = {
+            id: "agent-1",
+            firstName: "Deep",
+            lastName: "Thinker",
+            username: "deep_thinker",
+            role: "member" as const,
+            kind: "agent" as const,
+            agentEffort: "high",
+            createdByUserId: currentUser.id,
+        };
+        const agentChat = chat({
+            id: "agent-chat",
+            kind: "dm",
+            name: undefined,
+            dmType: "direct",
+            membershipRole: "owner",
+        });
+        const server = baseServer([agentChat]);
+        let contactsEffort = "high";
+        server.route("GET", "/v0/contacts", () =>
+            jsonResponse(200, {
+                users: [userSummary(), { ...agent, agentEffort: contactsEffort }],
+                presence: [],
+                statuses: [],
+            }),
+        );
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            /\/v0\/chats\/[^/]+\/members/,
+            jsonResponse(200, { users: [userSummary(), agent], memberships: [] }),
+        );
+        server.respond(
+            "GET",
+            (path) => path.includes("/messages?limit=100"),
+            jsonResponse(200, { messages: [], chatPts: "0", hasMore: false }),
+        );
+        server.respond(
+            "GET",
+            "/v0/agents/agent-1/effort",
+            jsonResponse(200, {
+                agentUserId: "agent-1",
+                effort: "high",
+                options: ["low", "medium", "high", "xhigh"],
+            }),
+        );
+        server.respond(
+            "POST",
+            "/v0/agents/agent-1/changeEffort",
+            jsonResponse(200, {
+                agent: { ...agent, agentEffort: "low" },
+                agentUserId: "agent-1",
+                effort: "low",
+                options: ["low", "medium", "high", "xhigh"],
+                sync: { areas: ["users"] },
+            }),
+        );
+
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        fireEvent.click(await openAgentInfoPanel(view));
+
+        const control = await waitFor(() => view.getByTestId("agent-effort-control"));
+        const segment = (label: string) =>
+            Array.from(control.querySelectorAll("button")).find(
+                (button) => button.textContent === label,
+            )!;
+        await waitFor(() => expect(segment("High").getAttribute("aria-pressed")).toBe("true"));
+
+        fireEvent.click(segment("Low"));
+        await waitFor(() =>
+            expect(
+                server.requests.find(({ path }) => path === "/v0/agents/agent-1/changeEffort")
+                    ?.body,
+            ).toEqual({ effort: "low" }),
+        );
+        await waitFor(() => expect(segment("Low").getAttribute("aria-pressed")).toBe("true"));
+
+        /* A `users` sync re-fetches contacts; the panel adopts the reconciled
+           value without any manual refresh. */
+        contactsEffort = "xhigh";
+        const contactsBefore = server.requests.filter((r) => r.path === "/v0/contacts").length;
+        server.respond(
+            "POST",
+            "/v0/sync/getDifference",
+            jsonResponse(200, {
+                kind: "difference",
+                changedChats: [],
+                removedChatIds: [],
+                areas: ["users"],
+                state: { protocolVersion: 1, generation: "g", sequence: "3" },
+                targetState: { protocolVersion: 1, generation: "g", sequence: "3" },
+            }),
+        );
+        server.events.sync({ sequence: "3", areas: ["users"] });
+        await waitFor(() =>
+            expect(server.requests.filter((r) => r.path === "/v0/contacts").length).toBeGreaterThan(
+                contactsBefore,
+            ),
+        );
+        await waitFor(() => expect(segment("X-High").getAttribute("aria-pressed")).toBe("true"));
+        state.stop();
+    });
+
+    it("shows an agent's reasoning effort read-only to non-owners", async () => {
+        const agent = {
+            id: "agent-1",
+            firstName: "Deep",
+            lastName: "Thinker",
+            username: "deep_thinker",
+            role: "member" as const,
+            kind: "agent" as const,
+            agentEffort: "high",
+            createdByUserId: "someone-else",
+        };
+        const agentChat = chat({
+            id: "agent-chat",
+            kind: "dm",
+            name: undefined,
+            dmType: "direct",
+            membershipRole: "member",
+        });
+        const server = baseServer([agentChat]);
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, { users: [userSummary(), agent], presence: [], statuses: [] }),
+        );
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            /\/v0\/chats\/[^/]+\/members/,
+            jsonResponse(200, { users: [userSummary(), agent], memberships: [] }),
+        );
+        server.respond(
+            "GET",
+            (path) => path.includes("/messages?limit=100"),
+            jsonResponse(200, { messages: [], chatPts: "0", hasMore: false }),
+        );
+        server.respond(
+            "GET",
+            "/v0/agents/agent-1/effort",
+            jsonResponse(200, {
+                agentUserId: "agent-1",
+                effort: "high",
+                options: ["low", "medium", "high", "xhigh"],
+            }),
+        );
+
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        fireEvent.click(await openAgentInfoPanel(view));
+
+        const control = await waitFor(() => view.getByTestId("agent-effort-control"));
+        expect(control.hasAttribute("data-disabled")).toBe(true);
+        expect(server.requests.some(({ path }) => path === "/v0/agents/agent-1/changeEffort")).toBe(
+            false,
+        );
+        state.stop();
+    });
+
     it("creates, joins, and leaves channels through state actions", async () => {
         const server = baseServer([chat({ id: "joined", name: "Joined", slug: "joined" })]);
         const discoverable = chat({
@@ -1818,6 +1998,26 @@ function baseServer(chats: readonly ChatSummary[]) {
             jsonResponse(200, { chat: { ...chat, unreadCount: 0 } }),
         );
     return server;
+}
+
+/* Select the seeded `agent-chat` DM in the sidebar and open its info panel via
+   the header title button, returning the panel-open trigger already clicked. */
+async function openAgentInfoPanel(view: ReturnType<typeof render>) {
+    const item = await waitFor(() => {
+        const element = view.container.querySelector<HTMLButtonElement>(
+            '[data-item-id="agent-chat"]',
+        );
+        if (!element) throw new Error("agent DM sidebar item not ready");
+        return element;
+    });
+    fireEvent.click(item);
+    return await waitFor(() => {
+        const lead = view.container.querySelector<HTMLButtonElement>(
+            'button[data-happy2-ui="channel-header-lead"]',
+        );
+        if (!lead) throw new Error("channel header title button not ready");
+        return lead;
+    });
 }
 
 function session(state: ReturnType<typeof createClientState>): AuthSession {

@@ -85,6 +85,13 @@
             "when": 1784220000000,
             "tag": "0011_agent_image_changes",
             "breakpoints": true
+        },
+        {
+            "idx": 12,
+            "version": "6",
+            "when": 1784230000000,
+            "tag": "0012_agent_effort",
+            "breakpoints": true
         }
     ]
 }

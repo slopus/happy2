@@ -93,6 +93,7 @@ export class AgentService {
     private readonly imageBuilds = new Map<string, Promise<void>>();
     private readonly imageMutations = new Map<string, Promise<unknown>>();
     private readonly pendingImageBuilds = new Set<string>();
+    private readonly agentConfigurationMutations = new Map<string, Promise<unknown>>();
     private readonly secretMutations = new Map<string, Promise<unknown>>();
     private activeImageBuilds = 0;
     private readonly drains = new Map<string, Promise<void>>();
@@ -143,11 +144,13 @@ export class AgentService {
             const session = await this.daemon.createSession(
                 sandbox.workspace,
                 containerName,
+                undefined,
                 this.shutdown.signal,
             );
             return await this.repository.createAgent({
                 ...input,
                 agentUserId,
+                agentEffort: session.effort,
                 containerName,
                 cwd: sandbox.workspace,
                 imageId: image.id,
@@ -176,6 +179,7 @@ export class AgentService {
         for (const imageId of await this.repository.listRequestedAgentImageBuildIds())
             this.queueImageBuild(imageId);
         await this.daemon.ensureGlobalEventQueue(this.shutdown.signal);
+        await this.reconcileAgentEfforts();
         await this.reconcileSecretBindings();
         this.queueTask = this.trackGlobalEvents().catch((error) => {
             if (!this.shutdown.signal.aborted) this.onError(error);
@@ -201,6 +205,47 @@ export class AgentService {
 
     startTurn(chatId: string): void {
         this.startDrain(chatId);
+    }
+
+    async getAgentEffort(input: { actorUserId: string; agentUserId: string }) {
+        const context = await this.repository.getAgentEffortContext(
+            input.actorUserId,
+            input.agentUserId,
+        );
+        return this.agentEffortConfiguration(context);
+    }
+
+    async changeAgentEffort(input: { actorUserId: string; agentUserId: string; effort: string }) {
+        return this.serializeAgentConfiguration(input.agentUserId, async () => {
+            const context = await this.repository.getAgentEffortContext(
+                input.actorUserId,
+                input.agentUserId,
+                true,
+            );
+            const configuration = await this.agentEffortConfiguration(context);
+            if (!configuration.options.includes(input.effort))
+                throw new CollaborationError(
+                    "invalid",
+                    `Effort must be one of: ${configuration.options.join(", ")}`,
+                );
+            const result = await this.repository.updateAgentEffort(input);
+            try {
+                await Promise.all(
+                    context.sessionIds.map((sessionId) =>
+                        this.reconcileSessionEffort(sessionId, input.effort),
+                    ),
+                );
+            } finally {
+                if (result.hint) await this.publishAgentHint(result.hint);
+            }
+            return {
+                agent: result.user,
+                agentUserId: input.agentUserId,
+                effort: input.effort,
+                options: configuration.options,
+                ...(result.hint ? { sync: result.hint } : {}),
+            };
+        });
     }
 
     listAgentImages(actorUserId: string) {
@@ -290,6 +335,7 @@ export class AgentService {
                     const session = await this.daemon.createSession(
                         binding.cwd,
                         containerName,
+                        context.user.agentEffort,
                         this.shutdown.signal,
                     );
                     replacements.push({
@@ -509,6 +555,21 @@ export class AgentService {
         };
     }
 
+    private async serializeAgentConfiguration<T>(
+        agentUserId: string,
+        action: () => Promise<T>,
+    ): Promise<T> {
+        const previous = this.agentConfigurationMutations.get(agentUserId) ?? Promise.resolve();
+        const mutation = previous.catch(() => undefined).then(action);
+        this.agentConfigurationMutations.set(agentUserId, mutation);
+        try {
+            return await mutation;
+        } finally {
+            if (this.agentConfigurationMutations.get(agentUserId) === mutation)
+                this.agentConfigurationMutations.delete(agentUserId);
+        }
+    }
+
     private async serializeAgentSecret<T>(secretId: string, action: () => Promise<T>): Promise<T> {
         const previous = this.secretMutations.get(secretId) ?? Promise.resolve();
         const mutation = previous.catch(() => undefined).then(action);
@@ -529,6 +590,8 @@ export class AgentService {
         const context = await this.repository.getDirectAgentChatContext(actorUserId, chatId);
         if (!context) return undefined;
         if (context.binding) {
+            if (context.agentEffort)
+                await this.reconcileSessionEffort(context.binding.sessionId, context.agentEffort);
             await this.reconcileSecretBindings({
                 agentUserId: context.agentUserId,
                 chatId,
@@ -538,11 +601,19 @@ export class AgentService {
         const key = `${context.agentUserId}:${chatId}`;
         const pending = this.bindingCreations.get(key);
         if (pending) return pending;
-        const creation = (async () => {
+        const creation = this.serializeAgentConfiguration(context.agentUserId, async () => {
+            const latest = await this.repository.getDirectAgentChatContext(actorUserId, chatId);
+            if (!latest)
+                throw new CollaborationError("not_found", "Agent direct message was not found");
+            if (latest.binding) {
+                if (latest.agentEffort)
+                    await this.reconcileSessionEffort(latest.binding.sessionId, latest.agentEffort);
+                return latest.binding;
+            }
             const sandbox = sandboxDirectories(
                 this.defaultCwd,
-                context.agentUserId,
-                context.privateUserId,
+                latest.agentUserId,
+                latest.privateUserId,
             );
             await Promise.all([
                 mkdir(sandbox.home, { recursive: true, mode: 0o700 }),
@@ -551,11 +622,11 @@ export class AgentService {
             const containerName = agentContainerName();
             await this.docker.createContainer(
                 {
-                    agentUserId: context.agentUserId,
+                    agentUserId: latest.agentUserId,
                     containerName,
                     homeDirectory: sandbox.home,
-                    imageId: context.image.id,
-                    imageTag: context.image.dockerTag,
+                    imageId: latest.image.id,
+                    imageTag: latest.image.dockerTag,
                     security: AGENT_CONTAINER_SECURITY,
                     workspaceDirectory: sandbox.workspace,
                 },
@@ -565,21 +636,22 @@ export class AgentService {
                 const session = await this.daemon.createSession(
                     sandbox.workspace,
                     containerName,
+                    latest.agentEffort,
                     this.shutdown.signal,
                 );
                 const binding = await this.repository.bindAgentChat({
                     actorUserId,
-                    agentUserId: context.agentUserId,
+                    agentUserId: latest.agentUserId,
                     chatId,
                     containerName,
                     cwd: sandbox.workspace,
-                    imageId: context.image.id,
+                    imageId: latest.image.id,
                     sessionId: session.id,
                 });
                 if (binding.containerName !== containerName)
                     await this.docker.removeContainer(containerName);
                 await this.reconcileSecretBindings({
-                    agentUserId: context.agentUserId,
+                    agentUserId: latest.agentUserId,
                     chatId,
                 });
                 return binding;
@@ -587,7 +659,7 @@ export class AgentService {
                 await this.docker.removeContainer(containerName);
                 throw error;
             }
-        })();
+        });
         this.bindingCreations.set(key, creation);
         try {
             return await creation;
@@ -744,6 +816,66 @@ export class AgentService {
         } catch (error) {
             this.onError(error);
         }
+    }
+
+    private async agentEffortConfiguration(context: {
+        agentUserId: string;
+        effort?: string;
+        sessionIds: string[];
+    }): Promise<{ agentUserId: string; effort: string; options: string[] }> {
+        if (!context.sessionIds.length)
+            throw new CollaborationError("conflict", "Agent has no active Rig session");
+        const configurations = await Promise.all(
+            context.sessionIds.map((sessionId) =>
+                this.daemon.effortConfiguration(sessionId, this.shutdown.signal),
+            ),
+        );
+        const options = configurations[0]!.options.filter((option) =>
+            configurations.every((configuration) => configuration.options.includes(option)),
+        );
+        const effort = context.effort ?? configurations[0]!.effort;
+        return { agentUserId: context.agentUserId, effort, options };
+    }
+
+    private async reconcileAgentEfforts(): Promise<void> {
+        const bindings = await this.repository.listAgentEffortBindings();
+        const byAgent = new Map<string, typeof bindings>();
+        for (const binding of bindings) {
+            const group = byAgent.get(binding.agentUserId) ?? [];
+            group.push(binding);
+            byAgent.set(binding.agentUserId, group);
+        }
+        for (const [agentUserId, agentBindings] of byAgent) {
+            const configured = agentBindings.find((binding) => binding.effort)?.effort;
+            const effort =
+                configured ??
+                (
+                    await this.daemon.effortConfiguration(
+                        agentBindings[0]!.sessionId,
+                        this.shutdown.signal,
+                    )
+                ).effort;
+            if (!configured) {
+                const hint = await this.repository.initializeAgentEffort(agentUserId, effort);
+                if (hint) await this.publishAgentHint(hint);
+            }
+            await Promise.all(
+                agentBindings.map((binding) =>
+                    this.reconcileSessionEffort(binding.sessionId, effort),
+                ),
+            );
+        }
+    }
+
+    private async reconcileSessionEffort(sessionId: string, effort: string): Promise<void> {
+        const current = await this.daemon.effortConfiguration(sessionId, this.shutdown.signal);
+        if (current.effort === effort) return;
+        if (!current.options.includes(effort))
+            throw new CollaborationError(
+                "conflict",
+                `Rig session does not support the agent's '${effort}' effort setting`,
+            );
+        await this.daemon.changeEffort(sessionId, effort, this.shutdown.signal);
     }
 
     private async requireAgentSecret(actorUserId: string, secretId: string): Promise<void> {

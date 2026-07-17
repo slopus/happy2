@@ -21,13 +21,27 @@ interface RigMessage {
 }
 
 interface RigSession {
+    effort?: string;
     id: string;
     lastEventId?: string;
+    modelId: string;
+    models: RigModel[];
     secretIds: string[];
     projectSecretIds: string[];
     sessionSecretIds: string[];
     status: string;
     snapshot: { messages: RigMessage[] };
+}
+
+interface RigModel {
+    defaultThinkingLevel: string;
+    id: string;
+    thinkingLevels: string[];
+}
+
+export interface RigEffortConfiguration {
+    effort: string;
+    options: string[];
 }
 
 export interface RigSecretRegistration {
@@ -104,19 +118,42 @@ export class RigDaemonClient {
     async createSession(
         cwd: string,
         containerName: string,
+        effort?: string,
         signal?: AbortSignal,
-    ): Promise<{ id: string }> {
+    ): Promise<{ effort: string; id: string }> {
         const response = await this.connectedRequest<{ session: RigSession }>(
             "POST",
             "/sessions",
             {
                 cwd,
                 docker: { container: containerName, workingDirectory: "/workspace" },
+                ...(effort ? { effort } : {}),
                 permissionMode: "workspace_write",
             },
             signal,
         );
-        return { id: response.session.id };
+        return { id: response.session.id, effort: sessionEffort(response.session).effort };
+    }
+
+    async effortConfiguration(
+        sessionId: string,
+        signal?: AbortSignal,
+    ): Promise<RigEffortConfiguration> {
+        return sessionEffort(await this.session(sessionId, signal));
+    }
+
+    async changeEffort(
+        sessionId: string,
+        effort: string,
+        signal?: AbortSignal,
+    ): Promise<RigEffortConfiguration> {
+        const response = await this.connectedRequest<{ session: RigSession }>(
+            "PATCH",
+            `/sessions/${encodeURIComponent(sessionId)}/effort`,
+            { effort },
+            signal,
+        );
+        return sessionEffort(response.session);
     }
 
     async listSecrets(signal?: AbortSignal): Promise<RigSecretSummary[]> {
@@ -707,6 +744,15 @@ function agentText(messages: readonly RigMessage[]): string {
         .map((message) => messageText(message) ?? "")
         .filter((text) => text.length > 0)
         .join("\n\n");
+}
+
+function sessionEffort(session: RigSession): RigEffortConfiguration {
+    const model = session.models.find((candidate) => candidate.id === session.modelId);
+    if (!model) throw new Error(`Rig session uses unknown model '${session.modelId}'.`);
+    const effort = session.effort ?? model.defaultThinkingLevel;
+    if (!model.thinkingLevels.includes(effort))
+        throw new Error(`Rig session reports unsupported effort '${effort}'.`);
+    return { effort, options: [...model.thinkingLevels] };
 }
 
 function messageText(message: RigMessage | undefined): string | undefined {

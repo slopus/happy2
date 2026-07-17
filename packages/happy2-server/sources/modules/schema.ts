@@ -1046,6 +1046,7 @@ export const users = sqliteTable("users", {
     accountId: text("account_id"),
     kind: text("kind").notNull().default("human"),
     agentImageId: text("agent_image_id"),
+    agentEffort: text("agent_effort"),
     createdByUserId: text("created_by_user_id"),
     firstName: text("first_name").notNull(),
     lastName: text("last_name"),

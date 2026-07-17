@@ -52,6 +52,7 @@ export interface UserSummary {
     readonly photoFileId?: string;
     readonly role: "member" | "admin";
     readonly kind: "human" | "agent";
+    readonly agentEffort?: string;
     readonly createdByUserId?: string;
 }
 

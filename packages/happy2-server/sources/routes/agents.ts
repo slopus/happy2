@@ -9,6 +9,7 @@ const MAX_DOCKERFILE_BYTES = 256 * 1024;
 const MAX_SECRET_DESCRIPTION_LENGTH = 1_000;
 const MAX_SECRET_ENVIRONMENT_BYTES = 512 * 1024;
 const MAX_SECRET_ENVIRONMENT_VARIABLES = 128;
+const MAX_AGENT_EFFORT_LENGTH = 32;
 const SECRET_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const ENVIRONMENT_VARIABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 
@@ -17,6 +18,29 @@ export function registerAgentRoutes(
     auth: AuthService,
     agents: AgentService,
 ): void {
+    app.get(
+        "/v0/agents/:agentUserId/effort",
+        authenticated(auth, async (request, _reply, actorUserId) => {
+            emptyQuery(request);
+            return agents.getAgentEffort({
+                actorUserId,
+                agentUserId: pathId(request, "agentUserId"),
+            });
+        }),
+    );
+
+    app.post(
+        "/v0/agents/:agentUserId/changeEffort",
+        authenticated(auth, async (request, _reply, actorUserId) => {
+            const body = requestBody(request, ["effort"]);
+            return agents.changeAgentEffort({
+                actorUserId,
+                agentUserId: pathId(request, "agentUserId"),
+                effort: requiredString(body, "effort", MAX_AGENT_EFFORT_LENGTH),
+            });
+        }),
+    );
+
     app.get(
         "/v0/admin/agentSecrets",
         authenticated(auth, async (request, _reply, actorUserId) => {

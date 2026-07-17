@@ -838,6 +838,7 @@ class ClientStateModel implements ClientState {
             else if (area === "integrations") add("getIntegrations");
             else if (area === "presence") add("getPresence");
             else if (area === "users") {
+                add("getContacts");
                 add("getDirectoryUsers");
                 add("getAdminUsers");
             } else if (area === "emoji") add("getCustomEmoji");

@@ -209,6 +209,14 @@ authenticated Unix socket. Configure `[agents]` with the socket, token, Rig
 executable, and server-owned `default_cwd`; clients cannot select filesystem
 paths.
 
+An agent's reasoning effort is durable profile state. Any authenticated user can
+read its current value and the effort levels supported by all of its active Rig
+sessions from `GET /v0/agents/:agentUserId/effort`; only the agent's creator or
+a server administrator can change it with
+`POST /v0/agents/:agentUserId/changeEffort`. A change is applied to every
+existing private Rig session, inherited by sessions created later, reconciled
+again after server restart, and published as a normal `users` sync hint.
+
 The server seeds immutable `Daycare Minimal` and `Daycare Full` definitions from
 the pinned upstream Daycare runtime Dockerfiles. Both use Ubuntu 24.04; Full adds
 the Python, Rust, and Go toolchains. Administrators use

@@ -36,6 +36,7 @@ import {
     Menu,
     Modal,
     ModalOverlay,
+    SegmentedControl,
     Select,
     Sidebar,
     TextField,
@@ -147,6 +148,29 @@ const infoFormStyle: JSX.CSSProperties = {
     display: "flex",
     "flex-direction": "column",
 };
+/* Small muted line shown in the effort control slot while options load or when
+   the agent has no reachable Rig session to read supported levels from. */
+const effortNoticeStyle: JSX.CSSProperties = {
+    "font-size": "13px",
+    "line-height": "20px",
+    color: "var(--happy2-text-muted)",
+};
+const effortErrorStyle: JSX.CSSProperties = {
+    ...effortNoticeStyle,
+    color: "var(--happy2-danger)",
+};
+
+/* Human-readable captions for Rig reasoning-effort levels. Unknown levels fall
+   back to a capitalized token so a new server level still renders sensibly. */
+const effortLabels: Record<string, string> = {
+    low: "Low",
+    medium: "Medium",
+    high: "High",
+    xhigh: "X-High",
+};
+function effortLabel(value: string): string {
+    return effortLabels[value] ?? value.charAt(0).toUpperCase() + value.slice(1);
+}
 
 function toneFor(id: string): ToneName {
     let hash = 0;
@@ -391,6 +415,10 @@ export function ChatView(props: ChatViewProps) {
        message avatar/name) instead of the active channel or DM peer. Cleared
        whenever the channel info panel is opened or the conversation changes. */
     const [profileOverride, setProfileOverride] = createSignal<InfoPanelProfile>();
+    const [agentEffortOptions, setAgentEffortOptions] = createSignal<string[]>();
+    const [agentEffortValue, setAgentEffortValue] = createSignal<string>();
+    const [agentEffortError, setAgentEffortError] = createSignal<string>();
+    const [agentEffortBusy, setAgentEffortBusy] = createSignal(false);
     const [starredChats, setStarredChats] = createSignal<Record<string, boolean>>({});
     const [lightbox, setLightbox] = createSignal<{
         caption?: string;
@@ -1865,6 +1893,76 @@ export function ChatView(props: ChatViewProps) {
             username: peer.username,
         };
     };
+    /* The InfoPanel of a DM with an agent carries the agent's reasoning-effort
+       setting. Only the agent's creator or a server admin may change it; anyone
+       may read it. Options come from the agent's live Rig sessions, so they load
+       lazily when the panel opens; the current value tracks durable `users`
+       sync (see the getContacts reconcile below), never a manual refresh. */
+    const infoAgent = (): UserSummary | undefined => {
+        const peer = infoPeer();
+        return peer?.kind === "agent" ? peer : undefined;
+    };
+    /* The server authorizes an effort change for the agent's creator or a
+       workspace admin. The app can only observe the creator relationship
+       (admin role is not exposed to product clients), so the control is enabled
+       for the creator and read-only otherwise; the server remains the final
+       authority and a rejected change is surfaced as a status hint. */
+    const canChangeAgentEffort = () => {
+        const peer = infoAgent();
+        if (!peer) return false;
+        return peer.createdByUserId !== undefined && peer.createdByUserId === user()?.id;
+    };
+    async function loadAgentEffort(agentUserId: string) {
+        const model = state();
+        if (!model) return;
+        setAgentEffortError(undefined);
+        setAgentEffortOptions(undefined);
+        setAgentEffortValue(undefined);
+        try {
+            const result = await model.execute("getAgentEffort", { agentUserId });
+            if (infoAgent()?.id !== agentUserId) return;
+            setAgentEffortOptions([...result.options]);
+            setAgentEffortValue(result.effort);
+        } catch (reason) {
+            if (infoAgent()?.id !== agentUserId) return;
+            setAgentEffortError(errorMessage(reason));
+        }
+    }
+    async function changeAgentEffort(effort: string) {
+        const model = state();
+        const peer = infoAgent();
+        if (!model || !peer || !canChangeAgentEffort() || agentEffortBusy()) return;
+        if (effort === agentEffortValue()) return;
+        const previous = agentEffortValue();
+        setAgentEffortBusy(true);
+        setAgentEffortValue(effort);
+        try {
+            const result = await model.execute("changeAgentEffort", {
+                agentUserId: peer.id,
+                effort,
+            });
+            setAgentEffortValue(result.effort);
+            setAgentEffortOptions([...result.options]);
+            setStatusHint(`Reasoning effort set to ${effortLabel(result.effort)}.`);
+        } catch (reason) {
+            setAgentEffortValue(previous);
+            setStatusHint(errorMessage(reason));
+        } finally {
+            setAgentEffortBusy(false);
+        }
+    }
+    /* Load supported levels whenever the info panel opens for an agent DM. */
+    createEffect(() => {
+        const peer = panelMode() === "info" ? infoAgent() : undefined;
+        if (!peer || !props.session) {
+            setAgentEffortOptions(undefined);
+            setAgentEffortValue(undefined);
+            setAgentEffortError(undefined);
+            return;
+        }
+        void loadAgentEffort(peer.id);
+    });
+
     const mockPanelMembers = (): MemberItem[] =>
         (conversation().members ?? []).map(
             (member, index): MemberItem => ({
@@ -2001,6 +2099,20 @@ export function ChatView(props: ChatViewProps) {
                 );
                 setPresence(snapshots);
                 applyNavigation(serverChats(), contacts(), dmPeers(), snapshots);
+            }),
+            /* A `users` sync re-fetches contacts; when it lands, reconcile the
+               open agent's effort from that durable snapshot so an effort change
+               made elsewhere (another admin, another device) appears without a
+               refresh. Options are model-fixed, so only the value is reconciled. */
+            model.subscribe("operation", (event) => {
+                if (event.operation !== "getContacts") return;
+                const peer = infoAgent();
+                if (!peer) return;
+                const fresh = model
+                    .result("getContacts")
+                    ?.users.find((item) => item.id === peer.id);
+                if (fresh?.agentEffort && !agentEffortBusy())
+                    setAgentEffortValue(fresh.agentEffort);
             }),
             model.subscribe("typing", (event) => {
                 if (event.userId === props.session!.user.id) return;
@@ -2213,6 +2325,57 @@ export function ChatView(props: ChatViewProps) {
                                             {busy() ? "Saving…" : "Save changes"}
                                         </Button>
                                     </Box>
+                                </Box>
+                            </Show>
+                            <Show when={!profileOverride() && infoAgent()}>
+                                <Box style={infoFormStyle}>
+                                    <FormRow
+                                        control={
+                                            <Show
+                                                when={agentEffortOptions()}
+                                                fallback={
+                                                    <Box
+                                                        style={
+                                                            agentEffortError()
+                                                                ? effortErrorStyle
+                                                                : effortNoticeStyle
+                                                        }
+                                                    >
+                                                        {agentEffortError() ??
+                                                            "Loading effort levels…"}
+                                                    </Box>
+                                                }
+                                            >
+                                                {(options) => (
+                                                    <SegmentedControl
+                                                        data-testid="agent-effort-control"
+                                                        disabled={
+                                                            !canChangeAgentEffort() ||
+                                                            agentEffortBusy()
+                                                        }
+                                                        fullWidth
+                                                        onChange={(value) =>
+                                                            void changeAgentEffort(value)
+                                                        }
+                                                        segments={options().map((value) => ({
+                                                            label: effortLabel(value),
+                                                            value,
+                                                        }))}
+                                                        value={
+                                                            agentEffortValue() ?? options()[0] ?? ""
+                                                        }
+                                                    />
+                                                )}
+                                            </Show>
+                                        }
+                                        description={
+                                            canChangeAgentEffort()
+                                                ? "Applies to every private session with this agent."
+                                                : "Set by the agent's owner."
+                                        }
+                                        label="Reasoning effort"
+                                        layout="stacked"
+                                    />
                                 </Box>
                             </Show>
                         </InfoPanel>

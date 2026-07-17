@@ -62,6 +62,7 @@ describe("CollaborationRepository", () => {
         const created = await repository.createAgent({
             actorUserId: ada.id,
             agentUserId,
+            agentEffort: "high",
             containerName: "test-container",
             cwd: `/agents/${agentUserId}/users/${ada.id}/workspace`,
             imageId,

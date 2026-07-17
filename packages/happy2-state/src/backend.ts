@@ -178,6 +178,8 @@ export const backendOperations = {
     updateServer: post("/v0/admin/updateServer"),
     sendAutomatedMessage: post("/v0/admin/sendAutomatedMessage"),
 
+    getAgentEffort: get("/v0/agents/:agentUserId/effort"),
+    changeAgentEffort: post("/v0/agents/:agentUserId/changeEffort"),
     getAgentImages: get("/v0/admin/agentImages"),
     getAgentImage: get("/v0/admin/agentImages/:imageId"),
     createAgentImage: post("/v0/admin/agentImages/createImage"),
@@ -483,6 +485,8 @@ export interface KnownBackendInputs {
         readonly botId?: string;
         readonly clientMutationId?: string;
     };
+    getAgentEffort: { readonly agentUserId: string };
+    changeAgentEffort: { readonly agentUserId: string; readonly effort: string };
     createAgentImage: { readonly name: string; readonly dockerfile: string };
     buildAgentImage: { readonly imageId: string };
     setDefaultAgentImage: { readonly imageId: string };
@@ -797,6 +801,18 @@ export interface KnownBackendResults {
     getMessageRevisions: { readonly revisions: readonly MessageRevision[] };
     getScheduledMessages: { readonly messages: readonly ScheduledMessageSummary[] };
     getAutomations: { readonly automations: readonly AutomationSummary[] };
+    getAgentEffort: {
+        readonly agentUserId: string;
+        readonly effort: string;
+        readonly options: readonly string[];
+    };
+    changeAgentEffort: {
+        readonly agent: UserSummary;
+        readonly agentUserId: string;
+        readonly effort: string;
+        readonly options: readonly string[];
+        readonly sync?: unknown;
+    };
     getAgentImages: {
         readonly defaultImageId?: string;
         readonly images: readonly AgentImageSummary[];

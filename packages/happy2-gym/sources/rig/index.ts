@@ -52,6 +52,7 @@ interface MockRunStream {
 }
 
 interface MockSession {
+    effort: string;
     events: RigEvent[];
     id: string;
     lastEventId?: string;
@@ -77,7 +78,11 @@ export interface MockRigSessionRequest {
     cwd: string;
     docker?: { container?: string; workingDirectory?: string };
     permissionMode?: string;
+    effort?: string;
 }
+
+const MOCK_EFFORT_OPTIONS = ["low", "medium", "high", "xhigh"] as const;
+const MOCK_MODEL_ID = "gym/mock-agent";
 
 /**
  * Programmable black-box Rig protocol server bound to a real Unix socket.
@@ -86,6 +91,7 @@ export interface MockRigSessionRequest {
 export class MockRigDaemon implements AsyncDisposable {
     readonly createdCwds: string[] = [];
     readonly createdSessions: MockRigSessionRequest[] = [];
+    readonly effortChanges: Array<{ effort: string; sessionId: string }> = [];
     readonly submittedRuns: MockRigRun[] = [];
     readonly submittedTexts: string[] = [];
     readonly trimRequests: number[] = [];
@@ -152,6 +158,10 @@ export class MockRigDaemon implements AsyncDisposable {
     sessionSecretIds(sessionId: string): readonly string[] {
         const session = this.requireSession(sessionId);
         return [...new Set([...session.projectSecretIds, ...session.sessionSecretIds])].sort();
+    }
+
+    sessionEffort(sessionId: string): string {
+        return this.requireSession(sessionId).effort;
     }
 
     dropNextSubmissionResponseAfterAccept(): void {
@@ -399,8 +409,12 @@ export class MockRigDaemon implements AsyncDisposable {
             return this.trimGlobalEvents(request, response);
         if (request.method === "POST" && url.pathname === "/sessions") {
             const body = await jsonBody(request);
+            const effort = typeof body.effort === "string" ? body.effort : "high";
+            if (!MOCK_EFFORT_OPTIONS.includes(effort as (typeof MOCK_EFFORT_OPTIONS)[number]))
+                return sendJson(response, 400, { error: "Unsupported effort" });
             const id = `session-${this.sessions.size + 1}`;
             const session: MockSession = {
+                effort,
                 events: [],
                 id,
                 messages: [],
@@ -436,6 +450,7 @@ export class MockRigDaemon implements AsyncDisposable {
                 ...(typeof body.permissionMode === "string"
                     ? { permissionMode: body.permissionMode }
                     : {}),
+                ...(typeof body.effort === "string" ? { effort: body.effort } : {}),
             });
             this.append(session, "session_created", { session: snapshot(session) });
             return sendJson(response, 201, { session: snapshot(session) });
@@ -464,7 +479,9 @@ export class MockRigDaemon implements AsyncDisposable {
                 return sendJson(response, 200, { session: snapshot(session) });
             }
         }
-        const match = url.pathname.match(/^\/sessions\/([^/]+)(?:\/(messages|events|stream))?$/u);
+        const match = url.pathname.match(
+            /^\/sessions\/([^/]+)(?:\/(messages|events|stream|effort))?$/u,
+        );
         const session = match ? this.sessions.get(decodeURIComponent(match[1]!)) : undefined;
         if (!match || !session) return sendJson(response, 404, { error: "Session not found" });
         const action = match[2];
@@ -482,6 +499,21 @@ export class MockRigDaemon implements AsyncDisposable {
                 return sendJson(response, status, { error: "Session stream is unavailable" });
             }
             return this.streamSessionEvents(request, url, session, response);
+        }
+        if (request.method === "PATCH" && action === "effort") {
+            const body = await jsonBody(request);
+            if (
+                typeof body.effort !== "string" ||
+                !MOCK_EFFORT_OPTIONS.includes(body.effort as (typeof MOCK_EFFORT_OPTIONS)[number])
+            )
+                return sendJson(response, 400, { error: "Unsupported effort" });
+            session.effort = body.effort;
+            this.effortChanges.push({ effort: session.effort, sessionId: session.id });
+            this.append(session, "effort_changed", {
+                effort: session.effort,
+                modelId: MOCK_MODEL_ID,
+            });
+            return sendJson(response, 200, { session: snapshot(session) });
         }
         if (request.method === "POST" && action === "messages") {
             this.submissionAttemptCount += 1;
@@ -822,7 +854,17 @@ function snapshot(session: MockSession) {
     const projectSecretIds = [...session.projectSecretIds].sort();
     const sessionSecretIds = [...session.sessionSecretIds].sort();
     return {
+        effort: session.effort,
         id: session.id,
+        modelId: MOCK_MODEL_ID,
+        models: [
+            {
+                defaultThinkingLevel: "high",
+                id: MOCK_MODEL_ID,
+                name: "Gym mock agent",
+                thinkingLevels: MOCK_EFFORT_OPTIONS,
+            },
+        ],
         ...(session.lastEventId ? { lastEventId: session.lastEventId } : {}),
         projectSecretIds,
         secretIds: [...new Set([...projectSecretIds, ...sessionSecretIds])].sort(),

@@ -55,6 +55,7 @@ export interface UserSummary {
     role: "member" | "admin";
     kind: "human" | "agent";
     agentImageId?: string;
+    agentEffort?: string;
     createdByUserId?: string;
 }
 
