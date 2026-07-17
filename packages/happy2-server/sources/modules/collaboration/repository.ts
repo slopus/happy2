@@ -2328,8 +2328,10 @@ export class CollaborationRepository {
         userMessageId: string;
         workerId: string;
     }): Promise<boolean> {
-        const changed = await retrySqliteBusy(() =>
-            this.db
+        // Use the repository's transactional write boundary so checkpoint
+        // persistence completes before session streaming begins.
+        const changed = await this.writeDb((tx) =>
+            tx
                 .update(agentTurns)
                 .set({
                     baselineMessageCount: input.baselineMessageCount,

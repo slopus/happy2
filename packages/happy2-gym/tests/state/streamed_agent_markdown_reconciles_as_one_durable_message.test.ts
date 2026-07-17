@@ -45,6 +45,16 @@ describe("streamed agent Markdown through happy2-state", () => {
         await expect
             .poll(() => rig.sessionStreamRequestCount, { timeout: 4_000 })
             .toBeGreaterThan(0);
+        await expect
+            .poll(
+                () =>
+                    firstState.get().messagesByChat[chat.id]?.map(({ delivery, message }) => ({
+                        delivery,
+                        text: message.text,
+                    })),
+                { timeout: 4_000 },
+            )
+            .toEqual([{ delivery: "sent", text: "Stream a Markdown answer" }]);
         const run = rig.submittedRuns[0]!;
         const firstChunk = "## Result\n\n- **par";
         rig.emitTextDelta(run.runId, firstChunk);

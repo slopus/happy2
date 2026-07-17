@@ -12,5 +12,11 @@
         "types": ["node", "vite/client", "vitest/globals"],
         "noEmit": true
     },
-    "include": ["sources", "tests", "vitest.config.ts", "vitest.playwright.config.ts"]
+    "include": [
+        "sources",
+        "tests",
+        "vitest.config.ts",
+        "vitest.coverage.config.ts",
+        "vitest.playwright.config.ts"
+    ]
 }

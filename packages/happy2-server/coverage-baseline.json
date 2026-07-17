@@ -1,0 +1,60 @@
+{
+    "schemaVersion": 1,
+    "sourceFiles": 72,
+    "thresholds": {
+        "unit": {
+            "statements": {
+                "covered": 4101,
+                "total": 10968
+            },
+            "branches": {
+                "covered": 2470,
+                "total": 7757
+            },
+            "functions": {
+                "covered": 783,
+                "total": 2003
+            },
+            "lines": {
+                "covered": 3907,
+                "total": 9801
+            }
+        },
+        "gym": {
+            "statements": {
+                "covered": 8018,
+                "total": 10968
+            },
+            "branches": {
+                "covered": 4825,
+                "total": 7757
+            },
+            "functions": {
+                "covered": 1655,
+                "total": 2003
+            },
+            "lines": {
+                "covered": 7528,
+                "total": 9801
+            }
+        },
+        "combined": {
+            "statements": {
+                "covered": 8874,
+                "total": 10968
+            },
+            "branches": {
+                "covered": 5422,
+                "total": 7757
+            },
+            "functions": {
+                "covered": 1799,
+                "total": 2003
+            },
+            "lines": {
+                "covered": 8312,
+                "total": 9801
+            }
+        }
+    }
+}

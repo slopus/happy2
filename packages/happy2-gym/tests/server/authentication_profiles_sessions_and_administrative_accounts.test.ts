@@ -263,6 +263,8 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
                     const bootstrapVerification = await server.post("/v0/auth/magic-link/verify", {
                         token: bootstrapToken,
                     });
+                    expect(bootstrapVerification.statusCode).toBe(200);
+                    expect(bootstrapVerification.json().token).toEqual(expect.any(String));
                     const asAdmin = tokenClient(
                         server,
                         bootstrapVerification.json().token as string,

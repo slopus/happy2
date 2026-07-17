@@ -208,6 +208,52 @@ Sessions are signed JWTs with a 30-day default lifetime and a stable `sid`.
 expiry. All authenticated requests check the shared SQLite session row, so a
 missing, expired, or revoked row is rejected regardless of JWT validity.
 
+## Server test coverage
+
+Run the complete server coverage gate from the repository root:
+
+```sh
+pnpm coverage:server
+```
+
+The command first tests the coverage tooling, then runs server unit tests and
+the complete non-Playwright Gym suite with Vitest's V8 provider. It validates
+both raw maps against one production-source universe, writes their boolean union,
+prints unit/Gym/combined statement, branch, function, and line percentages side
+by side, lists every uncovered file/line range, and compares exact covered/total
+fractions with `coverage-baseline.json`. Threshold comparisons use integer cross
+multiplication, so displayed percentage rounding cannot hide a regression. The
+same gate runs inside `pnpm check`.
+
+The authoritative universe is every `.ts` file under `sources`, including files
+that no test imports. It excludes `*.test.ts`, `*.spec.ts`, generated `*.d.ts`,
+and files inside `__tests__`, `testing`, `fixtures`, or `__fixtures__` directories.
+Both Vitest configs consume the same TypeScript definition, and the merge command
+fails if either report omits a production file or if the universe is empty.
+
+Reports are generated under:
+
+- `coverage/unit` for `happy2-server` unit tests;
+- `coverage/gym` for Gym integration coverage of the aliased server sources;
+- `coverage/combined` for the union, where a line hit by both suites is counted
+  once.
+
+Each directory contains `coverage.txt`, `index.html`, `lcov.info`,
+`coverage-final.json`, and `coverage-summary.json`. Compare
+`coverage/unit/index.html` with `coverage/gym/index.html` (or their
+`coverage.txt` files) to find behavior that unit tests exercise but Gym does not.
+Statements are executable statement regions, branches are control-flow outcomes,
+functions are callable regions, and lines are source lines containing statements.
+Generated coverage directories are gitignored and removed by `pnpm clean`.
+
+The individual report commands are `pnpm coverage:server:unit` and
+`pnpm coverage:server:gym`. `pnpm coverage:server:baseline` reruns the tooling and
+both suites before replacing the checked-in exact-ratio thresholds with that
+run's measurements. Timing-sensitive Gym paths may require a narrow reviewed
+floor below a sampled measurement. Any deliberate threshold reduction must
+include the measured range and rationale in `TODO.md` in the same reviewed
+commit; improvements do not require a rationale.
+
 ## Collaboration API
 
 The API is HTTP-only. Durable reads and actions use JSON GET/POST endpoints;

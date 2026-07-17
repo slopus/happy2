@@ -441,6 +441,19 @@ Merged evidence (2026-07-16, `60db7cc`):
 
 Acceptance: one command proves how much of the complete server is exercised by unit tests alone, Gym alone, and their union; all three views are reproducible, separately inspectable, and enforced against regression in `pnpm check`.
 
+Implementation evidence awaiting final Opus confirmation/merge:
+
+- one shared TypeScript source-universe definition currently validates all 72 production server files in both raw maps and rejects empty, missing, malformed, or incomplete inputs;
+- `pnpm coverage:server` produces text, HTML, LCOV, JSON, and JSON-summary reports for unit, Gym, and boolean-union combined coverage, then enforces exact-ratio thresholds from `coverage-baseline.json`;
+- unit coverage was stable across review runs at 4101/10968 statements, 2470/7757 branches, 783/2003 functions, and 3907/9801 lines, so its stored thresholds remain those exact ratios;
+- five unchanged-tree Opus review runs exposed timing-dependent Gym variance: 8029–8036 statements, 4830–4837 branches, 1655 functions, and 7538–7544 lines; their combined union ranged from 8878–8885 statements, 5431–5438 branches, 1799 functions, and 8324–8330 lines;
+- the reviewed Gym thresholds are therefore narrow one-decimal floors below those measured minima: 8018/10968 statements, 4825/7757 branches, 1655/2003 functions, and 7528/9801 lines; combined floors are 8874/10968, 5422/7757, 1799/2003, and 8312/9801 respectively. This deliberate margin absorbs the observed lease/retry/SSE timing noise while the gate still compares exact integer ratios, so display rounding cannot decide pass/fail;
+- nine focused tooling tests cover canonical paths, overlapping-hit union semantics without input mutation, an entirely uncovered production file, source enumeration/exclusions, malformed/missing/incomplete maps and baselines, empty universes, and a true display-rounding collision in exact threshold pass/fail behavior;
+- a pre-existing streamed-agent Gym race was made deterministic by waiting for the durable user message before injecting Rig deltas and by persisting the agent-turn checkpoint through the repository transactional write boundary; the focused test passed 20/20 locally and 12/12 under Opus review;
+- the normal Gym suite exposed three cross-file timing failures around streamed turns, workspace cursors, and magic-link delivery. It is temporarily serialized (`fileParallelism: false`), making the reviewed 43-file/100-test run take 82.8 seconds instead of 8.8 seconds; restoring safe parallel execution after isolating those shared-resource races is explicitly deferred to P3.4 rather than treated as solved;
+- the magic-link profile workflow now verifies the link response and token before continuing, preventing an opaque downstream failure;
+- the coverage gate, all workspace typechecks, repository-wide formatting, and the 43-file/100-test normal Gym suite pass locally; the persisted Claude Opus medium-effort review/fix/resume loop ended `READY` after independently validating the measured noise floors and every correction, with no blocking or actionable findings.
+
 ### P0.1b — Functional server action architecture (server refactor)
 
 - [ ] Perform this as the immediately following, independently mergeable server task after P0.1a; do not mix it into coverage plumbing or begin P0.2 until it is merged.
@@ -873,6 +886,7 @@ Acceptance: the user chooses the exact crop, sees a circular preview, and every 
 ### P3.4 — Final verification
 
 - [ ] Confirm every requirement in this document is either merged, explicitly deferred with rationale, or removed from the product surface.
+- [ ] Re-enable parallel Gym files after isolating and fixing the streamed-turn, workspace-cursor, and magic-link shared-resource races; preserve the serial mode only if a measured, documented invariant proves parallel execution unsafe.
 - [ ] Run `pnpm check`.
 - [ ] Run `pnpm --dir packages/happy2-gym test` and all `gym/state` tests.
 - [ ] Run every changed `happy2-ui` component in Chromium, Firefox, and WebKit at 2× and review saved screenshots.
