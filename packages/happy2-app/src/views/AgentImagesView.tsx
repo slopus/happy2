@@ -1,23 +1,18 @@
-import { createMemo, createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
+import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { AgentImageDetails, AgentImageSummary } from "happy2-state";
-import { AgentImageDetail, AgentImagePanel, Box, Modal, type AgentImageItem } from "happy2-ui";
+import {
+    AgentImageDetail,
+    AgentImagePanel,
+    Modal,
+    ModalOverlay,
+    type AgentImageItem,
+} from "happy2-ui";
 import type { AuthSession } from "../components/AuthGate";
 
 export type AgentImagesViewProps = {
     session: AuthSession;
     /** Shared TitleBar/Toolbar search value; filters images by name or status. */
     query?: string;
-};
-
-const overlayStyle: JSX.CSSProperties = {
-    position: "fixed",
-    inset: 0,
-    display: "flex",
-    "align-items": "center",
-    "justify-content": "center",
-    padding: "24px",
-    background: "rgb(0 0 0 / 0.6)",
-    "z-index": 40,
 };
 
 /**
@@ -237,31 +232,29 @@ export function AgentImagesView(props: AgentImagesViewProps) {
                 subtitle="Immutable images every server-owned agent runs inside."
             />
             <Show when={detailId()}>
-                <Box onClick={closeDetail} style={overlayStyle}>
-                    <Box onClick={(event) => event.stopPropagation()}>
-                        <Modal
-                            icon="spark"
-                            onClose={closeDetail}
-                            size="large"
-                            title={detail()?.name ?? openImage()?.name ?? "Agent image"}
-                        >
-                            <AgentImageDetail
-                                buildLog={detail()?.buildLog ?? ""}
-                                buildLogTruncated={detail()?.buildLogTruncated}
-                                builtin={
-                                    (detail()?.builtinKey ?? openImage()?.builtinKey) !== undefined
-                                }
-                                dockerfile={detail()?.dockerfile ?? ""}
-                                error={detailError()}
-                                isDefault={detailId() === defaultImageId()}
-                                lastError={detail()?.lastError ?? openImage()?.lastError}
-                                loading={detailLoading()}
-                                progress={detail()?.buildProgress ?? openImage()?.buildProgress}
-                                status={detail()?.status ?? openImage()?.status ?? "pending"}
-                            />
-                        </Modal>
-                    </Box>
-                </Box>
+                <ModalOverlay onDismiss={closeDetail}>
+                    <Modal
+                        icon="spark"
+                        onClose={closeDetail}
+                        size="large"
+                        title={detail()?.name ?? openImage()?.name ?? "Agent image"}
+                    >
+                        <AgentImageDetail
+                            buildLog={detail()?.buildLog ?? ""}
+                            buildLogTruncated={detail()?.buildLogTruncated}
+                            builtin={
+                                (detail()?.builtinKey ?? openImage()?.builtinKey) !== undefined
+                            }
+                            dockerfile={detail()?.dockerfile ?? ""}
+                            error={detailError()}
+                            isDefault={detailId() === defaultImageId()}
+                            lastError={detail()?.lastError ?? openImage()?.lastError}
+                            loading={detailLoading()}
+                            progress={detail()?.buildProgress ?? openImage()?.buildProgress}
+                            status={detail()?.status ?? openImage()?.status ?? "pending"}
+                        />
+                    </Modal>
+                </ModalOverlay>
             </Show>
         </>
     );

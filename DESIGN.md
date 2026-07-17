@@ -86,6 +86,8 @@ Current reference dimensions are:
 | Small button              | 28 px high                     |
 | Medium button             | 36 px high                     |
 | Large button              | 44 px high                     |
+| Modal dialog widths       | 360 / 480 / 640 (small/med/lg) |
+| Modal overlay gutter      | 24 px safe-area around the card |
 | Blueprint toolbar         | 42 px high                     |
 | Blueprint specimen grid   | 16 px minor / 80 px major      |
 
@@ -107,6 +109,18 @@ Do not make dimensions accidental. If a component promises a size, its border,
 padding, content, and `box-sizing` must resolve to that size. Test fixed,
 content-sized, percentage, full-width, nested, and constrained-container cases
 as applicable.
+
+Every modal-class surface uses one location and one of three widths. The
+`Modal` card is `small` (360), `medium` (480), or `large` (640): confirmations
+and pickers are `small`, forms are `medium`, and content-heavy detail is
+`large`. It never sets its own position, scrim, or stacking — it is hosted by
+`ModalOverlay`, the single backdrop that fixes to the app window, dims with
+`--happy2-scrim` at `--happy2-z-overlay`, and centers the card inside a 24 px
+safe-area gutter. Application code composes `ModalOverlay` around a `Modal`,
+`Lightbox`, or editor panel instead of hand-rolling per-view scrims, so every
+dialog dims, stacks, and centers identically. Wire its `onDismiss` to close on
+a backdrop click; omit it for a surface that must not be lost to a stray click,
+such as an editor holding unsaved work.
 
 ## Layout with flexbox
 

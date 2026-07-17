@@ -13,6 +13,10 @@ icon = "play"
 command = "PORT=$CONDUCTOR_PORT pnpm dev:desktop"
 icon = "monitor"
 
+[scripts.run.ui]
+command = "pnpm --filter happy2-ui dev --port $CONDUCTOR_PORT"
+icon = "palette"
+
 [scripts.run.test]
 command = "pnpm test"
 icon = "test-tube"

@@ -40,6 +40,7 @@ import { MemberListPage } from "./pages/MemberListPage";
 import { MenuPage } from "./pages/MenuPage";
 import { MessagePage } from "./pages/MessagePage";
 import { ModalPage } from "./pages/ModalPage";
+import { ModalOverlayPage } from "./pages/ModalOverlayPage";
 import { ModerationReportCardPage } from "./pages/ModerationReportCardPage";
 import { NotificationListPage } from "./pages/NotificationListPage";
 import { PolicyControlPage } from "./pages/PolicyControlPage";
@@ -153,6 +154,7 @@ const components: Array<{ id: string; label: string; number: string; page: () =>
         page: AgentSecretDetailPage,
     },
     { id: "fade", label: "Fade", number: "C-057", page: FadePage },
+    { id: "modal-overlay", label: "Modal overlay", number: "C-058", page: ModalOverlayPage },
 ];
 
 function componentFromHash(): string {

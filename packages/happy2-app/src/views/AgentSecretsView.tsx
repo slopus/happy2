@@ -1,10 +1,10 @@
-import { createMemo, createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
+import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { AgentSecretSummary, ChatSummary, UserSummary } from "happy2-state";
 import {
     AgentSecretDetail,
     AgentSecretPanel,
-    Box,
     Modal,
+    ModalOverlay,
     type AgentSecretBinding,
     type AgentSecretDraftVariable,
     type AgentSecretItem,
@@ -15,17 +15,6 @@ export type AgentSecretsViewProps = {
     session: AuthSession;
     /** Shared TitleBar/Toolbar search value; filters secrets by description or id. */
     query?: string;
-};
-
-const overlayStyle: JSX.CSSProperties = {
-    position: "fixed",
-    inset: 0,
-    display: "flex",
-    "align-items": "center",
-    "justify-content": "center",
-    padding: "24px",
-    background: "rgb(0 0 0 / 0.6)",
-    "z-index": 40,
 };
 
 const emptyVariable = (): AgentSecretDraftVariable => ({ name: "", value: "" });
@@ -384,42 +373,40 @@ export function AgentSecretsView(props: AgentSecretsViewProps) {
             />
             <Show when={openSecret()}>
                 {(secret) => (
-                    <Box onClick={closeDetail} style={overlayStyle}>
-                        <Box onClick={(event) => event.stopPropagation()}>
-                            <Modal
-                                icon="shield"
-                                onClose={closeDetail}
-                                size="medium"
-                                title={secret().description}
-                            >
-                                <AgentSecretDetail
-                                    agents={agentBindings()}
-                                    attachingAgent={attachingAgent()}
-                                    attachingChannel={attachingChannel()}
-                                    availableAgents={availableAgents()}
-                                    availableChannels={availableChannels()}
-                                    busyAgentIds={busyBindingIds()}
-                                    busyChannelIds={busyBindingIds()}
-                                    channels={channelBindings()}
-                                    environmentVariables={secret().environmentVariables}
-                                    error={detailError()}
-                                    onAttachAgent={(agentUserId) =>
-                                        attachAgent(secret().id, agentUserId)
-                                    }
-                                    onAttachChannel={(channelId) =>
-                                        attachChannel(secret().id, channelId)
-                                    }
-                                    onDetachAgent={(agentUserId) =>
-                                        detachAgent(secret().id, agentUserId)
-                                    }
-                                    onDetachChannel={(channelId) =>
-                                        detachChannel(secret().id, channelId)
-                                    }
-                                    onDismissError={() => setDetailError(undefined)}
-                                />
-                            </Modal>
-                        </Box>
-                    </Box>
+                    <ModalOverlay onDismiss={closeDetail}>
+                        <Modal
+                            icon="shield"
+                            onClose={closeDetail}
+                            size="medium"
+                            title={secret().description}
+                        >
+                            <AgentSecretDetail
+                                agents={agentBindings()}
+                                attachingAgent={attachingAgent()}
+                                attachingChannel={attachingChannel()}
+                                availableAgents={availableAgents()}
+                                availableChannels={availableChannels()}
+                                busyAgentIds={busyBindingIds()}
+                                busyChannelIds={busyBindingIds()}
+                                channels={channelBindings()}
+                                environmentVariables={secret().environmentVariables}
+                                error={detailError()}
+                                onAttachAgent={(agentUserId) =>
+                                    attachAgent(secret().id, agentUserId)
+                                }
+                                onAttachChannel={(channelId) =>
+                                    attachChannel(secret().id, channelId)
+                                }
+                                onDetachAgent={(agentUserId) =>
+                                    detachAgent(secret().id, agentUserId)
+                                }
+                                onDetachChannel={(channelId) =>
+                                    detachChannel(secret().id, channelId)
+                                }
+                                onDismissError={() => setDetailError(undefined)}
+                            />
+                        </Modal>
+                    </ModalOverlay>
                 )}
             </Show>
         </>

@@ -102,6 +102,11 @@
 
     /* Focus */
     --happy2-focus-ring: 2px solid #a89bff;
+
+    /* Overlay — every modal-class surface floats on one dim at one stacking
+       level, above all app chrome and in-panel popovers. */
+    --happy2-scrim: rgb(0 0 0 / 0.6);
+    --happy2-z-overlay: 1000;
 }
 
 .happy2-box {

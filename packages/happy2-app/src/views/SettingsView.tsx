@@ -7,6 +7,7 @@ import {
     FormRow,
     ProfileCard,
     Modal,
+    ModalOverlay,
     SegmentedControl,
     StatusPicker,
     Switch,
@@ -626,43 +627,40 @@ export function SettingsView(props: SettingsViewProps) {
                             </Box>
                         </Box>
                         <Show when={usernameConfirmationOpen()}>
-                            <Modal
-                                footer={
-                                    <>
-                                        <Button
-                                            onClick={() => {
-                                                setHandle(confirmedHandle());
-                                                setUsernameConfirmationOpen(false);
-                                            }}
-                                            size="small"
-                                            type="button"
-                                            variant="ghost"
-                                        >
-                                            Cancel
-                                        </Button>
-                                        <Button
-                                            onClick={() => void confirmUsernameChange()}
-                                            size="small"
-                                            type="button"
-                                        >
-                                            Change username
-                                        </Button>
-                                    </>
-                                }
-                                icon="at"
-                                onClose={() => setUsernameConfirmationOpen(false)}
-                                size="small"
-                                style={{
-                                    position: "fixed",
-                                    inset: "0",
-                                    "z-index": 40,
-                                }}
-                                title="Confirm username change"
-                            >
-                                Your username will change from @{confirmedHandle()} to @
-                                {handle().trim().toLowerCase()}. Mentions and profile links will use
-                                the new username.
-                            </Modal>
+                            <ModalOverlay onDismiss={() => setUsernameConfirmationOpen(false)}>
+                                <Modal
+                                    footer={
+                                        <>
+                                            <Button
+                                                onClick={() => {
+                                                    setHandle(confirmedHandle());
+                                                    setUsernameConfirmationOpen(false);
+                                                }}
+                                                size="small"
+                                                type="button"
+                                                variant="ghost"
+                                            >
+                                                Cancel
+                                            </Button>
+                                            <Button
+                                                onClick={() => void confirmUsernameChange()}
+                                                size="small"
+                                                type="button"
+                                            >
+                                                Change username
+                                            </Button>
+                                        </>
+                                    }
+                                    icon="at"
+                                    onClose={() => setUsernameConfirmationOpen(false)}
+                                    size="small"
+                                    title="Confirm username change"
+                                >
+                                    Your username will change from @{confirmedHandle()} to @
+                                    {handle().trim().toLowerCase()}. Mentions and profile links will
+                                    use the new username.
+                                </Modal>
+                            </ModalOverlay>
                         </Show>
                     </>
                 </Show>

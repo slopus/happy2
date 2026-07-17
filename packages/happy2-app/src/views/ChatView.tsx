@@ -35,6 +35,7 @@ import {
     MessageList,
     Menu,
     Modal,
+    ModalOverlay,
     Select,
     Sidebar,
     TextField,
@@ -116,29 +117,10 @@ const channelKindOptions: SelectOption[] = [
     { value: "public_channel", label: "Public channel" },
     { value: "private_channel", label: "Private channel" },
 ];
-const overlayStyle: JSX.CSSProperties = {
-    position: "absolute",
-    inset: 0,
-    display: "flex",
-    "align-items": "center",
-    "justify-content": "center",
-    padding: "24px",
-    "z-index": 30,
-};
 const modalStackStyle: JSX.CSSProperties = {
     display: "flex",
     "flex-direction": "column",
     gap: "8px",
-};
-const fileEditorOverlayStyle: JSX.CSSProperties = {
-    position: "absolute",
-    inset: 0,
-    display: "flex",
-    "align-items": "center",
-    "justify-content": "center",
-    padding: "24px",
-    background: "rgba(10, 9, 14, 0.6)",
-    "z-index": 40,
 };
 const fileEditorCardStyle: JSX.CSSProperties = {
     width: "min(1040px, 94vw)",
@@ -2413,7 +2395,7 @@ export function ChatView(props: ChatViewProps) {
                 />
             </AppShell>
             <Show when={openFilePath()}>
-                <Box style={fileEditorOverlayStyle}>
+                <ModalOverlay>
                     <Box style={fileEditorCardStyle}>
                         <FileEditor
                             banner={fileEditorBanner()}
@@ -2429,224 +2411,210 @@ export function ChatView(props: ChatViewProps) {
                             value={fileDraft()}
                         />
                     </Box>
-                </Box>
+                </ModalOverlay>
             </Show>
             <Show when={directoryOpen()}>
-                <Box onClick={() => setDirectoryOpen(false)} style={overlayStyle}>
-                    <Box onClick={(event) => event.stopPropagation()}>
-                        <Modal
-                            footer={
-                                <Box style={modalActionsStyle}>
-                                    <Button
-                                        onClick={() => {
+                <ModalOverlay onDismiss={() => setDirectoryOpen(false)}>
+                    <Modal
+                        footer={
+                            <Box style={modalActionsStyle}>
+                                <Button
+                                    onClick={() => {
+                                        setDirectoryOpen(false);
+                                        setCreateOpen(true);
+                                    }}
+                                    variant="secondary"
+                                >
+                                    Create channel
+                                </Button>
+                                <Button onClick={() => setDirectoryOpen(false)}>Done</Button>
+                            </Box>
+                        }
+                        icon="hash"
+                        onClose={() => setDirectoryOpen(false)}
+                        size="small"
+                        title="Channel directory"
+                    >
+                        <Show
+                            fallback={
+                                <EmptyState
+                                    action={{
+                                        icon: "plus",
+                                        label: "Create channel",
+                                        onClick: () => {
                                             setDirectoryOpen(false);
                                             setCreateOpen(true);
-                                        }}
-                                        variant="secondary"
-                                    >
-                                        Create channel
-                                    </Button>
-                                    <Button onClick={() => setDirectoryOpen(false)}>Done</Button>
-                                </Box>
-                            }
-                            icon="hash"
-                            onClose={() => setDirectoryOpen(false)}
-                            size="small"
-                            title="Channel directory"
-                        >
-                            <Show
-                                fallback={
-                                    <EmptyState
-                                        action={{
-                                            icon: "plus",
-                                            label: "Create channel",
-                                            onClick: () => {
-                                                setDirectoryOpen(false);
-                                                setCreateOpen(true);
-                                            },
-                                        }}
-                                        description="There are no public channels waiting to be joined."
-                                        icon="hash"
-                                        size="inline"
-                                        title="No channels to join"
-                                    />
-                                }
-                                when={directoryItems().length > 0}
-                            >
-                                <Menu
-                                    items={directoryItems()}
-                                    onSelect={previewDirectoryChannel}
-                                    width={328}
+                                        },
+                                    }}
+                                    description="There are no public channels waiting to be joined."
+                                    icon="hash"
+                                    size="inline"
+                                    title="No channels to join"
                                 />
-                            </Show>
-                        </Modal>
-                    </Box>
-                </Box>
+                            }
+                            when={directoryItems().length > 0}
+                        >
+                            <Menu
+                                items={directoryItems()}
+                                onSelect={previewDirectoryChannel}
+                                width={328}
+                            />
+                        </Show>
+                    </Modal>
+                </ModalOverlay>
             </Show>
             <Show when={agentCreateOpen()}>
-                <Box onClick={() => setAgentCreateOpen(false)} style={overlayStyle}>
-                    <Box onClick={(event) => event.stopPropagation()}>
-                        <Modal
-                            footer={
-                                <Box style={modalActionsStyle}>
-                                    <Button
-                                        onClick={() => setAgentCreateOpen(false)}
-                                        variant="ghost"
-                                    >
-                                        Cancel
-                                    </Button>
-                                    <Button
-                                        disabled={
-                                            busy() ||
-                                            !newAgentName().trim() ||
-                                            !validAgentUsername(newAgentUsername())
-                                        }
-                                        icon="plus"
-                                        onClick={() => void createAgent()}
-                                    >
-                                        Create agent
-                                    </Button>
-                                </Box>
-                            }
-                            icon="spark"
-                            onClose={() => setAgentCreateOpen(false)}
-                            size="small"
-                            title="Create agent"
-                        >
-                            <Box style={modalStackStyle}>
-                                <FormRow
-                                    control={
-                                        <TextField
-                                            fullWidth
-                                            onValueChange={(value) => {
-                                                setNewAgentName(value);
-                                                if (!agentUsernameEdited())
-                                                    setNewAgentUsername(agentUsername(value));
-                                            }}
-                                            placeholder="e.g. Fixer"
-                                            value={newAgentName()}
-                                        />
+                <ModalOverlay onDismiss={() => setAgentCreateOpen(false)}>
+                    <Modal
+                        footer={
+                            <Box style={modalActionsStyle}>
+                                <Button onClick={() => setAgentCreateOpen(false)} variant="ghost">
+                                    Cancel
+                                </Button>
+                                <Button
+                                    disabled={
+                                        busy() ||
+                                        !newAgentName().trim() ||
+                                        !validAgentUsername(newAgentUsername())
                                     }
-                                    description="The agent’s display name in chats and messages."
-                                    label="Name"
-                                    layout="stacked"
-                                />
-                                <FormRow
-                                    control={
-                                        <TextField
-                                            fullWidth
-                                            onValueChange={(value) => {
-                                                setAgentUsernameEdited(true);
-                                                setNewAgentUsername(agentUsername(value));
-                                            }}
-                                            placeholder="fixer"
-                                            value={newAgentUsername()}
-                                        />
-                                    }
-                                    description="A unique 2–32 character agent username."
-                                    label="Username"
-                                    layout="stacked"
-                                />
+                                    icon="plus"
+                                    onClick={() => void createAgent()}
+                                >
+                                    Create agent
+                                </Button>
                             </Box>
-                        </Modal>
-                    </Box>
-                </Box>
+                        }
+                        icon="spark"
+                        onClose={() => setAgentCreateOpen(false)}
+                        size="medium"
+                        title="Create agent"
+                    >
+                        <Box style={modalStackStyle}>
+                            <FormRow
+                                control={
+                                    <TextField
+                                        fullWidth
+                                        onValueChange={(value) => {
+                                            setNewAgentName(value);
+                                            if (!agentUsernameEdited())
+                                                setNewAgentUsername(agentUsername(value));
+                                        }}
+                                        placeholder="e.g. Fixer"
+                                        value={newAgentName()}
+                                    />
+                                }
+                                description="The agent’s display name in chats and messages."
+                                label="Name"
+                                layout="stacked"
+                            />
+                            <FormRow
+                                control={
+                                    <TextField
+                                        fullWidth
+                                        onValueChange={(value) => {
+                                            setAgentUsernameEdited(true);
+                                            setNewAgentUsername(agentUsername(value));
+                                        }}
+                                        placeholder="fixer"
+                                        value={newAgentUsername()}
+                                    />
+                                }
+                                description="A unique 2–32 character agent username."
+                                label="Username"
+                                layout="stacked"
+                            />
+                        </Box>
+                    </Modal>
+                </ModalOverlay>
             </Show>
             <Show when={createOpen()}>
-                <Box onClick={() => setCreateOpen(false)} style={overlayStyle}>
-                    <Box onClick={(event) => event.stopPropagation()}>
-                        <Modal
-                            footer={
-                                <Box style={modalActionsStyle}>
-                                    <Button onClick={() => setCreateOpen(false)} variant="ghost">
-                                        Cancel
-                                    </Button>
-                                    <Button
-                                        disabled={busy() || !newChannelName().trim()}
-                                        icon="plus"
-                                        onClick={() => void createChannel()}
-                                    >
-                                        Create channel
-                                    </Button>
-                                </Box>
-                            }
-                            icon="hash"
-                            onClose={() => setCreateOpen(false)}
-                            size="small"
-                            title="Create channel"
-                        >
-                            <Box style={modalStackStyle}>
-                                <FormRow
-                                    control={
-                                        <TextField
-                                            fullWidth
-                                            onValueChange={(value) => {
-                                                setNewChannelName(value);
-                                                if (!channelSlugEdited())
-                                                    setNewChannelSlug(channelSlug(value));
-                                            }}
-                                            placeholder="e.g. Product launch"
-                                            value={newChannelName()}
-                                        />
-                                    }
-                                    description="Shown in the channel list."
-                                    label="Name"
-                                    layout="stacked"
-                                />
-                                <FormRow
-                                    control={
-                                        <TextField
-                                            fullWidth
-                                            onValueChange={(value) => {
-                                                setChannelSlugEdited(true);
-                                                setNewChannelSlug(channelSlug(value));
-                                            }}
-                                            placeholder="product-launch"
-                                            value={newChannelSlug()}
-                                        />
-                                    }
-                                    description="Used for mentions and channel links."
-                                    label="Slug"
-                                    layout="stacked"
-                                />
-                                <FormRow
-                                    control={
-                                        <Select
-                                            fullWidth
-                                            onValueChange={(value) =>
-                                                setNewChannelKind(
-                                                    value as "public_channel" | "private_channel",
-                                                )
-                                            }
-                                            options={channelKindOptions}
-                                            value={newChannelKind()}
-                                        />
-                                    }
-                                    description="Public channels are discoverable by everyone."
-                                    label="Visibility"
-                                    layout="stacked"
-                                />
+                <ModalOverlay onDismiss={() => setCreateOpen(false)}>
+                    <Modal
+                        footer={
+                            <Box style={modalActionsStyle}>
+                                <Button onClick={() => setCreateOpen(false)} variant="ghost">
+                                    Cancel
+                                </Button>
+                                <Button
+                                    disabled={busy() || !newChannelName().trim()}
+                                    icon="plus"
+                                    onClick={() => void createChannel()}
+                                >
+                                    Create channel
+                                </Button>
                             </Box>
-                        </Modal>
-                    </Box>
-                </Box>
+                        }
+                        icon="hash"
+                        onClose={() => setCreateOpen(false)}
+                        size="medium"
+                        title="Create channel"
+                    >
+                        <Box style={modalStackStyle}>
+                            <FormRow
+                                control={
+                                    <TextField
+                                        fullWidth
+                                        onValueChange={(value) => {
+                                            setNewChannelName(value);
+                                            if (!channelSlugEdited())
+                                                setNewChannelSlug(channelSlug(value));
+                                        }}
+                                        placeholder="e.g. Product launch"
+                                        value={newChannelName()}
+                                    />
+                                }
+                                description="Shown in the channel list."
+                                label="Name"
+                                layout="stacked"
+                            />
+                            <FormRow
+                                control={
+                                    <TextField
+                                        fullWidth
+                                        onValueChange={(value) => {
+                                            setChannelSlugEdited(true);
+                                            setNewChannelSlug(channelSlug(value));
+                                        }}
+                                        placeholder="product-launch"
+                                        value={newChannelSlug()}
+                                    />
+                                }
+                                description="Used for mentions and channel links."
+                                label="Slug"
+                                layout="stacked"
+                            />
+                            <FormRow
+                                control={
+                                    <Select
+                                        fullWidth
+                                        onValueChange={(value) =>
+                                            setNewChannelKind(
+                                                value as "public_channel" | "private_channel",
+                                            )
+                                        }
+                                        options={channelKindOptions}
+                                        value={newChannelKind()}
+                                    />
+                                }
+                                description="Public channels are discoverable by everyone."
+                                label="Visibility"
+                                layout="stacked"
+                            />
+                        </Box>
+                    </Modal>
+                </ModalOverlay>
             </Show>
             <Show when={lightbox()}>
                 {(image) => (
-                    <Box
-                        onClick={() => setLightbox(undefined)}
-                        style={{ ...overlayStyle, background: "rgb(0 0 0 / 0.72)" }}
-                    >
-                        <Box onClick={(event) => event.stopPropagation()}>
-                            <Lightbox
-                                alt={image().caption}
-                                caption={image().caption}
-                                detail={image().detail}
-                                imageUrl={image().url}
-                                onClose={() => setLightbox(undefined)}
-                            />
-                        </Box>
-                    </Box>
+                    <ModalOverlay onDismiss={() => setLightbox(undefined)}>
+                        <Lightbox
+                            alt={image().caption}
+                            caption={image().caption}
+                            detail={image().detail}
+                            imageUrl={image().url}
+                            onClose={() => setLightbox(undefined)}
+                        />
+                    </ModalOverlay>
                 )}
             </Show>
         </>
