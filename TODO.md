@@ -66,7 +66,7 @@ The following is already present and should be reused rather than rebuilt:
 
 The following structural gaps are confirmed:
 
-- [ ] There is no durable server-onboarding or user-onboarding state/API.
+- [x] Durable server-onboarding and user-onboarding state/API landed in P0.1.
 - [ ] The runtime is hard-coded to the local `docker` CLI; there is no Docker/Podman detection, provider selection, or remote-provider boundary.
 - [ ] `App.tsx` uses component signals instead of routes. A refresh cannot restore a destination, and opening global search unmounts the current feature.
 - [ ] Selecting search results discards the result ID and only switches to Chat or Files, so people/messages/channels/files cannot be focused correctly.
@@ -402,18 +402,27 @@ UI architecture acceptance gate:
 
 ### P0.1 — Durable bootstrap/status model (server feature)
 
-- [ ] Add a server-owned setup model with an explicit schema version and step states (`pending`, `in_progress`, `complete`, `failed`), timestamps, last error, and safe step metadata.
-- [ ] Track at minimum: bootstrap administrator claimed, sandbox provider selected/validated, base image selected, base image build requested, base image ready, and server setup complete.
-- [ ] Add per-user onboarding step state keyed by user and step, including `complete` and `skipped`, for extensible steps such as avatar and desktop-notification permission.
-- [ ] Make every transition transactional and idempotent; a restart during any step resumes from durable state.
-- [ ] Expose a minimal unauthenticated bootstrap status that does not leak accounts/configuration and authenticated combined onboarding state for routing.
-- [ ] Ensure only the one-time bootstrap path can claim the first administrator; close it atomically once claimed, including under concurrent server instances.
-- [ ] Before server onboarding completes, allow exactly one bootstrap account/profile and reject every additional registration attempt across password, magic-link, OIDC, and Cloudflare Access authentication.
-- [ ] Make registration policy the final server-onboarding step: the bootstrap administrator explicitly chooses whether new registrations are open or closed, and that durable choice completes server onboarding.
-- [ ] Emit sync hints for every durable setup/user-onboarding transition.
-- [ ] Add gym tests for fresh install, concurrent bootstrap claims, refresh/resume, restart recovery, completed setup, registration-open/closed final choices, and forbidden transition ordering.
+- [x] Add a server-owned setup model with an explicit schema version and step states (`pending`, `in_progress`, `complete`, `failed`), timestamps, last error, and safe step metadata.
+- [x] Track at minimum: bootstrap administrator claimed, sandbox provider selected/validated, base image selected, base image build requested, base image ready, and server setup complete.
+- [x] Add per-user onboarding step state keyed by user and step, including `complete` and `skipped`, for extensible steps such as avatar and desktop-notification permission.
+- [x] Make every transition transactional and idempotent; a restart during any step resumes from durable state.
+- [x] Expose a minimal unauthenticated bootstrap status that does not leak accounts/configuration and authenticated combined onboarding state for routing.
+- [x] Ensure only the one-time bootstrap path can claim the first administrator; close it atomically once claimed, including under concurrent server instances.
+- [x] Before server onboarding completes, allow exactly one bootstrap account/profile and reject every additional registration attempt across password, magic-link, OIDC, and Cloudflare Access authentication.
+- [x] Make registration policy the final server-onboarding step: the bootstrap administrator explicitly chooses whether new registrations are open or closed, and that durable choice completes server onboarding.
+- [x] Emit sync hints for every durable setup/user-onboarding transition.
+- [x] Add gym tests for fresh install, concurrent bootstrap claims, refresh/resume, restart recovery, completed setup, registration-open/closed final choices, and forbidden transition ordering.
 
 Acceptance: a fresh database has exactly one legal bootstrap path; no client-local flag can bypass incomplete server setup.
+
+Merged evidence (2026-07-16, `60db7cc`):
+
+- migration `0015_durable_server_and_user_onboarding.sql` persists versioned server and per-user step state, bootstrap ownership, and the final registration policy;
+- public `GET /v0/setup/status`, authenticated `GET /v0/setup`, user step mutation, and administrator registration-policy action expose the routing contract and emit sync hints;
+- password, magic-link verification, OIDC, and Cloudflare Access all share the atomic bootstrap/registration gate; two independent server instances over one SQLite database prove exactly one concurrent winner;
+- restart/resume, transition ordering, skipped/completed user steps, final open/closed policy, and closed-registration non-disclosure are covered by the complete 100-test server Gym suite;
+- the persisted Claude Opus medium-effort review/fix/resume loop ended `READY` with no blocking or actionable findings;
+- repository-wide `pnpm check` passed formatting, lint, typecheck, all unit/Gym/browser tests, and production builds before merge.
 
 ### P0.1a — Server unit/Gym coverage measurement and regression gate
 
