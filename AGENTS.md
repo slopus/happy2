@@ -17,6 +17,19 @@ still unmerged, stop and instruct them to create a new Conductor workspace
 Build each feature in isolation, with an explicit boundary between its server
 and UI work. Do not mix unrelated features into the same implementation.
 
+## Fable review workflow
+
+Never interrupt, terminate, cancel, or replace a running Claude Fable agent
+because it is slow or has not produced intermediate output. Wait for Fable to
+finish, then use its completed result.
+
+## Single backlog
+
+Record every planned task, discovered problem, implementation step, acceptance
+criterion, deferral, and progress update in the repository-root `TODO.md`.
+`TODO.md` is the only planning source of truth. Do not create additional todo,
+roadmap, audit-plan, or implementation-plan files elsewhere in the repository.
+
 Model ownership is strict:
 
 - GPT models, and only GPT models, implement the server behavior and its `gym`
