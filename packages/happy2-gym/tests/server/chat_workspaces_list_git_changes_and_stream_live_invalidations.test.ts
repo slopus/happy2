@@ -19,7 +19,7 @@ interface WorkspaceResponse {
 }
 
 describe("chat workspace files", () => {
-    it("lists Trees paths and Git changes from the workspace mounted in a chat's Rig", async () => {
+    it("lists Trees paths and Git changes from connected Rig and shared channel workspaces", async () => {
         await using rig = await createMockRigDaemon();
         await using server = await agentServer(rig);
         const owner = await server.createUser({ username: "workspace_owner" });
@@ -116,9 +116,64 @@ describe("chat workspace files", () => {
         });
         const publicId = publicChannel.json().chat.id as string;
         const publicEndpoint = `/v0/chats/${publicId}/workspace`;
+        expect(workspace(await asOwner.get(publicEndpoint)).paths).toEqual([]);
+        await writeFile(
+            join(rig.workspaceRoot, "channels", publicId, "shared.ts"),
+            "export const shared = true;\n",
+        );
         expect((await server.as(outsider).get(publicEndpoint)).statusCode).toBe(404);
         expect((await server.as(outsider).post(`/v0/chats/${publicId}/join`)).statusCode).toBe(200);
-        expect((await server.as(outsider).get(publicEndpoint)).statusCode).toBe(404);
+        const shared = await waitForWorkspace(server.as(outsider), publicEndpoint, (candidate) =>
+            candidate.paths.includes("shared.ts"),
+        );
+        expect(shared.paths).toEqual(["shared.ts"]);
+    });
+
+    it("streams shared channel workspace changes to current members", async () => {
+        await using rig = await createMockRigDaemon();
+        await using server = await agentServer(rig);
+        const owner = await server.createUser({ username: "channel_workspace_owner" });
+        const member = await server.createUser({ username: "channel_workspace_member" });
+        const asOwner = server.as(owner);
+        const created = await asOwner.post("/v0/chats/createChannel", {
+            kind: "public_channel",
+            name: "Live shared workspace",
+            slug: "live-shared-workspace",
+        });
+        const chatId = created.json().chat.id as string;
+        const endpoint = `/v0/chats/${chatId}/workspace`;
+        expect(workspace(await asOwner.get(endpoint)).paths).toEqual([]);
+        await waitForWorkspace(asOwner, endpoint, (candidate) => !candidate.gitStatusPending);
+        expect((await server.as(member).post(`/v0/chats/${chatId}/join`)).statusCode).toBe(200);
+
+        const baseUrl = await server.listen();
+        const controller = new AbortController();
+        const response = await fetch(`${baseUrl}/v0/sync/events`, {
+            headers: { authorization: `Bearer ${member.token}` },
+            signal: controller.signal,
+        });
+        expect(response.status).toBe(200);
+        const frames = new SseFrames(response.body!.getReader());
+        expect((await frames.next()).name).toBe("ready");
+
+        await writeFile(
+            join(rig.workspaceRoot, "channels", chatId, "live.ts"),
+            "export const live = true;\n",
+        );
+        const changed = await frames.until(
+            (frame) =>
+                frame.name === "workspace.changed" &&
+                (frame.data as { chatId?: string }).chatId === chatId,
+        );
+        expect(changed.data).toMatchObject({
+            type: "workspace.changed",
+            chatId,
+            occurredAt: expect.any(Number),
+        });
+        expect(workspace(await server.as(member).get(endpoint)).paths).toEqual(["live.ts"]);
+
+        controller.abort();
+        await frames.cancel();
     });
 
     it("adaptively defers expensive folders and pages their children with stale-cursor safety", async () => {

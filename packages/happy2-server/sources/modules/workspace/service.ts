@@ -4,6 +4,7 @@ import { constants, watch, type FSWatcher } from "node:fs";
 import {
     link,
     lstat,
+    mkdir,
     open,
     readdir,
     realpath,
@@ -12,7 +13,7 @@ import {
     type FileHandle,
 } from "node:fs/promises";
 import { dirname, join, sep } from "node:path";
-import type { CollaborationRepository } from "../collaboration/repository.js";
+import type { ChatWorkspaceTarget, CollaborationRepository } from "../collaboration/repository.js";
 import { realtimeTopics, type PubSub } from "../realtime/index.js";
 import {
     WorkspaceError,
@@ -95,6 +96,7 @@ export class WorkspaceService {
     constructor(
         private readonly repository: CollaborationRepository,
         private readonly pubsub: PubSub,
+        private readonly workspacesRoot: string,
         private readonly onError: (error: unknown) => void = () => undefined,
     ) {}
 
@@ -178,11 +180,11 @@ export class WorkspaceService {
 
     private async authorizedIndex(userId: string, chatId: string): Promise<WorkspaceIndex> {
         if (this.closed) throw new Error("Workspace service is closed");
-        const binding = await this.repository.getChatWorkspaceBinding(userId, chatId);
-        const root = await workspaceRoot(binding.cwd);
+        const target = await this.repository.getChatWorkspaceTarget(userId, chatId);
+        const root = await workspaceRoot(target, this.workspacesRoot);
         const existing = this.indexes.get(root);
         if (existing) {
-            this.attachChat(binding.chatId, existing);
+            this.attachChat(target.chatId, existing);
             this.touchWarmIndex(root, existing);
             existing.ensureWatcher();
             existing.warmUp();
@@ -192,7 +194,7 @@ export class WorkspaceService {
         const pending = this.indexCreations.get(root);
         if (pending) {
             const index = await pending;
-            this.attachChat(binding.chatId, index);
+            this.attachChat(target.chatId, index);
             this.touchWarmIndex(root, index);
             index.ensureWatcher();
             index.warmUp();
@@ -201,7 +203,7 @@ export class WorkspaceService {
         }
         const creation = (async () => {
             const index = new WorkspaceIndex(root, this.pubsub, this.onError);
-            index.attachChat(binding.chatId);
+            index.attachChat(target.chatId);
             await index.start();
             if (this.closed) {
                 await index.close();
@@ -213,7 +215,7 @@ export class WorkspaceService {
         this.indexCreations.set(root, creation);
         try {
             const index = await creation;
-            this.attachChat(binding.chatId, index);
+            this.attachChat(target.chatId, index);
             this.touchWarmIndex(root, index);
             this.coolOldIndexes();
             return index;
@@ -1140,7 +1142,10 @@ function isAlreadyExistsError(error: unknown): boolean {
     );
 }
 
-async function workspaceRoot(cwd: string): Promise<string> {
+async function workspaceRoot(target: ChatWorkspaceTarget, workspacesRoot: string): Promise<string> {
+    const cwd =
+        target.source === "rig" ? target.cwd : join(workspacesRoot, "channels", target.chatId);
+    if (target.source === "channel") await mkdir(cwd, { recursive: true, mode: 0o700 });
     try {
         const root = await realpath(cwd);
         if (!(await lstat(root)).isDirectory())

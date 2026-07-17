@@ -137,10 +137,9 @@ export interface AgentChatContext {
     binding?: { containerName: string; cwd: string; sessionId: string };
 }
 
-export interface ChatWorkspaceBinding {
-    chatId: string;
-    cwd: string;
-}
+export type ChatWorkspaceTarget =
+    | { chatId: string; source: "channel" }
+    | { chatId: string; source: "rig"; cwd: string };
 
 export interface AgentExecutionImage {
     id: string;
@@ -508,6 +507,7 @@ export class CollaborationRepository {
     async canAccessChatWorkspace(userId: string, chatId: string): Promise<boolean> {
         const chat = await this.chatAccessDb(this.db, userId, chatId, true);
         if (!chat) return false;
+        if (chat.kind !== "dm") return true;
         const bindings = await this.db
             .select({ cwd: agentRigBindings.cwd })
             .from(agentRigBindings)
@@ -517,9 +517,10 @@ export class CollaborationRepository {
         return bindings.length === 1;
     }
 
-    async getChatWorkspaceBinding(userId: string, chatId: string): Promise<ChatWorkspaceBinding> {
+    async getChatWorkspaceTarget(userId: string, chatId: string): Promise<ChatWorkspaceTarget> {
         const chat = await this.chatAccessDb(this.db, userId, chatId, true);
         if (!chat) throw new CollaborationError("not_found", "Chat workspace was not found");
+        if (chat.kind !== "dm") return { chatId: chat.id, source: "channel" };
         const bindings = await this.db
             .select({ cwd: agentRigBindings.cwd })
             .from(agentRigBindings)
@@ -528,7 +529,7 @@ export class CollaborationRepository {
             .limit(2);
         if (bindings.length !== 1)
             throw new CollaborationError("not_found", "Chat workspace was not found");
-        return { chatId: chat.id, cwd: bindings[0]!.cwd };
+        return { chatId: chat.id, source: "rig", cwd: bindings[0]!.cwd };
     }
 
     async canPostToChat(userId: string, chatId: string): Promise<boolean> {

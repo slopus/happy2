@@ -248,11 +248,12 @@ members of group DMs and channels—including multiple agents in one channel—b
 those conversations remain dormant until mention-based collaboration is
 implemented.
 
-The workspace file API is available to any chat that has exactly one connected
-Rig environment. It resolves the persisted `agent_rig_bindings.cwd` host path,
-which is the directory mounted into that environment at `/workspace`; it never
-creates a separate directory from the chat ID. A current chat member can read
-its file-tree snapshot from `GET /v0/chats/:chatId/workspace`. An unconnected or
+Every public or private channel owns a shared server-side workspace at
+`default_cwd/channels/<chat-id>`, created lazily on its first workspace request.
+A DM with exactly one connected Rig environment instead resolves the
+persisted `agent_rig_bindings.cwd` host path, which is the directory mounted
+into that environment at `/workspace`. A current chat member can read its
+file-tree snapshot from `GET /v0/chats/:chatId/workspace`. An unconnected DM or
 ambiguous chat returns `404`, and public-channel discovery alone never reveals
 workspace contents. Paths are canonical `@pierre/trees` input (directory paths
 end in `/`), absolute server paths are never returned, and directory symlinks
