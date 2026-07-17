@@ -8,11 +8,18 @@ layouts for mobile viewports.
 
 ## Feature development workflow
 
-Each worktree may contain work for only one feature at a time. Do not begin a
-second feature in a worktree before the current feature has been merged to
-`main`. If the user attempts to start another feature while the current one is
-still unmerged, stop and instruct them to create a new Conductor workspace
-(and therefore a separate Git worktree) for that feature.
+Treat each feature as one atomic, independently mergeable change, not as the
+lifetime of a Conductor workspace. A worktree may contain only one unmerged
+feature at a time. Do not begin the next feature until the current feature has
+been reviewed and pushed or merged to `main`.
+
+After that merge, reuse the same workspace/worktree when convenient. It does
+not need to be recreated, checked out directly on `main`, or have a branch tip
+identical to `origin/main` before work starts. The next feature must remain a
+separate, reviewable diff and must be rebased onto the latest `origin/main`
+during the normal sync-to-main workflow. Create another Conductor workspace
+only for parallel work or when another feature must begin while the current one
+is still unmerged.
 
 Build each feature in isolation, with an explicit boundary between its server
 and UI work. Do not mix unrelated features into the same implementation.
@@ -36,8 +43,8 @@ Every task in `TODO.md` uses the following completion loop:
    agree that no task-blocking issue remains.
 5. Run repository-wide `pnpm format`, then the final required checks. Update
    `TODO.md` with the final evidence and sync the task to `main` using
-   the workflow below. Only after that merge may the worktree begin the next
-   `TODO.md` task.
+   the workflow below. Only after that merge may the same worktree begin the
+   next `TODO.md` task.
 
 For Claude-owned UI tasks, Claude Opus performs the implementation and Codex
 performs the reciprocal review; resume the same Opus session for fixes until
