@@ -107,7 +107,11 @@ function MemberRow(props: {
                     </span>
                 </Show>
             </span>
-            <Badge class="happy2-member-list__role" label={badge().label} variant={badge().variant} />
+            <Badge
+                class="happy2-member-list__role"
+                label={badge().label}
+                variant={badge().variant}
+            />
             <Show when={trailing()}>
                 <span class="happy2-member-list__trailing" data-happy2-ui="member-trailing">
                     {trailing()}

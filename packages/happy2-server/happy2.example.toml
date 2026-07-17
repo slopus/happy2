@@ -76,8 +76,6 @@ expiry_days = 30
 
 [auth.password]
 enabled = true
-# Enable only when self-service account creation is intended.
-signup_enabled = false
 
 [auth.magic_link]
 enabled = false

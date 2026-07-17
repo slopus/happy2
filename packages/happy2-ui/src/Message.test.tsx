@@ -1694,9 +1694,10 @@ it("centers SystemNotice service lines and lifts @user / #channel refs", async (
     /* The glyph slot centers vertically against the text line box. */
     const iconCenterY = iconBounds.y + iconBounds.height / 2;
     const textCenterY = textBounds.y + textBounds.height / 2;
-    expect(Math.abs(iconCenterY - textCenterY), "notice glyph vs text center y").toBeLessThanOrEqual(
-        1,
-    );
+    expect(
+        Math.abs(iconCenterY - textCenterY),
+        "notice glyph vs text center y",
+    ).toBeLessThanOrEqual(1);
 
     await view.screenshot("Message.systemNotice.test");
 });

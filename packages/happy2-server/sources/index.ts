@@ -17,6 +17,7 @@ export * from "./modules/operations/types.js";
 export { FileStorage, type FileStorageFileSystem } from "./modules/files/storage.js";
 export * from "./modules/collaboration/types.js";
 export * from "./modules/realtime/index.js";
+export * from "./modules/setup/index.js";
 export * from "./modules/workspace/index.js";
 export { LocalAgentDockerRuntime } from "./modules/agents/index.js";
 export type {

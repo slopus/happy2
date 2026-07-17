@@ -3,7 +3,6 @@ import type { ServerConfig } from "../config/type.js";
 export interface SupportedAuthMethods {
     role: ServerConfig["server"]["role"];
     method: "password" | "magic_link" | "oidc" | "cloudflare_access" | null;
-    signupEnabled?: boolean;
     oidcProvider?: string;
 }
 
@@ -11,11 +10,7 @@ export interface SupportedAuthMethods {
 export function supportedAuthMethods(config: ServerConfig): SupportedAuthMethods {
     if (config.server.role === "api") return { role: config.server.role, method: null };
     if (config.auth.password.enabled) {
-        return {
-            role: config.server.role,
-            method: "password",
-            signupEnabled: config.auth.password.signupEnabled,
-        };
+        return { role: config.server.role, method: "password" };
     }
     if (config.auth.magicLink.enabled) return { role: config.server.role, method: "magic_link" };
     if (config.auth.cloudflareAccess.enabled)

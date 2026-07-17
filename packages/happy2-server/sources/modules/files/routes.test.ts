@@ -9,6 +9,7 @@ import { buildServer } from "../../server.js";
 import { TokenService } from "../auth/tokens.js";
 import { defaultConfig } from "../config/defaults.js";
 import { Database } from "../database.js";
+import { SetupRepository } from "../setup/index.js";
 
 describe("file pipeline HTTP API", () => {
     let app: FastifyInstance;
@@ -48,6 +49,7 @@ describe("file pipeline HTTP API", () => {
 
     it("persists resumable offsets and completes the attachment", async () => {
         const owner = await registerUser(app, "owner@example.com", "file_owner");
+        await completeSetup(database, owner.userId);
         const stranger = await registerUser(app, "stranger@example.com", "file_stranger");
         const created = await app.inject({
             method: "POST",
@@ -102,6 +104,7 @@ describe("file pipeline HTTP API", () => {
 
     it("serves generated previews only through the parent file's privacy check", async () => {
         const owner = await registerUser(app, "photo@example.com", "photo_owner");
+        await completeSetup(database, owner.userId);
         const stranger = await registerUser(app, "viewer@example.com", "photo_viewer");
         const png = await sharp({
             create: { width: 20, height: 10, channels: 4, background: "#336699" },
@@ -131,7 +134,7 @@ async function registerUser(
     app: FastifyInstance,
     email: string,
     username: string,
-): Promise<{ token: string }> {
+): Promise<{ token: string; userId: string }> {
     const registered = await app.inject({
         method: "POST",
         url: "/v0/auth/password/register",
@@ -145,7 +148,20 @@ async function registerUser(
         payload: { firstName: "Files", username, email },
     });
     expect(profile.statusCode).toBe(201);
-    return { token };
+    return { token, userId: profile.json().user.id as string };
+}
+
+async function completeSetup(database: Database, actorUserId: string): Promise<void> {
+    const setup = new SetupRepository(database.extensionClient());
+    for (const step of [
+        "sandbox_provider_selected",
+        "sandbox_provider_validated",
+        "base_image_selected",
+        "base_image_build_requested",
+        "base_image_ready",
+    ] as const)
+        await setup.recordOperationalStep({ step, state: "complete", actorUserId });
+    await setup.chooseRegistrationPolicy(actorUserId, true);
 }
 
 function appendChunk(

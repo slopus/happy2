@@ -35,7 +35,7 @@ continues to describe only proxies outside Happy (2); the private loopback hop i
 handled internally.
 
 Without a TOML file, the package starts an `all`-role app on `127.0.0.1:3000`
-with SQLite, self-service password registration, and generated JWT/pepper
+with SQLite, password authentication, and generated JWT/pepper
 material. Database, files, generated secrets, agent workspaces, and Rig runtime
 state live under `.happy2` in the invoking directory. Add `.happy2` to the
 project's ignore rules and preserve it as private application state. The
@@ -47,16 +47,49 @@ package never connects to the user's global Rig daemon. Provide
 `HAPPY2_CONFIG=/path/to/happy2.toml` to override the defaults.
 
 Clients can discover the selected authentication method at `GET /v0/auth/methods`.
-The response includes the server role and one `method` value: `password`,
-`magic_link`, `oidc`, `cloudflare_access`, or `null` in validation-only API mode. Password responses
-also report `signupEnabled`; OIDC responses report `oidcProvider`.
+The response includes the server role, the durable `registration` availability
+(`bootstrap`, `open`, or `closed`), and one `method` value: `password`,
+`magic_link`, `oidc`, `cloudflare_access`, or `null` in validation-only API mode.
+Password responses also report the derived `signupEnabled`; OIDC responses report
+`oidcProvider`.
+
+## Server and user onboarding
+
+Every new database begins with durable server onboarding. `GET /v0/setup/status`
+is the intentionally minimal public routing status. It exposes only the setup
+schema version, phase, and registration availability. An authenticated account
+uses `GET /v0/setup` for the combined server/user step state and exact next route.
+
+Before server onboarding completes, exactly one new authentication account may
+be created across password, magic-link, OIDC, or Cloudflare Access. Magic-link
+requests do not create accounts: the first successfully verified link atomically
+creates the account and claims the bootstrap slot, while other still-pending links
+cannot claim it. The bootstrap account creates the only profile allowed during
+setup and atomically becomes the administrator. All later registration attempts
+are closed while that administrator selects and validates a sandbox provider and
+builds the base agent image.
+
+The final server step is
+`POST /v0/setup/chooseRegistrationPolicy` with `{ "enabled": true | false }`.
+It succeeds only for an active server administrator after all preceding durable
+steps are complete. The selection and `server_setup_complete` transition commit
+atomically and become the sole registration policy; there is no TOML signup
+switch. Server-owned provider/image work records its own step transitions rather
+than trusting completion flags from a client.
+
+Per-user onboarding is stored separately. A user records the supported
+`avatar` or `desktop_notifications` outcome with
+`POST /v0/me/updateOnboardingStep`; the outcome is `complete` or `skipped`.
+Avatar completion is rejected until a durable avatar exists. Every transition
+writes normal sync state and emits a realtime reconciliation hint.
 
 ## Profiles and avatar files
 
 Authentication creates an inactive account. `POST /v0/me/createProfile` (with the
 temporary bearer token) creates the product-level User profile—first name,
 optional last name, username, optional email, and optional phone—and activates
-the account. Successful token-issuance responses include `profileRequired`, so a
+the account. The first setup profile atomically becomes the bootstrap administrator;
+later profiles are members after registration is opened. Successful token-issuance responses include `profileRequired`, so a
 client can enter profile creation without probing a protected product route.
 `GET /v0/me` reads the active profile and
 `POST /v0/me/updateProfile` replaces its editable state. Product routes reject
@@ -96,8 +129,10 @@ Choose exactly one of password, magic-link, OIDC, or Cloudflare Access in `happy
 rejects configurations that enable more than one method. Clients can learn the
 selected method from `GET /v0/auth/methods`.
 
-- Password registration is disabled unless `signup_enabled` is true. Every
-  password has its own random salt; a server-wide password pepper is also used.
+- Password registration follows the durable setup registration policy. The first
+  bootstrap account is allowed once; after setup, the administrator's final
+  open/closed choice applies. Every password has its own random salt; a
+  server-wide password pepper is also used.
 - Magic-link SMTP credentials are exclusively `EMAIL_SMTP_HOST`,
   `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, and `EMAIL_SMTP_PASSWORD` environment
   variables. The configured `redirect_url` should be the desktop app’s link

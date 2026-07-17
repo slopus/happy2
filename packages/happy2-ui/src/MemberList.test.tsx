@@ -513,9 +513,7 @@ it("renders a service member with an agent avatar and a Service badge", async ()
     expect(row.element.getAttribute("data-role")).toBe("service");
     expect(row.element.getAttribute("data-presence"), "service row carries no presence").toBeNull();
 
-    const avatar = view.$(
-        '[data-testid="svc"] [data-member-id="happy"] [data-happy2-ui="avatar"]',
-    );
+    const avatar = view.$('[data-testid="svc"] [data-member-id="happy"] [data-happy2-ui="avatar"]');
     expect(avatar.element.getAttribute("data-type")).toBe("agent");
     expect(
         view.container.querySelector(
@@ -536,7 +534,9 @@ it("renders a service member with an agent avatar and a Service badge", async ()
         '[data-testid="svc"] [data-member-id="ada"] [data-happy2-ui="avatar"]',
     );
     expect(humanAvatar.element.getAttribute("data-type")).toBe("human");
-    const humanBadge = view.$('[data-testid="svc"] [data-member-id="ada"] [data-happy2-ui="badge"]');
+    const humanBadge = view.$(
+        '[data-testid="svc"] [data-member-id="ada"] [data-happy2-ui="badge"]',
+    );
     expect(humanBadge.element.textContent).toBe("Owner");
     expect(
         view.container.querySelector(

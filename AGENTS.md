@@ -17,11 +17,37 @@ still unmerged, stop and instruct them to create a new Conductor workspace
 Build each feature in isolation, with an explicit boundary between its server
 and UI work. Do not mix unrelated features into the same implementation.
 
-## Fable review workflow
+## Claude Opus review workflow
 
-Never interrupt, terminate, cancel, or replace a running Claude Fable agent
-because it is slow or has not produced intermediate output. Wait for Fable to
-finish, then use its completed result.
+Never interrupt, terminate, cancel, or replace a running Claude reviewer because
+it is slow or has not produced intermediate output. Wait for Claude to finish,
+then use its completed result. Run review turns with Claude Opus at medium
+effort and streaming/verbose output so progress is visible.
+
+Every task in `TODO.md` uses the following completion loop:
+
+1. Finish the isolated implementation and its required tests.
+2. Start a Claude Opus review of the complete task diff. Do not use
+   `ultrareview`/Ultracode for this gate.
+3. Address every actionable finding, rerun the relevant checks, and resume the
+   same persisted Opus session with a concrete account of the fixes. Do not
+   replace the reviewer with a fresh session.
+4. Repeat implementation/review turns until both Codex and Opus explicitly
+   agree that no task-blocking issue remains.
+5. Run repository-wide `pnpm format`, then the final required checks. Update
+   `TODO.md` with the final evidence and sync the task to `main` using
+   the workflow below. Only after that merge may the worktree begin the next
+   `TODO.md` task.
+
+For Claude-owned UI tasks, Claude Opus performs the implementation and Codex
+performs the reciprocal review; resume the same Opus session for fixes until
+both agree. For GPT-owned server tasks, Opus is a read-only reviewer and must
+not implement server behavior.
+
+Backward compatibility is not a default product requirement. Prefer the clean
+new-server/backend and UI design unless the current task explicitly requires a
+compatibility or data-preservation contract; do not add legacy branches solely
+to preserve obsolete behavior.
 
 ## Single backlog
 
@@ -120,6 +146,12 @@ full naming, organization, harness, and lifecycle instructions.
   they are generated once and persisted to the `.env` beside the TOML file.
 - Prefer CUID2 for every newly generated identifier, including accounts, users,
   sessions, files, and other persisted records.
+- Every exported per-file server action must have a short doc comment directly
+  above the function. State its observable semantic purpose, the durable state
+  or invariant it changes, material side effects/transaction expectations, and
+  why this action boundary exists. The comment must be specific enough to
+  review the implementation against its promise without merely paraphrasing
+  the code.
 - Profiles are the product-level `User` model. Authentication `accounts` exist
   only for credentials, activation, and session management; an account without
   an active profile must not be usable by product routes.

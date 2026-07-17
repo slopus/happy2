@@ -5,7 +5,7 @@ import { createClient, type Client } from "@libsql/client";
 import { createId } from "@paralleldrive/cuid2";
 import { and, eq, gt, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/libsql/migrator";
-import { createDatabase, type DrizzleExecutor } from "./drizzle.js";
+import { createDatabase, retrySqliteBusy, type DrizzleExecutor } from "./drizzle.js";
 import {
     accounts,
     agentImages,
@@ -29,9 +29,12 @@ import {
     oidcIdentities,
     scheduledMessageAttachments,
     serverSettings,
+    serverSetupState,
+    serverSetupSteps,
     serverSyncState,
     syncEvents,
     userBookmarks,
+    userOnboardingSteps,
     users,
 } from "./schema.js";
 
@@ -71,6 +74,20 @@ export interface Account {
     active: boolean;
     bannedAt?: string;
     deletedAt?: string;
+}
+
+export class RegistrationClosedError extends Error {
+    constructor() {
+        super("Registration is closed");
+        this.name = "RegistrationClosedError";
+    }
+}
+
+export class AccountExistsError extends Error {
+    constructor() {
+        super("Account already exists");
+        this.name = "AccountExistsError";
+    }
 }
 export type FileKind = "file" | "photo" | "video" | "gif";
 export interface StoredFile {
@@ -143,6 +160,26 @@ export class Database {
         return asAccount(account);
     }
 
+    async registerPasswordAccount(email: string, passwordHash: string): Promise<Account> {
+        return retrySqliteBusy(() =>
+            this.db.transaction(async (tx) => {
+                await requireNewRegistrationRequestAllowedDb(tx);
+                const [existing] = await tx
+                    .select({ id: accounts.id })
+                    .from(accounts)
+                    .where(eq(accounts.email, email));
+                if (existing) throw new AccountExistsError();
+                const [account] = await tx
+                    .insert(accounts)
+                    .values({ id: createId(), email, passwordHash })
+                    .returning();
+                if (!account) throw new Error("Could not create account");
+                await authorizeNewRegistrationDb(tx, account.id);
+                return asAccount(account);
+            }),
+        );
+    }
+
     async findPasswordAccount(email: string): Promise<Account | undefined> {
         const [account] = await this.db.select().from(accounts).where(eq(accounts.email, email));
         return account ? asAccount(account) : undefined;
@@ -153,27 +190,36 @@ export class Database {
         subject: string,
         email: string,
     ): Promise<Account> {
-        return this.db.transaction(async (tx) => {
-            await tx
-                .insert(accounts)
-                .values({ id: createId(), email })
-                .onConflictDoNothing({ target: accounts.email });
-            const [account] = await tx.select().from(accounts).where(eq(accounts.email, email));
-            if (!account) throw new Error("Could not create OIDC account");
-            await tx
-                .insert(oidcIdentities)
-                .values({ provider, subject, accountId: account.id })
-                .onConflictDoNothing();
-            const [identity] = await tx
-                .select({ account: accounts })
-                .from(oidcIdentities)
-                .innerJoin(accounts, eq(accounts.id, oidcIdentities.accountId))
-                .where(
-                    and(eq(oidcIdentities.provider, provider), eq(oidcIdentities.subject, subject)),
-                );
-            if (!identity) throw new Error("Could not create OIDC identity");
-            return asAccount(identity.account);
-        });
+        return retrySqliteBusy(() =>
+            this.db.transaction(async (tx) => {
+                const [knownIdentity] = await tx
+                    .select({ account: accounts })
+                    .from(oidcIdentities)
+                    .innerJoin(accounts, eq(accounts.id, oidcIdentities.accountId))
+                    .where(
+                        and(
+                            eq(oidcIdentities.provider, provider),
+                            eq(oidcIdentities.subject, subject),
+                        ),
+                    );
+                if (knownIdentity) return asAccount(knownIdentity.account);
+                let [account] = await tx.select().from(accounts).where(eq(accounts.email, email));
+                if (!account) {
+                    [account] = await tx
+                        .insert(accounts)
+                        .values({ id: createId(), email })
+                        .returning();
+                    if (!account) throw new Error("Could not create OIDC account");
+                    await authorizeNewRegistrationDb(tx, account.id);
+                }
+                await tx.insert(oidcIdentities).values({
+                    provider,
+                    subject,
+                    accountId: account.id,
+                });
+                return asAccount(account);
+            }),
+        );
     }
 
     async findOidcAccount(provider: string, subject: string): Promise<Account | undefined> {
@@ -382,83 +428,183 @@ export class Database {
         }
     }
 
-    async createProfile(accountId: string, profile: CreateProfile): Promise<User> {
-        return this.db.transaction(async (tx) => {
-            const [account] = await tx
-                .select({ id: accounts.id })
-                .from(accounts)
-                .where(
-                    and(
-                        eq(accounts.id, accountId),
-                        isNull(accounts.bannedAt),
-                        isNull(accounts.deletedAt),
-                    ),
+    async createProfile(
+        accountId: string,
+        profile: CreateProfile,
+        /** Trusted test/provisioning bypass; request handlers must use the default. */
+        options: { provisioned?: boolean } = {},
+    ): Promise<User> {
+        return retrySqliteBusy(() =>
+            this.db.transaction(async (tx) => {
+                const [account] = await tx
+                    .select({ id: accounts.id })
+                    .from(accounts)
+                    .where(
+                        and(
+                            eq(accounts.id, accountId),
+                            isNull(accounts.bannedAt),
+                            isNull(accounts.deletedAt),
+                        ),
+                    );
+                if (!account) throw new Error("Could not create user profile");
+                const [existingProvisionedUser] = options.provisioned
+                    ? await tx
+                          .select({ id: users.id })
+                          .from(users)
+                          .innerJoin(accounts, eq(accounts.id, users.accountId))
+                          .where(
+                              and(
+                                  eq(users.kind, "human"),
+                                  isNull(users.deletedAt),
+                                  eq(accounts.active, 1),
+                                  isNull(accounts.bannedAt),
+                                  isNull(accounts.deletedAt),
+                              ),
+                          )
+                          .limit(1)
+                    : [];
+                const [setup] = await tx
+                    .select({
+                        bootstrapAccountId: serverSetupState.bootstrapAccountId,
+                        bootstrapAdminUserId: serverSetupState.bootstrapAdminUserId,
+                    })
+                    .from(serverSetupState)
+                    .where(eq(serverSetupState.id, 1));
+                const [completion] = await tx
+                    .select({ state: serverSetupSteps.state })
+                    .from(serverSetupSteps)
+                    .where(eq(serverSetupSteps.step, "server_setup_complete"));
+                if (!setup || !completion) throw new Error("Server setup state is not initialized");
+                const setupComplete = completion.state === "complete";
+                if (
+                    !options.provisioned &&
+                    !setupComplete &&
+                    setup.bootstrapAccountId &&
+                    setup.bootstrapAccountId !== accountId
+                )
+                    throw new RegistrationClosedError();
+                if (!options.provisioned && !setupComplete && !setup.bootstrapAccountId) {
+                    const [reserved] = await tx
+                        .update(serverSetupState)
+                        .set({
+                            bootstrapAccountId: accountId,
+                            updatedAt: new Date().toISOString(),
+                        })
+                        .where(
+                            and(
+                                eq(serverSetupState.id, 1),
+                                isNull(serverSetupState.bootstrapAccountId),
+                            ),
+                        )
+                        .returning({ id: serverSetupState.id });
+                    if (!reserved) throw new RegistrationClosedError();
+                }
+                const id = createId();
+                const [user] = await tx
+                    .insert(users)
+                    .values({
+                        id,
+                        accountId,
+                        firstName: profile.firstName,
+                        lastName: profile.lastName ?? null,
+                        username: profile.username,
+                        email: profile.email ?? null,
+                        phone: profile.phone ?? null,
+                        role: options.provisioned && !existingProvisionedUser ? "admin" : "member",
+                    })
+                    .returning();
+                if (!user) throw new Error("Could not create user profile");
+                let bootstrapClaimed = false;
+                if (!options.provisioned && !setupComplete && !setup.bootstrapAdminUserId) {
+                    const [claim] = await tx
+                        .update(serverSetupState)
+                        .set({
+                            bootstrapAdminUserId: id,
+                            updatedAt: new Date().toISOString(),
+                        })
+                        .where(
+                            and(
+                                eq(serverSetupState.id, 1),
+                                eq(serverSetupState.bootstrapAccountId, accountId),
+                                isNull(serverSetupState.bootstrapAdminUserId),
+                            ),
+                        )
+                        .returning({ id: serverSetupState.id });
+                    bootstrapClaimed = Boolean(claim);
+                    if (!bootstrapClaimed) throw new RegistrationClosedError();
+                    await tx.update(users).set({ role: "admin" }).where(eq(users.id, id));
+                    const now = new Date().toISOString();
+                    await tx
+                        .update(serverSetupSteps)
+                        .set({
+                            state: "complete",
+                            metadataJson: JSON.stringify({ source: "profile_claim" }),
+                            startedAt: now,
+                            completedAt: now,
+                            updatedAt: now,
+                        })
+                        .where(eq(serverSetupSteps.step, "bootstrap_administrator"));
+                }
+                const [activation] = await tx
+                    .update(accounts)
+                    .set({ active: 1 })
+                    .where(
+                        and(
+                            eq(accounts.id, accountId),
+                            isNull(accounts.bannedAt),
+                            isNull(accounts.deletedAt),
+                        ),
+                    )
+                    .returning({ id: accounts.id });
+                if (!activation) throw new Error("Account no longer exists");
+                await tx.insert(userOnboardingSteps).values([
+                    { userId: id, step: "avatar", state: "pending" },
+                    { userId: id, step: "desktop_notifications", state: "pending" },
+                ]);
+                const sequence = await nextSequence(tx);
+                await tx.update(users).set({ syncSequence: sequence }).where(eq(users.id, id));
+                await tx.insert(syncEvents).values([
+                    {
+                        sequence,
+                        kind: "user.created",
+                        entityId: id,
+                        actorUserId: id,
+                    },
+                    ...(bootstrapClaimed
+                        ? [
+                              {
+                                  sequence,
+                                  kind: "setup.bootstrap_administrator.complete",
+                                  entityId: "bootstrap_administrator",
+                                  actorUserId: id,
+                              },
+                          ]
+                        : []),
+                ]);
+                const happyUserId = await this.joinUserToAutoJoinChannels(
+                    tx,
+                    {
+                        id,
+                        username: profile.username,
+                    },
+                    sequence,
                 );
-            if (!account) throw new Error("Could not create user profile");
-            const [existing] = await tx
-                .select({ id: users.id })
-                .from(users)
-                .innerJoin(accounts, eq(accounts.id, users.accountId))
-                .where(
-                    and(
-                        isNull(users.deletedAt),
-                        eq(accounts.active, 1),
-                        isNull(accounts.bannedAt),
-                        isNull(accounts.deletedAt),
-                    ),
-                )
-                .limit(1);
-            const id = createId();
-            const [user] = await tx
-                .insert(users)
-                .values({
-                    id,
-                    accountId,
-                    firstName: profile.firstName,
-                    lastName: profile.lastName ?? null,
-                    username: profile.username,
-                    email: profile.email ?? null,
-                    phone: profile.phone ?? null,
-                    role: existing ? "member" : "admin",
-                })
-                .returning();
-            if (!user) throw new Error("Could not create user profile");
-            const [activation] = await tx
-                .update(accounts)
-                .set({ active: 1 })
-                .where(
-                    and(
-                        eq(accounts.id, accountId),
-                        isNull(accounts.bannedAt),
-                        isNull(accounts.deletedAt),
-                    ),
-                )
-                .returning({ id: accounts.id });
-            if (!activation) throw new Error("Account no longer exists");
-            const sequence = await nextSequence(tx);
-            await tx.update(users).set({ syncSequence: sequence }).where(eq(users.id, id));
-            await tx.insert(syncEvents).values({
-                sequence,
-                kind: "user.created",
-                entityId: id,
-                actorUserId: id,
-            });
-            const happyUserId = await this.joinUserToAutoJoinChannels(
-                tx,
-                {
-                    id,
-                    username: profile.username,
-                },
-                sequence,
-            );
-            await this.announceUserJoinedServer(
-                tx,
-                { id, username: profile.username },
-                happyUserId,
-                sequence,
-            );
-            return asUser({ ...user, syncSequence: sequence });
-        });
+                await this.announceUserJoinedServer(
+                    tx,
+                    { id, username: profile.username },
+                    happyUserId,
+                    sequence,
+                );
+                return asUser({
+                    ...user,
+                    role:
+                        bootstrapClaimed || (options.provisioned && !existingProvisionedUser)
+                            ? "admin"
+                            : "member",
+                    syncSequence: sequence,
+                });
+            }),
+        );
     }
 
     private async ensureChannelDefaults(executor: DrizzleExecutor): Promise<void> {
@@ -831,45 +977,64 @@ export class Database {
         });
     }
 
-    async createMagicLink(email: string, rawToken: string): Promise<void> {
-        await this.db.transaction(async (tx) => {
-            await tx
-                .insert(accounts)
-                .values({ id: createId(), email })
-                .onConflictDoNothing({ target: accounts.email });
-            const [account] = await tx
-                .select({ id: accounts.id })
-                .from(accounts)
-                .where(eq(accounts.email, email));
-            if (!account) throw new Error("Could not create magic-link account");
-            await tx.insert(authMagicLinks).values({
-                tokenHash: tokenHash(rawToken),
-                accountId: account.id,
-                expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
-            });
-        });
+    async createMagicLink(email: string, rawToken: string): Promise<boolean> {
+        try {
+            await retrySqliteBusy(() =>
+                this.db.transaction(async (tx) => {
+                    const [account] = await tx
+                        .select({ id: accounts.id })
+                        .from(accounts)
+                        .where(eq(accounts.email, email));
+                    if (!account) await requireNewRegistrationRequestAllowedDb(tx);
+                    await tx.insert(authMagicLinks).values({
+                        tokenHash: tokenHash(rawToken),
+                        email,
+                        expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+                    });
+                }),
+            );
+            return true;
+        } catch (error) {
+            if (error instanceof RegistrationClosedError) return false;
+            throw error;
+        }
     }
 
     async consumeMagicLink(rawToken: string): Promise<Account | undefined> {
-        return this.db.transaction(async (tx) => {
-            const [link] = await tx
-                .update(authMagicLinks)
-                .set({ consumedAt: sql`CURRENT_TIMESTAMP` })
-                .where(
-                    and(
-                        eq(authMagicLinks.tokenHash, tokenHash(rawToken)),
-                        isNull(authMagicLinks.consumedAt),
-                        gt(authMagicLinks.expiresAt, new Date().toISOString()),
-                    ),
-                )
-                .returning({ accountId: authMagicLinks.accountId });
-            if (!link) return undefined;
-            const [account] = await tx
-                .select()
-                .from(accounts)
-                .where(eq(accounts.id, link.accountId));
-            return account ? asAccount(account) : undefined;
-        });
+        try {
+            return await retrySqliteBusy(() =>
+                this.db.transaction(async (tx) => {
+                    const [link] = await tx
+                        .update(authMagicLinks)
+                        .set({ consumedAt: sql`CURRENT_TIMESTAMP` })
+                        .where(
+                            and(
+                                eq(authMagicLinks.tokenHash, tokenHash(rawToken)),
+                                isNull(authMagicLinks.consumedAt),
+                                gt(authMagicLinks.expiresAt, new Date().toISOString()),
+                            ),
+                        )
+                        .returning({ email: authMagicLinks.email });
+                    if (!link) return undefined;
+                    let [account] = await tx
+                        .select()
+                        .from(accounts)
+                        .where(eq(accounts.email, link.email));
+                    if (!account) {
+                        [account] = await tx
+                            .insert(accounts)
+                            .values({ id: createId(), email: link.email })
+                            .returning();
+                        if (!account) throw new Error("Could not create magic-link account");
+                        await authorizeNewRegistrationDb(tx, account.id);
+                    }
+                    return asAccount(account);
+                }),
+            );
+        } catch (error) {
+            if (error instanceof RegistrationClosedError) return undefined;
+            throw error;
+        }
     }
 
     async createOidcState(
@@ -1231,6 +1396,57 @@ async function nextSequence(executor: DrizzleExecutor): Promise<number> {
         .returning({ sequence: serverSyncState.sequence });
     if (!state) throw new Error("Sync state is not initialized");
     return state.sequence;
+}
+
+/** Atomically claims the bootstrap slot, or enforces the final open-registration policy. */
+async function authorizeNewRegistrationDb(
+    executor: DrizzleExecutor,
+    accountId: string,
+): Promise<void> {
+    const [setup] = await executor
+        .select({
+            bootstrapAccountId: serverSetupState.bootstrapAccountId,
+            registrationEnabled: serverSetupState.registrationEnabled,
+        })
+        .from(serverSetupState)
+        .where(eq(serverSetupState.id, 1));
+    const [completion] = await executor
+        .select({ state: serverSetupSteps.state })
+        .from(serverSetupSteps)
+        .where(eq(serverSetupSteps.step, "server_setup_complete"));
+    if (!setup || !completion) throw new Error("Server setup state is not initialized");
+    if (completion.state === "complete") {
+        if (setup.registrationEnabled !== 1) throw new RegistrationClosedError();
+        return;
+    }
+    if (setup.bootstrapAccountId) throw new RegistrationClosedError();
+    const [reserved] = await executor
+        .update(serverSetupState)
+        .set({ bootstrapAccountId: accountId, updatedAt: new Date().toISOString() })
+        .where(and(eq(serverSetupState.id, 1), isNull(serverSetupState.bootstrapAccountId)))
+        .returning({ id: serverSetupState.id });
+    if (!reserved) throw new RegistrationClosedError();
+}
+
+/** Checks whether a registration may start without reserving the bootstrap slot. */
+async function requireNewRegistrationRequestAllowedDb(executor: DrizzleExecutor): Promise<void> {
+    const [setup] = await executor
+        .select({
+            bootstrapAccountId: serverSetupState.bootstrapAccountId,
+            registrationEnabled: serverSetupState.registrationEnabled,
+        })
+        .from(serverSetupState)
+        .where(eq(serverSetupState.id, 1));
+    const [completion] = await executor
+        .select({ state: serverSetupSteps.state })
+        .from(serverSetupSteps)
+        .where(eq(serverSetupSteps.step, "server_setup_complete"));
+    if (!setup || !completion) throw new Error("Server setup state is not initialized");
+    const allowed =
+        completion.state === "complete"
+            ? setup.registrationEnabled === 1
+            : setup.bootstrapAccountId === null;
+    if (!allowed) throw new RegistrationClosedError();
 }
 
 async function recordSessionEvent(

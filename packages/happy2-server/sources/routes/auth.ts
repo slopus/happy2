@@ -1,14 +1,26 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ServerConfig } from "../modules/config/type.js";
 import { supportedAuthMethods } from "../modules/auth/methods.js";
 import { AuthService } from "../modules/auth/service.js";
+import type { User } from "../modules/database.js";
+import type { SetupRepository } from "../modules/setup/index.js";
 
 export function registerAuthRoutes(
     app: FastifyInstance,
     config: ServerConfig,
     auth: AuthService,
+    setup: SetupRepository,
+    onProfileCreated?: (request: FastifyRequest, user: User) => Promise<void>,
 ): void {
-    app.get("/v0/auth/methods", async () => supportedAuthMethods(config));
+    app.get("/v0/auth/methods", async () => {
+        const methods = supportedAuthMethods(config);
+        const registration = await setup.registrationAvailability();
+        return {
+            ...methods,
+            ...(methods.method === "password" ? { signupEnabled: registration !== "closed" } : {}),
+            registration,
+        };
+    });
     app.get("/v0/auth/session", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return reply.code(401).send({ error: "unauthorized" });
@@ -28,13 +40,15 @@ export function registerAuthRoutes(
 
     if (config.auth.password.enabled) {
         app.post("/v0/auth/password/register", async (request, reply) => {
-            if (!config.auth.password.signupEnabled)
-                return reply.code(404).send({ error: "not_found" });
             try {
                 const result = await auth.registerPassword(request.body, request);
-                return result === "invalid"
-                    ? reply.code(400).send({ error: "invalid_credentials" })
-                    : reply.code(201).send(result);
+                if (result === "invalid")
+                    return reply.code(400).send({ error: "invalid_credentials" });
+                if (result === "registration_closed")
+                    return reply.code(403).send({ error: "registration_closed" });
+                if (result === "account_exists")
+                    return reply.code(409).send({ error: "account_exists" });
+                return reply.code(201).send(result);
             } catch (error: unknown) {
                 if (isUniqueConstraint(error))
                     return reply.code(409).send({ error: "account_exists" });
@@ -52,6 +66,9 @@ export function registerAuthRoutes(
             const result = await auth.createProfile(request.body, request);
             if (result === "unauthorized") return reply.code(401).send({ error: "unauthorized" });
             if (result === "invalid") return reply.code(400).send({ error: "invalid_profile" });
+            if (result === "registration_closed")
+                return reply.code(403).send({ error: "registration_closed" });
+            await onProfileCreated?.(request, result);
             return reply.code(201).send({ user: result });
         } catch (error: unknown) {
             if (isUniqueConstraint(error))
@@ -98,6 +115,8 @@ export function registerAuthRoutes(
                 return reply.code(401).send({ error: "oidc_authorization_failed" });
             if (result === "invalid_state")
                 return reply.code(401).send({ error: "invalid_oidc_state" });
+            if (result === "registration_closed")
+                return reply.code(403).send({ error: "registration_closed" });
             return result;
         });
     }

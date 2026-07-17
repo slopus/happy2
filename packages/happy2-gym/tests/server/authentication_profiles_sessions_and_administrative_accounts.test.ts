@@ -20,7 +20,6 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
             await using server = await createGymServer({
                 configure(config) {
                     config.auth.password.enabled = true;
-                    config.auth.password.signupEnabled = true;
                 },
             });
 
@@ -28,6 +27,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
                 role: "all",
                 method: "password",
                 signupEnabled: true,
+                registration: "bootstrap",
             });
             expect(
                 (
@@ -145,37 +145,46 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
         });
     });
 
-    it("advertises password sign-up policy and leaves disabled registration unavailable", async () => {
+    it("allows one bootstrap registration before a registration policy exists", async () => {
         await withEnvironment(
             { HAPPY2_PASSWORD_PEPPER: "gym-auth-closed-signup-pepper" },
             async () => {
                 await using server = await createGymServer({
                     configure(config) {
                         config.auth.password.enabled = true;
-                        config.auth.password.signupEnabled = false;
                     },
                 });
                 expect((await server.get("/v0/auth/methods")).json()).toEqual({
                     role: "all",
                     method: "password",
+                    signupEnabled: true,
+                    registration: "bootstrap",
+                });
+                const payload = {
+                    email: "closed-signup@example.com",
+                    password: "correct horse battery staple",
+                };
+                expect((await server.post("/v0/auth/password/register", payload)).statusCode).toBe(
+                    201,
+                );
+                expect((await server.get("/v0/auth/methods")).json()).toMatchObject({
                     signupEnabled: false,
+                    registration: "closed",
                 });
                 expect(
                     (
                         await server.post("/v0/auth/password/register", {
-                            email: "closed-signup@example.com",
-                            password: "correct horse battery staple",
+                            email: "another@example.com",
+                            password: payload.password,
                         })
                     ).statusCode,
-                ).toBe(404);
-                expect(
-                    (
-                        await server.post("/v0/auth/password/login", {
-                            email: "closed-signup@example.com",
-                            password: "correct horse battery staple",
-                        })
-                    ).json(),
-                ).toEqual({ error: "invalid_credentials" });
+                ).toBe(403);
+                expect((await server.post("/v0/auth/password/register", payload)).statusCode).toBe(
+                    403,
+                );
+                expect((await server.post("/v0/auth/password/login", payload)).statusCode).toBe(
+                    200,
+                );
             },
         );
     });
@@ -185,16 +194,26 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
             await using server = await createGymServer({
                 configure(config) {
                     config.auth.password.enabled = true;
-                    config.auth.password.signupEnabled = true;
                 },
             });
             const payload = {
                 email: "duplicate-password@example.com",
                 password: "correct horse battery staple",
             };
-            expect((await server.post("/v0/auth/password/register", payload)).statusCode).toBe(201);
+            const registered = await server.post("/v0/auth/password/register", payload);
+            expect(registered.statusCode).toBe(201);
+            const admin = tokenClient(server, registered.json().token as string);
+            const profile = await admin.post("/v0/me/createProfile", {
+                firstName: "Duplicate",
+                username: "duplicate_password_admin",
+                email: payload.email,
+            });
+            await server.completeSetup({
+                actorUserId: profile.json().user.id as string,
+                registrationEnabled: true,
+            });
 
-            // A known account is a clear conflict, without leaking server internals.
+            // Once registration is open, a known account is a clear conflict.
             const duplicate = await server.post("/v0/auth/password/register", payload);
             expect(duplicate.statusCode).toBe(409);
             expect(duplicate.json()).toEqual({ error: "account_exists" });
@@ -220,13 +239,77 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
                             config.auth.magicLink.redirectUrl = "happy2://auth/magic-link";
                         },
                     });
-                    const admin = await server.createUser({ username: "magic_link_admin" });
-                    const asAdmin = server.as(admin);
+                    expect(
+                        (
+                            await server.post("/v0/auth/magic-link/request", {
+                                email: "mistyped-bootstrap@example.com",
+                            })
+                        ).statusCode,
+                    ).toBe(202);
+                    await inbox.nextMessage();
+                    expect((await server.get("/v0/setup/status")).json()).toMatchObject({
+                        registration: "bootstrap",
+                    });
+
+                    const bootstrapEmail = "magic.bootstrap@example.com";
+                    expect(
+                        (
+                            await server.post("/v0/auth/magic-link/request", {
+                                email: bootstrapEmail,
+                            })
+                        ).statusCode,
+                    ).toBe(202);
+                    const bootstrapToken = magicLinkToken(await inbox.nextMessage());
+                    const bootstrapVerification = await server.post("/v0/auth/magic-link/verify", {
+                        token: bootstrapToken,
+                    });
+                    const asAdmin = tokenClient(
+                        server,
+                        bootstrapVerification.json().token as string,
+                    );
+                    const bootstrapProfile = await asAdmin.post("/v0/me/createProfile", {
+                        firstName: "Magic",
+                        username: "magic_link_admin",
+                        email: bootstrapEmail,
+                    });
+                    expect(bootstrapProfile.statusCode).toBe(201);
+                    expect(bootstrapProfile.json().user.role).toBe("admin");
+
+                    // The endpoint remains enumeration-safe, but no second account or email is
+                    // created while the bootstrap administrator is still configuring the server.
+                    expect(
+                        (
+                            await server.post("/v0/auth/magic-link/request", {
+                                email: "blocked.magic@example.com",
+                            })
+                        ).statusCode,
+                    ).toBe(202);
+                    expect(inbox.pendingMessages()).toBe(0);
+                    expect(
+                        (
+                            await server.post("/v0/auth/magic-link/request", {
+                                email: bootstrapEmail,
+                            })
+                        ).statusCode,
+                    ).toBe(202);
+                    const closedLoginToken = magicLinkToken(await inbox.nextMessage());
+                    expect(
+                        (
+                            await server.post("/v0/auth/magic-link/verify", {
+                                token: closedLoginToken,
+                            })
+                        ).statusCode,
+                    ).toBe(200);
+                    await server.completeSetup({
+                        actorUserId: bootstrapProfile.json().user.id as string,
+                        registrationEnabled: true,
+                    });
                     const email = "magic.link@example.com";
 
                     expect((await server.get("/v0/auth/methods")).json()).toEqual({
                         role: "all",
                         method: "magic_link",
+                        registration: "open",
                     });
                     const request = await server.post("/v0/auth/magic-link/request", { email });
                     expect(request.statusCode).toBe(202);
@@ -286,39 +369,53 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
                         });
                     },
                 });
-                await server.createUser({ username: "oidc_bootstrap_admin" });
                 expect((await server.get("/v0/auth/methods")).json()).toEqual({
                     role: "all",
                     method: "oidc",
                     oidcProvider: "gym",
+                    registration: "bootstrap",
                 });
                 expect((await server.get("/v0/auth/oidc/missing/start")).statusCode).toBe(404);
 
-                const start = await server.get("/v0/auth/oidc/gym/start");
-                expect(start.statusCode).toBe(302);
-                const authorization = new URL(start.headers.location as string);
+                provider.setIdentity("oidc-bootstrap-subject", "oidc.bootstrap@example.com");
+                const bootstrapOidc = await completeOidcLogin(server, provider);
+                const authorization = bootstrapOidc.authorization;
                 expect(authorization.origin).toBe(provider.origin);
                 expect(authorization.searchParams.get("code_challenge_method")).toBe("S256");
-                const state = authorization.searchParams.get("state");
-                provider.setExpectedNonce(authorization.searchParams.get("nonce"));
-                expect(state).toEqual(expect.any(String));
+                expect(bootstrapOidc.state).toEqual(expect.any(String));
+                expect(bootstrapOidc.callback.statusCode).toBe(200);
+                const admin = tokenClient(server, bootstrapOidc.callback.json().token as string);
+                const adminProfile = await admin.post("/v0/me/createProfile", {
+                    firstName: "OIDC",
+                    username: "oidc_bootstrap_admin",
+                    email: "oidc.bootstrap@example.com",
+                });
+                expect(adminProfile.statusCode).toBe(201);
+                expect(adminProfile.json().user.role).toBe("admin");
 
-                const callback = await server.get(
-                    `/v0/auth/oidc/gym/callback?code=gym-code&state=${encodeURIComponent(state!)}`,
-                );
-                expect(callback.statusCode).toBe(200);
-                const bearer = tokenClient(server, callback.json().token as string);
-                expect((await bearer.get("/v0/me")).statusCode).toBe(401);
+                provider.setIdentity("oidc-member-subject", "oidc.member@example.com");
+                const blocked = await completeOidcLogin(server, provider);
+                expect(blocked.callback.statusCode).toBe(403);
+                expect(blocked.callback.json()).toEqual({ error: "registration_closed" });
+
+                await server.completeSetup({
+                    actorUserId: adminProfile.json().user.id as string,
+                    registrationEnabled: true,
+                });
+                const memberOidc = await completeOidcLogin(server, provider);
+                expect(memberOidc.callback.statusCode).toBe(200);
+                const member = tokenClient(server, memberOidc.callback.json().token as string);
+                expect((await member.get("/v0/me")).statusCode).toBe(401);
                 expect(
                     (
-                        await bearer.post("/v0/me/createProfile", {
+                        await member.post("/v0/me/createProfile", {
                             firstName: "OIDC",
                             username: "oidc_member",
                             email: "oidc.member@example.com",
                         })
                     ).statusCode,
                 ).toBe(201);
-                expect((await bearer.get("/v0/me")).json().user).toMatchObject({
+                expect((await member.get("/v0/me")).json().user).toMatchObject({
                     username: "oidc_member",
                     email: "oidc.member@example.com",
                     role: "member",
@@ -326,7 +423,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
                 expect(
                     (
                         await server.get(
-                            `/v0/auth/oidc/gym/callback?code=gym-code&state=${encodeURIComponent(state!)}`,
+                            `/v0/auth/oidc/gym/callback?code=gym-code&state=${encodeURIComponent(memberOidc.state)}`,
                         )
                     ).json(),
                 ).toEqual({ error: "invalid_oidc_state" });
@@ -431,7 +528,6 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
                 await using server = await createGymServer({
                     configure(config) {
                         config.auth.password.enabled = true;
-                        config.auth.password.signupEnabled = true;
                     },
                 });
                 const registered = await server.post("/v0/auth/password/register", {
@@ -488,6 +584,19 @@ function tokenClient(server: GymServer, token: string) {
     };
 }
 
+async function completeOidcLogin(server: GymServer, provider: OidcProvider) {
+    const start = await server.get("/v0/auth/oidc/gym/start");
+    expect(start.statusCode).toBe(302);
+    const authorization = new URL(start.headers.location as string);
+    const state = authorization.searchParams.get("state");
+    if (!state) throw new Error("OIDC authorization did not contain state");
+    provider.setExpectedNonce(authorization.searchParams.get("nonce"));
+    const callback = await server.get(
+        `/v0/auth/oidc/gym/callback?code=gym-code&state=${encodeURIComponent(state)}`,
+    );
+    return { authorization, state, callback };
+}
+
 async function withEnvironment(
     values: Record<string, string>,
     run: () => Promise<void>,
@@ -507,6 +616,7 @@ async function withEnvironment(
 interface SmtpInbox {
     port: number;
     nextMessage(): Promise<string>;
+    pendingMessages(): number;
     close(): Promise<void>;
 }
 
@@ -585,6 +695,7 @@ async function createSmtpInbox(): Promise<SmtpInbox> {
                 });
             });
         },
+        pendingMessages: () => messages.length,
         async close() {
             for (const socket of sockets) socket.destroy();
             await closeServer(server);
@@ -603,6 +714,7 @@ interface OidcProvider {
     origin: string;
     discoveryUrl: string;
     setExpectedNonce(value: string | null): void;
+    setIdentity(subject: string, email: string): void;
     close(): Promise<void>;
 }
 
@@ -612,6 +724,8 @@ async function createOidcProvider(): Promise<OidcProvider> {
     });
     const publicJwk = (keys.publicKey as KeyObject).export({ format: "jwk" });
     let expectedNonce: string | undefined;
+    let identitySubject = "oidc-subject";
+    let identityEmail = "oidc.member@example.com";
     let origin = "";
     const server = createHttpServer(async (request, response) => {
         const url = new URL(request.url ?? "/", origin);
@@ -638,8 +752,8 @@ async function createOidcProvider(): Promise<OidcProvider> {
                 id_token: signIdentityToken(keys.privateKey as KeyObject, {
                     iss: origin,
                     aud: "gym-client",
-                    sub: "gym-oidc-subject",
-                    email: "oidc.member@example.com",
+                    sub: identitySubject,
+                    email: identityEmail,
                     email_verified: true,
                     nonce: expectedNonce,
                     iat: Math.floor(Date.now() / 1_000),
@@ -659,6 +773,10 @@ async function createOidcProvider(): Promise<OidcProvider> {
         discoveryUrl: `${origin}/.well-known/openid-configuration`,
         setExpectedNonce(value) {
             expectedNonce = value ?? undefined;
+        },
+        setIdentity(subject, email) {
+            identitySubject = subject;
+            identityEmail = email;
         },
         close: () => closeServer(server),
     };

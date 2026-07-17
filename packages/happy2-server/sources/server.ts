@@ -24,6 +24,7 @@ import { OperationsRepository } from "./modules/operations/repository.js";
 import { DataExportWorker } from "./modules/operations/export-worker.js";
 import { OperationsError } from "./modules/operations/types.js";
 import { LocalPubSub, realtimeTopics, type PubSub } from "./modules/realtime/index.js";
+import { SetupRepository } from "./modules/setup/index.js";
 import { WorkspaceService } from "./modules/workspace/index.js";
 import {
     createRateLimitHook,
@@ -43,6 +44,7 @@ import { registerFileRoutes } from "./routes/files.js";
 import { registerIntegrationRoutes } from "./routes/integrations.js";
 import { registerOperationsRoutes } from "./routes/operations.js";
 import { registerSyncRoutes } from "./routes/sync.js";
+import { registerSetupRoutes } from "./routes/setup.js";
 import { registerWorkspaceRoutes } from "./routes/workspace.js";
 
 interface Services {
@@ -88,6 +90,14 @@ export async function buildServer(
     });
 
     registerBasicRoutes(app);
+    const productServer = config.server.role !== "auth";
+    const setup = new SetupRepository(services.database.extensionClient());
+    let pubsub: PubSub | undefined = productServer
+        ? (services.pubsub ??
+          new LocalPubSub({
+              onSubscriberError: (error) => app.log.error(error),
+          }))
+        : undefined;
     const auth = new AuthService(config, services.database, services.tokens);
     const rateLimiter =
         services.rateLimiter ??
@@ -128,9 +138,27 @@ export async function buildServer(
               )
             : undefined);
     if (idempotency) registerIdempotencyHooks(app, auth, idempotency);
-    registerAuthRoutes(app, config, auth);
+    registerAuthRoutes(
+        app,
+        config,
+        auth,
+        setup,
+        pubsub
+            ? async (request, user) => {
+                  const hint = await setup.currentSyncHint([
+                      "users",
+                      "user-onboarding",
+                      ...(user.role === "admin" ? ["setup"] : []),
+                  ]);
+                  try {
+                      await pubsub!.publish(realtimeTopics.server, { type: "sync", ...hint });
+                  } catch (error) {
+                      request.log.warn({ err: error }, "Could not publish profile sync hint");
+                  }
+              }
+            : undefined,
+    );
     let collaboration: CollaborationRepository | undefined;
-    let pubsub: PubSub | undefined;
     let automation: AutomationRepository | undefined;
     let integrations: IntegrationRepository | undefined;
     let operations: OperationsRepository | undefined;
@@ -142,23 +170,19 @@ export async function buildServer(
     let workspaceService: WorkspaceService | undefined;
     let expiryTimer: NodeJS.Timeout | undefined;
     let pendingSweep: Promise<void> = Promise.resolve();
-    const productServer = config.server.role !== "auth";
     if (productServer) {
+        const livePubsub = pubsub!;
         collaboration =
             services.collaboration ??
             new CollaborationRepository(services.database.extensionClient());
         await collaboration.initialize();
-        pubsub =
-            services.pubsub ??
-            new LocalPubSub({
-                onSubscriberError: (error) => app.log.error(error),
-            });
+        registerSetupRoutes(app, auth, setup, livePubsub);
         agentService =
             services.agents ??
             (config.agents.enabled
                 ? new AgentService(
                       collaboration,
-                      pubsub,
+                      livePubsub,
                       new RigDaemonClient(config.agents),
                       services.agentDocker ?? new LocalAgentDockerRuntime(),
                       config.agents.defaultCwd,
@@ -191,7 +215,7 @@ export async function buildServer(
         dataExportWorker = new DataExportWorker(operations, services.database, fileStorage);
         workspaceService = new WorkspaceService(
             collaboration,
-            pubsub,
+            livePubsub,
             config.agents.defaultCwd,
             (error) => app.log.error(error),
         );
@@ -204,9 +228,9 @@ export async function buildServer(
             fileStorage,
             collaboration,
         );
-        registerCollaborationRoutes(app, auth, collaboration, pubsub, agentService);
+        registerCollaborationRoutes(app, auth, collaboration, livePubsub, agentService);
         if (agentService) registerAgentRoutes(app, auth, agentService);
-        registerAutomationRoutes(app, auth, automation, pubsub);
+        registerAutomationRoutes(app, auth, automation, livePubsub);
         registerOperationsRoutes(app, auth, operations);
         registerIntegrationRoutes(app, auth, integrations, {
             incomingWebhook: {
@@ -240,11 +264,11 @@ export async function buildServer(
                 });
             },
         });
-        registerSyncRoutes(app, auth, collaboration, pubsub);
+        registerSyncRoutes(app, auth, collaboration, livePubsub);
         registerWorkspaceRoutes(app, auth, workspaceService);
         await agentService?.start();
 
-        unsubscribeWebhookEvents = pubsub.subscribe(realtimeTopics.server, async (event) => {
+        unsubscribeWebhookEvents = livePubsub.subscribe(realtimeTopics.server, async (event) => {
             if (event.type === "sync") await integrations!.enqueueSyncSequence(event.sequence);
         });
 

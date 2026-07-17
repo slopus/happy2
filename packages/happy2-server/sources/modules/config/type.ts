@@ -72,7 +72,7 @@ export interface ServerConfig {
         expiryDays: number;
     };
     auth: {
-        password: { enabled: boolean; signupEnabled: boolean };
+        password: { enabled: boolean };
         magicLink: { enabled: boolean; from?: string; redirectUrl?: string };
         oidc: Map<string, OidcProviderConfig>;
         cloudflareAccess: CloudflareAccessConfig;

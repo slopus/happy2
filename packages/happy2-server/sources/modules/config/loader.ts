@@ -305,7 +305,6 @@ export function parseConfig(input: string): ServerConfig {
         auth: {
             password: {
                 enabled: boolean(password.enabled, "auth.password.enabled"),
-                signupEnabled: boolean(password.signup_enabled, "auth.password.signup_enabled"),
             },
             magicLink: {
                 enabled: magicEnabled,

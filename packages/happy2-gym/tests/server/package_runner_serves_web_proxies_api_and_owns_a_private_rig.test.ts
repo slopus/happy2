@@ -45,6 +45,7 @@ describe.sequential("the package runner", () => {
                     role: "all",
                     method: "password",
                     signupEnabled: true,
+                    registration: "bootstrap",
                 });
 
                 const missingApi = await fetch(`${running.url}/v0/not-a-route`, {

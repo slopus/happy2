@@ -8,11 +8,11 @@ describe("main channel onboarding and service messages", () => {
             await using server = await createGymServer({
                 configure(config) {
                     config.auth.password.enabled = true;
-                    config.auth.password.signupEnabled = true;
                 },
             });
 
             const ada = await signUp(server, "ada@example.com", "ada", "Ada");
+            await server.completeSetup({ actorUserId: ada.id, registrationEnabled: true });
             const welcome = chatBySlug(await chats(ada.client), "welcome");
             expect(welcome).toMatchObject({
                 kind: "public_channel",

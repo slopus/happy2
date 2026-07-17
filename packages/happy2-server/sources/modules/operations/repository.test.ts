@@ -719,6 +719,10 @@ async function createUser(
     firstName: string,
 ): Promise<TestIdentity> {
     const account = await database.createPasswordAccount(email, "not-used-in-this-test");
-    const user = await database.createProfile(account.id, { firstName, username, email });
+    const user = await database.createProfile(
+        account.id,
+        { firstName, username, email },
+        { provisioned: true },
+    );
     return { account, user };
 }

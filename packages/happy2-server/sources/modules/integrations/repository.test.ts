@@ -437,5 +437,9 @@ async function createFixture(): Promise<Fixture> {
 
 async function createUser(database: Database, email: string, username: string): Promise<User> {
     const account = await database.createPasswordAccount(email, "disabled");
-    return database.createProfile(account.id, { firstName: username, username, email });
+    return database.createProfile(
+        account.id,
+        { firstName: username, username, email },
+        { provisioned: true },
+    );
 }

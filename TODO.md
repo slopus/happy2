@@ -28,13 +28,14 @@ This is a program backlog, not authorization to implement all items in one workt
 - [ ] Add or update `happy2-state` fake-server race/failure tests and real `gym/state` boundary tests whenever the state boundary changes.
 - [ ] Keep realtime events as hints; refetch/reconcile durable state through difference APIs.
 - [ ] End every feature with focused tests, `pnpm check`, relevant gym suites, and a manual desktop acceptance pass at the 1024×704 minimum window.
+- [ ] Before merging each task, complete the persisted Claude Opus review/fix/resume loop from `AGENTS.md` until Codex and Opus agree it is ready; then sync it to `main` before starting the next task.
 - [ ] Update this document immediately when scope or evidence changes; mark completed work only after it is merged.
 
 ## Terminology and recommended product decisions
 
 - **Sandbox provider** is the user-facing term. It describes where code executes: Docker, Podman, and later remote providers such as E2B or Daytona. Internally, a provider can expose one or more **sandbox runtimes/drivers**.
 - **AI provider/model** is separate from the sandbox provider. Model selection must never be presented as part of Docker/Podman configuration.
-- Server onboarding blocks the product for everyone until the installation is usable. The bootstrap administrator can act; other authenticated users see a live waiting screen.
+- Server onboarding blocks the product until the installation is usable. Before it completes, exactly one bootstrap human account/profile may exist; every other registration attempt is rejected.
 - User onboarding blocks only that user and resumes independently of server onboarding.
 - The immutable system/service identity should remain distinct from the executable default agent for audit safety. The visible default executable agent is **Happy**; system membership notices can be attributed to **Happy System** and need not appear as a chat peer.
 - Creating a new chat with an agent always creates a new conversation context. It must not reuse the existing deduplicated human/agent DM merely because the participants match.
@@ -407,12 +408,49 @@ UI architecture acceptance gate:
 - [ ] Make every transition transactional and idempotent; a restart during any step resumes from durable state.
 - [ ] Expose a minimal unauthenticated bootstrap status that does not leak accounts/configuration and authenticated combined onboarding state for routing.
 - [ ] Ensure only the one-time bootstrap path can claim the first administrator; close it atomically once claimed, including under concurrent server instances.
-- [ ] Decide and document how normal post-bootstrap account creation works (open signup, invitation, or admin-created account) without reusing bootstrap UI.
+- [ ] Before server onboarding completes, allow exactly one bootstrap account/profile and reject every additional registration attempt across password, magic-link, OIDC, and Cloudflare Access authentication.
+- [ ] Make registration policy the final server-onboarding step: the bootstrap administrator explicitly chooses whether new registrations are open or closed, and that durable choice completes server onboarding.
 - [ ] Emit sync hints for every durable setup/user-onboarding transition.
-- [ ] Add gym tests for fresh install, concurrent bootstrap claims, refresh/resume, restart recovery, non-admin waiting, completed setup, and forbidden transition ordering.
-- [ ] Add migration/backfill behavior so an existing installation with users and a ready default image is considered complete without regressing into onboarding.
+- [ ] Add gym tests for fresh install, concurrent bootstrap claims, refresh/resume, restart recovery, completed setup, registration-open/closed final choices, and forbidden transition ordering.
 
-Acceptance: a fresh database has exactly one legal bootstrap path; existing installations are not blocked; no client-local flag can bypass incomplete server setup.
+Acceptance: a fresh database has exactly one legal bootstrap path; no client-local flag can bypass incomplete server setup.
+
+### P0.1a — Server unit/Gym coverage measurement and regression gate
+
+- [ ] Land this as the next independently mergeable server-infrastructure task after P0.1 and before the functional-action refactor; do not mix coverage plumbing with either feature's behavior.
+- [ ] Use Vitest's V8 coverage provider and the repository's TypeScript/pnpm infrastructure only; do not add Python or a parallel test runner.
+- [ ] Define one authoritative server source universe covering every production file under `packages/happy2-server/sources`, including files no test imports, while excluding test files, generated declarations/build output, and test/fixture helpers.
+- [ ] Add a server-unit coverage command that runs only `happy2-server` unit tests and writes isolated text, HTML, LCOV, JSON, and JSON-summary reports under `packages/happy2-server/coverage/unit`.
+- [ ] Add a Gym integration coverage command that runs the complete non-Playwright `happy2-gym` server suite, instruments the aliased `happy2-server/sources` files rather than compiled output, and writes the same reports under `packages/happy2-server/coverage/gym`.
+- [ ] Add a TypeScript report/merge command that combines unit and Gym coverage by canonical server source path and produces a third union report under `packages/happy2-server/coverage/combined`; merging must not double-count a line covered by both suites.
+- [ ] Print side-by-side unit, Gym, and combined statement/branch/function/line percentages plus uncovered files/lines in terminal output so integration coverage is distinguishable from unit coverage at a glance.
+- [ ] Check in a small machine-readable baseline containing the three metric sets, not generated HTML/LCOV/raw coverage artifacts; make all generated report directories gitignored and removable through the existing clean commands.
+- [ ] Add explicit non-regression thresholds for unit, Gym, and combined coverage after measuring the initial baseline. A change may deliberately lower a threshold only in the same reviewed commit with a written rationale in `TODO.md`; rounding must never let a real regression pass.
+- [ ] Add one root command for local/CI use and wire it into `pnpm check` so missing instrumentation, an empty source universe, a failed suite, a failed merge, or coverage below any stored threshold fails the check.
+- [ ] Add focused tests for the coverage tooling itself: canonical path merging, overlapping hit counts, an entirely uncovered production file, malformed/missing input, and threshold pass/fail behavior.
+- [ ] Document exact commands, report locations, included/excluded files, metric definitions, and how to inspect separate Gym integration gaps before starting P0.1b.
+
+Acceptance: one command proves how much of the complete server is exercised by unit tests alone, Gym alone, and their union; all three views are reproducible, separately inspectable, and enforced against regression in `pnpm check`.
+
+### P0.1b — Functional server action architecture (server refactor)
+
+- [ ] Perform this as the immediately following, independently mergeable server task after P0.1a; do not mix it into coverage plumbing or begin P0.2 until it is merged.
+- [ ] Keep the complete Drizzle schema in one authoritative schema file, while removing `Database`, `*Repository`, and similar stateful/superclass concepts from application behavior.
+- [ ] Represent every server mutation as one exported async function in its own file; the filename must exactly match the function name (for example, `userCreateProfile.ts` exports `userCreateProfile`).
+- [ ] Put a short semantic doc comment above every exported action describing its observable purpose, changed durable invariant, material side effects/transaction expectations, and why the action boundary exists; review the implementation against that promise.
+- [ ] Name actions in lower camel case with the entity first and the operation second: `userCreateProfile`, `chatSendMessage`, `agentImageBuild`; never verb-first forms such as `createProfileUser`.
+- [ ] Organize action files by coherent product module (`user`, `chat`, `agent`, `file`, `setup`, `auth`, and so on); replace the ambiguous catch-all `collaboration` module with explicit ownership boundaries.
+- [ ] Pass a Drizzle executor/transaction as the first argument whenever an action reads or writes durable state; actions that do not touch durable state must not receive a fake database dependency.
+- [ ] Define one small transaction-composition abstraction that lets an outer action call nested actions using the same executor and lets a top-level action run transactionally or directly without duplicating business logic.
+- [ ] Keep module-private shared implementation only under that module's `impl/` or `utils/` directory. Caches, parsers, projections, SQL helpers, and other shared details must not become global service classes.
+- [ ] Do not require action initialization, lifecycle methods, process-global mutable instances, or dependency containers. Construction should be plain dependency values passed to functions.
+- [ ] Split queries into focused entity-first functions as well when doing so removes a repository/database facade; do not replace one giant class with one giant utility file or barrel containing business logic.
+- [ ] Preserve authorization, idempotency, transactions, sync sequence/event writes, realtime hints, restart behavior, and observable HTTP contracts exactly while moving behavior.
+- [ ] Add compile-time architecture checks that reject new `*Repository`/`Database` behavior classes, mismatched action filenames/exports, verb-first mutation names, and direct mutation SQL outside approved action/`impl` files.
+- [ ] Migrate incrementally by module with focused existing gym coverage after every slice, then delete the old class only when no production caller remains; never keep permanent dual implementations.
+- [ ] Update `AGENTS.md` with the final action/file/module/transaction rules once the architecture is proven, so all later server features use it by default.
+
+Acceptance: every production server mutation has one discoverable entity-first function in a same-named file, composes through an explicit executor/transaction boundary, and no stateful database/repository superclass or initialization lifecycle remains.
 
 ### P0.2 — Sandbox-provider discovery and selection (server feature)
 
@@ -576,7 +614,6 @@ Acceptance: the user chooses the exact crop, sees a circular preview, and every 
 - [ ] Give every channel a default-agent assignment, initially Happy, with an authorized action to change it.
 - [ ] Allow multiple new chats with the same agent by creating conversation instances with independent Rig bindings/contexts instead of deduplicating by participant pair.
 - [ ] Define lifecycle/ownership for server-managed Happy so it cannot be deleted while still allowing image/model/policy updates by administrators.
-- [ ] Backfill existing channels and installations safely.
 - [ ] Add gym coverage for always-available Happy, independent contexts, default-agent changes, permissions, deletion protection, and restart.
 
 ## P1. Files, media, and forwarding
@@ -831,7 +868,6 @@ Acceptance: the user chooses the exact crop, sees a circular preview, and every 
 - [ ] Run `pnpm --dir packages/happy2-gym test` and all `gym/state` tests.
 - [ ] Run every changed `happy2-ui` component in Chromium, Firefox, and WebKit at 2× and review saved screenshots.
 - [ ] Run a fresh-install desktop walkthrough: bootstrap admin → profile → provider → image build → main app.
-- [ ] Run an existing-install upgrade walkthrough proving onboarding backfill does not block established users.
 - [ ] Run a two-human/two-agent collaboration walkthrough covering channels, agent mode, mentions, files, forwarding, reactions, terminal, subchannel clone, and restart recovery.
 - [ ] Run security review for bootstrap race, provider commands, terminal, durable tools, sandbox file egress, secrets, signed URLs, and authorization revocation.
 - [ ] Remove stale comments, mock fixtures from production imports, unused destinations, and obsolete APIs.
@@ -840,16 +876,14 @@ Acceptance: the user chooses the exact crop, sees a circular preview, and every 
 
 These do not block writing the plan, but implementation must not silently guess:
 
-1. After bootstrap, are new human accounts open-signup, invite-only, or administrator-created?
-2. While server onboarding is incomplete, may non-admin users create profiles, or should they stop immediately after authentication?
-3. Is the default visible Happy agent globally configured, copied per workspace/channel, or a single server-managed identity with per-chat sessions? The recommendation above is one managed identity with independent chat sessions.
-4. Should `@everyone` and `@channel` notify all members while `@here` notifies only currently present members? The current backend treats all three as notify-all and needs refinement if presence semantics matter.
-5. Should channel Agent mode address only the default agent or allow multiple selected agents in the first release? Recommendation: default plus optional explicit selection, but serialize the first implementation if multi-agent scheduling materially expands scope.
-6. Does a subchannel clone include full git metadata/history, ignored files, and untracked files? A precise copy policy is required before server work.
-7. Are Calls and Home intended launch features? Keeping disconnected mock surfaces is not acceptable; either fund the live implementation or remove them.
-8. Which notification channels are real for the first release: in-app, desktop, email, and sound? Settings must expose only implemented channels.
-9. Is a user’s profile email distinct from the authentication account email? If yes, Settings copy must say so; if no, changing it requires verification and credential migration.
+1. Is the default visible Happy agent globally configured, copied per workspace/channel, or a single server-managed identity with per-chat sessions? The recommendation above is one managed identity with independent chat sessions.
+2. Should `@everyone` and `@channel` notify all members while `@here` notifies only currently present members? The current backend treats all three as notify-all and needs refinement if presence semantics matter.
+3. Should channel Agent mode address only the default agent or allow multiple selected agents in the first release? Recommendation: default plus optional explicit selection, but serialize the first implementation if multi-agent scheduling materially expands scope.
+4. Does a subchannel clone include full git metadata/history, ignored files, and untracked files? A precise copy policy is required before server work.
+5. Are Calls and Home intended launch features? Keeping disconnected mock surfaces is not acceptable; either fund the live implementation or remove them.
+6. Which notification channels are real for the first release: in-app, desktop, email, and sound? Settings must expose only implemented channels.
+7. Is a user’s profile email distinct from the authentication account email? If yes, Settings copy must say so; if no, changing it requires verification and credential migration.
 
 ## First implementation recommendation
 
-Create a new Conductor workspace for **P0.1 Durable bootstrap/status model**. Its backend-only deliverable should be the migration, typed setup/user-onboarding state, GET/POST contracts, SSE hints, backfill rules, and complete gym coverage. Stop there for review and explicit backend approval before any onboarding UI begins.
+Create a new Conductor workspace for **P0.1 Durable bootstrap/status model**. Its backend-only deliverable should be the migration, typed setup/user-onboarding state, GET/POST contracts, SSE hints, and complete gym coverage. Stop there for review and explicit backend approval before any onboarding UI begins.

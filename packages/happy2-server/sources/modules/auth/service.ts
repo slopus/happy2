@@ -1,7 +1,14 @@
 import { createId } from "@paralleldrive/cuid2";
 import type { FastifyRequest } from "fastify";
 import type { ServerConfig } from "../config/type.js";
-import { Database, type ActiveSession, type CreateProfile, type User } from "../database.js";
+import {
+    AccountExistsError,
+    Database,
+    RegistrationClosedError,
+    type ActiveSession,
+    type CreateProfile,
+    type User,
+} from "../database.js";
 import { hashPassword, randomToken, verifyPassword } from "./crypto.js";
 import { smtpTransport } from "./email.js";
 import { bearerToken, requestMetadata } from "./metadata.js";
@@ -57,13 +64,19 @@ export class AuthService {
         const identity = await cloudflareAccessIdentity(request, this.config.auth.cloudflareAccess);
         if (!identity) return undefined;
         const provider = `cloudflare-access:${this.config.auth.cloudflareAccess.teamDomain}`;
-        const account =
-            (await this.database.findOidcAccount(provider, identity.subject)) ??
-            (await this.database.findOrCreateOidcAccount(
-                provider,
-                identity.subject,
-                identity.email,
-            ));
+        let account = await this.database.findOidcAccount(provider, identity.subject);
+        if (!account) {
+            try {
+                account = await this.database.findOrCreateOidcAccount(
+                    provider,
+                    identity.subject,
+                    identity.email,
+                );
+            } catch (error) {
+                if (error instanceof RegistrationClosedError) return undefined;
+                throw error;
+            }
+        }
         return account.bannedAt || account.deletedAt
             ? undefined
             : { accountId: account.id, cloudflareAccess: identity };
@@ -79,15 +92,24 @@ export class AuthService {
         return { ...account, user };
     }
 
-    async registerPassword(body: unknown, request: FastifyRequest): Promise<AuthToken | "invalid"> {
+    async registerPassword(
+        body: unknown,
+        request: FastifyRequest,
+    ): Promise<AuthToken | "invalid" | "registration_closed" | "account_exists"> {
         const accountEmail = email(body);
         const accountPassword = validatedPassword(body);
         if (!accountEmail || !accountPassword) return "invalid";
-        const account = await this.database.createPasswordAccount(
-            accountEmail,
-            await hashPassword(accountPassword, this.passwordPepper!),
-        );
-        return this.issue(account.id, request);
+        try {
+            const account = await this.database.registerPasswordAccount(
+                accountEmail,
+                await hashPassword(accountPassword, this.passwordPepper!),
+            );
+            return this.issue(account.id, request);
+        } catch (error) {
+            if (error instanceof RegistrationClosedError) return "registration_closed";
+            if (error instanceof AccountExistsError) return "account_exists";
+            throw error;
+        }
     }
     async loginPassword(body: unknown, request: FastifyRequest): Promise<AuthToken | undefined> {
         const accountEmail = email(body);
@@ -106,11 +128,17 @@ export class AuthService {
     async createProfile(
         body: unknown,
         request: FastifyRequest,
-    ): Promise<User | "invalid" | "unauthorized"> {
+    ): Promise<User | "invalid" | "unauthorized" | "registration_closed"> {
         const account = await this.authenticateAccount(request);
         if (!account) return "unauthorized";
         const profile = validatedProfile(body);
-        return profile ? this.database.createProfile(account.accountId, profile) : "invalid";
+        if (!profile) return "invalid";
+        try {
+            return await this.database.createProfile(account.accountId, profile);
+        } catch (error) {
+            if (error instanceof RegistrationClosedError) return "registration_closed";
+            throw error;
+        }
     }
     async updateProfile(
         body: unknown,
@@ -123,11 +151,11 @@ export class AuthService {
         return (await this.database.updateProfile(current.user.id, profile)) ?? "unauthorized";
     }
 
-    async requestMagicLink(body: unknown): Promise<void> {
+    async requestMagicLink(body: unknown): Promise<boolean> {
         const accountEmail = email(body);
-        if (!accountEmail) return;
+        if (!accountEmail) return false;
         const token = randomToken();
-        await this.database.createMagicLink(accountEmail, token);
+        if (!(await this.database.createMagicLink(accountEmail, token))) return false;
         const link = new URL(this.config.auth.magicLink.redirectUrl!);
         link.searchParams.set("token", token);
         await smtpTransport().sendMail({
@@ -136,6 +164,7 @@ export class AuthService {
             subject: "Sign in to Happy (2)",
             text: `Open this sign-in link in Happy (2). It expires in 15 minutes:\n${link}`,
         });
+        return true;
     }
     async verifyMagicLink(body: unknown, request: FastifyRequest): Promise<AuthToken | undefined> {
         const token = value(body, "token");
@@ -160,7 +189,7 @@ export class AuthService {
         providerName: string,
         query: { code?: string; state?: string; error?: string },
         request: FastifyRequest,
-    ): Promise<AuthToken | "authorization_failed" | "invalid_state"> {
+    ): Promise<AuthToken | "authorization_failed" | "invalid_state" | "registration_closed"> {
         const provider = this.config.auth.oidc.get(providerName);
         if (!provider || !query.code || !query.state || query.error) return "authorization_failed";
         const state = await this.database.consumeOidcState(query.state);
@@ -172,11 +201,17 @@ export class AuthService {
             state.redirectUri,
             state.nonce,
         );
-        const account = await this.database.findOrCreateOidcAccount(
-            provider.id,
-            identity.subject,
-            identity.email,
-        );
+        let account;
+        try {
+            account = await this.database.findOrCreateOidcAccount(
+                provider.id,
+                identity.subject,
+                identity.email,
+            );
+        } catch (error) {
+            if (error instanceof RegistrationClosedError) return "registration_closed";
+            throw error;
+        }
         if (account.bannedAt || account.deletedAt) return "authorization_failed";
         return this.issue(account.id, request);
     }

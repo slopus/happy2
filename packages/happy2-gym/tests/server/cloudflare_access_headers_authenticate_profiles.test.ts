@@ -35,7 +35,6 @@ describe("Cloudflare Access headers authenticate profiles", () => {
                 config.auth.cloudflareAccess = { enabled: true, teamDomain, audience };
             },
         });
-        const admin = await server.createUser({ username: "cloudflare_access_admin" });
         const assertion = accessAssertion(keys.privateKey as KeyObject, {
             iss: teamDomain,
             aud: [audience],
@@ -49,29 +48,56 @@ describe("Cloudflare Access headers authenticate profiles", () => {
         expect((await server.get("/v0/auth/methods")).json()).toEqual({
             role: "all",
             method: "cloudflare_access",
+            registration: "bootstrap",
         });
         expect((await server.get("/v0/me")).statusCode).toBe(401);
         expect((await access.get("/v0/me")).statusCode).toBe(401);
 
-        const profile = await access.post("/v0/me/createProfile", {
+        const adminProfile = await access.post("/v0/me/createProfile", {
+            firstName: "Access",
+            username: "cloudflare_access_admin",
+            email: "access.member@example.com",
+        });
+        expect(adminProfile.statusCode).toBe(201);
+        expect(adminProfile.json().user.role).toBe("admin");
+
+        const memberAssertion = accessAssertion(keys.privateKey as KeyObject, {
+            iss: teamDomain,
+            aud: [audience],
+            type: "app",
+            sub: "cloudflare-access-member-subject",
+            email: "access.second@example.com",
+            exp: Math.floor(Date.now() / 1_000) + 300,
+        });
+        const memberAccess = headerClient(server, memberAssertion);
+        expect((await memberAccess.get("/v0/me")).statusCode).toBe(401);
+        expect((await server.get("/v0/setup/status")).json()).toMatchObject({
+            registration: "closed",
+        });
+
+        await server.completeSetup({
+            actorUserId: adminProfile.json().user.id as string,
+            registrationEnabled: true,
+        });
+        const profile = await memberAccess.post("/v0/me/createProfile", {
             firstName: "Access",
             username: "access_member",
-            email: "access.member@example.com",
+            email: "access.second@example.com",
         });
         expect(profile.statusCode).toBe(201);
         const userId = profile.json().user.id as string;
-        expect((await access.get("/v0/me")).json().user).toMatchObject({
+        expect((await memberAccess.get("/v0/me")).json().user).toMatchObject({
             id: userId,
             username: "access_member",
-            email: "access.member@example.com",
+            email: "access.second@example.com",
             role: "member",
         });
-        expect((await access.get("/v0/auth/session")).json()).toMatchObject({
+        expect((await memberAccess.get("/v0/auth/session")).json()).toMatchObject({
             authentication: "cloudflare_access",
             expiresAt: expect.any(String),
         });
-        expect((await access.post("/v0/auth/refresh")).statusCode).toBe(401);
-        expect((await access.post("/v0/auth/logout")).json()).toEqual({
+        expect((await memberAccess.post("/v0/auth/refresh")).statusCode).toBe(401);
+        expect((await memberAccess.post("/v0/auth/logout")).json()).toEqual({
             error: "cloudflare_access_manages_session",
         });
 
@@ -91,10 +117,8 @@ describe("Cloudflare Access headers authenticate profiles", () => {
             401,
         );
 
-        expect((await server.as(admin).post(`/v0/admin/users/${userId}/banUser`)).statusCode).toBe(
-            200,
-        );
-        expect((await access.get("/v0/me")).statusCode).toBe(401);
+        expect((await access.post(`/v0/admin/users/${userId}/banUser`)).statusCode).toBe(200);
+        expect((await memberAccess.get("/v0/me")).statusCode).toBe(401);
     });
 });
 

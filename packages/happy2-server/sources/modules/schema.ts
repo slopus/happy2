@@ -63,7 +63,7 @@ export const auditLogEntries = sqliteTable("audit_log_entries", {
 
 export const authMagicLinks = sqliteTable("auth_magic_links", {
     tokenHash: text("token_hash").primaryKey().notNull(),
-    accountId: text("account_id").notNull(),
+    email: text("email").notNull(),
     expiresAt: text("expires_at").notNull(),
     consumedAt: text("consumed_at"),
     createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
@@ -882,6 +882,31 @@ export const serverSettings = sqliteTable("server_settings", {
     idempotencyRetentionSeconds: integer("idempotency_retention_seconds").notNull().default(604800),
 });
 
+export const serverSetupState = sqliteTable("server_setup_state", {
+    id: integer("id").primaryKey().notNull(),
+    schemaVersion: integer("schema_version").notNull().default(1),
+    bootstrapAccountId: text("bootstrap_account_id").references(() => accounts.id, {
+        onDelete: "restrict",
+    }),
+    bootstrapAdminUserId: text("bootstrap_admin_user_id").references(() => users.id, {
+        onDelete: "restrict",
+    }),
+    registrationEnabled: integer("registration_enabled"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
+export const serverSetupSteps = sqliteTable("server_setup_steps", {
+    step: text("step").primaryKey().notNull(),
+    state: text("state").notNull().default("pending"),
+    metadataJson: text("metadata_json"),
+    lastError: text("last_error"),
+    startedAt: text("started_at"),
+    completedAt: text("completed_at"),
+    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+});
+
 export const serverSyncState = sqliteTable("server_sync_state", {
     id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
     generation: text("generation").notNull(),
@@ -1025,6 +1050,22 @@ export const userNotificationPreferences = sqliteTable("user_notification_prefer
     updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
 });
 
+export const userOnboardingSteps = sqliteTable(
+    "user_onboarding_steps",
+    {
+        userId: text("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        step: text("step").notNull(),
+        state: text("state").notNull().default("pending"),
+        metadataJson: text("metadata_json"),
+        completedAt: text("completed_at"),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [primaryKey({ columns: [table.userId, table.step] })],
+);
+
 export const userPresenceSettings = sqliteTable("user_presence_settings", {
     userId: text("user_id").primaryKey().notNull(),
     availability: text("availability").notNull().default("automatic"),
@@ -1159,6 +1200,8 @@ export const schema = {
     scheduledMessages,
     searchIndexState,
     serverSettings,
+    serverSetupState,
+    serverSetupSteps,
     serverSyncState,
     slashCommands,
     syncCompactions,
@@ -1170,6 +1213,7 @@ export const schema = {
     userBookmarks,
     userChatPreferences,
     userNotificationPreferences,
+    userOnboardingSteps,
     userPresenceSettings,
     userStorageQuotas,
     users,

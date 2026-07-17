@@ -8,7 +8,6 @@ describe("supportedAuthMethods", () => {
         expect(supportedAuthMethods(config)).toMatchObject({
             role: "all",
             method: "password",
-            signupEnabled: true,
         });
         config.server.role = "api";
         expect(supportedAuthMethods(config).method).toBeNull();

@@ -5459,6 +5459,8 @@ export class CollaborationRepository {
             else if (kind.startsWith("server.")) areas.add("server");
             else if (kind.startsWith("agentImage.")) areas.add("agent-images");
             else if (kind.startsWith("agentSecret.")) areas.add("agent-secrets");
+            else if (kind.startsWith("setup.")) areas.add("setup");
+            else if (kind.startsWith("userOnboarding.")) areas.add("user-onboarding");
             else if (!chatId) areas.add("directories");
         }
         const changedChats: ChatSummary[] = [];

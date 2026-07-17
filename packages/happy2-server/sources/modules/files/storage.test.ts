@@ -24,10 +24,14 @@ describe("attachment storage", () => {
         database = new Database(config.database.url);
         await database.migrate();
         const account = await database.createPasswordAccount("files@example.com", "unused");
-        user = await database.createProfile(account.id, {
-            firstName: "Files",
-            username: "files_user",
-        });
+        user = await database.createProfile(
+            account.id,
+            {
+                firstName: "Files",
+                username: "files_user",
+            },
+            { provisioned: true },
+        );
         storage = new FileStorage(config, database);
     });
 

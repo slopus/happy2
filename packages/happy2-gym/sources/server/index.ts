@@ -21,6 +21,7 @@ import {
     defaultConfig,
     FileStorage,
     IntegrationRepository,
+    SetupRepository,
     TokenService,
     type FileStorageFileSystem,
     type AgentDockerRuntime,
@@ -58,6 +59,8 @@ export interface GymRequestClient {
 export interface GymServer extends GymRequestClient, AsyncDisposable {
     readonly config: ServerConfig;
     createUser(input?: CreateGymUser): Promise<GymUser>;
+    /** Simulates successful server-owned provider/image work for unrelated workflows. */
+    completeSetup(input: { actorUserId: string; registrationEnabled: boolean }): Promise<void>;
     as(user: GymUser): GymRequestClient;
     /** Binds this same in-process server to an ephemeral loopback port for streaming tests. */
     listen(): Promise<string>;
@@ -69,6 +72,8 @@ export interface GymServer extends GymRequestClient, AsyncDisposable {
 export interface GymServerOptions {
     agentDocker?: AgentDockerRuntime;
     configure?: (config: ServerConfig) => void;
+    /** Reuses an explicit database URL so tests can run independent server instances together. */
+    databaseUrl?: string;
     /** Uses libSQL's real multi-connection file adapter instead of serialized `:memory:` access. */
     databaseMode?: "file" | "memory";
 }
@@ -79,14 +84,14 @@ export interface GymServerOptions {
  */
 export async function createGymServer(options: GymServerOptions = {}): Promise<GymServer> {
     const databaseDirectory =
-        options.databaseMode === "file"
+        !options.databaseUrl && options.databaseMode === "file"
             ? await mkdtemp(join(tmpdir(), "happy2-gym-database-"))
             : undefined;
-    const databaseUrl = databaseDirectory
-        ? `file:${join(databaseDirectory, "happy2.db")}`
-        : ":memory:";
+    const databaseUrl =
+        options.databaseUrl ??
+        (databaseDirectory ? `file:${join(databaseDirectory, "happy2.db")}` : ":memory:");
     const rawClient = createClient({ url: databaseUrl });
-    const client = databaseDirectory ? rawClient : singleConnectionClient(rawClient);
+    const client = databaseUrl === ":memory:" ? singleConnectionClient(rawClient) : rawClient;
     const fileSystem = new MemoryFileSystem();
     const config = gymConfig(databaseUrl);
     options.configure?.(config);
@@ -192,12 +197,38 @@ class GymServerInstance implements GymServer {
         const sequence = ++this.userSequence;
         const email = input.email ?? `user-${sequence}@gym.invalid`;
         const account = await this.database.createPasswordAccount(email, "gym-server-disabled");
-        const user = await this.database.createProfile(account.id, {
-            firstName: input.firstName ?? `User ${sequence}`,
-            lastName: input.lastName,
-            username: input.username ?? `gym_user_${sequence}`,
-            email,
-            phone: input.phone,
+        const user = await this.database.createProfile(
+            account.id,
+            {
+                firstName: input.firstName ?? `User ${sequence}`,
+                lastName: input.lastName,
+                username: input.username ?? `gym_user_${sequence}`,
+                email,
+                phone: input.phone,
+            },
+            sequence === 1 ? {} : { provisioned: true },
+        );
+        const setup = new SetupRepository(this.client);
+        if (sequence === 1) {
+            for (const step of [
+                "sandbox_provider_selected",
+                "sandbox_provider_validated",
+                "base_image_selected",
+                "base_image_build_requested",
+                "base_image_ready",
+            ] as const)
+                await setup.recordOperationalStep({
+                    step,
+                    state: "complete",
+                    actorUserId: user.id,
+                });
+            await setup.chooseRegistrationPolicy(user.id, true);
+        }
+        await setup.updateUserStep({ userId: user.id, step: "avatar", state: "skipped" });
+        await setup.updateUserStep({
+            userId: user.id,
+            step: "desktop_notifications",
+            state: "skipped",
         });
         const session = await this.database.createSession(
             account.id,
@@ -209,6 +240,27 @@ class GymServerInstance implements GymServer {
             accountId: account.id,
             token: await this.tokens.issue(session.id, account.id),
         };
+    }
+
+    async completeSetup(input: {
+        actorUserId: string;
+        registrationEnabled: boolean;
+    }): Promise<void> {
+        this.assertOpen();
+        const setup = new SetupRepository(this.client);
+        for (const step of [
+            "sandbox_provider_selected",
+            "sandbox_provider_validated",
+            "base_image_selected",
+            "base_image_build_requested",
+            "base_image_ready",
+        ] as const)
+            await setup.recordOperationalStep({
+                step,
+                state: "complete",
+                actorUserId: input.actorUserId,
+            });
+        await setup.chooseRegistrationPolicy(input.actorUserId, input.registrationEnabled);
     }
 
     as(user: GymUser): GymRequestClient {
@@ -304,7 +356,6 @@ function gymConfig(databaseUrl: string): ServerConfig {
     config.jwt.issuer = "http://gym.invalid";
     config.jwt.keyId = "gym-server";
     config.auth.password.enabled = false;
-    config.auth.password.signupEnabled = false;
     config.agents.enabled = false;
     return config;
 }

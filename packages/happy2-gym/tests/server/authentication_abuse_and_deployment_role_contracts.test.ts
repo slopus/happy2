@@ -7,7 +7,6 @@ describe("authentication abuse protection and deployment role contracts", () => 
             await using server = await createGymServer({
                 configure(config) {
                     config.auth.password.enabled = true;
-                    config.auth.password.signupEnabled = true;
                     config.security.rateLimit.authPerMinute = 2;
                 },
             });
@@ -88,7 +87,6 @@ describe("authentication abuse protection and deployment role contracts", () => 
             await using server = await createGymServer({
                 configure(config) {
                     config.auth.password.enabled = true;
-                    config.auth.password.signupEnabled = true;
                     config.server.trustedProxyHops = 1;
                     config.security.rateLimit.authPerMinute = 1;
                 },
@@ -118,13 +116,13 @@ describe("authentication abuse protection and deployment role contracts", () => 
                 configure(config) {
                     config.server.role = "auth";
                     config.auth.password.enabled = true;
-                    config.auth.password.signupEnabled = true;
                 },
             });
             expect((await authServer.get("/v0/auth/methods")).json()).toEqual({
                 role: "auth",
                 method: "password",
                 signupEnabled: true,
+                registration: "bootstrap",
             });
             const registration = await authServer.post("/v0/auth/password/register", {
                 email: "auth-service@example.com",
@@ -154,6 +152,7 @@ describe("authentication abuse protection and deployment role contracts", () => 
         expect((await apiServer.get("/v0/auth/methods")).json()).toEqual({
             role: "api",
             method: null,
+            registration: "open",
         });
         expect((await apiServer.post("/v0/auth/password/register", {})).statusCode).toBe(404);
         expect((await apiServer.as(apiUser).post("/v0/me/createProfile", {})).statusCode).toBe(404);

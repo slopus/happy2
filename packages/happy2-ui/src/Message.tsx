@@ -669,9 +669,7 @@ export function DayDivider(props: { class?: string; label: string }) {
     );
 }
 
-export type SystemNoticeSegment =
-    | { kind: "text"; text: string }
-    | { kind: "ref"; text: string };
+export type SystemNoticeSegment = { kind: "text"; text: string } | { kind: "ref"; text: string };
 
 /* Split a service line into plain runs and highlighted @user / #channel refs.
    The regex keeps the delimiters so spacing and punctuation survive verbatim;

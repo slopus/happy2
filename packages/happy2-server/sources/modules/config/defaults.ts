@@ -63,7 +63,7 @@ export function defaultConfig(): ServerConfig {
             expiryDays: 30,
         },
         auth: {
-            password: { enabled: true, signupEnabled: true },
+            password: { enabled: true },
             magicLink: { enabled: false },
             oidc: new Map(),
             cloudflareAccess: { enabled: false },
