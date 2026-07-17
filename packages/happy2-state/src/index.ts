@@ -24,3 +24,17 @@ export {
 } from "./backend.js";
 export * from "./types.js";
 export * from "./resources.js";
+export { HappyState, happyStateCreate, type HappyStateOptions } from "./happyState.js";
+export { type DeepReadonly, type ReadonlyStore } from "./kernel/readonlyStore.js";
+export {
+    composerStoreCreate,
+    type ComposerStoreOptions,
+} from "./modules/composer/composerStore.js";
+export {
+    type ComposerAttachment,
+    type ComposerOutput,
+    type ComposerSnapshot,
+    type ComposerStore,
+    type ComposerSubmission,
+    type StandaloneComposerStore,
+} from "./modules/composer/composerTypes.js";

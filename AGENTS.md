@@ -240,6 +240,13 @@ decision to create a process-global instance outside this package.
   UI store. Update another already materialized store only when that surface
   actually renders a projection changed by the event; keep common high-frequency
   actions on one owning store.
+- During incremental migration, the legacy `createClientState` facade and the
+  new `HappyState` feature stores coexist as independent state systems. Never
+  add a shim, adapter, dual-write path, event bridge, or snapshot mirroring
+  between them solely to keep migrated and unmigrated UI synchronized. Move one
+  complete UI surface to its new owning store, then remove that surface's old
+  reads and writes. Temporary divergence between the two systems is an accepted
+  migration condition.
 - Framework adapters may batch or schedule rendering after several synchronous
   store notifications, but state correctness must not depend on one render or
   DOM commit. A subscriber or derived value that requires a coherent combination

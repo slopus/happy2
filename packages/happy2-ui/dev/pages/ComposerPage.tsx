@@ -1,4 +1,8 @@
-import { createSignal } from "solid-js";
+import { UserError } from "happy2-state";
+import type { ComposerAttachment, ComposerOutput, ComposerSnapshot } from "happy2-state";
+import { composerStoreFixtureCreate } from "happy2-state/testing";
+import { createSignal, onCleanup } from "solid-js";
+import { Button } from "../../src/Button";
 import {
     Composer,
     ContextChips,
@@ -55,34 +59,145 @@ const EMOJI: EmojiItem[] = [
 
 const noop = () => {};
 
+const INITIAL_ATTACHMENTS: ComposerAttachment[] = [
+    { id: "refresh.ts", name: "refresh.ts", size: 4096 },
+    { id: "handshake.md", name: "handshake.md", size: 12_800 },
+];
+
+const RECONCILED_TEXT = "Draft restored from the server after reconnect.";
+
+/*
+ * Live composer driven entirely by a standalone happy2-state composer fixture —
+ * no transport, auth, server, or legacy createClientState bridge. It exercises
+ * BOTH directions of the P0.S1 contract:
+ *
+ *  - Public local actions (textUpdate, attachmentAdd, attachmentRemove,
+ *    textSubmit) drive the composer from the immutable get()/subscribe()
+ *    snapshot. Attachments surface as removable file context chips, the only
+ *    shape the props-only Composer can render for a ComposerAttachment.
+ *  - Authoritative owner input, applied through the test-only fixture.input()
+ *    writer, models the server results a standalone store cannot fabricate. A
+ *    submitted draft stays pending until the Blueprint controls confirm it
+ *    (clears the draft), fail it with a displayable UserError, or reconcile the
+ *    draft text. These inputs come only from the fixture writer; nothing here
+ *    reads or bridges the legacy state.
+ *
+ * The fixture is disposed on unmount, so no store outlives the specimen.
+ */
 function Playground() {
-    let nextAttachmentId = 0;
-    const [value, setValue] = createSignal("");
-    const [items, setItems] = createSignal<ContextItem[]>(CONTEXT_ITEMS);
+    let attachmentSeq = 0;
+    const [lastSubmitted, setLastSubmitted] = createSignal<string | null>(null);
+
+    const fixture = composerStoreFixtureCreate("blueprint-composer", {
+        attachments: INITIAL_ATTACHMENTS,
+        output: (event: ComposerOutput) => {
+            if (event.type === "textSubmitted") setLastSubmitted(event.text);
+        },
+    });
+    const [snapshot, setSnapshot] = createSignal<ComposerSnapshot>(fixture.get());
+    onCleanup(fixture.subscribe(() => setSnapshot(fixture.get())));
+    onCleanup(() => fixture[Symbol.dispose]());
+
+    const submission = () => snapshot().submission;
+    const pendingRevision = () => {
+        const current = submission();
+        return current.status === "pending" ? current.revision : null;
+    };
+    const statusLine = () => {
+        const current = submission();
+        const detail =
+            current.status === "pending"
+                ? `pending · revision ${current.revision}`
+                : current.status === "failed"
+                  ? `failed · “${current.error.message}”`
+                  : "idle";
+        const submitted = lastSubmitted();
+        return submitted === null
+            ? `submission ${detail}`
+            : `submission ${detail} · last submit “${submitted}”`;
+    };
+
+    const contextItems = (): ContextItem[] =>
+        snapshot().attachments.map((attachment) => ({
+            detail: `${Math.max(1, Math.round(attachment.size / 1024))} KB`,
+            id: attachment.id,
+            kind: "file",
+            label: attachment.name,
+        }));
+
+    const confirmSubmission = () => {
+        const revision = pendingRevision();
+        if (revision !== null) fixture.input({ type: "submissionConfirmed", revision });
+    };
+    const failSubmission = () => {
+        const revision = pendingRevision();
+        if (revision !== null) {
+            fixture.input({
+                type: "submissionFailed",
+                revision,
+                error: new UserError("Message service is unavailable — try again."),
+            });
+        }
+    };
+    const reconcileText = () => fixture.input({ type: "textReconciled", text: RECONCILED_TEXT });
+
     return (
-        <Composer
-            agents={AGENTS}
-            attachmentMultiple
-            contextItems={items()}
-            emoji={EMOJI}
-            hint="Enter to send · @ to hand off to an agent"
-            onAttachmentsSelect={(files) =>
-                setItems([
-                    ...items(),
-                    ...files.map((file) => ({
-                        detail: `${Math.max(1, Math.round(file.size / 1024))} KB`,
-                        id: `file-${nextAttachmentId++}-${file.name}`,
-                        kind: "file" as const,
-                        label: file.name,
-                    })),
-                ])
-            }
-            onContextRemove={(id) => setItems(items().filter((item) => item.id !== id))}
-            onSend={() => setValue("")}
-            onValueChange={setValue}
-            placeholder="Message #launch-week — @ mention an agent to hand off…"
-            value={value()}
-        />
+        <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+            <Composer
+                agents={AGENTS}
+                attachmentMultiple
+                contextItems={contextItems()}
+                emoji={EMOJI}
+                hint="Enter to send · @ to hand off to an agent"
+                onAttachmentsSelect={(files) => {
+                    for (const file of files) {
+                        fixture.attachmentAdd({
+                            id: `file-${attachmentSeq++}-${file.name}`,
+                            name: file.name,
+                            size: file.size,
+                        });
+                    }
+                }}
+                onContextRemove={(id) => fixture.attachmentRemove(id)}
+                onSend={() => fixture.textSubmit()}
+                onValueChange={(next) => fixture.textUpdate(next)}
+                pending={submission().status === "pending"}
+                placeholder="Message #launch-week — @ mention an agent to hand off…"
+                value={snapshot().text}
+            />
+            <div
+                style={{
+                    display: "flex",
+                    "flex-direction": "row",
+                    "flex-wrap": "wrap",
+                    "align-items": "center",
+                    gap: "8px",
+                }}
+            >
+                <Button
+                    disabled={pendingRevision() === null}
+                    icon="check"
+                    onClick={confirmSubmission}
+                    size="small"
+                    variant="success"
+                >
+                    Confirm send
+                </Button>
+                <Button
+                    disabled={pendingRevision() === null}
+                    icon="close"
+                    onClick={failSubmission}
+                    size="small"
+                    variant="danger"
+                >
+                    Fail send
+                </Button>
+                <Button icon="merge" onClick={reconcileText} size="small" variant="ghost">
+                    Reconcile text
+                </Button>
+            </div>
+            <DimensionRule label={statusLine()} />
+        </div>
     );
 }
 
@@ -224,7 +339,7 @@ export function ComposerPage() {
                     </div>
                 </Specimen>
                 <Specimen
-                    detail="live: files, mentions, emoji, Enter-to-send, and retained focus"
+                    detail="live happy2-state composer fixture · public actions + authoritative input (confirm / fail / reconcile) · send stays pending"
                     label="Playground"
                     number="CP-07"
                     stage="app"

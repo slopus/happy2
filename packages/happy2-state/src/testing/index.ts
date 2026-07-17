@@ -7,3 +7,8 @@ export {
     type FakeServerEvents,
     type RecordedRequest,
 } from "./fake-server.js";
+export {
+    composerStoreFixtureCreate,
+    type ComposerFixtureInput,
+    type ComposerStoreFixture,
+} from "./composerStoreFixture.js";

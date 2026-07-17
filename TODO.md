@@ -394,28 +394,45 @@ actionable or task-blocking issue and declared P0.S0 ready to merge.
 
 #### P0.S1 — Characterize invariants and introduce the state kernel
 
-- [ ] Add characterization tests around current initialization, retry/idempotency, realtime hints,
+Status: completed on `ex3ndr/refactor-happy2-state` (2026-07-17).
+
+- [x] Add characterization tests around current initialization, retry/idempotency, realtime hints,
       optimistic confirmation races, workspace conflict behavior, stop/disposal, and public errors.
-- [ ] Add an explicit reference-identity matrix: no-op, one chat summary, one message, one reaction
+- [x] Add an explicit reference-identity matrix: no-op, one chat summary, one message, one reaction
       counter, one reaction actor list, one identity/avatar, one presence event, one workspace folder,
       one open file, and one unrelated domain. Prove a rare identity/avatar event updates only
       affected render projections, while presence changes do not touch surfaces that do not display it.
-- [ ] Implement the common per-store kernel and subscription contract without changing product behavior;
+- [x] Implement the common per-store kernel and subscription contract without changing product behavior;
       freeze each newly created node in tests/development without cloning the whole tree on every
       commit.
-- [ ] Introduce the small `HappyState` registry/sync shell and prove that it returns stable keyed store
+- [x] Introduce the small `HappyState` registry/sync shell and prove that it returns stable keyed store
       instances, can run unconnected for fixtures, and contains no product-specific mutation or
       routing branches. Prove each top-level integration method has an exact same-named module function
       and is only a typed forwarding binding into the shared action context; state commands discard
       the implementation result and expose `void`.
-- [ ] Introduce store-specific public local actions, typed output unions, authoritative input unions,
+- [x] Introduce store-specific public local actions, typed output unions, authoritative input unions,
       and package-private writers. Prove public actions mutate only their store and emit output once,
       private inputs never re-emit output, semantic no-ops do not notify, and authoritative writers
       are unavailable from production package exports; exercise both directions through Blueprint.
-- [ ] Keep the current facade only as a temporary adapter over the new kernel while consumers still
-      depend on it; do not preserve an obsolete facade after its callers migrate.
-- [ ] Run `happy2-state` tests/typecheck/lint/format checks and the relevant `gym/state` suite before
+- [x] Keep legacy `createClientState` and new `HappyState` stores independently usable in parallel
+      while consumers migrate. Do not add shims, adapters, dual writes, event bridges, or state
+      mirroring between them. Move each UI surface wholly to its new store and then delete that
+      surface's legacy reads/writes; temporary divergence between old and new state is acceptable.
+- [x] Run `happy2-state` tests/typecheck/lint/format checks and the relevant `gym/state` suite before
       review and sync.
+
+Completion evidence (2026-07-17): `happy2-state` now has a Zustand-backed private kernel with a
+deep-readonly public snapshot contract, synchronous no-op-aware notification, development freezing,
+ref-counted keyed lifetimes, a thin unconnected `HappyState`, entity-first composer actions, closed
+typed output/input, package-private authoritative writers, and a test-only Blueprint fixture. Legacy
+`createClientState` remains independently usable with no shim, bridge, mirroring, or dual write. The
+package passes format, typecheck, lint, 13 test files/77 tests, and the state-kernel benchmark gate;
+`happy2-ui` passes format/typecheck/lint/build; full Gym passes 44 files/107 server tests and 3 files/18
+browser state tests. CodeRabbit's actionable lifetime, readonly, naming, race, and disposal findings
+were fixed and re-reviewed; its repeated branded composer-scope suggestion was rejected because the
+repository has no branded-ID convention for generic UI scopes and no scope validation rule. The same
+persisted Claude Opus review session verified every fix, concurred with that rejection, and explicitly
+reported P0.S1 ready to merge with no task-blocking issue.
 
 #### P0.S2 — Migrate chat directory and one materialized chat vertical slice
 
@@ -462,7 +479,7 @@ actionable or task-blocking issue and declared P0.S0 ready to merge.
 
 #### P0.S6 — Remove the legacy model and enforce the architecture
 
-- [ ] Delete `model.ts`, the temporary compatibility adapter, generic whole-root cloning/freezing,
+- [ ] Delete `model.ts`, the remaining legacy facade, generic whole-root cloning/freezing,
       and the catch-all `operationResults` state once all production callers have migrated.
 - [ ] Add `happy2-state` architecture checks for filename/export parity, entity-first actions,
       entity-first output/input variants, executor-first mutation boundaries, required action comments,
