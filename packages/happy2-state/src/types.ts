@@ -305,6 +305,18 @@ export type RealtimeEvent =
           readonly expiresAt?: number;
       }
     | {
+          readonly type: "agent.activity";
+          readonly chatId: string;
+          readonly agentUserId: string;
+          readonly turnId: string;
+          readonly active: boolean;
+          readonly phase: AgentActivityPhase;
+          readonly tokenCount: number;
+          readonly startedAt: number;
+          readonly occurredAt: number;
+          readonly expiresAt?: number;
+      }
+    | {
           readonly type: "presence";
           readonly change: "connected" | "activity" | "disconnected";
           readonly snapshot: PresenceSnapshot;
@@ -361,6 +373,24 @@ export interface TypingState {
     readonly expiresAt: number;
 }
 
+/** Which kind of work an agent is doing during the current turn. */
+export type AgentActivityPhase = "thinking" | "typing";
+
+/**
+ * Live, per-agent progress for the turn an agent is currently working on in a
+ * chat. Reconstructed from ephemeral `agent.activity` hints and expired locally;
+ * never treated as durable sync state.
+ */
+export interface AgentActivityState {
+    readonly chatId: string;
+    readonly agentUserId: string;
+    readonly turnId: string;
+    readonly phase: AgentActivityPhase;
+    readonly tokenCount: number;
+    readonly startedAt: number;
+    readonly expiresAt: number;
+}
+
 export interface ClientStateSnapshot {
     readonly revision: number;
     readonly status: "idle" | "starting" | "ready" | "offline" | "stopped";
@@ -373,6 +403,7 @@ export interface ClientStateSnapshot {
         Record<string, Readonly<Record<string, WorkspaceTextFile>>>
     >;
     readonly typing: readonly TypingState[];
+    readonly agentActivity: readonly AgentActivityState[];
     readonly presence: readonly PresenceSnapshot[];
     /** Latest successful response for each named backend operation. */
     readonly operationResults: Readonly<Record<string, unknown>>;
@@ -427,6 +458,13 @@ export type ClientStateEvent =
           readonly type: "typing";
           readonly chatId: string;
           readonly userId: string;
+          readonly active: boolean;
+      }
+    | {
+          readonly type: "agent-activity";
+          readonly chatId: string;
+          readonly agentUserId: string;
+          readonly turnId: string;
           readonly active: boolean;
       }
     | {

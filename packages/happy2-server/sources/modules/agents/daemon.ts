@@ -18,6 +18,11 @@ interface RigMessage {
     role: "agent" | "system" | "user";
     id?: string;
     blocks: RigBlock[];
+    usage?: RigUsage;
+}
+
+interface RigUsage {
+    totalTokens?: number;
 }
 
 interface RigSession {
@@ -63,6 +68,8 @@ export interface RigSessionSecretPlan {
 
 interface RigPartialMessage {
     content?: Array<{ type: string; text?: string }>;
+    id?: string;
+    usage?: RigUsage;
 }
 
 interface RigAgentLoopEvent {
@@ -73,6 +80,7 @@ interface RigAgentLoopEvent {
 }
 
 export interface RigEvent {
+    createdAt: number;
     id: string;
     sessionId: string;
     type: string;

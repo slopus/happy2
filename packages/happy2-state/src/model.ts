@@ -9,6 +9,7 @@ import {
 } from "./backend.js";
 import { TransportError, type ClientTransport } from "./transport.js";
 import type {
+    AgentActivityState,
     ChatSummary,
     ClientWorkspace,
     ClientMessage,
@@ -132,6 +133,8 @@ class ClientStateModel implements ClientState {
     private readonly typingOccurredAt = new Map<string, number>();
     private readonly presenceOccurredAt = new Map<string, number>();
     private readonly typingTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    private readonly agentActivityOccurredAt = new Map<string, number>();
+    private readonly agentActivityTimers = new Map<string, ReturnType<typeof setTimeout>>();
     private readonly workspaceRecords = new Map<string, WorkspaceRecord>();
     private readonly workspaceChains = new Map<string, Promise<void>>();
     private readonly workspaceEpochs = new Map<string, number>();
@@ -151,6 +154,7 @@ class ClientStateModel implements ClientState {
         workspacesByChat: {},
         workspaceFilesByChat: {},
         typing: [],
+        agentActivity: [],
         presence: [],
         operationResults: {},
     });
@@ -215,6 +219,8 @@ class ClientStateModel implements ClientState {
         this.unsubscribeRealtime = undefined;
         for (const timer of this.typingTimers.values()) clearTimeout(timer);
         this.typingTimers.clear();
+        for (const timer of this.agentActivityTimers.values()) clearTimeout(timer);
+        this.agentActivityTimers.clear();
         this.workspaceReconcileAgain.clear();
         this.workspaceFileReconcileAgain.clear();
         this.workspaceFileBases.clear();
@@ -758,6 +764,7 @@ class ClientStateModel implements ClientState {
             return;
         }
         if (event.type === "typing") this.applyTyping(event);
+        else if (event.type === "agent.activity") this.applyAgentActivity(event);
         else if (event.type === "presence") this.applyPresence(event);
     }
 
@@ -1012,6 +1019,82 @@ class ClientStateModel implements ClientState {
             type: "typing",
             chatId,
             userId: current.userId,
+            active: false,
+        });
+    }
+
+    private applyAgentActivity(event: Extract<RealtimeEvent, { type: "agent.activity" }>): void {
+        /* One turn per agent per chat is live at a time; a newer turn's hints
+         * (a strictly greater occurredAt) supersede the previous one. */
+        const key = `${event.chatId} ${event.agentUserId}`;
+        if ((this.agentActivityOccurredAt.get(key) ?? -1) >= event.occurredAt) return;
+        this.agentActivityOccurredAt.set(key, event.occurredAt);
+        const others = this.snapshot.agentActivity.filter(
+            (activity) =>
+                activity.chatId !== event.chatId || activity.agentUserId !== event.agentUserId,
+        );
+        const active = event.active && (event.expiresAt ?? 0) > this.now();
+        const agentActivity: AgentActivityState[] = active
+            ? [
+                  ...others,
+                  {
+                      chatId: event.chatId,
+                      agentUserId: event.agentUserId,
+                      turnId: event.turnId,
+                      phase: event.phase,
+                      tokenCount: event.tokenCount,
+                      startedAt: event.startedAt,
+                      expiresAt: event.expiresAt!,
+                  },
+              ]
+            : others;
+        this.replaceSnapshot({ agentActivity });
+        const timer = this.agentActivityTimers.get(key);
+        if (timer) clearTimeout(timer);
+        this.agentActivityTimers.delete(key);
+        if (active) {
+            const nextTimer = setTimeout(
+                () =>
+                    this.expireAgentActivity(
+                        key,
+                        event.chatId,
+                        event.agentUserId,
+                        event.expiresAt!,
+                    ),
+                Math.max(0, event.expiresAt! - this.now()),
+            );
+            this.agentActivityTimers.set(key, nextTimer);
+        }
+        this.emit({
+            type: "agent-activity",
+            chatId: event.chatId,
+            agentUserId: event.agentUserId,
+            turnId: event.turnId,
+            active,
+        });
+    }
+
+    private expireAgentActivity(
+        key: string,
+        chatId: string,
+        agentUserId: string,
+        expiresAt: number,
+    ): void {
+        this.agentActivityTimers.delete(key);
+        const current = this.snapshot.agentActivity.find(
+            (activity) => activity.chatId === chatId && activity.agentUserId === agentUserId,
+        );
+        if (!current || current.expiresAt !== expiresAt) return;
+        this.replaceSnapshot({
+            agentActivity: this.snapshot.agentActivity.filter(
+                (activity) => activity.chatId !== chatId || activity.agentUserId !== agentUserId,
+            ),
+        });
+        this.emit({
+            type: "agent-activity",
+            chatId,
+            agentUserId,
+            turnId: current.turnId,
             active: false,
         });
     }
@@ -1646,6 +1729,7 @@ function freezeSnapshot(snapshot: ClientStateSnapshot): ClientStateSnapshot {
         workspacesByChat: { ...snapshot.workspacesByChat },
         workspaceFilesByChat,
         typing: [...snapshot.typing],
+        agentActivity: [...snapshot.agentActivity],
         presence: [...snapshot.presence],
         operationResults: { ...snapshot.operationResults },
     });

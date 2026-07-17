@@ -9,7 +9,7 @@ import {
     type MutationHint,
     type UserSummary,
 } from "../collaboration/types.js";
-import { realtimeTopics, type PubSub } from "../realtime/index.js";
+import { realtimeTopics, type AgentActivityPhase, type PubSub } from "../realtime/index.js";
 import {
     isRetryableRigError,
     RigDaemonClient,
@@ -24,6 +24,8 @@ const IGNORED_EVENT_CHECKPOINT_INTERVAL = 100;
 const EVENT_RETRY_INTERVAL_MS = 100;
 const TYPING_TTL_MS = 30_000;
 const TYPING_RENEW_INTERVAL_MS = 20_000;
+const AGENT_ACTIVITY_TTL_MS = 10_000;
+const AGENT_ACTIVITY_RENEW_INTERVAL_MS = 3_000;
 const TRIM_EVENT_INTERVAL = 1_000;
 const TRIM_TIME_INTERVAL_MS = 24 * 60 * 60_000;
 const IMAGE_BUILD_LEASE_RENEW_INTERVAL_MS = 20_000;
@@ -84,6 +86,15 @@ interface ActiveTypingRenewal {
     userMessageId: string;
 }
 
+interface ActiveAgentActivity {
+    lastOccurredAt: number;
+    phase: AgentActivityPhase;
+    startedAt: number;
+    timer: ReturnType<typeof setInterval>;
+    tokenCounts: Map<string, number>;
+    userMessageId: string;
+}
+
 export class AgentService {
     private readonly workerId = createId();
     private readonly bindingCreations = new Map<
@@ -99,6 +110,7 @@ export class AgentService {
     private readonly drains = new Map<string, Promise<void>>();
     private readonly turnStreams = new Map<string, ActiveAgentTurnStream>();
     private readonly typingRenewals = new Map<string, ActiveTypingRenewal>();
+    private readonly agentActivities = new Map<string, ActiveAgentActivity>();
     private readonly shutdown = new AbortController();
     private queueTask?: Promise<void>;
     private stopping = false;
@@ -678,6 +690,8 @@ export class AgentService {
         }
         for (const renewal of this.typingRenewals.values()) clearInterval(renewal.timer);
         this.typingRenewals.clear();
+        for (const activity of this.agentActivities.values()) clearInterval(activity.timer);
+        this.agentActivities.clear();
         await Promise.race([
             Promise.allSettled([
                 ...this.bindingCreations.values(),
@@ -1063,6 +1077,7 @@ export class AgentService {
                 });
             if (!input) return;
             try {
+                await this.startAgentActivity(input);
                 await this.startTyping(input);
                 const submission = await this.ensureTurnSubmitted(input);
                 const inspection = submission.inspection;
@@ -1248,6 +1263,7 @@ export class AgentService {
                         await this.failTurn(input, agentTurnStreamError(streamFailure));
                     } catch (error) {
                         this.clearTypingRenewal(input.chatId, input.userMessageId);
+                        this.clearAgentActivity(input.userMessageId);
                         this.onError(error);
                     }
                 }
@@ -1286,6 +1302,7 @@ export class AgentService {
                             }
                         }
                         if (runId && event.data.runId === runId) {
+                            await this.updateAgentActivity(input, event);
                             if (event.type === "agent_event") {
                                 const nextPartial = agentLoopText(event);
                                 if (nextPartial !== undefined) {
@@ -1366,9 +1383,11 @@ export class AgentService {
         });
         if (!result) {
             this.clearTypingRenewal(input.chatId, input.userMessageId);
+            this.clearAgentActivity(input.userMessageId);
             return;
         }
         await this.publishAgentReplyHint(input.chatId, result.hint);
+        await this.stopAgentActivity(input);
         await this.stopTyping(input);
         this.startDrain(input.chatId);
     }
@@ -1385,11 +1404,101 @@ export class AgentService {
         });
         if (!result) {
             this.clearTypingRenewal(input.chatId, input.userMessageId);
+            this.clearAgentActivity(input.userMessageId);
             return;
         }
         await this.publishAgentReplyHint(input.chatId, result.hint);
+        await this.stopAgentActivity(input);
         await this.stopTyping(input);
         this.startDrain(input.chatId);
+    }
+
+    private async startAgentActivity(input: AgentTurnWork): Promise<void> {
+        if (this.agentActivities.has(input.userMessageId)) return;
+        let activity!: ActiveAgentActivity;
+        const timer = setInterval(() => {
+            if (this.agentActivities.get(input.userMessageId) !== activity) return;
+            void this.publishAgentActivity(input, activity, true).catch(this.onError);
+        }, AGENT_ACTIVITY_RENEW_INTERVAL_MS);
+        timer.unref();
+        activity = {
+            lastOccurredAt: 0,
+            phase: "thinking",
+            startedAt: sqliteTimestamp(input.startedAt),
+            timer,
+            tokenCounts: new Map(),
+            userMessageId: input.userMessageId,
+        };
+        this.agentActivities.set(input.userMessageId, activity);
+        try {
+            await this.publishAgentActivity(input, activity, true);
+        } catch (error) {
+            this.onError(error);
+        }
+    }
+
+    private async updateAgentActivity(input: AgentTurnWork, event: RigEvent): Promise<void> {
+        const activity = this.agentActivities.get(input.userMessageId);
+        if (!activity) return;
+        if (
+            event.type === "run_started" &&
+            Number.isSafeInteger(event.createdAt) &&
+            event.createdAt >= 0
+        )
+            activity.startedAt = Math.min(activity.startedAt, event.createdAt);
+        const phase = agentActivityPhase(event);
+        const phaseChanged = phase !== undefined && phase !== activity.phase;
+        if (phase !== undefined) activity.phase = phase;
+        const usage = agentEventTokenCount(event);
+        if (usage) activity.tokenCounts.set(usage.messageId, usage.tokenCount);
+        if (!phaseChanged) return;
+        try {
+            await this.publishAgentActivity(input, activity, true);
+        } catch (error) {
+            this.onError(error);
+        }
+    }
+
+    private async stopAgentActivity(input: AgentTurnWork): Promise<void> {
+        const activity = this.agentActivities.get(input.userMessageId);
+        this.clearAgentActivity(input.userMessageId);
+        if (!activity) return;
+        try {
+            await this.publishAgentActivity(input, activity, false);
+        } catch (error) {
+            this.onError(error);
+        }
+    }
+
+    private clearAgentActivity(userMessageId: string): void {
+        const activity = this.agentActivities.get(userMessageId);
+        if (activity) clearInterval(activity.timer);
+        this.agentActivities.delete(userMessageId);
+    }
+
+    private publishAgentActivity(
+        input: AgentTurnWork,
+        activity: ActiveAgentActivity,
+        active: boolean,
+    ): Promise<void> {
+        const occurredAt = Math.max(Date.now(), activity.lastOccurredAt + 1);
+        activity.lastOccurredAt = occurredAt;
+        const tokenCount = [...activity.tokenCounts.values()].reduce(
+            (total, count) => total + count,
+            0,
+        );
+        return this.pubsub.publish(realtimeTopics.chat(input.chatId), {
+            type: "agent.activity",
+            chatId: input.chatId,
+            agentUserId: input.agentUserId,
+            turnId: input.userMessageId,
+            active,
+            phase: activity.phase,
+            tokenCount,
+            startedAt: activity.startedAt,
+            occurredAt,
+            ...(active ? { expiresAt: occurredAt + AGENT_ACTIVITY_TTL_MS } : {}),
+        });
     }
 
     private async startTyping(input: AgentTurnWork): Promise<void> {
@@ -1411,6 +1520,7 @@ export class AgentService {
                     if (this.typingRenewals.get(input.chatId) !== renewal) return;
                     if (!renewed) {
                         this.clearTypingRenewal(input.chatId, input.userMessageId);
+                        this.clearAgentActivity(input.userMessageId);
                         this.turnStreams.get(input.userMessageId)?.controller.abort();
                         return;
                     }
@@ -1702,6 +1812,42 @@ function agentLoopText(event: RigEvent): string | undefined {
     );
     if (textBlocks.length === 0) return undefined;
     return textBlocks.map((block) => block.text ?? "").join("");
+}
+
+function agentActivityPhase(event: RigEvent): AgentActivityPhase | undefined {
+    if (event.type === "run_started") return "thinking";
+    if (event.type === "agent_message")
+        return messageText(event.data.message) ? "typing" : "thinking";
+    if (event.type !== "agent_event") return undefined;
+    const type = event.data.event?.type;
+    if (type?.startsWith("text_")) return "typing";
+    if (
+        type?.startsWith("thinking_") ||
+        type?.startsWith("toolcall_") ||
+        type?.startsWith("tool_") ||
+        type === "inference_iteration_start" ||
+        type === "inference_retry" ||
+        type === "context_compacted" ||
+        type === "permission_review"
+    )
+        return "thinking";
+    return undefined;
+}
+
+function agentEventTokenCount(
+    event: RigEvent,
+): { messageId: string; tokenCount: number } | undefined {
+    const message =
+        event.type === "agent_message"
+            ? event.data.message
+            : event.type === "agent_event"
+              ? (event.data.event?.partial ?? event.data.event?.message ?? event.data.event?.error)
+              : undefined;
+    if (!message) return undefined;
+    const tokenCount = message.usage?.totalTokens;
+    if (typeof tokenCount !== "number" || !Number.isSafeInteger(tokenCount) || tokenCount < 0)
+        return undefined;
+    return { messageId: message.id ?? "active-inference", tokenCount };
 }
 
 function appendAgentText(committedText: string, nextText: string): string {

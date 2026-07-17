@@ -19,7 +19,9 @@ interface RigBlock {
 
 interface RigMessage {
     role: "agent" | "user";
+    id?: string;
     blocks: RigBlock[];
+    usage?: { totalTokens: number };
 }
 
 interface RigEvent {
@@ -47,8 +49,10 @@ interface SessionEventStream {
 }
 
 interface MockRunStream {
+    messageId: string;
     started: boolean;
     text: string;
+    totalTokens: number;
 }
 
 interface MockSession {
@@ -176,33 +180,69 @@ export class MockRigDaemon implements AsyncDisposable {
         this.submissionsPaused = false;
     }
 
-    emitTextStart(runId: string): void {
+    emitThinkingStart(runId: string, totalTokens = 0): void {
         const { session } = this.requireRun(runId);
-        const stream = { started: true, text: "" };
-        this.runStreams.set(runId, stream);
+        const stream = this.runStream(runId);
+        stream.totalTokens = totalTokens;
         this.append(session, "agent_event", {
             event: {
                 contentIndex: 0,
-                partial: partialAgentMessage(stream.text),
+                partial: partialAgentMessage(stream.messageId, "thinking", "", totalTokens),
+                type: "thinking_start",
+            },
+            runId,
+        });
+    }
+
+    emitThinkingDelta(runId: string, delta: string, totalTokens: number): void {
+        const { session } = this.requireRun(runId);
+        const stream = this.runStream(runId);
+        stream.totalTokens = totalTokens;
+        this.append(session, "agent_event", {
+            event: {
+                contentIndex: 0,
+                delta,
+                partial: partialAgentMessage(stream.messageId, "thinking", delta, totalTokens),
+                type: "thinking_delta",
+            },
+            runId,
+        });
+    }
+
+    emitTextStart(runId: string, totalTokens = 0): void {
+        const { session } = this.requireRun(runId);
+        const stream = this.runStream(runId);
+        stream.started = true;
+        stream.totalTokens = totalTokens;
+        this.append(session, "agent_event", {
+            event: {
+                contentIndex: 0,
+                partial: partialAgentMessage(stream.messageId, "text", stream.text, totalTokens),
                 type: "text_start",
             },
             runId,
         });
     }
 
-    emitTextDelta(runId: string, delta: string): void {
+    emitTextDelta(runId: string, delta: string, totalTokens?: number): void {
         const { session } = this.requireRun(runId);
         let stream = this.runStreams.get(runId);
         if (!stream?.started) {
-            this.emitTextStart(runId);
+            this.emitTextStart(runId, totalTokens);
             stream = this.runStreams.get(runId)!;
         }
         stream.text += delta;
+        if (totalTokens !== undefined) stream.totalTokens = totalTokens;
         this.append(session, "agent_event", {
             event: {
                 contentIndex: 0,
                 delta,
-                partial: partialAgentMessage(stream.text),
+                partial: partialAgentMessage(
+                    stream.messageId,
+                    "text",
+                    stream.text,
+                    stream.totalTokens,
+                ),
                 type: "text_delta",
             },
             runId,
@@ -221,7 +261,12 @@ export class MockRigDaemon implements AsyncDisposable {
             event: {
                 content: stream.text,
                 contentIndex: 0,
-                partial: partialAgentMessage(stream.text),
+                partial: partialAgentMessage(
+                    stream.messageId,
+                    "text",
+                    stream.text,
+                    stream.totalTokens,
+                ),
                 type: "text_end",
             },
             runId,
@@ -230,7 +275,13 @@ export class MockRigDaemon implements AsyncDisposable {
 
     emitAgentMessage(runId: string, text: string): void {
         const { session } = this.requireRun(runId);
-        const message: RigMessage = { role: "agent", blocks: [{ type: "text", text }] };
+        const stream = this.runStreams.get(runId);
+        const message: RigMessage = {
+            role: "agent",
+            id: stream?.messageId ?? `agent-${runId}`,
+            blocks: [{ type: "text", text }],
+            usage: { totalTokens: stream?.totalTokens ?? 0 },
+        };
         session.messages.push(message);
         this.append(session, "agent_message", { message, runId });
         this.runStreams.delete(runId);
@@ -715,6 +766,19 @@ export class MockRigDaemon implements AsyncDisposable {
         if (!run) throw new Error(`Unknown mock Rig run ${runId}`);
         return { run, session: this.requireSession(run.sessionId) };
     }
+
+    private runStream(runId: string): MockRunStream {
+        const existing = this.runStreams.get(runId);
+        if (existing) return existing;
+        const stream = {
+            messageId: `agent-${runId}`,
+            started: false,
+            text: "",
+            totalTokens: 0,
+        };
+        this.runStreams.set(runId, stream);
+        return stream;
+    }
 }
 
 /** In-memory Docker boundary for server + Rig Gym tests. */
@@ -796,10 +860,16 @@ export class MockAgentDockerRuntime implements AgentDockerRuntime {
 
 export const createMockRigDaemon = (): Promise<MockRigDaemon> => MockRigDaemon.create();
 
-function partialAgentMessage(text: string) {
+function partialAgentMessage(
+    id: string,
+    type: "text" | "thinking",
+    contents: string,
+    totalTokens: number,
+) {
     return {
         api: "gym",
-        content: [{ type: "text", text }],
+        content: [type === "text" ? { type, text: contents } : { type, thinking: contents }],
+        id,
         model: "gym/mock-agent",
         provider: "gym",
         role: "assistant",
@@ -811,7 +881,7 @@ function partialAgentMessage(text: string) {
             cost: { cacheRead: 0, cacheWrite: 0, input: 0, output: 0, total: 0 },
             input: 0,
             output: 0,
-            totalTokens: 0,
+            totalTokens,
         },
     };
 }

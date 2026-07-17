@@ -51,6 +51,20 @@ describe("agent turns through happy2-state and the real server", () => {
                 timeout: 4_000,
             })
             .toBe(agentUser!.id);
+        await expect
+            .poll(
+                () =>
+                    state.get().agentActivity.find(({ chatId }) => chatId === agentChat.id)
+                        ?.agentUserId,
+                { timeout: 4_000 },
+            )
+            .toBe(agentUser!.id);
+        const liveActivity = state
+            .get()
+            .agentActivity.find(({ chatId }) => chatId === agentChat.id)!;
+        expect(["thinking", "typing"]).toContain(liveActivity.phase);
+        expect(liveActivity.startedAt).toBeGreaterThan(0);
+        expect(liveActivity.expiresAt).toBeGreaterThan(liveActivity.startedAt);
 
         rig.emitGlobalUpdates(2_000);
         rig.completeRun(rig.submittedRuns[0]!.runId, "The durable reply arrived once.");
@@ -70,6 +84,11 @@ describe("agent turns through happy2-state and the real server", () => {
             ]);
         await expect
             .poll(() => state.get().typing.some(({ chatId }) => chatId === agentChat.id), {
+                timeout: 4_000,
+            })
+            .toBe(false);
+        await expect
+            .poll(() => state.get().agentActivity.some(({ chatId }) => chatId === agentChat.id), {
                 timeout: 4_000,
             })
             .toBe(false);

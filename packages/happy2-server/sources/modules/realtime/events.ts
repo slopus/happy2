@@ -1,6 +1,7 @@
 /**
  * Realtime events are delivery hints only. The sync event points clients at
- * durable database state; typing, presence, and call signaling are ephemeral.
+ * durable database state; agent activity, typing, presence, and call signaling
+ * are ephemeral.
  */
 
 export interface RealtimeLimits {
@@ -10,6 +11,7 @@ export interface RealtimeLimits {
     maxSyncAreas: number;
     maxAreaLength: number;
     maxTypingTtlMs: number;
+    maxAgentActivityTtlMs: number;
     maxSessionDescriptionBytes: number;
     maxIceCandidateBytes: number;
     maxPresenceUsers: number;
@@ -22,6 +24,7 @@ export const DEFAULT_REALTIME_LIMITS: Readonly<RealtimeLimits> = Object.freeze({
     maxSyncAreas: 64,
     maxAreaLength: 64,
     maxTypingTtlMs: 30_000,
+    maxAgentActivityTtlMs: 30_000,
     maxSessionDescriptionBytes: 48 * 1024,
     maxIceCandidateBytes: 8 * 1024,
     maxPresenceUsers: 10_000,
@@ -51,6 +54,28 @@ export interface TypingEvent {
     readonly active: boolean;
     readonly occurredAt: number;
     /** Required for active typing and intentionally short-lived. */
+    readonly expiresAt?: number;
+}
+
+export type AgentActivityPhase = "thinking" | "typing";
+
+/**
+ * Short-lived progress for one agent turn. Clients must expire active entries
+ * locally and must not reconcile this event through durable sync state.
+ */
+export interface AgentActivityEvent {
+    readonly type: "agent.activity";
+    readonly chatId: string;
+    readonly agentUserId: string;
+    /** The user message that caused this turn, used as its stable public identity. */
+    readonly turnId: string;
+    readonly active: boolean;
+    readonly phase: AgentActivityPhase;
+    /** Total model tokens reported for this turn so far. */
+    readonly tokenCount: number;
+    readonly startedAt: number;
+    readonly occurredAt: number;
+    /** Required for active activity and intentionally short-lived. */
     readonly expiresAt?: number;
 }
 
@@ -116,6 +141,7 @@ export interface WorkspaceChangedEvent {
 export type RealtimeEvent =
     | SyncHintEvent
     | TypingEvent
+    | AgentActivityEvent
     | PresenceEvent
     | CallSignalEvent
     | WorkspaceChangedEvent;
@@ -197,6 +223,33 @@ export function assertRealtimeEvent(
                     event.expiresAt - event.occurredAt > limits.maxTypingTtlMs
                 )
                     throw new Error(`Typing expiry must be within ${limits.maxTypingTtlMs} ms`);
+            }
+            return;
+        case "agent.activity":
+            assertRealtimeId(event.chatId, "chat id", limits);
+            assertRealtimeId(event.agentUserId, "agent user id", limits);
+            assertRealtimeId(event.turnId, "agent turn id", limits);
+            if (typeof event.active !== "boolean")
+                throw new Error("Agent activity active must be a boolean");
+            if (event.phase !== "thinking" && event.phase !== "typing")
+                throw new Error("Invalid agent activity phase");
+            if (!Number.isSafeInteger(event.tokenCount) || event.tokenCount < 0)
+                throw new Error("Agent activity token count must be a non-negative integer");
+            assertTimestamp(event.startedAt, "agent activity startedAt");
+            assertTimestamp(event.occurredAt, "agent activity occurredAt");
+            if (event.startedAt > event.occurredAt)
+                throw new Error("Agent activity cannot occur before the turn started");
+            if (event.active && event.expiresAt === undefined)
+                throw new Error("Active agent activity requires expiresAt");
+            if (event.expiresAt !== undefined) {
+                assertTimestamp(event.expiresAt, "agent activity expiresAt");
+                if (
+                    event.expiresAt < event.occurredAt ||
+                    event.expiresAt - event.occurredAt > limits.maxAgentActivityTtlMs
+                )
+                    throw new Error(
+                        `Agent activity expiry must be within ${limits.maxAgentActivityTtlMs} ms`,
+                    );
             }
             return;
         case "presence":

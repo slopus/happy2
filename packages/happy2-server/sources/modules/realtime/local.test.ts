@@ -3,6 +3,7 @@ import {
     LocalPubSub,
     PubSubClosedError,
     realtimeTopics,
+    type AgentActivityEvent,
     type CallSignalEvent,
     type PresenceEvent,
     type RealtimeEvent,
@@ -117,6 +118,18 @@ describe("LocalPubSub contract", () => {
             occurredAt: 1_000,
             expiresAt: 6_000,
         };
+        const activity: AgentActivityEvent = {
+            type: "agent.activity",
+            chatId: "chat-one",
+            agentUserId: "agent-one",
+            turnId: "turn-one",
+            active: true,
+            phase: "thinking",
+            tokenCount: 42,
+            startedAt: 900,
+            occurredAt: 1_000,
+            expiresAt: 6_000,
+        };
         const offer: CallSignalEvent = {
             type: "call.signal",
             callId: "call-one",
@@ -131,6 +144,9 @@ describe("LocalPubSub contract", () => {
             pubsub.publish(realtimeTopics.chat("chat-one"), typing),
         ).resolves.toBeUndefined();
         await expect(
+            pubsub.publish(realtimeTopics.chat("chat-one"), activity),
+        ).resolves.toBeUndefined();
+        await expect(
             pubsub.publish(realtimeTopics.call("call-one"), offer),
         ).resolves.toBeUndefined();
         await expect(
@@ -139,6 +155,12 @@ describe("LocalPubSub contract", () => {
                 expiresAt: 6_001,
             }),
         ).rejects.toThrow("within 5000 ms");
+        await expect(
+            pubsub.publish(realtimeTopics.chat("chat-one"), {
+                ...activity,
+                tokenCount: -1,
+            }),
+        ).rejects.toThrow("non-negative integer");
         await expect(
             pubsub.publish(realtimeTopics.call("call-one"), {
                 ...offer,

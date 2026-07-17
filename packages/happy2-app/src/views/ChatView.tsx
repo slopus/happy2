@@ -12,6 +12,7 @@ import {
 } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import {
+    AgentActivityIndicator,
     AgentDesk,
     AgentRunCard,
     AppShell,
@@ -56,6 +57,7 @@ import {
 } from "happy2-ui";
 import { WorkspaceFileConflictError } from "happy2-state";
 import type {
+    AgentActivityState,
     ChatSummary,
     ClientStateEventOf,
     ClientWorkspace,
@@ -433,6 +435,12 @@ export function ChatView(props: ChatViewProps) {
         chatId: string;
         userId: string;
     }>();
+    /* Ephemeral per-agent turn progress for the whole account; the active chat
+       filters it. Fed by agent-activity state events (never durable sync). */
+    const [agentActivity, setAgentActivity] = createSignal<readonly AgentActivityState[]>([]);
+    /* Local clock that advances the displayed elapsed time between the ~3s
+       server activity hints; only ticks while a turn is live on screen. */
+    const [activityNow, setActivityNow] = createSignal(Date.now());
     const [localReadThrough, setLocalReadThrough] = createSignal<Record<string, string>>({});
     const [expandedRuns, setExpandedRuns] = createSignal<Record<string, boolean>>({});
     const [expandedApprovals, setExpandedApprovals] = createSignal<Record<string, boolean>>({});
@@ -542,6 +550,12 @@ export function ChatView(props: ChatViewProps) {
         }
         return statusHint() ?? composerHint;
     };
+    const activeAgentActivity = createMemo(() =>
+        agentActivity().filter((activity) => activity.chatId === activeConversationId()),
+    );
+    const hasActiveAgentActivity = createMemo(() => activeAgentActivity().length > 0);
+    const activityElapsedSeconds = (startedAt: number) =>
+        Math.max(0, Math.floor((activityNow() - startedAt) / 1_000));
     const displayedUnreadCount = (chat: ChatSummary): number => {
         if (chat.id === activeConversationId()) return 0;
         const cached = localReadThrough()[chat.id];
@@ -2066,9 +2080,20 @@ export function ChatView(props: ChatViewProps) {
         }
     });
 
+    /* Drive the elapsed clock only while a turn is live on the open chat: the
+       interval starts on the first active turn and is torn down the moment the
+       last one clears, so a quiet or backgrounded chat does no periodic work. */
+    createEffect(() => {
+        if (!hasActiveAgentActivity()) return;
+        setActivityNow(Date.now());
+        const timer = setInterval(() => setActivityNow(Date.now()), 1_000);
+        onCleanup(() => clearInterval(timer));
+    });
+
     onMount(() => {
         const model = state();
         if (!model || !props.session) return;
+        setAgentActivity(model.get().agentActivity);
         /* Initial hydration goes through the same coalesced single-flight path as
            subscription-driven hydration, so an early topology event cannot start a
            second concurrent workspace refresh alongside the mount load. */
@@ -2125,6 +2150,10 @@ export function ChatView(props: ChatViewProps) {
                         : undefined,
                 );
             }),
+            /* Mirror the reconciled ephemeral activity list into a signal; the
+               active chat filters it and a local clock animates the elapsed
+               time between hints. */
+            model.subscribe("agent-activity", () => setAgentActivity(model.get().agentActivity)),
             model.subscribe("background-error", (event) => setStatusHint(event.error.message)),
             /* Keep an open files panel current: realtime hints reconcile the
                materialized tree in the state, and this mirrors the reconciled
@@ -2613,6 +2642,35 @@ export function ChatView(props: ChatViewProps) {
                     ref={(element) => (fileInput = element)}
                     type="file"
                 />
+                <Show when={hasActiveAgentActivity()}>
+                    <Box
+                        style={{
+                            display: "flex",
+                            "flex-wrap": "wrap",
+                            gap: "8px",
+                            margin: "0 20px 8px",
+                        }}
+                    >
+                        <For each={activeAgentActivity()}>
+                            {(activity) => {
+                                const actor = () =>
+                                    contacts().find(
+                                        (contact) => contact.id === activity.agentUserId,
+                                    );
+                                return (
+                                    <AgentActivityIndicator
+                                        elapsedSeconds={activityElapsedSeconds(activity.startedAt)}
+                                        initials={actor() ? initials(actor()!) : "AI"}
+                                        name={actor() ? fullName(actor()!) : "Agent"}
+                                        phase={activity.phase}
+                                        tokenCount={activity.tokenCount}
+                                        tone={toneFor(activity.agentUserId)}
+                                    />
+                                );
+                            }}
+                        </For>
+                    </Box>
+                </Show>
                 <Composer
                     contextItems={composerContext()}
                     disabled={connected && !activeConversationId()}

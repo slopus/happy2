@@ -280,6 +280,7 @@ const agentTurnWorkSelection = {
     runId: agentTurns.runId,
     sessionId: agentTurns.sessionId,
     leaseExpiresAt: agentTurns.leaseExpiresAt,
+    startedAt: agentTurns.startedAt,
     workerId: agentTurns.workerId,
     text: messages.text,
     streamCommittedText: agentTurns.streamCommittedText,
@@ -2170,6 +2171,7 @@ export class CollaborationRepository {
               leaseExpiresAt?: string;
               runId?: string;
               sessionId: string;
+              startedAt: string;
               streamCommittedText: string;
               text: string;
               userMessageId: string;
@@ -2179,6 +2181,7 @@ export class CollaborationRepository {
     > {
         return this.writeDb(async (tx) => {
             const leaseExpiresAt = new Date(Date.now() + 45_000).toISOString();
+            const claimedAt = new Date().toISOString();
             const [active] = await tx
                 .select(agentTurnWorkSelection)
                 .from(agentTurns)
@@ -2194,7 +2197,12 @@ export class CollaborationRepository {
                     return undefined;
                 const claimed = await tx
                     .update(agentTurns)
-                    .set({ workerId, leaseExpiresAt, updatedAt: sql`CURRENT_TIMESTAMP` })
+                    .set({
+                        workerId,
+                        leaseExpiresAt,
+                        startedAt: sql`coalesce(${agentTurns.startedAt}, ${claimedAt})`,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    })
                     .where(
                         and(
                             eq(agentTurns.userMessageId, active.userMessageId),
@@ -2202,9 +2210,14 @@ export class CollaborationRepository {
                             eq(agentTurns.status, "running"),
                         ),
                     )
-                    .returning({ id: agentTurns.userMessageId });
+                    .returning({ id: agentTurns.userMessageId, startedAt: agentTurns.startedAt });
                 return claimed.length === 1
-                    ? agentTurnWork({ ...active, workerId, leaseExpiresAt })
+                    ? agentTurnWork({
+                          ...active,
+                          workerId,
+                          leaseExpiresAt,
+                          startedAt: claimed[0]!.startedAt ?? claimedAt,
+                      })
                     : undefined;
             }
             const [next] = await tx
@@ -2221,6 +2234,7 @@ export class CollaborationRepository {
                     status: "running",
                     workerId,
                     leaseExpiresAt,
+                    startedAt: claimedAt,
                     updatedAt: sql`CURRENT_TIMESTAMP`,
                     lastError: null,
                 })
@@ -2233,7 +2247,12 @@ export class CollaborationRepository {
                 )
                 .returning({ id: agentTurns.userMessageId });
             return claimed.length === 1
-                ? agentTurnWork({ ...next, workerId, leaseExpiresAt })
+                ? agentTurnWork({
+                      ...next,
+                      workerId,
+                      leaseExpiresAt,
+                      startedAt: claimedAt,
+                  })
                 : undefined;
         });
     }
@@ -8182,6 +8201,7 @@ function agentTurnWork(row: {
     leaseExpiresAt: string | null;
     runId: string | null;
     sessionId: string;
+    startedAt: string | null;
     streamCommittedText: string;
     text: string;
     userMessageId: string;
@@ -8200,6 +8220,7 @@ function agentTurnWork(row: {
         ...(row.leaseExpiresAt ? { leaseExpiresAt: row.leaseExpiresAt } : {}),
         ...(row.runId ? { runId: row.runId } : {}),
         sessionId: row.sessionId,
+        startedAt: row.startedAt ?? new Date().toISOString(),
         streamCommittedText: row.streamCommittedText,
         text: row.text,
         userMessageId: row.userMessageId,

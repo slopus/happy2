@@ -98,4 +98,118 @@ describe("client state initialization and realtime facade", () => {
             vi.useRealTimers();
         }
     });
+
+    it("tracks per-agent activity phase and tokens, ignores stale hints, and expires locally", async () => {
+        vi.useFakeTimers();
+        try {
+            let now = 1_000;
+            const server = createFakeServer();
+            server.respond(
+                "GET",
+                "/v0/sync/state",
+                jsonResponse(200, {
+                    state: { protocolVersion: 1, generation: "g", sequence: "0" },
+                    serverTime: "now",
+                }),
+            );
+            server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+            const state = createClientState(server.transport, { now: () => now });
+            const activity = vi.fn<(event: ClientStateEventOf<"agent-activity">) => void>();
+            state.subscribe("agent-activity", activity);
+            await state.start();
+
+            server.events.agentActivity({
+                chatId: "chat-1",
+                agentUserId: "agent-9",
+                turnId: "turn-1",
+                active: true,
+                phase: "thinking",
+                tokenCount: 12,
+                startedAt: 500,
+                occurredAt: 20,
+                expiresAt: 3_000,
+            });
+            server.events.agentActivity({
+                chatId: "chat-1",
+                agentUserId: "agent-9",
+                turnId: "turn-1",
+                active: true,
+                phase: "typing",
+                tokenCount: 480,
+                startedAt: 500,
+                occurredAt: 40,
+                expiresAt: 3_000,
+            });
+            /* A stale hint (older occurredAt) must not roll the phase back. */
+            server.events.agentActivity({
+                chatId: "chat-1",
+                agentUserId: "agent-9",
+                turnId: "turn-1",
+                active: true,
+                phase: "thinking",
+                tokenCount: 30,
+                startedAt: 500,
+                occurredAt: 30,
+                expiresAt: 3_000,
+            });
+
+            expect(state.get().agentActivity).toEqual([
+                {
+                    chatId: "chat-1",
+                    agentUserId: "agent-9",
+                    turnId: "turn-1",
+                    phase: "typing",
+                    tokenCount: 480,
+                    startedAt: 500,
+                    expiresAt: 3_000,
+                },
+            ]);
+            expect(activity).toHaveBeenLastCalledWith({
+                type: "agent-activity",
+                chatId: "chat-1",
+                agentUserId: "agent-9",
+                turnId: "turn-1",
+                active: true,
+            });
+
+            /* An explicit stop clears the entry immediately. */
+            server.events.agentActivity({
+                chatId: "chat-1",
+                agentUserId: "agent-9",
+                turnId: "turn-1",
+                active: false,
+                phase: "typing",
+                tokenCount: 512,
+                startedAt: 500,
+                occurredAt: 60,
+            });
+            expect(state.get().agentActivity).toEqual([]);
+            expect(activity).toHaveBeenLastCalledWith({
+                type: "agent-activity",
+                chatId: "chat-1",
+                agentUserId: "agent-9",
+                turnId: "turn-1",
+                active: false,
+            });
+
+            /* A fresh turn with no stop still expires on its own TTL. */
+            server.events.agentActivity({
+                chatId: "chat-1",
+                agentUserId: "agent-9",
+                turnId: "turn-2",
+                active: true,
+                phase: "thinking",
+                tokenCount: 4,
+                startedAt: 2_000,
+                occurredAt: 2_100,
+                expiresAt: 5_000,
+            });
+            expect(state.get().agentActivity).toHaveLength(1);
+            now = 5_000;
+            await vi.advanceTimersByTimeAsync(4_000);
+            expect(state.get().agentActivity).toEqual([]);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });

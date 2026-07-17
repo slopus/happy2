@@ -424,6 +424,7 @@ export const agentTurns = sqliteTable(
         lastError: text("last_error"),
         workerId: text("worker_id"),
         leaseExpiresAt: text("lease_expires_at"),
+        startedAt: text("started_at"),
         createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
         updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
         completedAt: text("completed_at"),

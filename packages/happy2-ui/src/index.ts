@@ -1,6 +1,11 @@
 import "./styles.css";
 
 export { happyOtterLogoUrl, onboardingBackgroundUrl } from "./assets";
+export {
+    AgentActivityIndicator,
+    type AgentActivityIndicatorProps,
+    type AgentActivityPhase,
+} from "./AgentActivityIndicator";
 export { AgentDesk, type AgentDeskProps, type DeskListItem, type DeskRun } from "./AgentDesk";
 export { AgentImageDetail, type AgentImageDetailProps } from "./AgentImageDetail";
 export {

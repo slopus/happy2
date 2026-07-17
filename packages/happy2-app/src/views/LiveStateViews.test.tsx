@@ -1978,6 +1978,120 @@ describe("live views use happy2-state", () => {
         await state.whenIdle();
         state.stop();
     });
+
+    it("streams a live agent activity indicator and clears it when the turn ends", async () => {
+        const joined = chat({
+            id: "joined",
+            membershipRole: "owner",
+            name: "Joined",
+            slug: "joined",
+        });
+        const agent = {
+            id: "agent-1",
+            firstName: "Fixer",
+            username: "fixer",
+            role: "member" as const,
+            kind: "agent" as const,
+            createdByUserId: currentUser.id,
+        };
+        const server = baseServer([joined]);
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, { users: [userSummary(), agent], presence: [], statuses: [] }),
+        );
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "GET",
+            "/v0/chats/joined/members",
+            jsonResponse(200, { users: [userSummary(), agent], memberships: [] }),
+        );
+        server.respond(
+            "GET",
+            (path) => path.includes("/v0/chats/joined/messages?limit=100"),
+            jsonResponse(200, { messages: [], chatPts: "0", hasMore: false }),
+        );
+
+        const state = createClientState(server.transport, { sleep: async () => undefined });
+        await state.start();
+        const view = render(() => (
+            <ChatView
+                rail={<div />}
+                search={() => ""}
+                session={session(state)}
+                titleBar={<div />}
+            />
+        ));
+
+        const now = Date.now();
+        server.events.agentActivity({
+            chatId: "joined",
+            agentUserId: "agent-1",
+            turnId: "turn-1",
+            active: true,
+            phase: "thinking",
+            tokenCount: 1_024,
+            startedAt: now - 5_000,
+            occurredAt: now,
+            expiresAt: now + 10_000,
+        });
+
+        const indicator = await waitFor(() => {
+            const element = view.container.querySelector('[data-happy2-ui="agent-activity"]');
+            expect(element).toBeTruthy();
+            return element!;
+        });
+        expect(indicator.querySelector('[data-happy2-ui="agent-activity-name"]')?.textContent).toBe(
+            "Fixer",
+        );
+        expect(
+            indicator.querySelector('[data-happy2-ui="agent-activity-phase"]')?.textContent,
+        ).toBe("thinking…");
+        expect(
+            indicator.querySelector('[data-happy2-ui="agent-activity-tokens"]')?.textContent,
+        ).toBe("1,024 tokens");
+
+        /* A later hint flips the phase to typing and advances the token total. */
+        server.events.agentActivity({
+            chatId: "joined",
+            agentUserId: "agent-1",
+            turnId: "turn-1",
+            active: true,
+            phase: "typing",
+            tokenCount: 2_400,
+            startedAt: now - 5_000,
+            occurredAt: now + 3_000,
+            expiresAt: now + 13_000,
+        });
+        await waitFor(() =>
+            expect(
+                view.container.querySelector('[data-happy2-ui="agent-activity-phase"]')
+                    ?.textContent,
+            ).toBe("typing…"),
+        );
+        expect(
+            view.container.querySelector('[data-happy2-ui="agent-activity-tokens"]')?.textContent,
+        ).toBe("2,400 tokens");
+
+        /* Ending the turn removes the indicator entirely. */
+        server.events.agentActivity({
+            chatId: "joined",
+            agentUserId: "agent-1",
+            turnId: "turn-1",
+            active: false,
+            phase: "typing",
+            tokenCount: 2_400,
+            startedAt: now - 5_000,
+            occurredAt: now + 6_000,
+        });
+        await waitFor(() =>
+            expect(view.container.querySelector('[data-happy2-ui="agent-activity"]')).toBeNull(),
+        );
+
+        view.unmount();
+        await state.whenIdle();
+        state.stop();
+    });
 });
 
 function baseServer(chats: readonly ChatSummary[]) {

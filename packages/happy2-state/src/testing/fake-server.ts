@@ -1,6 +1,6 @@
 import type { ClientTransport, HttpRequest, HttpResponse, RealtimeObserver } from "../transport.js";
 import { TransportError } from "../transport.js";
-import type { PresenceSnapshot, RealtimeEvent } from "../types.js";
+import type { AgentActivityPhase, PresenceSnapshot, RealtimeEvent } from "../types.js";
 
 export type FakeRouteMatcher = string | RegExp | ((path: string) => boolean);
 export type FakeRouteHandler = (
@@ -23,6 +23,17 @@ export interface FakeServerEvents {
         chatId: string;
         userId: string;
         active: boolean;
+        occurredAt?: number;
+        expiresAt?: number;
+    }): void;
+    agentActivity(input: {
+        chatId: string;
+        agentUserId: string;
+        turnId: string;
+        active: boolean;
+        phase: AgentActivityPhase;
+        tokenCount: number;
+        startedAt: number;
         occurredAt?: number;
         expiresAt?: number;
     }): void;
@@ -121,6 +132,30 @@ class FakeServerModel implements FakeServer {
         },
         typing: ({ chatId, userId, active, occurredAt = Date.now(), expiresAt }) => {
             this.events.emit({ type: "typing", chatId, userId, active, occurredAt, expiresAt });
+        },
+        agentActivity: ({
+            chatId,
+            agentUserId,
+            turnId,
+            active,
+            phase,
+            tokenCount,
+            startedAt,
+            occurredAt = Date.now(),
+            expiresAt,
+        }) => {
+            this.events.emit({
+                type: "agent.activity",
+                chatId,
+                agentUserId,
+                turnId,
+                active,
+                phase,
+                tokenCount,
+                startedAt,
+                occurredAt,
+                expiresAt,
+            });
         },
         presence: ({ change, snapshot, occurredAt = Date.now() }) => {
             this.events.emit({ type: "presence", change, snapshot, occurredAt });

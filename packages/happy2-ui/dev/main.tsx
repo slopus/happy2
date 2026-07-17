@@ -2,6 +2,7 @@ import { createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { render } from "solid-js/web";
 import "../src/index";
 import "./workbench.css";
+import { AgentActivityIndicatorPage } from "./pages/AgentActivityIndicatorPage";
 import { AgentDeskPage } from "./pages/AgentDeskPage";
 import { AgentImageDetailPage } from "./pages/AgentImageDetailPage";
 import { AgentImagePanelPage } from "./pages/AgentImagePanelPage";
@@ -155,6 +156,12 @@ const components: Array<{ id: string; label: string; number: string; page: () =>
     },
     { id: "fade", label: "Fade", number: "C-057", page: FadePage },
     { id: "modal-overlay", label: "Modal overlay", number: "C-058", page: ModalOverlayPage },
+    {
+        id: "agent-activity-indicator",
+        label: "Agent activity indicator",
+        number: "C-059",
+        page: AgentActivityIndicatorPage,
+    },
 ];
 
 function componentFromHash(): string {
