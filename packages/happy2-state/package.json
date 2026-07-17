@@ -9,8 +9,10 @@
     },
     "scripts": {
         "build": "tsc --project tsconfig.json",
-        "test": "vitest run",
+        "test": "vitest run && pnpm benchmark:state-kernel:check",
         "test:watch": "vitest",
+        "benchmark:state-kernel": "node --expose-gc --import tsx benchmarks/reactive-primitives.ts",
+        "benchmark:state-kernel:check": "node --expose-gc --import tsx benchmarks/reactive-primitives.ts --check",
         "typecheck": "tsc --project tsconfig.json",
         "format": "oxfmt --write .",
         "format:check": "oxfmt --check .",
@@ -18,7 +20,19 @@
         "clean": "rm -rf coverage"
     },
     "devDependencies": {
+        "@preact/signals-core": "1.14.4",
+        "@sveltejs/vite-plugin-svelte": "7.0.0",
+        "@types/react": "19.2.14",
+        "@types/react-dom": "19.2.3",
+        "alien-signals": "3.2.1",
+        "jsdom": "29.1.1",
+        "nanostores": "1.4.0",
+        "react": "19.2.7",
+        "react-dom": "19.2.7",
+        "solid-js": "1.9.14",
+        "svelte": "5.56.6",
         "typescript": "^7.0.2",
-        "vitest": "^4.1.10"
+        "vitest": "^4.1.10",
+        "zustand": "5.0.14"
     }
 }

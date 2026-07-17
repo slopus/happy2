@@ -2,7 +2,7 @@
     "extends": "../../tsconfig.base.json",
     "compilerOptions": {
         "lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"],
-        "types": ["vitest/globals"]
+        "types": ["node", "vitest/globals"]
     },
-    "include": ["src", "tests"]
+    "include": ["src", "tests", "benchmarks"]
 }

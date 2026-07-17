@@ -13,7 +13,7 @@ The observable completion bar is:
 - every result can be navigated to with a stable desktop route and keyboard flow;
 - errors appear next to the responsible control when recoverable, in a blocking dialog when the workflow cannot continue, and in a non-blocking notification for background failures;
 - reusable visuals live in `happy2-ui`, have blueprint coverage, and pass Chromium, Firefox, and WebKit Retina geometry tests;
-- every complete production screen is a props-only `happy2-ui` composition rendered at exactly 1024×704 and 100% scale in the Blueprint Full screens section;
+- every complete production screen is a deterministic `happy2-ui` composition rendered at exactly 1024×704 and 100% scale in the Blueprint Full screens section; visual primitives remain props-only, while product surfaces may consume explicit `happy2-state` store contracts backed by static Blueprint fixtures;
 - the Blueprint itself proves catalog completeness, safe insets, production backgrounds, dimensions, text fit, focus geometry and absence of accidental clipping/overflow;
 - the application contains no production dependency on `mockData.ts` and no disconnected showcase-only destination.
 
@@ -62,7 +62,7 @@ The following is already present and should be reused rather than rebuilt:
 - [x] Happy System is automatically present in every channel and cannot be removed. It is currently a non-executable service identity and is not pinned in the sidebar.
 - [x] The durable main channel, channel starring, group DMs, message reply/edit/delete, and service-notice substrate already exist; completion work should extend these contracts rather than replace them.
 - [x] Server/state contracts exist for notifications, threads, calls, search, moderation, integrations, exports, backups, retention, and many admin operations.
-- [x] `AgentImagesView`/`AgentSecretsView` already demonstrate the preferred boundary: focused app glue maps state/actions into props-only `happy2-ui` Panel/Detail components with Blueprint coverage.
+- [x] `AgentImagesView`/`AgentSecretsView` already demonstrate a useful existing boundary: focused app glue maps state/actions into props-only `happy2-ui` Panel/Detail components with Blueprint coverage. Retain that pattern for leaf components while future complete surfaces may consume independent `happy2-state` stores directly.
 
 The following structural gaps are confirmed:
 
@@ -99,6 +99,7 @@ The following structural gaps are confirmed:
 
 The dependency order is intentional. The UI architecture foundation is a prerequisite for every new UI phase but does not block independent GPT-owned server work:
 
+0. `happy2-state` functional micro-model foundation, materialized chat lifetime, and structural-sharing contract.
 1. UI ownership guardrails, verified Blueprint specimens, and a Full screens catalog.
 2. Installation bootstrap and server-onboarding contracts.
 3. Stable route foundation, required before the onboarding UI and reused by every later overlay/deep link.
@@ -115,13 +116,414 @@ The dependency order is intentional. The UI architecture foundation is a prerequ
 
 ---
 
+## P0.S — Refactor `happy2-state` into functional, lazy micro-models
+
+The user approved this architecture and authorized implementation on 2026-07-17. Implement it as a
+sequence of independently reviewable features, completing the Opus review/fix loop and syncing each
+feature to `main` before starting the next one. `happy2-state` owns framework-independent product stores and
+the `HappyState` orchestration actions around them. `happy2-ui` may depend on and render those public
+store contracts, but it must never
+own transport, authentication, SSE/difference reconciliation, retry, or server lifecycle.
+
+### Target contract
+
+- [ ] Replace the 73 KB `ClientStateModel` and flat catch-all files with product modules whose
+      immutable snapshots, public local actions, typed output, reconciliation inputs, and private
+      helpers have explicit ownership.
+- [ ] Introduce one small `HappyState` top-level facade. Its public surface is a flat, discoverable
+      list of store accessors such as `sidebar()`, `chat(chatId)`, `composer(scopeId)`,
+      `workspace(chatId)`, and `file(chatId, path)`, plus entity-first orchestration functions such
+      as `draftUpdate` and `messagePin`. Component-local actions such as `composer.textUpdate` live on
+      the returned store and may emit output back to this owner. `HappyState` holds the shared
+      dependencies and store registry but contains no product reducer or workflow implementation itself.
+- [ ] `HappyState` is not a coherent render store and exposes no aggregate product snapshot. Sidebar,
+      one materialized chat, composer, workspace, editor file, search, settings, and other surfaces
+      use parallel stores with independent snapshots, subscriptions, loading, and disposal.
+- [ ] Choose store boundaries by mounted surface, lifetime, and update cadence—not by entity. One
+      sidebar store covers the sidebar segment; one chat store covers the materialized conversation;
+      one composer store isolates per-keystroke draft updates. Never create a UI subscription/store
+      per message, avatar, reaction chip, row, or other repeated entity.
+- [ ] Treat every feature store as a render-ready surface projection. Include the IDs, names,
+      avatars, labels, counters, permissions, and other values that surface actually renders, using
+      shared immutable projection objects by reference where repeated. Deliberately exclude unrelated
+      volatile data—for example, do not put presence/online state into messages that never display it.
+- [ ] Make live connectivity optional at construction/attachment time. The same `HappyState` and
+      concrete feature-store implementations can exist unconnected with deterministic seeded data;
+      Blueprint, static fixtures, and isolated UI tests never open transport or auth lifecycles.
+- [ ] Give each public action one entity-first, lower-camel file/function, with the action context
+      first and only explicit plain dependencies/inputs after it. Expose the exact same function name
+      as a top-level `HappyState` method that only forwards into that module. Document the observable
+      state transitions, side effects, retry/idempotency behavior, and reason for the action boundary.
+- [ ] Make synchronous state commands such as `composer.textUpdate`,
+      `profileSettings.displayNameUpdate`, and top-level integration actions return `void`, not a
+      snapshot, status object, or forwarded implementation result. Before the method returns, apply
+      the complete local transition and synchronously notify subscribers; later persistence/server
+      outcomes flow back as typed inputs. Use `Promise<void>` only for an explicitly awaited operation
+      whose product contract requires the caller to handle a displayable `UserError`.
+- [ ] Give each store two input capability levels. Its public application/UI interface contains
+      immutable `get()`/subscribe plus safe synchronous local entity-first `void` actions such as
+      `textUpdate`, `attachmentAdd`, `attachmentRemove`, `textSubmit`, `displayNameUpdate`, or
+      `displayNameSave`. A separate package-private writer applies a closed TypeScript union of
+      authoritative inputs and can mutate only that store's snapshot; neither path performs API calls,
+      retries, queueing, timers, cross-store writes, or synchronization policy.
+- [ ] Make every known snapshot path, action parameter, output variant, and authoritative input an
+      explicit closed TypeScript type. Do not introduce public `getField`/`setField`/`updateField`,
+      string-path mutation, `keyof` dispatch, `unknown` field values, or catch-all records for a known
+      product schema. Give every editable field its own typed entity-first operation. Collections such
+      as chats, messages, attachments, and server-defined items still require branded ID keys and one
+      concrete value type; dynamic cardinality does not weaken their typing.
+- [ ] Let a public local store action optionally emit a closed typed output event after changing its
+      own state. Accept the listener at construction, default it to a no-op, and keep standalone stores
+      fully interactive without `HappyState`, transport, persistence, or test mocks. Output describes
+      local intent/change; it is not a durable server event.
+- [ ] Keep output and input event unions distinct. A creator such as `HappyState` may listen to
+      `ComposerOutput` or `SettingsOutput` and route it through an integration action; server,
+      persistence, and reconciliation results return through private `ComposerInput`/`SettingsInput`
+      writers without emitting output again or creating a feedback loop.
+- [ ] Put only thin forwarding methods on `HappyState`; put orchestration in same-named module action
+      functions. A durable operation such as send/edit/pin creates or updates the operation queue,
+      emits optimistic/confirmed/failed typed events only to already materialized relevant stores,
+      calls the server with the correct idempotency/retry behavior, and updates an existing
+      composer/sidebar/other projection when the workflow requires it. Store writers never expose a
+      way for application code to fake a durable success locally.
+- [ ] Each store exposes its own immutable `get()` snapshot and subscription. A semantic no-op keeps
+      that store's snapshot reference; a real change replaces only the changed leaf and ancestors
+      inside that store while unaffected siblings and every unrelated store remain `===`.
+- [ ] Use Zustand-like synchronous `set` semantics with no transaction API. A public store action
+      updates and notifies its own store, then emits typed output in the same call stack; its owner may
+      synchronously update other already materialized stores before the original action returns.
+      Independent stores notify independently and provide no cross-store atomic-snapshot guarantee.
+      Put state that must be observed atomically in the same surface store.
+- [ ] Keep network and persistence work outside the synchronous setter/output chain. Optimistic,
+      confirmed, failed, and reconciled changes are separate explicit store updates; never create a
+      missing store merely to propagate one of them.
+- [ ] Keep realtime events as delivery hints. Durable entities advance only through the global and
+      per-chat difference APIs; typing, agent activity, call signalling, and presence remain
+      explicitly ephemeral with ordering, expiry, and disposal rules.
+- [ ] Keep explicitly awaited promise actions displayably fallible with `UserError`; synchronous local
+      and optimistic background commands return `void` immediately and surface terminal failure
+      through state events. Every retried mutation reuses one idempotency key across its attempts.
+- [ ] Select the internal reactive primitive through the P0.S0 Happy-specific performance gate. The
+      target is a few coarse surface subscriptions with structurally shared row data, not thousands
+      of fine-grained atoms/selectors. Benchmark a minimal Happy-owned store, `alien-signals`,
+      `@preact/signals-core`, Nano Stores, and `zustand/vanilla` under identical surface-store
+      topology rather than favoring a library's preferred decomposition.
+- [ ] Hide the selected engine behind one tiny Happy-owned `ReadonlyStore<T>` contract (`get()` plus
+      subscribe) that public product stores extend with their safe local actions and that
+      `happy2-ui` can consume directly. Never expose
+      engine-specific hooks, setters, shallow/equality wrappers, or product actions in reactive
+      cells, and never delegate resource lifetime, reconciliation, retry, output routing, or product
+      policy to the engine. Reusable derived projections belong to the owning store with stable references.
+
+### Proposed module and lifetime boundaries
+
+- [ ] Add `src/kernel/` only for the common `ReadonlyStore<T>`/internal writer, synchronous setter and
+      notification semantics, action dependencies, request generations, cancellation, and
+      deterministic clock/ID/scheduler test seams; it must not contain a root product snapshot.
+- [ ] Add a small `src/happyState.ts` facade that binds shared dependencies and the store registry,
+      exposes same-named top-level forwarding functions for integration operations, constructs stores
+      with typed output listeners, deduplicates keyed instances, and releases them at the end of their
+      declared lifetime. Product reconciliation, routing decisions, event fan-out, and mutations
+      remain in module action files, never as branches in this object.
+- [ ] Add a focused draft coordinator/module. `draftUpdate` synchronously projects the new draft into
+      every already materialized composer/chat/sidebar surface that displays it, then schedules the
+      local save through an injected persistence port. The concrete desktop persistence adapter stays
+      outside `happy2-state`; retry/coalescing and typed state transitions belong to the draft action,
+      not to `HappyState` or an individual store writer.
+- [ ] Add `src/modules/sidebar/` for the independently materialized ordered chat summaries, unread and
+      mention counters, membership removal, starring, and global chat-difference cursor.
+- [ ] Add one internal `src/modules/identity/` projection catalog supplied through the shared action
+      context: one canonical immutable user presentation object per identity containing ID, display
+      name, agent/human kind, and avatar/file reference or resolved shared avatar asset. Surface
+      projections reuse those objects by reference instead of allocating a new user/avatar object for
+      every row.
+- [ ] Merge identity and presence changes outside stores. Same-named identity/presence action modules
+      convert server/difference input into typed surface events only for materialized stores that
+      render the changed field; `HappyState` only forwards the call. A rare avatar change may replace
+      sender projections in retained chat/sidebar/search stores; frequent presence changes update only
+      surfaces that actually display online state and never touch message timeline stores that do not.
+- [ ] Add `src/modules/chat/` for an on-demand, surface-complete `ChatSnapshot`: chat summary,
+      materialized message window/pages, optimistic delivery state, loaded threads/members, reaction
+      counters/details, typing, and agent activity needed by one open chat surface.
+- [ ] Make stored messages render-ready: attach the canonical sender projection with ID, display name,
+      avatar, and other message-visible identity fields. Do not attach an entire server `UserSummary`
+      or presence/online fields the timeline does not render. Maintain private indexes as needed so a
+      rare external identity event can replace only affected message/sender references.
+- [ ] Make `chatOpen(chatId)` acquire a disposable/ref-counted handle and create the micro-model on
+      demand. Until loaded it exposes an explicit `unloaded/loading/ready/error` state; the final
+      handle release aborts obsolete work, unsubscribes owned timers/resources, and removes the
+      denormalized chat snapshot from memory.
+- [ ] Model each optional chat capability as a discriminated loadable resource rather than optional
+      ambiguous fields. Load message pages, threads, members, reaction actors, workspace folders,
+      and files only after a consumer explicitly retains/requests them; reconcile only retained
+      resources and never materialize an unloaded resource because an SSE hint arrived.
+- [ ] Keep reaction `count`/`reacted` summaries in materialized messages, but keep actor lists in a
+      separately retained per-message/per-reaction resource. Recommend retaining loaded actor lists
+      until the chat handle closes to prevent hover thrash; allow an explicit earlier release where
+      memory measurement justifies it.
+- [ ] Add `src/modules/composer/` as an independent local store for draft text, selected audience,
+      mentions, attachments, upload intent, validation, and send state. Public methods such as
+      `textUpdate`, `audienceUpdate`, `attachmentAdd`, `attachmentRemove`, and `textSubmit` mutate the
+      local projection and emit
+      optional `ComposerOutput`; its private writer applies only `ComposerInput`. `HappyState` listens
+      when connected and forwards output into draft/send integration modules. With the default no-op
+      listener, the exact store remains usable in Blueprint and isolated UI tests.
+- [ ] Add on-demand settings surface stores rather than one permanent settings branch. A settings
+      snapshot tracks current value, saved value, and `clean/dirty/saving/error` state per field while
+      keeping one coarse subscription per mounted settings segment—not one subscription/store per
+      control. Each known field has explicit operations such as `displayNameUpdate`,
+      `displayNameReset`, `displayNameSave`, and `notificationLevelUpdate`; there is no generic keyed
+      field API. These actions work standalone and emit field-specific typed output; private inputs
+      apply equally specific save-started/succeeded/failed and remote-change variants.
+- [ ] Add `src/modules/workspace/` for requested directory pages, aggregate tree projection,
+      stale-cursor restart, and workspace hint reconciliation, and `src/modules/workspace-file/` for
+      open-file leases, version bases, serialized writes, conservative patch rebase, and conflicts.
+- [ ] Add focused modules for presence, typing, agent activity, calls, users, notifications, files,
+      agents, administration, and other product domains as they migrate. Replace the untyped global
+      `operationResults` cache with typed lazy resources owned by those modules; retain a named raw
+      request facade only for operations intentionally not represented as state.
+- [ ] Split transport request specs, wire types, and public projection types by the same product
+      modules. Application code must continue to see product actions and snapshots, never URLs,
+      tokens, response envelopes, or transport retry mechanics.
+
+### `happy2-ui` dependency and fixture contract
+
+- [ ] Add explicit side-effect-free `happy2-state` subpath exports for store contracts, product
+      stores, and deterministic `HappyState` fixture construction. The package root may expose the
+      live server-backed constructor, but importing a store type or constructing an in-memory state
+      graph must not open a connection, start timers, or require auth.
+- [ ] Let `happy2-ui` depend on the store/contracts subpaths. Visual primitives remain props-only;
+      complete product surfaces may accept one or a few concrete store models such as
+      `SidebarStore`, `ChatStore`, `ComposerStore`, and an on-demand `SettingsStore`, subscribe inside
+      the surface, and call their safe public local actions instead of receiving a giant mapped view
+      model or dozens of callbacks.
+- [ ] Enforce a constant-size subscription budget per mounted surface. `ChatScreen` subscribes once
+      to its render-ready `ChatStore` and separately to high-frequency independent stores such as its
+      composer only when needed; it does not subscribe to identity/presence per row. Thousands of
+      `Message`, `Avatar`, and reaction leaf components receive stable props and create zero state
+      subscriptions.
+- [ ] Export public store actions and output event contracts normally, but export authoritative input
+      writer machinery only through package-private imports. Expose a controlled fixture driver from
+      `happy2-state/testing` so Blueprint can apply save/server success and failure inputs without a
+      server; add architecture checks forbidding `happy2-app` production and `happy2-ui/src`
+      production components from importing testing/internal mutation capabilities.
+- [ ] Keep the dependency direction acyclic: `happy2-state` contains its server/API bridge and stores
+      but never imports `happy2-ui`; `happy2-ui` imports only side-effect-free state contracts/stores;
+      `happy2-app` imports both, creates/attaches the live `HappyState`, and owns authentication,
+      routing, and window lifecycle.
+- [ ] Export deterministic in-memory store fixture builders from a side-effect-free fixture subpath.
+      Blueprint and `happy2-ui` browser tests instantiate the real store implementations with static
+      snapshots and drive their private writers through the controlled typed-event fixture driver,
+      so every loading, empty, populated, optimistic, failure, and streaming state renders without a
+      server or duplicated mock shape.
+- [ ] Keep transport payload types private to the runtime. Public store snapshots are stable product
+      contracts suitable for production UI and fixtures; presentation-only geometry, colors, icons,
+      and DOM state remain owned by `happy2-ui`.
+
+### Server prerequisite for lazy reaction actors
+
+- [ ] Before implementing lazy reaction actors, define a server contract that returns reaction
+      counters/`reacted` in message projections without eagerly expanding all actor IDs, plus a
+      bounded authorized GET for the actors of one message/reaction and a difference signal that can
+      reconcile an already retained actor list.
+- [ ] Implement that backend contract as its own GPT-owned server feature with architecture checks
+      and named Gym coverage for pagination, authorization, concurrent add/remove, deletion, custom
+      emoji deletion, stale cursors, and idempotent retries; stop for explicit backend approval before
+      wiring the client/state consumer.
+
+### Mergeable implementation sequence
+
+#### P0.S0 — Select the reactive primitive with Happy workloads
+
+Status: complete; included in the P0.S0 sync to `main`.
+
+- [x] Build one isolated benchmark harness with identical immutable reducers and data shapes for a
+      minimal Happy-owned surface store, `alien-signals`, `@preact/signals-core`, Nano Stores, and
+      `zustand/vanilla`; model many parallel sidebar/chat/composer stores rather than one global
+      snapshot, and exclude framework rendering from the first core-engine comparison.
+- [x] Measure sidebar update, one message update in a long materialized timeline, streamed
+      message replacement, reaction-counter update, optional reaction-actor load/reconcile/release,
+      workspace-folder replacement, and repeated chat open/close/disposal.
+- [x] Record mutation and notification p50/p95/p99, selectors/computations executed, allocations,
+      retained heap after disposal, GC pressure, cold creation cost, and exact structural-sharing
+      references. Include semantic no-ops, one-store multi-leaf setters, and synchronous output-driven
+      propagation across several independent stores.
+- [x] Add a render-first stress fixture with thousands of stable message objects, repeated authors,
+      and at least 100 visible avatar occurrences backed by canonical shared sender projections. Record
+      initial projection/mount cost, committed rows, total state subscriptions/effects, allocations,
+      and retained heap; subscription count must remain constant as message/avatar count grows.
+- [x] Measure rare avatar/identity replacement separately and accept broader surface invalidation if
+      the common initial render, scroll, message append, and stream-update paths remain faster and
+      simpler. Drive the replacement through external typed surface events and do not add per-avatar
+      subscriptions to optimize a change expected only occasionally.
+- [x] Measure presence churn with and without a presence-rendering surface. When presence is not
+      displayed, `HappyState` must not dispatch presence events to the chat store, and the timeline
+      must perform zero projections, notifications, or reference changes.
+- [x] Run a second integration benchmark for the two finalists through thin Solid, React, and Svelte
+      adapters, measuring committed row/component updates rather than only JavaScript loop throughput.
+      Cover a synchronous output chain triggered from a framework event and from an external
+      realtime/timer callback; record subscriber calls, render attempts, DOM commits, and whether any
+      intermediate cross-store combination becomes visible. Correctness must not rely on batching.
+- [x] Choose the engine only from reproducible repository results. Prefer the simplest candidate that
+      maintains the surface subscription budget, preserves repeated row references, releases store
+      graphs completely, and stays within a narrow measured margin of the fastest finalist on initial
+      render and common chat paths; store the benchmark and accepted regression thresholds with
+      `happy2-state` tests.
+
+Selection decision (2026-07-17): `zustand/vanilla`. The Happy-owned reference and Zustand reached
+identical observable states through the React, Solid, and Svelte probes and were within benchmark
+noise on common paths. Alien Signals was also fast in the core loop, but its effect graph adds
+lifecycle machinery unused by this coarse snapshot topology; Preact Signals and Nano Stores were
+slower on common paths. Between the finalists, the smallest source file is the Happy-owned reference,
+but the simplest production ownership boundary is the maintained, battle-tested synchronous
+get/set/subscribe implementation in `zustand/vanilla`. Happy keeps it private behind
+`ReadonlyStore<T>`: no Zustand hook, selector, setter, `useShallow`, or equality wrapper enters public
+state/UI contracts. Exact per-operation allocation counts are not portable in Node; the harness uses
+root-snapshot/notification counts, exact reference-identity tests, retained heap after disposal, and
+forced-GC duration as allocation/GC proxies. Selector/computation count is exactly zero by design.
+The loose timing/heap regression limits run automatically as part of the package `test` script.
+
+Completion evidence (2026-07-17): five engines share one 4,096-message/64-author fixture and the
+same immutable reducers; 61 package tests cover engine semantics, exact reference identity, rare
+avatar fan-out, disposal, and React/Solid/Svelte integration. The selected Zustand gate verifies
+semantic no-ops, ignored presence, p99 update limits, retained heap, fixture size, and the constant
+four-subscription budget during every package test. `pnpm --dir packages/happy2-state typecheck`,
+`test`, `lint`, and `format:check` pass. CodeRabbit's repeated complete-diff review returned zero
+findings, and the persisted Claude Opus review/fix/resume session explicitly reported no remaining
+actionable or task-blocking issue and declared P0.S0 ready to merge.
+
+#### P0.S1 — Characterize invariants and introduce the state kernel
+
+- [ ] Add characterization tests around current initialization, retry/idempotency, realtime hints,
+      optimistic confirmation races, workspace conflict behavior, stop/disposal, and public errors.
+- [ ] Add an explicit reference-identity matrix: no-op, one chat summary, one message, one reaction
+      counter, one reaction actor list, one identity/avatar, one presence event, one workspace folder,
+      one open file, and one unrelated domain. Prove a rare identity/avatar event updates only
+      affected render projections, while presence changes do not touch surfaces that do not display it.
+- [ ] Implement the common per-store kernel and subscription contract without changing product behavior;
+      freeze each newly created node in tests/development without cloning the whole tree on every
+      commit.
+- [ ] Introduce the small `HappyState` registry/sync shell and prove that it returns stable keyed store
+      instances, can run unconnected for fixtures, and contains no product-specific mutation or
+      routing branches. Prove each top-level integration method has an exact same-named module function
+      and is only a typed forwarding binding into the shared action context; state commands discard
+      the implementation result and expose `void`.
+- [ ] Introduce store-specific public local actions, typed output unions, authoritative input unions,
+      and package-private writers. Prove public actions mutate only their store and emit output once,
+      private inputs never re-emit output, semantic no-ops do not notify, and authoritative writers
+      are unavailable from production package exports; exercise both directions through Blueprint.
+- [ ] Keep the current facade only as a temporary adapter over the new kernel while consumers still
+      depend on it; do not preserve an obsolete facade after its callers migrate.
+- [ ] Run `happy2-state` tests/typecheck/lint/format checks and the relevant `gym/state` suite before
+      review and sync.
+
+#### P0.S2 — Migrate chat directory and one materialized chat vertical slice
+
+- [ ] Move chat summaries/global difference projection into the independent `sidebar` state/reducer;
+      keep difference fetching, ordering, and multi-store dispatch in a same-named sync action module
+      reached through the thin `HappyState` facade.
+- [ ] Introduce disposable `chatOpen`, explicit load states, initial message loading, per-chat
+      difference reconciliation, optimistic send, and message identity preservation in `chat`.
+- [ ] Migrate one real `happy2-ui` chat surface and one app route to the materialized chat/composer
+      stores,
+      then remove the corresponding `messagesByChat`/whole-root access path rather than maintaining
+      two authorities.
+- [ ] Add fake-server race/failure tests and real `gym/state` coverage, including an SSE hint during
+      initial load, sync-before-mutation-response deduplication, unload during an in-flight request,
+      and exact reference changes.
+
+#### P0.S3 — Add lazy reaction actor resources
+
+- [ ] After backend approval, project message reactions as summary-only state and load actor pages on
+      demand through a retained reaction-detail resource.
+- [ ] Reconcile counters for every materialized message, reconcile actor membership only when that
+      detail resource is retained, and keep unloaded details absent.
+- [ ] Cover hover/load/release races, pagination, concurrent add/remove, message deletion, membership
+      loss, and unchanged-reference behavior in fake-server and Gym tests.
+
+#### P0.S4 — Migrate workspace tree and open files
+
+- [ ] Move the existing useful immutable `WorkspaceRecord` transformations into workspace-owned
+      state/actions and preserve adaptive preload, requested-folder paging, and ETag reconciliation.
+- [ ] Give workspace trees and editor files separate leases so closing an editor releases its base
+      contents without unloading the visible tree.
+- [ ] Preserve serialization, idempotency, stale cursor handling, patch rebase, typed conflicts, and
+      live reconciliation with deterministic race/failure and Gym coverage.
+
+#### P0.S5 — Migrate ephemeral and remaining product resources
+
+- [ ] Move typing, presence, agent activity, and call signals into focused micro-models with their own
+      clocks, ordering keys, expiry timers, selectors, and disposal tests.
+- [ ] Replace `operationResults` area-by-area with typed retained resources. Each step migrates all
+      production callers for one domain and deletes its old cache/reconciliation branch in the same
+      feature.
+- [ ] Keep one product owner for every SSE area name and make unknown/unowned areas observable in
+      development/tests instead of silently becoming stale.
+
+#### P0.S6 — Remove the legacy model and enforce the architecture
+
+- [ ] Delete `model.ts`, the temporary compatibility adapter, generic whole-root cloning/freezing,
+      and the catch-all `operationResults` state once all production callers have migrated.
+- [ ] Add `happy2-state` architecture checks for filename/export parity, entity-first actions,
+      entity-first output/input variants, executor-first mutation boundaries, required action comments,
+      legal write locations, module import boundaries, absence of generic known-field mutation APIs,
+      and absence of framework imports; do not enforce arbitrary line limits.
+- [ ] Document the parallel-store/lease/action/snapshot pattern with sidebar, chat, composer,
+      reaction detail, and workspace examples, plus direct `happy2-ui` fixture usage and minimal
+      React, Solid, and Svelte adapters that do not become core dependencies.
+- [ ] Run repository-wide `pnpm format`, `pnpm check`, all `happy2-state` tests, all `gym/state`
+      tests, and affected app tests; record final evidence here and complete the persisted Opus
+      review/fix loop before syncing to `main`.
+
+### Acceptance criteria
+
+- [ ] No product behavior or resource lifetime is owned by a god class or catch-all result cache.
+- [ ] `HappyState` is the only shared synchronization/store-registry object, but it has no aggregate
+      render snapshot; feature stores own their snapshot, safe local actions, output contract, and
+      private input reducer and can be consumed independently. Its flat integration methods only route
+      into same-named action modules, which own coordinated workflows and side effects.
+- [ ] One action can synchronously update composer and emit output that updates chat, sidebar, and any
+      other already materialized projection before the action returns, without introducing a root
+      snapshot or creating a missing store. Each independent store notifies on its own setter; no
+      cross-store transaction or atomic-snapshot behavior is implied.
+- [ ] Calling a synchronous state command returns `void`; the updated state is observable through
+      `get()` and subscriptions before control returns to the caller, never through an action result.
+- [ ] There is no coherent root product snapshot: updating chat or composer does not evaluate or
+      notify sidebar, workspace, settings, or another chat store.
+- [ ] Opening a chat creates exactly one denormalized chat micro-model; closing its final handle frees
+      its messages, optional reaction actors, threads/members, timers, and in-flight ownership.
+- [ ] An unloaded optional resource occupies no entity payload memory and is not fetched or updated by
+      a realtime hint; a retained resource reconciles automatically without a Refresh action.
+- [ ] Tests prove exact upward-only structural sharing within every migrated store, zero unrelated
+      store notifications, and no notification/reference change for semantic no-ops or duplicate
+      differences.
+- [ ] Rendering N messages or avatar occurrences does not create O(N) state subscriptions/effects.
+      Message rows contain render-ready canonical sender projections with ID/name/avatar but omit
+      unused presence; external orchestration sends identity/presence events only to materialized
+      surfaces that render those fields.
+- [ ] Production application/UI code may call safe local store actions but cannot apply authoritative
+      inputs or manufacture confirmed, pinned, saved, edited, or other durable states. Only the private
+      action context reached through store output/`HappyState` integration and the explicitly test-only
+      Blueprint fixture driver hold writer capabilities.
+- [ ] The state core has no UI-framework runtime dependency; `happy2-ui` renders the same concrete
+      stores with live connectors or deterministic in-memory fixtures and never requires a server.
+- [ ] Existing retry, idempotency, error, workspace-conflict, realtime-hint, and real-server behavior
+      remains covered at the state boundary throughout the migration.
+
+---
+
 ## P0. UI architecture and Blueprint foundation
 
 This section incorporates independent full-tree audits by Codex and Claude Fable. It is the complete UI-architecture source of truth; no separate audit or implementation-plan file is authoritative. This planning work does not authorize implementation in the current worktree.
 
 ### P0.A — Enforce `happy2-ui` ownership before adding more screens
 
-- [ ] Make application routes thin controller/view-model adapters that render props-only `happy2-ui` screens; prohibit app-owned visual layout, inline component styling and alternate UI primitives.
+- [ ] Make application routes thin lifecycle/connectivity adapters that attach live runtime sources
+      to independent state stores and render `happy2-ui` screens from those stores; prohibit
+      app-owned visual layout, inline component styling and alternate UI primitives.
+- [ ] Keep leaf visual primitives props-only. Allow complete `happy2-ui` product surfaces to consume
+      side-effect-free `happy2-state` store contracts directly so the app does not rebuild large
+      view-model prop trees on every update.
 - [ ] Preserve the existing host-only app stylesheet exception for root sizing/background.
 - [ ] Split work by independent state/lifetime and visual contracts rather than an arbitrary line limit.
 - [ ] Use `AgentImagesView` and `AgentSecretsView` as the current reference pattern.
@@ -141,7 +543,8 @@ This section incorporates independent full-tree audits by Codex and Claude Fable
 - [ ] Characterize current observable behavior before extraction, especially stable streaming rows, drafts, scroll, routing, threads, file conflicts and subscription cleanup.
 - [ ] Extract pure presenters and focused navigation, conversation, thread, workspace-file, attachment, activity, membership and dialog controllers with no visual JSX.
 - [ ] Move Chat panels/dialogs and the complete ChatScreen into `happy2-ui`, with their own Blueprint fixtures/tests, before replacing app rendering.
-- [ ] Decompose Auth, Settings, Files, Search and Admin into focused controllers plus props-only full-screen components.
+- [ ] Decompose Auth, Settings, Files, Search and Admin into focused independent stores plus
+      `happy2-ui` full-screen surfaces that can use live or deterministic in-memory store instances.
 - [ ] Decide retain versus delete for unrouted Home, Inbox, Calls and Threads before investing in them.
 - [ ] Perform each numbered task in the detailed sequence below in its own Conductor workspace and merge before starting the next.
 
@@ -152,7 +555,11 @@ This section incorporates independent full-tree audits by Codex and Claude Fable
 - [ ] Review `AuthGate.tsx` (375 lines), `AgentSecretsView.tsx` (426), `AdminView.tsx` (331), `AgentImagesView.tsx` (273), `FilesView.tsx` (264), `SearchOverlay.tsx` (214) and `App.tsx` (159) against the same state/lifetime/visual boundary.
 - [ ] Split public visual contracts currently bundled in `Message.tsx` (738 lines), `Composer.tsx` (661), `AgentSecretPanel.tsx` (430), `FileTree.tsx` (397), `AgentImagePanel.tsx` (394) and `Sidebar.tsx` (264) only where the child can render, behave and be tested independently.
 - [ ] Preserve good existing foundations: id-keyed `reconcile` stores and stable streaming rows; hardened Message Markdown; `AppShell`, `Rail`, `Sidebar`, `TitleBar`, `ChannelHeader`; current message/composer/run primitives; and the AgentImages/AgentSecrets glue-to-panel pattern.
-- [ ] Do not move state, routing, authorization, server operations, transport, SSE subscriptions or product policy into `happy2-ui` merely to shrink an app file.
+- [ ] Do not move state ownership, routing, authorization, server operations, transport, SSE
+      subscriptions or product policy into `happy2-ui` merely to shrink an app file. UI surfaces may
+      subscribe to injected `happy2-state` stores, invoke their safe local actions, and use separately
+      injected narrow `HappyState` integration ports where needed, but cannot access authoritative
+      writers or create/attach live connectors.
 - [ ] Do not replace one god component with one god controller or a single unbounded prop object.
 
 Verified behavioral/code defects to resolve during the relevant isolated feature:
@@ -206,7 +613,8 @@ The future manifest-wide test must be TypeScript using current Vitest Browser, `
 - [ ] failure output names page, specimen, part, edge and signed overflow distance;
 - [ ] all three Retina screenshots are saved using existing infrastructure.
 
-The Full screens section must eventually contain deterministic, network-free props-only fixtures for:
+The Full screens section must eventually contain deterministic, network-free fixtures backed by
+props for leaf components and in-memory `happy2-state` stores for connected product surfaces:
 
 - [ ] authentication loading, server unavailable, password sign-in, registration, magic link, OIDC handoff and session expiry;
 - [ ] onboarding profile, avatar crop/skip, sandbox provider, image choice, build progress/failure/retry and completion;
@@ -218,9 +626,10 @@ The Full screens section must eventually contain deterministic, network-free pro
 - [ ] Activity and Threads if retained;
 - [ ] Calls and Home only if explicitly retained.
 
-### P0.F — Target `happy2-ui` screens and app controllers
+### P0.F — Target `happy2-ui` screens and app lifecycle adapters
 
-New props-only `happy2-ui` contracts should include, when their feature is implemented:
+New `happy2-ui` contracts should keep leaf visuals props-only and allow complete product surfaces to
+consume the relevant independent store contracts when their feature is implemented:
 
 - [ ] `ApplicationScreen`/`WorkspaceScreen` for the exact persistent title/rail/sidebar/workspace/panel composition;
 - [ ] `ChatScreen`, `ChatTimeline`, `ChatMessage`, `ChatActivityStrip` and `ChatInspectorHost`;
@@ -232,20 +641,29 @@ New props-only `happy2-ui` contracts should include, when their feature is imple
 - [ ] `AdminScreen` plus truthful per-resource surfaces;
 - [ ] `ActivityScreen`, `ThreadsScreen`, `CallsScreen` and `HomeScreen` only for retained destinations.
 
-Focused app modules should include:
+Independent `happy2-state` stores and thin app lifecycle modules should include:
 
-- [ ] `chatNavigationController` for chats, directory, DM peers, presence, starring, unread presentation and selection;
-- [ ] `conversationController` for message pages, optimistic sends, read-through, typing and reactions;
-- [ ] `threadController` for root/replies, paging, send, races and subscriptions;
-- [ ] `chatFilesController` for workspace tree, paging and versioned file conflict state;
-- [ ] `chatAttachmentsController` for uploads, provenance, signed/object URL lifetime, downloads and viewer intent;
-- [ ] `chatActivityController` for agent activity and timer lifetime;
-- [ ] `chatMembershipController` for members, roles, join/leave and channel settings;
-- [ ] one small controller per complex dialog, or a narrowly scoped chat dialog coordinator;
+- [ ] `SidebarStore` for render-ready chats, directory, DM peers, starring, unread presentation,
+      selection, and the identity/presence fields the sidebar actually displays;
+- [ ] one internal canonical identity/avatar projection catalog used by action modules when
+      constructing typed events for retained surfaces; it is not another store that every row or
+      screen subscribes to;
+- [ ] one `ChatStore` per materialized chat for message pages, optimistic sends, read-through, typing and reactions;
+- [ ] retained thread stores for root/replies, paging, send, races and subscriptions;
+- [ ] workspace tree and versioned editor-file stores with independent lifetimes;
+- [ ] attachment/viewer stores for uploads, provenance, signed/object URL lifetime, downloads and viewer intent;
+- [ ] agent-activity stores for activity state and timer lifetime;
+- [ ] chat-membership stores for members, roles, join/leave and channel settings;
+- [ ] one small local store per complex dialog where state outlives a leaf component;
 - [ ] pure identity/time/file/message presenters with explicit locale/time-zone inputs;
-- [ ] one reusable `createAutosave` controller for debounce, fingerprint, single flight, trailing changes and disposal.
+- [ ] one reusable autosave store/action module for debounce, fingerprint, single flight, trailing changes and disposal.
 
-Controllers expose immutable snapshots/signals and narrow actions, never DOM nodes. Each subscribes only to its owned state and disposes timers, requests, subscriptions, signed URLs and object URLs itself.
+Stores expose immutable snapshots/subscriptions plus safe synchronous local actions publicly. Those
+actions may emit typed output to an optional owner listener; closed authoritative inputs enter through
+package-private writers and never emit output. Stores never expose DOM nodes, transport payloads, or
+side effects. `HappyState` methods only forward into same-named integration modules; those modules own
+queues, requests, reconciliation, timers, signed/object URL lifetimes, and multi-store dispatch. Thin
+app lifecycle modules attach authentication, live connectors, routing, and window resources.
 
 ### P0.G — Detailed isolated implementation sequence
 
@@ -288,7 +706,8 @@ Acceptance: every fixture is inspectable at 100% and transparent Rail chrome loo
 #### UI-05 — Full screens Blueprint infrastructure
 
 - [ ] Add an exact 1024×704 full-screen fixture inside a scrollable Blueprint card at 100% scale.
-- [ ] Add stable view-model fixtures under `happy2-ui/dev` that production never imports.
+- [ ] Add deterministic in-memory `happy2-state` store fixtures under a side-effect-free fixture
+      export consumed by `happy2-ui/dev`; production never imports representative fixture data.
 - [ ] Add each screen/state from P0.E only when its real screen component exists.
 - [ ] Test overlays without replacing their underlying screen.
 
@@ -310,22 +729,29 @@ Acceptance: all visible product UI can eventually be reviewed without starting t
 - [ ] Remove mock visual types from live mappings.
 - [ ] Preserve durable row IDs and stable streaming DOM.
 
-#### UI-08 — Extract Chat navigation controller
+#### UI-08 — Connect the independent Sidebar store
 
-- [ ] Move summaries, directory, contacts, peers, presence, starring, unread and selection into one focused controller.
+- [ ] Move summaries, directory, contacts, peers, starring, unread and selection into the
+      independent `SidebarStore` and render it directly from the `happy2-ui` sidebar surface.
+- [ ] Subscribe the sidebar surface once to its render-ready snapshot. `HappyState` embeds canonical
+      ID/name/avatar projections and only the presence fields this surface renders; repeated rows and
+      avatars create no subscriptions of their own.
 - [ ] Preserve hydration coalescing while removing duplicate navigation application.
 - [ ] Resolve N+1 DM peers only through an appropriate state/server bulk contract, not a UI abstraction.
 - [ ] Split focused navigation tests from `LiveStateViews.test.tsx`.
 
-#### UI-09 — Extract conversation and thread controllers
+#### UI-09 — Connect Chat, Composer, and thread stores
 
-- [ ] Move loading/paging, optimistic send, read-through, typing, reactions and durable approvals into conversation ownership.
+- [ ] Project loading/paging, optimistic send, read-through, typing, reactions and durable approvals
+      into one retained `ChatStore` per chat and an independent `ComposerStore`; keep the workflows,
+      queues, server calls, and event fan-out in integration action modules reached by the stores'
+      typed output listeners and the thin `HappyState` facade.
 - [ ] Precompute grouping once in the ordered view model; remove per-row full-list filtering.
 - [ ] Use keyed state for independent message/chat UI values.
-- [ ] Move thread load/reconcile/send/stale-response protection into its own lifetime.
+- [ ] Move thread load/reconcile/send/stale-response protection into its own retained store lifetime.
 - [ ] Preserve current stable-row streaming and thread race tests.
 
-#### UI-10 — Extract workspace files, attachments and activity controllers
+#### UI-10 — Connect workspace, attachment, and activity stores
 
 - [ ] Isolate workspace paging and conflict-safe editor state.
 - [ ] Isolate upload, signed URL expiry, object URL cleanup, previews/downloads and viewer intent.
@@ -340,11 +766,15 @@ Acceptance: all visible product UI can eventually be reviewed without starting t
 - [ ] Cover loading, validation, disabled, error and success/closing states.
 - [ ] Add geometry, keyboard, focus-trap/return and Blueprint coverage in every browser.
 
-#### UI-12 — Introduce the props-only `ChatScreen`
+#### UI-12 — Introduce the store-driven `ChatScreen`
 
-- [ ] Compose shell/sidebar/header/timeline/activity/composer/inspector/overlays in `happy2-ui` using narrow grouped view models.
-- [ ] Render complete Chat states in Blueprint before rewiring the app.
-- [ ] Reduce the app Chat route to controller creation, view-model selection and one `ChatScreen` render.
+- [ ] Compose shell/sidebar/header/timeline/activity/composer/inspector/overlays in `happy2-ui` from
+      injected `SidebarStore`, `ChatStore`, `ComposerStore`, and other narrowly lived stores; keep
+      leaf visual components props-only.
+- [ ] Render complete Chat states in Blueprint from deterministic in-memory store fixtures before
+      rewiring the app.
+- [ ] Reduce the app Chat route to store lifetime, live connector attachment, routing, and one
+      `ChatScreen` render.
 - [ ] Preserve route, scroll, draft, thread/panel and streaming row identity.
 - [ ] Remove live mock branches only after equivalent Blueprint fixtures exist.
 
@@ -354,14 +784,20 @@ Acceptance: the Chat route reads as wiring and the exact UI is independently rev
 
 - [ ] Separate Auth session/state machine from AuthFlowScreen/forms.
 - [ ] Move credentials/profile setup visuals and all auth/onboarding states to `happy2-ui`/Blueprint.
-- [ ] Separate Settings profile/status/preferences/avatar controllers.
-- [ ] Replace triplicated autosave with tested `createAutosave`.
+- [ ] Create profile/status/preferences/avatar settings stores on demand with one render-ready snapshot
+      per mounted section and explicit current/saved/clean/dirty/saving/error state per editable field.
+- [ ] Give each settings store standalone field-specific actions such as `displayNameUpdate`,
+      `displayNameReset`, `displayNameSave`, and `notificationLevelUpdate`, plus equally explicit typed
+      output variants. Reject generic keyed field APIs; use the private fixture driver to toggle typed
+      save success, failure, stale completion, and remote reconciliation in Blueprint without a live server.
+- [ ] Replace triplicated autosave with a tested shared store/action module.
 - [ ] Reconcile external status/preferences while open.
 - [ ] Move the complete Settings screen/sections to `happy2-ui` and prove profile/avatar changes do not remount.
 
 #### UI-14 — Decompose Files, Search and Admin
 
-- [ ] Move full visual trees into `happy2-ui`; retain pagination, permission, data and routing controllers in the app.
+- [ ] Move full visual trees into `happy2-ui`; retain routing/auth in the app and put pagination,
+      permission, and data state in independent `happy2-state` stores with optional live connectors.
 - [ ] Add live Files/Admin reconciliation and independent Admin resource failures.
 - [ ] Keep preview URL lifetime in focused app ownership.
 - [ ] Add all full-screen states and browser coverage.
@@ -369,7 +805,8 @@ Acceptance: the Chat route reads as wiring and the exact UI is independently rev
 #### UI-15 — Resolve remaining destinations and dead code
 
 - [ ] Decide retain/remove for Home, Inbox, Calls and Threads.
-- [ ] Retained destinations require a props-only screen, live controller, Full screen fixtures and browser tests.
+- [ ] Retained destinations require a `happy2-ui` screen, independent state store(s), live connector,
+      in-memory Full screen fixtures, and browser tests.
 - [ ] Removed destinations delete app view, mock data, exports and fixtures together.
 - [ ] Remove unused Tailwind import and ignored legacy props after proving no consumer.
 - [ ] Ensure production routes never import representative Blueprint/mock data.
@@ -380,7 +817,8 @@ Acceptance: the Chat route reads as wiring and the exact UI is independently rev
 - [ ] Reject public UI exports missing Blueprint/test ownership.
 - [ ] Reject component colors outside `theme.css`, including literal shadow/scrim colors needing tokens.
 - [ ] Enforce dialog/menu Escape hierarchy, initial focus, trap/return, arrow navigation and typeahead contracts.
-- [ ] Document controller/view-model/screen examples using AgentImages/Secrets and refactored Chat.
+- [ ] Document props-only leaf and store-driven surface examples using AgentImages/Secrets and
+      refactored Chat.
 - [ ] Use complexity metrics as review signals, never arbitrary line gates.
 - [ ] Run `pnpm check`, every `happy2-ui` browser suite, app/state tests and relevant gym coverage.
 
@@ -393,7 +831,9 @@ UI architecture acceptance gate:
 - [ ] No unexplained bounds, text, focus-ring or popover clipping remains.
 - [ ] Search/profile/file/thread/command overlays preserve the underlying route, focus, scroll and drafts.
 - [ ] Chat streaming retains DOM nodes without remounting the screen.
-- [ ] Controllers have bounded subscriptions, timers, requests, signed URLs and object URLs.
+- [ ] Stores have bounded UI subscriptions, while `HappyState` and app lifecycle adapters have bounded
+      timers, requests, signed URLs, and object URLs; none of these counts grows with rendered
+      message/avatar rows.
 - [ ] Visual redesign is performed only as a separately approved feature after behavior-preserving extraction.
 
 ---
@@ -569,7 +1009,10 @@ Acceptance: reload/deep link always lands on the correct centered step, build pr
 - [ ] Use the same cropper in onboarding and settings.
 - [ ] Add a regression test proving avatar change preserves the current route, chat, scroll position, draft, open thread/panel, and existing DOM/state instance.
 - [ ] Revoke superseded object URLs without blanking other avatar instances during the swap.
-- [ ] Reconcile the changed avatar through user sync so every sidebar, message, search result, profile card, and rail avatar updates live.
+- [ ] Reconcile the changed avatar once into the internal canonical identity projection catalog, then
+      let `HappyState` dispatch typed projection events to already materialized sidebar, chat, search,
+      profile, and rail stores that render it. Replacing affected sender/message references is allowed
+      on this rare path; do not add per-avatar subscriptions.
 - [ ] Add gym tests for non-image, corrupt image, animated input, orientation, non-square input, oversized dimensions, crop bounds, and square stored output.
 
 Acceptance: the user chooses the exact crop, sees a circular preview, and every visible avatar changes without any application restart/remount.

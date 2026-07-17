@@ -205,6 +205,50 @@ decision to create a process-global instance outside this package.
   actions return immediately and surface terminal failure through state events.
 - State remains memory-only and framework-independent: immutable `get()`
   snapshots plus typed subscriptions are the UI integration contract.
+- Split product state into independently constructible, on-demand surface stores
+  selected by UI lifetime and update cadence. A store constructor must not open
+  transport, persistence, timers, or authentication resources. Repeated rows
+  and entities must not require one store or subscription each.
+- A surface store may publicly expose synchronous, local `void` actions such as
+  `textUpdate`, `attachmentAdd`, `attachmentRemove`, or `textSubmit` alongside
+  `get()` and `subscribe()`. Name every action entity-first in lower camel case,
+  including actions on an already scoped store. Each action mutates only that
+  store first, then may emit a typed output event to the listener supplied by
+  its creator. Name output and private-input variants entity-first as well, for
+  example `textUpdated`, `textSubmitted`, `attachmentAdded`, and
+  `displayNameSaveSucceeded`. The listener is optional and defaults to a no-op,
+  so the same concrete store works standalone in Blueprint and tests.
+- Keep public snapshot, action, output, and private-input contracts as explicit,
+  closed TypeScript trees. For statically known product fields, do not expose
+  generic `getField`/`setField`/`updateField` APIs, string paths, `keyof` mutation
+  dispatch, `unknown` values, or catch-all record payloads. Give every editable
+  field its own typed entity-first actions and event variants, such as
+  `displayNameUpdate(value: string)` and
+  `notificationLevelUpdate(value: NotificationLevel)`. Genuinely dynamic
+  collections remain equally strict: use their branded ID type and concrete
+  value type, for example `ReadonlyMap<MessageId, MessageSnapshot>`; dynamic
+  cardinality never permits an untyped key or value.
+- Store updates and subscriptions are synchronous and require no transaction
+  API. A local action performs its store's `set`, then emits output in the same
+  call stack; the owner may synchronously update other already materialized
+  stores before the action returns. Independent stores notify independently and
+  have no cross-store atomic-snapshot contract. State that must be observed
+  atomically belongs in one surface store. Do not create a missing store merely
+  to deliver an event.
+- Do not mirror local state across stores merely to keep them synchronized. An
+  output event may feed persistence or a server queue without changing another
+  UI store. Update another already materialized store only when that surface
+  actually renders a projection changed by the event; keep common high-frequency
+  actions on one owning store.
+- Framework adapters may batch or schedule rendering after several synchronous
+  store notifications, but state correctness must not depend on one render or
+  DOM commit. A subscriber or derived value that requires a coherent combination
+  must read one owning surface store rather than join independent stores.
+- Keep authoritative input separate from public local actions. Server results,
+  persistence results, differences, and reconciliation enter through a private
+  typed writer and must not re-emit store output events. Public actions may
+  express intent or optimistic local state, but must not fabricate confirmed,
+  saved, pinned, or otherwise server-authoritative state.
 - Cover deterministic races and failures with the programmable fake server in
   `happy2-state/testing`, and cover the same boundary against the real in-memory
   server through `gym/state`.
