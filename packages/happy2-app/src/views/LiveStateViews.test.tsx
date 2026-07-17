@@ -692,6 +692,16 @@ describe("live views use happy2-state", () => {
             changePts: "3",
             threadRootMessageId: "root",
         });
+        /* A @happy service message must render as a centered SystemNotice, not a
+           chat bubble, and must not count as one of the two grouped messages. */
+        const joinNotice = automatedMessage("@steve joined #joined", {
+            id: "join-notice",
+            sequence: "0",
+            changePts: "0",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            generationStatus: undefined,
+            service: { type: "user_added", userId: currentUser.id },
+        });
         const server = baseServer([joined]);
         server.respond(
             "GET",
@@ -707,7 +717,11 @@ describe("live views use happy2-state", () => {
         server.respond(
             "GET",
             (path) => path.includes("/v0/chats/joined/messages?limit=100"),
-            jsonResponse(200, { messages: [root, followUp], chatPts: "2", hasMore: false }),
+            jsonResponse(200, {
+                messages: [joinNotice, root, followUp],
+                chatPts: "2",
+                hasMore: false,
+            }),
         );
         server.respond(
             "GET",
@@ -776,6 +790,15 @@ describe("live views use happy2-state", () => {
         expect(messages).toHaveLength(2);
         expect(messages[1]?.hasAttribute("data-grouped")).toBe(true);
         expect(view.container.querySelector('[data-happy2-ui="message-attachments"]')).toBeNull();
+        /* The service message rendered as a SystemNotice with its refs intact. */
+        const notice = view.container.querySelector('[data-happy2-ui="system-notice"]');
+        expect(notice?.textContent).toBe("@steve joined #joined");
+        expect(
+            Array.from(
+                notice?.querySelectorAll('[data-happy2-ui="system-notice-ref"]') ?? [],
+                (node) => node.textContent,
+            ),
+        ).toEqual(["@steve", "#joined"]);
 
         const rootMessage = view.getByText("Root note").closest('[data-happy2-ui="message"]')!;
         fireEvent.click(rootMessage.querySelector('[aria-label="Open thread"]')!);
@@ -2150,6 +2173,8 @@ function chat(overrides: Partial<ChatSummary> = {}): ChatSummary {
         name: "Channel",
         slug: "channel",
         isListed: true,
+        isMain: false,
+        autoJoin: false,
         retentionMode: "inherit",
         defaultExpiryMode: "none",
         defaultAfterReadScope: "any_reader",

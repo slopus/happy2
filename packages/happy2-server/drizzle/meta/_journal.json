@@ -89,6 +89,7 @@
         {
             "idx": 12,
             "version": "6",
+<<<<<<< HEAD
             "when": 1784230000000,
             "tag": "0012_agent_effort",
             "breakpoints": true
@@ -98,6 +99,10 @@
             "version": "6",
             "when": 1784250000000,
             "tag": "0013_agent_turn_started_at",
+=======
+            "when": 1784250000000,
+            "tag": "0012_main_channels_and_service_agent",
+>>>>>>> f5608e0 (feat(channels): durable main channel and @happy service agent)
             "breakpoints": true
         }
     ]

@@ -508,7 +508,7 @@ describe("OperationsRepository", () => {
             targetUserId: member.user.id,
         });
         expect(deleted.sync).toMatchObject({
-            chats: [{ chatId, pts: "1" }],
+            chats: expect.arrayContaining([{ chatId, pts: "1" }]),
             areas: ["users"],
         });
         expect(await database.findActiveSession(session.id)).toBeUndefined();

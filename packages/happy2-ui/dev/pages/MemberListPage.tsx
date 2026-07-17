@@ -71,6 +71,37 @@ const roles: MemberItem[] = [
     },
 ];
 
+const withService: MemberItem[] = [
+    {
+        agent: true,
+        id: "happy",
+        initials: "H",
+        name: "Happy",
+        role: "member",
+        systemRole: "service",
+        tone: "brand",
+        username: "happy",
+    },
+    {
+        id: "ada",
+        initials: "AL",
+        name: "Ada Lovelace",
+        presence: "online",
+        role: "owner",
+        title: "Founder & CEO",
+        tone: "violet",
+    },
+    {
+        id: "grace",
+        initials: "GH",
+        name: "Grace Hopper",
+        presence: "offline",
+        role: "member",
+        tone: "ocean",
+        username: "grace",
+    },
+];
+
 const minimal: MemberItem[] = [
     {
         id: "solo",
@@ -154,6 +185,17 @@ export function MemberListPage() {
                 >
                     <div style={{ width: "300px", padding: "24px" }}>
                         <MemberList members={minimal} />
+                    </div>
+                </Specimen>
+
+                <Specimen
+                    detail="service agent — agent avatar (no presence dot) · accent Service badge outranks org role"
+                    label="Service member"
+                    number="C-039·E"
+                    stage="surface"
+                >
+                    <div style={{ width: "300px", padding: "24px" }}>
+                        <MemberList members={withService} />
                     </div>
                 </Specimen>
             </div>

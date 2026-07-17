@@ -7,6 +7,8 @@ export function chat(overrides: Partial<ChatSummary> = {}): ChatSummary {
         name: "State laboratory",
         slug: "state-laboratory",
         isListed: false,
+        isMain: false,
+        autoJoin: false,
         retentionMode: "inherit",
         defaultExpiryMode: "none",
         defaultAfterReadScope: "any_reader",

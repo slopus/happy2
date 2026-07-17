@@ -212,7 +212,7 @@ describe("AI agent chats", () => {
             ).statusCode,
         ).toBe(201);
         const channelMessages = await waitForMessages(server.as(owner), channelId, 1);
-        expect(channelMessages.map(({ text }) => text)).toEqual([
+        expect(channelMessages.filter(({ service }) => !service).map(({ text }) => text)).toEqual([
             "Channel collaboration is mention-driven later",
         ]);
         expect(rig.submittedTexts).toEqual(["Keep my private work separate"]);

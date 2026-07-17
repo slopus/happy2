@@ -20,6 +20,8 @@ export interface ChatSummary {
     readonly ownerUserId?: string;
     readonly photoFileId?: string;
     readonly isListed: boolean;
+    readonly isMain: boolean;
+    readonly autoJoin: boolean;
     readonly archivedAt?: string;
     readonly retentionMode: "inherit" | "forever" | "duration";
     readonly retentionSeconds?: number;
@@ -53,6 +55,7 @@ export interface UserSummary {
     readonly role: "member" | "admin";
     readonly kind: "human" | "agent";
     readonly agentEffort?: string;
+    readonly systemRole?: "service";
     readonly createdByUserId?: string;
 }
 
@@ -93,6 +96,10 @@ export interface MessageSummary {
     };
     readonly kind: "user" | "automated";
     readonly text: string;
+    readonly service?: {
+        readonly type: "user_added" | "user_joined";
+        readonly userId: string;
+    };
     readonly generationStatus?: "streaming" | "complete" | "failed";
     readonly quotedMessage?: {
         readonly id: string;
@@ -353,6 +360,7 @@ export interface CreateChannelInput {
     readonly name: string;
     readonly slug: string;
     readonly topic?: string;
+    readonly autoJoin?: boolean;
 }
 
 export interface CreateAgentInput {

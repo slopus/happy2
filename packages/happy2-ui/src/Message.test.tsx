@@ -2,7 +2,7 @@ import "./styles.css";
 import { createSignal, For, type JSX } from "solid-js";
 import { expect, it } from "vitest";
 import { FileAttachment } from "./FileAttachment";
-import { DayDivider, Message, MessageList } from "./Message";
+import { DayDivider, Message, MessageList, SystemNotice } from "./Message";
 import { assertParallelRoundedCorners, createRenderer, type RenderedElement } from "./testing";
 
 /* Fixtures render on the app surface color so screenshots are representative. */
@@ -1594,4 +1594,109 @@ it("renders string bodies as safe streaming Markdown", async () => {
     expect(failedContent.computedStyle("opacity")).toBe("1");
 
     await view.screenshot("Message.markdown.test");
+});
+
+it("centers SystemNotice service lines and lifts @user / #channel refs", async () => {
+    const view = createRenderer();
+
+    view.render(() => stage("n1", <SystemNotice text="@ada joined #welcome" />), {
+        width: 560,
+        height: 44,
+    });
+    view.render(() => stage("n2", <SystemNotice text="@bob joined the server" />), {
+        width: 560,
+        height: 44,
+    });
+    view.render(
+        () => stage("n3", <SystemNotice text="@caroline-ng was added to #announcements by @ada" />),
+        { width: 560, height: 44 },
+    );
+    await view.ready();
+
+    /* ---- Row contract: full-bleed, centered flex, 6/20 padding ------------ */
+    const notice = view.$('[data-testid="n1"] [data-happy2-ui="system-notice"]');
+    expect(
+        notice.computedStyles([
+            "display",
+            "align-items",
+            "justify-content",
+            "box-sizing",
+            "column-gap",
+            "padding-top",
+            "padding-bottom",
+            "padding-left",
+            "padding-right",
+        ]),
+    ).toEqual({
+        display: "flex",
+        "align-items": "center",
+        "justify-content": "center",
+        "box-sizing": "border-box",
+        "column-gap": "8px",
+        "padding-top": "6px",
+        "padding-bottom": "6px",
+        "padding-left": "20px",
+        "padding-right": "20px",
+    });
+    expect(notice.element.getAttribute("role")).toBe("note");
+    expect(notice.element.getAttribute("aria-label")).toBe("@ada joined #welcome");
+
+    /* ---- Text + ref color/weight contract --------------------------------- */
+    const text = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-text"]');
+    expect(text.computedStyles(["color", "font-size", "font-weight", "line-height"])).toEqual({
+        color: "rgb(117, 112, 133)",
+        "font-size": "13px",
+        "font-weight": "400",
+        "line-height": "20px",
+    });
+    const refs = view.container.querySelectorAll(
+        '[data-testid="n1"] [data-happy2-ui="system-notice-ref"]',
+    );
+    /* Tokenizer splits both the @user and #channel refs out of the plain runs. */
+    expect(Array.from(refs, (node) => node.textContent)).toEqual(["@ada", "#welcome"]);
+    const firstRef = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-ref"]');
+    expect(firstRef.computedStyles(["color", "font-weight"])).toEqual({
+        color: "rgb(165, 160, 176)",
+        "font-weight": "500",
+    });
+
+    /* The by-@ada actor and both refs survive in a multi-ref line. */
+    const refs3 = view.container.querySelectorAll(
+        '[data-testid="n3"] [data-happy2-ui="system-notice-ref"]',
+    );
+    expect(Array.from(refs3, (node) => node.textContent)).toEqual([
+        "@caroline-ng",
+        "#announcements",
+        "@ada",
+    ]);
+
+    /* ---- Leading glyph: faint, 14px, painted -------------------------------- */
+    const iconSlot = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-icon"]');
+    expect(iconSlot.computedStyle("color")).toBe("rgb(85, 81, 95)");
+    const iconSvg = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-icon"] svg');
+    const iconBounds = iconSvg.bounds();
+    expect(iconBounds.width).toBe(14);
+    expect(iconBounds.height).toBe(14);
+    const iconInk = await iconSvg.visibleMetrics();
+    expect(iconInk.pixelCount, "notice icon pixels").toBeGreaterThan(0);
+
+    /* ---- The icon+text group is centered as a unit over the row ----------- */
+    const noticeBounds = notice.bounds();
+    const textBounds = text.bounds();
+    const groupLeft = iconBounds.x;
+    const groupRight = textBounds.x + textBounds.width;
+    const groupCenter = (groupLeft + groupRight) / 2;
+    expect(
+        Math.abs(groupCenter - (noticeBounds.x + noticeBounds.width / 2)),
+        "notice content group optical x",
+    ).toBeLessThanOrEqual(1);
+
+    /* The glyph slot centers vertically against the text line box. */
+    const iconCenterY = iconBounds.y + iconBounds.height / 2;
+    const textCenterY = textBounds.y + textBounds.height / 2;
+    expect(Math.abs(iconCenterY - textCenterY), "notice glyph vs text center y").toBeLessThanOrEqual(
+        1,
+    );
+
+    await view.screenshot("Message.systemNotice.test");
 });

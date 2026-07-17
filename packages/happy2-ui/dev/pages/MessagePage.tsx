@@ -1,7 +1,7 @@
 import type { JSX } from "solid-js";
 import { DiffSnippet } from "../../src/DiffSnippet";
 import { FileAttachment } from "../../src/FileAttachment";
-import { DayDivider, Message, MessageList } from "../../src/Message";
+import { DayDivider, Message, MessageList, SystemNotice } from "../../src/Message";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
 
 const column: Record<string, string> = {
@@ -45,7 +45,7 @@ export function MessagePage() {
         <ComponentPage
             number="C-012"
             summary="The chat column: rich-bodied messages with agent badges, reactions, attachments, and reply affordances inside a bottom-anchored scrolling list."
-            title="Message · MessageList · DayDivider"
+            title="Message · MessageList · DayDivider · SystemNotice"
         >
             <Specimen
                 detail="6px 20px row · 36px avatar + 12px gap · author 14/700 · time 11 mono · body 15/22"
@@ -377,6 +377,24 @@ export function MessagePage() {
                         </>,
                     )}
                     <DimensionRule label="20 px pill · 12 px gap to hairlines" />
+                </div>
+            </Specimen>
+
+            <Specimen
+                detail="Centered service line · 14px leading glyph + 8px gap · 13/20 muted text · @user / #channel refs color-lifted (no pill)"
+                label="SystemNotice — membership announcements"
+                number="13"
+                stage="app"
+            >
+                <div style={column}>
+                    {channelFrame(
+                        <>
+                            <SystemNotice text="@ada joined #welcome" />
+                            <SystemNotice text="@bob joined the server" />
+                            <SystemNotice text="@caroline-ng was added to #announcements by @ada" />
+                        </>,
+                    )}
+                    <DimensionRule label="680 px frame · icon faint · refs at text-secondary weight 500" />
                 </div>
             </Specimen>
 

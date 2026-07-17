@@ -40,6 +40,8 @@ import {
     SegmentedControl,
     Select,
     Sidebar,
+    Switch as ToggleSwitch,
+    SystemNotice,
     TextField,
     ThreadPanel,
     type ApprovalResolution,
@@ -105,7 +107,15 @@ type LiveThreadMessage = ThreadMessage & {
     /** Avatar file embedded with the message, a fallback before contacts load. */
     photoFileId?: string;
 };
-type WorkspaceEntry = ThreadDivider | LiveThreadMessage;
+/* Service messages (the @happy agent's membership announcements) render as a
+   centered SystemNotice, not a chat bubble, so they carry their own entry kind. */
+type ThreadNotice = {
+    kind: "notice";
+    id: string;
+    conversationId: string;
+    text: string;
+};
+type WorkspaceEntry = ThreadDivider | LiveThreadMessage | ThreadNotice;
 /* Roster row plus the source user's avatar file, so the info panel can resolve
    a live image URL for the member without re-fetching membership. */
 type PanelMember = MemberItem & { photoFileId?: string };
@@ -114,6 +124,8 @@ const asDivider = (entry: WorkspaceEntry): ThreadDivider | undefined =>
     entry.kind === "divider" ? entry : undefined;
 const asMessage = (entry: WorkspaceEntry): LiveThreadMessage | undefined =>
     entry.kind === "message" ? entry : undefined;
+const asNotice = (entry: WorkspaceEntry): ThreadNotice | undefined =>
+    entry.kind === "notice" ? entry : undefined;
 
 const tones: ToneName[] = ["violet", "ember", "mint", "ocean", "rose", "amber", "slate"];
 /* Friendly names for the mock (no-server) roster, keyed by avatar initials. */
@@ -285,7 +297,16 @@ function toEntries(
             });
             previousDay = date;
         }
-        result.push(toThreadMessage(message, currentUser, agentName));
+        result.push(
+            message.service
+                ? {
+                      kind: "notice",
+                      id: message.id,
+                      conversationId: message.chatId,
+                      text: message.text,
+                  }
+                : toThreadMessage(message, currentUser, agentName),
+        );
     }
     return result;
 }
@@ -466,9 +487,11 @@ export function ChatView(props: ChatViewProps) {
     const [manualEmptySelection, setManualEmptySelection] = createSignal(false);
     const [channelNameDraft, setChannelNameDraft] = createSignal("");
     const [channelTopicDraft, setChannelTopicDraft] = createSignal("");
+    const [channelAutoJoinDraft, setChannelAutoJoinDraft] = createSignal(false);
     const [newChannelName, setNewChannelName] = createSignal("");
     const [newChannelSlug, setNewChannelSlug] = createSignal("");
     const [channelSlugEdited, setChannelSlugEdited] = createSignal(false);
+    const [newChannelAutoJoin, setNewChannelAutoJoin] = createSignal(false);
     const [newChannelKind, setNewChannelKind] = createSignal<"public_channel" | "private_channel">(
         "public_channel",
     );
@@ -528,6 +551,13 @@ export function ChatView(props: ChatViewProps) {
         if (activeChat()?.kind === "dm") return false;
         const role = activeChat()?.membershipRole;
         return role === "owner" || role === "admin";
+    };
+    /* Auto-join is a server-wide policy the backend restricts to server admins;
+       the current profile appears in the contact directory with its server role,
+       so the toggle is offered only when that role is "admin". */
+    const isServerAdmin = () => {
+        const me = user();
+        return me ? contacts().some((item) => item.id === me.id && item.role === "admin") : false;
     };
     const threadRoot = () =>
         threadEntries().find((entry): entry is LiveThreadMessage => entry.kind === "message");
@@ -1312,14 +1342,21 @@ export function ChatView(props: ChatViewProps) {
             setStatusHint("Channel names need at least one letter or number.");
             return;
         }
+        const autoJoin = isServerAdmin() && newChannelAutoJoin();
         startBusy();
         try {
-            const chat = await model.createChannel({ kind: newChannelKind(), name, slug });
+            const chat = await model.createChannel({
+                kind: newChannelKind(),
+                name,
+                slug,
+                ...(autoJoin ? { autoJoin: true } : {}),
+            });
             setManualEmptySelection(false);
             setCreateOpen(false);
             setNewChannelName("");
             setNewChannelSlug("");
             setChannelSlugEdited(false);
+            setNewChannelAutoJoin(false);
             await refreshWorkspace(chat.id);
         } catch (reason) {
             setStatusHint(errorMessage(reason));
@@ -1871,11 +1908,13 @@ export function ChatView(props: ChatViewProps) {
                 response.users.map(
                     (member): PanelMember => ({
                         id: member.id,
+                        agent: member.kind === "agent",
                         initials: initials(member),
                         name: fullName(member),
                         photoFileId: member.photoFileId,
                         presence: snapshots[member.id]?.status === "online" ? "online" : "offline",
                         role: memberRoleFor(member),
+                        systemRole: member.systemRole,
                         title: member.title,
                         tone: toneFor(member.id),
                         username: member.username,
@@ -1937,6 +1976,7 @@ export function ChatView(props: ChatViewProps) {
         if (chat) {
             setChannelNameDraft(chat.name ?? "");
             setChannelTopicDraft(chat.topic ?? "");
+            setChannelAutoJoinDraft(chat.autoJoin);
             if (props.session) void loadPanelMembers(chat.id);
         } else {
             setPanelMembers(mockPanelMembers());
@@ -2056,7 +2096,9 @@ export function ChatView(props: ChatViewProps) {
         ];
         if (canEditChannel())
             items.push({ icon: "settings", id: "edit", kind: "item", label: "Edit settings" });
-        if (chat?.kind !== "dm" && chat?.membershipRole) {
+        /* The main channel is permanent: everyone stays a member, so it offers no
+           leave affordance (the server rejects leaving it outright). */
+        if (chat?.kind !== "dm" && chat?.membershipRole && !chat?.isMain) {
             items.push(
                 { kind: "separator" },
                 { danger: true, icon: "close", id: "leave", kind: "item", label: "Leave channel" },
@@ -2076,12 +2118,17 @@ export function ChatView(props: ChatViewProps) {
         const chat = activeChat();
         const name = channelNameDraft().trim();
         if (!model || !chat || !name || !canEditChannel()) return;
+        /* Auto-join is admin-only and immutable for the main channel, so it is
+           only included when an admin actually changed a non-main channel. */
+        const autoJoinChanged =
+            isServerAdmin() && !chat.isMain && channelAutoJoinDraft() !== chat.autoJoin;
         startBusy();
         try {
             await model.execute("updateChannel", {
                 chatId: chat.id,
                 name,
                 topic: channelTopicDraft().trim() || null,
+                ...(autoJoinChanged ? { autoJoin: channelAutoJoinDraft() } : {}),
             });
             await model.execute("getChats");
             await refreshWorkspace(chat.id);
@@ -2411,6 +2458,20 @@ export function ChatView(props: ChatViewProps) {
                                         label="About"
                                         layout="stacked"
                                     />
+                                    <Show when={isServerAdmin() && !activeChat()?.isMain}>
+                                        <FormRow
+                                            control={
+                                                <ToggleSwitch
+                                                    aria-label="Auto-join new members"
+                                                    checked={channelAutoJoinDraft()}
+                                                    onChange={setChannelAutoJoinDraft}
+                                                />
+                                            }
+                                            description="Every new profile is added to this channel automatically."
+                                            label="Auto-join new members"
+                                            layout="stacked"
+                                        />
+                                    </Show>
                                     <Box style={panelFooterStyle}>
                                         <Button
                                             disabled={busy() || !channelNameDraft().trim()}
@@ -2548,6 +2609,9 @@ export function ChatView(props: ChatViewProps) {
                             <Switch>
                                 <Match when={asDivider(entry)}>
                                     {(divider) => <DayDivider label={divider().label} />}
+                                </Match>
+                                <Match when={asNotice(entry)}>
+                                    {(notice) => <SystemNotice text={notice().text} />}
                                 </Match>
                                 <Match when={asMessage(entry)}>
                                     {(message) => {
@@ -2963,6 +3027,20 @@ export function ChatView(props: ChatViewProps) {
                                 label="Visibility"
                                 layout="stacked"
                             />
+                            <Show when={isServerAdmin()}>
+                                <FormRow
+                                    control={
+                                        <ToggleSwitch
+                                            aria-label="Auto-join new members"
+                                            checked={newChannelAutoJoin()}
+                                            onChange={setNewChannelAutoJoin}
+                                        />
+                                    }
+                                    description="Every new profile is added to this channel automatically."
+                                    label="Auto-join new members"
+                                    layout="stacked"
+                                />
+                            </Show>
                         </Box>
                     </Modal>
                 </ModalOverlay>

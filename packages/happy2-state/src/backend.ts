@@ -355,6 +355,7 @@ export interface KnownBackendInputs {
         readonly kind?: "public_channel" | "private_channel";
         readonly photoFileId?: string | null;
         readonly isListed?: boolean;
+        readonly autoJoin?: boolean;
     };
     updateChannelPolicies: {
         readonly chatId: string;

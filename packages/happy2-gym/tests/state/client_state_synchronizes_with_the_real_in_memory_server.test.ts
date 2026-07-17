@@ -62,7 +62,9 @@ describe("happy2-state with the real in-memory server", () => {
         await state.start();
         await transport.whenConnected();
         await state.loadMessages(chatId);
-        expect(state.get().messagesByChat[chatId]).toEqual([]);
+        expect(state.get().messagesByChat[chatId]?.map(({ message }) => message.text)).toEqual([
+            "@state_member joined #real-state-gym",
+        ]);
 
         const sent = await asOwner.post(`/v0/chats/${chatId}/sendMessage`, {
             text: "Delivered through real SSE and durable differences",
@@ -75,7 +77,9 @@ describe("happy2-state with the real in-memory server", () => {
                 timeout: 3_000,
             })
             .toContain(messageId);
-        expect(state.get().messagesByChat[chatId]?.[0]).toMatchObject({
+        expect(
+            state.get().messagesByChat[chatId]?.find(({ message }) => message.id === messageId),
+        ).toMatchObject({
             delivery: "sent",
             message: {
                 id: messageId,

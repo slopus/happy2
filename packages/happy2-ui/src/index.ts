@@ -101,6 +101,8 @@ export {
     type MessageProps,
     type MessageReaction,
     type MessageSegment,
+    SystemNotice,
+    type SystemNoticeSegment,
 } from "./Message";
 export { type MessageGenerationStatus } from "./MessageMarkdown";
 export { Lightbox, type LightboxProps } from "./Lightbox";

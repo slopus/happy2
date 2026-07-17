@@ -274,10 +274,9 @@ describe("CollaborationRepository", () => {
             chatId: channel.chat.id,
             limit: 100,
         });
-        expect(main.messages.map((message) => message.id)).toEqual([
-            root.message.id,
-            quote.message.id,
-        ]);
+        expect(
+            main.messages.filter((message) => !message.service).map((message) => message.id),
+        ).toEqual([root.message.id, quote.message.id]);
         expect(quote.message.quotedMessage?.id).toBe(root.message.id);
         const replies = await repository.listMessages({
             userId: ada.id,

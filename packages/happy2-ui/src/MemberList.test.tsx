@@ -469,3 +469,83 @@ it("holds MemberList trailing variants, minimal rows, and role colors", async ()
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     await view.screenshot("MemberList.variants");
 }, 120_000);
+
+it("renders a service member with an agent avatar and a Service badge", async () => {
+    const view = createRenderer();
+
+    const serviceRoster: MemberItem[] = [
+        {
+            agent: true,
+            id: "happy",
+            initials: "H",
+            name: "Happy",
+            /* Presence is set to online to prove a service account suppresses the
+               presence dot regardless of any reported status. */
+            presence: "online",
+            role: "member",
+            systemRole: "service",
+            tone: "brand",
+            username: "happy",
+        },
+        {
+            id: "ada",
+            initials: "AL",
+            name: "Ada Lovelace",
+            presence: "online",
+            role: "owner",
+            title: "Founder & CEO",
+            tone: "violet",
+        },
+    ];
+
+    view.render(
+        () => (
+            <div style={{ background: "var(--happy2-bg-surface)", width: "100%" }}>
+                <MemberList data-testid="svc" members={serviceRoster} />
+            </div>
+        ),
+        { width: 340, height: 132, padding: 20 },
+    );
+    await view.ready();
+
+    /* ---- Service row: agent avatar, Service badge, no presence dot -------- */
+    const row = view.$('[data-testid="svc"] [data-member-id="happy"]');
+    expect(row.element.getAttribute("data-role")).toBe("service");
+    expect(row.element.getAttribute("data-presence"), "service row carries no presence").toBeNull();
+
+    const avatar = view.$(
+        '[data-testid="svc"] [data-member-id="happy"] [data-happy2-ui="avatar"]',
+    );
+    expect(avatar.element.getAttribute("data-type")).toBe("agent");
+    expect(
+        view.container.querySelector(
+            '[data-testid="svc"] [data-member-id="happy"] [data-happy2-ui="avatar-presence"]',
+        ),
+        "service account paints no presence dot",
+    ).toBeNull();
+
+    const badge = view.$('[data-testid="svc"] [data-member-id="happy"] [data-happy2-ui="badge"]');
+    expect(badge.element.textContent).toBe("Service");
+    expect(badge.element.getAttribute("data-variant")).toBe("accent");
+    expect(badge.computedStyle("background-color")).toBe("rgba(139, 124, 247, 0.15)");
+    expect(badge.computedStyle("color")).toBe("rgb(168, 155, 255)");
+    expect(badge.offsets().right, "Service badge right-aligns on the 12px pad").toBe(12);
+
+    /* ---- A human member alongside keeps its human avatar + role badge ----- */
+    const humanAvatar = view.$(
+        '[data-testid="svc"] [data-member-id="ada"] [data-happy2-ui="avatar"]',
+    );
+    expect(humanAvatar.element.getAttribute("data-type")).toBe("human");
+    const humanBadge = view.$('[data-testid="svc"] [data-member-id="ada"] [data-happy2-ui="badge"]');
+    expect(humanBadge.element.textContent).toBe("Owner");
+    expect(
+        view.container.querySelector(
+            '[data-testid="svc"] [data-member-id="ada"] [data-happy2-ui="avatar-presence"]',
+        ),
+        "the human member still shows its presence dot",
+    ).not.toBeNull();
+
+    window.scrollTo(0, 0);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await view.screenshot("MemberList.service");
+}, 120_000);

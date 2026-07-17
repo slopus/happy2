@@ -8,12 +8,15 @@ import { migrate } from "drizzle-orm/libsql/migrator";
 import { createDatabase, type DrizzleExecutor } from "./drizzle.js";
 import {
     accounts,
+    agentImages,
     authMagicLinks,
     authOidcStates,
     authSessionEvents,
     authSessions,
     botIdentities,
     chatBookmarks,
+    chatMembers,
+    chatUpdates,
     chats,
     customEmojis,
     dataExportJobs,
@@ -58,6 +61,7 @@ export interface User {
     kind: "human" | "agent";
     agentImageId?: string;
     createdByUserId?: string;
+    systemRole?: "service";
     lastAccessAt?: string;
 }
 export interface Account {
@@ -117,6 +121,7 @@ export class Database {
             .insert(serverSyncState)
             .values({ id: 1, generation: createId(), sequence: 0 })
             .onConflictDoNothing();
+        await this.db.transaction((tx) => this.ensureChannelDefaults(tx));
     }
 
     close(): void {
@@ -438,7 +443,351 @@ export class Database {
                 entityId: id,
                 actorUserId: id,
             });
+            const happyUserId = await this.joinUserToAutoJoinChannels(
+                tx,
+                {
+                    id,
+                    username: profile.username,
+                },
+                sequence,
+            );
+            await this.announceUserJoinedServer(
+                tx,
+                { id, username: profile.username },
+                happyUserId,
+                sequence,
+            );
             return asUser({ ...user, syncSequence: sequence });
+        });
+    }
+
+    private async ensureChannelDefaults(executor: DrizzleExecutor): Promise<void> {
+        let [serviceImage] = await executor
+            .select({ id: agentImages.id })
+            .from(agentImages)
+            .where(eq(agentImages.systemOnly, 1))
+            .limit(1);
+        if (!serviceImage) {
+            const id = createId();
+            await executor.insert(agentImages).values({
+                id,
+                name: "Happy service agent",
+                dockerfile: "# Happy (2) internal service agent; not an executable image.\n",
+                definitionHash: "happy2:system-service-agent:v1",
+                dockerTag: "happy2/system-service-agent:v1",
+                status: "pending",
+                systemOnly: 1,
+            });
+            serviceImage = { id };
+        }
+
+        let [happy] = await executor
+            .select({ id: users.id })
+            .from(users)
+            .where(and(eq(users.systemRole, "service"), isNull(users.deletedAt)))
+            .limit(1);
+        if (!happy) {
+            const conflicts = await executor
+                .select({ id: users.id, deletedAt: users.deletedAt })
+                .from(users)
+                .where(sql`lower(${users.username}) = 'happy'`);
+            for (const conflict of conflicts) {
+                let username: string;
+                let occupied: { id: string } | undefined;
+                do {
+                    username = `former-happy-${createId().slice(0, 10)}`;
+                    [occupied] = await executor
+                        .select({ id: users.id })
+                        .from(users)
+                        .where(sql`lower(${users.username}) = lower(${username})`)
+                        .limit(1);
+                } while (occupied);
+                const sequence = await nextSequence(executor);
+                await executor
+                    .update(users)
+                    .set({ username, syncSequence: sequence })
+                    .where(eq(users.id, conflict.id));
+                if (!conflict.deletedAt)
+                    await executor.insert(syncEvents).values({
+                        sequence,
+                        kind: "user.updated",
+                        entityId: conflict.id,
+                        actorUserId: conflict.id,
+                    });
+            }
+            const id = createId();
+            const sequence = await nextSequence(executor);
+            await executor.insert(users).values({
+                id,
+                accountId: null,
+                kind: "agent",
+                agentImageId: serviceImage.id,
+                firstName: "Happy",
+                username: "happy",
+                role: "member",
+                systemRole: "service",
+                syncSequence: sequence,
+            });
+            await executor.insert(syncEvents).values({
+                sequence,
+                kind: "user.created",
+                entityId: id,
+                actorUserId: id,
+            });
+            happy = { id };
+        }
+
+        let [main] = await executor
+            .select({ id: chats.id })
+            .from(chats)
+            .where(and(eq(chats.isMain, 1), isNull(chats.deletedAt)))
+            .limit(1);
+        if (!main) {
+            const [welcome] = await executor
+                .select({ id: chats.id })
+                .from(chats)
+                .where(and(eq(chats.slug, "welcome"), isNull(chats.deletedAt)))
+                .limit(1);
+            const sequence = await nextSequence(executor);
+            if (welcome) {
+                await executor
+                    .update(chats)
+                    .set({
+                        kind: "public_channel",
+                        visibility: "public",
+                        isListed: 1,
+                        archivedAt: null,
+                        isMain: 1,
+                        autoJoin: 1,
+                        lastChangeSequence: sequence,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    })
+                    .where(eq(chats.id, welcome.id));
+                await advanceChannel(executor, {
+                    sequence,
+                    chatId: welcome.id,
+                    kind: "chat.mainAssigned",
+                    entityId: welcome.id,
+                    actorUserId: happy.id,
+                });
+                main = { id: welcome.id };
+            } else {
+                const id = createId();
+                await executor.insert(chats).values({
+                    id,
+                    kind: "public_channel",
+                    name: "Welcome",
+                    slug: "welcome",
+                    createdByUserId: happy.id,
+                    ownerUserId: happy.id,
+                    visibility: "public",
+                    isListed: 1,
+                    isMain: 1,
+                    autoJoin: 1,
+                    pts: 1,
+                    lastChangeSequence: sequence,
+                });
+                await executor.insert(chatMembers).values({
+                    chatId: id,
+                    userId: happy.id,
+                    role: "owner",
+                    membershipEpoch: createId(),
+                    syncSequence: sequence,
+                });
+                await insertChannelUpdate(executor, {
+                    sequence,
+                    pts: 1,
+                    chatId: id,
+                    kind: "chat.created",
+                    entityId: id,
+                    actorUserId: happy.id,
+                });
+                main = { id };
+            }
+        } else {
+            await executor.update(chats).set({ autoJoin: 1 }).where(eq(chats.id, main.id));
+        }
+
+        const channels = await executor
+            .select({ id: chats.id })
+            .from(chats)
+            .where(and(ne(chats.kind, "dm"), isNull(chats.deletedAt)));
+        for (const channel of channels) {
+            const [membership] = await executor
+                .select({ leftAt: chatMembers.leftAt })
+                .from(chatMembers)
+                .where(and(eq(chatMembers.chatId, channel.id), eq(chatMembers.userId, happy.id)))
+                .limit(1);
+            if (membership?.leftAt === null) continue;
+            const sequence = await nextSequence(executor);
+            await advanceChannel(executor, {
+                sequence,
+                chatId: channel.id,
+                kind: "member.systemJoined",
+                entityId: happy.id,
+                actorUserId: happy.id,
+            });
+            await executor
+                .insert(chatMembers)
+                .values({
+                    chatId: channel.id,
+                    userId: happy.id,
+                    role: channel.id === main.id ? "owner" : "member",
+                    membershipEpoch: createId(),
+                    syncSequence: sequence,
+                })
+                .onConflictDoUpdate({
+                    target: [chatMembers.chatId, chatMembers.userId],
+                    set: {
+                        membershipEpoch: sql`excluded.membership_epoch`,
+                        syncSequence: sequence,
+                        joinedAt: sql`CURRENT_TIMESTAMP`,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                        leftAt: null,
+                    },
+                });
+        }
+
+        const activeUsers = await executor
+            .select({
+                id: users.id,
+                username: users.username,
+            })
+            .from(users)
+            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .where(
+                and(
+                    eq(users.kind, "human"),
+                    isNull(users.deletedAt),
+                    eq(accounts.active, 1),
+                    isNull(accounts.bannedAt),
+                    isNull(accounts.deletedAt),
+                ),
+            );
+        for (const user of activeUsers)
+            await this.joinUserToAutoJoinChannels(executor, user, undefined, main.id);
+    }
+
+    private async joinUserToAutoJoinChannels(
+        executor: DrizzleExecutor,
+        user: { id: string; username: string },
+        sequence?: number,
+        onlyChatId?: string,
+    ): Promise<string> {
+        const [happy] = await executor
+            .select({ id: users.id })
+            .from(users)
+            .where(and(eq(users.systemRole, "service"), isNull(users.deletedAt)))
+            .limit(1);
+        if (!happy) throw new Error("Happy service agent is not initialized");
+        const channels = await executor
+            .select({ id: chats.id, name: chats.name, slug: chats.slug })
+            .from(chats)
+            .where(
+                and(
+                    ...(onlyChatId ? [eq(chats.id, onlyChatId)] : []),
+                    eq(chats.autoJoin, 1),
+                    ne(chats.kind, "dm"),
+                    isNull(chats.deletedAt),
+                    isNull(chats.archivedAt),
+                ),
+            );
+        for (const channel of channels) {
+            const [membership] = await executor
+                .select({ leftAt: chatMembers.leftAt })
+                .from(chatMembers)
+                .where(and(eq(chatMembers.chatId, channel.id), eq(chatMembers.userId, user.id)))
+                .limit(1);
+            if (membership?.leftAt === null) continue;
+            sequence ??= await nextSequence(executor);
+            const membershipEpoch = createId();
+            await executor
+                .insert(chatMembers)
+                .values({
+                    chatId: channel.id,
+                    userId: user.id,
+                    role: "member",
+                    membershipEpoch,
+                    syncSequence: sequence,
+                })
+                .onConflictDoUpdate({
+                    target: [chatMembers.chatId, chatMembers.userId],
+                    set: {
+                        role: "member",
+                        membershipEpoch,
+                        syncSequence: sequence,
+                        joinedAt: sql`CURRENT_TIMESTAMP`,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                        leftAt: null,
+                    },
+                });
+            await advanceChannel(executor, {
+                sequence,
+                chatId: channel.id,
+                kind: "member.autoJoined",
+                entityId: user.id,
+                actorUserId: happy.id,
+                targetUserId: user.id,
+            });
+            const messageId = createId();
+            const messageMutation = await advanceChannel(executor, {
+                sequence,
+                chatId: channel.id,
+                kind: "message.serviceCreated",
+                entityId: messageId,
+                actorUserId: happy.id,
+                incrementMessageSequence: true,
+            });
+            await executor.insert(messages).values({
+                id: messageId,
+                chatId: channel.id,
+                sequence: messageMutation.messageSequence!,
+                changePts: messageMutation.pts,
+                senderUserId: happy.id,
+                kind: "automated",
+                text: `@${user.username} joined #${channel.slug ?? channel.name ?? "channel"}`,
+                contentJson: JSON.stringify({
+                    service: { type: "user_added", userId: user.id },
+                }),
+                publishedAt: sql`CURRENT_TIMESTAMP`,
+            });
+        }
+        return happy.id;
+    }
+
+    private async announceUserJoinedServer(
+        executor: DrizzleExecutor,
+        user: { id: string; username: string },
+        happyUserId: string,
+        sequence: number,
+    ): Promise<void> {
+        const [main] = await executor
+            .select({ id: chats.id })
+            .from(chats)
+            .where(and(eq(chats.isMain, 1), isNull(chats.deletedAt), isNull(chats.archivedAt)))
+            .limit(1);
+        if (!main) throw new Error("Main channel is not initialized");
+        const messageId = createId();
+        const mutation = await advanceChannel(executor, {
+            sequence,
+            chatId: main.id,
+            kind: "message.serviceCreated",
+            entityId: messageId,
+            actorUserId: happyUserId,
+            incrementMessageSequence: true,
+        });
+        await executor.insert(messages).values({
+            id: messageId,
+            chatId: main.id,
+            sequence: mutation.messageSequence!,
+            changePts: mutation.pts,
+            senderUserId: happyUserId,
+            kind: "automated",
+            text: `@${user.username} joined the server`,
+            contentJson: JSON.stringify({
+                service: { type: "user_joined", userId: user.id },
+            }),
+            publishedAt: sql`CURRENT_TIMESTAMP`,
         });
     }
 
@@ -803,6 +1152,77 @@ async function hasFileReference(executor: DrizzleExecutor, fileId: string): Prom
     return false;
 }
 
+async function advanceChannel(
+    executor: DrizzleExecutor,
+    input: {
+        sequence: number;
+        chatId: string;
+        kind: string;
+        entityId?: string;
+        actorUserId?: string;
+        targetUserId?: string;
+        incrementMessageSequence?: boolean;
+    },
+): Promise<{ pts: number; messageSequence?: number }> {
+    const [row] = await executor
+        .update(chats)
+        .set({
+            pts: sql`${chats.pts} + 1`,
+            lastMessageSequence: sql`${chats.lastMessageSequence} + ${input.incrementMessageSequence ? 1 : 0}`,
+            lastChangeSequence: input.sequence,
+            updatedAt: sql`CURRENT_TIMESTAMP`,
+        })
+        .where(and(eq(chats.id, input.chatId), isNull(chats.deletedAt)))
+        .returning({ pts: chats.pts, lastMessageSequence: chats.lastMessageSequence });
+    if (!row) throw new Error("Channel no longer exists");
+    await insertChannelUpdate(executor, {
+        ...input,
+        pts: row.pts,
+    });
+    return {
+        pts: row.pts,
+        ...(input.incrementMessageSequence ? { messageSequence: row.lastMessageSequence } : {}),
+    };
+}
+
+async function insertChannelUpdate(
+    executor: DrizzleExecutor,
+    input: {
+        sequence: number;
+        pts: number;
+        chatId: string;
+        kind: string;
+        entityId?: string;
+        actorUserId?: string;
+        targetUserId?: string;
+    },
+): Promise<void> {
+    await executor.insert(chatUpdates).values({
+        chatId: input.chatId,
+        pts: input.pts,
+        kind: input.kind,
+        entityId: input.entityId,
+    });
+    await executor.insert(syncEvents).values({
+        sequence: input.sequence,
+        kind: input.kind,
+        chatId: input.chatId,
+        chatPts: input.pts,
+        entityId: input.entityId,
+        actorUserId: input.actorUserId,
+    });
+    if (input.targetUserId)
+        await executor.insert(syncEvents).values({
+            sequence: input.sequence,
+            kind: input.kind,
+            chatId: input.chatId,
+            chatPts: input.pts,
+            entityId: input.entityId,
+            actorUserId: input.actorUserId,
+            targetUserId: input.targetUserId,
+        });
+}
+
 async function nextSequence(executor: DrizzleExecutor): Promise<number> {
     const [state] = await executor
         .update(serverSyncState)
@@ -864,6 +1284,7 @@ function asUser(row: UserRow): User {
         kind: row.kind as User["kind"],
         agentImageId: row.agentImageId ?? undefined,
         createdByUserId: row.createdByUserId ?? undefined,
+        systemRole: row.systemRole === "service" ? "service" : undefined,
         lastAccessAt: row.lastAccessAt ?? undefined,
     };
 }

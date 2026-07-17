@@ -192,7 +192,7 @@ export function registerCollaborationRoutes(
     app.post(
         "/v0/chats/createChannel",
         authenticated(auth, async (request, reply, userId) => {
-            const body = requestBody(request, ["kind", "name", "slug", "topic"]);
+            const body = requestBody(request, ["kind", "name", "slug", "topic", "autoJoin"]);
             const kind = enumField(body, "kind", ["public_channel", "private_channel"] as const);
             const result = await repository.createChannel({
                 actorUserId: userId,
@@ -200,9 +200,10 @@ export function registerCollaborationRoutes(
                 name: trimmedString(body, "name", 100),
                 slug: channelSlug(body),
                 topic: nullableTrimmedString(body, "topic", 500),
+                autoJoin: has(body, "autoJoin") ? booleanField(body, "autoJoin") : undefined,
             });
             await publishHints(request, pubsub, [result.hint], {
-                server: kind === "public_channel",
+                server: kind === "public_channel" || result.chat.autoJoin,
                 userIds: [userId],
             });
             return reply.code(201).send({ chat: result.chat, sync: result.hint });
@@ -232,6 +233,7 @@ export function registerCollaborationRoutes(
                 "kind",
                 "photoFileId",
                 "isListed",
+                "autoJoin",
             ]);
             if (Object.keys(body).length === 0)
                 throw new InvalidRequest("At least one channel field is required");
@@ -255,9 +257,10 @@ export function registerCollaborationRoutes(
                         : id(body.photoFileId, "photoFileId")
                     : undefined,
                 isListed: has(body, "isListed") ? booleanField(body, "isListed") : undefined,
+                autoJoin: has(body, "autoJoin") ? booleanField(body, "autoJoin") : undefined,
             });
             await publishHints(request, pubsub, [result.hint], {
-                server: result.chat.kind === "public_channel",
+                server: result.chat.kind === "public_channel" || result.chat.autoJoin,
             });
             return { chat: result.chat, sync: result.hint };
         }),

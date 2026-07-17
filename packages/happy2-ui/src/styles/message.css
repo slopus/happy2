@@ -12,7 +12,9 @@
 .happy2-message-list,
 .happy2-message-list > *,
 .happy2-day-divider,
-.happy2-day-divider * {
+.happy2-day-divider *,
+.happy2-system-notice,
+.happy2-system-notice * {
     box-sizing: border-box;
 }
 
@@ -722,6 +724,50 @@
     text-transform: uppercase;
     color: var(--happy2-text-secondary);
     white-space: nowrap;
+}
+
+/* ---- SystemNotice ----------------------------------------------------- */
+/*
+ * A centered service line in the stream (membership announcements). Full-bleed
+ * row like DayDivider but content-forward: a 14px leading glyph, an 8px gap,
+ * and a single 13px/20px muted text run whose @user / #channel refs are
+ * color-lifted with no pill background (color-only emphasis keeps one painted
+ * baseline, so no per-ref optical-centering contract is introduced).
+ */
+
+.happy2-system-notice {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    gap: 8px;
+    padding: 6px 20px;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-system-notice__icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    color: var(--happy2-text-faint);
+}
+
+.happy2-system-notice__text {
+    display: block;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 20px;
+    color: var(--happy2-text-muted);
+    text-align: center;
+    text-wrap: balance;
+}
+
+.happy2-system-notice__ref {
+    font-weight: 500;
+    color: var(--happy2-text-secondary);
 }
 
 /* ---- Engine-scoped optical corrections -------------------------------- */

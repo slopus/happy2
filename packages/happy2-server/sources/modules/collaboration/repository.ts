@@ -193,6 +193,8 @@ const chatSelection = {
     owner_user_id: chats.ownerUserId,
     photo_file_id: chats.photoFileId,
     is_listed: chats.isListed,
+    is_main: chats.isMain,
+    auto_join: chats.autoJoin,
     archived_at: chats.archivedAt,
     retention_mode: chats.retentionMode,
     retention_seconds: chats.retentionSeconds,
@@ -227,6 +229,7 @@ const userSelection = {
     agent_image_id: users.agentImageId,
     agent_effort: users.agentEffort,
     created_by_user_id: users.createdByUserId,
+    system_role: users.systemRole,
 };
 
 const agentImageSelection = {
@@ -675,9 +678,12 @@ export class CollaborationRepository {
         name: string;
         slug: string;
         topic?: string;
+        autoJoin?: boolean;
     }): Promise<{ chat: ChatSummary; hint: MutationHint }> {
         return this.writeDb(async (tx) => {
             await this.requireActiveUserDb(tx, input.actorUserId);
+            if (input.autoJoin) await this.requireServerAdminDb(tx, input.actorUserId);
+            const happyUserId = await this.requireHappyServiceAgentDb(tx);
             const id = createId();
             const membershipEpoch = createId();
             const sequence = await this.nextSequence(tx);
@@ -692,6 +698,7 @@ export class CollaborationRepository {
                     pts: 1,
                     ownerUserId: input.actorUserId,
                     visibility: input.kind === "public_channel" ? "public" : "private",
+                    autoJoin: input.autoJoin ? 1 : 0,
                     lastChangeSequence: sequence,
                 });
             } catch (error) {
@@ -704,6 +711,13 @@ export class CollaborationRepository {
                 userId: input.actorUserId,
                 role: "owner",
                 membershipEpoch,
+                syncSequence: sequence,
+            });
+            await tx.insert(chatMembers).values({
+                chatId: id,
+                userId: happyUserId,
+                role: "member",
+                membershipEpoch: createId(),
                 syncSequence: sequence,
             });
             await this.insertChatUpdate(tx, {
@@ -761,6 +775,7 @@ export class CollaborationRepository {
             this.db
                 .select(agentImageSelection)
                 .from(agentImages)
+                .where(eq(agentImages.systemOnly, 0))
                 .orderBy(agentImages.createdAt, agentImages.id),
         ]);
         return {
@@ -774,7 +789,7 @@ export class CollaborationRepository {
         const [image] = await this.db
             .select(agentImageDetailsSelection)
             .from(agentImages)
-            .where(eq(agentImages.id, imageId))
+            .where(and(eq(agentImages.id, imageId), eq(agentImages.systemOnly, 0)))
             .limit(1);
         if (!image) throw new CollaborationError("not_found", "Agent image was not found");
         return asAgentImageDetails(image);
@@ -843,7 +858,7 @@ export class CollaborationRepository {
             const [current] = await tx
                 .select({ status: agentImages.status })
                 .from(agentImages)
-                .where(eq(agentImages.id, input.imageId))
+                .where(and(eq(agentImages.id, input.imageId), eq(agentImages.systemOnly, 0)))
                 .limit(1);
             if (!current) throw new CollaborationError("not_found", "Agent image was not found");
             if (current.status === "ready")
@@ -868,7 +883,7 @@ export class CollaborationRepository {
                     leaseExpiresAt: null,
                     updatedAt: sql`CURRENT_TIMESTAMP`,
                 })
-                .where(eq(agentImages.id, input.imageId))
+                .where(and(eq(agentImages.id, input.imageId), eq(agentImages.systemOnly, 0)))
                 .returning(agentImageSelection);
             if (!image) throw new Error("Agent image build was not requested");
             await this.appendAuditDb(tx, {
@@ -900,7 +915,7 @@ export class CollaborationRepository {
             const [image] = await tx
                 .select(agentImageSelection)
                 .from(agentImages)
-                .where(eq(agentImages.id, input.imageId))
+                .where(and(eq(agentImages.id, input.imageId), eq(agentImages.systemOnly, 0)))
                 .limit(1);
             if (!image) throw new CollaborationError("not_found", "Agent image was not found");
             if (image.status !== "ready" || !image.docker_image_id)
@@ -960,6 +975,7 @@ export class CollaborationRepository {
                     and(
                         eq(users.id, input.agentUserId),
                         eq(users.kind, "agent"),
+                        isNull(users.systemRole),
                         isNull(users.deletedAt),
                     ),
                 )
@@ -973,7 +989,7 @@ export class CollaborationRepository {
                     status: agentImages.status,
                 })
                 .from(agentImages)
-                .where(eq(agentImages.id, input.imageId))
+                .where(and(eq(agentImages.id, input.imageId), eq(agentImages.systemOnly, 0)))
                 .limit(1)
                 .then((rows) => rows[0]),
             this.db
@@ -1044,6 +1060,7 @@ export class CollaborationRepository {
                     and(
                         eq(users.id, input.agentUserId),
                         eq(users.kind, "agent"),
+                        isNull(users.systemRole),
                         isNull(users.deletedAt),
                     ),
                 )
@@ -1060,7 +1077,7 @@ export class CollaborationRepository {
                     dockerImageId: agentImages.dockerImageId,
                 })
                 .from(agentImages)
-                .where(eq(agentImages.id, input.imageId))
+                .where(and(eq(agentImages.id, input.imageId), eq(agentImages.systemOnly, 0)))
                 .limit(1);
             if (!image) throw new CollaborationError("not_found", "Agent image was not found");
             if (image.status !== "ready" || !image.dockerImageId)
@@ -1175,6 +1192,7 @@ export class CollaborationRepository {
                 and(
                     eq(agentImageSettings.id, 1),
                     eq(agentImages.status, "ready"),
+                    eq(agentImages.systemOnly, 0),
                     sql`${agentImages.dockerImageId} IS NOT NULL`,
                 ),
             )
@@ -1189,16 +1207,19 @@ export class CollaborationRepository {
             .select({ id: agentImages.id })
             .from(agentImages)
             .where(
-                or(
-                    and(
-                        eq(agentImages.status, "pending"),
-                        sql`${agentImages.buildRequestedAt} IS NOT NULL`,
-                    ),
-                    and(
-                        eq(agentImages.status, "building"),
-                        or(
-                            isNull(agentImages.leaseExpiresAt),
-                            lte(agentImages.leaseExpiresAt, new Date().toISOString()),
+                and(
+                    eq(agentImages.systemOnly, 0),
+                    or(
+                        and(
+                            eq(agentImages.status, "pending"),
+                            sql`${agentImages.buildRequestedAt} IS NOT NULL`,
+                        ),
+                        and(
+                            eq(agentImages.status, "building"),
+                            or(
+                                isNull(agentImages.leaseExpiresAt),
+                                lte(agentImages.leaseExpiresAt, new Date().toISOString()),
+                            ),
                         ),
                     ),
                 ),
@@ -1240,7 +1261,7 @@ export class CollaborationRepository {
                     leaseExpiresAt,
                     updatedAt: sql`CURRENT_TIMESTAMP`,
                 })
-                .where(and(eq(agentImages.id, imageId), claimable))
+                .where(and(eq(agentImages.id, imageId), eq(agentImages.systemOnly, 0), claimable))
                 .returning({
                     id: agentImages.id,
                     buildContext: agentImages.buildContext,
@@ -1605,6 +1626,7 @@ export class CollaborationRepository {
                     and(
                         eq(users.id, input.agentUserId),
                         eq(users.kind, "agent"),
+                        isNull(users.systemRole),
                         isNull(users.deletedAt),
                     ),
                 )
@@ -1785,7 +1807,13 @@ export class CollaborationRepository {
                 })
                 .from(agentImageSettings)
                 .innerJoin(agentImages, eq(agentImages.id, agentImageSettings.defaultImageId))
-                .where(and(eq(agentImageSettings.id, 1), eq(agentImages.id, input.imageId)))
+                .where(
+                    and(
+                        eq(agentImageSettings.id, 1),
+                        eq(agentImages.id, input.imageId),
+                        eq(agentImages.systemOnly, 0),
+                    ),
+                )
                 .limit(1);
             if (configuredImage?.status !== "ready" || !configuredImage.dockerImageId)
                 throw new CollaborationError(
@@ -1991,6 +2019,7 @@ export class CollaborationRepository {
                         isNull(chatMembers.leftAt),
                         isNull(users.deletedAt),
                         eq(users.kind, "agent"),
+                        isNull(users.systemRole),
                     ),
                 )
                 .orderBy(users.id)
@@ -2816,6 +2845,7 @@ export class CollaborationRepository {
         kind?: "public_channel" | "private_channel";
         photoFileId?: string | null;
         isListed?: boolean;
+        autoJoin?: boolean;
     }): Promise<{ chat: ChatSummary; hint: MutationHint }> {
         return this.writeDb(async (tx) => {
             const access = await this.requireChatManagerDb(tx, input.actorUserId, input.chatId);
@@ -2823,6 +2853,23 @@ export class CollaborationRepository {
                 throw new CollaborationError(
                     "invalid",
                     "Direct messages cannot use channel settings",
+                );
+            if (input.autoJoin !== undefined)
+                await this.requireServerAdminDb(tx, input.actorUserId);
+            if (input.autoJoin === true && access.archivedAt)
+                throw new CollaborationError(
+                    "invalid",
+                    "Archived channels cannot auto-join new users",
+                );
+            if (
+                access.isMain &&
+                (input.kind === "private_channel" ||
+                    input.isListed === false ||
+                    input.autoJoin === false)
+            )
+                throw new CollaborationError(
+                    "invalid",
+                    "The main channel must remain public, listed, and auto-join",
                 );
             if (input.photoFileId !== undefined && input.photoFileId !== null) {
                 const [file] = await tx
@@ -2875,6 +2922,9 @@ export class CollaborationRepository {
                         ...(input.isListed === undefined
                             ? {}
                             : { isListed: input.isListed ? 1 : 0 }),
+                        ...(input.autoJoin === undefined
+                            ? {}
+                            : { autoJoin: input.autoJoin ? 1 : 0 }),
                         lifecycleVersion: sql`${chats.lifecycleVersion} + 1`,
                         updatedAt: sql`CURRENT_TIMESTAMP`,
                     })
@@ -2899,6 +2949,8 @@ export class CollaborationRepository {
             const access = await this.requireChatManagerDb(tx, input.actorUserId, input.chatId);
             if (access.kind === "dm")
                 throw new CollaborationError("invalid", "Direct messages cannot be archived");
+            if (access.isMain && input.archived)
+                throw new CollaborationError("invalid", "The main channel cannot be archived");
             if (Boolean(access.archivedAt) === input.archived)
                 throw new CollaborationError(
                     "conflict",
@@ -3000,6 +3052,8 @@ export class CollaborationRepository {
             const access = await this.requireChatManagerDb(tx, input.actorUserId, input.chatId);
             if (access.kind === "dm")
                 throw new CollaborationError("invalid", "Direct messages cannot be deleted");
+            if (access.isMain)
+                throw new CollaborationError("invalid", "The main channel cannot be deleted");
             if (!access.isServerAdmin && access.membershipRole !== "owner")
                 throw new CollaborationError("forbidden", "Only an owner can delete a channel");
             const members = await tx
@@ -3158,7 +3212,7 @@ export class CollaborationRepository {
             if (access.membershipRole)
                 throw new CollaborationError("conflict", "Already joined this channel");
             const sequence = await this.nextSequence(tx);
-            const mutation = await this.advanceChatWithSequence(
+            await this.advanceChatWithSequence(
                 tx,
                 sequence,
                 actorUserId,
@@ -3186,9 +3240,14 @@ export class CollaborationRepository {
                         leftAt: null,
                     },
                 });
+            const service = await this.createUserAddedServiceMessageDb(tx, {
+                sequence,
+                chatId,
+                userId: actorUserId,
+            });
             const chat = await this.chatAccessDb(tx, actorUserId, chatId, false);
             if (!chat) throw new Error("Joined chat is not readable");
-            return { chat, hint: chatHint(sequence, chatId, mutation.pts) };
+            return { chat, hint: chatHint(sequence, chatId, service.pts) };
         });
     }
 
@@ -3198,6 +3257,8 @@ export class CollaborationRepository {
             if (!access) throw new CollaborationError("not_found", "Chat was not found");
             if (access.kind === "dm")
                 throw new CollaborationError("invalid", "This chat's membership is fixed");
+            if (access.isMain)
+                throw new CollaborationError("invalid", "Members cannot leave the main channel");
             if (access.membershipRole === "owner") {
                 const [otherOwner] = await tx
                     .select({ userId: chatMembers.userId })
@@ -3277,7 +3338,7 @@ export class CollaborationRepository {
             if (existing && existing.leftAt === null)
                 throw new CollaborationError("conflict", "User is already a channel member");
             const sequence = await this.nextSequence(tx);
-            const mutation = await this.advanceChatWithSequence(
+            await this.advanceChatWithSequence(
                 tx,
                 sequence,
                 input.actorUserId,
@@ -3305,7 +3366,12 @@ export class CollaborationRepository {
                         leftAt: null,
                     },
                 });
-            return { hint: chatHint(sequence, input.chatId, mutation.pts) };
+            const service = await this.createUserAddedServiceMessageDb(tx, {
+                sequence,
+                chatId: input.chatId,
+                userId: input.userId,
+            });
+            return { hint: chatHint(sequence, input.chatId, service.pts) };
         });
     }
 
@@ -3318,6 +3384,21 @@ export class CollaborationRepository {
             const access = await this.requireChatManagerDb(tx, input.actorUserId, input.chatId);
             if (access.kind === "dm")
                 throw new CollaborationError("invalid", "Direct-message membership is fixed");
+            if (access.isMain)
+                throw new CollaborationError(
+                    "invalid",
+                    "Members cannot be removed from the main channel",
+                );
+            const [target] = await tx
+                .select({ systemRole: users.systemRole })
+                .from(users)
+                .where(eq(users.id, input.userId))
+                .limit(1);
+            if (target?.systemRole === "service")
+                throw new CollaborationError(
+                    "invalid",
+                    "The Happy service agent must remain in every channel",
+                );
             const [member] = await tx
                 .select({ role: chatMembers.role })
                 .from(chatMembers)
@@ -3610,7 +3691,7 @@ export class CollaborationRepository {
                         sql`${messages.selfDestructSeconds} IS NOT NULL`,
                         or(
                             eq(messages.afterReadScope, "any_reader"),
-                            sql`not exists (select 1 from chat_members cm where cm.chat_id = ${messages.chatId} and cm.left_at is null and (${messages.senderUserId} is null or cm.user_id != ${messages.senderUserId}) and not exists (select 1 from message_receipts mr where mr.message_id = ${messages.id} and mr.user_id = cm.user_id and mr.read_at is not null))`,
+                            sql`not exists (select 1 from chat_members cm inner join users reader on reader.id = cm.user_id where cm.chat_id = ${messages.chatId} and cm.left_at is null and reader.system_role is null and (${messages.senderUserId} is null or cm.user_id != ${messages.senderUserId}) and not exists (select 1 from message_receipts mr where mr.message_id = ${messages.id} and mr.user_id = cm.user_id and mr.read_at is not null))`,
                         ),
                     ),
                 );
@@ -7014,6 +7095,7 @@ export class CollaborationRepository {
             .where(
                 and(
                     eq(users.id, userId),
+                    isNull(users.systemRole),
                     isNull(users.deletedAt),
                     isNull(accounts.deletedAt),
                     isNull(accounts.bannedAt),
@@ -7082,6 +7164,7 @@ export class CollaborationRepository {
             .where(
                 and(
                     eq(users.id, userId),
+                    isNull(users.systemRole),
                     isNull(users.deletedAt),
                     or(
                         eq(users.kind, "agent"),
@@ -7506,6 +7589,7 @@ export class CollaborationRepository {
                 sender_user_id: messages.senderUserId,
                 kind: messages.kind,
                 text: messages.text,
+                content_json: messages.contentJson,
                 quoted_message_id: messages.quotedMessageId,
                 thread_root_message_id: messages.threadRootMessageId,
                 forwarded_from_message_id: messages.forwardedFromMessageId,
@@ -7525,6 +7609,7 @@ export class CollaborationRepository {
                 sender_photo_file_id: sender.photoFileId,
                 sender_role: sender.role,
                 sender_kind: sender.kind,
+                sender_system_role: sender.systemRole,
                 sender_bot_id: bot.id,
                 sender_bot_name: bot.name,
                 sender_bot_username: bot.username,
@@ -7623,6 +7708,7 @@ export class CollaborationRepository {
                   photo_file_id: row.sender_photo_file_id,
                   role: row.sender_role,
                   user_kind: row.sender_kind,
+                  system_role: row.sender_system_role,
               })
             : undefined;
         const forwardedFromChatId = row.forwarded_from_chat_id ?? undefined;
@@ -7650,6 +7736,7 @@ export class CollaborationRepository {
                 : undefined,
             kind: row.kind as "user" | "automated",
             text: deleted ? "" : row.text,
+            service: deleted ? undefined : asServiceMessage(row.content_json),
             generationStatus:
                 row.generation_status === "running"
                     ? "streaming"
@@ -8061,6 +8148,77 @@ export class CollaborationRepository {
         });
     }
 
+    private async requireHappyServiceAgentDb(executor: DrizzleExecutor): Promise<string> {
+        const [happy] = await executor
+            .select({ id: users.id })
+            .from(users)
+            .where(
+                and(
+                    eq(users.systemRole, "service"),
+                    eq(users.kind, "agent"),
+                    isNull(users.deletedAt),
+                ),
+            )
+            .limit(1);
+        if (!happy) throw new Error("Happy service agent is not initialized");
+        return happy.id;
+    }
+
+    private async createUserAddedServiceMessageDb(
+        tx: DrizzleTransaction,
+        input: {
+            sequence: number;
+            chatId: string;
+            userId: string;
+            username?: string;
+            happyUserId?: string;
+        },
+    ): Promise<ChatMutation & { messageSequence?: number }> {
+        const happyUserId = input.happyUserId ?? (await this.requireHappyServiceAgentDb(tx));
+        const username =
+            input.username ??
+            (
+                await tx
+                    .select({ username: users.username })
+                    .from(users)
+                    .where(eq(users.id, input.userId))
+                    .limit(1)
+            )[0]?.username;
+        const [channel] = await tx
+            .select({ name: chats.name, slug: chats.slug })
+            .from(chats)
+            .where(eq(chats.id, input.chatId))
+            .limit(1);
+        if (!username || !channel) throw new Error("Service message context is missing");
+        const messageId = createId();
+        const mutation = await this.advanceChatWithSequence(
+            tx,
+            input.sequence,
+            happyUserId,
+            input.chatId,
+            "message.serviceCreated",
+            messageId,
+            undefined,
+            true,
+        );
+        if (mutation.messageSequence === undefined)
+            throw new Error("Service message sequence was not allocated");
+        await tx.insert(messages).values({
+            id: messageId,
+            chatId: input.chatId,
+            sequence: mutation.messageSequence,
+            changePts: mutation.pts,
+            senderUserId: happyUserId,
+            kind: "automated",
+            text: `@${username} joined #${channel.slug ?? channel.name ?? "channel"}`,
+            contentJson: JSON.stringify({
+                service: { type: "user_added", userId: input.userId },
+            }),
+            publishedAt: sql`CURRENT_TIMESTAMP`,
+        });
+        return mutation;
+    }
+
     private async requireServerAdminDb(executor: DrizzleExecutor, userId: string): Promise<void> {
         const [row] = await executor
             .select({ id: users.id })
@@ -8158,6 +8316,8 @@ function asChat(row: Record<string, unknown>): ChatSummary {
         ownerUserId: optionalText(row.owner_user_id),
         photoFileId: optionalText(row.photo_file_id),
         isListed: number(row.is_listed, 1) === 1,
+        isMain: number(row.is_main, 0) === 1,
+        autoJoin: number(row.auto_join, 0) === 1,
         archivedAt: optionalText(row.archived_at),
         retentionMode: text(row.retention_mode, "forever") as ChatSummary["retentionMode"],
         retentionSeconds: number(row.retention_seconds, 0) || undefined,
@@ -8255,6 +8415,7 @@ function asUser(row: Record<string, unknown>): UserSummary {
         agentImageId: optionalText(row.agent_image_id),
         agentEffort: optionalText(row.agent_effort),
         createdByUserId: optionalText(row.created_by_user_id),
+        systemRole: row.system_role === "service" ? "service" : undefined,
     };
 }
 
@@ -8355,6 +8516,19 @@ function text(value: unknown, fallback?: string): string {
 
 function optionalText(value: unknown): string | undefined {
     return value === null || value === undefined ? undefined : text(value);
+}
+
+function asServiceMessage(value: unknown): MessageSummary["service"] {
+    if (typeof value !== "string") return undefined;
+    try {
+        const parsed = JSON.parse(value) as { service?: { type?: unknown; userId?: unknown } };
+        return (parsed.service?.type === "user_added" || parsed.service?.type === "user_joined") &&
+            typeof parsed.service.userId === "string"
+            ? { type: parsed.service.type, userId: parsed.service.userId }
+            : undefined;
+    } catch {
+        return undefined;
+    }
 }
 
 function number(value: unknown, fallback?: number): number {

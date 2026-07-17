@@ -25,8 +25,8 @@ describe("parallel server instances", () => {
                     }),
                 ),
             );
-            expect((await first.as(firstUser).get("/v0/chats")).json().chats).toHaveLength(4);
-            expect((await second.as(secondUser).get("/v0/chats")).json().chats).toHaveLength(0);
+            expect((await first.as(firstUser).get("/v0/chats")).json().chats).toHaveLength(5);
+            expect((await second.as(secondUser).get("/v0/chats")).json().chats).toHaveLength(1);
         } finally {
             await first.close();
             await first.close();

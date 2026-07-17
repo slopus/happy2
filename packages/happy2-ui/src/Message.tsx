@@ -14,7 +14,7 @@ import { Avatar, type ToneName } from "./Avatar";
 import { Badge, ReactionChip } from "./Badge";
 import { Button } from "./Button";
 import { EmojiPicker, type EmojiItem } from "./EmojiPicker";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 import { renderMessageMarkdown, type MessageGenerationStatus } from "./MessageMarkdown";
 import { Menu, type MenuItem } from "./Menu";
 
@@ -665,6 +665,74 @@ export function DayDivider(props: { class?: string; label: string }) {
                 class="happy2-day-divider__line"
                 data-happy2-ui="day-divider-line"
             />
+        </div>
+    );
+}
+
+export type SystemNoticeSegment =
+    | { kind: "text"; text: string }
+    | { kind: "ref"; text: string };
+
+/* Split a service line into plain runs and highlighted @user / #channel refs.
+   The regex keeps the delimiters so spacing and punctuation survive verbatim;
+   a ref token is the sigil plus an unbroken run of word characters. */
+const SYSTEM_NOTICE_REF = /([@#][\p{L}\p{N}_.-]+)/u;
+
+function systemNoticeSegments(text: string): SystemNoticeSegment[] {
+    return text
+        .split(SYSTEM_NOTICE_REF)
+        .filter((part) => part.length > 0)
+        .map((part) =>
+            SYSTEM_NOTICE_REF.test(part) && (part[0] === "@" || part[0] === "#")
+                ? { kind: "ref", text: part }
+                : { kind: "text", text: part },
+        );
+}
+
+/**
+ * Centered, low-emphasis service line for the message stream — the service
+ * agent's membership announcements ("@ada joined #welcome"). It is not a chat
+ * bubble: a small leading glyph sits beside muted body text, with @user and
+ * #channel references color-lifted so the actors read at a glance.
+ */
+export function SystemNotice(props: {
+    class?: string;
+    icon?: IconName;
+    style?: JSX.CSSProperties;
+    text: string;
+}) {
+    const segments = createMemo(() => systemNoticeSegments(props.text));
+    return (
+        <div
+            aria-label={props.text}
+            class={["happy2-system-notice", props.class].filter(Boolean).join(" ")}
+            data-happy2-ui="system-notice"
+            role="note"
+            style={props.style}
+        >
+            <span
+                aria-hidden="true"
+                class="happy2-system-notice__icon"
+                data-happy2-ui="system-notice-icon"
+            >
+                <Icon name={props.icon ?? "users"} size={14} />
+            </span>
+            <span class="happy2-system-notice__text" data-happy2-ui="system-notice-text">
+                <For each={segments()}>
+                    {(segment) =>
+                        segment.kind === "ref" ? (
+                            <span
+                                class="happy2-system-notice__ref"
+                                data-happy2-ui="system-notice-ref"
+                            >
+                                {segment.text}
+                            </span>
+                        ) : (
+                            segment.text
+                        )
+                    }
+                </For>
+            </span>
         </div>
     );
 }

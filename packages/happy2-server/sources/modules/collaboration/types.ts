@@ -22,6 +22,8 @@ export interface ChatSummary {
     ownerUserId?: string;
     photoFileId?: string;
     isListed: boolean;
+    isMain: boolean;
+    autoJoin: boolean;
     archivedAt?: string;
     retentionMode: "inherit" | "forever" | "duration";
     retentionSeconds?: number;
@@ -57,6 +59,7 @@ export interface UserSummary {
     agentImageId?: string;
     agentEffort?: string;
     createdByUserId?: string;
+    systemRole?: "service";
 }
 
 export type AgentImageStatus = "pending" | "building" | "ready" | "failed";
@@ -132,6 +135,7 @@ export interface MessageSummary {
     senderBot?: { id: string; name: string; username: string; photoFileId?: string };
     kind: "user" | "automated";
     text: string;
+    service?: { type: "user_added" | "user_joined"; userId: string };
     generationStatus?: "streaming" | "complete" | "failed";
     quotedMessage?: {
         id: string;

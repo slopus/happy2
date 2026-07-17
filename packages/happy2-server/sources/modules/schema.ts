@@ -192,6 +192,7 @@ export const agentImages = sqliteTable("agent_images", {
     createdByUserId: text("created_by_user_id"),
     createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
     updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    systemOnly: integer("system_only").notNull().default(0),
 });
 
 export const agentImageSettings = sqliteTable("agent_image_settings", {
@@ -398,6 +399,8 @@ export const chats = sqliteTable("chats", {
     defaultSelfDestructSeconds: integer("default_self_destruct_seconds"),
     defaultAfterReadScope: text("default_after_read_scope").notNull().default("any_reader"),
     lifecycleVersion: integer("lifecycle_version").notNull().default(1),
+    isMain: integer("is_main").notNull().default(0),
+    autoJoin: integer("auto_join").notNull().default(0),
 });
 
 export const agentTurns = sqliteTable(
@@ -1061,6 +1064,7 @@ export const users = sqliteTable("users", {
     deletedAt: text("deleted_at"),
     lastAccessAt: text("last_access_at"),
     syncSequence: integer("sync_sequence").notNull().default(0),
+    systemRole: text("system_role"),
 });
 
 export const webhookDeliveries = sqliteTable("webhook_deliveries", {
