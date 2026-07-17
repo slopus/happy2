@@ -426,22 +426,22 @@ Merged evidence (2026-07-16, `60db7cc`):
 
 ### P0.1a — Server unit/Gym coverage measurement and regression gate
 
-- [ ] Land this as the next independently mergeable server-infrastructure task after P0.1 and before the functional-action refactor; do not mix coverage plumbing with either feature's behavior.
-- [ ] Use Vitest's V8 coverage provider and the repository's TypeScript/pnpm infrastructure only; do not add Python or a parallel test runner.
-- [ ] Define one authoritative server source universe covering every production file under `packages/happy2-server/sources`, including files no test imports, while excluding test files, generated declarations/build output, and test/fixture helpers.
-- [ ] Add a server-unit coverage command that runs only `happy2-server` unit tests and writes isolated text, HTML, LCOV, JSON, and JSON-summary reports under `packages/happy2-server/coverage/unit`.
-- [ ] Add a Gym integration coverage command that runs the complete non-Playwright `happy2-gym` server suite, instruments the aliased `happy2-server/sources` files rather than compiled output, and writes the same reports under `packages/happy2-server/coverage/gym`.
-- [ ] Add a TypeScript report/merge command that combines unit and Gym coverage by canonical server source path and produces a third union report under `packages/happy2-server/coverage/combined`; merging must not double-count a line covered by both suites.
-- [ ] Print side-by-side unit, Gym, and combined statement/branch/function/line percentages plus uncovered files/lines in terminal output so integration coverage is distinguishable from unit coverage at a glance.
-- [ ] Check in a small machine-readable baseline containing the three metric sets, not generated HTML/LCOV/raw coverage artifacts; make all generated report directories gitignored and removable through the existing clean commands.
-- [ ] Add explicit non-regression thresholds for unit, Gym, and combined coverage after measuring the initial baseline. A change may deliberately lower a threshold only in the same reviewed commit with a written rationale in `TODO.md`; rounding must never let a real regression pass.
-- [ ] Add one root command for local/CI use and wire it into `pnpm check` so missing instrumentation, an empty source universe, a failed suite, a failed merge, or coverage below any stored threshold fails the check.
-- [ ] Add focused tests for the coverage tooling itself: canonical path merging, overlapping hit counts, an entirely uncovered production file, malformed/missing input, and threshold pass/fail behavior.
-- [ ] Document exact commands, report locations, included/excluded files, metric definitions, and how to inspect separate Gym integration gaps before starting P0.1b.
+- [x] Land this as the next independently mergeable server-infrastructure task after P0.1 and before the functional-action refactor; do not mix coverage plumbing with either feature's behavior.
+- [x] Use Vitest's V8 coverage provider and the repository's TypeScript/pnpm infrastructure only; do not add Python or a parallel test runner.
+- [x] Define one authoritative server source universe covering every production file under `packages/happy2-server/sources`, including files no test imports, while excluding test files, generated declarations/build output, and test/fixture helpers.
+- [x] Add a server-unit coverage command that runs only `happy2-server` unit tests and writes isolated text, HTML, LCOV, JSON, and JSON-summary reports under `packages/happy2-server/coverage/unit`.
+- [x] Add a Gym integration coverage command that runs the complete non-Playwright `happy2-gym` server suite, instruments the aliased `happy2-server/sources` files rather than compiled output, and writes the same reports under `packages/happy2-server/coverage/gym`.
+- [x] Add a TypeScript report/merge command that combines unit and Gym coverage by canonical server source path and produces a third union report under `packages/happy2-server/coverage/combined`; merging must not double-count a line covered by both suites.
+- [x] Print side-by-side unit, Gym, and combined statement/branch/function/line percentages plus uncovered files/lines in terminal output so integration coverage is distinguishable from unit coverage at a glance.
+- [x] Check in a small machine-readable baseline containing the three metric sets, not generated HTML/LCOV/raw coverage artifacts; make all generated report directories gitignored and removable through the existing clean commands.
+- [x] Add explicit non-regression thresholds for unit, Gym, and combined coverage after measuring the initial baseline. A change may deliberately lower a threshold only in the same reviewed commit with a written rationale in `TODO.md`; rounding must never let a real regression pass.
+- [x] Add one root command for local/CI use and wire it into `pnpm check` so missing instrumentation, an empty source universe, a failed suite, a failed merge, or coverage below any stored threshold fails the check.
+- [x] Add focused tests for the coverage tooling itself: canonical path merging, overlapping hit counts, an entirely uncovered production file, malformed/missing input, and threshold pass/fail behavior.
+- [x] Document exact commands, report locations, included/excluded files, metric definitions, and how to inspect separate Gym integration gaps before starting P0.1b.
 
 Acceptance: one command proves how much of the complete server is exercised by unit tests alone, Gym alone, and their union; all three views are reproducible, separately inspectable, and enforced against regression in `pnpm check`.
 
-Implementation evidence awaiting final Opus confirmation/merge:
+Merged evidence (2026-07-16, `5345c7e`):
 
 - one shared TypeScript source-universe definition currently validates all 72 production server files in both raw maps and rejects empty, missing, malformed, or incomplete inputs;
 - `pnpm coverage:server` produces text, HTML, LCOV, JSON, and JSON-summary reports for unit, Gym, and boolean-union combined coverage, then enforces exact-ratio thresholds from `coverage-baseline.json`;
