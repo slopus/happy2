@@ -14,6 +14,10 @@ npx happy2-server --config ./happy2.toml
 # Published all-in-one web app and API on http://127.0.0.1:3000
 npx happy2
 
+# Install or remove automatic startup for the all-in-one app
+npx happy2 service start --config ./happy2.toml
+npx happy2 service stop
+
 # Development, with reload and no configuration file:
 pnpm dev:server
 
@@ -45,6 +49,27 @@ state, socket, and token. Set `RIG_HOME` to an absolute path to relocate it. The
 package never connects to the user's global Rig daemon. Provide
 `--config /path/to/happy2.toml` or
 `HAPPY2_CONFIG=/path/to/happy2.toml` to override the defaults.
+
+`happy2 service start` keeps the all-in-one app running across restarts. On
+macOS it installs `~/Library/LaunchAgents/com.slopus.happy2.plist` without
+`sudo`, starts at login, and writes logs under `~/Library/Logs/Happy2`. On Linux
+it writes `happy2.service` in the current directory, prints the complete unit,
+and prints the exact `sudo install` and `systemctl` commands required to install
+and enable it. The command never invokes `sudo`. The Linux unit is system-wide
+but runs the process as the user who generated it; logs go to the systemd
+journal. The generated file remains in the current directory for inspection or
+reinstallation. `happy2 service stop` directly stops and removes the macOS LaunchAgent,
+while on Linux it prints the `sudo` commands that stop, disable, and remove the
+systemd unit.
+
+The service preserves the installation-time working directory, `PATH`, and
+optional `RIG_HOME`. When `--config` is supplied, its path is made
+absolute before installation. Put service secrets and SMTP environment values
+in the private `.env` beside the TOML configuration rather than expecting an
+interactive shell environment to exist during boot. An npx invocation generates
+a service that runs `npx --yes happy2`, avoiding a dependency on the disposable
+`_npx` cache directory. A global installation resolves `happy2` from the saved
+`PATH`; regenerate and reinstall the service after changing that path.
 
 Clients can discover the selected authentication method at `GET /v0/auth/methods`.
 The response includes the server role, the durable `registration` availability

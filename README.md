@@ -49,6 +49,25 @@ Open [http://127.0.0.1:3000](http://127.0.0.1:3000) in your browser. Happy (2)
 stores its database, files, generated secrets, agent workspaces, and private Rig
 runtime under `.happy2` in the directory where you start it.
 
+Keep Happy (2) running across reboots with:
+
+```sh
+npx happy2 service start
+npx happy2 service stop
+```
+
+On macOS this installs a per-user LaunchAgent without `sudo`; it starts when the
+user logs in. On Linux it writes and prints `./happy2.service`, then shows the
+exact `sudo` commands you can run to install and start it as a system-wide
+systemd unit. `service stop` prints the corresponding systemd removal commands;
+it never invokes `sudo` itself. The generated file remains in the current
+directory so you can inspect or reinstall it. Add
+`--config /absolute/or/relative/happy2.toml` to `service start` to preserve an
+explicit configuration file; otherwise the service keeps the current directory
+as its working directory and uses its `.happy2` state. When started through
+`npx`, the generated service runs `npx --yes happy2` instead of depending on an
+evictable `_npx` cache path.
+
 ## Why Happy (2)?
 
 - **People and agents share the same workspace.** Conversations, threads,

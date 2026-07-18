@@ -1,59 +1,59 @@
 {
     "schemaVersion": 1,
-    "sourceFiles": 580,
+    "sourceFiles": 581,
     "thresholds": {
         "unit": {
             "statements": {
-                "covered": 4288,
-                "total": 11630
+                "covered": 4413,
+                "total": 11768
             },
             "branches": {
-                "covered": 2593,
-                "total": 8288
+                "covered": 2660,
+                "total": 8371
             },
             "functions": {
-                "covered": 806,
-                "total": 2079
+                "covered": 837,
+                "total": 2111
             },
             "lines": {
-                "covered": 4094,
-                "total": 10442
+                "covered": 4214,
+                "total": 10574
             }
         },
         "gym": {
             "statements": {
                 "covered": 8591,
-                "total": 11630
+                "total": 11768
             },
             "branches": {
                 "covered": 5262,
-                "total": 8288
+                "total": 8371
             },
             "functions": {
                 "covered": 1712,
-                "total": 2079
+                "total": 2111
             },
             "lines": {
                 "covered": 8098,
-                "total": 10442
+                "total": 10574
             }
         },
         "combined": {
             "statements": {
-                "covered": 9498,
-                "total": 11630
+                "covered": 9623,
+                "total": 11768
             },
             "branches": {
-                "covered": 5904,
-                "total": 8288
+                "covered": 5971,
+                "total": 8371
             },
             "functions": {
-                "covered": 1874,
-                "total": 2079
+                "covered": 1905,
+                "total": 2111
             },
             "lines": {
-                "covered": 8935,
-                "total": 10442
+                "covered": 9055,
+                "total": 10574
             }
         }
     }
