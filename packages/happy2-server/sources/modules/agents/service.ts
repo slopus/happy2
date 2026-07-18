@@ -40,6 +40,8 @@ import { agentEffortInitialize } from "../agent/agentEffortInitialize.js";
 import { agentEffortGetContext } from "../agent/agentEffortGetContext.js";
 import { agentEffortBindingList } from "../agent/agentEffortBindingList.js";
 import { agentCreate } from "../agent/agentCreate.js";
+import { agentConversationCreate } from "../agent/agentConversationCreate.js";
+import { agentDefaultActivate } from "../agent/agentDefaultActivate.js";
 import { agentChatListUnfinishedIds } from "../agent/agentChatListUnfinishedIds.js";
 import { agentChatGetDirectContext } from "../agent/agentChatGetDirectContext.js";
 import { agentChatBind } from "../agent/agentChatBind.js";
@@ -238,6 +240,9 @@ export class AgentService {
             throw error;
         }
     }
+    async createAgentConversation(input: { actorUserId: string; agentUserId: string }) {
+        return agentConversationCreate(this.executor, input);
+    }
     async start(): Promise<void> {
         await agentImageEnsureDefinitions(
             this.executor,
@@ -253,6 +258,8 @@ export class AgentService {
                 };
             }),
         );
+        const happyActivated = await agentDefaultActivate(this.executor);
+        if (happyActivated) await this.publishAgentHint(happyActivated);
         for (const imageId of await agentImageListRequestedBuildIds(this.executor))
             this.queueImageBuild(imageId);
         await this.daemon.ensureGlobalEventQueue(this.shutdown.signal);
@@ -359,6 +366,8 @@ export class AgentService {
     async setDefaultAgentImage(input: { actorUserId: string; imageId: string }) {
         const result = await agentImageSetDefault(this.executor, input);
         await this.publishAgentImageHint(result.hint);
+        const happyActivated = await agentDefaultActivate(this.executor, input.actorUserId);
+        if (happyActivated) await this.publishAgentHint(happyActivated);
         return result.image;
     }
     getSetupBaseImages(actorUserId: string) {
@@ -761,6 +770,7 @@ export class AgentService {
                 this.defaultCwd,
                 latest.agentUserId,
                 latest.privateUserId,
+                chatId,
             );
             await Promise.all([
                 mkdir(sandbox.home, {
@@ -938,8 +948,11 @@ export class AgentService {
                 imageId,
                 workerId: this.workerId,
             });
-            if (completed) await this.publishAgentImageHint(completed);
-            else if (!this.shutdown.signal.aborted)
+            if (completed) {
+                await this.publishAgentImageHint(completed);
+                const happyActivated = await agentDefaultActivate(this.executor);
+                if (happyActivated) await this.publishAgentHint(happyActivated);
+            } else if (!this.shutdown.signal.aborted)
                 throw new Error(`Agent image ${imageId} build lease was lost before completion.`);
         } catch (error) {
             if (this.shutdown.signal.aborted) {
@@ -2054,8 +2067,14 @@ function agentImageTag(definitionHash: string): string {
 function agentContainerName(): string {
     return `happy2-agent-${createId()}`;
 }
-function sandboxDirectories(root: string, agentUserId: string, privateUserId: string) {
-    const sandbox = join(root, "agents", agentUserId, "users", privateUserId);
+function sandboxDirectories(
+    root: string,
+    agentUserId: string,
+    privateUserId: string,
+    chatId?: string,
+) {
+    const userSandbox = join(root, "agents", agentUserId, "users", privateUserId);
+    const sandbox = chatId ? join(userSandbox, "conversations", chatId) : userSandbox;
     return {
         home: join(sandbox, "home"),
         workspace: join(sandbox, "workspace"),

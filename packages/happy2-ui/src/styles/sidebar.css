@@ -88,6 +88,14 @@
     margin-right: -6px; /* optical: keep the glyph on the 16px margin */
 }
 
+.happy2-sidebar__pinned {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    padding: 4px 8px 8px;
+    border-bottom: 1px solid var(--happy2-border);
+}
+
 /* ---- Body ------------------------------------------------------------- */
 
 .happy2-sidebar__body {
@@ -172,37 +180,10 @@
 
 .happy2-sidebar__empty {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 8px;
-    margin: 4px 4px 8px;
-    padding: 16px 14px;
-    background: var(--happy2-bg-inset);
-    border: 1px solid var(--happy2-border);
-    border-radius: var(--happy2-radius-md);
-    text-align: center;
-}
-
-/* Icon medallion — a symmetric rounded box that keeps the glyph centered. */
-.happy2-sidebar__empty-media {
-    display: flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    margin-bottom: 2px;
-    background: var(--happy2-bg-raised);
-    border: 1px solid var(--happy2-border);
-    border-radius: var(--happy2-radius-sm);
-    color: var(--happy2-text-muted);
-}
-
-.happy2-sidebar__empty-title {
-    color: var(--happy2-text-secondary);
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 16px;
+    gap: 4px;
+    min-height: 28px;
+    padding: 0 6px 0 10px;
 }
 
 .happy2-sidebar__empty-description {
@@ -210,11 +191,12 @@
     font-size: 11px;
     font-weight: 500;
     line-height: 15px;
-    text-wrap: balance;
+    flex: 1;
+    min-width: 0;
 }
 
 .happy2-sidebar__empty-action {
-    margin-top: 2px;
+    flex: none;
     max-width: 100%;
 }
 
@@ -301,6 +283,15 @@
 
 .happy2-sidebar__item-badge {
     flex: none;
+}
+
+.happy2-sidebar__item-unread {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin: 0 6px;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-accent);
 }
 
 .happy2-sidebar__item-meta {

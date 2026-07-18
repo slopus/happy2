@@ -10,6 +10,7 @@ import {
 } from "solid-js";
 import {
     AppShell,
+    Button,
     Lightbox,
     ModalOverlay,
     Sidebar,
@@ -102,6 +103,7 @@ export interface ChatPageNavigation {
 }
 
 export interface ChatPageActions {
+    adminOpen(): void;
     chatSelect(chatId: string, kind: ChatPageConversationKind, replace?: boolean): void;
     infoOpen(): void;
     profileOpen(userId: string): void;
@@ -241,6 +243,7 @@ export function ChatPage(props: ChatPageProps) {
         avatarFor,
     });
     const sidebarSections = sidebarModel.sections;
+    const sidebarPinnedItems = sidebarModel.pinnedItems;
     const directoryItems = sidebarModel.directoryItems;
     const isServerAdmin = sidebarModel.isServerAdmin;
     const infoModel = chatInfoModelCreate({
@@ -511,6 +514,20 @@ export function ChatPage(props: ChatPageProps) {
                 sidebar={
                     <Sidebar
                         activeItemId={activeConversationId()}
+                        footer={
+                            <Show when={isServerAdmin()}>
+                                <Button
+                                    class="happy2-chat-page__admin-link"
+                                    fullWidth
+                                    icon="settings"
+                                    onClick={props.actions.adminOpen}
+                                    size="small"
+                                    variant="ghost"
+                                >
+                                    Administration
+                                </Button>
+                            </Show>
+                        }
                         onCompose={() => void creationModel.directMessageStart()}
                         onItemSelect={selectConversation}
                         onSectionAction={(sectionId) => {
@@ -518,6 +535,7 @@ export function ChatPage(props: ChatPageProps) {
                             if (sectionId === "channels") setDirectoryOpen(true);
                             if (sectionId === "dms") void creationModel.directMessageStart();
                         }}
+                        pinnedItems={sidebarPinnedItems()}
                         sections={sidebarSections()}
                         title={user() ? `${user()!.firstName}’s Happy (2)` : "Happy (2)"}
                     />

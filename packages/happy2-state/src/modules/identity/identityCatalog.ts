@@ -13,11 +13,13 @@ export class IdentityCatalog {
             existing.displayName === displayName &&
             existing.username === user.username &&
             existing.kind === user.kind &&
+            existing.agentRole === user.agentRole &&
             existing.photoFileId === user.photoFileId
         ) {
             return existing;
         }
         const next: IdentityProjection = {
+            ...(user.agentRole ? { agentRole: user.agentRole } : {}),
             id: user.id,
             displayName,
             username: user.username,

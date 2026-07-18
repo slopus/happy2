@@ -131,6 +131,14 @@ export function ChatView(props: ChatViewProps) {
     }
 
     const actions: ChatPageActions = {
+        adminOpen() {
+            props.navigation.navigate({
+                ...props.route,
+                primary: { kind: "admin", section: "users" },
+                panel: undefined,
+                overlay: undefined,
+            });
+        },
         chatSelect(nextChatId, kind, replace) {
             props.navigation.navigate(
                 {

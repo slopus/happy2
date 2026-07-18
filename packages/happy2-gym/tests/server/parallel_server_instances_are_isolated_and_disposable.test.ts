@@ -25,8 +25,18 @@ describe("parallel server instances", () => {
                     }),
                 ),
             );
-            expect((await first.as(firstUser).get("/v0/chats")).json().chats).toHaveLength(5);
-            expect((await second.as(secondUser).get("/v0/chats")).json().chats).toHaveLength(1);
+            const firstChats = (await first.as(firstUser).get("/v0/chats")).json().chats;
+            const secondChats = (await second.as(secondUser).get("/v0/chats")).json().chats;
+            expect(firstChats).toHaveLength(6);
+            expect(secondChats).toHaveLength(2);
+            expect(
+                firstChats.filter(({ isPinnedHappy }: { isPinnedHappy: boolean }) => isPinnedHappy),
+            ).toHaveLength(1);
+            expect(
+                secondChats.filter(
+                    ({ isPinnedHappy }: { isPinnedHappy: boolean }) => isPinnedHappy,
+                ),
+            ).toHaveLength(1);
         } finally {
             await first.close();
             await first.close();

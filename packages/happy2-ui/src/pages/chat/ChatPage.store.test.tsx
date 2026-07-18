@@ -6,7 +6,7 @@ import {
     directoryStoreFixtureCreate,
     sidebarStoreFixtureCreate,
 } from "happy2-state/testing";
-import { expect, it, onTestFinished } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { createRenderer } from "../../testing";
 import { ChatPage } from "./ChatPage";
 import { ChatMessageEntry } from "./ChatMessageEntry";
@@ -35,6 +35,7 @@ const chat: ChatSummary = {
     unreadCount: 0,
     mentionCount: 0,
     notificationLevel: "all",
+    isPinnedHappy: false,
     createdAt: "2026-07-17T12:00:00.000Z",
     updatedAt: "2026-07-17T12:00:00.000Z",
 };
@@ -165,7 +166,9 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
         composer[Symbol.dispose]();
     });
 
+    const adminOpen = vi.fn();
     const actions = {
+        adminOpen,
         chatSelect: () => undefined,
         infoOpen: () => undefined,
         profileOpen: () => undefined,
@@ -218,7 +221,31 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
         ),
         { width: 1200, height: 800 },
     );
-    directory.input({ type: "directoryLoaded", users: [], channels: [] });
+    directory.input({
+        type: "directoryLoaded",
+        users: [
+            {
+                id: "user-1",
+                displayName: "Ada Lovelace",
+                username: "ada",
+                kind: "human",
+                role: "admin",
+                presence: "online",
+            },
+        ],
+        channels: [],
+    });
+    const happyChat: ChatSummary = {
+        ...chat,
+        id: "happy-chat",
+        kind: "dm",
+        name: undefined,
+        slug: undefined,
+        topic: undefined,
+        dmType: "direct",
+        isListed: false,
+        isPinnedHappy: true,
+    };
     sidebar.input({
         type: "sidebarLoaded",
         chats: [
@@ -228,6 +255,26 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
                 displayName: chat.name!,
                 participants: [],
             },
+            {
+                chat: happyChat,
+                id: happyChat.id,
+                displayName: "Happy",
+                participants: [
+                    {
+                        id: "user-1",
+                        displayName: "Ada Lovelace",
+                        username: "ada",
+                        kind: "human",
+                    },
+                    {
+                        id: "happy",
+                        displayName: "Happy",
+                        username: "happy",
+                        kind: "agent",
+                        agentRole: "default",
+                    },
+                ],
+            },
         ],
         sync: { protocolVersion: 1, generation: "test", sequence: "0" },
     });
@@ -236,6 +283,80 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
 
     expect(view.container.textContent).toContain("State architecture");
     expect(view.container.textContent).toContain("One coarse store per rendered surface");
+    expect(
+        view.container.querySelector(
+            '[data-happy2-ui="sidebar-pinned"] [data-item-id="happy-chat"]',
+        ),
+    ).not.toBeNull();
+    const adminButton = Array.from(view.container.querySelectorAll("button")).find(
+        (button) => button.textContent?.trim() === "Administration",
+    );
+    expect(adminButton).not.toBeUndefined();
+    adminButton!.click();
+    expect(adminOpen).toHaveBeenCalledOnce();
+
+    const happyRow = view.container.querySelector('[data-item-id="happy-chat"]')!;
+    sidebar.input({
+        type: "chatSummariesReconciled",
+        changedChats: [
+            {
+                chat: { ...happyChat, unreadCount: 4 },
+                id: happyChat.id,
+                displayName: "Happy",
+                participants: [
+                    {
+                        id: "user-1",
+                        displayName: "Ada Lovelace",
+                        username: "ada",
+                        kind: "human",
+                    },
+                    {
+                        id: "happy",
+                        displayName: "Happy",
+                        username: "happy",
+                        kind: "agent",
+                        agentRole: "default",
+                    },
+                ],
+            },
+        ],
+        removedChatIds: [],
+        sync: { protocolVersion: 1, generation: "test", sequence: "1" },
+    });
+    expect(view.container.querySelector('[data-item-id="happy-chat"]')).toBe(happyRow);
+    expect(happyRow.hasAttribute("data-unread")).toBe(true);
+    expect(happyRow.querySelector('[data-happy2-ui="sidebar-item-unread"]')).not.toBeNull();
+    expect(happyRow.querySelector('[data-happy2-ui="count-badge"]')).toBeNull();
+
+    sidebar.input({
+        type: "chatSummariesReconciled",
+        changedChats: [
+            {
+                chat: { ...happyChat, unreadCount: 5, mentionCount: 2 },
+                id: happyChat.id,
+                displayName: "Happy",
+                participants: [
+                    {
+                        id: "user-1",
+                        displayName: "Ada Lovelace",
+                        username: "ada",
+                        kind: "human",
+                    },
+                    {
+                        id: "happy",
+                        displayName: "Happy",
+                        username: "happy",
+                        kind: "agent",
+                        agentRole: "default",
+                    },
+                ],
+            },
+        ],
+        removedChatIds: [],
+        sync: { protocolVersion: 1, generation: "test", sequence: "2" },
+    });
+    expect(view.container.querySelector('[data-item-id="happy-chat"]')).toBe(happyRow);
+    expect(happyRow.querySelector('[data-happy2-ui="count-badge"]')?.textContent).toBe("2");
     composer.textUpdate("typed through the concrete composer store");
     expect(view.container.querySelector("textarea")?.value).toBe(
         "typed through the concrete composer store",

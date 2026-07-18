@@ -113,6 +113,13 @@
             "when": 1784270000000,
             "tag": "0015_durable_server_and_user_onboarding",
             "breakpoints": true
+        },
+        {
+            "idx": 16,
+            "version": "6",
+            "when": 1784330000000,
+            "tag": "0016_default_happy_agent",
+            "breakpoints": true
         }
     ]
 }

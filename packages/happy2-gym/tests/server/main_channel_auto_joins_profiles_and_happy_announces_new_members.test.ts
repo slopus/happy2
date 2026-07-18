@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createGymServer, type GymRequestClient, type GymServer } from "../../sources/index.js";
 
 describe("main channel onboarding and service messages", () => {
-    it("keeps everyone in one durable main channel and announces additions as @happy", async () => {
+    it("keeps everyone in one durable main channel and announces additions as the Happy service", async () => {
         await withPasswordPepper(async () => {
             await using server = await createGymServer({
                 configure(config) {
@@ -27,24 +27,36 @@ describe("main channel onboarding and service messages", () => {
                 expect.arrayContaining([
                     expect.objectContaining({ id: ada.id, username: "ada", kind: "human" }),
                     expect.objectContaining({
-                        username: "happy",
+                        username: "happy-service",
                         kind: "agent",
                         systemRole: "service",
                     }),
+                    expect.objectContaining({
+                        username: "happy",
+                        kind: "agent",
+                        agentRole: "default",
+                    }),
                 ]),
             );
+            const happyService = welcomeMembers.find((user) => user.username === "happy-service");
+            expect(happyService).toBeDefined();
             const happy = welcomeMembers.find((user) => user.username === "happy");
             expect(happy).toBeDefined();
+            expect(welcome.defaultAgentUserId).toBe(happy!.id);
             expect(
                 (
                     await ada.client.post("/v0/chats/createDirectMessage", {
-                        userId: happy!.id,
+                        userId: happyService!.id,
                     })
                 ).statusCode,
             ).toBe(404);
             expect(await serviceMessageFor(ada.client, welcome.id, ada.id)).toMatchObject({
                 kind: "automated",
-                sender: { id: happy!.id, username: "happy", systemRole: "service" },
+                sender: {
+                    id: happyService!.id,
+                    username: "happy-service",
+                    systemRole: "service",
+                },
                 service: { type: "user_added", userId: ada.id },
                 text: "@ada joined #welcome",
             });
@@ -52,7 +64,11 @@ describe("main channel onboarding and service messages", () => {
                 await serviceMessageFor(ada.client, welcome.id, ada.id, "user_joined"),
             ).toMatchObject({
                 kind: "automated",
-                sender: { id: happy!.id, username: "happy", systemRole: "service" },
+                sender: {
+                    id: happyService!.id,
+                    username: "happy-service",
+                    systemRole: "service",
+                },
                 service: { type: "user_joined", userId: ada.id },
                 text: "@ada joined the server",
             });
@@ -82,6 +98,7 @@ describe("main channel onboarding and service messages", () => {
             expect(await members(ada.client, teamId)).toEqual(
                 expect.arrayContaining([
                     expect.objectContaining({ id: ada.id }),
+                    expect.objectContaining({ id: happyService!.id, username: "happy-service" }),
                     expect.objectContaining({ id: happy!.id, username: "happy" }),
                 ]),
             );
@@ -96,7 +113,7 @@ describe("main channel onboarding and service messages", () => {
             expect(
                 await serviceMessageFor(bob.client, welcome.id, bob.id, "user_joined"),
             ).toMatchObject({
-                sender: { username: "happy" },
+                sender: { username: "happy-service" },
                 service: { type: "user_joined", userId: bob.id },
                 text: "@bob joined the server",
             });
@@ -128,7 +145,7 @@ describe("main channel onboarding and service messages", () => {
             expect(chatById(await chats(caro.client), autoJoinId).membershipRole).toBe("member");
             expect(chatById(await chats(caro.client), teamId).membershipRole).toBeUndefined();
             expect(await serviceMessageFor(caro.client, autoJoinId, caro.id)).toMatchObject({
-                sender: { username: "happy" },
+                sender: { username: "happy-service" },
                 service: { type: "user_added", userId: caro.id },
             });
 
@@ -137,7 +154,7 @@ describe("main channel onboarding and service messages", () => {
             });
             expect(manuallyAdded.statusCode).toBe(200);
             expect(await serviceMessageFor(bob.client, teamId, bob.id)).toMatchObject({
-                sender: { username: "happy" },
+                sender: { username: "happy-service" },
                 service: { type: "user_added", userId: bob.id },
             });
 
@@ -152,13 +169,13 @@ describe("main channel onboarding and service messages", () => {
             for (const channelId of [welcome.id, autoJoinId, teamId])
                 expect(chatById(await chats(dana.client), channelId).membershipRole).toBe("member");
             expect(await serviceMessageFor(dana.client, teamId, dana.id)).toMatchObject({
-                sender: { username: "happy" },
+                sender: { username: "happy-service" },
                 service: { type: "user_added", userId: dana.id },
             });
             expect(
                 await serviceMessageFor(dana.client, welcome.id, dana.id, "user_joined"),
             ).toMatchObject({
-                sender: { username: "happy" },
+                sender: { username: "happy-service" },
                 service: { type: "user_joined", userId: dana.id },
                 text: "@dana joined the server",
             });
@@ -189,7 +206,7 @@ describe("main channel onboarding and service messages", () => {
             expect(
                 (
                     await ada.client.post(`/v0/chats/${autoJoinId}/removeMember`, {
-                        userId: happy!.id,
+                        userId: happyService!.id,
                     })
                 ).statusCode,
             ).toBe(400);
@@ -212,7 +229,7 @@ describe("main channel onboarding and service messages", () => {
             expect(
                 await serviceMessageFor(ada.client, welcome.id, dana.id, "user_joined"),
             ).toMatchObject({
-                sender: { username: "happy" },
+                sender: { username: "happy-service" },
                 service: { type: "user_joined", userId: dana.id },
             });
         });

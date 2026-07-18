@@ -15,5 +15,6 @@ export function asUser(row: Record<string, unknown>): UserSummary {
         agentEffort: optionalText(row.agent_effort),
         createdByUserId: optionalText(row.created_by_user_id),
         systemRole: row.system_role === "service" ? "service" : undefined,
+        agentRole: row.agent_role === "default" ? "default" : undefined,
     };
 }

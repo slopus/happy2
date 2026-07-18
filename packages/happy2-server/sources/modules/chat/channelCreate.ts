@@ -13,6 +13,7 @@ import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { userRequireActive } from "./userRequireActive.js";
 import { requireHappyServiceAgentDb } from "./impl/requireHappyServiceAgentDb.js";
 import { userRequireServerAdmin } from "./userRequireServerAdmin.js";
+import { agentDefaultRequire } from "../agent/agentDefaultRequire.js";
 
 /**
  * Creates a chats channel with its owner membership and required Happy service participant after validating the creator and channel policy.
@@ -36,6 +37,7 @@ export async function channelCreate(
         await userRequireActive(tx, input.actorUserId);
         if (input.autoJoin) await userRequireServerAdmin(tx, input.actorUserId);
         const happyUserId = await requireHappyServiceAgentDb(tx);
+        const happyAgentUserId = await agentDefaultRequire(tx);
         const id = createId();
         const membershipEpoch = createId();
         const sequence = await syncSequenceNext(tx);
@@ -51,6 +53,7 @@ export async function channelCreate(
                 ownerUserId: input.actorUserId,
                 visibility: input.kind === "public_channel" ? "public" : "private",
                 autoJoin: input.autoJoin ? 1 : 0,
+                defaultAgentUserId: happyAgentUserId,
                 lastChangeSequence: sequence,
             });
         } catch (error) {
@@ -63,6 +66,13 @@ export async function channelCreate(
             userId: input.actorUserId,
             role: "owner",
             membershipEpoch,
+            syncSequence: sequence,
+        });
+        await tx.insert(chatMembers).values({
+            chatId: id,
+            userId: happyAgentUserId,
+            role: "member",
+            membershipEpoch: createId(),
             syncSequence: sequence,
         });
         await tx.insert(chatMembers).values({

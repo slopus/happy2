@@ -12,6 +12,7 @@ export interface User {
     agentImageId?: string;
     createdByUserId?: string;
     systemRole?: "service";
+    agentRole?: "default";
     lastAccessAt?: string;
 }
 

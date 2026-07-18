@@ -149,6 +149,15 @@ application only after a ready default image and final registration policy exist
 
 ### P1.1 — Sidebar information architecture
 
+- [ ] Active implementation boundary (P1.1/P1.3 prerequisite): - Server: create a server-managed executable Happy identity distinct from the service sender;
+      give every channel an authorized default-agent assignment; create independent Happy/agent
+      conversations and Rig bindings; protect Happy while allowing administrator configuration;
+      prove the contract through focused Gym tests and architecture checks. - State: project durable chat kind, Happy/default-agent identity, unread, and mention state into
+      one coarse sidebar store without introducing another subscription or compatibility layer. - UI: order people channels and human DMs before agent chats, keep the canonical Happy entry
+      pinned, render compact empty hints, show unread styling separately from numeric mentions,
+      and move administration into the authorized profile/settings area. - Verification: add exact live/store lifecycle and three-browser Blueprint/application tests,
+      run repository formatting and relevant package/repository checks, then remove this active
+      implementation block when the completed task is merged to `main`.
 - [ ] Put people channels and human DMs before agent chats; place agent DMs in the final section.
 - [ ] Pin the executable default Happy entry so it is always visible and cannot be hidden, archived,
       or removed.

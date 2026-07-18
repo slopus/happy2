@@ -401,6 +401,10 @@ export const chats = sqliteTable("chats", {
     lifecycleVersion: integer("lifecycle_version").notNull().default(1),
     isMain: integer("is_main").notNull().default(0),
     autoJoin: integer("auto_join").notNull().default(0),
+    defaultAgentUserId: text("default_agent_user_id").references(() => users.id, {
+        onDelete: "restrict",
+    }),
+    isPinnedHappy: integer("is_pinned_happy").notNull().default(0),
 });
 
 export const agentTurns = sqliteTable(
@@ -1106,6 +1110,7 @@ export const users = sqliteTable("users", {
     lastAccessAt: text("last_access_at"),
     syncSequence: integer("sync_sequence").notNull().default(0),
     systemRole: text("system_role"),
+    agentRole: text("agent_role"),
 });
 
 export const webhookDeliveries = sqliteTable("webhook_deliveries", {

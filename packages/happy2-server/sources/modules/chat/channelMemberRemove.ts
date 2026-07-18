@@ -35,6 +35,7 @@ export async function channelMemberRemove(
         const [target] = await tx
             .select({
                 systemRole: users.systemRole,
+                agentRole: users.agentRole,
             })
             .from(users)
             .where(eq(users.id, input.userId))
@@ -43,6 +44,16 @@ export async function channelMemberRemove(
             throw new CollaborationError(
                 "invalid",
                 "The Happy service agent must remain in every channel",
+            );
+        if (target?.agentRole === "default")
+            throw new CollaborationError(
+                "invalid",
+                "The default Happy agent must remain available in every channel",
+            );
+        if (access.defaultAgentUserId === input.userId)
+            throw new CollaborationError(
+                "conflict",
+                "Choose another default agent before removing this channel member",
             );
         const [member] = await tx
             .select({

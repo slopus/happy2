@@ -172,7 +172,7 @@ describe("AI agent chats", () => {
         ).toBe(201);
         await waitForMessages(server.as(teammate), directChatId, 2);
         expect(rig.createdCwds).toContain(
-            `${rig.workspaceRoot}/agents/${agentUserId}/users/${teammate.id}/workspace`,
+            `${rig.workspaceRoot}/agents/${agentUserId}/users/${teammate.id}/conversations/${directChatId}/workspace`,
         );
 
         const secondCreated = await server.as(owner).post("/v0/chats/createAgent", {

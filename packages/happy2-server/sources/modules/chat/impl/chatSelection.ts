@@ -15,6 +15,8 @@ export const chatSelection = {
     is_listed: chats.isListed,
     is_main: chats.isMain,
     auto_join: chats.autoJoin,
+    default_agent_user_id: chats.defaultAgentUserId,
+    is_pinned_happy: chats.isPinnedHappy,
     archived_at: chats.archivedAt,
     retention_mode: chats.retentionMode,
     retention_seconds: chats.retentionSeconds,

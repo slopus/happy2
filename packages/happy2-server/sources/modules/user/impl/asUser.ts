@@ -15,6 +15,7 @@ export function asUser(row: UserRow): User {
         agentImageId: row.agentImageId ?? undefined,
         createdByUserId: row.createdByUserId ?? undefined,
         systemRole: row.systemRole === "service" ? "service" : undefined,
+        agentRole: row.agentRole === "default" ? "default" : undefined,
         lastAccessAt: row.lastAccessAt ?? undefined,
     };
 }

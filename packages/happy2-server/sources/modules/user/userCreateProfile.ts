@@ -18,6 +18,7 @@ import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 
 import { announceUserJoinedServer } from "./impl/announceUserJoinedServer.js";
 import { userJoinAutoChannels } from "./userJoinAutoChannels.js";
+import { agentDefaultConversationEnsure } from "../agent/agentDefaultConversationEnsure.js";
 
 /**
  * Activates an accounts credential by creating its users profile, initializing userOnboardingSteps, and claiming bootstrap administrator state when applicable.
@@ -214,6 +215,7 @@ export async function userCreateProfile(
             },
             sequence,
         );
+        await agentDefaultConversationEnsure(tx, { userId: id, sequence });
         await announceUserJoinedServer(
             tx,
             {

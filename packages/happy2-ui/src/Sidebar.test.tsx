@@ -24,7 +24,7 @@ const sections: SidebarSection[] = [
     {
         id: "views",
         items: [
-            { badge: 12, icon: "inbox", id: "inbox", kind: "view", label: "Inbox" },
+            { badge: 12, icon: "inbox", id: "inbox", kind: "view", label: "Inbox", unread: true },
             { icon: "tasks", id: "my-issues", kind: "view", label: "My issues", meta: "7" },
             { icon: "spark", id: "agent-runs", kind: "view", label: "Agent runs", meta: "12" },
         ],
@@ -34,8 +34,8 @@ const sections: SidebarSection[] = [
         id: "channels",
         items: [
             { id: "launch-week", kind: "channel", label: "launch-week" },
-            { badge: 4, id: "eng-core", kind: "channel", label: "eng-core" },
-            { badge: 128, id: "design-crit", kind: "channel", label: "design-crit" },
+            { badge: 4, id: "eng-core", kind: "channel", label: "eng-core", unread: true },
+            { id: "design-crit", kind: "channel", label: "design-crit", unread: true },
         ],
         label: "Channels",
     },
@@ -58,7 +58,15 @@ const sections: SidebarSection[] = [
                 status: "working",
                 tone: "mint",
             },
-            { badge: 9, id: "scout", initials: "S", kind: "agent", label: "Scout", tone: "violet" },
+            {
+                badge: 9,
+                id: "scout",
+                initials: "S",
+                kind: "agent",
+                label: "Scout",
+                tone: "violet",
+                unread: true,
+            },
         ],
         label: "Agents",
     },
@@ -73,9 +81,16 @@ const sections: SidebarSection[] = [
                 online: true,
                 tone: "rose",
             },
-            { badge: 2, id: "jun", initials: "J", kind: "person", label: "Jun Park" },
+            { badge: 2, id: "jun", initials: "J", kind: "person", label: "Jun Park", unread: true },
             { id: "invite", kind: "action", label: "Invite teammates" },
-            { badge: 3, icon: "bell", id: "requests", kind: "action", label: "Requests" },
+            {
+                badge: 3,
+                icon: "bell",
+                id: "requests",
+                kind: "action",
+                label: "Requests",
+                unread: true,
+            },
         ],
         label: "Direct",
     },
@@ -356,6 +371,14 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
         color: "rgb(237, 234, 242)",
         "font-weight": "700",
     });
+    expect(
+        view.container.querySelector(
+            '[data-item-id="design-crit"] [data-happy2-ui="sidebar-item-unread"]',
+        ),
+    ).not.toBeNull();
+    expect(
+        view.container.querySelector('[data-item-id="design-crit"] [data-happy2-ui="count-badge"]'),
+    ).toBeNull();
 
     /* All row labels share one real DOM baseline. Their alpha centroids are
      * content-shaped (eng-core is lowercase and descender-heavy), so a
@@ -503,11 +526,10 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     expect(meta7.y - 16, "meta 7 optical band").toBeLessThanOrEqual(-0.4);
 
     /* CountBadge trailing lane: 18px pill, 10px off the row edge, centered
-     * vertically, across 1 / 2 / 3-digit counts and every row kind. */
+     * vertically, across one- and two-digit counts and every row kind. */
     const badgeCases = [
         ["inbox", "12"],
         ["eng-core", "4"],
-        ["design-crit", "128"],
         ["scout", "9"],
         ["jun", "2"],
         ["requests", "3"],
@@ -647,24 +669,20 @@ it("renders actionable guidance for empty sections", async () => {
     ).toEqual({
         "align-items": "center",
         display: "flex",
-        "padding-bottom": "16px",
-        "padding-left": "14px",
-        "padding-right": "14px",
-        "padding-top": "16px",
+        "padding-bottom": "0px",
+        "padding-left": "10px",
+        "padding-right": "6px",
+        "padding-top": "0px",
     });
-    expect(channelsEmpty.element.textContent).toContain("No channels yet");
-    /* The new empty state leads with an icon medallion + bold title. */
+    expect(channelsEmpty.element.textContent).toContain(
+        "Channels keep your team's work in one place.",
+    );
     expect(
         document.querySelector(
             '[data-testid="empty"] [data-section-id="channels"] [data-happy2-ui="sidebar-section-empty-media"]',
         ),
-        "channels empty medallion",
-    ).not.toBeNull();
-    expect(
-        view.$(
-            '[data-testid="empty"] [data-section-id="channels"] [data-happy2-ui="sidebar-section-empty-title"]',
-        ).element.textContent,
-    ).toBe("No channels yet");
+        "compact empty state has no decorative medallion",
+    ).toBeNull();
 
     const buttons = Array.from(
         document.querySelectorAll<HTMLButtonElement>(

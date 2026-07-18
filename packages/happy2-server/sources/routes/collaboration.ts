@@ -54,6 +54,7 @@ import { channelJoinPublic } from "../modules/chat/channelJoinPublic.js";
 import { channelDirectoryList } from "../modules/chat/channelDirectoryList.js";
 import { channelDelete } from "../modules/chat/channelDelete.js";
 import { channelCreate } from "../modules/chat/channelCreate.js";
+import { channelDefaultAgentUpdate } from "../modules/chat/channelDefaultAgentUpdate.js";
 import { callParticipationUpdate } from "../modules/call/callParticipationUpdate.js";
 import { callList } from "../modules/call/callList.js";
 import { callGet } from "../modules/call/callGet.js";
@@ -268,6 +269,23 @@ export function registerCollaborationRoutes(
         }),
     );
     app.post(
+        "/v0/chats/createAgentConversation",
+        authenticated(auth, async (request, reply, userId) => {
+            if (!agents)
+                return reply.code(503).send({
+                    error: "agents_unavailable",
+                    message: "AI agents are not enabled on this Happy (2) server.",
+                });
+            const body = requestBody(request, ["agentUserId"]);
+            const result = await agents.createAgentConversation({
+                actorUserId: userId,
+                agentUserId: idField(body, "agentUserId"),
+            });
+            await publishHints(request, pubsub, [result.hint], { userIds: [userId] });
+            return reply.code(201).send({ chat: result.chat, sync: result.hint });
+        }),
+    );
+    app.post(
         "/v0/chats/createChannel",
         authenticated(auth, async (request, reply, userId) => {
             const body = requestBody(request, ["kind", "name", "slug", "topic", "autoJoin"]);
@@ -398,6 +416,19 @@ export function registerCollaborationRoutes(
                 chat: result.chat,
                 sync: result.hint,
             };
+        }),
+    );
+    app.post(
+        "/v0/chats/:chatId/updateDefaultAgent",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, ["agentUserId"]);
+            const result = await channelDefaultAgentUpdate(executor, {
+                actorUserId: userId,
+                chatId: pathId(request, "chatId"),
+                agentUserId: idField(body, "agentUserId"),
+            });
+            await publishHints(request, pubsub, [result.hint]);
+            return { chat: result.chat, sync: result.hint };
         }),
     );
     for (const [path, archived] of [

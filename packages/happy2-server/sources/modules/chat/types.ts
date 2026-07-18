@@ -24,6 +24,8 @@ export interface ChatSummary {
     isListed: boolean;
     isMain: boolean;
     autoJoin: boolean;
+    defaultAgentUserId?: string;
+    isPinnedHappy: boolean;
     archivedAt?: string;
     retentionMode: "inherit" | "forever" | "duration";
     retentionSeconds?: number;
@@ -60,6 +62,7 @@ export interface UserSummary {
     agentEffort?: string;
     createdByUserId?: string;
     systemRole?: "service";
+    agentRole?: "default";
 }
 
 export type AgentImageStatus = "pending" | "building" | "ready" | "failed";

@@ -16,6 +16,7 @@ export type SidebarItem = {
     online?: boolean;
     status?: "ready" | "working";
     tone?: ToneName;
+    unread?: boolean;
 };
 
 export type SidebarSection = {
@@ -33,6 +34,7 @@ export type SidebarProps = Omit<JSX.HTMLAttributes<HTMLElement>, "style"> & {
     onCompose?: () => void;
     onItemSelect: (id: string) => void;
     onSectionAction?: (sectionId: string) => void;
+    pinnedItems?: SidebarItem[];
     sections: SidebarSection[];
     style?: JSX.CSSProperties;
     subtitle?: string;
@@ -47,9 +49,11 @@ function leadingIcon(item: SidebarItem): IconName {
 
 function SidebarRow(props: { active: boolean; item: SidebarItem; onSelect: (id: string) => void }) {
     const item = () => props.item;
-    const unread = () => (item().badge ?? 0) > 0;
-    const showStatus = () => item().kind === "agent" && item().status !== undefined && !unread();
-    const showMeta = () => item().meta !== undefined && !unread() && !showStatus();
+    const unread = () => item().unread === true;
+    const mentioned = () => (item().badge ?? 0) > 0;
+    const showStatus = () =>
+        item().kind === "agent" && item().status !== undefined && !unread() && !mentioned();
+    const showMeta = () => item().meta !== undefined && !unread() && !mentioned() && !showStatus();
 
     return (
         <button
@@ -58,6 +62,7 @@ function SidebarRow(props: { active: boolean; item: SidebarItem; onSelect: (id: 
             data-active={props.active ? "" : undefined}
             data-item-id={item().id}
             data-kind={item().kind}
+            data-mentioned={mentioned() ? "" : undefined}
             data-happy2-ui="sidebar-item"
             data-unread={unread() ? "" : undefined}
             onClick={() => props.onSelect(item().id)}
@@ -81,7 +86,14 @@ function SidebarRow(props: { active: boolean; item: SidebarItem; onSelect: (id: 
             <span class="happy2-sidebar__item-label" data-happy2-ui="sidebar-item-label">
                 {item().label}
             </span>
-            <Show when={unread()}>
+            <Show when={unread() && !mentioned()}>
+                <span
+                    aria-label="Unread"
+                    class="happy2-sidebar__item-unread"
+                    data-happy2-ui="sidebar-item-unread"
+                />
+            </Show>
+            <Show when={mentioned()}>
                 <CountBadge class="happy2-sidebar__item-badge" count={item().badge!} />
             </Show>
             <Show when={showStatus()}>
@@ -123,6 +135,7 @@ export function Sidebar(props: SidebarProps) {
         "onCompose",
         "onItemSelect",
         "onSectionAction",
+        "pinnedItems",
         "sections",
         "style",
         "subtitle",
@@ -162,6 +175,19 @@ export function Sidebar(props: SidebarProps) {
                     variant="ghost"
                 />
             </header>
+            <Show when={local.pinnedItems?.length}>
+                <div class="happy2-sidebar__pinned" data-happy2-ui="sidebar-pinned">
+                    <For each={local.pinnedItems}>
+                        {(item) => (
+                            <SidebarRow
+                                active={item.id === local.activeItemId}
+                                item={item}
+                                onSelect={local.onItemSelect}
+                            />
+                        )}
+                    </For>
+                </div>
+            </Show>
             <div class="happy2-sidebar__body" data-happy2-ui="sidebar-body">
                 <For each={local.sections}>
                     {(section) => (
@@ -212,27 +238,6 @@ export function Sidebar(props: SidebarProps) {
                                         data-happy2-ui="sidebar-section-empty"
                                     >
                                         <span
-                                            class="happy2-sidebar__empty-media"
-                                            data-happy2-ui="sidebar-section-empty-media"
-                                        >
-                                            <Icon
-                                                name={
-                                                    empty().icon ?? section.action?.icon ?? "inbox"
-                                                }
-                                                size={16}
-                                            />
-                                        </span>
-                                        <Show when={empty().title}>
-                                            {(title) => (
-                                                <span
-                                                    class="happy2-sidebar__empty-title"
-                                                    data-happy2-ui="sidebar-section-empty-title"
-                                                >
-                                                    {title()}
-                                                </span>
-                                            )}
-                                        </Show>
-                                        <span
                                             class="happy2-sidebar__empty-description"
                                             data-happy2-ui="sidebar-section-empty-description"
                                         >
@@ -240,10 +245,9 @@ export function Sidebar(props: SidebarProps) {
                                         </span>
                                         <Button
                                             class="happy2-sidebar__empty-action"
-                                            icon={section.action?.icon ?? "plus"}
                                             onClick={() => local.onSectionAction?.(section.id)}
                                             size="small"
-                                            variant="secondary"
+                                            variant="ghost"
                                         >
                                             {empty().actionLabel}
                                         </Button>

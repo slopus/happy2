@@ -8,7 +8,7 @@ const workspaceSections: SidebarSection[] = [
     {
         id: "views",
         items: [
-            { badge: 12, icon: "inbox", id: "inbox", kind: "view", label: "Inbox" },
+            { badge: 12, icon: "inbox", id: "inbox", kind: "view", label: "Inbox", unread: true },
             { icon: "tasks", id: "my-issues", kind: "view", label: "My issues", meta: "7" },
             { icon: "spark", id: "agent-runs", kind: "view", label: "Agent runs", meta: "3" },
             { icon: "eye", id: "watching", kind: "view", label: "Watching" },
@@ -19,7 +19,7 @@ const workspaceSections: SidebarSection[] = [
         id: "channels",
         items: [
             { id: "launch-week", kind: "channel", label: "launch-week" },
-            { badge: 4, id: "eng-core", kind: "channel", label: "eng-core" },
+            { badge: 4, id: "eng-core", kind: "channel", label: "eng-core", unread: true },
             { id: "design", kind: "channel", label: "design" },
             { id: "support-fires", kind: "channel", label: "support-fires", meta: "muted" },
         ],
@@ -83,6 +83,7 @@ const workspaceSections: SidebarSection[] = [
                 label: "Sofía Reyes",
                 online: true,
                 tone: "amber",
+                unread: true,
             },
             { id: "invite", kind: "action", label: "Invite teammates" },
         ],
@@ -100,7 +101,7 @@ const treatmentSections: SidebarSection[] = [
         items: [
             { icon: "inbox", id: "active", kind: "view", label: "Active row" },
             { icon: "home", id: "resting", kind: "view", label: "Resting row" },
-            { badge: 9, id: "unread", kind: "channel", label: "unread-channel" },
+            { id: "unread", kind: "channel", label: "unread-channel", unread: true },
             { icon: "clock", id: "meta", kind: "view", label: "Meta trailing", meta: "4h" },
         ],
         label: "Row states",
@@ -229,6 +230,16 @@ export function SidebarPage() {
                             footer={<FooterUser />}
                             onItemSelect={() => {}}
                             onSectionAction={() => {}}
+                            pinnedItems={[
+                                {
+                                    id: "happy",
+                                    initials: "H",
+                                    kind: "agent",
+                                    label: "Happy",
+                                    status: "ready",
+                                    tone: "brand",
+                                },
+                            ]}
                             sections={workspaceSections}
                             subtitle="12 members · 3 agents"
                             title="Acme Studio"
@@ -239,7 +250,7 @@ export function SidebarPage() {
             </Specimen>
 
             <Specimen
-                detail="Active = raised + 600 · unread = 700 + accent CountBadge · meta 11px muted · agent status dots"
+                detail="Active = raised + 600 · unread = 700 + dot · direct mention = numeric CountBadge · meta 11px muted"
                 label="Row treatments and kinds"
                 number="02"
                 stage="app"
@@ -284,6 +295,7 @@ export function SidebarPage() {
                                             kind: "view",
                                             label: "Inbox",
                                             badge: 3,
+                                            unread: true,
                                         },
                                         {
                                             icon: "settings",
@@ -302,7 +314,7 @@ export function SidebarPage() {
             </Specimen>
 
             <Specimen
-                detail="Empty sections keep their heading, explain what is missing, and expose a full text action"
+                detail="Empty sections keep their heading and expose one compact contextual action"
                 label="Empty channels and direct messages"
                 number="04"
                 stage="app"
@@ -343,7 +355,7 @@ export function SidebarPage() {
                             title="Empty workspace"
                         />
                     </Frame>
-                    <DimensionRule label="empty copy 11/16 · action 28 px" />
+                    <DimensionRule label="empty row 28 px · copy 11/15 · ghost action" />
                 </div>
             </Specimen>
         </ComponentPage>

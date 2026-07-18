@@ -9,6 +9,7 @@ export function chat(overrides: Partial<ChatSummary> = {}): ChatSummary {
         isListed: false,
         isMain: false,
         autoJoin: false,
+        isPinnedHappy: false,
         retentionMode: "inherit",
         defaultExpiryMode: "none",
         defaultAfterReadScope: "any_reader",

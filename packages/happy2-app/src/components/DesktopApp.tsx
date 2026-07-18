@@ -26,7 +26,6 @@ const railItems: RailItem[] = [
     { id: "threads", icon: "thread", label: "Threads" },
     { id: "files", icon: "files", label: "Files" },
     { id: "calls", icon: "mic", label: "Calls" },
-    { id: "admin", icon: "shield", label: "Admin" },
 ];
 
 /** Composes the persistent route owner, primary surface, and independent overlay layer. */
@@ -63,11 +62,6 @@ export function DesktopApp(props: DesktopAppProps) {
                     ? current
                     : { kind: "conversation", conversationKind: "chat" },
             );
-        else if (id === "admin")
-            primaryOpen({
-                kind: "admin",
-                section: current.kind === "admin" ? current.section : "users",
-            });
         else if (id === "home" || id === "activity" || id === "threads" || id === "calls")
             primaryOpen({ kind: id });
         else if (id === "files") primaryOpen({ kind: "files" });

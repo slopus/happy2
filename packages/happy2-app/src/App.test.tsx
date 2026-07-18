@@ -29,7 +29,7 @@ beforeEach(() => {
 describe("persistent desktop routing", () => {
     it("routes every rail destination through the URL-owned desktop model", () => {
         const screen = render(() => <App />);
-        expect(screen.container.querySelectorAll('[data-happy2-ui="rail-item"]')).toHaveLength(7);
+        expect(screen.container.querySelectorAll('[data-happy2-ui="rail-item"]')).toHaveLength(6);
 
         for (const [id, path, label] of [
             ["home", "/home", "Your day at a glance"],
@@ -37,7 +37,6 @@ describe("persistent desktop routing", () => {
             ["threads", "/threads", "Threads"],
             ["files", "/files", "No shared files"],
             ["calls", "/calls", "Calls"],
-            ["admin", "/admin/users", "Admin"],
         ] as const) {
             fireEvent.click(railItem(screen.container, id));
             expect(location.pathname).toBe(path);
@@ -310,6 +309,7 @@ function channelFixture(): ChatSummary {
         unreadCount: 0,
         mentionCount: 0,
         notificationLevel: "all",
+        isPinnedHappy: false,
         createdAt: "2026-07-17T12:00:00.000Z",
         updatedAt: "2026-07-17T12:00:00.000Z",
     };

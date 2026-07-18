@@ -110,7 +110,7 @@ export async function chatMarkRead(
                     sql`${messages.selfDestructSeconds} IS NOT NULL`,
                     or(
                         eq(messages.afterReadScope, "any_reader"),
-                        sql`not exists (select 1 from chat_members cm inner join users reader on reader.id = cm.user_id where cm.chat_id = ${messages.chatId} and cm.left_at is null and reader.system_role is null and (${messages.senderUserId} is null or cm.user_id != ${messages.senderUserId}) and not exists (select 1 from message_receipts mr where mr.message_id = ${messages.id} and mr.user_id = cm.user_id and mr.read_at is not null))`,
+                        sql`not exists (select 1 from chat_members cm inner join users reader on reader.id = cm.user_id where cm.chat_id = ${messages.chatId} and cm.left_at is null and reader.system_role is null and reader.agent_role is null and (${messages.senderUserId} is null or cm.user_id != ${messages.senderUserId}) and not exists (select 1 from message_receipts mr where mr.message_id = ${messages.id} and mr.user_id = cm.user_id and mr.read_at is not null))`,
                     ),
                 ),
             );
