@@ -8,7 +8,7 @@ import { userRequireActive } from "../chat/userRequireActive.js";
 import { agentDefaultRequire } from "./agentDefaultRequire.js";
 
 /**
- * Ensures one immutable pinned Happy DM by inserting chats, chatMembers, and chatUpdates while preserving separately created conversations.
+ * Ensures one immutable default-agent DM by inserting chats, chatMembers, and chatUpdates while preserving separately created conversations.
  * The caller's transaction publishes the chat and both memberships together so sidebar loading never observes a half-created entry.
  */
 export async function agentDefaultConversationEnsure(
@@ -17,14 +17,14 @@ export async function agentDefaultConversationEnsure(
 ): Promise<string> {
     return withTransaction(executor, async (tx) => {
         await userRequireActive(tx, input.userId);
-        const happyUserId = await agentDefaultRequire(tx);
+        const defaultAgentUserId = await agentDefaultRequire(tx);
         const [existing] = await tx
             .select({ id: chats.id })
             .from(chats)
             .where(
                 and(
                     eq(chats.ownerUserId, input.userId),
-                    eq(chats.isPinnedHappy, 1),
+                    eq(chats.isDefaultAgentConversation, 1),
                     isNull(chats.deletedAt),
                 ),
             )
@@ -36,17 +36,17 @@ export async function agentDefaultConversationEnsure(
             id,
             kind: "dm",
             dmType: "direct",
-            dmKey: `happy:${id}`,
+            dmKey: `default-agent:${id}`,
             createdByUserId: input.userId,
             ownerUserId: input.userId,
             visibility: "direct",
             isListed: 0,
-            isPinnedHappy: 1,
+            isDefaultAgentConversation: 1,
             pts: 1,
             lastChangeSequence: sequence,
         });
         await tx.insert(chatMembers).values(
-            [input.userId, happyUserId].map((userId) => ({
+            [input.userId, defaultAgentUserId].map((userId) => ({
                 chatId: id,
                 userId,
                 role: userId === input.userId ? ("owner" as const) : ("member" as const),
@@ -58,7 +58,7 @@ export async function agentDefaultConversationEnsure(
             sequence,
             pts: 1,
             chatId: id,
-            kind: "chat.pinnedHappyCreated",
+            kind: "chat.defaultAgentConversationCreated",
             entityId: id,
             actorUserId: input.userId,
         });

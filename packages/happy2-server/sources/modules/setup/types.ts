@@ -7,6 +7,7 @@ export const SERVER_SETUP_STEPS = [
     "base_image_selected",
     "base_image_build_requested",
     "base_image_ready",
+    "default_agent_created",
     "registration_policy_selected",
     "server_setup_complete",
 ] as const;

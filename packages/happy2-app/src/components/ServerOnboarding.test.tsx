@@ -1,9 +1,11 @@
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { happyStateCreate, type HappyState } from "happy2-state";
+import { DEFAULT_AGENT_LUCKY_LABEL } from "happy2-ui";
 import { ServerOnboarding } from "./ServerOnboarding";
 import { createAuthenticatedTransport } from "../stateTransport";
 import { desktopNavigationCreate } from "../navigation/desktopNavigationCreate";
+import { DEFAULT_AGENT_PRESETS } from "../onboarding/defaultAgentIdentity";
 
 /* ServerOnboarding drives the durable server-configuration flow against the real
  * /v0/setup contract through a routed fetch mock, so route resumption, provider
@@ -120,6 +122,22 @@ function routedFetch(routes: Record<string, Handler>) {
     });
 }
 
+type MountedScreen = ReturnType<typeof render>;
+function nameInput(screen: MountedScreen): HTMLInputElement {
+    return screen.container.querySelector<HTMLInputElement>(
+        '[data-testid="default-agent-name"] input',
+    )!;
+}
+function usernameInput(screen: MountedScreen): HTMLInputElement {
+    return screen.container.querySelector<HTMLInputElement>(
+        '[data-testid="default-agent-username"] input',
+    )!;
+}
+function agentForm(screen: MountedScreen): HTMLFormElement {
+    return screen.container.querySelector<HTMLFormElement>(
+        '[data-happy2-ui="default-agent-form"]',
+    )!;
+}
 function mount(state: HappyState, onComplete = vi.fn()) {
     const navigation = desktopNavigationCreate();
     const screen = render(
@@ -303,6 +321,153 @@ describe("ServerOnboarding", () => {
         // Retrying the same draft succeeds and advances to the live build screen.
         fireEvent.submit(name.closest("form")!);
         expect(await screen.findByText("Building your image")).toBeTruthy();
+        state[Symbol.dispose]();
+    });
+
+    it("resumes the required default-agent step with the proposed identity in a non-dismissible modal", async () => {
+        vi.stubGlobal(
+            "fetch",
+            routedFetch({
+                "GET /v0/setup": () =>
+                    json(statusWithProvider("default_agent_created", "docker", "25.0.3")),
+            }),
+        );
+        const state = happyStateCreate({
+            transport: createAuthenticatedTransport("http://server", "t"),
+        });
+        const { navigation, screen } = mount(state);
+
+        await waitFor(() => expect(nameInput(screen).value).toBe("Happy"));
+        expect(usernameInput(screen).value).toBe("happy");
+        expect(screen.getByText(DEFAULT_AGENT_LUCKY_LABEL)).toBeTruthy();
+        expect(screen.getByText(/Docker sandbox \(version 25\.0\.3\)/)).toBeTruthy();
+        // Non-dismissible: no close affordance, and Escape does not tear it down.
+        expect(screen.container.querySelector(".happy2-modal__close")).toBeNull();
+        fireEvent.keyDown(screen.container.querySelector('[data-happy2-ui="modal-overlay"]')!, {
+            key: "Escape",
+        });
+        expect(nameInput(screen).value).toBe("Happy");
+        await waitFor(() =>
+            expect(navigation.get().primary).toMatchObject({
+                kind: "onboarding",
+                step: "default-agent",
+            }),
+        );
+        state[Symbol.dispose]();
+    });
+
+    it("fills a valid preset identity from the 'feeling lucky' button", async () => {
+        vi.stubGlobal(
+            "fetch",
+            routedFetch({
+                "GET /v0/setup": () => json(serverStatus("default_agent_created")),
+            }),
+        );
+        const state = happyStateCreate({
+            transport: createAuthenticatedTransport("http://server", "t"),
+        });
+        const { screen } = mount(state);
+
+        await waitFor(() => expect(nameInput(screen).value).toBe("Happy"));
+        fireEvent.click(screen.getByText(DEFAULT_AGENT_LUCKY_LABEL));
+        await waitFor(() => expect(nameInput(screen).value).not.toBe("Happy"));
+        expect(DEFAULT_AGENT_PRESETS).toContainEqual({
+            name: nameInput(screen).value,
+            username: usernameInput(screen).value,
+        });
+        state[Symbol.dispose]();
+    });
+
+    it("blocks submission and the onboarding handoff until the identity is valid", async () => {
+        let createCalls = 0;
+        vi.stubGlobal(
+            "fetch",
+            routedFetch({
+                "GET /v0/setup": () => json(serverStatus("default_agent_created")),
+                "POST /v0/setup/createDefaultAgent": () => {
+                    createCalls += 1;
+                    return json({});
+                },
+            }),
+        );
+        const state = happyStateCreate({
+            transport: createAuthenticatedTransport("http://server", "t"),
+        });
+        const { screen } = mount(state);
+
+        await waitFor(() => expect(nameInput(screen).value).toBe("Happy"));
+        fireEvent.input(nameInput(screen), { target: { value: "" } });
+        fireEvent.input(usernameInput(screen), { target: { value: "No" } });
+        fireEvent.click(screen.getByTestId("default-agent-submit"));
+
+        expect(await screen.findByText("Enter a display name.")).toBeTruthy();
+        expect(
+            screen.getByText("Use 3–32 lowercase letters, digits, underscores, or hyphens."),
+        ).toBeTruthy();
+        expect(createCalls).toBe(0);
+        state[Symbol.dispose]();
+    });
+
+    it("creates the chosen default agent and advances to the registration step", async () => {
+        let createBody: { name: string; username: string } | undefined;
+        vi.stubGlobal(
+            "fetch",
+            routedFetch({
+                "GET /v0/setup": () => json(serverStatus("default_agent_created")),
+                "POST /v0/setup/createDefaultAgent": (init) => {
+                    createBody = JSON.parse(String(init.body));
+                    return json({
+                        agent: { id: "a1", name: "Mochi", username: "mochi_main", imageId: "img" },
+                        onboarding: serverStatus("registration_policy_selected"),
+                    });
+                },
+            }),
+        );
+        const state = happyStateCreate({
+            transport: createAuthenticatedTransport("http://server", "t"),
+        });
+        const { screen } = mount(state);
+
+        await waitFor(() => expect(nameInput(screen).value).toBe("Happy"));
+        fireEvent.input(nameInput(screen), { target: { value: "Mochi" } });
+        fireEvent.input(usernameInput(screen), { target: { value: "Mochi_Main" } });
+        fireEvent.submit(agentForm(screen));
+
+        expect(await screen.findByText("Open registration")).toBeTruthy();
+        // The username is normalized to lowercase before it is submitted.
+        expect(createBody).toEqual({ name: "Mochi", username: "mochi_main" });
+        state[Symbol.dispose]();
+    });
+
+    it("surfaces a username conflict, keeps the typed identity, and stays on the step", async () => {
+        vi.stubGlobal(
+            "fetch",
+            routedFetch({
+                "GET /v0/setup": () => json(serverStatus("default_agent_created")),
+                "POST /v0/setup/createDefaultAgent": () =>
+                    json(
+                        {
+                            error: "conflict",
+                            message: "The default agent username is already taken",
+                        },
+                        409,
+                    ),
+            }),
+        );
+        const state = happyStateCreate({
+            transport: createAuthenticatedTransport("http://server", "t"),
+        });
+        const { screen } = mount(state);
+
+        await waitFor(() => expect(nameInput(screen).value).toBe("Happy"));
+        fireEvent.input(nameInput(screen), { target: { value: "Mochi" } });
+        fireEvent.input(usernameInput(screen), { target: { value: "mochi_main" } });
+        fireEvent.submit(agentForm(screen));
+
+        expect(await screen.findByText("The default agent username is already taken")).toBeTruthy();
+        expect(nameInput(screen).value).toBe("Mochi");
+        expect(usernameInput(screen).value).toBe("mochi_main");
+        expect(screen.queryByText("Open registration")).toBeNull();
         state[Symbol.dispose]();
     });
 

@@ -44,6 +44,7 @@ import { MenuPage } from "./pages/MenuPage";
 import { MessagePage } from "./pages/MessagePage";
 import { ModalPage } from "./pages/ModalPage";
 import { ModalOverlayPage } from "./pages/ModalOverlayPage";
+import { DefaultAgentModalPage } from "./pages/DefaultAgentModalPage";
 import { ModerationReportCardPage } from "./pages/ModerationReportCardPage";
 import { NotificationListPage } from "./pages/NotificationListPage";
 import { OnboardingScreenPage } from "./pages/OnboardingScreenPage";
@@ -192,6 +193,12 @@ const components: BlueprintPage[] = [
         label: "Build progress panel",
         number: "C-063",
         page: BuildProgressPanelPage,
+    },
+    {
+        id: "default-agent-modal",
+        label: "Default agent modal",
+        number: "C-064",
+        page: DefaultAgentModalPage,
     },
 ];
 const fullScreens: BlueprintPage[] = [

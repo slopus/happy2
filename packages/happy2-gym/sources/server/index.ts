@@ -21,6 +21,7 @@ import {
     defaultConfig,
     FileStorage,
     setupChooseRegistrationPolicy,
+    setupCreateDefaultAgent,
     setupRecordOperationalStep,
     setupSandboxProviderSelect,
     serverSchemaMigrate,
@@ -287,29 +288,23 @@ class GymServerInstance implements GymServer {
             sql: "UPDATE agent_image_settings SET default_image_id = ?, updated_by_user_id = ? WHERE id = 1",
             args: [imageId, actorUserId],
         });
-        try {
-            for (const step of [
-                "base_image_selected",
-                "base_image_build_requested",
-                "base_image_ready",
-            ] as const)
-                await setupRecordOperationalStep(executor, {
-                    step,
-                    state: "complete",
-                    actorUserId,
-                    metadata: { imageId },
-                });
-            await setupChooseRegistrationPolicy(executor, actorUserId, registrationEnabled);
-        } finally {
-            await this.client.execute({
-                sql: "UPDATE agent_image_settings SET default_image_id = NULL, updated_by_user_id = NULL WHERE default_image_id = ?",
-                args: [imageId],
+        for (const step of [
+            "base_image_selected",
+            "base_image_build_requested",
+            "base_image_ready",
+        ] as const)
+            await setupRecordOperationalStep(executor, {
+                step,
+                state: "complete",
+                actorUserId,
+                metadata: { imageId },
             });
-            await this.client.execute({
-                sql: "DELETE FROM agent_images WHERE id = ?",
-                args: [imageId],
-            });
-        }
+        await setupCreateDefaultAgent(executor, {
+            actorUserId,
+            name: "Happy",
+            username: "happy",
+        });
+        await setupChooseRegistrationPolicy(executor, actorUserId, registrationEnabled);
     }
 
     async restart(options: { beforeStart?: () => Promise<void> } = {}): Promise<void> {

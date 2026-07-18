@@ -17,6 +17,7 @@ export type DesktopOnboardingStep =
     | "sandbox-provider"
     | "base-image"
     | "build-progress"
+    | "default-agent"
     | "completion"
     | "waiting";
 

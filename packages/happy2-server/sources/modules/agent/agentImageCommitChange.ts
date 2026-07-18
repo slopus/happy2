@@ -49,7 +49,6 @@ export async function agentImageCommitChange(
                 and(
                     eq(users.id, input.agentUserId),
                     eq(users.kind, "agent"),
-                    isNull(users.systemRole),
                     isNull(users.deletedAt),
                 ),
             )
@@ -69,7 +68,7 @@ export async function agentImageCommitChange(
                 dockerImageId: agentImages.dockerImageId,
             })
             .from(agentImages)
-            .where(and(eq(agentImages.id, input.imageId), eq(agentImages.systemOnly, 0)))
+            .where(eq(agentImages.id, input.imageId))
             .limit(1);
         if (!image) throw new CollaborationError("not_found", "Agent image was not found");
         if (image.status !== "ready" || !image.dockerImageId)

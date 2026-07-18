@@ -1,20 +1,20 @@
-import { type DrizzleTransaction } from "../../drizzle.js";
-import { channelAdvance } from "../../chat/channelAdvance.js";
+import { type DrizzleTransaction } from "../drizzle.js";
+import { channelAdvance } from "../chat/channelAdvance.js";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { chats, messages } from "../../schema.js";
+import { chats, messages } from "../schema.js";
 import { createId } from "@paralleldrive/cuid2";
 
 /**
- * Inserts an automated messages announcement after reserving its main-channel point and message sequence.
- * Requiring the profile transaction keeps the announcement and channel counters from committing when creation of the joined user rolls back.
+ * Announces one newly activated human with an automated message sent by the configured default agent and advances the main chat history.
+ * The caller's transaction keeps messages, syncEvents, channel counters, and profile or delayed default-agent initialization in one commit; this boundary owns the server-wide join event.
  */
-export async function announceUserJoinedServer(
+export async function userAnnounceJoinedServer(
     executor: DrizzleTransaction,
     user: {
         id: string;
         username: string;
     },
-    happyUserId: string,
+    defaultAgentUserId: string,
     sequence: number,
 ): Promise<void> {
     const [main] = await executor
@@ -31,7 +31,7 @@ export async function announceUserJoinedServer(
         chatId: main.id,
         kind: "message.serviceCreated",
         entityId: messageId,
-        actorUserId: happyUserId,
+        actorUserId: defaultAgentUserId,
         incrementMessageSequence: true,
     });
     await executor.insert(messages).values({
@@ -39,7 +39,7 @@ export async function announceUserJoinedServer(
         chatId: main.id,
         sequence: mutation.messageSequence!,
         changePts: mutation.pts,
-        senderUserId: happyUserId,
+        senderUserId: defaultAgentUserId,
         kind: "automated",
         text: `@${user.username} joined the server`,
         contentJson: JSON.stringify({

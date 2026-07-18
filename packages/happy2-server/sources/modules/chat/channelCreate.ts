@@ -11,12 +11,11 @@ import { chatGetAccess } from "./chatGetAccess.js";
 import { chatUpdateInsert } from "./chatUpdateInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { userRequireActive } from "./userRequireActive.js";
-import { requireHappyServiceAgentDb } from "./impl/requireHappyServiceAgentDb.js";
 import { userRequireServerAdmin } from "./userRequireServerAdmin.js";
 import { agentDefaultRequire } from "../agent/agentDefaultRequire.js";
 
 /**
- * Creates a chats channel with its owner membership and required Happy service participant after validating the creator and channel policy.
+ * Creates a chats channel with its owner and the sole default agent after validating the creator and channel policy.
  * The transaction exposes a channel only after chatMembers and initial sync history are complete, so no client can discover an unusable room.
  */
 export async function channelCreate(
@@ -36,8 +35,7 @@ export async function channelCreate(
     return withTransaction(executor, async (tx) => {
         await userRequireActive(tx, input.actorUserId);
         if (input.autoJoin) await userRequireServerAdmin(tx, input.actorUserId);
-        const happyUserId = await requireHappyServiceAgentDb(tx);
-        const happyAgentUserId = await agentDefaultRequire(tx);
+        const defaultAgentUserId = await agentDefaultRequire(tx);
         const id = createId();
         const membershipEpoch = createId();
         const sequence = await syncSequenceNext(tx);
@@ -53,7 +51,7 @@ export async function channelCreate(
                 ownerUserId: input.actorUserId,
                 visibility: input.kind === "public_channel" ? "public" : "private",
                 autoJoin: input.autoJoin ? 1 : 0,
-                defaultAgentUserId: happyAgentUserId,
+                defaultAgentUserId,
                 lastChangeSequence: sequence,
             });
         } catch (error) {
@@ -70,14 +68,7 @@ export async function channelCreate(
         });
         await tx.insert(chatMembers).values({
             chatId: id,
-            userId: happyAgentUserId,
-            role: "member",
-            membershipEpoch: createId(),
-            syncSequence: sequence,
-        });
-        await tx.insert(chatMembers).values({
-            chatId: id,
-            userId: happyUserId,
+            userId: defaultAgentUserId,
             role: "member",
             membershipEpoch: createId(),
             syncSequence: sequence,

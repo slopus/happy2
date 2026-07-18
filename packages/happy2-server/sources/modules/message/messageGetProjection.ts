@@ -68,7 +68,7 @@ export async function messageGetProjection(
             sender_photo_file_id: sender.photoFileId,
             sender_role: sender.role,
             sender_kind: sender.kind,
-            sender_system_role: sender.systemRole,
+            sender_agent_role: sender.agentRole,
             sender_bot_id: bot.id,
             sender_bot_name: bot.name,
             sender_bot_username: bot.username,
@@ -184,7 +184,7 @@ export async function messageGetProjection(
               photo_file_id: row.sender_photo_file_id,
               role: row.sender_role,
               user_kind: row.sender_kind,
-              system_role: row.sender_system_role,
+              agent_role: row.sender_agent_role,
           })
         : undefined;
     const forwardedFromChatId = row.forwarded_from_chat_id ?? undefined;

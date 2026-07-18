@@ -55,7 +55,7 @@ export async function agentImageTakeBuild(
                 leaseExpiresAt,
                 updatedAt: sql`CURRENT_TIMESTAMP`,
             })
-            .where(and(eq(agentImages.id, imageId), eq(agentImages.systemOnly, 0), claimable))
+            .where(and(eq(agentImages.id, imageId), claimable))
             .returning({
                 id: agentImages.id,
                 buildContext: agentImages.buildContext,
@@ -69,7 +69,7 @@ export async function agentImageTakeBuild(
                     status: agentImages.status,
                 })
                 .from(agentImages)
-                .where(and(eq(agentImages.id, imageId), eq(agentImages.systemOnly, 0)))
+                .where(eq(agentImages.id, imageId))
                 .limit(1);
             if (
                 leased?.status === "building" &&

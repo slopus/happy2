@@ -4,7 +4,7 @@ import { accounts, users } from "../../schema.js";
 import { and, eq, isNull, or } from "drizzle-orm";
 
 /**
- * Requires a non-system, non-deleted user that is either an agent or a human backed by an active, unbanned account.
+ * Requires a non-deleted agent or a human backed by an active, unbanned account.
  * Returning the identity kind lets DM creation validate both participants without imposing human-account rules on agents.
  */
 export async function requireActiveIdentityDb(
@@ -20,7 +20,6 @@ export async function requireActiveIdentityDb(
         .where(
             and(
                 eq(users.id, userId),
-                isNull(users.systemRole),
                 isNull(users.deletedAt),
                 or(
                     eq(users.kind, "agent"),

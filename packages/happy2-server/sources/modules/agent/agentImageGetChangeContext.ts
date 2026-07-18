@@ -11,7 +11,7 @@ import { userSelection } from "../chat/userSelection.js";
 
 import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
 /**
- * Validates an administrator-requested image change against a live non-system agent, a ready target image, all Rig bindings, and unfinished turns.
+ * Validates an administrator-requested image change against a live agent, a ready target image, all Rig bindings, and unfinished turns.
  * Rejecting a different image while work is pending prevents the later mutation from switching the execution substrate beneath an active turn.
  */
 export async function agentImageGetChangeContext(
@@ -45,7 +45,6 @@ export async function agentImageGetChangeContext(
                 and(
                     eq(users.id, input.agentUserId),
                     eq(users.kind, "agent"),
-                    isNull(users.systemRole),
                     isNull(users.deletedAt),
                 ),
             )
@@ -59,7 +58,7 @@ export async function agentImageGetChangeContext(
                 status: agentImages.status,
             })
             .from(agentImages)
-            .where(and(eq(agentImages.id, input.imageId), eq(agentImages.systemOnly, 0)))
+            .where(eq(agentImages.id, input.imageId))
             .limit(1)
             .then((rows) => rows[0]),
         executor

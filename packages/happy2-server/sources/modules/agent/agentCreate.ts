@@ -60,13 +60,7 @@ export async function agentCreate(
             })
             .from(agentImageSettings)
             .innerJoin(agentImages, eq(agentImages.id, agentImageSettings.defaultImageId))
-            .where(
-                and(
-                    eq(agentImageSettings.id, 1),
-                    eq(agentImages.id, input.imageId),
-                    eq(agentImages.systemOnly, 0),
-                ),
-            )
+            .where(and(eq(agentImageSettings.id, 1), eq(agentImages.id, input.imageId)))
             .limit(1);
         if (configuredImage?.status !== "ready" || !configuredImage.dockerImageId)
             throw new CollaborationError(

@@ -80,7 +80,6 @@ export async function chatMembersLoad(
                 ...identity,
                 role:
                     user.id === ownerUserId ? "owner" : user.role === "admin" ? "admin" : "member",
-                ...(user.systemRole ? { systemRole: user.systemRole } : {}),
                 ...(user.title ? { title: user.title } : {}),
                 presence: context.presenceGet(user.id)?.status ?? "offline",
             };
@@ -399,7 +398,6 @@ export type Loadable<Value> =
 
 export interface ChatMemberProjection extends IdentityProjection {
     readonly role: "owner" | "admin" | "member";
-    readonly systemRole?: "service";
     readonly title?: string;
     readonly presence: PresenceSnapshot["status"];
 }

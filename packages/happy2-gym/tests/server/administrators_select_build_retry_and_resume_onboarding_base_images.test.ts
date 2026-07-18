@@ -139,7 +139,7 @@ describe("administrators select, build, retry, and resume onboarding base images
             expect(ready.buildLog).toContain("#2 DONE");
             const completedOnboarding = (await admin.get("/v0/setup")).json();
             expect(completedOnboarding).toMatchObject({
-                route: { scope: "server", step: "registration_policy_selected" },
+                route: { scope: "server", step: "default_agent_created" },
                 server: {
                     steps: {
                         base_image_selected: { state: "complete" },
@@ -163,6 +163,14 @@ describe("administrators select, build, retry, and resume onboarding base images
             expect(
                 (await admin.get("/v0/setup")).json().server.steps.base_image_ready.completedAt,
             ).toBe(completedAt);
+            expect(
+                (
+                    await admin.post("/v0/setup/createDefaultAgent", {
+                        name: "Happy",
+                        username: "happy",
+                    })
+                ).statusCode,
+            ).toBe(201);
             expect(
                 (
                     await admin.post("/v0/setup/chooseRegistrationPolicy", {
@@ -239,7 +247,7 @@ describe("administrators select, build, retry, and resume onboarding base images
                     },
                 },
                 onboarding: {
-                    route: { scope: "server", step: "registration_policy_selected" },
+                    route: { scope: "server", step: "default_agent_created" },
                     server: {
                         steps: { base_image_ready: { metadata: { reused: true } } },
                     },

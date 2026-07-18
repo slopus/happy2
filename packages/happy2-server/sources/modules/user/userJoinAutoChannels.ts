@@ -1,11 +1,12 @@
 import { type DrizzleTransaction } from "../drizzle.js";
 import { channelAdvance } from "../chat/channelAdvance.js";
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
-import { chatMembers, chats, messages, users } from "../schema.js";
+import { chatMembers, chats, messages } from "../schema.js";
 
 import { createId } from "@paralleldrive/cuid2";
 
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
+import { agentDefaultRequire } from "../agent/agentDefaultRequire.js";
 
 /**
  * Adds a user to eligible auto-join chats through chatMembers and emits the corresponding channel updates and service messages.
@@ -20,14 +21,7 @@ export async function userJoinAutoChannels(
     sequence?: number,
     onlyChatId?: string,
 ): Promise<string> {
-    const [happy] = await executor
-        .select({
-            id: users.id,
-        })
-        .from(users)
-        .where(and(eq(users.systemRole, "service"), isNull(users.deletedAt)))
-        .limit(1);
-    if (!happy) throw new Error("Happy service agent is not initialized");
+    const defaultAgentUserId = await agentDefaultRequire(executor);
     const channels = await executor
         .select({
             id: chats.id,
@@ -80,7 +74,7 @@ export async function userJoinAutoChannels(
             chatId: channel.id,
             kind: "member.autoJoined",
             entityId: user.id,
-            actorUserId: happy.id,
+            actorUserId: defaultAgentUserId,
             targetUserId: user.id,
         });
         const messageId = createId();
@@ -89,7 +83,7 @@ export async function userJoinAutoChannels(
             chatId: channel.id,
             kind: "message.serviceCreated",
             entityId: messageId,
-            actorUserId: happy.id,
+            actorUserId: defaultAgentUserId,
             incrementMessageSequence: true,
         });
         await executor.insert(messages).values({
@@ -97,7 +91,7 @@ export async function userJoinAutoChannels(
             chatId: channel.id,
             sequence: messageMutation.messageSequence!,
             changePts: messageMutation.pts,
-            senderUserId: happy.id,
+            senderUserId: defaultAgentUserId,
             kind: "automated",
             text: `@${user.username} joined #${channel.slug ?? channel.name ?? "channel"}`,
             contentJson: JSON.stringify({
@@ -109,5 +103,5 @@ export async function userJoinAutoChannels(
             publishedAt: sql`CURRENT_TIMESTAMP`,
         });
     }
-    return happy.id;
+    return defaultAgentUserId;
 }

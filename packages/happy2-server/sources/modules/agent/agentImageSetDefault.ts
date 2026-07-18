@@ -5,7 +5,7 @@ import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 import { agentImageSelection } from "./impl/agentImageSelection.js";
 import { agentImages, agentImageSettings } from "../schema.js";
 
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { areaHint } from "../chat/areaHint.js";
 import { asAgentImage } from "./impl/asAgentImage.js";
 
@@ -15,7 +15,7 @@ import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
 
 /**
- * Selects a ready, non-system image in agentImageSettings as the server default after administrator authorization.
+ * Selects a ready image in agentImageSettings as the server default after administrator authorization.
  * Coupling the setting with sync and audit records prevents clients from seeing an unexplained default-image change.
  */
 export async function agentImageSetDefault(
@@ -33,7 +33,7 @@ export async function agentImageSetDefault(
         const [image] = await tx
             .select(agentImageSelection)
             .from(agentImages)
-            .where(and(eq(agentImages.id, input.imageId), eq(agentImages.systemOnly, 0)))
+            .where(eq(agentImages.id, input.imageId))
             .limit(1);
         if (!image) throw new CollaborationError("not_found", "Agent image was not found");
         if (image.status !== "ready" || !image.docker_image_id)

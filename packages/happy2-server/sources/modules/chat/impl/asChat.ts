@@ -20,7 +20,7 @@ export function asChat(row: Record<string, unknown>): ChatSummary {
         isMain: number(row.is_main, 0) === 1,
         autoJoin: number(row.auto_join, 0) === 1,
         defaultAgentUserId: optionalText(row.default_agent_user_id),
-        isPinnedHappy: number(row.is_pinned_happy, 0) === 1,
+        isDefaultAgentConversation: number(row.is_default_agent_conversation, 0) === 1,
         archivedAt: optionalText(row.archived_at),
         retentionMode: text(row.retention_mode, "forever") as ChatSummary["retentionMode"],
         retentionSeconds: number(row.retention_seconds, 0) || undefined,

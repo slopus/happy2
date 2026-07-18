@@ -24,13 +24,14 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
     function item(projection: DeepReadonly<SidebarChatProjection>): SidebarItem {
         const chat = projection.chat;
         const peer = projection.participants.find((person) => person.id !== options.user().id);
+        const agentConversation = isAgentConversation(projection);
         const inactive = chat.id !== options.activeConversationId();
         return {
             badge: inactive && chat.mentionCount > 0 ? chat.mentionCount : undefined,
             id: chat.id,
             imageUrl: options.avatarFor(peer?.id, projection.avatarFileId),
             initials: peer ? identityInitials(peer) : projection.displayName.slice(0, 2),
-            kind: chat.kind !== "dm" ? "channel" : peer?.kind === "agent" ? "agent" : "person",
+            kind: chat.kind !== "dm" ? "channel" : agentConversation ? "agent" : "person",
             label: projection.displayName,
             online:
                 peer?.kind === "human"
@@ -40,15 +41,10 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
             unread: inactive && chat.unreadCount > 0,
         };
     }
-    const pinnedItems = chats()
-        .filter((projection) => projection.chat.isPinnedHappy)
-        .map(item);
     const sections: SidebarSection[] = (() => {
         const needle = options.search().trim().toLowerCase();
         const projections = chats().filter(
-            (projection) =>
-                !projection.chat.isPinnedHappy &&
-                (!needle || projection.displayName.toLowerCase().includes(needle)),
+            (projection) => !needle || projection.displayName.toLowerCase().includes(needle),
         );
         const ordered = (values: readonly DeepReadonly<SidebarChatProjection>[]) => [
             ...values.filter((projection) => projection.chat.starred),
@@ -72,8 +68,7 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
                 items: ordered(
                     projections.filter(
                         (projection) =>
-                            projection.chat.kind === "dm" &&
-                            !projection.participants.some((person) => person.kind === "agent"),
+                            projection.chat.kind === "dm" && !isAgentConversation(projection),
                     ),
                 ).map(item),
             },
@@ -85,8 +80,7 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
                 items: ordered(
                     projections.filter(
                         (projection) =>
-                            projection.chat.kind === "dm" &&
-                            projection.participants.some((person) => person.kind === "agent"),
+                            projection.chat.kind === "dm" && isAgentConversation(projection),
                     ),
                 ).map(item),
             },
@@ -103,5 +97,18 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
         }));
     const isServerAdmin = () =>
         users().find((person) => person.id === options.user().id)?.role === "admin";
-    return { chats, users, pinnedItems, sections, directoryItems, isServerAdmin };
+    return { chats, users, sections, directoryItems, isServerAdmin };
+}
+
+/**
+ * Classifies ordinary agent DMs from their projected participants. The durable
+ * default-conversation marker is used only when that projection is unavailable,
+ * so a transient member request failure cannot move the required row into the
+ * human-DM section; it never creates a privileged position or ordering rule.
+ */
+function isAgentConversation(projection: DeepReadonly<SidebarChatProjection>): boolean {
+    return (
+        projection.participants.some((person) => person.kind === "agent") ||
+        projection.chat.isDefaultAgentConversation
+    );
 }

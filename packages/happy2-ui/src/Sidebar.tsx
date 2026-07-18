@@ -40,7 +40,6 @@ export type SidebarProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
     onCompose?: () => void;
     onItemSelect: (id: string) => void;
     onSectionAction?: (sectionId: string) => void;
-    pinnedItems?: SidebarItem[];
     sections: SidebarSection[];
     style?: CSSProperties;
     subtitle?: string;
@@ -127,7 +126,7 @@ function SidebarRow(props: { active: boolean; item: SidebarItem; onSelect: (id: 
 /**
  * C-009 Sidebar — 288px navigation column on the chrome surface. Header with
  * workspace title, scrollable sectioned rows (views, channels, people, agents,
- * actions), actionable empty-section guidance, and an optional pinned footer.
+ * actions), actionable empty-section guidance, and an optional footer.
  */
 export function Sidebar(props: SidebarProps) {
     const [local, rest] = partitionComponentProps(props, [
@@ -138,7 +137,6 @@ export function Sidebar(props: SidebarProps) {
         "onCompose",
         "onItemSelect",
         "onSectionAction",
-        "pinnedItems",
         "sections",
         "style",
         "subtitle",
@@ -180,18 +178,6 @@ export function Sidebar(props: SidebarProps) {
                     variant="ghost"
                 />
             </header>
-            {local.pinnedItems?.length ? (
-                <div className="happy2-sidebar__pinned" data-happy2-ui="sidebar-pinned">
-                    {local.pinnedItems.map((item) => (
-                        <SidebarRow
-                            active={item.id === local.activeItemId}
-                            key={item.id}
-                            item={item}
-                            onSelect={local.onItemSelect}
-                        />
-                    ))}
-                </div>
-            ) : null}
             <div className="happy2-sidebar__body" data-happy2-ui="sidebar-body">
                 <div className="happy2-sidebar__body-content" data-happy2-ui="sidebar-body-content">
                     {local.sections.map((section) => (

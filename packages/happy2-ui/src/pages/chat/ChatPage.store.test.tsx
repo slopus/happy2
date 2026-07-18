@@ -34,7 +34,7 @@ const chat: ChatSummary = {
     unreadCount: 0,
     mentionCount: 0,
     notificationLevel: "all",
-    isPinnedHappy: false,
+    isDefaultAgentConversation: false,
     createdAt: "2026-07-17T12:00:00.000Z",
     updatedAt: "2026-07-17T12:00:00.000Z",
 };
@@ -223,7 +223,7 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
         topic: undefined,
         dmType: "direct",
         isListed: false,
-        isPinnedHappy: true,
+        isDefaultAgentConversation: true,
     };
     sidebar.input({
         type: "sidebarLoaded",
@@ -261,10 +261,11 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
     await view.ready();
     expect(view.container.textContent).toContain("State architecture");
     expect(view.container.textContent).toContain("One coarse store per rendered surface");
+    // The default-agent conversation renders as a normal row inside the agents
+    // section, never in a privileged pinned row above the sections.
+    expect(view.container.querySelector('[data-happy2-ui="sidebar-pinned"]')).toBeNull();
     expect(
-        view.container.querySelector(
-            '[data-happy2-ui="sidebar-pinned"] [data-item-id="happy-chat"]',
-        ),
+        view.container.querySelector('[data-section-id="agents"] [data-item-id="happy-chat"]'),
     ).not.toBeNull();
     const adminButton = Array.from(view.container.querySelectorAll("button")).find(
         (button) => button.textContent?.trim() === "Administration",

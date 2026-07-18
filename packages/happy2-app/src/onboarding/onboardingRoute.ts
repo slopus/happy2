@@ -71,6 +71,8 @@ function serverStep(step: ServerSetupStep): DesktopOnboardingStep {
         case "base_image_build_requested":
         case "base_image_ready":
             return "build-progress";
+        case "default_agent_created":
+            return "default-agent";
         case "registration_policy_selected":
             return "completion";
         case "server_setup_complete":

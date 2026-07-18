@@ -4,7 +4,7 @@ import { accounts, users } from "../schema.js";
 import { and, eq, isNull } from "drizzle-orm";
 
 /**
- * Requires a non-system, non-deleted user profile backed by an active, unbanned, non-deleted account.
+ * Requires a non-deleted human profile backed by an active, unbanned, non-deleted account.
  * Applying the full product-identity predicate here prevents credential-only or disabled accounts from authorizing chat actions.
  */
 export async function userRequireActive(executor: DrizzleExecutor, userId: string): Promise<void> {
@@ -17,7 +17,6 @@ export async function userRequireActive(executor: DrizzleExecutor, userId: strin
         .where(
             and(
                 eq(users.id, userId),
-                isNull(users.systemRole),
                 isNull(users.deletedAt),
                 isNull(accounts.deletedAt),
                 isNull(accounts.bannedAt),

@@ -108,7 +108,7 @@ describe("human presence status and last seen", () => {
             id: string;
             kind: "agent" | "human";
             lastSeenAt?: string;
-            systemRole?: "service";
+            agentRole?: "default";
         }>;
         const contact = users.find((user) => user.id === member.id);
         expect(contact).toMatchObject({
@@ -118,9 +118,9 @@ describe("human presence status and last seen", () => {
         });
         expect(contact).not.toHaveProperty("lastAccessAt");
         expect(users.find((user) => user.id === idle.id)).not.toHaveProperty("lastSeenAt");
-        const serviceAgent = users.find((user) => user.systemRole === "service");
-        expect(serviceAgent).toMatchObject({ kind: "agent" });
-        expect(serviceAgent).not.toHaveProperty("lastSeenAt");
+        const happy = users.find((user) => user.agentRole === "default");
+        expect(happy).toMatchObject({ kind: "agent" });
+        expect(happy).not.toHaveProperty("lastSeenAt");
 
         const presence = await asAdmin.get("/v0/presence");
         expect(presence.statusCode).toBe(200);
@@ -136,7 +136,7 @@ describe("human presence status and last seen", () => {
             expect.objectContaining({ userId: member.id, status: "offline" }),
         );
         expect(presence.json().presence).toContainEqual(
-            expect.objectContaining({ userId: serviceAgent!.id, status: "offline" }),
+            expect.objectContaining({ userId: happy!.id, status: "offline" }),
         );
     });
 });

@@ -146,6 +146,11 @@ export { Toolbar, type ToolbarProps, type ToolbarSearch } from "./Toolbar";
 export { Menu, type MenuItem, type MenuProps } from "./Menu";
 export { Modal, type ModalProps, type ModalSize, type ModalTone } from "./Modal";
 export { ModalOverlay, type ModalOverlayProps } from "./ModalOverlay";
+export {
+    DefaultAgentModal,
+    type DefaultAgentModalProps,
+    DEFAULT_AGENT_LUCKY_LABEL,
+} from "./DefaultAgentModal";
 export { CommandPalette, type CommandPaletteProps } from "./CommandPalette";
 export {
     InfoPanel,

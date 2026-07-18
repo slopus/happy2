@@ -5,7 +5,7 @@ import { agentImages, agentImageSettings } from "../schema.js";
 import { and, eq, sql } from "drizzle-orm";
 
 /**
- * Returns the configured default image only when it is non-system, ready, and has a resolved Docker image identifier.
+ * Returns the configured default image only when it is ready and has a resolved Docker image identifier.
  * Treating every incomplete setting as absent prevents agent creation from selecting a build that cannot yet execute.
  */
 export async function agentImageGetReadyDefault(
@@ -23,7 +23,6 @@ export async function agentImageGetReadyDefault(
             and(
                 eq(agentImageSettings.id, 1),
                 eq(agentImages.status, "ready"),
-                eq(agentImages.systemOnly, 0),
                 sql`${agentImages.dockerImageId} IS NOT NULL`,
             ),
         )

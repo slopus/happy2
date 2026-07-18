@@ -488,6 +488,67 @@ describe("host shell", () => {
         }
     });
 });
+describe("default-agent conversation in the sidebar", () => {
+    it("shows the default-agent conversation in the agents section at startup, not a pinned row", async () => {
+        const state = happyStateCreate();
+        const navigation = desktopNavigationCreate();
+        onTestFinished(() => {
+            navigation[Symbol.dispose]();
+            state[Symbol.dispose]();
+        });
+        const agentDm: ChatSummary = {
+            ...channelFixture(),
+            id: "agent-dm",
+            kind: "dm",
+            name: undefined,
+            slug: undefined,
+            dmType: "direct",
+            isListed: false,
+            isDefaultAgentConversation: true,
+        };
+        state
+            .sidebar()
+            .getState()
+            .sidebarInput({
+                type: "sidebarLoaded",
+                chats: [
+                    {
+                        id: agentDm.id,
+                        chat: agentDm,
+                        displayName: "Happy",
+                        participants: [
+                            {
+                                id: "user-1",
+                                displayName: "Ada Lovelace",
+                                username: "ada",
+                                kind: "human",
+                            },
+                            {
+                                id: "happy",
+                                displayName: "Happy",
+                                username: "happy",
+                                kind: "agent",
+                                agentRole: "default",
+                            },
+                        ],
+                    },
+                ],
+                sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+            });
+        const screen = render(
+            <DesktopSessionFixture navigation={navigation} sessionReady={() => {}} state={state} />,
+        );
+        await waitFor(() =>
+            expect(
+                screen.container.querySelector(
+                    '[data-section-id="agents"] [data-item-id="agent-dm"]',
+                ),
+            ).toBeTruthy(),
+        );
+        // The existence-invariant marker must not create a privileged pinned row.
+        expect(screen.container.querySelector('[data-happy2-ui="sidebar-pinned"]')).toBeNull();
+    });
+});
 function channelFixture(): ChatSummary {
     return {
         id: "chat-1",
@@ -511,7 +572,7 @@ function channelFixture(): ChatSummary {
         unreadCount: 0,
         mentionCount: 0,
         notificationLevel: "all",
-        isPinnedHappy: false,
+        isDefaultAgentConversation: false,
         createdAt: "2026-07-17T12:00:00.000Z",
         updatedAt: "2026-07-17T12:00:00.000Z",
     };

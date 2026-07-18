@@ -128,6 +128,16 @@ export async function setupOutputRoute(
                 status: result.onboarding,
                 baseImages: result.baseImages,
             });
+        } else if (event.type === "defaultAgentCreateSubmitted") {
+            const result = await context.runtime.operation("createDefaultAgent", {
+                name: event.name,
+                username: event.username,
+            });
+            statusGenerations.set(context.setup, nextGeneration(statusGenerations, context.setup));
+            context.setup.getState().setupInput({
+                type: "defaultAgentCreateSucceeded",
+                status: result.onboarding,
+            });
         } else {
             const result = await context.runtime.operation("chooseSetupRegistrationPolicy", {
                 enabled: event.enabled,
@@ -160,6 +170,12 @@ export async function setupOutputRoute(
                 action: "baseImageRetry",
                 error: displayable,
             });
+        } else if (event.type === "defaultAgentCreateSubmitted") {
+            context.setup.getState().setupInput({
+                type: "actionFailed",
+                action: "defaultAgent",
+                error: displayable,
+            });
         } else {
             context.setup.getState().setupInput({
                 type: "actionFailed",
@@ -170,7 +186,11 @@ export async function setupOutputRoute(
     }
 }
 
-const idlePending: SetupPending = { selectingImage: false, retryingBuild: false };
+const idlePending: SetupPending = {
+    selectingImage: false,
+    retryingBuild: false,
+    creatingDefaultAgent: false,
+};
 
 /**
  * Creates the single onboarding surface store. It retains the durable combined
@@ -213,6 +233,19 @@ export function setupStoreCreate(
                 actionErrorFor: undefined,
             }));
             output({ type: "baseImageBuildRetrySubmitted" });
+        },
+        defaultAgentCreate(input): void {
+            if (get().pending.creatingDefaultAgent) return;
+            set((snapshot) => ({
+                pending: { ...snapshot.pending, creatingDefaultAgent: true },
+                actionError: undefined,
+                actionErrorFor: undefined,
+            }));
+            output({
+                type: "defaultAgentCreateSubmitted",
+                name: input.name,
+                username: input.username,
+            });
         },
         registrationPolicyChoose(enabled): void {
             if (get().pending.choosingPolicy !== undefined) return;
@@ -300,6 +333,14 @@ export function setupStoreCreate(
                             actionError: undefined,
                             actionErrorFor: undefined,
                         };
+                    case "defaultAgentCreateSucceeded":
+                        return {
+                            ...snapshot,
+                            status: { type: "ready", value: event.status },
+                            pending: { ...snapshot.pending, creatingDefaultAgent: false },
+                            actionError: undefined,
+                            actionErrorFor: undefined,
+                        };
                     case "registrationPolicyChooseSucceeded":
                         return {
                             ...snapshot,
@@ -329,19 +370,28 @@ function clearPending(pending: SetupPending, action: SetupAction): SetupPending 
             return { ...pending, selectingImage: false };
         case "baseImageRetry":
             return { ...pending, retryingBuild: false };
+        case "defaultAgent":
+            return { ...pending, creatingDefaultAgent: false };
         case "policy":
             return { ...pending, choosingPolicy: undefined };
     }
 }
 
 /** Durable onboarding action names, used to attribute an in-flight command and its failure. */
-export type SetupAction = "sandboxProvider" | "baseImageSelect" | "baseImageRetry" | "policy";
+export type SetupAction =
+    | "sandboxProvider"
+    | "baseImageSelect"
+    | "baseImageRetry"
+    | "defaultAgent"
+    | "policy";
 
 export interface SetupPending {
     /** The sandbox provider id whose selection probe is in flight, if any. */
     readonly selectingProviderId?: string;
     readonly selectingImage: boolean;
     readonly retryingBuild: boolean;
+    /** True while the required default-agent creation request is in flight. */
+    readonly creatingDefaultAgent: boolean;
     /** The registration policy value being committed, if a choice is in flight. */
     readonly choosingPolicy?: boolean;
 }
@@ -361,6 +411,11 @@ export type SetupOutput =
     | { readonly type: "sandboxProviderSelectSubmitted"; readonly providerId: string }
     | { readonly type: "baseImageSelectSubmitted"; readonly selection: SetupBaseImageSelection }
     | { readonly type: "baseImageBuildRetrySubmitted" }
+    | {
+          readonly type: "defaultAgentCreateSubmitted";
+          readonly name: string;
+          readonly username: string;
+      }
     | { readonly type: "registrationPolicyChooseSubmitted"; readonly enabled: boolean };
 
 export type SetupInput =
@@ -389,6 +444,10 @@ export type SetupInput =
           readonly baseImages: SetupBaseImagesView;
       }
     | {
+          readonly type: "defaultAgentCreateSucceeded";
+          readonly status: CombinedOnboardingStatus;
+      }
+    | {
           readonly type: "registrationPolicyChooseSucceeded";
           readonly status: CombinedOnboardingStatus;
       }
@@ -401,6 +460,8 @@ export interface SetupState extends SetupSnapshot {
     baseImageSelect(selection: SetupBaseImageSelection): void;
     /** Retry the selected image's failed build without re-selecting it. */
     baseImageBuildRetry(): void;
+    /** Create the required server default agent with an administrator-chosen name and username. */
+    defaultAgentCreate(input: { name: string; username: string }): void;
     /** Commit the final registration policy and complete server setup. */
     registrationPolicyChoose(enabled: boolean): void;
     setupInput(event: SetupInput): void;

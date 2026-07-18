@@ -3,6 +3,7 @@ import type { AuthService } from "../modules/auth/service.js";
 import {
     SetupError,
     setupChooseRegistrationPolicy,
+    setupCreateDefaultAgent,
     setupGetCombinedStatus,
     setupGetPublicStatus,
     setupSandboxProviderGetSelected,
@@ -156,6 +157,31 @@ export function registerSetupRoutes(
                 onboarding: await setupGetCombinedStatus(executor, current.accountId),
                 ...(hint ? { sync: hint } : {}),
             };
+        } catch (error) {
+            return handledError(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.post("/v0/setup/createDefaultAgent", async (request, reply) => {
+        const current = await auth.authenticate(request);
+        if (!current) return unauthorized(reply);
+        try {
+            const body = requestBody(request, ["name", "username"]);
+            if (typeof body.name !== "string")
+                throw new SetupError("invalid", "name must be a string");
+            if (typeof body.username !== "string")
+                throw new SetupError("invalid", "username must be a string");
+            const result = await setupCreateDefaultAgent(executor, {
+                actorUserId: current.user.id,
+                name: body.name,
+                username: body.username,
+            });
+            if (result.hint) await publishServerHint(request, pubsub, result.hint);
+            return reply.code(result.hint ? 201 : 200).send({
+                agent: result.agent,
+                onboarding: await setupGetCombinedStatus(executor, current.accountId),
+                ...(result.hint ? { sync: result.hint } : {}),
+            });
         } catch (error) {
             return handledError(reply, error) ?? Promise.reject(error);
         }

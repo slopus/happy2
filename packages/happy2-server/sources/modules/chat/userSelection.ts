@@ -11,6 +11,5 @@ export const userSelection = {
     agent_image_id: users.agentImageId,
     agent_effort: users.agentEffort,
     created_by_user_id: users.createdByUserId,
-    system_role: users.systemRole,
     agent_role: users.agentRole,
 };

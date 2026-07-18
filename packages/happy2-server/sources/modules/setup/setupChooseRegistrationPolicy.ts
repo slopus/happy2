@@ -7,12 +7,11 @@ import { requireActiveAdministratorDb } from "./impl/requireActiveAdministratorD
 import { requirePrerequisitesDb } from "./impl/requirePrerequisitesDb.js";
 import { serverSetupState } from "../schema.js";
 import { serverStepDb } from "./impl/serverStepDb.js";
-import { agentImageGetReadyDefault } from "../agent/agentImageGetReadyDefault.js";
-import { baseImageSelectedId } from "./impl/baseImageSelectedId.js";
+import { agentDefaultRequire } from "../agent/agentDefaultRequire.js";
 
 /**
- * Finalizes registration_policy_selected and server_setup_complete only when agentImageSettings still names the ready agentImages selection recorded by serverSetupSteps.
- * Its retryable transaction updates the setup rows and emits both syncEvents together, making this the sole boundary that opens a newly configured server.
+ * Finalizes registration_policy_selected and server_setup_complete only after the explicit default-agent onboarding step has committed a live main agent.
+ * Its retryable transaction updates registration availability and both terminal setup rows together, making this the sole boundary that opens a newly configured server.
  */
 export async function setupChooseRegistrationPolicy(
     executor: DrizzleExecutor,
@@ -41,22 +40,7 @@ export async function setupChooseRegistrationPolicy(
                 "conflict",
                 "Registration policy was already selected during onboarding",
             );
-        const [selectedImage, readyImage, readyDefault] = await Promise.all([
-            serverStepDb(tx, "base_image_selected"),
-            serverStepDb(tx, "base_image_ready"),
-            agentImageGetReadyDefault(tx),
-        ]);
-        const selectedImageId = baseImageSelectedId(selectedImage.metadataJson);
-        const readyImageId = baseImageSelectedId(readyImage.metadataJson);
-        if (
-            !selectedImageId ||
-            readyImageId !== selectedImageId ||
-            readyDefault?.id !== selectedImageId
-        )
-            throw new SetupError(
-                "conflict",
-                "The selected base image must be ready and promoted as the default before setup can finish",
-            );
+        await agentDefaultRequire(tx);
         return completeRegistrationPolicyDb(tx, actorUserId, registrationEnabled, {
             registrationEnabled,
         });

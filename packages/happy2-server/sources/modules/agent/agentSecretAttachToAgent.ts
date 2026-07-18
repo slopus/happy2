@@ -33,7 +33,6 @@ export async function agentSecretAttachToAgent(
                 and(
                     eq(users.id, input.agentUserId),
                     eq(users.kind, "agent"),
-                    isNull(users.systemRole),
                     isNull(users.deletedAt),
                 ),
             )

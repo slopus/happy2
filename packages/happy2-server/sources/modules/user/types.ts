@@ -11,7 +11,6 @@ export interface User {
     kind: "human" | "agent";
     agentImageId?: string;
     createdByUserId?: string;
-    systemRole?: "service";
     agentRole?: "default";
     lastAccessAt?: string;
 }

@@ -30,6 +30,7 @@ const onboardingSteps = new Set<DesktopOnboardingStep>([
     "sandbox-provider",
     "base-image",
     "build-progress",
+    "default-agent",
     "completion",
     "waiting",
 ]);

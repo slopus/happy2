@@ -3,13 +3,12 @@ import { fileURLToPath } from "node:url";
 import type { Client } from "@libsql/client";
 import { createId } from "@paralleldrive/cuid2";
 import { migrate } from "drizzle-orm/libsql/migrator";
-import { createDatabase, withTransaction } from "../drizzle.js";
+import { createDatabase } from "../drizzle.js";
 import { serverSyncState } from "../schema.js";
-import { ensureChannelDefaults } from "./impl/ensureChannelDefaults.js";
 
 /**
- * Runs durable schema migrations, ensures the singleton serverSyncState cursor exists, then transactionally reconciles required channel defaults.
- * DDL and cursor initialization intentionally precede the idempotent defaults transaction so a later startup can resume safely after interruption.
+ * Runs durable schema migrations and ensures the singleton serverSyncState cursor exists without creating product identities before setup.
+ * The default agent and its channel substrate are initialized later, after a ready agent image has been configured.
  */
 export async function serverSchemaMigrate(client: Client): Promise<void> {
     const executor = createDatabase(client);
@@ -22,5 +21,4 @@ export async function serverSchemaMigrate(client: Client): Promise<void> {
         .insert(serverSyncState)
         .values({ id: 1, generation: createId(), sequence: 0 })
         .onConflictDoNothing();
-    await withTransaction(executor, ensureChannelDefaults);
 }

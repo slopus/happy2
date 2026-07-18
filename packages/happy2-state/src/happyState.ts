@@ -725,6 +725,7 @@ export class HappyState implements AsyncDisposable, Disposable {
             case "sandboxProviderSelectSubmitted":
             case "baseImageSelectSubmitted":
             case "baseImageBuildRetrySubmitted":
+            case "defaultAgentCreateSubmitted":
             case "registrationPolicyChooseSubmitted":
                 if (this.setupBinding)
                     this.backgroundIfConnected(() =>

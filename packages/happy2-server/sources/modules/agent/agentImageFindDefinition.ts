@@ -6,7 +6,7 @@ import { asAgentImage } from "./impl/asAgentImage.js";
 import { agentImageSelection } from "./impl/agentImageSelection.js";
 
 /**
- * Finds one non-system agentImages record by its built-in key or immutable definition hash without changing durable state.
+ * Finds one agentImages record by its built-in key or immutable definition hash without changing durable state.
  * This public projection lets setup orchestration reuse image definitions without reaching into agent module implementation details.
  */
 export async function agentImageFindDefinition(
@@ -18,7 +18,6 @@ export async function agentImageFindDefinition(
         .from(agentImages)
         .where(
             and(
-                eq(agentImages.systemOnly, 0),
                 "builtinKey" in selector
                     ? eq(agentImages.builtinKey, selector.builtinKey)
                     : eq(agentImages.definitionHash, selector.definitionHash),

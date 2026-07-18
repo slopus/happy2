@@ -16,7 +16,7 @@ import { createId } from "@paralleldrive/cuid2";
 
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 
-import { announceUserJoinedServer } from "./impl/announceUserJoinedServer.js";
+import { userAnnounceJoinedServer } from "./userAnnounceJoinedServer.js";
 import { userJoinAutoChannels } from "./userJoinAutoChannels.js";
 import { agentDefaultConversationEnsure } from "../agent/agentDefaultConversationEnsure.js";
 
@@ -207,24 +207,31 @@ export async function userCreateProfile(
                   ]
                 : []),
         ]);
-        const happyUserId = await userJoinAutoChannels(
-            tx,
-            {
-                id,
-                username: profile.username,
-            },
-            sequence,
-        );
-        await agentDefaultConversationEnsure(tx, { userId: id, sequence });
-        await announceUserJoinedServer(
-            tx,
-            {
-                id,
-                username: profile.username,
-            },
-            happyUserId,
-            sequence,
-        );
+        const [defaultAgent] = await tx
+            .select({ id: users.id })
+            .from(users)
+            .where(and(eq(users.agentRole, "default"), isNull(users.deletedAt)))
+            .limit(1);
+        if (defaultAgent) {
+            const defaultAgentUserId = await userJoinAutoChannels(
+                tx,
+                {
+                    id,
+                    username: profile.username,
+                },
+                sequence,
+            );
+            await agentDefaultConversationEnsure(tx, { userId: id, sequence });
+            await userAnnounceJoinedServer(
+                tx,
+                {
+                    id,
+                    username: profile.username,
+                },
+                defaultAgentUserId,
+                sequence,
+            );
+        }
         return asUser({
             ...user,
             role:

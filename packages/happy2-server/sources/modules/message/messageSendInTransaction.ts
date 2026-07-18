@@ -138,7 +138,6 @@ export async function messageSendInTransaction(
                         isNull(chatMembers.leftAt),
                         isNull(users.deletedAt),
                         eq(users.kind, "agent"),
-                        isNull(users.systemRole),
                     ),
                 )
                 .limit(1);

@@ -104,7 +104,7 @@
             "idx": 14,
             "version": "6",
             "when": 1784260000000,
-            "tag": "0014_main_channels_and_service_agent",
+            "tag": "0014_main_channels",
             "breakpoints": true
         },
         {
@@ -118,7 +118,7 @@
             "idx": 16,
             "version": "6",
             "when": 1784330000000,
-            "tag": "0016_default_happy_agent",
+            "tag": "0016_default_agent",
             "breakpoints": true
         },
         {

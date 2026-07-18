@@ -192,7 +192,6 @@ export const agentImages = sqliteTable("agent_images", {
     createdByUserId: text("created_by_user_id"),
     createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
     updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
-    systemOnly: integer("system_only").notNull().default(0),
 });
 
 export const agentImageSettings = sqliteTable("agent_image_settings", {
@@ -407,7 +406,7 @@ export const chats = sqliteTable("chats", {
     defaultAgentUserId: text("default_agent_user_id").references(() => users.id, {
         onDelete: "restrict",
     }),
-    isPinnedHappy: integer("is_pinned_happy").notNull().default(0),
+    isDefaultAgentConversation: integer("is_default_agent_conversation").notNull().default(0),
 });
 
 export const agentTurns = sqliteTable(
@@ -1088,7 +1087,6 @@ export const users = sqliteTable("users", {
     lastAccessAt: text("last_access_at"),
     lastSeenAt: text("last_seen_at"),
     syncSequence: integer("sync_sequence").notNull().default(0),
-    systemRole: text("system_role"),
     agentRole: text("agent_role"),
 });
 

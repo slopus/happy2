@@ -23,7 +23,7 @@ export interface ChatSummary {
     readonly isMain: boolean;
     readonly autoJoin: boolean;
     readonly defaultAgentUserId?: string;
-    readonly isPinnedHappy: boolean;
+    readonly isDefaultAgentConversation: boolean;
     readonly archivedAt?: string;
     readonly retentionMode: "inherit" | "forever" | "duration";
     readonly retentionSeconds?: number;
@@ -57,7 +57,6 @@ export interface UserSummary {
     readonly role: "member" | "admin";
     readonly kind: "human" | "agent";
     readonly agentEffort?: string;
-    readonly systemRole?: "service";
     readonly agentRole?: "default";
     readonly createdByUserId?: string;
 }

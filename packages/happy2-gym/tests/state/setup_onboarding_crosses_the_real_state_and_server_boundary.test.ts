@@ -95,7 +95,14 @@ describe("setup onboarding across happy2-state and the real server", () => {
                 .toMatchObject({ status: "ready", buildProgress: 100 });
             await expect
                 .poll(() => readyStatus(setup.getState()).route, { timeout: 3_000 })
-                .toEqual({ scope: "server", step: "registration_policy_selected" });
+                .toEqual({ scope: "server", step: "default_agent_created" });
+
+            setup.getState().defaultAgentCreate({ name: "Mochi", username: "mochi_main" });
+            await state.whenIdle();
+            expect(readyStatus(setup.getState())).toMatchObject({
+                route: { scope: "server", step: "registration_policy_selected" },
+            });
+            expect(setup.getState().pending.creatingDefaultAgent).toBe(false);
 
             setup.getState().registrationPolicyChoose(false);
             await state.whenIdle();

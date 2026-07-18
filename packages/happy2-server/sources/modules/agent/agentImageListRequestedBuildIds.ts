@@ -3,7 +3,7 @@ import { agentImages } from "../schema.js";
 import { and, eq, or, sql } from "drizzle-orm";
 
 /**
- * Lists non-system images with requested pending work or any in-progress build, ordered by request and creation time.
+ * Lists images with requested pending work or any in-progress build, ordered by request and creation time.
  * Including live leases lets a restarted worker schedule a claim for their expiry instead of leaving crash-interrupted builds stranded.
  */
 export async function agentImageListRequestedBuildIds(
@@ -16,7 +16,6 @@ export async function agentImageListRequestedBuildIds(
         .from(agentImages)
         .where(
             and(
-                eq(agentImages.systemOnly, 0),
                 or(
                     and(
                         eq(agentImages.status, "pending"),

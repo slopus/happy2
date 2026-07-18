@@ -26,7 +26,7 @@ export interface ChatSummary {
     isMain: boolean;
     autoJoin: boolean;
     defaultAgentUserId?: string;
-    isPinnedHappy: boolean;
+    isDefaultAgentConversation: boolean;
     archivedAt?: string;
     retentionMode: "inherit" | "forever" | "duration";
     retentionSeconds?: number;
@@ -63,7 +63,6 @@ export interface UserSummary {
     agentImageId?: string;
     agentEffort?: string;
     createdByUserId?: string;
-    systemRole?: "service";
     agentRole?: "default";
     lastSeenAt?: string;
 }

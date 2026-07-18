@@ -38,7 +38,7 @@ const chat: ChatSummary = {
     unreadCount: 0,
     mentionCount: 0,
     notificationLevel: "all",
-    isPinnedHappy: false,
+    isDefaultAgentConversation: false,
     createdAt: "2026-07-17T12:00:00.000Z",
     updatedAt: "2026-07-17T12:00:00.000Z",
 };

@@ -5,7 +5,7 @@ import { createGymServer, type GymRequestClient } from "../../sources/index.js";
 interface Chat {
     defaultAgentUserId?: string;
     id: string;
-    isPinnedHappy: boolean;
+    isDefaultAgentConversation: boolean;
     kind: string;
 }
 
@@ -13,7 +13,7 @@ interface Contact {
     agentImageId?: string;
     agentRole?: "default";
     id: string;
-    systemRole?: "service";
+    kind: "agent" | "human";
     username: string;
 }
 
@@ -23,8 +23,8 @@ interface Image {
     status: string;
 }
 
-describe("server-managed default Happy", () => {
-    it("pins one executable identity, assigns channels, and isolates every new conversation", async () => {
+describe("server-managed default agent", () => {
+    it("creates one onboarding conversation, assigns channels, and isolates every new conversation", async () => {
         await using rig = await createMockRigDaemon();
         const sandbox = new MockAgentSandboxRuntime();
         await using server = await createGymServer({
@@ -41,44 +41,36 @@ describe("server-managed default Happy", () => {
         const asAdmin = server.as(admin);
         const asMember = server.as(member);
 
-        const contactsBeforeActivation = await contacts(asAdmin);
-        const happyService = contactsBeforeActivation.find(
-            ({ systemRole }) => systemRole === "service",
-        );
-        const happy = contactsBeforeActivation.find(({ agentRole }) => agentRole === "default");
-        expect(happyService).toMatchObject({ username: "happy-service", systemRole: "service" });
-        expect(happy).toMatchObject({ username: "happy", agentRole: "default" });
-        expect(happy!.id).not.toBe(happyService!.id);
+        const initialContacts = await contacts(asAdmin);
+        const defaultAgent = initialContacts.find(({ agentRole }) => agentRole === "default");
+        expect(defaultAgent).toMatchObject({
+            username: "happy",
+            agentRole: "default",
+            agentImageId: "happy2-gym-setup-ready-image",
+        });
+        expect(initialContacts.filter(({ kind }) => kind === "agent")).toEqual([defaultAgent]);
 
-        const adminPinned = pinnedHappy(await chats(asAdmin));
-        const memberPinned = pinnedHappy(await chats(asMember));
-        expect(adminPinned.id).not.toBe(memberPinned.id);
-        expect((await members(asAdmin, adminPinned.id)).map(({ id }) => id).sort()).toEqual(
-            [admin.id, happy!.id].sort(),
-        );
+        const adminDefaultConversation = defaultAgentConversation(await chats(asAdmin));
+        const memberDefaultConversation = defaultAgentConversation(await chats(asMember));
+        expect(adminDefaultConversation.id).not.toBe(memberDefaultConversation.id);
         expect(
-            (
-                await asMember.post("/v0/chats/createAgentConversation", {
-                    agentUserId: happy!.id,
-                })
-            ).statusCode,
-        ).toBe(404);
-
+            (await members(asAdmin, adminDefaultConversation.id)).map(({ id }) => id).sort(),
+        ).toEqual([admin.id, defaultAgent!.id].sort());
         const minimal = await readyBuiltin(asAdmin, "daycare-minimal");
         expect(
             (await asAdmin.post(`/v0/admin/agentImages/${minimal.id}/setDefaultImage`, {}))
                 .statusCode,
         ).toBe(200);
-        expect((await contacts(asAdmin)).find(({ id }) => id === happy!.id)).toMatchObject({
-            agentImageId: minimal.id,
+        expect((await contacts(asAdmin)).find(({ id }) => id === defaultAgent!.id)).toMatchObject({
+            agentImageId: "happy2-gym-setup-ready-image",
             agentRole: "default",
         });
 
-        const first = await createConversation(asMember, happy!.id);
-        const second = await createConversation(asMember, happy!.id);
+        const first = await createConversation(asMember, defaultAgent!.id);
+        const second = await createConversation(asMember, defaultAgent!.id);
         expect(first.id).not.toBe(second.id);
-        expect(first.isPinnedHappy).toBe(false);
-        expect(second.isPinnedHappy).toBe(false);
+        expect(first.isDefaultAgentConversation).toBe(false);
+        expect(second.isDefaultAgentConversation).toBe(false);
         for (const [index, chat] of [first, second].entries()) {
             const sent = await asMember.post(`/v0/chats/${chat.id}/sendMessage`, {
                 text: `Independent Happy turn ${index + 1}`,
@@ -95,15 +87,15 @@ describe("server-managed default Happy", () => {
             expect.arrayContaining(
                 [first, second].map(
                     ({ id }) =>
-                        `${rig.workspaceRoot}/agents/${happy!.id}/users/${member.id}/conversations/${id}/workspace`,
+                        `${rig.workspaceRoot}/agents/${defaultAgent!.id}/users/${member.id}/conversations/${id}/workspace`,
                 ),
             ),
         );
-        const happySessions = rig.createdSessions.filter(({ cwd }) =>
-            cwd.includes(`/agents/${happy!.id}/users/${member.id}/conversations/`),
+        const defaultAgentSessions = rig.createdSessions.filter(({ cwd }) =>
+            cwd.includes(`/agents/${defaultAgent!.id}/users/${member.id}/conversations/`),
         );
-        expect(happySessions).toHaveLength(2);
-        expect(new Set(happySessions.map(({ cwd }) => cwd)).size).toBe(2);
+        expect(defaultAgentSessions).toHaveLength(2);
+        expect(new Set(defaultAgentSessions.map(({ cwd }) => cwd)).size).toBe(2);
 
         const channelResponse = await asAdmin.post("/v0/chats/createChannel", {
             kind: "private_channel",
@@ -112,12 +104,9 @@ describe("server-managed default Happy", () => {
         });
         expect(channelResponse.statusCode).toBe(201);
         const channel = channelResponse.json().chat as Chat;
-        expect(channel.defaultAgentUserId).toBe(happy!.id);
-        expect(await members(asAdmin, channel.id)).toEqual(
-            expect.arrayContaining([
-                expect.objectContaining({ id: happy!.id, agentRole: "default" }),
-                expect.objectContaining({ id: happyService!.id, systemRole: "service" }),
-            ]),
+        expect(channel.defaultAgentUserId).toBe(defaultAgent!.id);
+        expect((await members(asAdmin, channel.id)).filter(({ kind }) => kind === "agent")).toEqual(
+            [expect.objectContaining({ id: defaultAgent!.id, agentRole: "default" })],
         );
 
         expect(
@@ -130,7 +119,7 @@ describe("server-managed default Happy", () => {
         expect(
             (
                 await asMember.post(`/v0/chats/${channel.id}/updateDefaultAgent`, {
-                    agentUserId: happy!.id,
+                    agentUserId: defaultAgent!.id,
                 })
             ).statusCode,
         ).toBe(403);
@@ -158,21 +147,23 @@ describe("server-managed default Happy", () => {
         expect(
             (
                 await asAdmin.post(`/v0/chats/${channel.id}/removeMember`, {
-                    userId: happy!.id,
+                    userId: defaultAgent!.id,
                 })
             ).statusCode,
         ).toBe(400);
 
         expect(
-            (await asAdmin.post(`/v0/chats/${adminPinned.id}/archiveChannel`, {})).statusCode,
+            (await asAdmin.post(`/v0/chats/${adminDefaultConversation.id}/archiveChannel`, {}))
+                .statusCode,
         ).toBe(400);
         expect(
-            (await asAdmin.post(`/v0/chats/${adminPinned.id}/deleteChannel`, {})).statusCode,
+            (await asAdmin.post(`/v0/chats/${adminDefaultConversation.id}/deleteChannel`, {}))
+                .statusCode,
         ).toBe(400);
         expect(
             (
-                await asAdmin.post(`/v0/chats/${adminPinned.id}/removeMember`, {
-                    userId: happy!.id,
+                await asAdmin.post(`/v0/chats/${adminDefaultConversation.id}/removeMember`, {
+                    userId: defaultAgent!.id,
                 })
             ).statusCode,
         ).toBe(400);
@@ -180,26 +171,33 @@ describe("server-managed default Happy", () => {
         const full = await readyBuiltin(asAdmin, "daycare-full");
         expect(
             (
-                await asMember.post(`/v0/admin/agents/${happy!.id}/changeImage`, {
+                await asMember.post(`/v0/admin/agents/${defaultAgent!.id}/changeImage`, {
                     imageId: full.id,
                 })
             ).statusCode,
         ).toBe(403);
-        const changedImage = await asAdmin.post(`/v0/admin/agents/${happy!.id}/changeImage`, {
-            imageId: full.id,
-        });
+        const changedImage = await asAdmin.post(
+            `/v0/admin/agents/${defaultAgent!.id}/changeImage`,
+            {
+                imageId: full.id,
+            },
+        );
         expect(changedImage.statusCode).toBe(200);
         expect(changedImage.json().user).toMatchObject({
-            id: happy!.id,
+            id: defaultAgent!.id,
             agentImageId: full.id,
             agentRole: "default",
         });
 
         await server.restart();
-        const restartedPinned = (await chats(asAdmin)).filter(({ isPinnedHappy }) => isPinnedHappy);
-        expect(restartedPinned).toEqual([expect.objectContaining({ id: adminPinned.id })]);
+        const restartedDefaultConversations = (await chats(asAdmin)).filter(
+            ({ isDefaultAgentConversation }) => isDefaultAgentConversation,
+        );
+        expect(restartedDefaultConversations).toEqual([
+            expect.objectContaining({ id: adminDefaultConversation.id }),
+        ]);
         expect((await chats(asMember)).map(({ id }) => id)).toEqual(
-            expect.arrayContaining([memberPinned.id, first.id, second.id]),
+            expect.arrayContaining([memberDefaultConversation.id, first.id, second.id]),
         );
     });
 });
@@ -216,10 +214,12 @@ async function chats(client: GymRequestClient): Promise<Chat[]> {
     return response.json().chats as Chat[];
 }
 
-function pinnedHappy(items: Chat[]): Chat {
-    const pinned = items.filter(({ isPinnedHappy }) => isPinnedHappy);
-    expect(pinned).toHaveLength(1);
-    return pinned[0]!;
+function defaultAgentConversation(items: Chat[]): Chat {
+    const conversations = items.filter(
+        ({ isDefaultAgentConversation }) => isDefaultAgentConversation,
+    );
+    expect(conversations).toHaveLength(1);
+    return conversations[0]!;
 }
 
 async function members(client: GymRequestClient, chatId: string): Promise<Contact[]> {

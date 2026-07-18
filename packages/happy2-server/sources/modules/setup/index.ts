@@ -1,4 +1,5 @@
 export { setupChooseRegistrationPolicy } from "./setupChooseRegistrationPolicy.js";
+export { setupCreateDefaultAgent } from "./setupCreateDefaultAgent.js";
 export { setupBaseImageCompleteBuild } from "./setupBaseImageCompleteBuild.js";
 export { setupBaseImageFailBuild } from "./setupBaseImageFailBuild.js";
 export { setupBaseImageGetStatus } from "./setupBaseImageGetStatus.js";

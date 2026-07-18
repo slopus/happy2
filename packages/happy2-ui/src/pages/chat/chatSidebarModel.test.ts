@@ -37,7 +37,7 @@ function chat(
         isListed: kind !== "dm",
         isMain: false,
         autoJoin: false,
-        isPinnedHappy: false,
+        isDefaultAgentConversation: false,
         retentionMode: "inherit",
         defaultExpiryMode: "none",
         defaultAfterReadScope: "all_readers",
@@ -75,9 +75,13 @@ function projection(summary: ChatSummary, displayName: string, peer?: IdentityPr
             : [],
     } satisfies SidebarChatProjection;
 }
-it("pins Happy and projects channels, people, then agents with distinct unread signals", () => {
-    const pinned = projection(
-        chat("happy-chat", "dm", { isPinnedHappy: true, unreadCount: 3, mentionCount: 1 }),
+it("places the default-agent conversation in the agents section and projects distinct unread signals", () => {
+    const defaultAgentChat = projection(
+        chat("happy-chat", "dm", {
+            isDefaultAgentConversation: true,
+            unreadCount: 3,
+            mentionCount: 1,
+        }),
         "Happy",
         happy,
     );
@@ -98,7 +102,7 @@ it("pins Happy and projects channels, people, then agents with distinct unread s
     let activeId = "";
     let sidebar: SidebarSnapshot = {
         status: { type: "ready" },
-        chats: [agentChat, pinned, humanChat, channel],
+        chats: [agentChat, defaultAgentChat, humanChat, channel],
     };
     const directory: DirectorySnapshot = {
         status: { type: "ready", value: true },
@@ -115,15 +119,18 @@ it("pins Happy and projects channels, people, then agents with distinct unread s
             avatarFor: () => undefined,
         });
     let model = createModel();
-    expect(model.pinnedItems.map((item) => item.label)).toEqual(["Happy"]);
+    // The default-agent conversation is a normal DM-with-agent row inside the
+    // agents section; there is no privileged pinned row above the sections.
+    expect("pinnedItems" in model).toBe(false);
     expect(model.sections.map((section) => section.id)).toEqual(["channels", "dms", "agents"]);
     expect(model.sections.map((section) => section.items.map((item) => item.label))).toEqual([
         ["Engineering"],
         ["Grace Hopper"],
-        ["Build agent"],
+        ["Build agent", "Happy"],
     ]);
     expect(model.sections[1]!.items[0]).toMatchObject({ unread: true, badge: undefined });
     expect(model.sections[2]!.items[0]).toMatchObject({ unread: true, badge: 2 });
+    expect(model.sections[2]!.items[1]).toMatchObject({ label: "Happy", unread: true, badge: 1 });
     activeId = "agent-chat";
     model = createModel();
     expect(model.sections[2]!.items[0]).toMatchObject({ unread: false, badge: undefined });
@@ -133,11 +140,39 @@ it("pins Happy and projects channels, people, then agents with distinct unread s
         agent,
     );
     activeId = "";
-    sidebar = { status: { type: "ready" }, chats: [changedAgent, pinned, humanChat, channel] };
+    sidebar = {
+        status: { type: "ready" },
+        chats: [changedAgent, defaultAgentChat, humanChat, channel],
+    };
     model = createModel();
     expect(model.sections[2]!.items[0]).toMatchObject({
         label: "Release agent",
         unread: true,
         badge: 3,
     });
+    expect(model.sections[2]!.items.map((item) => item.label)).toEqual(["Release agent", "Happy"]);
+});
+
+it("keeps the default-agent conversation in Agents when member projection is unavailable", () => {
+    const fallback = projection(
+        chat("happy-chat", "dm", { isDefaultAgentConversation: true }),
+        "Direct message",
+    );
+    const model = chatSidebarModelCreate({
+        user: () => ({ id: "human-1", firstName: "Ada" }),
+        activeConversationId: () => "",
+        search: () => "",
+        sidebarSnapshot: () => ({ status: { type: "ready" }, chats: [fallback] }),
+        directorySnapshot: () => ({
+            status: { type: "ready", value: true },
+            users: [],
+            channels: [],
+        }),
+        avatarFor: () => undefined,
+    });
+
+    expect(model.sections.find((section) => section.id === "dms")!.items).toEqual([]);
+    expect(model.sections.find((section) => section.id === "agents")!.items).toEqual([
+        expect.objectContaining({ id: "happy-chat", kind: "agent" }),
+    ]);
 });

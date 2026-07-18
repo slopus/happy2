@@ -88,14 +88,6 @@
     margin-right: -6px; /* optical: keep the glyph on the 16px margin */
 }
 
-.happy2-sidebar__pinned {
-    display: flex;
-    flex: none;
-    flex-direction: column;
-    padding: 4px 8px 8px;
-    border-bottom: 1px solid var(--happy2-border);
-}
-
 /* ---- Body ------------------------------------------------------------- */
 
 /* Scrollport: edge-to-edge, no padding of its own. */

@@ -41,7 +41,7 @@ import { agentEffortGetContext } from "../agent/agentEffortGetContext.js";
 import { agentEffortBindingList } from "../agent/agentEffortBindingList.js";
 import { agentCreate } from "../agent/agentCreate.js";
 import { agentConversationCreate } from "../agent/agentConversationCreate.js";
-import { agentDefaultActivate } from "../agent/agentDefaultActivate.js";
+import { agentDefaultRepair } from "../agent/agentDefaultRepair.js";
 import { agentChatListUnfinishedIds } from "../agent/agentChatListUnfinishedIds.js";
 import { agentChatGetContext } from "../agent/agentChatGetContext.js";
 import { agentChatBind } from "../agent/agentChatBind.js";
@@ -264,8 +264,8 @@ export class AgentService {
                 };
             }),
         );
-        const happyActivated = await agentDefaultActivate(this.executor);
-        if (happyActivated) await this.publishAgentHint(happyActivated);
+        const defaultAgentRepaired = await agentDefaultRepair(this.executor);
+        if (defaultAgentRepaired) await this.publishAgentHint(defaultAgentRepaired);
         for (const imageId of await agentImageListRequestedBuildIds(this.executor))
             this.queueImageBuild(imageId);
         await this.daemon.ensureGlobalEventQueue(this.shutdown.signal);
@@ -414,8 +414,6 @@ export class AgentService {
     async setDefaultAgentImage(input: { actorUserId: string; imageId: string }) {
         const result = await agentImageSetDefault(this.executor, input);
         await this.publishAgentImageHint(result.hint);
-        const happyActivated = await agentDefaultActivate(this.executor, input.actorUserId);
-        if (happyActivated) await this.publishAgentHint(happyActivated);
         return result.image;
     }
     getSetupBaseImages(actorUserId: string) {
@@ -1005,8 +1003,6 @@ export class AgentService {
             });
             if (completed) {
                 await this.publishAgentImageHint(completed);
-                const happyActivated = await agentDefaultActivate(this.executor);
-                if (happyActivated) await this.publishAgentHint(happyActivated);
             } else if (!this.shutdown.signal.aborted)
                 throw new Error(`Agent image ${imageId} build lease was lost before completion.`);
         } catch (error) {

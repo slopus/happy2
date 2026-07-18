@@ -110,3 +110,92 @@ happy2-layout/use-flex-layout -- <reason>`: segmented-control (auto-width equal 
 - CodeRabbit's final review of the complete uncommitted change returned zero findings.
 - Claude Opus reviewed the complete task diff after fixes in the same persisted session
   and explicitly approved it with no task-blocking issue remaining.
+## One user-named default agent and an always-present agent chat
+
+Status: implementation and reciprocal review complete; not yet synced to `main`.
+
+### Server
+
+- [x] Add an explicit required `default_agent_created` server-onboarding step after the sandbox and selected image are ready.
+- [x] Create the default agent only through that onboarding action, with a user-selected display name and username; propose `Happy` / `happy` in the future UI but do not hard-code them as the durable identity.
+- [x] Prevent registration-policy selection and setup completion until the default agent has been created.
+- [x] Make the executable default agent the sole built-in product identity and the sender of all automated membership/server messages, under its chosen name.
+- [x] Remove the `Happy service` / `systemRole: service` concept from the server model and APIs.
+- [x] Keep the fresh-install schema free of legacy service identities or compatibility branches; existing servers will be replaced.
+- [x] Preserve the invariant that the default agent remains a member/default agent of every channel.
+- [x] Ensure every active human profile owns exactly one immutable default-agent conversation after profile creation and restart repair, without allowing repair to create the agent identity.
+- [x] Add/update black-box gym coverage for the required onboarding action, custom identity, ordering guards, contacts, channel members, automated senders, default-agent conversation creation, and restart repair.
+- [x] Run focused gym tests, server type checks, and `pnpm --dir packages/happy2-server architecture:check`.
+- [x] Complete the persisted Claude Opus medium-effort review loop and address every actionable server finding.
+- [x] Stop for explicit user review and backend approval.
+
+Backend evidence (2026-07-18):
+
+- `happy2-server`: 21 test files / 92 tests passed; lint, typecheck, and `architecture:check` passed.
+- `happy2-gym`: 51 server test files / 125 tests passed; typecheck passed; focused onboarding/default-agent suite passed (4 files / 6 tests).
+- Persisted Claude Opus session `1a923d2c-2240-4ca8-a3af-933aeed96f7f` completed two review/fix turns and reported no remaining actionable or task-blocking backend findings.
+- The deferred client/state work must replace `isPinnedHappy` with the neutral server field `isDefaultAgentConversation` and use it only as an existence invariant.
+
+### UI and state (after backend approval only)
+
+- [x] Read `DESIGN.md` before changing UI code.
+- [x] Remove `systemRole: service`, the Service badge, and all Happy-service filtering/presentation branches from `happy2-state`, `happy2-ui`, and `happy2-app`.
+- [x] Add the required default-agent creation modal after the image-ready step, with editable name/username and a `Happy, I'm feeling lucky` preset picker backed by a predefined client-side list.
+- [x] Render the default-agent conversation immediately at desktop startup inside the normal agents section, never as a special row above all chats.
+- [x] Keep the durable default-conversation marker (`isDefaultAgentConversation`) as an existence invariant only; it must not control a privileged sidebar position.
+- [x] Add lifecycle/component coverage for initial visibility and stable chat identity.
+- [x] Keep the default-agent DM in the Agents section when its initial member projection fails; use the durable marker only as a fallback classification, never as privileged positioning, and cover the failure path.
+- [x] Ensure clicking the real submit button with invalid required fields reaches the custom displayable validation flow instead of being intercepted by native form validation.
+- [x] Expand `DefaultAgentModal`'s Chromium/Firefox/WebKit measurements to satisfy `DESIGN.md` geometry, spacing, typography, visible-bounds, and optical-alignment coverage.
+- [x] Keep the selected sandbox context visible during the modal-hosted default-agent step, including reload/resume, rather than hiding the existing banner behind the scrim.
+- [x] Add `default_agent_created` to the exhaustive onboarding route mapping test.
+- [x] Make `SetupPending.creatingDefaultAgent` a required boolean initialized to `false` by `idlePending`.
+- [x] Restore unrelated screenshot baselines overwritten by flaky browser reruns.
+- [x] Complete reciprocal review and required Chromium, Firefox, and WebKit checks.
+
+UI/state implementation evidence (2026-07-18):
+
+- State: renamed the wire field to `isDefaultAgentConversation`; removed `systemRole`
+  from `UserSummary`/`ChatMemberProjection` and the sidebar DM participant filter; added
+  the `default_agent_created` setup step, the `createDefaultAgent` backend op, and a
+  `defaultAgentCreate` setup-store action (output/input/pending/reducer/route + `eventRoute`
+  wiring). New fake-server unit tests in `modules/setup/module.test.ts`; the real state↔server
+  boundary in `gym/tests/state/...` now drives `defaultAgentCreate`.
+- UI: new reusable `DefaultAgentModal` (`happy2-ui`) — non-dismissible (`ModalOverlay` with no
+  `onDismiss`, `Modal` with no `onClose`), editable name/username, exact `Happy, I’m feeling
+  lucky` preset button, validation/conflict/submitting states; blueprint page `C-064` +
+  cross-browser render test. Removed the Service badge from `MemberList` (+ test/blueprint/PNGs)
+  and the privileged pinned row from `Sidebar`/`chatSidebarModel`; the default-agent DM now
+  falls into the normal agents section (updated `chatSidebarModel`/`ChatPage.store` tests).
+- App: new `default-agent` onboarding step between `build-progress` and `completion`
+  (`desktopRouteTypes`/`Parse`, `onboardingRoute`, `ServerOnboarding` stage/switchboard/step);
+  client preset+validation module `onboarding/defaultAgentIdentity.ts`; new `ServerOnboarding`
+  tests (resume, non-dismissible, lucky preset, validation, success→registration, conflict) and
+  an `App.test` sidebar initial-visibility test.
+- Review fixes: default-agent DMs use `isDefaultAgentConversation` only as a fallback agent
+  classification when membership projection is unavailable; the form uses `noValidate` so the
+  real submit button reaches accessible custom errors; the modal carries durable sandbox provider
+  context on reload; route coverage is exhaustive; and setup pending state is a closed required
+  boolean tree.
+- Rendering: `DefaultAgentModal` now measures overlay/card centering and gutters, body/footer/form
+  geometry, the 16 px rhythm, typography, visible ink, button states, and calibrated icon optical
+  centers. Its modal, invalid, and submitting Retina baselines pass in Chromium, Firefox, and
+  WebKit (5 focused files/tests per engine including sidebar classification; 15/15 total).
+- Package checks: repository-wide format + format-check, lint, server `architecture:check`, and all
+  package typechecks passed. State passed 30 files / 83 tests; app passed 8 files / 51 tests; server
+  passed 21 files / 92 tests; gym passed 51 files / 125 server tests and 3 files / 18 Playwright
+  tests. Production build passed for every package.
+- Full UI evidence: both full 204-file / 549-test runs reached 548 passing tests and stopped only
+  on unrelated Firefox screenshot/one-frame timing flakes (`Message.test.tsx` once and
+  `ChatPage.store.test.tsx` once); the exact failed files immediately passed 12/12 and 5/5 on
+  isolated Firefox reruns. All new feature tests passed in both complete runs.
+- Server coverage baseline was regenerated for the reviewed 580-file source universe and passes at
+  combined 81.67% statements, 71.24% branches, 90.14% functions, and 85.57% lines.
+- CodeRabbit CLI was authenticated but externally rate-limited; the completed local reciprocal
+  review found no remaining task-blocking issue.
+
+### Finalization
+
+- [x] Run repository-wide `pnpm format` and all final required checks.
+- [x] Record final evidence here.
+- [ ] Sync the isolated task to `main` when explicitly requested.

@@ -28,9 +28,7 @@ export async function channelDefaultAgentUpdate(
                 and(
                     eq(users.id, input.agentUserId),
                     eq(users.kind, "agent"),
-                    isNull(users.systemRole),
                     isNull(users.deletedAt),
-                    eq(agentImages.systemOnly, 0),
                     eq(agentImages.status, "ready"),
                     sql`${agentImages.dockerImageId} IS NOT NULL`,
                 ),

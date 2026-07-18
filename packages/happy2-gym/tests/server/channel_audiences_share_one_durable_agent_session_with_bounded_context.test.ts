@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createClient } from "@libsql/client";
 import { createMockRigDaemon, MockAgentSandboxRuntime, type MockRigDaemon } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
 
@@ -265,6 +266,17 @@ describe("channel agent audiences", () => {
         const chatId = created.json().chat.id as string;
         expect(created.json().chat.defaultAgentUserId).toEqual(expect.any(String));
 
+        const client = createClient({ url: server.config.database.url });
+        try {
+            await client.execute(
+                `UPDATE agent_images
+                 SET status = 'failed', ready_at = NULL, last_error = 'test image unavailable'
+                 WHERE id = (SELECT agent_image_id FROM users WHERE agent_role = 'default')`,
+            );
+        } finally {
+            client.close();
+        }
+
         const sent = await asOwner.post(`/v0/chats/${chatId}/sendMessage`, {
             audience: "agents",
             text: "No agent can receive this",
@@ -368,6 +380,7 @@ describe("channel agent audiences", () => {
 function agentServer(rig: MockRigDaemon) {
     return createGymServer({
         agentSandbox: new MockAgentSandboxRuntime(),
+        databaseMode: "file",
         configure(config) {
             config.agents.enabled = true;
             config.agents.socketPath = rig.socketPath;
@@ -400,9 +413,7 @@ async function configureAgentImage(client: GymRequestClient): Promise<void> {
 
 async function executableHappy(client: GymRequestClient): Promise<{ id: string }> {
     const users = (await client.get("/v0/contacts")).json().users as Array<Record<string, unknown>>;
-    const happy = users.find(
-        (user) => user.username === "happy" && user.kind === "agent" && !user.systemRole,
-    );
+    const happy = users.find((user) => user.username === "happy" && user.kind === "agent");
     if (!happy) throw new Error("Executable Happy was not created");
     return { id: happy.id as string };
 }

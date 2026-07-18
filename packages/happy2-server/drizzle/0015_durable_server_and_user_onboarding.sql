@@ -27,6 +27,7 @@ CREATE TABLE `server_setup_steps` (
         'base_image_selected',
         'base_image_build_requested',
         'base_image_ready',
+        'default_agent_created',
         'registration_policy_selected',
         'server_setup_complete'
     )),
@@ -64,5 +65,6 @@ VALUES
     ('base_image_selected', 'pending'),
     ('base_image_build_requested', 'pending'),
     ('base_image_ready', 'pending'),
+    ('default_agent_created', 'pending'),
     ('registration_policy_selected', 'pending'),
     ('server_setup_complete', 'pending');

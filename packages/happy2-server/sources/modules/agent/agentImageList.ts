@@ -7,7 +7,7 @@ import { asAgentImage } from "./impl/asAgentImage.js";
 import { eq } from "drizzle-orm";
 import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
 /**
- * Lists non-system agent images in creation order and the optional configured default after requiring server-administrator access.
+ * Lists agent images in creation order and the optional configured default after requiring server-administrator access.
  * Reading settings and definitions as one response gives management clients the exact selection context without exposing internal images.
  */
 export async function agentImageList(
@@ -29,7 +29,6 @@ export async function agentImageList(
         executor
             .select(agentImageSelection)
             .from(agentImages)
-            .where(eq(agentImages.systemOnly, 0))
             .orderBy(agentImages.createdAt, agentImages.id),
     ]);
     return {

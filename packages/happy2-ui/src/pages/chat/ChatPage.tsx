@@ -255,7 +255,6 @@ export function ChatPage(props: ChatPageProps) {
         avatarFor,
     });
     const sidebarSections = sidebarModel.sections;
-    const sidebarPinnedItems = sidebarModel.pinnedItems;
     const directoryItems = sidebarModel.directoryItems;
     const isServerAdmin = sidebarModel.isServerAdmin;
     const infoModel = useChatInfoModel({
@@ -563,7 +562,6 @@ export function ChatPage(props: ChatPageProps) {
                             if (sectionId === "channels") setDirectoryOpen(true);
                             if (sectionId === "dms") setDirectMessageOpen(true);
                         }}
-                        pinnedItems={sidebarPinnedItems}
                         sections={sidebarSections}
                         title={user() ? `${user()!.firstName}’s Happy (2)` : "Happy (2)"}
                     />

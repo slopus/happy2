@@ -5,7 +5,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { eq, sql } from "drizzle-orm";
 
 import { chatAdvanceWithSequence } from "../chatAdvanceWithSequence.js";
-import { requireHappyServiceAgentDb } from "./requireHappyServiceAgentDb.js";
+import { agentDefaultRequire } from "../../agent/agentDefaultRequire.js";
 /**
  * Inserts the automated messages history entry that identifies who added a member and which user joined the chat.
  * Using the membership transaction keeps the explanatory service message from surviving if the underlying access grant rolls back.
@@ -17,14 +17,14 @@ export async function createUserAddedServiceMessageDb(
         chatId: string;
         userId: string;
         username?: string;
-        happyUserId?: string;
+        defaultAgentUserId?: string;
     },
 ): Promise<
     ChatMutation & {
         messageSequence?: number;
     }
 > {
-    const happyUserId = input.happyUserId ?? (await requireHappyServiceAgentDb(tx));
+    const defaultAgentUserId = input.defaultAgentUserId ?? (await agentDefaultRequire(tx));
     const username =
         input.username ??
         (
@@ -49,7 +49,7 @@ export async function createUserAddedServiceMessageDb(
     const mutation = await chatAdvanceWithSequence(
         tx,
         input.sequence,
-        happyUserId,
+        defaultAgentUserId,
         input.chatId,
         "message.serviceCreated",
         messageId,
@@ -63,7 +63,7 @@ export async function createUserAddedServiceMessageDb(
         chatId: input.chatId,
         sequence: mutation.messageSequence,
         changePts: mutation.pts,
-        senderUserId: happyUserId,
+        senderUserId: defaultAgentUserId,
         kind: "automated",
         text: `@${username} joined #${channel.slug ?? channel.name ?? "channel"}`,
         contentJson: JSON.stringify({

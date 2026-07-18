@@ -55,6 +55,10 @@ describe("fresh server onboarding resumes and controls registration", () => {
                 role: "admin",
             });
             const adminId = profile.json().user.id as string;
+            expect((await provisional.get("/v0/contacts")).json().users).toEqual([
+                expect.objectContaining({ id: adminId, kind: "human" }),
+            ]);
+            expect((await provisional.get("/v0/chats")).json().chats).toEqual([]);
             const baseline = (await provisional.get("/v0/sync/state")).json().state;
             expect((await provisional.get("/v0/setup")).json()).toMatchObject({
                 server: {
@@ -75,6 +79,15 @@ describe("fresh server onboarding resumes and controls registration", () => {
             });
             expect(premature.statusCode).toBe(409);
             expect(premature.json()).toMatchObject({
+                error: "conflict",
+                message: expect.stringContaining("default_agent_created"),
+            });
+            const prematureAgent = await provisional.post("/v0/setup/createDefaultAgent", {
+                name: "Too Early",
+                username: "too_early",
+            });
+            expect(prematureAgent.statusCode).toBe(409);
+            expect(prematureAgent.json()).toMatchObject({
                 error: "conflict",
                 message: expect.stringContaining("base_image_ready"),
             });
@@ -104,6 +117,54 @@ describe("fresh server onboarding resumes and controls registration", () => {
                 },
             });
             await completeServerPrerequisites(server, adminId);
+            expect(
+                (await provisional.get("/v0/contacts"))
+                    .json()
+                    .users.filter((user: { kind: string }) => user.kind === "agent"),
+            ).toEqual([]);
+            expect((await provisional.get("/v0/setup")).json()).toMatchObject({
+                route: { scope: "server", step: "default_agent_created" },
+            });
+            const beforeAgent = await provisional.post("/v0/setup/chooseRegistrationPolicy", {
+                enabled: false,
+            });
+            expect(beforeAgent.statusCode).toBe(409);
+            expect(beforeAgent.json()).toMatchObject({
+                error: "conflict",
+                message: expect.stringContaining("default_agent_created"),
+            });
+            const createdAgent = await provisional.post("/v0/setup/createDefaultAgent", {
+                name: "Mochi",
+                username: "mochi_main",
+            });
+            expect(createdAgent.statusCode).toBe(201);
+            expect(createdAgent.json()).toMatchObject({
+                agent: {
+                    name: "Mochi",
+                    username: "mochi_main",
+                    imageId: "gym-onboarding-ready-image",
+                },
+                sync: { areas: ["setup"] },
+                onboarding: {
+                    route: { scope: "server", step: "registration_policy_selected" },
+                },
+            });
+            expect(
+                (
+                    await provisional.post("/v0/setup/createDefaultAgent", {
+                        name: "Mochi",
+                        username: "mochi_main",
+                    })
+                ).statusCode,
+            ).toBe(200);
+            expect(
+                (
+                    await provisional.post("/v0/setup/createDefaultAgent", {
+                        name: "Another Agent",
+                        username: "another_agent",
+                    })
+                ).statusCode,
+            ).toBe(409);
             const selected = await provisional.post("/v0/setup/chooseRegistrationPolicy", {
                 enabled: false,
             });
@@ -120,6 +181,26 @@ describe("fresh server onboarding resumes and controls registration", () => {
                 phase: "complete",
                 registration: "closed",
             });
+            expect(
+                (await provisional.get("/v0/contacts"))
+                    .json()
+                    .users.filter((user: { kind: string }) => user.kind === "agent"),
+            ).toEqual([
+                expect.objectContaining({
+                    firstName: "Mochi",
+                    username: "mochi_main",
+                    agentRole: "default",
+                    agentImageId: "gym-onboarding-ready-image",
+                }),
+            ]);
+            expect(
+                (await provisional.get("/v0/chats"))
+                    .json()
+                    .chats.filter(
+                        (chat: { isDefaultAgentConversation: boolean }) =>
+                            chat.isDefaultAgentConversation,
+                    ),
+            ).toHaveLength(1);
             expect(
                 (await register(server, "blocked-after-setup@example.com")).response.statusCode,
             ).toBe(403);
@@ -199,6 +280,14 @@ describe("fresh server onboarding resumes and controls registration", () => {
             });
             const adminId = profile.json().user.id as string;
             await completeServerPrerequisites(server, adminId);
+            expect(
+                (
+                    await admin.post("/v0/setup/createDefaultAgent", {
+                        name: "Happy",
+                        username: "happy",
+                    })
+                ).statusCode,
+            ).toBe(201);
             expect(
                 (
                     await admin.post("/v0/setup/chooseRegistrationPolicy", {

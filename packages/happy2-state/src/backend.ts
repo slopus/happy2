@@ -111,6 +111,7 @@ export const backendOperations = {
     getSetupBaseImages: get("/v0/setup/baseImages"),
     selectSetupBaseImage: post("/v0/setup/selectBaseImage"),
     retrySetupBaseImageBuild: post("/v0/setup/retryBaseImageBuild"),
+    createDefaultAgent: post("/v0/setup/createDefaultAgent"),
     chooseSetupRegistrationPolicy: post("/v0/setup/chooseRegistrationPolicy"),
 
     getChats: get("/v0/chats"),
@@ -355,6 +356,7 @@ export interface KnownBackendInputs {
     selectSetupSandboxProvider: { readonly providerId: string };
     selectSetupBaseImage: SetupBaseImageSelection;
     retrySetupBaseImageBuild: Record<string, never>;
+    createDefaultAgent: { readonly name: string; readonly username: string };
     chooseSetupRegistrationPolicy: { readonly enabled: boolean };
     markNotificationsRead: { readonly notificationIds?: readonly string[]; readonly all?: boolean };
     createDirectMessage: { readonly userId: string };
@@ -778,6 +780,15 @@ export interface KnownBackendResults {
     };
     retrySetupBaseImageBuild: {
         readonly baseImages: SetupBaseImagesView;
+        readonly onboarding: CombinedOnboardingStatus;
+    };
+    createDefaultAgent: {
+        readonly agent: {
+            readonly id: string;
+            readonly name: string;
+            readonly username: string;
+            readonly imageId: string;
+        };
         readonly onboarding: CombinedOnboardingStatus;
     };
     chooseSetupRegistrationPolicy: { readonly onboarding: CombinedOnboardingStatus };

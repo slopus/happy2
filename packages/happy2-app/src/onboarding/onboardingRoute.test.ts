@@ -43,6 +43,7 @@ describe("onboardingRoute", () => {
             [{ scope: "server", step: "base_image_selected" }, "base-image"],
             [{ scope: "server", step: "base_image_build_requested" }, "build-progress"],
             [{ scope: "server", step: "base_image_ready" }, "build-progress"],
+            [{ scope: "server", step: "default_agent_created" }, "default-agent"],
             [{ scope: "server", step: "registration_policy_selected" }, "completion"],
             [{ scope: "waiting", step: "server_setup" }, "waiting"],
         ];

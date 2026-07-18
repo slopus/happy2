@@ -11,7 +11,11 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { buildServer } from "../../server.js";
 import { TokenService } from "../auth/tokens.js";
 import { defaultConfig } from "../config/defaults.js";
-import { setupChooseRegistrationPolicy, setupRecordOperationalStep } from "../setup/index.js";
+import {
+    setupChooseRegistrationPolicy,
+    setupCreateDefaultAgent,
+    setupRecordOperationalStep,
+} from "../setup/index.js";
 import { eq } from "drizzle-orm";
 describe("file pipeline HTTP API", () => {
     let app: FastifyInstance;
@@ -207,6 +211,11 @@ async function completeSetup(executor: DrizzleExecutor, actorUserId: string): Pr
             actorUserId,
             ...(step.startsWith("base_image_") ? { metadata: { imageId } } : {}),
         });
+    await setupCreateDefaultAgent(executor, {
+        actorUserId,
+        name: "Happy",
+        username: "happy",
+    });
     await setupChooseRegistrationPolicy(executor, actorUserId, true);
 }
 function appendChunk(

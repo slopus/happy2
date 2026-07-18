@@ -148,6 +148,87 @@ describe("setup module", () => {
         runtime.stop();
     });
 
+    it("creating the default agent commits the status that opens the registration step", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "POST",
+            "/v0/setup/createDefaultAgent",
+            jsonResponse(201, {
+                agent: {
+                    id: "agent_1",
+                    name: "Mochi",
+                    username: "mochi_main",
+                    imageId: "img_ready",
+                },
+                onboarding: statusAt({ scope: "server", step: "registration_policy_selected" }),
+            }),
+        );
+        const runtime = runtimeFor(server);
+        const outputs: unknown[] = [];
+        const setup: SetupStore = setupStoreCreate((event) => {
+            outputs.push(event);
+            void setupOutputRoute({ runtime, setup }, event);
+        });
+        setup.getState().defaultAgentCreate({ name: "Mochi", username: "mochi_main" });
+        expect(setup.getState().pending.creatingDefaultAgent).toBe(true);
+        for (let i = 0; i < 8; i++) await Promise.resolve();
+        const snapshot = setup.getState();
+        expect(outputs).toEqual([
+            { type: "defaultAgentCreateSubmitted", name: "Mochi", username: "mochi_main" },
+        ]);
+        expect(snapshot.pending.creatingDefaultAgent).toBe(false);
+        expect(snapshot.actionError).toBeUndefined();
+        expect(snapshot.status).toMatchObject({
+            value: { route: { scope: "server", step: "registration_policy_selected" } },
+        });
+        runtime.stop();
+    });
+
+    it("ignores a re-entrant default-agent submission while one is already in flight", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "POST",
+            "/v0/setup/createDefaultAgent",
+            jsonResponse(201, {
+                agent: { id: "agent_1", name: "Happy", username: "happy", imageId: "img_ready" },
+                onboarding: statusAt({ scope: "server", step: "registration_policy_selected" }),
+            }),
+        );
+        const runtime = runtimeFor(server);
+        const outputs: unknown[] = [];
+        const setup: SetupStore = setupStoreCreate((event) => {
+            outputs.push(event);
+            void setupOutputRoute({ runtime, setup }, event);
+        });
+        setup.getState().defaultAgentCreate({ name: "Happy", username: "happy" });
+        setup.getState().defaultAgentCreate({ name: "Second", username: "second" });
+        expect(outputs).toHaveLength(1);
+        runtime.stop();
+    });
+
+    it("surfaces a taken-username conflict against the default-agent action and clears pending", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "POST",
+            "/v0/setup/createDefaultAgent",
+            jsonResponse(409, {
+                error: "conflict",
+                message: "The default agent username is already taken",
+            }),
+        );
+        const runtime = runtimeFor(server);
+        const setup: SetupStore = setupStoreCreate((event) => {
+            void setupOutputRoute({ runtime, setup }, event);
+        });
+        setup.getState().defaultAgentCreate({ name: "Happy", username: "happy" });
+        for (let i = 0; i < 6; i++) await Promise.resolve();
+        const snapshot = setup.getState();
+        expect(snapshot.pending.creatingDefaultAgent).toBe(false);
+        expect(snapshot.actionErrorFor).toBe("defaultAgent");
+        expect(snapshot.actionError?.message).toContain("already taken");
+        runtime.stop();
+    });
+
     it("reconcile reloads status always and materialized sub-resources", async () => {
         const server = createFakeServer();
         server.respond(

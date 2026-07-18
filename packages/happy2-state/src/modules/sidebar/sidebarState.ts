@@ -78,7 +78,7 @@ export class SidebarChatsProjector {
                 this.runtime.operation("getChatMembers", { chatId: chat.id }),
             ]);
             const participants = members.users
-                .filter((user) => user.id !== currentUserId && user.systemRole !== "service")
+                .filter((user) => user.id !== currentUserId)
                 .map((user) => this.identities.project(user));
             const directPeer = chat.dmType === "direct" ? participants[0] : undefined;
             const participantNames = participants

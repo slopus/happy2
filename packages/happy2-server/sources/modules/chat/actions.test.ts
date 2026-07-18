@@ -45,6 +45,9 @@ import { agentImageList } from "../agent/agentImageList.js";
 import { agentImageEnsureDefinitions } from "../agent/agentImageEnsureDefinitions.js";
 import { agentImageCompleteBuild } from "../agent/agentImageCompleteBuild.js";
 import { agentCreate } from "../agent/agentCreate.js";
+import { agentImages, agentImageSettings, serverSetupSteps } from "../schema.js";
+import { setupCreateDefaultAgent } from "../setup/setupCreateDefaultAgent.js";
+import { setupRecordOperationalStep } from "../setup/setupRecordOperationalStep.js";
 import { createDatabase, type DrizzleExecutor } from "../drizzle.js";
 import { createClient, type Client } from "@libsql/client";
 import { serverSchemaMigrate } from "../server/serverSchemaMigrate.js";
@@ -55,6 +58,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { StoredFile } from "../file/types.js";
 import type { User } from "../user/types.js";
 import { CollaborationError } from "./types.js";
+import { eq } from "drizzle-orm";
 describe("functional product actions", () => {
     let directory: string;
     let client: Client;
@@ -71,6 +75,50 @@ describe("functional product actions", () => {
         await serverSchemaMigrate(client);
         await syncInitialize(executor);
         ada = await createUser(executor, "ada@example.com", "ada", "Ada");
+        const now = new Date().toISOString();
+        await executor
+            .update(serverSetupSteps)
+            .set({
+                state: "complete",
+                startedAt: now,
+                completedAt: now,
+                updatedAt: now,
+            })
+            .where(eq(serverSetupSteps.step, "bootstrap_administrator"));
+        await executor.insert(agentImages).values({
+            id: "functional-actions-ready-image",
+            name: "Functional actions ready image",
+            dockerfile: "FROM scratch",
+            definitionHash: "functional-actions-ready-image",
+            dockerTag: "happy2:functional-actions-ready-image",
+            status: "ready",
+            buildProgress: 100,
+            dockerImageId: "sha256:functional-actions-ready-image",
+            readyAt: new Date().toISOString(),
+        });
+        await executor
+            .update(agentImageSettings)
+            .set({ defaultImageId: "functional-actions-ready-image", updatedByUserId: ada.id });
+        for (const step of [
+            "sandbox_provider_selected",
+            "sandbox_provider_validated",
+            "base_image_selected",
+            "base_image_build_requested",
+            "base_image_ready",
+        ] as const)
+            await setupRecordOperationalStep(executor, {
+                step,
+                state: "complete",
+                actorUserId: ada.id,
+                ...(step.startsWith("base_image_")
+                    ? { metadata: { imageId: "functional-actions-ready-image" } }
+                    : {}),
+            });
+        await setupCreateDefaultAgent(executor, {
+            actorUserId: ada.id,
+            name: "Happy",
+            username: "happy",
+        });
         grace = await createUser(executor, "grace@example.com", "grace", "Grace");
         linus = await createUser(executor, "linus@example.com", "linus", "Linus");
     });

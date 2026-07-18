@@ -17,9 +17,6 @@ export type MemberItem = {
     role: MemberRole;
     /** Renders the agent avatar treatment instead of the human one. */
     agent?: boolean;
-    /** A built-in service account (e.g. the @happy service agent): shows a
-     *  "Service" status pill instead of the org role and carries no presence. */
-    systemRole?: "service";
 };
 export type MemberListProps = {
     className?: string;
@@ -43,9 +40,6 @@ const roleBadges: Record<
     admin: { label: "Admin", variant: "info" },
     member: { label: "Member", variant: "neutral" },
 };
-/* A built-in service account outranks its org role in the roster: it always
- * reads "Service" regardless of the plain member/admin role it carries. */
-const serviceBadge = { label: "Service", variant: "accent" as BadgeVariant };
 /* Secondary line: the title takes priority (it is the descriptive roster
  * label); a bare @handle stands in when there is no title. */
 function subtitleOf(member: MemberItem): string | undefined {
@@ -60,8 +54,7 @@ function MemberRow(props: {
     rowMenu?: (member: MemberItem) => ReactNode;
 }) {
     const member = () => props.member;
-    const service = () => member().systemRole === "service";
-    const badge = () => (service() ? serviceBadge : roleBadges[member().role]);
+    const badge = () => roleBadges[member().role];
     const subtitle = () => subtitleOf(member());
     /* One trailing control per row: a caller-supplied menu wins; otherwise an
      * action button appears whenever an action handler or label is declared. */
@@ -84,15 +77,15 @@ function MemberRow(props: {
         <li
             className="happy2-member-list__row"
             data-member-id={member().id}
-            data-presence={service() ? undefined : (member().presence ?? "offline")}
+            data-presence={member().presence ?? "offline"}
             data-happy2-ui="member-row"
-            data-role={service() ? "service" : member().role}
+            data-role={member().role}
         >
             <Avatar
                 className="happy2-member-list__avatar"
                 imageUrl={member().imageUrl}
                 initials={member().initials}
-                online={!service() && member().presence === "online"}
+                online={member().presence === "online"}
                 size="md"
                 tone={member().tone}
                 type={member().agent ? "agent" : "human"}

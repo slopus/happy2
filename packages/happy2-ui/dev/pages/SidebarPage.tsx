@@ -224,16 +224,6 @@ export function SidebarPage() {
                             footer={<FooterUser />}
                             onItemSelect={() => {}}
                             onSectionAction={() => {}}
-                            pinnedItems={[
-                                {
-                                    id: "happy",
-                                    initials: "H",
-                                    kind: "agent",
-                                    label: "Happy",
-                                    status: "ready",
-                                    tone: "brand",
-                                },
-                            ]}
                             sections={workspaceSections}
                             subtitle="12 members · 3 agents"
                             title="Acme Studio"

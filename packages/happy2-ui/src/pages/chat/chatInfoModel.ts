@@ -54,7 +54,6 @@ export function useChatInfoModel(options: ChatInfoModelOptions) {
             name: member.displayName,
             presence: member.presence,
             role: member.role,
-            systemRole: member.systemRole,
             title: member.title,
             tone: toneFor(member.id),
             username: member.username,

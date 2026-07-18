@@ -8,7 +8,7 @@ import { chatGetAccess } from "../chat/chatGetAccess.js";
 
 /**
  * Resolves one executable agent inside an accessible direct message or channel, including its stable conversation sandbox scope and optional Rig binding.
- * Rejecting inactive, system-only, or unready identities here keeps session creation tied to a concrete agent-conversation authorization boundary.
+ * Rejecting inactive or unready identities here keeps session creation tied to a concrete agent-conversation authorization boundary.
  */
 export async function agentChatGetContext(
     executor: DrizzleExecutor,
@@ -36,7 +36,6 @@ export async function agentChatGetContext(
                 isNull(chatMembers.leftAt),
                 isNull(users.deletedAt),
                 eq(users.kind, "agent"),
-                isNull(users.systemRole),
                 requestedAgentUserId ? eq(users.id, requestedAgentUserId) : undefined,
             ),
         )
@@ -55,7 +54,6 @@ export async function agentChatGetContext(
                     isNull(chatMembers.leftAt),
                     isNull(users.deletedAt),
                     eq(users.kind, "agent"),
-                    isNull(users.systemRole),
                 ),
             );
         if (activeAgentCount.length !== 1) return undefined;

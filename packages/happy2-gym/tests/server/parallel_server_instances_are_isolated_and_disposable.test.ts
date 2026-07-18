@@ -30,11 +30,15 @@ describe("parallel server instances", () => {
             expect(firstChats).toHaveLength(6);
             expect(secondChats).toHaveLength(2);
             expect(
-                firstChats.filter(({ isPinnedHappy }: { isPinnedHappy: boolean }) => isPinnedHappy),
+                firstChats.filter(
+                    ({ isDefaultAgentConversation }: { isDefaultAgentConversation: boolean }) =>
+                        isDefaultAgentConversation,
+                ),
             ).toHaveLength(1);
             expect(
                 secondChats.filter(
-                    ({ isPinnedHappy }: { isPinnedHappy: boolean }) => isPinnedHappy,
+                    ({ isDefaultAgentConversation }: { isDefaultAgentConversation: boolean }) =>
+                        isDefaultAgentConversation,
                 ),
             ).toHaveLength(1);
         } finally {

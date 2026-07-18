@@ -34,11 +34,13 @@ describe("administrator-managed immutable agent images", () => {
 
         expect((await server.as(member).get("/v0/admin/agentImages")).statusCode).toBe(403);
         let catalog = await agentImageCatalog(asAdmin);
-        expect(catalog.defaultImageId).toBeUndefined();
-        expect(catalog.images.map(({ builtinKey }) => builtinKey).sort()).toEqual([
-            "daycare-full",
-            "daycare-minimal",
-        ]);
+        expect(catalog.defaultImageId).toBe("happy2-gym-setup-ready-image");
+        expect(
+            catalog.images
+                .map(({ builtinKey }) => builtinKey)
+                .filter((builtinKey) => builtinKey !== undefined)
+                .sort(),
+        ).toEqual(["daycare-full", "daycare-minimal"]);
         const minimal = imageByBuiltin(catalog.images, "daycare-minimal");
         const full = imageByBuiltin(catalog.images, "daycare-full");
         const minimalDetails = await agentImageDetails(asAdmin, minimal.id);
@@ -49,12 +51,6 @@ describe("administrator-managed immutable agent images", () => {
         expect(fullDetails.dockerfile).toContain("### RUST ###");
         expect(fullDetails.dockerfile).toContain("### GO ###");
 
-        const blocked = await asAdmin.post("/v0/chats/createAgent", {
-            name: "Blocked",
-            username: "blocked_agent",
-        });
-        expect(blocked.statusCode).toBe(409);
-        expect(blocked.json().message).toContain("ready default agent image");
         expect(docker.createdContainers).toEqual([]);
         expect(rig.createdSessions).toEqual([]);
         expect(
