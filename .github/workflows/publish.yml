@@ -53,9 +53,6 @@ jobs:
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
 
-            - name: Install browser test dependencies
-              run: pnpm --dir packages/happy2-gym exec playwright install --with-deps chromium firefox webkit
-
             - name: Validate release
               run: pnpm run check
 

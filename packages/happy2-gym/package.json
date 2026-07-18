@@ -11,7 +11,7 @@
     },
     "scripts": {
         "test": "pnpm test:server && pnpm test:playwright",
-        "test:playwright": "playwright install chromium firefox webkit && vitest run --config vitest.playwright.config.ts",
+        "test:playwright": "node ../../scripts/run-ui-alignment-tests.mjs --config vitest.playwright.config.ts",
         "test:server": "vitest run",
         "test:server:coverage": "vitest run --config vitest.coverage.config.ts --coverage",
         "test:watch": "vitest",
