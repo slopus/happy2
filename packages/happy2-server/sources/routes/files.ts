@@ -14,6 +14,7 @@ import {
     FileStorage,
     InvalidUploadError,
     UploadRejectedError,
+    type AvatarCrop,
 } from "../modules/files/storage.js";
 import {
     UploadIncompleteError,
@@ -51,25 +52,33 @@ export function registerFileRoutes(
             return reply.code(400).send({
                 error: "avatar_required",
             });
-        const visibilityField = upload.fields.visibility;
-        const visibilityPart = Array.isArray(visibilityField)
-            ? visibilityField[0]
-            : visibilityField;
-        const visibility = (
-            visibilityPart as
-                | {
-                      value?: unknown;
-                  }
-                | undefined
-        )?.value;
+        let input: Buffer;
+        try {
+            input = await readLimited(upload.file, 10 * 1024 * 1024);
+        } catch (error) {
+            if (error instanceof InvalidUploadError)
+                return reply.code(400).send({
+                    error: "invalid_avatar",
+                    message: error.message,
+                });
+            throw error;
+        }
+        const visibility = multipartFieldValue(upload.fields.visibility);
         if (visibility !== "public" && visibility !== "private")
             return reply.code(400).send({
                 error: "visibility_required",
             });
+        const crop = avatarCropParse(multipartFieldValue(upload.fields.crop));
+        if (!crop)
+            return reply.code(400).send({
+                error: "invalid_avatar_crop",
+                message: "Avatar crop must contain integer x, y, width, and height values",
+            });
         try {
             const file = await files.saveAvatarUpload(
                 current.user,
-                await readLimited(upload.file, 10 * 1024 * 1024),
+                input,
+                crop,
                 visibility === "public",
             );
             return reply.code(201).send({
@@ -608,6 +617,36 @@ async function readLimited(
         chunks.push(buffer);
     }
     return Buffer.concat(chunks, size);
+}
+function multipartFieldValue(field: unknown): unknown {
+    const part = Array.isArray(field) ? field[0] : field;
+    return (
+        part as
+            | {
+                  value?: unknown;
+              }
+            | undefined
+    )?.value;
+}
+function avatarCropParse(value: unknown): AvatarCrop | undefined {
+    if (typeof value !== "string") return undefined;
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(value);
+    } catch {
+        return undefined;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+    const candidate = parsed as Partial<Record<keyof AvatarCrop, unknown>>;
+    if (
+        Object.keys(parsed).length !== 4 ||
+        !Number.isSafeInteger(candidate.x) ||
+        !Number.isSafeInteger(candidate.y) ||
+        !Number.isSafeInteger(candidate.width) ||
+        !Number.isSafeInteger(candidate.height)
+    )
+        return undefined;
+    return candidate as AvatarCrop;
 }
 async function fileResponse(files: FileStorage, file: StoredFile, includeVariants: boolean) {
     const variants = includeVariants ? await files.variantSizes(file) : {};

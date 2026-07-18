@@ -135,10 +135,13 @@ client can enter profile creation without probing a protected product route.
 accounts that do not yet have an active profile.
 
 `POST /v0/me/uploadAvatarFile` accepts one multipart image after profile
-creation. Its required `visibility` field is `public` or `private`. Images over
-2048px on either side or 10 MB are rejected. The server records the uploader,
-stores an unguessable CUID2-backed file record plus a JPEG file, converts the
-image to a 1024×1024 JPEG, and records a ThumbHash.
+creation. Its required `visibility` field is `public` or `private`; `crop` is a
+JSON object with integer `x`, `y`, `width`, and `height` coordinates in the
+orientation-normalized source image. The crop must be square and remain inside
+the source. Corrupt and animated images, images over 2048px on either side, and
+uploads over 10 MB are rejected. The server auto-orients and extracts the crop,
+then records the uploader, stores an unguessable CUID2-backed file record plus
+an exactly 1024×1024 JPEG, and records a ThumbHash.
 
 `POST /v0/me/updateAvatar` takes a `fileId` and accepts only a public file the
 current user uploaded. Public files are fetched directly with

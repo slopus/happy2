@@ -37,6 +37,7 @@ describe("avatar changes reconcile through the real in-memory server", () => {
                 contentType: "image/png",
                 contents: onePixelPng(),
             },
+            { name: "crop", value: JSON.stringify({ x: 0, y: 0, width: 1, height: 1 }) },
         ]);
         expect(upload.statusCode).toBe(201);
         const fileId = upload.json().file.id as string;

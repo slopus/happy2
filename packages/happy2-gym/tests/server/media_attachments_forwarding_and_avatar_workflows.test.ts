@@ -126,52 +126,6 @@ describe("media attachments, forwarding, and avatar workflows", () => {
         expect((await asOutsider.get(`/v0/files/${photo.id}/thumbnail`)).statusCode).toBe(404);
     });
 
-    it("requires a public, owner-uploaded avatar while preserving private avatar file privacy", async () => {
-        await using server = await createGymServer();
-        const owner = await server.createUser({ username: "avatar_owner", firstName: "Owner" });
-        const viewer = await server.createUser({ username: "avatar_viewer", firstName: "Viewer" });
-        const asOwner = server.as(owner);
-        const asViewer = server.as(viewer);
-
-        const privateAvatar = await uploadAvatar(asOwner, "private", onePixelPng());
-        expect(privateAvatar).toMatchObject({
-            kind: "photo",
-            isPublic: false,
-            contentType: "image/jpeg",
-        });
-        expect((await asOwner.get(`/v0/files/${privateAvatar.id}`)).statusCode).toBe(200);
-        expect((await asViewer.get(`/v0/files/${privateAvatar.id}`)).statusCode).toBe(404);
-        expect(
-            (await asOwner.post("/v0/me/updateAvatar", { fileId: privateAvatar.id })).statusCode,
-        ).toBe(400);
-
-        const publicAvatar = await uploadAvatar(asOwner, "public", onePixelPng());
-        expect(publicAvatar).toMatchObject({
-            kind: "photo",
-            isPublic: true,
-            contentType: "image/jpeg",
-        });
-        expect((await asViewer.get(`/v0/files/${publicAvatar.id}`)).statusCode).toBe(200);
-        expect(
-            (await asViewer.post("/v0/me/updateAvatar", { fileId: publicAvatar.id })).statusCode,
-        ).toBe(400);
-        const updated = await asOwner.post("/v0/me/updateAvatar", { fileId: publicAvatar.id });
-        expect(updated.statusCode).toBe(200);
-        expect(updated.json().user).toMatchObject({ id: owner.id, photoFileId: publicAvatar.id });
-        expect((await asOwner.get("/v0/me")).json().user.photoFileId).toBe(publicAvatar.id);
-        expect((await asViewer.get("/v0/contacts")).json().users).toEqual(
-            expect.arrayContaining([
-                expect.objectContaining({ id: owner.id, photoFileId: publicAvatar.id }),
-            ]),
-        );
-
-        await server.restart();
-
-        expect((await asOwner.get("/v0/me")).json().user.photoFileId).toBe(publicAvatar.id);
-        expect((await asViewer.get(`/v0/files/${publicAvatar.id}`)).statusCode).toBe(200);
-        expect((await asViewer.get(`/v0/files/${privateAvatar.id}`)).statusCode).toBe(404);
-    });
-
     it("grants forwarded attachments to destination members without exposing the source chat", async () => {
         await using server = await createGymServer();
         const sender = await server.createUser({
@@ -286,19 +240,6 @@ async function uploadAttachment(
 ): Promise<UploadedFile> {
     const response = await postMultipart(client, "/v0/files/upload", [
         { name: "file", filename, contentType, contents },
-    ]);
-    expect(response.statusCode).toBe(201);
-    return response.json().file as UploadedFile;
-}
-
-async function uploadAvatar(
-    client: GymRequestClient,
-    visibility: "public" | "private",
-    contents: Buffer,
-): Promise<UploadedFile> {
-    const response = await postMultipart(client, "/v0/me/uploadAvatarFile", [
-        { name: "visibility", value: visibility },
-        { name: "file", filename: "avatar.png", contentType: "image/png", contents },
     ]);
     expect(response.statusCode).toBe(201);
     return response.json().file as UploadedFile;

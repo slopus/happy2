@@ -39,6 +39,12 @@ const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
 const MAX_AVATAR_SIDE = 2048;
 type SharpInstance = ReturnType<typeof sharp>;
 type SharpMetadata = Awaited<ReturnType<SharpInstance["metadata"]>>;
+export interface AvatarCrop {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+}
 type PersistedScan = {
     status: "clean" | "failed" | "skipped";
     result?: unknown;
@@ -126,7 +132,13 @@ export class FileStorage {
         this.scanner = options.scanner ?? configuredScanner(config);
         this.mediaProcessor = options.mediaProcessor ?? new BuiltinMediaProcessor();
     }
-    async saveAvatarUpload(user: User, input: Buffer, isPublic: boolean): Promise<StoredFile> {
+    /** Validates an orientation-normalized square crop and persists only its normalized avatar. */
+    async saveAvatarUpload(
+        user: User,
+        input: Buffer,
+        crop: AvatarCrop,
+        isPublic: boolean,
+    ): Promise<StoredFile> {
         if (input.length === 0 || input.length > MAX_AVATAR_BYTES)
             throw new InvalidUploadError("Avatar file must be at most 10 MB");
         const image = sharp(input, {
@@ -147,10 +159,27 @@ export class FileStorage {
             metadata.height > MAX_AVATAR_SIDE
         )
             throw new InvalidUploadError("Avatar dimensions must not exceed 2048px");
+        if ((metadata.pages ?? 1) !== 1)
+            throw new InvalidUploadError("Avatar must be a still image");
+        const dimensions = orientedDimensions(
+            metadata.width,
+            metadata.pageHeight ?? metadata.height,
+            metadata.orientation,
+        );
+        assertAvatarCrop(crop, dimensions);
+        const cropped = image.clone().autoOrient().extract({
+            left: crop.x,
+            top: crop.y,
+            width: crop.width,
+            height: crop.height,
+        });
         let thumbnail: Awaited<ReturnType<typeof avatarThumbnail>>;
         let encoded: Awaited<ReturnType<typeof encodeAvatar>>;
         try {
-            [thumbnail, encoded] = await Promise.all([avatarThumbnail(image), encodeAvatar(image)]);
+            [thumbnail, encoded] = await Promise.all([
+                avatarThumbnail(cropped),
+                encodeAvatar(cropped),
+            ]);
         } catch (error) {
             throw new InvalidUploadError("Avatar could not be decoded", {
                 cause: error,
@@ -1194,10 +1223,7 @@ function avatarThumbnail(image: SharpInstance) {
 function encodeAvatar(image: SharpInstance) {
     return image
         .clone()
-        .rotate()
-        .resize(1024, 1024, {
-            fit: "cover",
-        })
+        .resize(1024, 1024)
         .jpeg({
             quality: 88,
             progressive: true,
@@ -1206,4 +1232,34 @@ function encodeAvatar(image: SharpInstance) {
         .toBuffer({
             resolveWithObject: true,
         });
+}
+function assertAvatarCrop(
+    crop: AvatarCrop,
+    dimensions: { readonly width: number; readonly height: number },
+): void {
+    if (
+        !Number.isSafeInteger(crop.x) ||
+        !Number.isSafeInteger(crop.y) ||
+        !Number.isSafeInteger(crop.width) ||
+        !Number.isSafeInteger(crop.height) ||
+        crop.x < 0 ||
+        crop.y < 0 ||
+        crop.width < 1 ||
+        crop.height < 1 ||
+        crop.width !== crop.height ||
+        crop.x > dimensions.width - crop.width ||
+        crop.y > dimensions.height - crop.height
+    )
+        throw new InvalidUploadError(
+            `Avatar crop must be a square within the ${dimensions.width}x${dimensions.height} oriented image`,
+        );
+}
+function orientedDimensions(
+    width: number,
+    height: number,
+    orientation: number | undefined,
+): { readonly width: number; readonly height: number } {
+    return orientation && orientation >= 5 && orientation <= 8
+        ? { width: height, height: width }
+        : { width, height };
 }

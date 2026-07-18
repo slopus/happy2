@@ -85,8 +85,20 @@ application only after a ready default image and final registration policy exist
 
 ### P0.6 — Square avatar crop without remounting the application
 
-- [ ] Define and enforce server limits for a decodable, orientation-normalized square avatar with
+- [x] Define and enforce server limits for a decodable, orientation-normalized square avatar with
       size and pixel bounds. Revalidate/re-encode any client crop; never trust browser MIME/dimensions.
+- [x] Backend approval gate:
+    - [x] Require an explicit integer square crop in orientation-normalized source pixels on avatar
+          upload; reject missing/malformed/out-of-bounds crops, corrupt or animated images, inputs
+          over 10 MB, and source dimensions over 2048px before persisting anything.
+    - [x] Auto-orient, extract the validated crop, and re-encode exactly one 1024×1024 JPEG with a
+          ThumbHash while preserving the existing owner/public-file authorization boundary.
+    - [x] Prove the contract end to end in a dedicated Gym behavior file, including oriented source
+          coordinates and output pixels, then pass server architecture/type/lint checks and the
+          required iterative Claude Opus review. Stop for explicit user approval before UI work.
+    - Evidence: server architecture/type/lint and 89 unit tests passed; Gym typecheck and the full
+      113-test Node/state suite passed. Claude Opus session
+      `e1a76fea-2c17-4804-9338-967fc3f9b438` closed every finding with no task-blocking issue.
 - [ ] Add a reusable `happy2-ui` cropper with zoom, pan, square output, and a circular in-product
       preview. Use it from onboarding and Settings.
 - [ ] Reconcile the changed identity/avatar into already materialized sidebar, chat, search, profile,
