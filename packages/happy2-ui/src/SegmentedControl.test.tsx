@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { server } from "vitest/browser";
+import { server, userEvent } from "vitest/browser";
 import "./theme.css";
 import "./styles/segmented-control.css";
 import "./styles/icon.css";
@@ -64,6 +64,18 @@ async function glyphDrift(view: Renderer, svgSelector: string) {
     };
 }
 
+async function settleSegmentColors(view: Renderer, activeSelector: string) {
+    /* The browser pointer can begin over the first fixture's inactive segment.
+     * Park it on an active segment, then remove color-transition timing so
+     * computed token assertions cannot sample an interpolated Firefox frame. */
+    await userEvent.hover(view.$(activeSelector).element);
+    for (const segment of view.container.querySelectorAll<HTMLElement>(
+        ".happy2-segmented-control__segment",
+    )) {
+        segment.style.setProperty("transition", "none", "important");
+    }
+}
+
 it("holds SegmentedControl dimensions, layout, colors, and pill placement", async () => {
     const view = createRenderer();
 
@@ -101,6 +113,7 @@ it("holds SegmentedControl dimensions, layout, colors, and pill placement", asyn
         { width: 320, height: 60, padding: 12 },
     );
     await view.ready();
+    await settleSegmentColors(view, '[data-testid="sc-small"] [data-value="week"]');
 
     for (const size of sizes) {
         const id = `sc-${size}`;
@@ -304,6 +317,7 @@ it("holds SegmentedControl icon segments, selection sweep, fullWidth, and disabl
         { width: 300, height: 60, padding: 12 },
     );
     await view.ready();
+    await settleSegmentColors(view, '[data-testid="sc-icons"] [data-value="list"]');
 
     // Icon box geometry: 16px glyph on the medium control, 6px gap to the label.
     const iconBox = view.$('[data-testid="sc-icons"] [data-value="board"] [data-happy2-ui="icon"]');
