@@ -1,0 +1,8 @@
+{
+    "schemaVersion": 1,
+    "version": "1.0.0",
+    "displayName": "Hello",
+    "shortName": "hello",
+    "description": "A tiny built-in skill that helps an agent greet people warmly.",
+    "variables": []
+}

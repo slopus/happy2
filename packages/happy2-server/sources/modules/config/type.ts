@@ -49,6 +49,9 @@ export interface ServerConfig {
         malwareScanTimeoutSeconds: number;
         malwareScanFailureMode: "allow" | "deny";
     };
+    plugins: {
+        directory: string;
+    };
     security: {
         integrationSecretEnv: string;
         rateLimit: {

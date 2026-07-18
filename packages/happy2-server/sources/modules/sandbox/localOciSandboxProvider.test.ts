@@ -64,7 +64,7 @@ describe("LocalOciSandboxProvider", () => {
         const calls = await recordedCalls(log);
         expect(calls[0]?.args).toEqual(["--version"]);
         expect(calls[1]?.args).toEqual(["info", "--format", "{{json .}}"]);
-        expect(calls[2]).toEqual({
+        expect(calls[2]).toMatchObject({
             args: [
                 "build",
                 "--pull",
@@ -157,6 +157,86 @@ describe("LocalOciSandboxProvider", () => {
         expect(build.args).not.toContain("--progress");
     });
 
+    it("creates a dedicated hardened plugin container and passes MCP variables only to its exec process", async () => {
+        const provider = dockerProvider(command);
+        await provider.createPluginSandbox({
+            installationId: "plugin-installation-id",
+            containerName: "happy2-plugin-installation-id",
+            imageTag: "happy2-plugin:immutable",
+        });
+        const process = provider.attachTerminal({
+            containerName: "happy2-plugin-installation-id",
+            command: ["/plugin/server", "--stdio"],
+            environment: { API_TOKEN: "secret-value", DISPLAY_MODE: "compact" },
+        });
+        process.stdin.end();
+        await expect(process.wait).resolves.toEqual({ exitCode: 0, signal: null });
+
+        const calls = await recordedCalls(log);
+        expect(calls[0]?.args).toEqual([
+            "create",
+            "--name",
+            "happy2-plugin-installation-id",
+            "--label",
+            "dev.happy2.managed=true",
+            "--label",
+            "dev.happy2.plugin-installation=plugin-installation-id",
+            "--read-only",
+            "--init",
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges",
+            "--memory",
+            "1073741824",
+            "--cpus",
+            "1",
+            "--pids-limit",
+            "256",
+            "--shm-size",
+            "268435456",
+            "--tmpfs",
+            "/tmp:rw,nosuid,nodev,mode=1777",
+            "--tmpfs",
+            "/run:rw,nosuid,nodev,mode=755",
+            "--env",
+            "HOME=/tmp",
+            "--env",
+            "TMPDIR=/tmp",
+            "--workdir",
+            "/tmp",
+            "--entrypoint",
+            "/bin/sh",
+            "happy2-plugin:immutable",
+            "-c",
+            "trap : TERM INT; while :; do sleep 2073600; done",
+        ]);
+        expect(calls[1]?.args).toEqual(["start", "happy2-plugin-installation-id"]);
+        expect(calls[2]?.args).toEqual([
+            "exec",
+            "--interactive",
+            "--env",
+            "API_TOKEN",
+            "--env",
+            "DISPLAY_MODE",
+            "happy2-plugin-installation-id",
+            "/plugin/server",
+            "--stdio",
+        ]);
+        expect(calls[2]?.args.join(" ")).not.toContain("secret-value");
+        expect(calls[2]?.inheritedPluginValues).toEqual({
+            API_TOKEN: "secret-value",
+            DISPLAY_MODE: "compact",
+        });
+        expect(() =>
+            provider.attachTerminal({
+                containerName: "happy2-plugin-installation-id",
+                command: ["/plugin/server"],
+                environment: { CONTAINERS_CONF: "secret-value" },
+            }),
+        ).toThrow("cannot shadow the container CLI environment");
+    });
+
     it("distinguishes unavailable binaries, unhealthy engines, and bounded probe timeouts", async () => {
         const unavailable = dockerProvider(join(directory, "missing"));
         await expect(unavailable.probe({ timeoutMs: 1_000 })).resolves.toMatchObject({
@@ -241,7 +321,10 @@ const fs = require("node:fs");
 const args = process.argv.slice(2);
 let input = "";
 try { input = fs.readFileSync(0, "utf8"); } catch {}
-fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, input }) + "\\n");
+const inheritedPluginValues = Object.fromEntries(
+    ["API_TOKEN", "DISPLAY_MODE"].filter((key) => process.env[key] !== undefined).map((key) => [key, process.env[key]])
+);
+fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, input, inheritedPluginValues }) + "\\n");
 if (${JSON.stringify(mode)} === "timeout" && args[0] === "--version") setTimeout(() => {}, 10_000);
 if (args[0] === "--version") process.stdout.write(
     ${JSON.stringify(mode)} === "multibyte-version"
@@ -266,10 +349,23 @@ if (args[0] === "build") process.stderr.write("#1 [stage-0 1/2] prepare\\n#1 DON
     await chmod(command, 0o700);
 }
 
-async function recordedCalls(log: string): Promise<Array<{ args: string[]; input: string }>> {
+async function recordedCalls(log: string): Promise<
+    Array<{
+        args: string[];
+        input: string;
+        inheritedPluginValues: Record<string, string>;
+    }>
+> {
     return (await readFile(log, "utf8"))
         .trim()
         .split("\n")
         .filter(Boolean)
-        .map((line) => JSON.parse(line) as { args: string[]; input: string });
+        .map(
+            (line) =>
+                JSON.parse(line) as {
+                    args: string[];
+                    input: string;
+                    inheritedPluginValues: Record<string, string>;
+                },
+        );
 }

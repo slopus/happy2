@@ -57,6 +57,7 @@ export function parseConfig(input: string): ServerConfig {
     const database = table(root.database, "database");
     const agents = table(root.agents ?? {}, "agents");
     const files = table(root.files ?? {}, "files");
+    const plugins = table(root.plugins ?? {}, "plugins");
     const fileProvider = string(files.provider, "files.provider", true) ?? "local";
     if (fileProvider !== "local")
         throw new Error("files.provider must be local in this server build");
@@ -277,6 +278,10 @@ export function parseConfig(input: string): ServerConfig {
             ),
             malwareScanTimeoutSeconds,
             malwareScanFailureMode,
+        },
+        plugins: {
+            directory:
+                string(plugins.directory, "plugins.directory", true) ?? paths.pluginsDirectory,
         },
         security: {
             integrationSecretEnv:

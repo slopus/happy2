@@ -16,6 +16,7 @@ import {
 import {
     buildServer,
     AesGcmSecretProtector,
+    AesGcmPluginSecretProtector,
     accountCreatePassword,
     createDatabase,
     defaultConfig,
@@ -34,6 +35,10 @@ import {
     type DrizzleExecutor,
     type AgentSandboxRuntime,
     type SandboxProvider,
+    type PluginCatalog,
+    type PluginMcpRuntime,
+    type WebhookTransport,
+    type WebhookUrlPolicy,
     type ServerConfig,
     type User,
 } from "happy2-server";
@@ -74,13 +79,20 @@ export interface GymServer extends GymRequestClient, AsyncDisposable {
     /** Binds this same in-process server to an ephemeral loopback port for streaming tests. */
     listen(): Promise<string>;
     /** Rebuilds every process-local service while preserving durable state; `beforeStart` can model crash residue after shutdown. */
-    restart(options?: { beforeStart?: () => Promise<void> }): Promise<void>;
+    restart(options?: {
+        beforeStart?: () => Promise<void>;
+        pluginCatalog?: PluginCatalog;
+    }): Promise<void>;
     close(): Promise<void>;
 }
 
 export interface GymServerOptions {
     agentSandbox?: AgentSandboxRuntime;
     sandboxProviders?: readonly SandboxProvider[];
+    pluginCatalog?: PluginCatalog;
+    pluginMcpRuntime?: PluginMcpRuntime;
+    webhookTransport?: WebhookTransport;
+    webhookUrlPolicy?: WebhookUrlPolicy;
     configure?: (config: ServerConfig) => void;
     /** Reuses an explicit database URL so tests can run independent server instances together. */
     databaseUrl?: string;
@@ -93,6 +105,7 @@ export interface GymServerOptions {
  * anonymous by default; call `as(user)` to make authenticated requests.
  */
 export async function createGymServer(options: GymServerOptions = {}): Promise<GymServer> {
+    const pluginDirectory = await mkdtemp(join(tmpdir(), "happy2-gym-plugins-"));
     const databaseDirectory =
         !options.databaseUrl && options.databaseMode === "file"
             ? await mkdtemp(join(tmpdir(), "happy2-gym-database-"))
@@ -104,10 +117,12 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
     const client = databaseUrl === ":memory:" ? singleConnectionClient(rawClient) : rawClient;
     const fileSystem = new MemoryFileSystem();
     const config = gymConfig(databaseUrl);
+    config.plugins.directory = pluginDirectory;
     options.configure?.(config);
     const executor = createDatabase(client);
     const tokenKeys = gymTokenKeys();
     const integrationProtector = new AesGcmSecretProtector(randomBytes(32));
+    const pluginProtector = new AesGcmPluginSecretProtector(randomBytes(32));
     let app: FastifyInstance | undefined;
 
     try {
@@ -118,6 +133,11 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
             client,
             tokens,
             integrationSecretProtector: integrationProtector,
+            pluginSecretProtector: pluginProtector,
+            pluginCatalog: options.pluginCatalog,
+            pluginMcpRuntime: options.pluginMcpRuntime,
+            webhookTransport: options.webhookTransport,
+            webhookUrlPolicy: options.webhookUrlPolicy,
             fileStorage: new FileStorage(config, executor, fileSystem),
             agentSandbox: options.agentSandbox,
             sandboxProviders: options.sandboxProviders,
@@ -132,11 +152,17 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
             fileSystem,
             tokenKeys,
             integrationProtector,
+            pluginProtector,
             options.agentSandbox,
             options.sandboxProviders,
+            options.pluginCatalog,
+            options.pluginMcpRuntime,
+            options.webhookTransport,
+            options.webhookUrlPolicy,
             async () => {
                 if (databaseDirectory)
                     await rm(databaseDirectory, { force: true, recursive: true });
+                await rm(pluginDirectory, { force: true, recursive: true });
             },
         );
     } catch (error) {
@@ -144,6 +170,7 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
         client.close();
         fileSystem.reset();
         if (databaseDirectory) await rm(databaseDirectory, { force: true, recursive: true });
+        await rm(pluginDirectory, { force: true, recursive: true });
         throw error;
     }
 }
@@ -171,8 +198,13 @@ class GymServerInstance implements GymServer {
         private readonly fileSystem: MemoryFileSystem,
         private readonly tokenKeys: { privateKey: string; publicKey: string },
         private readonly integrationProtector: AesGcmSecretProtector,
+        private readonly pluginProtector: AesGcmPluginSecretProtector,
         private readonly agentSandbox: AgentSandboxRuntime | undefined,
         private readonly sandboxProviders: readonly SandboxProvider[] | undefined,
+        private pluginCatalog: PluginCatalog | undefined,
+        private readonly pluginMcpRuntime: PluginMcpRuntime | undefined,
+        private readonly webhookTransport: WebhookTransport | undefined,
+        private readonly webhookUrlPolicy: WebhookUrlPolicy | undefined,
         private readonly cleanupDatabase: () => Promise<void>,
     ) {}
 
@@ -307,16 +339,24 @@ class GymServerInstance implements GymServer {
         await setupChooseRegistrationPolicy(executor, actorUserId, registrationEnabled);
     }
 
-    async restart(options: { beforeStart?: () => Promise<void> } = {}): Promise<void> {
+    async restart(
+        options: { beforeStart?: () => Promise<void>; pluginCatalog?: PluginCatalog } = {},
+    ): Promise<void> {
         this.assertOpen();
         await this.app.close();
         await options.beforeStart?.();
+        if (options.pluginCatalog) this.pluginCatalog = options.pluginCatalog;
         this.tokens = await TokenService.create(this.config, this.tokenKeys);
         await syncInitialize(createDatabase(this.client));
         this.app = await buildServer(this.config, {
             client: this.client,
             tokens: this.tokens,
             integrationSecretProtector: this.integrationProtector,
+            pluginSecretProtector: this.pluginProtector,
+            pluginCatalog: this.pluginCatalog,
+            pluginMcpRuntime: this.pluginMcpRuntime,
+            webhookTransport: this.webhookTransport,
+            webhookUrlPolicy: this.webhookUrlPolicy,
             fileStorage: new FileStorage(this.config, createDatabase(this.client), this.fileSystem),
             agentSandbox: this.agentSandbox,
             sandboxProviders: this.sandboxProviders,

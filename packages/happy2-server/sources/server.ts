@@ -1,4 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient, type Client } from "@libsql/client";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
@@ -42,6 +44,15 @@ import { webhookDeliveryDispatchDue } from "./modules/webhook/webhookDeliveryDis
 import { webhookDeliveryEnqueuePendingSyncEvents } from "./modules/webhook/webhookDeliveryEnqueuePendingSyncEvents.js";
 import { webhookDeliveryEnqueueSyncSequence } from "./modules/webhook/webhookDeliveryEnqueueSyncSequence.js";
 import { WorkspaceService } from "./modules/workspace/index.js";
+import { pluginCatalogLoad, type PluginCatalog } from "./modules/plugin/catalog.js";
+import { PluginPackageStore } from "./modules/plugin/packageStore.js";
+import {
+    AesGcmPluginSecretProtector,
+    type PluginSecretProtector,
+} from "./modules/plugin/secrets.js";
+import { SandboxPluginMcpRuntime, type PluginMcpRuntime } from "./modules/plugin/runtime.js";
+import { PluginService } from "./modules/plugin/service.js";
+import { PluginMcpHttpBridge } from "./modules/plugin/httpBridge.js";
 import {
     createRateLimitHook,
     HttpRateLimiter,
@@ -65,6 +76,7 @@ import { registerOperationsRoutes } from "./routes/operations.js";
 import { registerSyncRoutes } from "./routes/sync.js";
 import { registerSetupRoutes } from "./routes/setup.js";
 import { registerWorkspaceRoutes } from "./routes/workspace.js";
+import { registerPluginRoutes } from "./routes/plugins.js";
 
 interface Services {
     client: Client;
@@ -80,6 +92,9 @@ interface Services {
     agents?: AgentService;
     agentSandbox?: AgentSandboxRuntime;
     sandboxProviders?: readonly SandboxProvider[];
+    pluginCatalog?: PluginCatalog;
+    pluginMcpRuntime?: PluginMcpRuntime;
+    pluginSecretProtector?: PluginSecretProtector;
     logger?: boolean;
 }
 
@@ -192,6 +207,8 @@ export async function buildServer(
     let unsubscribePresenceEvents: (() => void) | undefined;
     let agentService: AgentService | undefined;
     let workspaceService: WorkspaceService | undefined;
+    let pluginService: PluginService | undefined;
+    let pluginBridge: PluginMcpHttpBridge | undefined;
     let expiryTimer: NodeJS.Timeout | undefined;
     let pendingSweep: Promise<void> = Promise.resolve();
     if (productServer) {
@@ -232,6 +249,19 @@ export async function buildServer(
                       );
                   return provider;
               };
+        const pluginProvider = async () => {
+            const selected = await setupSandboxProviderGetSelected(executor);
+            if (!selected)
+                throw new Error(
+                    "A healthy local sandbox provider must be selected before stdio plugin execution",
+                );
+            const provider = sandboxProviderCatalog.get(selected.id);
+            if (!provider)
+                throw new Error(
+                    `Selected sandbox provider ${selected.id} is not registered by this server`,
+                );
+            return provider;
+        };
         agentService =
             services.agents ??
             (config.agents.enabled
@@ -246,6 +276,23 @@ export async function buildServer(
                 : undefined);
         registerSetupRoutes(app, auth, executor, livePubsub, sandboxProviderCatalog, agentService);
         webhookTransport = services.webhookTransport ?? new NodeWebhookTransport();
+        const pluginCatalog =
+            services.pluginCatalog ??
+            (await pluginCatalogLoad(join(dirname(fileURLToPath(import.meta.url)), "../plugins")));
+        const pluginSecrets =
+            services.pluginSecretProtector ?? pluginSecretProtector(config, Boolean(supplied));
+        pluginService = new PluginService(
+            executor,
+            livePubsub,
+            pluginCatalog,
+            new PluginPackageStore(config.plugins.directory),
+            pluginSecrets,
+            services.pluginMcpRuntime ?? new SandboxPluginMcpRuntime(pluginProvider),
+            webhookUrlPolicy,
+            webhookTransport,
+            (error) => app.log.error(error),
+        );
+        pluginBridge = new PluginMcpHttpBridge(pluginService, (error) => app.log.error(error));
         fileStorage = services.fileStorage ?? new FileStorage(config, executor);
         workspaceService = new WorkspaceService(
             executor,
@@ -290,9 +337,16 @@ export async function buildServer(
                 });
             },
         });
+        registerPluginRoutes(app, auth, executor, pluginCatalog, pluginService, pluginBridge);
         registerSyncRoutes(app, auth, executor, livePubsub);
         registerWorkspaceRoutes(app, auth, workspaceService);
-        await agentService?.start();
+        try {
+            await agentService?.start();
+            await pluginService.start();
+        } catch (error) {
+            await Promise.allSettled([pluginService.close(), agentService?.close()]);
+            throw error;
+        }
 
         unsubscribePresenceEvents = livePubsub.subscribe(realtimeTopics.presence, async (event) => {
             if (
@@ -397,6 +451,8 @@ export async function buildServer(
         expiryTimer.unref();
     }
     app.addHook("onClose", async () => {
+        await pluginBridge?.close();
+        await pluginService?.close();
         await workspaceService?.close();
         await agentService?.close();
         if (expiryTimer) clearInterval(expiryTimer);
@@ -409,6 +465,18 @@ export async function buildServer(
         if (!supplied) services.client.close();
     });
     return app;
+}
+
+function pluginSecretProtector(
+    config: ServerConfig,
+    allowEphemeral: boolean,
+): AesGcmPluginSecretProtector {
+    const configured = process.env[config.security.integrationSecretEnv];
+    if (configured) return AesGcmPluginSecretProtector.fromBase64(configured);
+    if (allowEphemeral) return new AesGcmPluginSecretProtector(randomBytes(32));
+    throw new Error(
+        `${config.security.integrationSecretEnv} is required; run managed environment initialization before building the product server`,
+    );
 }
 
 function integrationSecretProtector(

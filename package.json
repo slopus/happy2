@@ -13,8 +13,10 @@
     "packages/happy2-server/bin/happy2.js",
     "packages/happy2-server/dist",
     "packages/happy2-server/drizzle",
+    "packages/happy2-server/plugins",
     "packages/happy2-server/happy2.example.toml",
     "packages/happy2-server/README.md",
+    "packages/happy2-server/PLUGINS.md",
     "packages/happy2-server/Dockerfile"
   ],
   "type": "module",
@@ -67,6 +69,7 @@
     "@fastify/multipart": "^10.1.0",
     "@fastify/static": "^10.1.0",
     "@libsql/client": "^0.17.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@paralleldrive/cuid2": "^3.3.0",
     "@slopus/rig": "^0.0.24",
     "drizzle-orm": "^0.45.2",
@@ -75,7 +78,8 @@
     "nodemailer": "^7.0.13",
     "sharp": "^0.35.3",
     "smol-toml": "^1.4.2",
-    "thumbhash": "^0.1.1"
+    "thumbhash": "^0.1.1",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@eslint/css": "^1.4.0",

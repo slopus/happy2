@@ -42,6 +42,9 @@ export function defaultConfig(): ServerConfig {
             malwareScanTimeoutSeconds: 120,
             malwareScanFailureMode: "deny",
         },
+        plugins: {
+            directory: paths.pluginsDirectory,
+        },
         security: {
             integrationSecretEnv: "HAPPY2_INTEGRATION_SECRET",
             rateLimit: {

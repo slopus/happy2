@@ -141,6 +141,13 @@
             "when": 1784360000000,
             "tag": "0019_channel_agent_audiences",
             "breakpoints": true
+        },
+        {
+            "idx": 20,
+            "version": "6",
+            "when": 1784365000000,
+            "tag": "0020_plugins",
+            "breakpoints": true
         }
     ]
 }

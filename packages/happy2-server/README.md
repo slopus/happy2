@@ -78,6 +78,9 @@ The response includes the server role, the durable `registration` availability
 Password responses also report the derived `signupEnabled`; OIDC responses report
 `oidcProvider`.
 
+The built-in plugin package, installation, container lifecycle, health, and MCP
+HTTP contracts are documented in [`PLUGINS.md`](./PLUGINS.md).
+
 ## Server and user onboarding
 
 Every new database begins with durable server onboarding. `GET /v0/setup/status`

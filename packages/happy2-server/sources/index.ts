@@ -16,6 +16,7 @@ export { syncInitialize } from "./modules/sync/syncInitialize.js";
 export { AesGcmSecretProtector } from "./modules/integrations/secrets.js";
 export { NodeWebhookTransport } from "./modules/integrations/transport.js";
 export * from "./modules/integrations/types.js";
+export type { ResolvedWebhookUrl, WebhookUrlPolicy } from "./modules/integrations/ssrf.js";
 export * from "./modules/operations/types.js";
 export { FileStorage, type FileStorageFileSystem } from "./modules/files/storage.js";
 export * from "./modules/chat/types.js";
@@ -24,4 +25,14 @@ export * from "./modules/setup/index.js";
 export * from "./modules/sandbox/index.js";
 export { userOnboardingUpdateStep } from "./modules/user/userOnboardingUpdateStep.js";
 export * from "./modules/workspace/index.js";
+export * from "./modules/plugin/index.js";
+export { AesGcmPluginSecretProtector } from "./modules/plugin/secrets.js";
+export type { PluginSecretProtector } from "./modules/plugin/secrets.js";
+export { PluginPackageStore } from "./modules/plugin/packageStore.js";
+export {
+    SandboxPluginMcpRuntime,
+    type PluginLocalOpenInput,
+    type PluginLocalPrepareInput,
+    type PluginMcpRuntime,
+} from "./modules/plugin/runtime.js";
 export { buildServer } from "./server.js";

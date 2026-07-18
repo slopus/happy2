@@ -6,6 +6,7 @@ import type {
     AgentImageBuildInput,
     AgentImageBuildOptions,
     AgentSandboxCreateInput,
+    PluginSandboxCreateInput,
     SandboxFileEgressInput,
     SandboxFileIngressInput,
     SandboxProbeOptions,
@@ -19,6 +20,49 @@ const DEFAULT_PROBE_TIMEOUT_MS = 3_000;
 const MAX_COMMAND_OUTPUT = 32_768;
 const MAX_VERSION_BYTES = 512;
 const BIND_MOUNT_RETRY_DELAYS_MS = [25, 50, 100, 200, 400, 800, 1_600] as const;
+const PLUGIN_MEMORY_BYTES = 1024 * 1024 * 1024;
+const PLUGIN_CPUS = "1";
+const PLUGIN_PID_LIMIT = "256";
+const PLUGIN_CLI_ENV_PREFIXES = ["CONTAINER_", "CONTAINERS_", "DOCKER_", "DYLD_", "LD_", "PODMAN_"];
+const PLUGIN_CLI_ENV_NAMES = new Set([
+    "ALL_PROXY",
+    "CONMON",
+    "CURL_CA_BUNDLE",
+    "DBUS_SESSION_BUS_ADDRESS",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_SSL_CAINFO",
+    "GODEBUG",
+    "GOTRACEBACK",
+    "HOME",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "LD_LIBRARY_PATH",
+    "LD_PRELOAD",
+    "NODE_CHANNEL_FD",
+    "NODE_OPTIONS",
+    "NODE_PATH",
+    "NODE_UNIQUE_ID",
+    "NO_PROXY",
+    "OCI_RUNTIME",
+    "PATH",
+    "PATHEXT",
+    "REGISTRY_AUTH_FILE",
+    "SSH_AUTH_SOCK",
+    "SSL_CERT_DIR",
+    "SSL_CERT_FILE",
+    "STORAGE_DRIVER",
+    "STORAGE_OPTS",
+    "SYSTEMROOT",
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    "WINDIR",
+    "XDG_CACHE_HOME",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_RUNTIME_DIR",
+]);
 
 interface LocalOciSandboxProviderOptions {
     command: string;
@@ -173,6 +217,57 @@ export class LocalOciSandboxProvider implements SandboxProvider {
         }
     }
 
+    async createPluginSandbox(
+        input: PluginSandboxCreateInput,
+        signal?: AbortSignal,
+    ): Promise<void> {
+        const args = [
+            "create",
+            "--name",
+            input.containerName,
+            "--label",
+            "dev.happy2.managed=true",
+            "--label",
+            `dev.happy2.plugin-installation=${input.installationId}`,
+            "--read-only",
+            "--init",
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges",
+            "--memory",
+            String(PLUGIN_MEMORY_BYTES),
+            "--cpus",
+            PLUGIN_CPUS,
+            "--pids-limit",
+            PLUGIN_PID_LIMIT,
+            "--shm-size",
+            "268435456",
+            "--tmpfs",
+            "/tmp:rw,nosuid,nodev,mode=1777",
+            "--tmpfs",
+            "/run:rw,nosuid,nodev,mode=755",
+            "--env",
+            "HOME=/tmp",
+            "--env",
+            "TMPDIR=/tmp",
+            "--workdir",
+            "/tmp",
+            "--entrypoint",
+            "/bin/sh",
+            input.imageTag,
+            "-c",
+            "trap : TERM INT; while :; do sleep 2073600; done",
+        ];
+        try {
+            await this.run(args, { signal });
+            await this.run(["start", input.containerName], { signal });
+        } catch (error) {
+            await this.removeSandbox(input.containerName);
+            throw error;
+        }
+    }
+
     async removeSandbox(containerName: string): Promise<void> {
         await this.run(["rm", "--force", containerName]).catch(() => undefined);
     }
@@ -193,11 +288,19 @@ export class LocalOciSandboxProvider implements SandboxProvider {
 
     attachTerminal(input: SandboxTerminalInput, signal?: AbortSignal): SandboxTerminalHandle {
         const command = input.command?.length ? [...input.command] : ["/bin/sh"];
+        const environment = Object.entries(input.environment ?? {});
+        const childEnvironment = pluginCliEnvironment(this.commandEnvironment(), environment);
         const child = spawn(
             this.command,
-            ["exec", "--interactive", input.containerName, ...command],
+            [
+                "exec",
+                "--interactive",
+                ...environment.flatMap(([key]) => ["--env", key]),
+                input.containerName,
+                ...command,
+            ],
             {
-                env: this.commandEnvironment(),
+                env: childEnvironment,
                 stdio: ["pipe", "pipe", "pipe"],
             },
         );
@@ -343,7 +446,11 @@ export class LocalOciSandboxProvider implements SandboxProvider {
     }
 
     private commandEnvironment(): NodeJS.ProcessEnv {
-        return this.id === "docker" ? { ...process.env, DOCKER_BUILDKIT: "1" } : { ...process.env };
+        const environment: NodeJS.ProcessEnv =
+            this.id === "docker" ? { ...process.env, DOCKER_BUILDKIT: "1" } : { ...process.env };
+        delete environment.NODE_CHANNEL_FD;
+        delete environment.NODE_UNIQUE_ID;
+        return environment;
     }
 
     private timedOutStatus(operation: string, version?: string): SandboxProviderStatus {
@@ -375,6 +482,24 @@ export function localSandboxProviders(): readonly SandboxProvider[] {
         new LocalOciSandboxProvider({ id: "docker", displayName: "Docker", command: "docker" }),
         new LocalOciSandboxProvider({ id: "podman", displayName: "Podman", command: "podman" }),
     ];
+}
+
+function pluginCliEnvironment(
+    base: NodeJS.ProcessEnv,
+    plugin: ReadonlyArray<readonly [string, string]>,
+): NodeJS.ProcessEnv {
+    const seen = new Set<string>();
+    for (const [key] of plugin) {
+        const normalized = key.toUpperCase();
+        if (
+            seen.has(normalized) ||
+            PLUGIN_CLI_ENV_NAMES.has(normalized) ||
+            PLUGIN_CLI_ENV_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+        )
+            throw new Error(`Plugin variable ${key} cannot shadow the container CLI environment`);
+        seen.add(normalized);
+    }
+    return { ...base, ...Object.fromEntries(plugin) };
 }
 
 class OciBuildProgress {

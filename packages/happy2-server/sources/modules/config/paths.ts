@@ -5,6 +5,7 @@ export function localRuntimePaths(
     environment: NodeJS.ProcessEnv = process.env,
 ): {
     filesDirectory: string;
+    pluginsDirectory: string;
     rigDirectory: string;
     runtimeDirectory: string;
     workspacesDirectory: string;
@@ -16,6 +17,7 @@ export function localRuntimePaths(
     }
     return {
         filesDirectory: join(runtimeDirectory, "files"),
+        pluginsDirectory: join(runtimeDirectory, "plugins"),
         rigDirectory: configuredRigHome || join(runtimeDirectory, "rig"),
         runtimeDirectory,
         workspacesDirectory: join(runtimeDirectory, "workspaces"),

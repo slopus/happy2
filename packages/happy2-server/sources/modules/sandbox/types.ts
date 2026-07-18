@@ -63,6 +63,13 @@ export interface SandboxFileEgressInput {
 export interface SandboxTerminalInput {
     command?: readonly string[];
     containerName: string;
+    environment?: Readonly<Record<string, string>>;
+}
+
+export interface PluginSandboxCreateInput {
+    containerName: string;
+    imageTag: string;
+    installationId: string;
 }
 
 export interface SandboxTerminalHandle {
@@ -91,6 +98,8 @@ export interface SandboxProvider extends AgentSandboxRuntime {
     attachTerminal(input: SandboxTerminalInput, signal?: AbortSignal): SandboxTerminalHandle;
     copyFileFromSandbox(input: SandboxFileEgressInput, signal?: AbortSignal): Promise<void>;
     copyFileToSandbox(input: SandboxFileIngressInput, signal?: AbortSignal): Promise<void>;
+    /** Optional local-runtime capability used by installed stdio MCP plugins. */
+    createPluginSandbox?(input: PluginSandboxCreateInput, signal?: AbortSignal): Promise<void>;
     probe(options?: SandboxProbeOptions): Promise<SandboxProviderStatus>;
 }
 

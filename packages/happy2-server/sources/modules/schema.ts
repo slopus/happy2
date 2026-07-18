@@ -1,5 +1,12 @@
 import { sql } from "drizzle-orm";
-import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+    index,
+    integer,
+    primaryKey,
+    sqliteTable,
+    text,
+    uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 // Generated from the fully migrated SQLite schema. Migrations remain the DDL authority.
 export const accountBans = sqliteTable("account_bans", {
@@ -643,6 +650,78 @@ export const integrations = sqliteTable("integrations", {
     deletedAt: text("deleted_at"),
 });
 
+export const plugins = sqliteTable(
+    "plugins",
+    {
+        id: text("id").primaryKey().notNull(),
+        displayName: text("display_name").notNull(),
+        shortName: text("short_name").notNull().unique(),
+        description: text("description").notNull(),
+        sourceKind: text("source_kind").notNull(),
+        sourceReference: text("source_reference").notNull(),
+        sourceVersion: text("source_version").notNull(),
+        packageDigest: text("package_digest").notNull(),
+        manifestJson: text("manifest_json").notNull(),
+        packageDirectory: text("package_directory").notNull(),
+        imageStorageKey: text("image_storage_key").notNull(),
+        imageContentType: text("image_content_type").notNull(),
+        imageSize: integer("image_size").notNull(),
+        imageWidth: integer("image_width").notNull(),
+        imageHeight: integer("image_height").notNull(),
+        imageThumbhash: text("image_thumbhash").notNull(),
+        imageChecksumSha256: text("image_checksum_sha256").notNull(),
+        installedByUserId: text("installed_by_user_id").references(() => users.id, {
+            onDelete: "set null",
+        }),
+        syncSequence: integer("sync_sequence").notNull().default(0),
+        installedAt: text("installed_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [uniqueIndex("plugins_source_unique").on(table.sourceKind, table.sourceReference)],
+);
+
+export const pluginInstallations = sqliteTable(
+    "plugin_installations",
+    {
+        id: text("id").primaryKey().notNull(),
+        pluginId: text("plugin_id")
+            .notNull()
+            .references(() => plugins.id, { onDelete: "restrict" }),
+        containerImageId: text("container_image_id").references(() => agentImages.id, {
+            onDelete: "restrict",
+        }),
+        runtimeImageTag: text("runtime_image_tag"),
+        containerName: text("container_name"),
+        status: text("status").notNull().default("preparing"),
+        statusDetail: text("status_detail"),
+        lastError: text("last_error"),
+        installedByUserId: text("installed_by_user_id").references(() => users.id, {
+            onDelete: "set null",
+        }),
+        syncSequence: integer("sync_sequence").notNull().default(0),
+        installedAt: text("installed_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        readyAt: text("ready_at"),
+    },
+    (table) => [index("plugin_installations_plugin_id_index").on(table.pluginId)],
+);
+
+export const pluginInstallationVariables = sqliteTable(
+    "plugin_installation_variables",
+    {
+        installationId: text("installation_id")
+            .notNull()
+            .references(() => pluginInstallations.id, { onDelete: "cascade" }),
+        key: text("key").notNull(),
+        kind: text("kind").notNull(),
+        textValue: text("text_value"),
+        secretCiphertext: text("secret_ciphertext"),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [primaryKey({ columns: [table.installationId, table.key] })],
+);
+
 export const messageAttachments = sqliteTable("message_attachments", {
     messageId: text("message_id").notNull(),
     fileId: text("file_id").notNull(),
@@ -1174,6 +1253,9 @@ export const schema = {
     moderationReports,
     notifications,
     oidcIdentities,
+    pluginInstallations,
+    pluginInstallationVariables,
+    plugins,
     rateLimitBuckets,
     reactions,
     retentionRuns,

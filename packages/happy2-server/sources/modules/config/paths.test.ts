@@ -13,6 +13,7 @@ describe("local runtime paths", () => {
     it("uses an absolute RIG_HOME for private Rig configuration and state", () => {
         expect(localRuntimePaths("/workspace/happy", { RIG_HOME: "/private/rig" })).toMatchObject({
             filesDirectory: join("/workspace/happy", ".happy2", "files"),
+            pluginsDirectory: join("/workspace/happy", ".happy2", "plugins"),
             rigDirectory: "/private/rig",
             workspacesDirectory: join("/workspace/happy", ".happy2", "workspaces"),
         });

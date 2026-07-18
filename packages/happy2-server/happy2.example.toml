@@ -48,6 +48,11 @@ malware_scan_timeout_seconds = 120
 # "deny" quarantines files when the scanner is unavailable; "allow" fails open.
 malware_scan_failure_mode = "deny"
 
+[plugins]
+# Immutable installed package snapshots live here. Keep this persistent so a
+# bundled plugin continues to run until an explicit upgrade replaces it.
+directory = "plugins"
+
 [security]
 integration_secret_env = "HAPPY2_INTEGRATION_SECRET"
 

@@ -11,6 +11,7 @@ export type {
     AgentSandboxCreateInput,
     AgentSandboxRuntime,
     AgentSandboxRuntimeResolver,
+    PluginSandboxCreateInput,
     SandboxFileEgressInput,
     SandboxFileIngressInput,
     SandboxProbeOptions,
