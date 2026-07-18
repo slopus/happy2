@@ -19,10 +19,6 @@ Each item below must be removed when its acceptance criteria are met and the cha
 
 ### P0.A — Finish the verified Blueprint catalog
 
-- [ ] Replace the hand-maintained Blueprint page lists with a typed manifest covering every public
-      `happy2-ui` export and every retained product screen. Each entry declares category, production
-      host, exact frame dimensions, safe inset, overflow policy, interaction states, and legal
-      ellipsis/scroll/popover exceptions.
 - [ ] Keep the catalog grouped into Primitives, Components, Surfaces, Overlays, and Full screens.
 - [ ] Build the catalog-wide TypeScript browser test with the existing Vitest/Playwright
       infrastructure. It must check manifest/export ownership, deterministic IDs, 100% scale,
