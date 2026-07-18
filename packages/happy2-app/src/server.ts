@@ -18,6 +18,13 @@ export type AuthMethods = {
     oidcProvider?: string;
 };
 export type AuthToken = { token: string; expiresAt: string; profileRequired: boolean };
+export type PublicSetupPhase = "bootstrap_required" | "configuration_required" | "complete";
+export type PublicSetupRegistration = "bootstrap" | "open" | "closed";
+export type PublicSetupStatus = {
+    schemaVersion: number;
+    phase: PublicSetupPhase;
+    registration: PublicSetupRegistration;
+};
 
 export class ServerError extends Error {
     constructor(
@@ -72,6 +79,7 @@ export function createServerClient(baseUrl: string) {
 
     return {
         methods: () => request<AuthMethods>("/v0/auth/methods"),
+        setupStatus: () => request<PublicSetupStatus>("/v0/setup/status"),
         login: (email: string, password: string) =>
             post<AuthToken>("/v0/auth/password/login", { email, password }),
         register: (email: string, password: string) =>

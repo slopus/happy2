@@ -22,6 +22,7 @@ export {
     filesStoreFixtureCreate,
     notificationsStoreFixtureCreate,
     searchStoreFixtureCreate,
+    setupStoreFixtureCreate,
     settingsStoreFixtureCreate,
     sidebarStoreFixtureCreate,
     threadStoreFixtureCreate,

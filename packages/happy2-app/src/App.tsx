@@ -1,7 +1,8 @@
 import { happyStateCreate } from "happy2-state";
 import { onCleanup } from "solid-js";
-import { AuthGate } from "./components/AuthGate";
+import { AuthGate, type AuthSession } from "./components/AuthGate";
 import { DesktopApp } from "./components/DesktopApp";
+import { OnboardingBoundary } from "./components/OnboardingBoundary";
 import { desktopNavigationCreate } from "./navigation/desktopNavigationCreate";
 import type { DesktopNavigation } from "./navigation/desktopRouteTypes";
 
@@ -20,15 +21,26 @@ export function App(props: AppProps) {
         staticState?.[Symbol.dispose]();
         ownedNavigation?.[Symbol.dispose]();
     });
+    const desktop = props.platform === "desktop";
     return props.serverUrl ? (
-        <AuthGate serverUrl={props.serverUrl} showWindowDragRegion={props.platform === "desktop"}>
-            {(session) => (
-                <DesktopApp
+        <AuthGate
+            navigation={navigation}
+            serverUrl={props.serverUrl}
+            showWindowDragRegion={desktop}
+        >
+            {(session: AuthSession) => (
+                <OnboardingBoundary
                     navigation={navigation}
-                    platform={props.platform}
                     session={session}
-                    state={session.state}
-                />
+                    showWindowDragRegion={desktop}
+                >
+                    <DesktopApp
+                        navigation={navigation}
+                        platform={props.platform}
+                        session={session}
+                        state={session.state}
+                    />
+                </OnboardingBoundary>
             )}
         </AuthGate>
     ) : (

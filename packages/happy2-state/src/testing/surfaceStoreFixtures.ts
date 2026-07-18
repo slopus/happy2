@@ -6,6 +6,8 @@ import type {
     AgentImagesOutput,
     AgentImagesStore,
 } from "../modules/agent-images/agentImagesTypes.js";
+import { setupStoreCreateBinding } from "../modules/setup/setupStore.js";
+import type { SetupInput, SetupOutput, SetupStore } from "../modules/setup/setupTypes.js";
 import { agentSecretsStoreCreateBinding } from "../modules/agent-secrets/agentSecretsStore.js";
 import type {
     AgentSecretsInput,
@@ -110,6 +112,13 @@ export function directoryStoreFixtureCreate(): SurfaceStoreFixture<DirectoryStor
 export function adminStoreFixtureCreate(): SurfaceStoreFixture<AdminStore, AdminInput> {
     const binding = adminStoreCreateBinding();
     return fixtureCreate(binding, binding.adminInput);
+}
+
+export function setupStoreFixtureCreate(
+    output: (event: SetupOutput) => void = () => undefined,
+): SurfaceStoreFixture<SetupStore, SetupInput> {
+    const binding = setupStoreCreateBinding(output);
+    return fixtureCreate(binding, binding.setupInput);
 }
 
 export function agentImagesStoreFixtureCreate(

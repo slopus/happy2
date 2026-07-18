@@ -1,0 +1,166 @@
+/*
+ * C-061 SetupOptionCard — full-width selectable onboarding option. The whole
+ * card is the control (a real <button>); every color is a token so the
+ * rendering tests can assert exact rgb() in every engine. No transitions that
+ * affect a screenshot, no entrance animation: the surface stays deterministic.
+ */
+
+.happy2-setup-option,
+.happy2-setup-option * {
+    box-sizing: border-box;
+}
+
+.happy2-setup-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    width: 100%;
+    margin: 0;
+    padding: 16px;
+    background: var(--happy2-bg-raised);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    text-align: left;
+    cursor: pointer;
+}
+
+.happy2-setup-option:hover:not(:disabled) {
+    background: var(--happy2-bg-hover);
+    border-color: var(--happy2-border-strong);
+}
+
+.happy2-setup-option:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}
+
+.happy2-setup-option[data-selected] {
+    background: var(--happy2-accent-soft);
+    border-color: var(--happy2-accent);
+}
+
+.happy2-setup-option:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* ---- Leading icon chip ------------------------------------------------- */
+
+.happy2-setup-option__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--happy2-bg-inset);
+    color: var(--happy2-text-secondary);
+}
+
+/* ---- Body -------------------------------------------------------------- */
+
+.happy2-setup-option__body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.happy2-setup-option__title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.happy2-setup-option__title {
+    color: var(--happy2-text);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+}
+
+.happy2-setup-option__recommended {
+    flex: none;
+    color: var(--happy2-accent);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 20px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* Status pill pinned to the trailing end of the title row. */
+.happy2-setup-option__status {
+    display: flex;
+    flex: none;
+    margin-left: auto;
+}
+
+.happy2-setup-option__description {
+    color: var(--happy2-text-secondary);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 18px;
+}
+
+.happy2-setup-option__meta {
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+}
+
+.happy2-setup-option__hint {
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 16px;
+}
+
+.happy2-setup-option__hint[data-tone="muted"] {
+    color: var(--happy2-text-muted);
+}
+
+.happy2-setup-option__hint[data-tone="warning"] {
+    color: var(--happy2-warning);
+}
+
+.happy2-setup-option__hint[data-tone="danger"] {
+    color: var(--happy2-danger);
+}
+
+/* ---- Trailing indicator ------------------------------------------------ */
+
+.happy2-setup-option__trailing {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    align-self: center;
+    width: 20px;
+    height: 20px;
+}
+
+.happy2-setup-option__check {
+    display: flex;
+    flex: none;
+    color: var(--happy2-accent);
+}
+
+/*
+ * Static, un-animated progress ring: one accent arc on a strong hairline track.
+ * No rotation so the fixture and screenshots stay deterministic; a consuming app
+ * may add its own spin outside the measurement surface.
+ */
+.happy2-setup-option__spinner {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--happy2-border-strong);
+    border-top-color: var(--happy2-accent);
+    border-radius: var(--happy2-radius-pill);
+}

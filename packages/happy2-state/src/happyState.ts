@@ -105,6 +105,15 @@ import {
 } from "./modules/agent-images/agentImagesStore.js";
 import type { AgentImagesStore } from "./modules/agent-images/agentImagesTypes.js";
 import {
+    setupBaseImagesLoad,
+    setupOutputRoute,
+    setupReconcile,
+    setupSandboxProvidersLoad,
+    setupStatusLoad,
+} from "./modules/setup/setupRoute.js";
+import { setupStoreCreateBinding, type SetupStoreBinding } from "./modules/setup/setupStore.js";
+import type { SetupStore } from "./modules/setup/setupTypes.js";
+import {
     agentSecretsLoad,
     agentSecretsOutputRoute,
 } from "./modules/agent-secrets/agentSecretsRoute.js";
@@ -174,6 +183,7 @@ export class HappyState implements AsyncDisposable, Disposable {
     private searchBinding?: SearchStoreBinding;
     private directoryBinding?: DirectoryStoreBinding;
     private adminBinding?: AdminStoreBinding;
+    private setupBinding?: SetupStoreBinding;
     private agentImagesBinding?: AgentImagesStoreBinding;
     private agentSecretsBinding?: AgentSecretsStoreBinding;
     private notificationsBinding?: NotificationsStoreBinding;
@@ -366,6 +376,52 @@ export class HappyState implements AsyncDisposable, Disposable {
                 );
         }
         return this.agentImagesBinding.store;
+    }
+
+    /**
+     * The onboarding surface store. Creating it kicks the initial durable status
+     * load, which authoritatively determines the current setup route. Sub-resource
+     * screens (sandbox providers, base images) are loaded on demand through the
+     * dedicated reload methods so a background subscriber never fetches a screen
+     * the administrator has not opened.
+     */
+    setup(): SetupStore {
+        if (!this.setupBinding) {
+            this.setupBinding = setupStoreCreateBinding((event) =>
+                this.backgroundIfConnected(() =>
+                    setupOutputRoute({ runtime: this.runtime, setup: this.setupBinding! }, event),
+                ),
+            );
+            if (this.runtime.connected)
+                this.runtime.background(
+                    setupStatusLoad({ runtime: this.runtime, setup: this.setupBinding }),
+                );
+        }
+        return this.setupBinding.store;
+    }
+
+    /** Reloads the durable combined onboarding status without a user-initiated refresh. */
+    setupStatusReload(): void {
+        if (this.setupBinding && this.runtime.connected)
+            this.runtime.background(
+                setupStatusLoad({ runtime: this.runtime, setup: this.setupBinding }),
+            );
+    }
+
+    /** Loads or freshly re-probes the sandbox providers for the provider-selection screen. */
+    setupProvidersReload(): void {
+        if (this.setupBinding && this.runtime.connected)
+            this.runtime.background(
+                setupSandboxProvidersLoad({ runtime: this.runtime, setup: this.setupBinding }),
+            );
+    }
+
+    /** Loads the base-image catalog and selected image build output for the image screens. */
+    setupBaseImagesReload(): void {
+        if (this.setupBinding && this.runtime.connected)
+            this.runtime.background(
+                setupBaseImagesLoad({ runtime: this.runtime, setup: this.setupBinding }),
+            );
     }
 
     agentSecrets(): AgentSecretsStore {
@@ -655,6 +711,7 @@ export class HappyState implements AsyncDisposable, Disposable {
         this.filesBinding?.dispose();
         this.directoryBinding?.dispose();
         this.adminBinding?.dispose();
+        this.setupBinding?.dispose();
         this.agentImagesBinding?.dispose();
         this.agentSecretsBinding?.dispose();
         this.notificationsBinding?.dispose();
@@ -784,6 +841,12 @@ export class HappyState implements AsyncDisposable, Disposable {
                             }),
                         );
                 },
+                setupReconcile: () => {
+                    if (this.setupBinding)
+                        this.runtime.background(
+                            setupReconcile({ runtime: this.runtime, setup: this.setupBinding }),
+                        );
+                },
                 agentSecretsReconcile: () => {
                     if (this.agentSecretsBinding)
                         this.runtime.background(
@@ -872,6 +935,10 @@ export class HappyState implements AsyncDisposable, Disposable {
         if (this.agentImagesBinding)
             this.runtime.background(
                 agentImagesLoad({ runtime: this.runtime, images: this.agentImagesBinding }),
+            );
+        if (this.setupBinding)
+            this.runtime.background(
+                setupReconcile({ runtime: this.runtime, setup: this.setupBinding }),
             );
         if (this.agentSecretsBinding)
             this.runtime.background(

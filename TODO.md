@@ -49,26 +49,6 @@ actionable component/page/edge report.
 
 ## P0. Installation and personal onboarding
 
-### P0.4 — Centered onboarding UI and route guards
-
-- [ ] Replace the split auth panel with a centered desktop setup card on the shared onboarding
-      background; do not add mobile layouts.
-- [ ] Render stable routes for bootstrap account, sign-in, profile, sandbox provider, base image,
-      build progress, and completion, all driven by the durable server/user onboarding status.
-- [ ] Redirect a manually entered later route to the first incomplete prerequisite and resume the
-      exact durable step after reload/restart.
-- [ ] Block the main application while required server setup is incomplete. Show a non-admin waiting
-      surface that advances through SSE when the administrator advances setup.
-- [ ] Explain the selected sandbox provider and that agent code runs inside its sandbox. Surface
-      Docker/Podman health, remediation, and the durable image build's live progress/log/failure/retry
-      state using reusable onboarding-sized `happy2-ui` components and Blueprint fixtures.
-- [ ] On the final setup step, let the bootstrap administrator choose whether registration opens.
-      Until setup completes, allow only the single bootstrap account/profile promised by the server.
-- [ ] Preserve form state across transient failures and provide retry without `location.reload()`.
-
-Acceptance: a fresh installation always resumes the correct centered setup screen and enters the main
-application only after a ready default image and final registration policy exist.
-
 ### P0.5 — First profile and user onboarding
 
 - [ ] Collect optional Last name separately in initial profile creation and Settings; never derive it

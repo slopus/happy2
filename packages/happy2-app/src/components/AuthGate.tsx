@@ -1,17 +1,35 @@
-import { Match, Show, Switch, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import {
+    Match,
+    Show,
+    Switch,
+    createEffect,
+    createSignal,
+    onCleanup,
+    onMount,
+    type JSX,
+} from "solid-js";
 import { happyStateCreate, type HappyState } from "happy2-state";
 import {
-    AuthScreen,
-    type AuthScreenState,
     Banner,
     Button,
     Fade,
+    OnboardingScreen,
+    type OnboardingScreenState,
     TextField,
     WindowDragRegion,
     onboardingBackgroundUrl,
 } from "happy2-ui";
-import { createServerClient, ServerError, type AuthMethods, type User } from "../server";
+import {
+    createServerClient,
+    ServerError,
+    type AuthMethods,
+    type PublicSetupPhase,
+    type PublicSetupRegistration,
+    type User,
+} from "../server";
 import { createAuthenticatedTransport } from "../stateTransport";
+import type { DesktopNavigation, DesktopOnboardingStep } from "../navigation/desktopRouteTypes";
+import { preAuthOnboardingStep } from "../onboarding/onboardingRoute";
 
 export type AuthSession = {
     state: HappyState;
@@ -28,10 +46,12 @@ type AuthGateProps = {
     serverUrl: string;
     children: (session: AuthSession) => JSX.Element;
     showWindowDragRegion?: boolean;
+    /** When provided, the pre-application onboarding step is reflected into the URL. */
+    navigation?: DesktopNavigation;
 };
 type Mode = "loading" | "sign-in" | "onboarding" | "ready" | "unavailable";
 const tokenKey = "happy2.session-token";
-/* The <form> is a single child of the AuthScreen form slot, so the slot's gap
+/* The <form> is a single child of the OnboardingScreen form slot, so the slot's gap
    can't reach its fields — space them here so the last field never butts up
    against the submit button. */
 const formStyle: JSX.CSSProperties = {
@@ -44,6 +64,8 @@ export function AuthGate(props: AuthGateProps) {
     const client = createServerClient(props.serverUrl);
     const [mode, setMode] = createSignal<Mode>("loading");
     const [methods, setMethods] = createSignal<AuthMethods>();
+    const [phase, setPhase] = createSignal<PublicSetupPhase>();
+    const [registration, setRegistration] = createSignal<PublicSetupRegistration>();
     const [user, setUser] = createSignal<User>();
     const [state, setState] = createSignal<HappyState>();
     const [isRegistering, setIsRegistering] = createSignal(false);
@@ -134,10 +156,68 @@ export function AuthGate(props: AuthGateProps) {
         state()?.[Symbol.dispose]();
         if (avatarUrl) URL.revokeObjectURL(avatarUrl);
     });
-    onMount(async () => {
+    /* The current pre-application onboarding step, or undefined once the app can
+     * take over. Bootstrap vs. sign-in is chosen from the public setup phase and
+     * registration availability together, so a fresh server routes to first-account
+     * creation while a provisional-account-before-profile reload (phase still
+     * bootstrap_required but registration closed) routes to sign-in to resume. */
+    const preAppStep = (): DesktopOnboardingStep | undefined => {
+        if (mode() === "sign-in")
+            return phase()
+                ? preAuthOnboardingStep(phase()!, registration() ?? "closed")
+                : "sign-in";
+        if (mode() === "onboarding") return "profile";
+        return undefined;
+    };
+    /* Reflect the durable pre-application step into the URL so a reload resumes
+     * the same centered screen. The server-configuration steps take over URL
+     * ownership once the workspace state exists (see ServerOnboarding). */
+    createEffect(() => {
+        const navigation = props.navigation;
+        const step = preAppStep();
+        if (!navigation || !step) return;
+        const current = navigation.get();
+        if (current.primary.kind === "onboarding" && current.primary.step === step) return;
+        navigation.navigate(
+            {
+                ...current,
+                primary: { kind: "onboarding", step },
+                panel: undefined,
+                overlay: undefined,
+            },
+            { replace: true },
+        );
+    });
+    /* Probes the server for its authentication method and public setup phase, then
+     * routes to the first pre-application step. It is the single entry the mount
+     * and the unavailable-screen retry both call, so recovery happens in place —
+     * no remount and no location.reload — and the email/password/profile signals
+     * keep whatever the user has already typed. The public setup status is
+     * required for canonical fresh-install routing, so a failure surfaces the
+     * unavailable screen instead of silently guessing sign-in. */
+    async function probeServer(): Promise<void> {
+        setError(undefined);
+        setPending(true);
+        setLoadingMessage("Checking the server and your saved session.");
+        setMode("loading");
         try {
-            const supported = await client.methods();
+            const [supported, setupStatus] = await Promise.all([
+                client.methods(),
+                client.setupStatus(),
+            ]);
             setMethods(supported);
+            setPhase(setupStatus.phase);
+            setRegistration(setupStatus.registration);
+            /* Open the password screen on first-account creation only while
+             * registration actually permits bootstrap creation. A provisional
+             * bootstrap account whose registration has closed must default to
+             * sign-in so it can authenticate and resume profile creation. */
+            if (
+                supported.method === "password" &&
+                preAuthOnboardingStep(setupStatus.phase, setupStatus.registration) ===
+                    "bootstrap-account"
+            )
+                setIsRegistering(true);
             const saved = token();
             if (saved) await resolveSession(saved);
             else if (supported.method === "cloudflare_access") {
@@ -147,8 +227,11 @@ export function AuthGate(props: AuthGateProps) {
         } catch (reason) {
             setError(message(reason));
             setMode("unavailable");
+        } finally {
+            setPending(false);
         }
-    });
+    }
+    onMount(() => void probeServer());
     async function submitCredentials(event: SubmitEvent) {
         event.preventDefault();
         setPending(true);
@@ -224,18 +307,19 @@ export function AuthGate(props: AuthGateProps) {
     const submitLabel = () =>
         pending() ? "Working…" : isRegistering() ? "Create account" : "Sign in";
 
-    /* The AuthScreen for one crossfade layer. `state` is fixed by the layer's
+    /* The OnboardingScreen for one crossfade layer. `state` is fixed by the layer's
      * screen key (not read live) so an outgoing loading layer keeps its spinner
      * while the incoming form fades in over it — a real crossfade, not a morph. */
-    const renderGate = (state: AuthScreenState) => (
+    const renderGate = (state: OnboardingScreenState) => (
         <>
             <Show when={props.showWindowDragRegion}>
                 <WindowDragRegion />
             </Show>
-            <AuthScreen
+            <OnboardingScreen
                 backgroundUrl={onboardingBackgroundUrl}
                 brand={{ name: "Happy (2)" }}
                 copy={state === "loading" ? undefined : headline().copy}
+                data-testid="auth-onboarding-screen"
                 kicker={state === "loading" ? loadingHeadline.kicker : headline().kicker}
                 loadingLabel={loadingMessage()}
                 state={state}
@@ -265,7 +349,11 @@ export function AuthGate(props: AuthGateProps) {
                                 </Banner>
                             )}
                         </Show>
-                        <Button onClick={() => location.reload()} type="button">
+                        <Button
+                            disabled={pending()}
+                            onClick={() => void probeServer()}
+                            type="button"
+                        >
                             Try again
                         </Button>
                     </Match>
@@ -332,7 +420,7 @@ export function AuthGate(props: AuthGateProps) {
                         </form>
                     </Match>
                 </Switch>
-            </AuthScreen>
+            </OnboardingScreen>
         </>
     );
     /* One stable session object whose `state`/`user` are getters, so every

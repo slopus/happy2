@@ -1,0 +1,262 @@
+/*
+ * C-060 OnboardingScreen — centered desktop setup card (Relay dark theme).
+ *
+ * Layout (border-box): the root fills the host window as a centering flex box.
+ * A background layer and a legibility scrim are absolutely positioned to fill
+ * the root, and a single card floats above them, centered on both axes. The
+ * card is a flex column — brand mast, step rail, content block, a scrolling
+ * body slot, and an optional footer. Every dimension is on the 4px grid so 1px
+ * edges land on physical pixels at 2×.
+ */
+
+.happy2-onboarding-screen,
+.happy2-onboarding-screen__bg,
+.happy2-onboarding-screen__scrim,
+.happy2-onboarding-screen__card,
+.happy2-onboarding-screen__brand,
+.happy2-onboarding-screen__mark,
+.happy2-onboarding-screen__steps,
+.happy2-onboarding-screen__step,
+.happy2-onboarding-screen__step-dot,
+.happy2-onboarding-screen__content,
+.happy2-onboarding-screen__body,
+.happy2-onboarding-screen__loader,
+.happy2-onboarding-screen__spinner,
+.happy2-onboarding-screen__footer {
+    box-sizing: border-box;
+}
+
+.happy2-onboarding-screen {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    margin: 0;
+    background: var(--happy2-bg-chrome);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Background + scrim layers ---------------------------------------- */
+
+.happy2-onboarding-screen__bg {
+    position: absolute;
+    inset: 0;
+    background-color: transparent;
+    background-image: var(--happy2-bg-window);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: cover;
+}
+
+.happy2-onboarding-screen__scrim {
+    position: absolute;
+    inset: 0;
+    background: var(--happy2-scrim);
+}
+
+/* ---- Card ------------------------------------------------------------- */
+
+.happy2-onboarding-screen__card {
+    position: relative;
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    width: 480px;
+    max-height: calc(100% - 48px);
+    padding: 40px;
+    border: 1px solid var(--happy2-border-strong);
+    border-radius: var(--happy2-radius-shell);
+    background: var(--happy2-bg-surface);
+    box-shadow: 0 24px 60px rgb(0 0 0 / 0.45);
+}
+
+.happy2-onboarding-screen__card[data-width="large"] {
+    width: 640px;
+}
+
+/* ---- Brand mast ------------------------------------------------------- */
+
+.happy2-onboarding-screen__brand {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+}
+
+.happy2-onboarding-screen__mark {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--happy2-brand-gradient);
+    color: var(--happy2-text-on-accent);
+}
+
+.happy2-onboarding-screen__brand-name {
+    color: var(--happy2-text);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    letter-spacing: -0.01em;
+}
+
+/* ---- Step rail -------------------------------------------------------- */
+
+.happy2-onboarding-screen__steps {
+    display: flex;
+    flex: none;
+    gap: 8px;
+    margin-top: 24px;
+}
+
+.happy2-onboarding-screen__step {
+    display: flex;
+    flex: 1 1 0;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.happy2-onboarding-screen__step-dot {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--happy2-radius-pill);
+}
+
+.happy2-onboarding-screen__step-dot[data-state="complete"] {
+    background: var(--happy2-success);
+    color: var(--happy2-text-on-fill);
+}
+
+.happy2-onboarding-screen__step-dot[data-state="current"] {
+    background: var(--happy2-accent);
+}
+
+.happy2-onboarding-screen__step-dot[data-state="upcoming"] {
+    border: 2px solid var(--happy2-text-faint);
+    background: transparent;
+}
+
+.happy2-onboarding-screen__step-label {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-onboarding-screen__step-label[data-state="complete"] {
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-onboarding-screen__step-label[data-state="current"] {
+    color: var(--happy2-text);
+}
+
+.happy2-onboarding-screen__step-label[data-state="upcoming"] {
+    color: var(--happy2-text-muted);
+}
+
+/* ---- Content block ---------------------------------------------------- */
+
+.happy2-onboarding-screen__content {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    margin-top: 24px;
+}
+
+.happy2-onboarding-screen__kicker {
+    margin: 0 0 12px;
+    color: var(--happy2-accent);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 16px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.happy2-onboarding-screen__title {
+    margin: 0;
+    color: var(--happy2-text);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 30px;
+    letter-spacing: -0.02em;
+}
+
+.happy2-onboarding-screen__copy {
+    margin: 14px 0 0;
+    color: var(--happy2-text-secondary);
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 22px;
+}
+
+/* ---- Body slot -------------------------------------------------------- */
+
+.happy2-onboarding-screen__body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    margin-top: 28px;
+    overflow-y: auto;
+}
+
+/* ---- Loading state ---------------------------------------------------- */
+
+.happy2-onboarding-screen__loader {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+    min-height: 36px;
+}
+
+/*
+ * Static progress ring: one accent arc on a strong hairline track. Deliberately
+ * un-animated so the fixture and screenshots stay deterministic; a consuming app
+ * may add its own rotation outside the measurement surface.
+ */
+.happy2-onboarding-screen__spinner {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--happy2-border-strong);
+    border-top-color: var(--happy2-accent);
+    border-radius: var(--happy2-radius-pill);
+}
+
+.happy2-onboarding-screen__loading-label {
+    color: var(--happy2-text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
+}
+
+/* ---- Footer ----------------------------------------------------------- */
+
+.happy2-onboarding-screen__footer {
+    flex: none;
+    margin-top: 28px;
+    color: var(--happy2-text-muted);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 18px;
+}

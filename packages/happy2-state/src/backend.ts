@@ -29,12 +29,18 @@ import type {
     BackupRecord,
     BotSummary,
     ClientUser,
+    CombinedOnboardingStatus,
     DataExportJob,
     IntegrationSummary,
     MessageRevision,
     ModerationAction,
     ModerationReport,
     NotificationPreferences,
+    PublicServerSetupStatus,
+    SandboxProviderDiscovery,
+    SandboxProviderStatus,
+    SetupBaseImageSelection,
+    SetupBaseImagesView,
     ResumableUploadSummary,
     RetentionRun,
     SearchResultSummary,
@@ -97,6 +103,15 @@ export const backendOperations = {
     updateProfile: post("/v0/me/updateProfile"),
     uploadAvatarFile: post("/v0/me/uploadAvatarFile", "body"),
     updateAvatar: post("/v0/me/updateAvatar"),
+
+    getSetupStatus: get("/v0/setup/status"),
+    getSetup: get("/v0/setup"),
+    getSetupSandboxProviders: get("/v0/setup/sandboxProviders"),
+    selectSetupSandboxProvider: post("/v0/setup/selectSandboxProvider"),
+    getSetupBaseImages: get("/v0/setup/baseImages"),
+    selectSetupBaseImage: post("/v0/setup/selectBaseImage"),
+    retrySetupBaseImageBuild: post("/v0/setup/retryBaseImageBuild"),
+    chooseSetupRegistrationPolicy: post("/v0/setup/chooseRegistrationPolicy"),
 
     getChats: get("/v0/chats"),
     getChat: get("/v0/chats/:chatId"),
@@ -337,6 +352,10 @@ export interface KnownBackendInputs {
         readonly phone?: string | null;
     };
     updateAvatar: { readonly fileId: string };
+    selectSetupSandboxProvider: { readonly providerId: string };
+    selectSetupBaseImage: SetupBaseImageSelection;
+    retrySetupBaseImageBuild: Record<string, never>;
+    chooseSetupRegistrationPolicy: { readonly enabled: boolean };
     markNotificationsRead: { readonly notificationIds?: readonly string[]; readonly all?: boolean };
     createDirectMessage: { readonly userId: string };
     createGroupDirectMessage: { readonly userIds: readonly string[]; readonly name?: string };
@@ -745,6 +764,23 @@ export interface KnownBackendResults {
     updateProfile: { readonly user: ClientUser };
     uploadAvatarFile: { readonly file: UploadedFile };
     updateAvatar: { readonly user: ClientUser };
+    getSetupStatus: PublicServerSetupStatus;
+    getSetup: CombinedOnboardingStatus;
+    getSetupSandboxProviders: SandboxProviderDiscovery;
+    selectSetupSandboxProvider: {
+        readonly provider: SandboxProviderStatus;
+        readonly onboarding: CombinedOnboardingStatus;
+    };
+    getSetupBaseImages: SetupBaseImagesView;
+    selectSetupBaseImage: {
+        readonly baseImages: SetupBaseImagesView;
+        readonly onboarding: CombinedOnboardingStatus;
+    };
+    retrySetupBaseImageBuild: {
+        readonly baseImages: SetupBaseImagesView;
+        readonly onboarding: CombinedOnboardingStatus;
+    };
+    chooseSetupRegistrationPolicy: { readonly onboarding: CombinedOnboardingStatus };
     getChats: { readonly chats: readonly ChatSummary[] };
     getChat: { readonly chat: ChatSummary };
     getChatMembers: {

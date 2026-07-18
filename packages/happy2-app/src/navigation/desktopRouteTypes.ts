@@ -17,7 +17,8 @@ export type DesktopOnboardingStep =
     | "sandbox-provider"
     | "base-image"
     | "build-progress"
-    | "completion";
+    | "completion"
+    | "waiting";
 
 export type DesktopFileFilter = "all" | "photo" | "video" | "gif" | "file";
 

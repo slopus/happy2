@@ -31,6 +31,7 @@ const onboardingSteps = new Set<DesktopOnboardingStep>([
     "base-image",
     "build-progress",
     "completion",
+    "waiting",
 ]);
 const fileFilters = new Set<DesktopFileFilter>(["all", "photo", "video", "gif", "file"]);
 

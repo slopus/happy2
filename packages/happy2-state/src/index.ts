@@ -75,6 +75,12 @@ export type {
     AgentImagesStore,
 } from "./modules/agent-images/agentImagesTypes.js";
 export type {
+    SetupAction,
+    SetupPending,
+    SetupSnapshot,
+    SetupStore,
+} from "./modules/setup/setupTypes.js";
+export type {
     AgentSecretsSnapshot,
     AgentSecretsStore,
 } from "./modules/agent-secrets/agentSecretsTypes.js";

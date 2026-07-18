@@ -46,6 +46,7 @@ import { ModalPage } from "./pages/ModalPage";
 import { ModalOverlayPage } from "./pages/ModalOverlayPage";
 import { ModerationReportCardPage } from "./pages/ModerationReportCardPage";
 import { NotificationListPage } from "./pages/NotificationListPage";
+import { OnboardingScreenPage } from "./pages/OnboardingScreenPage";
 import { PolicyControlPage } from "./pages/PolicyControlPage";
 import { ProductStorePage } from "./pages/ProductStorePage";
 import { ProfileCardPage } from "./pages/ProfileCardPage";
@@ -55,6 +56,8 @@ import { SettingsStorePage } from "./pages/SettingsStorePage";
 import { SecretRevealPage } from "./pages/SecretRevealPage";
 import { SegmentedControlPage } from "./pages/SegmentedControlPage";
 import { SelectPage } from "./pages/SelectPage";
+import { SetupOptionCardPage } from "./pages/SetupOptionCardPage";
+import { BuildProgressPanelPage } from "./pages/BuildProgressPanelPage";
 import { SidebarPage } from "./pages/SidebarPage";
 import { StatTilePage } from "./pages/StatTilePage";
 import { StatusPickerPage } from "./pages/StatusPickerPage";
@@ -169,6 +172,24 @@ const components: BlueprintPage[] = [
         page: AgentActivityIndicatorPage,
     },
     { id: "command-palette", label: "Command palette", number: "C-060", page: CommandPalettePage },
+    {
+        id: "onboarding-screen",
+        label: "Onboarding screen",
+        number: "C-061",
+        page: OnboardingScreenPage,
+    },
+    {
+        id: "setup-option-card",
+        label: "Setup option card",
+        number: "C-062",
+        page: SetupOptionCardPage,
+    },
+    {
+        id: "build-progress-panel",
+        label: "Build progress panel",
+        number: "C-063",
+        page: BuildProgressPanelPage,
+    },
 ];
 
 const fullScreens: BlueprintPage[] = [

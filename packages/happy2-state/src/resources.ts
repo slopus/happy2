@@ -123,6 +123,115 @@ export interface AgentImageDetails extends AgentImageSummary {
     readonly buildLogTruncated: boolean;
 }
 
+/**
+ * Durable server/user onboarding contract mirrored from the backend `/v0/setup`
+ * responses. These are wire shapes the setup surface store reconciles against;
+ * they are not owned here, so they must match the server presentation exactly.
+ */
+export type RegistrationAvailability = "bootstrap" | "open" | "closed";
+
+export type ServerSetupStep =
+    | "bootstrap_administrator"
+    | "sandbox_provider_selected"
+    | "sandbox_provider_validated"
+    | "base_image_selected"
+    | "base_image_build_requested"
+    | "base_image_ready"
+    | "registration_policy_selected"
+    | "server_setup_complete";
+
+export type ServerSetupStepState = "pending" | "in_progress" | "complete" | "failed";
+
+export type UserOnboardingStep = "avatar" | "desktop_notifications";
+export type UserOnboardingStepState = "pending" | "complete" | "skipped";
+
+export type SafeSetupMetadataValue = string | number | boolean | null;
+export type SafeSetupMetadata = Readonly<Record<string, SafeSetupMetadataValue>>;
+
+export interface SetupStepStatus<State extends string> {
+    readonly state: State;
+    readonly metadata?: SafeSetupMetadata;
+    readonly lastError?: string;
+    readonly startedAt?: string;
+    readonly completedAt?: string;
+    readonly updatedAt: string;
+}
+
+export type OnboardingRoute =
+    | { readonly scope: "profile"; readonly step: "profile" }
+    | { readonly scope: "server"; readonly step: ServerSetupStep }
+    | { readonly scope: "waiting"; readonly step: "server_setup" }
+    | { readonly scope: "user"; readonly step: UserOnboardingStep }
+    | { readonly scope: "complete" };
+
+export interface CombinedOnboardingStatus {
+    readonly server: {
+        readonly schemaVersion: number;
+        readonly complete: boolean;
+        readonly canManage: boolean;
+        readonly registration: RegistrationAvailability;
+        readonly steps: Readonly<Record<ServerSetupStep, SetupStepStatus<ServerSetupStepState>>>;
+    };
+    readonly user: {
+        readonly profile: "pending" | "complete";
+        readonly complete: boolean;
+        readonly steps: Readonly<
+            Record<UserOnboardingStep, SetupStepStatus<UserOnboardingStepState>>
+        >;
+    };
+    readonly route: OnboardingRoute;
+    readonly complete: boolean;
+}
+
+export type PublicServerSetupPhase = "bootstrap_required" | "configuration_required" | "complete";
+
+export interface PublicServerSetupStatus {
+    readonly schemaVersion: number;
+    readonly phase: PublicServerSetupPhase;
+    readonly registration: RegistrationAvailability;
+}
+
+export type SandboxProviderHealth = "healthy" | "unhealthy" | "unavailable" | "timed_out";
+
+export interface SandboxProviderStatus {
+    readonly id: string;
+    readonly displayName: string;
+    readonly health: SandboxProviderHealth;
+    readonly detail: string;
+    readonly remediation?: string;
+    readonly version?: string;
+}
+
+export interface SandboxProviderDiscovery {
+    readonly executionNotice: string;
+    readonly providers: readonly SandboxProviderStatus[];
+    readonly recommendedProviderId?: string;
+    readonly selectedProviderId?: string;
+}
+
+export type SetupBaseImageBuildMode = "build" | "download_and_build";
+export type SetupBaseImageSource = "builtin" | "custom";
+
+export interface SetupBaseImagePresentation {
+    readonly buildLabel: "Build" | "Download and build";
+    readonly buildMode: SetupBaseImageBuildMode;
+    readonly source: SetupBaseImageSource;
+}
+
+export type SetupBaseImageSummary = AgentImageSummary & SetupBaseImagePresentation;
+export type SetupBaseImageDetails = AgentImageDetails & SetupBaseImagePresentation;
+
+export interface SetupBaseImagesView {
+    readonly defaultImageId?: string;
+    readonly images: readonly SetupBaseImageSummary[];
+    readonly selectedImage?: SetupBaseImageDetails;
+    readonly selectedImageId?: string;
+}
+
+export type SetupBaseImageSelection =
+    | { readonly builtinKey: "daycare-full" | "daycare-minimal" }
+    | { readonly custom: { readonly name: string; readonly dockerfile: string } };
+
 /** Rig-owned secret metadata. Values are intentionally absent from every client snapshot. */
 export interface AgentSecretSummary {
     readonly id: string;
