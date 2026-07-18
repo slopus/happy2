@@ -1,6 +1,6 @@
 import { onCleanup } from "solid-js";
 import { createStore } from "solid-js/store";
-import type { ClientState } from "happy2-state";
+import type { HappyState } from "happy2-state";
 
 type Entry = { url?: string; failed?: boolean };
 
@@ -20,7 +20,7 @@ export type AvatarImages = {
  * URL. Owns the object URLs and revokes them when its owning component unmounts,
  * so avatars stay live for other users without leaking blobs.
  */
-export function createAvatarImages(state: () => ClientState | undefined): AvatarImages {
+export function createAvatarImages(state: () => HappyState | undefined): AvatarImages {
     const [store, setStore] = createStore<Record<string, Entry>>({});
     const requested = new Set<string>();
     const urls = new Set<string>();
@@ -33,7 +33,7 @@ export function createAvatarImages(state: () => ClientState | undefined): Avatar
             return;
         }
         try {
-            const contents = await model.execute("downloadFile", { fileId });
+            const contents = await model.fileDownload(fileId);
             if (disposed) return;
             const url = URL.createObjectURL(new Blob([contents]));
             urls.add(url);

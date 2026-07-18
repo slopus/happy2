@@ -21,6 +21,7 @@ import { ButtonPage } from "./pages/ButtonPage";
 import { CallPanelPage } from "./pages/CallPanelPage";
 import { ChannelHeaderPage } from "./pages/ChannelHeaderPage";
 import { CheckboxPage } from "./pages/CheckboxPage";
+import { ChatStorePage } from "./pages/ChatStorePage";
 import { ComposerPage } from "./pages/ComposerPage";
 import { DataTablePage } from "./pages/DataTablePage";
 import { DiffSnippetPage } from "./pages/DiffSnippetPage";
@@ -45,9 +46,11 @@ import { ModalOverlayPage } from "./pages/ModalOverlayPage";
 import { ModerationReportCardPage } from "./pages/ModerationReportCardPage";
 import { NotificationListPage } from "./pages/NotificationListPage";
 import { PolicyControlPage } from "./pages/PolicyControlPage";
+import { ProductStorePage } from "./pages/ProductStorePage";
 import { ProfileCardPage } from "./pages/ProfileCardPage";
 import { RailPage } from "./pages/RailPage";
 import { SearchResultsPage } from "./pages/SearchResultsPage";
+import { SettingsStorePage } from "./pages/SettingsStorePage";
 import { SecretRevealPage } from "./pages/SecretRevealPage";
 import { SegmentedControlPage } from "./pages/SegmentedControlPage";
 import { SelectPage } from "./pages/SelectPage";
@@ -62,7 +65,9 @@ import { ThreadPanelPage } from "./pages/ThreadPanelPage";
 import { TitleBarPage } from "./pages/TitleBarPage";
 import { ToolbarPage } from "./pages/ToolbarPage";
 
-const components: Array<{ id: string; label: string; number: string; page: () => JSX.Element }> = [
+type BlueprintPage = { id: string; label: string; number: string; page: () => JSX.Element };
+
+const components: BlueprintPage[] = [
     { id: "box", label: "Box", number: "C-001", page: BoxPage },
     { id: "icon", label: "Icon", number: "C-002", page: IconPage },
     { id: "button", label: "Button", number: "C-003", page: ButtonPage },
@@ -164,9 +169,69 @@ const components: Array<{ id: string; label: string; number: string; page: () =>
     },
 ];
 
+const fullScreens: BlueprintPage[] = [
+    { id: "settings-store", label: "Settings", number: "P-001", page: SettingsStorePage },
+    { id: "chat-store", label: "Chat", number: "P-002", page: ChatStorePage },
+    {
+        id: "home-store",
+        label: "Home",
+        number: "P-003",
+        page: () => <ProductStorePage kind="home" />,
+    },
+    {
+        id: "activity-store",
+        label: "Activity",
+        number: "P-004",
+        page: () => <ProductStorePage kind="activity" />,
+    },
+    {
+        id: "threads-store",
+        label: "Threads",
+        number: "P-005",
+        page: () => <ProductStorePage kind="threads" />,
+    },
+    {
+        id: "calls-store",
+        label: "Calls",
+        number: "P-006",
+        page: () => <ProductStorePage kind="calls" />,
+    },
+    {
+        id: "files-store",
+        label: "Files",
+        number: "P-007",
+        page: () => <ProductStorePage kind="files" />,
+    },
+    {
+        id: "search-store",
+        label: "Search",
+        number: "P-008",
+        page: () => <ProductStorePage kind="search" />,
+    },
+    {
+        id: "admin-store",
+        label: "Admin",
+        number: "P-009",
+        page: () => <ProductStorePage kind="admin" />,
+    },
+    {
+        id: "agent-images-store",
+        label: "Agent images",
+        number: "P-010",
+        page: () => <ProductStorePage kind="agent-images" />,
+    },
+    {
+        id: "agent-secrets-store",
+        label: "Agent secrets",
+        number: "P-011",
+        page: () => <ProductStorePage kind="agent-secrets" />,
+    },
+];
+const pages = [...components, ...fullScreens];
+
 function componentFromHash(): string {
     const id = window.location.hash.slice(1).toLowerCase();
-    return components.some((component) => component.id === id) ? id : "icon";
+    return pages.some((page) => page.id === id) ? id : "icon";
 }
 
 function Workbench() {
@@ -201,22 +266,33 @@ function Workbench() {
                         value={active()}
                         onInput={(event) => selectComponent(event.currentTarget.value)}
                     >
-                        <For each={components}>
-                            {(component) => (
-                                <option value={component.id}>
-                                    {component.number} · {component.label}
-                                </option>
-                            )}
-                        </For>
+                        <optgroup label="Components">
+                            <For each={components}>
+                                {(component) => (
+                                    <option value={component.id}>
+                                        {component.number} · {component.label}
+                                    </option>
+                                )}
+                            </For>
+                        </optgroup>
+                        <Show when={fullScreens.length > 0}>
+                            <optgroup label="Full screens">
+                                <For each={fullScreens}>
+                                    {(screen) => (
+                                        <option value={screen.id}>
+                                            {screen.number} · {screen.label}
+                                        </option>
+                                    )}
+                                </For>
+                            </optgroup>
+                        </Show>
                     </select>
                     <b aria-hidden="true">⌄</b>
                 </label>
             </header>
             <div class="blueprint-field">
-                <For each={components}>
-                    {(component) => (
-                        <Show when={active() === component.id}>{component.page()}</Show>
-                    )}
+                <For each={pages}>
+                    {(page) => <Show when={active() === page.id}>{page.page()}</Show>}
                 </For>
             </div>
         </div>

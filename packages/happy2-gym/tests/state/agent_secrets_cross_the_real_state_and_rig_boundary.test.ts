@@ -1,4 +1,4 @@
-import { createClientState } from "happy2-state";
+import { happyStateCreate, type AgentSecretsSnapshot } from "happy2-state";
 import { describe, expect, it } from "vitest";
 import { createMockRigDaemon, MockAgentSandboxRuntime, type MockRigDaemon } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
@@ -19,46 +19,50 @@ describe("agent secrets across happy2-state and Rig", () => {
         const agentUserId = await findAgentUserId(asAdmin, "state_secret_agent");
 
         const transport = await createGymStateTransport(server, admin);
-        await using state = createClientState(transport, { sleep: async () => undefined });
-        await state.start();
+        await using state = happyStateCreate({ transport, sleep: async () => undefined });
+        await state.syncStart();
         await transport.whenConnected();
-        await expect(state.execute("getAgentSecrets")).resolves.toEqual({ secrets: [] });
+        const secrets = state.agentSecrets();
+        await state.whenIdle();
+        expect(secrets.get().secrets).toEqual({ type: "ready", value: [] });
 
         const value = "real-rig-only-secret-value";
-        const created = await state.execute("createAgentSecret", {
-            id: "state-service",
-            description: "State service credentials",
-            environment: { STATE_SERVICE_TOKEN: value },
+        secrets.secretCreate("state-service", "State service credentials", {
+            STATE_SERVICE_TOKEN: value,
         });
-        expect(created.secret).toEqual({
+        await state.whenIdle();
+        expect(readySecrets(secrets.get().secrets)[0]).toEqual({
             id: "state-service",
             description: "State service credentials",
             environmentVariables: ["STATE_SERVICE_TOKEN"],
             agentUserIds: [],
             channelIds: [],
         });
-        expect(JSON.stringify(created)).not.toContain(value);
+        expect(JSON.stringify(secrets.get())).not.toContain(value);
         expect(rig.secretEnvironment("state-service")).toEqual({ STATE_SERVICE_TOKEN: value });
 
-        await expect(
-            state.execute("attachAgentSecretToAgent", {
-                secretId: "state-service",
-                agentUserId,
-            }),
-        ).resolves.toMatchObject({
-            secret: { id: "state-service", agentUserIds: [agentUserId] },
+        secrets.secretAgentAttach("state-service", agentUserId);
+        await state.whenIdle();
+        expect(readySecrets(secrets.get().secrets)[0]).toMatchObject({
+            id: "state-service",
+            agentUserIds: [agentUserId],
         });
         expect(rig.sessionSecretIds("session-1")).toEqual(["state-service"]);
 
         const deleted = await asAdmin.post("/v0/admin/agentSecrets/state-service/deleteSecret", {});
         expect(deleted.statusCode).toBe(200);
         await expect
-            .poll(() => state.result("getAgentSecrets")?.secrets, { timeout: 3_000 })
+            .poll(() => readySecrets(secrets.get().secrets), { timeout: 3_000 })
             .toEqual([]);
         expect(rig.secretEnvironment("state-service")).toBeUndefined();
         expect(rig.sessionSecretIds("session-1")).toEqual([]);
     });
 });
+
+function readySecrets(value: AgentSecretsSnapshot["secrets"]) {
+    if (value.type !== "ready") throw new Error(`Expected ready secrets, received ${value.type}`);
+    return value.value;
+}
 
 function agentServer(rig: MockRigDaemon) {
     return createGymServer({

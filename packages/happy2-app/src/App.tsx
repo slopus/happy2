@@ -1,12 +1,16 @@
-import { createSignal, Match, Show, Switch, type JSX } from "solid-js";
+import { createSignal, Match, onCleanup, Show, Switch, type JSX } from "solid-js";
+import { happyStateCreate, type HappyState } from "happy2-state";
 import { AppShell, Avatar, Rail, TitleBar, type RailItem, type SearchResultType } from "happy2-ui";
 import { AuthGate, type AuthSession } from "./components/AuthGate";
-import { profile, profileAvailability, profileStatus, settings } from "./mockData";
 import { AdminView } from "./views/AdminView";
 import { ChatView } from "./views/ChatView";
 import { FilesView } from "./views/FilesView";
 import { SearchOverlay } from "./views/SearchOverlay";
 import { SettingsView } from "./views/SettingsView";
+import { CallsView } from "./views/CallsView";
+import { HomeView } from "./views/HomeView";
+import { InboxView } from "./views/InboxView";
+import { ThreadsView } from "./views/ThreadsView";
 
 type AppProps = {
     platform?: "desktop" | "web";
@@ -14,8 +18,12 @@ type AppProps = {
 };
 
 const railItems: RailItem[] = [
+    { id: "home", icon: "home", label: "Home" },
     { id: "chat", icon: "chat", label: "Chat" },
+    { id: "activity", icon: "bell", label: "Activity" },
+    { id: "threads", icon: "thread", label: "Threads" },
     { id: "files", icon: "files", label: "Files" },
+    { id: "calls", icon: "mic", label: "Calls" },
     { id: "admin", icon: "shield", label: "Admin" },
 ];
 
@@ -26,7 +34,7 @@ const railItems: RailItem[] = [
  * fill the sidebar + agent-desk panel); every other feature renders inside a
  * shared AppShell.
  */
-function Shell(props: AppProps & { session?: AuthSession }) {
+function Shell(props: AppProps & { state: HappyState; session?: AuthSession }) {
     const [activeFeatureId, setActiveFeatureId] = createSignal("chat");
     const [search, setSearch] = createSignal("");
     const [createRequest, setCreateRequest] = createSignal<{
@@ -35,8 +43,8 @@ function Shell(props: AppProps & { session?: AuthSession }) {
     }>({ kind: "agent", nonce: 0 });
 
     const user = () => props.session?.user;
-    const userName = () => user()?.firstName ?? "Steve";
-    const userInitials = () => user()?.firstName?.slice(0, 2).toUpperCase() ?? "ST";
+    const userName = () => user()?.firstName ?? "Profile";
+    const userInitials = () => user()?.firstName?.slice(0, 2).toUpperCase() ?? "?";
 
     const requestCreate = (kind: "agent" | "channel") => {
         setActiveFeatureId("chat");
@@ -95,11 +103,7 @@ function Shell(props: AppProps & { session?: AuthSession }) {
     const FeatureShell = (shellProps: { children?: JSX.Element }) => (
         <AppShell rail={rail()} titleBar={titleBar()}>
             <Show fallback={shellProps.children ?? null} when={search().trim()}>
-                <SearchOverlay
-                    onSelect={selectSearchResult}
-                    query={search()}
-                    session={props.session}
-                />
+                <SearchOverlay onSelect={selectSearchResult} query={search()} state={props.state} />
             </Show>
         </AppShell>
     );
@@ -115,6 +119,7 @@ function Shell(props: AppProps & { session?: AuthSession }) {
                             rail={rail()}
                             search={search}
                             session={props.session}
+                            state={props.state}
                             titleBar={titleBar()}
                         />
                     }
@@ -125,23 +130,37 @@ function Shell(props: AppProps & { session?: AuthSession }) {
             </Match>
             <Match when={activeFeatureId() === "files"}>
                 <FeatureShell>
-                    <FilesView session={props.session} />
+                    <FilesView state={props.state} />
+                </FeatureShell>
+            </Match>
+            <Match when={activeFeatureId() === "home"}>
+                <FeatureShell>
+                    <HomeView state={props.state} />
+                </FeatureShell>
+            </Match>
+            <Match when={activeFeatureId() === "activity"}>
+                <FeatureShell>
+                    <InboxView state={props.state} />
+                </FeatureShell>
+            </Match>
+            <Match when={activeFeatureId() === "threads"}>
+                <FeatureShell>
+                    <ThreadsView state={props.state} />
+                </FeatureShell>
+            </Match>
+            <Match when={activeFeatureId() === "calls"}>
+                <FeatureShell>
+                    <CallsView state={props.state} />
                 </FeatureShell>
             </Match>
             <Match when={activeFeatureId() === "admin"}>
                 <FeatureShell>
-                    <AdminView session={props.session} />
+                    <AdminView state={props.state} />
                 </FeatureShell>
             </Match>
             <Match when={activeFeatureId() === "you"}>
                 <FeatureShell>
-                    <SettingsView
-                        availability={profileAvailability}
-                        profile={profile}
-                        session={props.session}
-                        settings={settings}
-                        status={profileStatus}
-                    />
+                    <SettingsView session={props.session} state={props.state} />
                 </FeatureShell>
             </Match>
         </Switch>
@@ -149,11 +168,13 @@ function Shell(props: AppProps & { session?: AuthSession }) {
 }
 
 export function App(props: AppProps) {
+    const staticState = happyStateCreate();
+    onCleanup(() => staticState[Symbol.dispose]());
     return props.serverUrl ? (
         <AuthGate serverUrl={props.serverUrl} showWindowDragRegion={props.platform === "desktop"}>
-            {(session) => <Shell {...props} session={session} />}
+            {(session) => <Shell {...props} session={session} state={session.state} />}
         </AuthGate>
     ) : (
-        <Shell {...props} />
+        <Shell {...props} state={staticState} />
     );
 }

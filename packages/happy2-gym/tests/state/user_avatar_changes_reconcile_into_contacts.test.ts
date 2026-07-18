@@ -1,4 +1,4 @@
-import { createClientState } from "happy2-state";
+import { happyStateCreate } from "happy2-state";
 import { deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
@@ -17,12 +17,15 @@ describe("avatar changes reconcile through the real in-memory server", () => {
         });
 
         const transport = await createGymStateTransport(server, viewer);
-        await using state = createClientState(transport, { sleep: async () => undefined });
-        await state.start();
+        await using state = happyStateCreate({ transport, sleep: async () => undefined });
+        await state.syncStart();
         await transport.whenConnected();
 
-        const before = await state.execute("getContacts");
-        expect(before.users.find((item) => item.id === owner.id)?.photoFileId).toBeUndefined();
+        const directory = state.directory();
+        await state.whenIdle();
+        expect(
+            directory.get().users.find((item) => item.id === owner.id)?.photoFileId,
+        ).toBeUndefined();
 
         // The owner uploads and adopts a public avatar through the real server.
         const asOwner = server.as(owner);
@@ -42,12 +45,9 @@ describe("avatar changes reconcile through the real in-memory server", () => {
         // The owner's `user.updated` sync event refreshes the viewer's cached
         // contacts, so the new photoFileId reconciles without a manual reload.
         await expect
-            .poll(
-                () =>
-                    state.result("getContacts")?.users.find((item) => item.id === owner.id)
-                        ?.photoFileId,
-                { timeout: 3_000 },
-            )
+            .poll(() => directory.get().users.find((item) => item.id === owner.id)?.photoFileId, {
+                timeout: 3_000,
+            })
             .toBe(fileId);
     });
 });

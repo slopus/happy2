@@ -1,8 +1,44 @@
 import { describe, expect, it, vi } from "vitest";
 import { UserError } from "../../types.js";
+import type { ClientTransport, HttpRequest, HttpResponse } from "../../transport.js";
+import { StateRuntime } from "../runtime/stateRuntime.js";
+import { avatarUpload } from "./avatarUpload.js";
 import { settingsStoreCreateBinding } from "./settingsStore.js";
 
 describe("settings module", () => {
+    it("uploads an avatar candidate through the typed settings action", async () => {
+        const uploaded = {
+            id: "avatar-1",
+            originalName: "avatar.png",
+            contentType: "image/png",
+            kind: "image" as const,
+            size: 4,
+            uploadedByUserId: "user-1",
+            createdAt: "now",
+        };
+        const body = new FormData();
+        body.append("file", new Blob(["face"], { type: "image/png" }), "avatar.png");
+        const requests: HttpRequest[] = [];
+        const transport: ClientTransport = {
+            async request<T = unknown>(request: HttpRequest): Promise<HttpResponse<T>> {
+                requests.push(request);
+                return { status: 200, body: { file: uploaded } as T };
+            },
+            subscribe: () => () => undefined,
+        };
+        const runtime = new StateRuntime({ transport });
+
+        await expect(avatarUpload({ runtime }, body)).resolves.toEqual(uploaded);
+        expect(requests).toEqual([
+            {
+                method: "POST",
+                path: "/v0/me/uploadAvatarFile",
+                body,
+            },
+        ]);
+        runtime.stop();
+    });
+
     it("provides one explicit typed action and save state for every editable field", () => {
         const output = vi.fn();
         const binding = settingsStoreCreateBinding(

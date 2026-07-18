@@ -436,11 +436,8 @@ reported P0.S1 ready to merge with no task-blocking issue.
 
 #### P0.S2 — Complete the entire `happy2-state` product-state architecture
 
-Status: full state implementation, colocated unit-test matrix, complete-diff review, and final checks
-complete on `ex3ndr/refactor-happy2-state` (2026-07-17); awaiting user approval and sync. This is one
-large state-only feature by explicit user direction. Do not run incremental domain reviews; finish
-the complete replacement state package, fake-server coverage, Gym/state coverage, and architecture
-enforcement first, then review the complete diff once.
+Status: complete and synced to `main` at `f262351` (2026-07-17). The user approved the complete state
+architecture and immediately authorized P0.S3 as the next atomic integration feature.
 
 - [x] Move chat summaries/global difference projection into the independent `sidebar` state/reducer;
       keep difference fetching, ordering, and multi-store dispatch in a same-named sync action module
@@ -531,62 +528,100 @@ the same persisted session verified them and ended `READY` with no actionable fi
 Gym browser 3/18, UI 171/435, app 8/67, server coverage baseline, and all production builds. The
 focused real-server state boundary passed again; generated Composer screenshot artifacts were restored
 to their pre-check contents. One parallel-suite rare-avatar benchmark sample exceeded its p99 budget;
-the immediate isolated rerun and the subsequent complete `pnpm check` both passed. Only sync/merge
-evidence remains before P0.S2 is closed.
+the immediate isolated rerun and the subsequent complete `pnpm check` both passed. P0.S2 was then
+synced to `main` at `f262351`; P0.S3 starts from that accepted boundary.
 
 #### P0.S3 — Integrate every application and UI surface with the completed state architecture
 
-Status: blocked on P0.S2. Claude Opus owns this complete UI implementation after GPT finishes and
-the user approves the state package. Do not migrate or review one surface at a time: convert every
-production consumer and its Blueprint fixtures in one integration feature, then run one reciprocal
-Codex review/fix loop on the complete application/UI diff.
+Status: complete on `ex3ndr/refactor-happy2-state` (2026-07-17), not yet synced. P0.S2 was approved
+and synced to `main` at `f262351`. By explicit user direction, Codex owned the complete UI
+implementation, used parallel subagents, and did not run the former Claude/reciprocal review gate.
 
-- [ ] Replace every production `createClientState`, aggregate snapshot, typed legacy event, generic
+- [x] Replace every production `createClientState`, aggregate snapshot, typed legacy event, generic
       `execute`/`result`, and legacy workspace/message access with the relevant `HappyState` surface
       store or explicit orchestration action; add no shim, adapter, bridge, mirror, or dual write.
-- [ ] Move Chat, sidebar, composer, search, files, settings, people/presence, notifications, threads,
+- [x] Move Chat, sidebar, composer, search, files, settings, people/presence, notifications, threads,
       calls, workspace/editor, agent images/secrets, and administration as complete mounted surfaces,
       preserving each surface's lifetime and coarse subscription boundary.
-- [ ] Keep `happy2-ui` directly usable with the concrete public store contracts and deterministic
+- [x] Keep `happy2-ui` directly usable with the concrete public store contracts and deterministic
       fixtures, while application packages own authenticated transport attachment and process-global
       instance choice rather than visual or product-state behavior.
-- [ ] Delete all remaining legacy consumers and package exports, update affected app/Blueprint tests,
+- [x] Delete all remaining legacy consumers and package exports, update affected app/Blueprint tests,
       then delete `model.ts`, generic whole-root cloning/freezing, and catch-all `operationResults`;
-      run repository-wide checks and complete one reciprocal Codex review/fix loop before sync.
+      run repository-wide checks before sync. The user explicitly waived the former reciprocal review
+      loop for this migration and requested direct Codex implementation instead.
+- [x] Keep each `StoreSurface` child tree mounted across store notifications so controlled settings
+      fields retain DOM identity, focus, and selection; cover the invariant in a real browser test.
+- [x] Preserve unchanged chat-entry references through the UI projection so Solid `<For>` can reuse
+      message DOM rows when one message changes; do not discard HappyState structural sharing in a
+      whole-list mapping step.
+- [x] Keep each changed message row keyed by message ID with a row-local reactive accessor, so body,
+      reaction, delivery, and menu props update inside the existing `Message` component without
+      remounting it or losing its local menu/reaction state; this must add no per-row store subscription.
+- [x] Codify the required Solid lifecycle, accessor, list-identity, keyed-row, control-flow,
+      virtualization, and browser-regression patterns in repository-root `AGENTS.md` so future UI
+      work cannot reintroduce React-style render remounts or per-row product-store subscriptions.
+
+Implementation evidence: `happy2-ui` now owns Chat, Settings, Home, Activity, Threads, Calls, Files,
+Search, Admin, Agent Images, and Agent Secrets pages. Blueprint exposes deterministic store-driven
+P-001 through P-011 full screens; `StoreSurface` owns one coarse subscription, while Chat owns one per
+materialized surface and no message/avatar-row subscriptions. App views are thin store/lease/host
+adapters; `ChatView` is about 100 lines and `SettingsView` is 34. The 1,767-line legacy `model.ts`,
+catch-all result API, mock app data, legacy app suites, and every production legacy reference were
+removed. `ChatPage` was decomposed by domain to 699 lines. Live browser verification rendered and
+mutated Settings P-001 and rendered Chat P-002 at an exact unscaled 1024×704 viewport with no browser
+errors. Repository-wide `pnpm format` and `pnpm check` passed: state 32 files/122 tests plus benchmark,
+server 21/89, Gym server 44/106, Gym browser 3/18, UI 186/477 across three browsers, app 4/14, coverage
+baseline, and every production build. Focused real-server `gym/state` coverage passed 7/7. A reported
+settings focus regression exposed render-child remounting in `StoreSurface`; the adapter now mounts
+once per store identity and passes a reactive snapshot accessor. A real-browser regression proves the
+same input node, focus, and `document.activeElement` survive local and authoritative store updates.
+Post-fix repository format/lint/typecheck passed, UI passed 186 files/480 tests in all three browsers,
+and app passed 4/14 plus its production build. The chat entry projector now retains unchanged message
+and day-divider references, replaces only the changed row, and prunes stale cache entries; browser
+coverage proves a neighboring message update preserves the unchanged row DOM, focus, and local value.
+ID-keyed row slots now also preserve the changed `Message` component itself: updating body, reactions,
+or delivery sets only that row's lightweight Solid accessor, while its local menu/reaction signals and
+sibling DOM remain mounted. A three-browser regression holds the menu open while the same message body
+changes and verifies both the changed and sibling root-node identities. The final complete UI rerun
+passed 186 files/486 tests; one pre-existing Firefox Composer timeout passed 5/5 in isolation before
+the clean complete rerun.
 
 ### Acceptance criteria
 
-- [ ] No product behavior or resource lifetime is owned by a god class or catch-all result cache.
-- [ ] `HappyState` is the only shared synchronization/store-registry object, but it has no aggregate
+- [x] No product behavior or resource lifetime is owned by a god class or catch-all result cache.
+- [x] `HappyState` is the only shared synchronization/store-registry object, but it has no aggregate
       render snapshot; feature stores own their snapshot, safe local actions, output contract, and
       private input reducer and can be consumed independently. Its flat integration methods only route
       into same-named action modules, which own coordinated workflows and side effects.
-- [ ] One action can synchronously update composer and emit output that updates chat, sidebar, and any
+- [x] One action can synchronously update composer and emit output that updates chat, sidebar, and any
       other already materialized projection before the action returns, without introducing a root
       snapshot or creating a missing store. Each independent store notifies on its own setter; no
       cross-store transaction or atomic-snapshot behavior is implied.
-- [ ] Calling a synchronous state command returns `void`; the updated state is observable through
+- [x] Calling a synchronous state command returns `void`; the updated state is observable through
       `get()` and subscriptions before control returns to the caller, never through an action result.
-- [ ] There is no coherent root product snapshot: updating chat or composer does not evaluate or
+- [x] There is no coherent root product snapshot: updating chat or composer does not evaluate or
       notify sidebar, workspace, settings, or another chat store.
-- [ ] Opening a chat creates exactly one denormalized chat micro-model; closing its final handle frees
+- [x] Opening a chat creates exactly one denormalized chat micro-model; closing its final handle frees
       its messages, optional reaction actors, threads/members, timers, and in-flight ownership.
-- [ ] An unloaded optional resource occupies no entity payload memory and is not fetched or updated by
+- [x] An unloaded optional resource occupies no entity payload memory and is not fetched or updated by
       a realtime hint; a retained resource reconciles automatically without a Refresh action.
-- [ ] Tests prove exact upward-only structural sharing within every migrated store, zero unrelated
+- [x] Tests prove exact upward-only structural sharing within every migrated store, zero unrelated
       store notifications, and no notification/reference change for semantic no-ops or duplicate
       differences.
-- [ ] Rendering N messages or avatar occurrences does not create O(N) state subscriptions/effects.
+- [x] Rendering N messages or avatar occurrences does not create O(N) product-store subscriptions or
+      duplicated authoritative state. Lightweight row-local Solid accessors/render bindings are allowed
+      because they do not subscribe to transport or product state directly.
       Message rows contain render-ready canonical sender projections with ID/name/avatar but omit
       unused presence; external orchestration sends identity/presence events only to materialized
       surfaces that render those fields.
-- [ ] Production application/UI code may call safe local store actions but cannot apply authoritative
+- [x] Production application/UI code may call safe local store actions but cannot apply authoritative
       inputs or manufacture confirmed, pinned, saved, edited, or other durable states. Only the private
       action context reached through store output/`HappyState` integration and the explicitly test-only
       Blueprint fixture driver hold writer capabilities.
-- [ ] The state core has no UI-framework runtime dependency; `happy2-ui` renders the same concrete
+- [x] The state core has no UI-framework runtime dependency; `happy2-ui` renders the same concrete
       stores with live connectors or deterministic in-memory fixtures and never requires a server.
-- [ ] Existing retry, idempotency, error, workspace-conflict, realtime-hint, and real-server behavior
+- [x] Existing retry, idempotency, error, workspace-conflict, realtime-hint, and real-server behavior
       remains covered at the state boundary throughout the migration.
 
 ---

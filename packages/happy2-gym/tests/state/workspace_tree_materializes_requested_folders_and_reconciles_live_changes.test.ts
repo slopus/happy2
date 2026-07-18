@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createClientState } from "happy2-state";
+import { happyStateCreate, type WorkspaceFileStore, type WorkspaceStore } from "happy2-state";
 import { describe, expect, it } from "vitest";
 import { createMockRigDaemon, MockAgentSandboxRuntime } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
@@ -21,19 +21,25 @@ describe("live workspace trees through happy2-state", () => {
         const owner = await server.createUser({ username: "state_workspace_owner" });
         await configureAgentImage(server.as(owner));
         const transport = await createGymStateTransport(server, owner);
-        await using state = createClientState(transport, { sleep: async () => undefined });
-        await state.start();
+        await using state = happyStateCreate({ transport, sleep: async () => undefined });
+        await state.syncStart();
         await transport.whenConnected();
-        const chat = await state.createAgent({
+        await state.agentCreate({
             name: "State Workspace",
             username: "state_workspace_agent",
         });
-        const chatId = chat.id;
+        const chatId = state
+            .sidebar()
+            .get()
+            .chats.find(({ displayName }) => displayName === "State Workspace")?.id;
+        if (!chatId) throw new Error("State Workspace chat was not materialized");
         const directory = rig.createdCwds.at(-1);
         if (!directory) throw new Error("Rig workspace was not created");
 
-        const empty = await state.syncWorkspace(chatId, []);
-        expect(empty.paths).toEqual([]);
+        using workspace = state.workspaceOpen(chatId);
+        workspace.directoriesUpdate([]);
+        await state.whenIdle();
+        expect(workspaceValue(workspace).paths).toEqual([]);
 
         await Promise.all([
             mkdir(join(directory, "node_modules", "package"), { recursive: true }),
@@ -45,17 +51,13 @@ describe("live workspace trees through happy2-state", () => {
         ]);
 
         await expect
-            .poll(() => state.get().workspacesByChat[chatId]?.paths, { timeout: 3_000 })
+            .poll(() => workspaceValue(workspace).paths, { timeout: 3_000 })
             .toEqual(["node_modules/", "src/", "src/live.ts"]);
-        expect(state.get().workspacesByChat[chatId]?.unloadedDirectories).toContain(
-            "node_modules/",
-        );
+        expect(workspaceValue(workspace).unloadedDirectories).toContain("node_modules/");
 
-        const expanded = await state.syncWorkspace(chatId, [
-            "node_modules/",
-            "node_modules/package/",
-        ]);
-        expect(expanded.paths).toEqual([
+        workspace.directoriesUpdate(["node_modules/", "node_modules/package/"]);
+        await state.whenIdle();
+        expect(workspaceValue(workspace).paths).toEqual([
             "node_modules/",
             "node_modules/package/",
             "node_modules/package/index.js",
@@ -65,37 +67,51 @@ describe("live workspace trees through happy2-state", () => {
 
         await writeFile(join(directory, "node_modules", "package", "new.js"), "new\n");
         await expect
-            .poll(() => state.get().workspacesByChat[chatId]?.paths, { timeout: 3_000 })
+            .poll(() => workspaceValue(workspace).paths, { timeout: 3_000 })
             .toContain("node_modules/package/new.js");
 
-        const collapsed = await state.syncWorkspace(chatId, []);
-        expect(collapsed.paths).toEqual(["node_modules/", "src/", "src/live.ts"]);
-        expect(collapsed.directories).toEqual([]);
+        workspace.directoriesUpdate([]);
+        await state.whenIdle();
+        expect(workspaceValue(workspace).paths).toEqual(["node_modules/", "src/", "src/live.ts"]);
+        expect(workspaceValue(workspace).directories).toEqual([]);
 
-        // An editor state is lazy and does not subscribe until start(), so its cached
-        // version remains stale while another process changes a separate region.
-        await using editor = createClientState(transport, { sleep: async () => undefined });
-        const opened = await editor.readWorkspaceFile(chatId, "src/live.ts");
+        // The retained editor keeps its own base while another process changes a separate region.
+        using editor = state.workspaceFileOpen(chatId, "src/live.ts");
+        await state.whenIdle();
+        const opened = workspaceFileValue(editor);
+        if (!opened) throw new Error("Workspace editor did not load");
         await writeFile(join(directory, "src", "live.ts"), `// external\n${opened.content}`);
-        const saved = await editor.writeWorkspaceFile(chatId, {
-            path: opened.path,
-            expectedVersion: opened.version,
-            content: opened.content.replace("true", "false"),
-        });
-        expect(saved.content).toBe("// external\nexport const live = false;\n");
+        editor.contentUpdate(opened.content.replace("true", "false"));
+        editor.contentSave();
+        await state.whenIdle();
+        const saved = workspaceFileValue(editor);
+        expect(saved?.content).toBe("// external\nexport const live = false;\n");
         await expect(readFile(join(directory, "src", "live.ts"), "utf8")).resolves.toBe(
-            saved.content,
+            saved?.content,
         );
 
         // Rewriting identical contents changes filesystem metadata. Deletion detects
         // that conflict, confirms contents are unchanged, and safely retries.
-        await writeFile(join(directory, "src", "live.ts"), saved.content);
-        await editor.deleteWorkspaceFile(chatId, saved.path, saved.version);
+        await writeFile(join(directory, "src", "live.ts"), saved!.content);
+        editor.fileDelete();
+        await state.whenIdle();
         await expect(readFile(join(directory, "src", "live.ts"), "utf8")).rejects.toMatchObject({
             code: "ENOENT",
         });
     });
 });
+
+function workspaceValue(store: WorkspaceStore) {
+    const status = store.get().status;
+    if (status.type !== "ready")
+        throw new Error(`Expected ready workspace, received ${status.type}`);
+    return status.value;
+}
+
+function workspaceFileValue(store: WorkspaceFileStore) {
+    const file = store.get().file;
+    return file.type === "ready" ? file.value : undefined;
+}
 
 async function configureAgentImage(client: GymRequestClient): Promise<void> {
     const images = (await client.get("/v0/admin/agentImages")).json().images as Array<{

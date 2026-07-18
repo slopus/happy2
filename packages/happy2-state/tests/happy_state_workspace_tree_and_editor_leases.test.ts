@@ -54,7 +54,7 @@ describe("HappyState workspace tree and editor leases", () => {
         expect(file.get().content).toBe("one");
     });
 
-    it("rebases a non-overlapping editor conflict and preserves one idempotency key per retry", async () => {
+    it("rebases a non-overlapping editor conflict under a new logical mutation key", async () => {
         const server = createFakeServer();
         server.respond(
             "GET",
@@ -91,7 +91,7 @@ describe("HappyState workspace tree and editor leases", () => {
         expect(writes).toHaveLength(2);
         expect(writes[0]?.headers?.["idempotency-key"]).toBeTruthy();
         expect(writes[1]?.headers?.["idempotency-key"]).toBeTruthy();
-        expect(writes[1]?.headers?.["idempotency-key"]).toBe(
+        expect(writes[1]?.headers?.["idempotency-key"]).not.toBe(
             writes[0]?.headers?.["idempotency-key"],
         );
     });

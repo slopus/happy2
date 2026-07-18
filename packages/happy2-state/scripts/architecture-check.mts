@@ -37,7 +37,7 @@ for (const privateCapability of privateCapabilities) {
 const actionFiles = files.filter((file) => {
     const stem = basename(file, ".ts");
     return (
-        /(?:Add|Change|Create|Delete|Edit|Join|Leave|Load|Mark|More|Open|Reconcile|Remove|Save|Send|Set|Start|Stop|Submit|Update)$/.test(
+        /(?:Add|Change|Create|Delete|Edit|Join|Leave|Load|Mark|More|Open|Reconcile|Remove|Save|Send|Set|Start|Stop|Submit|Update|Upload)$/.test(
             stem,
         ) && !/(?:Store|Types|Context|InputApply|OutputRoute)$/.test(stem)
     );

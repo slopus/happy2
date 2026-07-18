@@ -12,3 +12,21 @@ export {
     type ComposerFixtureInput,
     type ComposerStoreFixture,
 } from "./composerStoreFixture.js";
+export {
+    adminStoreFixtureCreate,
+    agentImagesStoreFixtureCreate,
+    agentSecretsStoreFixtureCreate,
+    callsStoreFixtureCreate,
+    chatStoreFixtureCreate,
+    directoryStoreFixtureCreate,
+    filesStoreFixtureCreate,
+    notificationsStoreFixtureCreate,
+    searchStoreFixtureCreate,
+    settingsStoreFixtureCreate,
+    sidebarStoreFixtureCreate,
+    threadStoreFixtureCreate,
+    threadsStoreFixtureCreate,
+    workspaceFileStoreFixtureCreate,
+    workspaceStoreFixtureCreate,
+    type SurfaceStoreFixture,
+} from "./surfaceStoreFixtures.js";

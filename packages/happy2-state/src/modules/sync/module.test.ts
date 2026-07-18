@@ -13,6 +13,7 @@ describe("sync module", () => {
             threadsReconcile: vi.fn(),
             notificationsReconcile: vi.fn(),
             agentImagesReconcile: vi.fn(),
+            agentSecretsReconcile: vi.fn(),
             identitiesReconcile: vi.fn(),
             unknownArea: vi.fn(),
         };
@@ -25,6 +26,7 @@ describe("sync module", () => {
             "thread:message-1",
             "notifications",
             "agent-images",
+            "agent-secrets",
             "users",
             "profile",
             "chat:",
@@ -37,6 +39,7 @@ describe("sync module", () => {
         expect(context.threadsReconcile).toHaveBeenCalledTimes(2);
         expect(context.notificationsReconcile).toHaveBeenCalledOnce();
         expect(context.agentImagesReconcile).toHaveBeenCalledOnce();
+        expect(context.agentSecretsReconcile).toHaveBeenCalledOnce();
         expect(context.identitiesReconcile).toHaveBeenCalledTimes(2);
         expect(context.unknownArea).toHaveBeenCalledTimes(2);
     });

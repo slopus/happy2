@@ -28,7 +28,7 @@ export async function workspaceFileSave(
             expectedVersion: base.version,
             patch,
         };
-        const idempotencyKey = context.runtime.createId();
+        let idempotencyKey = context.runtime.createId();
         for (let conflictAttempt = 1; conflictAttempt <= 3; conflictAttempt += 1) {
             try {
                 const result = await context.runtime.operationWithIdempotencyKey(
@@ -97,6 +97,9 @@ export async function workspaceFileSave(
                 patch = rebased;
                 attemptedContent = textPatchApply(latest.content, rebased);
                 request = { path, expectedVersion: latest.version, patch: rebased };
+                // A rebased write has a new payload and expected version, so it is a new logical
+                // mutation. Transport retries of either payload still reuse that payload's key.
+                idempotencyKey = context.runtime.createId();
             }
         }
     });

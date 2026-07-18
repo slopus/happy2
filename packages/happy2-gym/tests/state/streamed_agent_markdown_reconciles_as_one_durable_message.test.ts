@@ -1,4 +1,4 @@
-import { createClientState } from "happy2-state";
+import { happyStateCreate, type ChatMessageItem } from "happy2-state";
 import { describe, expect, it } from "vitest";
 import { createMockRigDaemon, MockAgentSandboxRuntime } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
@@ -22,20 +22,26 @@ describe("streamed agent Markdown through happy2-state", () => {
         await configureAgentImage(server.as(owner));
 
         const transport = await createGymStateTransport(server, owner);
-        await using firstState = createClientState(transport);
         const firstBackgroundErrors: string[] = [];
-        firstState.subscribe("background-error", ({ error }) =>
-            firstBackgroundErrors.push(error.message),
-        );
-        await firstState.start();
+        await using firstState = happyStateCreate({
+            transport,
+            backgroundError: (error) => firstBackgroundErrors.push(error.message),
+        });
+        await firstState.syncStart();
         await transport.whenConnected();
 
-        const chat = await firstState.createAgent({
+        await firstState.agentCreate({
             name: "Markdown Agent",
             username: "markdown_agent",
         });
-        await firstState.loadMessages(chat.id);
-        firstState.sendMessage(chat.id, {
+        const chatId = firstState
+            .sidebar()
+            .get()
+            .chats.find(({ displayName }) => displayName === "Markdown Agent")?.id;
+        if (!chatId) throw new Error("Markdown Agent chat was not materialized");
+        using firstChat = firstState.chatOpen(chatId);
+        await firstState.whenIdle();
+        firstState.messageSend(chatId, {
             text: "Stream a Markdown answer",
             clientMutationId: "stream-markdown-answer",
         });
@@ -48,7 +54,7 @@ describe("streamed agent Markdown through happy2-state", () => {
         await expect
             .poll(
                 () =>
-                    firstState.get().messagesByChat[chat.id]?.map(({ delivery, message }) => ({
+                    firstChat.get().messages.map(({ delivery, message }) => ({
                         delivery,
                         text: message.text,
                     })),
@@ -60,7 +66,7 @@ describe("streamed agent Markdown through happy2-state", () => {
         rig.emitTextDelta(run.runId, firstChunk);
 
         await expect
-            .poll(() => streamedReply(firstState.get().messagesByChat[chat.id]), {
+            .poll(() => streamedReply(firstChat.get().messages), {
                 timeout: 4_000,
             })
             .toMatchObject({
@@ -71,7 +77,7 @@ describe("streamed agent Markdown through happy2-state", () => {
                     text: firstChunk,
                 },
             });
-        const streamedMessage = streamedReply(firstState.get().messagesByChat[chat.id]);
+        const streamedMessage = streamedReply(firstChat.get().messages);
         expect(streamedMessage).toBeDefined();
         const streamedMessageId = streamedMessage!.message.id;
 
@@ -79,7 +85,7 @@ describe("streamed agent Markdown through happy2-state", () => {
         const incompleteMarkdown = firstChunk + secondChunk;
         rig.emitTextDelta(run.runId, secondChunk);
         await expect
-            .poll(() => streamedReply(firstState.get().messagesByChat[chat.id]), {
+            .poll(() => streamedReply(firstChat.get().messages), {
                 timeout: 4_000,
             })
             .toMatchObject({
@@ -90,15 +96,16 @@ describe("streamed agent Markdown through happy2-state", () => {
                 },
             });
 
-        await using secondState = createClientState(transport);
         const secondBackgroundErrors: string[] = [];
-        secondState.subscribe("background-error", ({ error }) =>
-            secondBackgroundErrors.push(error.message),
-        );
-        await secondState.start();
+        await using secondState = happyStateCreate({
+            transport,
+            backgroundError: (error) => secondBackgroundErrors.push(error.message),
+        });
+        await secondState.syncStart();
         await transport.whenConnected();
-        await secondState.loadMessages(chat.id);
-        expect(streamedReply(secondState.get().messagesByChat[chat.id])).toMatchObject({
+        using secondChat = secondState.chatOpen(chatId);
+        await secondState.whenIdle();
+        expect(streamedReply(secondChat.get().messages)).toMatchObject({
             delivery: "sent",
             message: {
                 generationStatus: "streaming",
@@ -110,9 +117,9 @@ describe("streamed agent Markdown through happy2-state", () => {
         const finalMarkdown = `${incompleteMarkdown}42;\n\`\`\`\n`;
         rig.completeRun(run.runId, finalMarkdown);
 
-        for (const state of [firstState, secondState]) {
+        for (const chat of [firstChat, secondChat]) {
             await expect
-                .poll(() => streamedReply(state.get().messagesByChat[chat.id]), {
+                .poll(() => streamedReply(chat.get().messages), {
                     timeout: 8_000,
                 })
                 .toMatchObject({
@@ -124,9 +131,7 @@ describe("streamed agent Markdown through happy2-state", () => {
                     },
                 });
             expect(
-                state
-                    .get()
-                    .messagesByChat[chat.id]?.filter(({ message }) => message.kind === "automated"),
+                chat.get().messages.filter(({ message }) => message.kind === "automated"),
             ).toHaveLength(1);
         }
         expect(firstBackgroundErrors).toEqual([]);
@@ -134,9 +139,7 @@ describe("streamed agent Markdown through happy2-state", () => {
     }, 20_000);
 });
 
-function streamedReply(
-    messages: ReturnType<ReturnType<typeof createClientState>["get"]>["messagesByChat"][string],
-) {
+function streamedReply(messages: readonly ChatMessageItem[]) {
     return messages?.find(({ message }) => message.kind === "automated");
 }
 

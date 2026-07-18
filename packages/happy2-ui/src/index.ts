@@ -237,6 +237,23 @@ export {
 } from "./PolicyControl";
 export { SecretReveal, type SecretRevealProps } from "./SecretReveal";
 export { type EmojiItem, EmojiPicker, type EmojiPickerProps } from "./EmojiPicker";
+export { StoreSurface, type StoreSurfaceProps } from "./StoreSurface";
+export {
+    ChatPage,
+    type ChatPageActions,
+    type ChatPageProps,
+    type ChatPageUser,
+} from "./pages/chat/ChatPage";
+export { AgentImagesPage, type AgentImagesPageProps } from "./pages/admin/AgentImagesPage";
+export { AgentSecretsPage, type AgentSecretsPageProps } from "./pages/admin/AgentSecretsPage";
+export { AdminPage, type AdminPageProps } from "./pages/admin/AdminPage";
+export { ActivityPage, type ActivityPageProps } from "./pages/activity/ActivityPage";
+export { CallsPage, type CallsPageProps } from "./pages/calls/CallsPage";
+export { HomePage, type HomePageProps } from "./pages/home/HomePage";
+export { ThreadsPage, type ThreadsPageProps } from "./pages/threads/ThreadsPage";
+export { FilesPage, type FilesPageProps } from "./pages/files/FilesPage";
+export { SearchPage, type SearchPageProps } from "./pages/search/SearchPage";
+export { SettingsPage, type SettingsPageProps } from "./pages/settings/SettingsPage";
 export {
     type AutomationAction,
     AutomationCard,

@@ -1,7 +1,7 @@
 import type { JSX } from "solid-js";
 
 /*
- * Shared workbench fixtures. Blueprint pages compose these three primitives;
+ * Shared workbench fixtures. Blueprint pages compose these primitives;
  * page-specific arrangement uses inline styles so the shared workbench.css
  * stays page-agnostic.
  */
@@ -37,8 +37,30 @@ export function Specimen(props: {
     );
 }
 
+/** Hosts one production desktop page at its exact minimum-window geometry and 100% scale. */
+export function FullScreenSpecimen(props: {
+    children: JSX.Element;
+    detail: string;
+    label: string;
+    number: string;
+}) {
+    return (
+        <article class="specimen full-screen-specimen">
+            <header>
+                <span>{props.number}</span>
+                <strong>{props.label}</strong>
+                <small>{props.detail}</small>
+            </header>
+            <div class="full-screen-stage">
+                <div class="full-screen-viewport">{props.children}</div>
+            </div>
+        </article>
+    );
+}
+
 export function ComponentPage(props: {
     children: JSX.Element;
+    contract?: "Props only" | "Surface store";
     number: string;
     summary: string;
     title: string;
@@ -59,7 +81,7 @@ export function ComponentPage(props: {
                     </div>
                     <div>
                         <dt>Contract</dt>
-                        <dd>Props only</dd>
+                        <dd>{props.contract ?? "Props only"}</dd>
                     </div>
                     <div>
                         <dt>Capture</dt>

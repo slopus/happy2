@@ -112,6 +112,69 @@ Asynchronous server work (a build, an export, a job) must stream its status
 changes to the UI through the same mechanism, not wait for a user-initiated
 reload.
 
+## Solid UI reactivity and identity
+
+Solid does not re-render a component into a Virtual DOM tree and structurally
+diff that tree after every state change. Components and JSX render children
+normally run once per mounted identity; signals, memos, stores, and render
+effects update the specific expressions that read them. Write Solid code in
+that model rather than porting React render patterns literally.
+
+- A framework adapter for a `happy2-state` surface must own one coarse store
+  subscription and mount its child tree once per store identity. Pass the
+  snapshot as an `Accessor<Snapshot>` and read `snapshot()` inside JSX, a memo,
+  or an effect. Never call a render child with `snapshot()` from a reactive
+  expression: doing so constructs new DOM and loses focus, selection, scroll,
+  and component-local state.
+- Treat a change of store identity as an explicit lifetime boundary. A keyed
+  boundary may dispose the old subscription and remount for a genuinely new
+  store. Ordinary notifications from the same store must retain the existing
+  component and DOM identities.
+- Keep reactive props reactive. Do not freeze a changing prop with
+  `const value = props.value`, destructure changing props, or read an accessor
+  outside a tracking scope. Use `props.value`, an accessor such as
+  `const value = () => props.value`, or `splitProps`. A one-time read is allowed
+  only when the value is an explicit lifetime invariant.
+- Use `createMemo` for reactive derived values and cached projections. Use
+  `createEffect` only for effects such as subscription coordination, imperative
+  browser APIs, or resource loading, and always register cleanup. Do not use an
+  effect merely to copy one reactive value into another signal.
+- Use `<For>` for reorderable entity collections and preserve each item's value
+  identity. `<For>` reconciles by item identity, not by an arbitrary `id` field.
+  Do not put a whole-list `.map()` in front of `<For>` if it creates fresh
+  wrapper objects for unchanged entities.
+- For immutable snapshots whose changed entity receives a new reference, keep
+  an ID-keyed row slot per materialized entity. `<For>` iterates the stable slot
+  objects; the slot exposes a lightweight accessor for the current entity. A
+  difference updates only the affected slot accessor, so the row component and
+  its local menu, reaction, focus, and measurement state stay mounted. Prune
+  slots immediately when their entities leave the materialized list.
+- A row-local signal/accessor is not a product-store subscription. Thousands of
+  repeated rows may have the normal Solid render bindings needed for their DOM,
+  but they must not call `store.subscribe()` individually, mirror authoritative
+  product state, start transport work, or own server synchronization. One
+  surface subscription fans out only to changed row slots.
+- Use `<Index>` only for genuinely position-stable primitive/value lists where
+  an index, rather than an entity, owns the row lifetime. Do not use it for
+  messages, users, files, notifications, or another reorderable entity list.
+- Treat `<Show>`, `<Switch>`, and `<Match>` branch changes as potential mount and
+  disposal boundaries. Use `keyed` only when a reference change intentionally
+  means a new lifetime. Do not put focused controls or stateful panels behind a
+  changing keyed boundary unless resetting them is the product behavior.
+- Changing one entity field must not replace its owning row DOM. Pass the row
+  accessor through reactive component props so a body, reaction, delivery, or
+  menu expression updates inside the existing component. Preserve sibling row
+  references and DOM identities as well.
+- Virtualize collections that can contain thousands of entries. Fine-grained
+  reactivity avoids unnecessary update work but does not make thousands of
+  simultaneous DOM nodes, layout boxes, images, or observers free.
+- Browser tests for a store adapter or repeated-row projection must prove the
+  lifecycle contract, not only visible text: assert child mount count,
+  subscription cleanup, exact DOM-node identity, `document.activeElement`,
+  selection/local value where relevant, and open local panels or menus across
+  local and authoritative store updates. Run those tests in Chromium, Firefox,
+  and WebKit.
+
 ## Sync to main
 
 When asked to “sync to main,” commit the current work, fetch and rebase it onto
@@ -240,13 +303,10 @@ decision to create a process-global instance outside this package.
   UI store. Update another already materialized store only when that surface
   actually renders a projection changed by the event; keep common high-frequency
   actions on one owning store.
-- During incremental migration, the legacy `createClientState` facade and the
-  new `HappyState` feature stores coexist as independent state systems. Never
-  add a shim, adapter, dual-write path, event bridge, or snapshot mirroring
-  between them solely to keep migrated and unmigrated UI synchronized. Move one
-  complete UI surface to its new owning store, then remove that surface's old
-  reads and writes. Temporary divergence between the two systems is an accepted
-  migration condition.
+- `HappyState` feature stores are the only client product-state system. Do not
+  reintroduce an aggregate root snapshot, generic operation/result facade,
+  compatibility shim, adapter, dual-write path, event bridge, or snapshot
+  mirroring between surfaces.
 - Framework adapters may batch or schedule rendering after several synchronous
   store notifications, but state correctness must not depend on one render or
   DOM commit. A subscriber or derived value that requires a coherent combination

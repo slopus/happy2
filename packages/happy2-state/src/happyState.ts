@@ -33,6 +33,7 @@ import { reactionAdd } from "./modules/reaction/reactionAdd.js";
 import { reactionRemove } from "./modules/reaction/reactionRemove.js";
 import type { ReactionSelector } from "./modules/reaction/reactionTypes.js";
 import { filesLoad } from "./modules/files/filesLoad.js";
+import { fileUpload } from "./modules/files/fileUpload.js";
 import { filesStoreCreateBinding, type FilesStoreBinding } from "./modules/files/filesStore.js";
 import type { FilesStore } from "./modules/files/filesTypes.js";
 import { StateRuntime, type StateRuntimeOptions } from "./modules/runtime/stateRuntime.js";
@@ -40,6 +41,7 @@ import { sidebarStoreCreateBinding } from "./modules/sidebar/sidebarStore.js";
 import type { SidebarStore } from "./modules/sidebar/sidebarTypes.js";
 import { SidebarChatsProjector } from "./modules/sidebar/sidebarChatsProject.js";
 import { SettingsCoordinator } from "./modules/settings/settingsCoordinator.js";
+import { avatarUpload } from "./modules/settings/avatarUpload.js";
 import {
     settingsStoreCreateBinding,
     type SettingsStoreBinding,
@@ -478,6 +480,10 @@ export class HappyState implements AsyncDisposable, Disposable {
         return this.runtime.operation("downloadFile", { fileId });
     }
 
+    async fileUpload(body: FormData): Promise<import("./resources.js").UploadedFile> {
+        return fileUpload({ runtime: this.runtime }, body);
+    }
+
     async fileThumbnailDownload(fileId: string): Promise<ArrayBuffer> {
         return this.runtime.operation("downloadFileThumbnail", { fileId });
     }
@@ -493,6 +499,10 @@ export class HappyState implements AsyncDisposable, Disposable {
                 type: "avatarSaved",
                 fileId: result.user.photoFileId,
             });
+    }
+
+    async avatarUpload(body: FormData): Promise<import("./resources.js").UploadedFile> {
+        return avatarUpload({ runtime: this.runtime }, body);
     }
 
     settings(options: SettingsStoreOptions = {}): SettingsStore {
@@ -771,6 +781,16 @@ export class HappyState implements AsyncDisposable, Disposable {
                             agentImagesLoad({
                                 runtime: this.runtime,
                                 images: this.agentImagesBinding,
+                            }),
+                        );
+                },
+                agentSecretsReconcile: () => {
+                    if (this.agentSecretsBinding)
+                        this.runtime.background(
+                            agentSecretsLoad({
+                                runtime: this.runtime,
+                                identities: this.identities,
+                                secrets: this.agentSecretsBinding,
                             }),
                         );
                 },

@@ -344,6 +344,9 @@ importers:
       '@fontsource-variable/jetbrains-mono':
         specifier: ^5.2.8
         version: 5.2.8
+      happy2-state:
+        specifier: workspace:*
+        version: link:../happy2-state
       markdown-to-jsx:
         specifier: ^9.8.2
         version: 9.8.2(react@19.2.7)(solid-js@1.9.14)
@@ -360,9 +363,6 @@ importers:
       happy2-gym:
         specifier: workspace:*
         version: link:../happy2-gym
-      happy2-state:
-        specifier: workspace:*
-        version: link:../happy2-state
       playwright:
         specifier: ^1.61.1
         version: 1.61.1

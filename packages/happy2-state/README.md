@@ -105,12 +105,12 @@ const value = $derived.by(() => {
 Blueprint fixtures can construct unconnected stores and use the exact same commands without auth,
 transport, timers, or a live server.
 
-## Parallel legacy migration
+## Product boundary
 
-`createClientState` and its aggregate legacy model remain exported temporarily and operate completely
-independently. There is intentionally no shim, adapter, mirror, bridge, or dual write. Each UI surface
-will move wholly to its new store in the following integration feature; only after every consumer has
-migrated will the legacy model and `operationResults` be deleted.
+`HappyState` and its independent surface stores are the only product-state API. The former aggregate
+`createClientState` model, whole-root snapshot, generic operation dispatcher, and result cache were
+removed after all application and UI consumers migrated; there is no compatibility shim, mirror,
+bridge, or dual-write path.
 
 ## Testing
 

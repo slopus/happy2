@@ -1,4 +1,4 @@
-import { createClientState } from "happy2-state";
+import { happyStateCreate } from "happy2-state";
 import { describe, expect, it } from "vitest";
 import { createMockRigDaemon, MockAgentSandboxRuntime } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
@@ -21,24 +21,31 @@ describe("agent turns through happy2-state and the real server", () => {
         const owner = await server.createUser({ username: "state_agent_owner" });
         await configureAgentImage(server.as(owner));
         const transport = await createGymStateTransport(server, owner);
-        await using state = createClientState(transport);
         const backgroundErrors: string[] = [];
-        state.subscribe("background-error", ({ error }) => backgroundErrors.push(error.message));
-        await state.start();
+        await using state = happyStateCreate({
+            transport,
+            backgroundError: (error) => backgroundErrors.push(error.message),
+        });
+        await state.syncStart();
         await transport.whenConnected();
 
-        const agentChat = await state.createAgent({ name: "State Agent", username: "state_agent" });
+        await state.agentCreate({ name: "State Agent", username: "state_agent" });
+        const agentChat = state
+            .sidebar()
+            .get()
+            .chats.find(({ displayName }) => displayName === "State Agent")?.chat;
         expect(agentChat).toMatchObject({ kind: "dm", dmType: "direct" });
-        const contacts = await state.execute("getContacts");
-        const agentUser = contacts.users.find((user) => user.username === "state_agent");
+        const directory = state.directory();
+        await state.whenIdle();
+        const agentUser = directory.get().users.find((user) => user.username === "state_agent");
         expect(agentUser).toMatchObject({
-            firstName: "State Agent",
+            displayName: "State Agent",
             username: "state_agent",
             kind: "agent",
-            createdByUserId: owner.id,
         });
-        await state.loadMessages(agentChat.id);
-        state.sendMessage(agentChat.id, {
+        using chat = state.chatOpen(agentChat!.id);
+        await state.whenIdle();
+        state.messageSend(agentChat!.id, {
             text: "Finish despite inference noise",
             clientMutationId: "state-agent-noise",
         });
@@ -47,21 +54,14 @@ describe("agent turns through happy2-state and the real server", () => {
         expect(backgroundErrors).toEqual([]);
         await expect.poll(() => rig.submittedRuns.length, { timeout: 4_000 }).toBe(1);
         await expect
-            .poll(() => state.get().typing.find(({ chatId }) => chatId === agentChat.id)?.userId, {
+            .poll(() => chat.get().typing[0]?.userId, {
                 timeout: 4_000,
             })
             .toBe(agentUser!.id);
         await expect
-            .poll(
-                () =>
-                    state.get().agentActivity.find(({ chatId }) => chatId === agentChat.id)
-                        ?.agentUserId,
-                { timeout: 4_000 },
-            )
+            .poll(() => chat.get().agentActivity[0]?.agentUserId, { timeout: 4_000 })
             .toBe(agentUser!.id);
-        const liveActivity = state
-            .get()
-            .agentActivity.find(({ chatId }) => chatId === agentChat.id)!;
+        const liveActivity = chat.get().agentActivity[0]!;
         expect(["thinking", "typing"]).toContain(liveActivity.phase);
         expect(liveActivity.startedAt).toBeGreaterThan(0);
         expect(liveActivity.expiresAt).toBeGreaterThan(liveActivity.startedAt);
@@ -72,7 +72,7 @@ describe("agent turns through happy2-state and the real server", () => {
         await expect
             .poll(
                 () =>
-                    state.get().messagesByChat[agentChat.id]?.map(({ delivery, message }) => ({
+                    chat.get().messages.map(({ delivery, message }) => ({
                         delivery,
                         text: message.text,
                     })),
@@ -83,22 +83,26 @@ describe("agent turns through happy2-state and the real server", () => {
                 { delivery: "sent", text: "The durable reply arrived once." },
             ]);
         await expect
-            .poll(() => state.get().typing.some(({ chatId }) => chatId === agentChat.id), {
+            .poll(() => chat.get().typing.length > 0, {
                 timeout: 4_000,
             })
             .toBe(false);
         await expect
-            .poll(() => state.get().agentActivity.some(({ chatId }) => chatId === agentChat.id), {
+            .poll(() => chat.get().agentActivity.length > 0, {
                 timeout: 4_000,
             })
             .toBe(false);
-        const reply = state.get().messagesByChat[agentChat.id]?.at(-1)?.message;
+        const reply = chat.get().messages.at(-1)?.message;
         expect(reply?.sender).toMatchObject({
-            firstName: "State Agent",
-            username: "state_agent",
+            displayName: "State Agent",
             kind: "agent",
         });
-        expect(state.get().chats.find(({ id }) => id === agentChat.id)?.unreadCount).toBe(1);
+        expect(
+            state
+                .sidebar()
+                .get()
+                .chats.find(({ id }) => id === agentChat!.id)?.chat.unreadCount,
+        ).toBe(1);
         expect(rig.globalEventReadCount).toBe(0);
         expect(rig.globalStreamRequestCount).toBeGreaterThan(0);
         expect(rig.submittedTexts).toEqual(["Finish despite inference noise"]);

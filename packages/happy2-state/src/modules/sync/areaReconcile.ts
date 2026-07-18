@@ -5,6 +5,7 @@ export interface AreaReconcileContext {
     threadsReconcile(): void;
     notificationsReconcile(): void;
     agentImagesReconcile(): void;
+    agentSecretsReconcile(): void;
     identitiesReconcile(): void;
     unknownArea(area: string): void;
 }
@@ -23,6 +24,7 @@ export function areaReconcile(context: AreaReconcileContext, area: string): void
     else if (area === "threads" || area.startsWith("thread:")) context.threadsReconcile();
     else if (area === "notifications") context.notificationsReconcile();
     else if (area === "agent-images") context.agentImagesReconcile();
+    else if (area === "agent-secrets") context.agentSecretsReconcile();
     else if (area === "users" || area === "profile") context.identitiesReconcile();
     else context.unknownArea(area);
 }

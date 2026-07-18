@@ -385,13 +385,6 @@ export interface CreateAgentInput {
     readonly username: string;
 }
 
-export interface ClientMessage {
-    readonly message: MessageSummary;
-    readonly delivery: "sending" | "sent" | "failed";
-    readonly clientMutationId?: string;
-    readonly error?: UserError;
-}
-
 export interface TypingState {
     readonly chatId: string;
     readonly userId: string;
@@ -414,24 +407,6 @@ export interface AgentActivityState {
     readonly tokenCount: number;
     readonly startedAt: number;
     readonly expiresAt: number;
-}
-
-export interface ClientStateSnapshot {
-    readonly revision: number;
-    readonly status: "idle" | "starting" | "ready" | "offline" | "stopped";
-    readonly sync?: SyncState;
-    readonly chats: readonly ChatSummary[];
-    readonly messagesByChat: Readonly<Record<string, readonly ClientMessage[]>>;
-    readonly workspacesByChat: Readonly<Record<string, ClientWorkspace>>;
-    /** Versioned files currently materialized for open editor surfaces. */
-    readonly workspaceFilesByChat: Readonly<
-        Record<string, Readonly<Record<string, WorkspaceTextFile>>>
-    >;
-    readonly typing: readonly TypingState[];
-    readonly agentActivity: readonly AgentActivityState[];
-    readonly presence: readonly PresenceSnapshot[];
-    /** Latest successful response for each named backend operation. */
-    readonly operationResults: Readonly<Record<string, unknown>>;
 }
 
 export class UserError extends Error {
@@ -460,75 +435,3 @@ export class WorkspaceFileConflictError extends UserError {
         this.name = "WorkspaceFileConflictError";
     }
 }
-
-export type ClientStateEvent =
-    | {
-          readonly type: "status";
-          readonly previous: ClientStateSnapshot["status"];
-          readonly current: ClientStateSnapshot["status"];
-      }
-    | {
-          readonly type: "chats";
-          readonly reason: "initial" | "sync" | "action";
-          readonly chatIds: readonly string[];
-          readonly removedChatIds: readonly string[];
-      }
-    | {
-          readonly type: "messages";
-          readonly reason: "initial" | "sync" | "optimistic" | "confirmed" | "failed";
-          readonly chatId: string;
-          readonly messageIds: readonly string[];
-      }
-    | {
-          readonly type: "typing";
-          readonly chatId: string;
-          readonly userId: string;
-          readonly active: boolean;
-      }
-    | {
-          readonly type: "agent-activity";
-          readonly chatId: string;
-          readonly agentUserId: string;
-          readonly turnId: string;
-          readonly active: boolean;
-      }
-    | {
-          readonly type: "presence";
-          readonly userId: string;
-          readonly status: PresenceSnapshot["status"];
-      }
-    | {
-          readonly type: "workspace";
-          readonly reason: "initial" | "directory" | "sync" | "removed";
-          readonly chatId: string;
-          readonly directories: readonly string[];
-      }
-    | {
-          readonly type: "workspace-file";
-          readonly reason: "read" | "write" | "sync" | "delete" | "conflict" | "unload";
-          readonly chatId: string;
-          readonly path: string;
-          readonly file?: WorkspaceTextFile;
-      }
-    | {
-          readonly type: "realtime";
-          readonly event: RealtimeEvent;
-      }
-    | {
-          readonly type: "background-error";
-          readonly action: "sendMessage" | "setTyping" | "sync" | "workspace" | "workspace-file";
-          readonly error: UserError;
-          readonly chatId?: string;
-          readonly clientMutationId?: string;
-      }
-    | {
-          readonly type: "operation";
-          readonly operation: string;
-          readonly input?: Readonly<Record<string, unknown>>;
-      };
-
-export type ClientStateEventType = ClientStateEvent["type"];
-export type ClientStateEventOf<T extends ClientStateEventType> = Extract<
-    ClientStateEvent,
-    { type: T }
->;

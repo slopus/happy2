@@ -1,4 +1,4 @@
-import { createClientState, UserError } from "happy2-state";
+import { happyStateCreate, type ChatStore } from "happy2-state";
 import { describe, expect, it } from "vitest";
 import { createMockRigDaemon, MockAgentSandboxRuntime, type MockRigDaemon } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
@@ -16,46 +16,46 @@ describe("agent effort across happy2-state and Rig", () => {
             username: "state_effort_agent",
         });
         expect(createdAgent.statusCode).toBe(201);
+        const agentChatId = (createdAgent.json().chat as { id: string }).id;
         const agentUserId = await findAgentUserId(asOwner, "state_effort_agent");
         expect(rig.sessionEffort("session-1")).toBe("high");
 
         const transport = await createGymStateTransport(server, owner);
-        await using state = createClientState(transport, { sleep: async () => undefined });
-        await state.start();
+        await using state = happyStateCreate({ transport, sleep: async () => undefined });
+        await state.syncStart();
         await transport.whenConnected();
+        using chat = state.chatOpen(agentChatId);
+        chat.agentEffortRetain(agentUserId);
+        await state.whenIdle();
 
-        await expect(state.execute("getAgentEffort", { agentUserId })).resolves.toEqual({
-            agentUserId,
-            effort: "high",
-            options: ["low", "medium", "high", "xhigh"],
-        });
-        await expect(state.execute("getContacts")).resolves.toMatchObject({
-            users: expect.arrayContaining([
-                expect.objectContaining({ id: agentUserId, agentEffort: "high" }),
-            ]),
+        expect(chat.get().agentEffort[agentUserId]).toEqual({
+            type: "ready",
+            value: {
+                agentUserId,
+                effort: "high",
+                options: ["low", "medium", "high", "xhigh"],
+            },
         });
 
-        await expect(
-            state.execute("changeAgentEffort", { agentUserId, effort: "ultra" }),
-        ).rejects.toBeInstanceOf(UserError);
+        chat.agentEffortChange(agentUserId, "ultra");
+        await state.whenIdle();
         expect(rig.sessionEffort("session-1")).toBe("high");
+        expect(chat.get().agentEffort[agentUserId]?.type).toBe("error");
 
-        const changed = await state.execute("changeAgentEffort", { agentUserId, effort: "low" });
-        expect(changed).toMatchObject({ agentUserId, effort: "low" });
+        chat.agentEffortChange(agentUserId, "low");
+        await state.whenIdle();
         expect(rig.sessionEffort("session-1")).toBe("low");
 
         /* The change publishes a `users` sync hint; the durable contacts snapshot
            reconciles to the new value without an explicit refetch. */
-        await expect
-            .poll(
-                () =>
-                    state.result("getContacts")?.users.find((user) => user.id === agentUserId)
-                        ?.agentEffort,
-                { timeout: 3_000 },
-            )
-            .toBe("low");
+        await expect.poll(() => effortValue(chat, agentUserId), { timeout: 3_000 }).toBe("low");
     });
 });
+
+function effortValue(chat: ChatStore, agentUserId: string): string | undefined {
+    const value = chat.get().agentEffort[agentUserId];
+    return value?.type === "ready" ? value.value.effort : undefined;
+}
 
 function agentServer(rig: MockRigDaemon) {
     return createGymServer({

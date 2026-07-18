@@ -15,7 +15,7 @@ export async function workspaceFileDelete(
         let base = snapshot.file.type === "ready" ? snapshot.file.value : undefined;
         if (!base) return;
         binding.workspaceFileInput({ type: "contentSaving" });
-        const idempotencyKey = context.runtime.createId();
+        let idempotencyKey = context.runtime.createId();
         for (let conflictAttempt = 1; conflictAttempt <= 3; conflictAttempt += 1) {
             try {
                 await context.runtime.operationWithIdempotencyKey(
@@ -59,6 +59,9 @@ export async function workspaceFileDelete(
                     return;
                 }
                 base = latest;
+                // Retrying transport for one expected version keeps its key. A confirmed
+                // metadata-only conflict changes the expected version and is a new mutation.
+                idempotencyKey = context.runtime.createId();
             }
         }
     });

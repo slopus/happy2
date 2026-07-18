@@ -22,6 +22,7 @@
     "dependencies": {
         "@fontsource-variable/figtree": "^5.2.10",
         "@fontsource-variable/jetbrains-mono": "^5.2.8",
+        "happy2-state": "workspace:*",
         "markdown-to-jsx": "^9.8.2",
         "solid-js": "^1.9.14"
     },
@@ -29,7 +30,6 @@
         "@tailwindcss/vite": "^4.3.2",
         "@vitest/browser-playwright": "^4.1.10",
         "happy2-gym": "workspace:*",
-        "happy2-state": "workspace:*",
         "playwright": "^1.61.1",
         "tailwindcss": "^4.3.2",
         "typescript": "^7.0.2",

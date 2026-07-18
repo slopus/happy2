@@ -11,6 +11,7 @@ import {
     type MentionableAgent,
 } from "../../src/Composer";
 import type { EmojiItem } from "../../src/EmojiPicker";
+import { StoreSurface } from "../../src/StoreSurface";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
 
 const AGENTS: MentionableAgent[] = [
@@ -68,7 +69,7 @@ const RECONCILED_TEXT = "Draft restored from the server after reconnect.";
 
 /*
  * Live composer driven entirely by a standalone happy2-state composer fixture —
- * no transport, auth, server, or legacy createClientState bridge. It exercises
+ * no transport, authentication, server, or cross-store bridge. It exercises
  * BOTH directions of the P0.S1 contract:
  *
  *  - Public local actions (textUpdate, attachmentAdd, attachmentRemove,
@@ -94,17 +95,14 @@ function Playground() {
             if (event.type === "textSubmitted") setLastSubmitted(event.text);
         },
     });
-    const [snapshot, setSnapshot] = createSignal<ComposerSnapshot>(fixture.get());
-    onCleanup(fixture.subscribe(() => setSnapshot(fixture.get())));
     onCleanup(() => fixture[Symbol.dispose]());
 
-    const submission = () => snapshot().submission;
-    const pendingRevision = () => {
-        const current = submission();
+    const pendingRevision = (snapshot: ComposerSnapshot) => {
+        const current = snapshot.submission;
         return current.status === "pending" ? current.revision : null;
     };
-    const statusLine = () => {
-        const current = submission();
+    const statusLine = (snapshot: ComposerSnapshot) => {
+        const current = snapshot.submission;
         const detail =
             current.status === "pending"
                 ? `pending · revision ${current.revision}`
@@ -117,20 +115,20 @@ function Playground() {
             : `submission ${detail} · last submit “${submitted}”`;
     };
 
-    const contextItems = (): ContextItem[] =>
-        snapshot().attachments.map((attachment) => ({
+    const contextItems = (snapshot: ComposerSnapshot): ContextItem[] =>
+        snapshot.attachments.map((attachment) => ({
             detail: `${Math.max(1, Math.round(attachment.size / 1024))} KB`,
             id: attachment.id,
             kind: "file",
             label: attachment.name,
         }));
 
-    const confirmSubmission = () => {
-        const revision = pendingRevision();
+    const confirmSubmission = (snapshot: ComposerSnapshot) => {
+        const revision = pendingRevision(snapshot);
         if (revision !== null) fixture.input({ type: "submissionConfirmed", revision });
     };
-    const failSubmission = () => {
-        const revision = pendingRevision();
+    const failSubmission = (snapshot: ComposerSnapshot) => {
+        const revision = pendingRevision(snapshot);
         if (revision !== null) {
             fixture.input({
                 type: "submissionFailed",
@@ -142,62 +140,66 @@ function Playground() {
     const reconcileText = () => fixture.input({ type: "textReconciled", text: RECONCILED_TEXT });
 
     return (
-        <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
-            <Composer
-                agents={AGENTS}
-                attachmentMultiple
-                contextItems={contextItems()}
-                emoji={EMOJI}
-                hint="Enter to send · @ to hand off to an agent"
-                onAttachmentsSelect={(files) => {
-                    for (const file of files) {
-                        fixture.attachmentAdd({
-                            id: `file-${attachmentSeq++}-${file.name}`,
-                            name: file.name,
-                            size: file.size,
-                        });
-                    }
-                }}
-                onContextRemove={(id) => fixture.attachmentRemove(id)}
-                onSend={() => fixture.textSubmit()}
-                onValueChange={(next) => fixture.textUpdate(next)}
-                pending={submission().status === "pending"}
-                placeholder="Message #launch-week — @ mention an agent to hand off…"
-                value={snapshot().text}
-            />
-            <div
-                style={{
-                    display: "flex",
-                    "flex-direction": "row",
-                    "flex-wrap": "wrap",
-                    "align-items": "center",
-                    gap: "8px",
-                }}
-            >
-                <Button
-                    disabled={pendingRevision() === null}
-                    icon="check"
-                    onClick={confirmSubmission}
-                    size="small"
-                    variant="success"
-                >
-                    Confirm send
-                </Button>
-                <Button
-                    disabled={pendingRevision() === null}
-                    icon="close"
-                    onClick={failSubmission}
-                    size="small"
-                    variant="danger"
-                >
-                    Fail send
-                </Button>
-                <Button icon="merge" onClick={reconcileText} size="small" variant="ghost">
-                    Reconcile text
-                </Button>
-            </div>
-            <DimensionRule label={statusLine()} />
-        </div>
+        <StoreSurface store={fixture}>
+            {(snapshot, store) => (
+                <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+                    <Composer
+                        agents={AGENTS}
+                        attachmentMultiple
+                        contextItems={contextItems(snapshot())}
+                        emoji={EMOJI}
+                        hint="Enter to send · @ to hand off to an agent"
+                        onAttachmentsSelect={(files) => {
+                            for (const file of files) {
+                                store.attachmentAdd({
+                                    id: `file-${attachmentSeq++}-${file.name}`,
+                                    name: file.name,
+                                    size: file.size,
+                                });
+                            }
+                        }}
+                        onContextRemove={(id) => store.attachmentRemove(id)}
+                        onSend={() => store.textSubmit()}
+                        onValueChange={(next) => store.textUpdate(next)}
+                        pending={snapshot().submission.status === "pending"}
+                        placeholder="Message #launch-week — @ mention an agent to hand off…"
+                        value={snapshot().text}
+                    />
+                    <div
+                        style={{
+                            display: "flex",
+                            "flex-direction": "row",
+                            "flex-wrap": "wrap",
+                            "align-items": "center",
+                            gap: "8px",
+                        }}
+                    >
+                        <Button
+                            disabled={pendingRevision(snapshot()) === null}
+                            icon="check"
+                            onClick={() => confirmSubmission(snapshot())}
+                            size="small"
+                            variant="success"
+                        >
+                            Confirm send
+                        </Button>
+                        <Button
+                            disabled={pendingRevision(snapshot()) === null}
+                            icon="close"
+                            onClick={() => failSubmission(snapshot())}
+                            size="small"
+                            variant="danger"
+                        >
+                            Fail send
+                        </Button>
+                        <Button icon="merge" onClick={reconcileText} size="small" variant="ghost">
+                            Reconcile text
+                        </Button>
+                    </div>
+                    <DimensionRule label={statusLine(snapshot())} />
+                </div>
+            )}
+        </StoreSurface>
     );
 }
 

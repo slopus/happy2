@@ -1,5 +1,5 @@
 import { Match, Show, Switch, createSignal, onCleanup, onMount, type JSX } from "solid-js";
-import { createClientState, type ClientState } from "happy2-state";
+import { happyStateCreate, type HappyState } from "happy2-state";
 import {
     AuthScreen,
     type AuthScreenState,
@@ -14,7 +14,7 @@ import { createServerClient, ServerError, type AuthMethods, type User } from "..
 import { createAuthenticatedTransport } from "../stateTransport";
 
 export type AuthSession = {
-    state: ClientState;
+    state: HappyState;
     user: User;
     updateUser: (user: User) => void;
     /**
@@ -45,7 +45,7 @@ export function AuthGate(props: AuthGateProps) {
     const [mode, setMode] = createSignal<Mode>("loading");
     const [methods, setMethods] = createSignal<AuthMethods>();
     const [user, setUser] = createSignal<User>();
-    const [state, setState] = createSignal<ClientState>();
+    const [state, setState] = createSignal<HappyState>();
     const [isRegistering, setIsRegistering] = createSignal(false);
     const [email, setEmail] = createSignal("");
     const [password, setPassword] = createSignal("");
@@ -76,17 +76,19 @@ export function AuthGate(props: AuthGateProps) {
         }
         setLoadingMessage("Loading your profile.");
         setMode("loading");
-        const nextState = createClientState(createAuthenticatedTransport(props.serverUrl, value));
+        const nextState = happyStateCreate({
+            transport: createAuthenticatedTransport(props.serverUrl, value),
+        });
         try {
             const response = await client.me(value);
-            await nextState.start();
+            await nextState.syncStart();
             const profile = await loadAvatar(response.user, nextState);
-            state()?.stop();
+            state()?.[Symbol.dispose]();
             setState(nextState);
             setUser(profile);
             setMode("ready");
         } catch (reason) {
-            nextState.stop();
+            nextState[Symbol.dispose]();
             if (!(reason instanceof ServerError) || reason.status !== 401) throw reason;
             if (value && allowRefresh) {
                 try {
@@ -108,11 +110,11 @@ export function AuthGate(props: AuthGateProps) {
             setMode(methods()?.method === "cloudflare_access" ? "onboarding" : "sign-in");
         }
     }
-    async function loadAvatar(profile: User, model: ClientState): Promise<User> {
+    async function loadAvatar(profile: User, model: HappyState): Promise<User> {
         if (!profile.photoFileId) return profile;
         try {
             if (avatarUrl) URL.revokeObjectURL(avatarUrl);
-            const contents = await model.execute("downloadFile", { fileId: profile.photoFileId });
+            const contents = await model.fileDownload(profile.photoFileId);
             avatarUrl = URL.createObjectURL(new Blob([contents]));
             return { ...profile, avatarUrl };
         } catch {
@@ -123,13 +125,13 @@ export function AuthGate(props: AuthGateProps) {
         const current = user();
         const model = state();
         if (!current || !model) return;
-        const contents = await model.execute("downloadFile", { fileId: photoFileId });
+        const contents = await model.fileDownload(photoFileId);
         if (avatarUrl) URL.revokeObjectURL(avatarUrl);
         avatarUrl = URL.createObjectURL(new Blob([contents]));
         setUser({ ...current, photoFileId, avatarUrl });
     }
     onCleanup(() => {
-        state()?.stop();
+        state()?.[Symbol.dispose]();
         if (avatarUrl) URL.revokeObjectURL(avatarUrl);
     });
     onMount(async () => {

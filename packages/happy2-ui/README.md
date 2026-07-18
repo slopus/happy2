@@ -1,10 +1,11 @@
 # happy2-ui
 
-View-only SolidJS primitives for Happy (2), implementing the "Relay" dark theme. Components do not
-read from application stores or own product state; callers provide content, appearance, state, and
-event handlers through props. All colors and typography come from the `--happy2-*` design tokens in
-`src/theme.css`. The package bundles the OFL-licensed Figtree (UI) and JetBrains Mono (code)
-variable fonts so component typography does not depend on host operating-system fonts.
+SolidJS visuals and product-surface composition for Happy (2), implementing the "Relay" dark
+theme. Leaf components remain props-only. A complete product surface may use `StoreSurface` to
+consume one concrete framework-independent `happy2-state` store directly, without callback shims or
+framework-specific selectors. All colors and typography come from the `--happy2-*` design tokens in
+`src/theme.css`. The package bundles the OFL-licensed Figtree (UI) and JetBrains Mono (code) variable
+fonts so component typography does not depend on host operating-system fonts.
 
 Run `pnpm --filter happy2-ui dev` to open the blueprint component workbench. Its component selector
 navigates between the specimen pages C-001 (Box) through C-017 (Composer): layout and window
@@ -21,6 +22,42 @@ import { Box, Button } from "happy2-ui";
     </Button>
 </Box>;
 ```
+
+## Product state surfaces
+
+`StoreSurface` is the only Solid reactivity adapter needed by a product-sized UI composition. It
+reads the store's immutable snapshot, owns exactly one subscription, and passes a reactive snapshot
+accessor plus the same concrete store with its safe public local actions intact. The render child is
+mounted once per store identity, so notifications update Solid expressions without replacing input
+nodes or losing focus, selection, scroll, or component-local state. Repeated rows such as messages,
+identities, avatars, and reactions receive stable props from that one snapshot and create no
+subscriptions of their own.
+
+```tsx
+import type { ChatStore } from "happy2-state";
+import { Message, MessageList, StoreSurface } from "happy2-ui";
+import { For } from "solid-js";
+
+export function ChatTimeline(props: { store: ChatStore }) {
+    return (
+        <StoreSurface store={props.store}>
+            {(snapshot) => (
+                <MessageList>
+                    {/* A surface-level mapper translates the product projection once. */}
+                    <For each={snapshot().messages}>
+                        {(item) => <Message {...messagePropsFromProjection(item)} />}
+                    </For>
+                </MessageList>
+            )}
+        </StoreSurface>
+    );
+}
+```
+
+The adapter does not load data or own transport, authentication, synchronization, persistence, or
+store lifetime. The application creates and retains live stores; Blueprint and browser tests use
+the real deterministic fixture builders from `happy2-state/testing`. When the `store` prop changes,
+the adapter disposes the old subscription and installs one subscription on the replacement.
 
 ## Dimension tests
 

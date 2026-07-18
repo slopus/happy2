@@ -337,6 +337,41 @@ select {
     background-color: #1c1b22;
 }
 
+.full-screen-specimen {
+    margin-top: 30px;
+}
+
+.full-screen-stage {
+    display: flex;
+    min-width: 100%;
+    align-items: flex-start;
+    justify-content: flex-start;
+    overflow: auto;
+    padding: 24px;
+    background-color: #0d3859;
+    background-image:
+        linear-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgb(255 255 255 / 0.05) 1px, transparent 1px);
+    background-size: 16px 16px;
+}
+
+.full-screen-viewport {
+    display: flex;
+    width: 1024px;
+    min-width: 1024px;
+    height: 704px;
+    min-height: 704px;
+    align-items: stretch;
+    justify-content: stretch;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.2);
+}
+
+.full-screen-viewport > * {
+    width: 100%;
+    height: 100%;
+}
+
 .dimensioned-button {
     position: relative;
     display: grid;

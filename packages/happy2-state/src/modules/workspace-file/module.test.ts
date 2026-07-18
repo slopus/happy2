@@ -4,6 +4,7 @@ import { textPatchApply, textPatchFromContents, textPatchRebase } from "./textPa
 import { workspaceFileStoreCreateBinding } from "./workspaceFileStore.js";
 import type { StateRuntime } from "../runtime/stateRuntime.js";
 import { workspaceFileDelete } from "./workspaceFileDelete.js";
+import { workspaceFileSave } from "./workspaceFileSave.js";
 
 describe("workspace file module", () => {
     it("tracks local edits through save, conflict, and delete transitions", () => {
@@ -63,6 +64,70 @@ describe("workspace file module", () => {
         );
         expect(binding.store.get().file.type).toBe("unloaded");
         expect(workspaceReconcile).toHaveBeenCalledWith("chat-1");
+        binding.dispose();
+    });
+
+    it("uses a new logical mutation key after an unchanged-content delete conflict", async () => {
+        const binding = workspaceFileStoreCreateBinding("chat-1", "src/a.ts");
+        binding.workspaceFileInput({ type: "fileLoaded", file: file("one", "v1") });
+        const ids = ["delete-v1", "delete-v2"];
+        const operationWithIdempotencyKey = vi
+            .fn()
+            .mockRejectedValueOnce(new UserError("conflict", "workspace_file_conflict"))
+            .mockResolvedValueOnce({ removed: true });
+        await workspaceFileDelete(
+            {
+                runtime: {
+                    createId: () => ids.shift() ?? "unexpected",
+                    operationWithIdempotencyKey,
+                    operation: vi.fn().mockResolvedValue({ file: file("one", "v2") }),
+                } as unknown as StateRuntime,
+                workspaceFileGet: () => binding,
+                workspaceReconcile: vi.fn(),
+            },
+            "chat-1",
+            "src/a.ts",
+        );
+        expect(operationWithIdempotencyKey.mock.calls.map((call) => call[1])).toEqual([
+            "delete-v1",
+            "delete-v2",
+        ]);
+        expect(binding.store.get().file.type).toBe("unloaded");
+        binding.dispose();
+    });
+
+    it("uses a new logical mutation key for a rebased save payload", async () => {
+        const binding = workspaceFileStoreCreateBinding("chat-1", "src/a.ts");
+        binding.workspaceFileInput({ type: "fileLoaded", file: file("hello world", "v1") });
+        binding.store.contentUpdate("hello codex");
+        const ids = ["save-v1", "save-v2"];
+        const operationWithIdempotencyKey = vi
+            .fn()
+            .mockRejectedValueOnce(new UserError("conflict", "workspace_file_conflict"))
+            .mockResolvedValueOnce({ file: { path: "src/a.ts", size: 18, version: "v3" } });
+        await workspaceFileSave(
+            {
+                runtime: {
+                    createId: () => ids.shift() ?? "unexpected",
+                    operationWithIdempotencyKey,
+                    operation: vi
+                        .fn()
+                        .mockResolvedValue({ file: file("header\nhello world", "v2") }),
+                } as unknown as StateRuntime,
+                workspaceFileGet: () => binding,
+                workspaceReconcile: vi.fn(),
+            },
+            "chat-1",
+            "src/a.ts",
+        );
+        expect(operationWithIdempotencyKey.mock.calls.map((call) => call[1])).toEqual([
+            "save-v1",
+            "save-v2",
+        ]);
+        expect(binding.store.get()).toMatchObject({
+            content: "header\nhello codex",
+            saveState: { type: "clean" },
+        });
         binding.dispose();
     });
 

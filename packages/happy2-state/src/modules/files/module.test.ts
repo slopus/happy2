@@ -1,11 +1,40 @@
 import { describe, expect, it, vi } from "vitest";
 import type { FileSummary } from "../../types.js";
 import { createFakeServer, jsonResponse } from "../../testing/index.js";
+import type { ClientTransport, HttpRequest, HttpResponse } from "../../transport.js";
 import { StateRuntime } from "../runtime/stateRuntime.js";
 import { filesLoad } from "./filesLoad.js";
+import { fileUpload } from "./fileUpload.js";
 import { filesStoreCreateBinding } from "./filesStore.js";
 
 describe("files module", () => {
+    it("uploads an attachment through the typed file action", async () => {
+        const uploaded = {
+            id: "file-1",
+            originalName: "note.txt",
+            contentType: "text/plain",
+            kind: "file" as const,
+            size: 4,
+            uploadedByUserId: "user-1",
+            createdAt: "now",
+        };
+        const body = new FormData();
+        body.append("file", new Blob(["note"], { type: "text/plain" }), "note.txt");
+        const requests: HttpRequest[] = [];
+        const transport: ClientTransport = {
+            async request<T = unknown>(request: HttpRequest): Promise<HttpResponse<T>> {
+                requests.push(request);
+                return { status: 200, body: { file: uploaded } as T };
+            },
+            subscribe: () => () => undefined,
+        };
+        const runtime = new StateRuntime({ transport });
+
+        await expect(fileUpload({ runtime }, body)).resolves.toEqual(uploaded);
+        expect(requests).toEqual([{ method: "POST", path: "/v0/files/upload", body }]);
+        runtime.stop();
+    });
+
     it("pages only with a cursor, deduplicates replacements, and preserves rows on page failure", async () => {
         const output = vi.fn();
         const files = filesStoreCreateBinding(output);

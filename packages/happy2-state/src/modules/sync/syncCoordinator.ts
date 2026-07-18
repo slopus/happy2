@@ -195,8 +195,9 @@ export class SyncCoordinator {
             for (const chat of difference.changedChats) {
                 const binding = this.context.chatGet(chat.id);
                 if (!binding) continue;
-                binding.chatInput({ type: "chatSummaryReconciled", chat });
-                await this.chatSynchronize(chat.id, generation);
+                if (binding.store.get().status.type === "ready")
+                    await this.chatSynchronize(chat.id, generation);
+                else binding.chatInput({ type: "chatSummaryReconciled", chat });
             }
             for (const area of difference.areas) this.context.areaReconcile(area);
             cursor = difference.state;
