@@ -81,6 +81,7 @@ describe("LocalPubSub contract", () => {
         for (const userId of ["one", "two", "three"]) {
             const connectionId = `connection-${userId}`;
             await pubsub.connectPresence({ connectionId, userId });
+            await pubsub.recordPresenceActivity(connectionId);
             await pubsub.disconnectPresence(connectionId);
         }
         expect(await pubsub.getPresenceSnapshot()).toHaveLength(2);
@@ -169,7 +170,7 @@ describe("LocalPubSub contract", () => {
         ).rejects.toThrow("session description");
     });
 
-    it("tracks multiple presence connections, activity, and offline snapshots", async () => {
+    it("keeps transport registration offline and tracks explicit presence leases", async () => {
         let now = 100;
         const pubsub = new LocalPubSub({ clock: () => now });
         const events: PresenceEvent[] = [];
@@ -181,48 +182,132 @@ describe("LocalPubSub contract", () => {
             pubsub.connectPresence({ connectionId: "connection-one", userId: "user-one" }),
         ).resolves.toEqual({
             userId: "user-one",
-            status: "online",
-            connectionCount: 1,
-            lastActiveAt: 100,
+            status: "offline",
+            connectionCount: 0,
+            lastSeenAt: undefined,
+            expiresAt: undefined,
         });
         now = 110;
         await pubsub.connectPresence({ connectionId: "connection-two", userId: "user-one" });
         now = 120;
         await pubsub.recordPresenceActivity("connection-one");
         now = 130;
+        await pubsub.recordPresenceActivity("connection-two");
+        now = 140;
         await pubsub.disconnectPresence("connection-one");
         expect(await pubsub.getPresenceSnapshot(["user-one", "never-online"])).toEqual([
             {
                 userId: "user-one",
                 status: "online",
                 connectionCount: 1,
-                lastActiveAt: 130,
+                lastSeenAt: 130,
+                expiresAt: 60_130,
             },
             {
                 userId: "never-online",
                 status: "offline",
                 connectionCount: 0,
-                lastActiveAt: undefined,
+                lastSeenAt: undefined,
+                expiresAt: undefined,
             },
         ]);
 
-        now = 140;
+        now = 150;
         await pubsub.disconnectPresence("connection-two");
         expect(await pubsub.getPresenceSnapshot(["user-one"])).toEqual([
             {
                 userId: "user-one",
                 status: "offline",
                 connectionCount: 0,
-                lastActiveAt: 140,
+                lastSeenAt: 130,
+                expiresAt: undefined,
             },
         ]);
         expect(events.map((event) => event.change)).toEqual([
-            "connected",
-            "connected",
+            "activity",
             "activity",
             "disconnected",
             "disconnected",
         ]);
+    });
+
+    it("expires a silent lease after its observer-visible deadline", async () => {
+        let now = 100;
+        const pubsub = new LocalPubSub({ clock: () => now, presenceTtlMs: 60 });
+        await pubsub.connectPresence({ connectionId: "connection-one", userId: "user-one" });
+
+        now = 110;
+        await expect(pubsub.recordPresenceActivity("connection-one")).resolves.toEqual({
+            userId: "user-one",
+            status: "online",
+            connectionCount: 1,
+            lastSeenAt: 110,
+            expiresAt: 170,
+        });
+        now = 169;
+        expect(await pubsub.getPresenceSnapshot(["user-one"])).toMatchObject([
+            { status: "online", expiresAt: 170 },
+        ]);
+        now = 170;
+        expect(await pubsub.getPresenceSnapshot(["user-one"])).toEqual([
+            {
+                userId: "user-one",
+                status: "offline",
+                connectionCount: 0,
+                lastSeenAt: 110,
+                expiresAt: undefined,
+            },
+        ]);
+        await pubsub.close();
+    });
+
+    it("stays online until the final active presence connection disconnects", async () => {
+        const pubsub = new LocalPubSub({ clock: () => 100 });
+        const events: PresenceEvent[] = [];
+        pubsub.subscribe(realtimeTopics.presence, (event) => {
+            if (event.type === "presence") events.push(event);
+        });
+        await pubsub.connectPresence({ connectionId: "connection-one", userId: "user-one" });
+        await pubsub.connectPresence({ connectionId: "connection-two", userId: "user-one" });
+        await pubsub.recordPresenceActivity("connection-one");
+        await pubsub.recordPresenceActivity("connection-two");
+
+        await pubsub.disconnectPresence("connection-one");
+        expect(events.at(-1)).toMatchObject({
+            change: "disconnected",
+            snapshot: { status: "online", connectionCount: 1 },
+        });
+        expect(events.filter((event) => event.snapshot.status === "offline")).toHaveLength(0);
+
+        await pubsub.disconnectPresence("connection-two");
+        expect(events.at(-1)).toMatchObject({
+            change: "disconnected",
+            snapshot: { status: "offline", connectionCount: 0 },
+        });
+        expect(events.filter((event) => event.snapshot.status === "offline")).toHaveLength(1);
+        await pubsub.close();
+    });
+
+    it("publishes one offline transition when an active lease expires", async () => {
+        const pubsub = new LocalPubSub({ presenceTtlMs: 10 });
+        const events: PresenceEvent[] = [];
+        pubsub.subscribe(realtimeTopics.presence, (event) => {
+            if (event.type === "presence") events.push(event);
+        });
+        await pubsub.connectPresence({ connectionId: "connection-one", userId: "user-one" });
+        await pubsub.recordPresenceActivity("connection-one");
+
+        await vi.waitFor(() => {
+            expect(events.map((event) => event.change)).toEqual(["activity", "expired"]);
+        });
+        expect(events.at(-1)?.snapshot).toMatchObject({
+            userId: "user-one",
+            status: "offline",
+            connectionCount: 0,
+        });
+        await pubsub.disconnectPresence("connection-one");
+        expect(events.map((event) => event.change)).toEqual(["activity", "expired"]);
+        await pubsub.close();
     });
 
     it("makes repeated presence connection safe but rejects cross-user reuse", async () => {
@@ -230,7 +315,7 @@ describe("LocalPubSub contract", () => {
         await pubsub.connectPresence({ connectionId: "same", userId: "user-one" });
         await expect(
             pubsub.connectPresence({ connectionId: "same", userId: "user-one" }),
-        ).resolves.toMatchObject({ connectionCount: 1 });
+        ).resolves.toMatchObject({ connectionCount: 0 });
         await expect(
             pubsub.connectPresence({ connectionId: "same", userId: "user-two" }),
         ).rejects.toThrow("already in use");

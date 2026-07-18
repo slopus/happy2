@@ -6,7 +6,6 @@ export type Unsubscribe = () => void;
 export interface PresenceConnection {
     readonly connectionId: string;
     readonly userId: string;
-    readonly occurredAt?: number;
 }
 
 /**

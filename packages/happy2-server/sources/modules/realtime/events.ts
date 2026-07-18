@@ -15,6 +15,7 @@ export interface RealtimeLimits {
     maxSessionDescriptionBytes: number;
     maxIceCandidateBytes: number;
     maxPresenceUsers: number;
+    maxPresenceTtlMs: number;
 }
 
 export const DEFAULT_REALTIME_LIMITS: Readonly<RealtimeLimits> = Object.freeze({
@@ -28,6 +29,7 @@ export const DEFAULT_REALTIME_LIMITS: Readonly<RealtimeLimits> = Object.freeze({
     maxSessionDescriptionBytes: 48 * 1024,
     maxIceCandidateBytes: 8 * 1024,
     maxPresenceUsers: 10_000,
+    maxPresenceTtlMs: 60_000,
 });
 
 /** An unsigned SQLite INTEGER encoded losslessly for JSON transport. */
@@ -85,10 +87,12 @@ export interface PresenceSnapshot {
     readonly userId: string;
     readonly status: PresenceStatus;
     readonly connectionCount: number;
-    readonly lastActiveAt?: number;
+    readonly lastSeenAt?: number;
+    /** Required while online so each observer can expire a silent lease locally. */
+    readonly expiresAt?: number;
 }
 
-export type PresenceChange = "connected" | "activity" | "disconnected";
+export type PresenceChange = "activity" | "expired" | "disconnected";
 
 export interface PresenceEvent {
     readonly type: "presence";
@@ -254,7 +258,7 @@ export function assertRealtimeEvent(
             return;
         case "presence":
             assertTimestamp(event.occurredAt, "presence occurredAt");
-            if (!(["connected", "activity", "disconnected"] as unknown[]).includes(event.change))
+            if (!(["activity", "expired", "disconnected"] as unknown[]).includes(event.change))
                 throw new Error("Invalid presence change");
             assertPresenceSnapshot(event.snapshot, limits);
             return;
@@ -316,8 +320,23 @@ function assertPresenceSnapshot(snapshot: PresenceSnapshot, limits: RealtimeLimi
         throw new Error("Online presence requires a connection");
     if (snapshot.status === "offline" && snapshot.connectionCount !== 0)
         throw new Error("Offline presence cannot have connections");
-    if (snapshot.lastActiveAt !== undefined)
-        assertTimestamp(snapshot.lastActiveAt, "presence lastActiveAt");
+    if (snapshot.lastSeenAt !== undefined)
+        assertTimestamp(snapshot.lastSeenAt, "presence lastSeenAt");
+    if (snapshot.status === "online" && snapshot.expiresAt === undefined)
+        throw new Error("Online presence requires expiresAt");
+    if (snapshot.status === "offline" && snapshot.expiresAt !== undefined)
+        throw new Error("Offline presence cannot have expiresAt");
+    if (snapshot.expiresAt !== undefined) {
+        assertTimestamp(snapshot.expiresAt, "presence expiresAt");
+        if (
+            snapshot.lastSeenAt === undefined ||
+            snapshot.expiresAt < snapshot.lastSeenAt ||
+            snapshot.expiresAt - snapshot.lastSeenAt > limits.maxPresenceTtlMs
+        )
+            throw new Error(
+                `Presence expiry must be within ${limits.maxPresenceTtlMs} ms of last seen`,
+            );
+    }
 }
 
 function assertCallSignal(signal: WebRtcSignal, limits: RealtimeLimits): void {

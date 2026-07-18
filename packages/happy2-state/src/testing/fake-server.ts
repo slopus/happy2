@@ -38,7 +38,7 @@ export interface FakeServerEvents {
         expiresAt?: number;
     }): void;
     presence(input: {
-        change: "connected" | "activity" | "disconnected";
+        change: "activity" | "expired" | "disconnected";
         snapshot: PresenceSnapshot;
         occurredAt?: number;
     }): void;

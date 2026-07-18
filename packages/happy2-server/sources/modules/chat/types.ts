@@ -63,6 +63,7 @@ export interface UserSummary {
     createdByUserId?: string;
     systemRole?: "service";
     agentRole?: "default";
+    lastSeenAt?: string;
 }
 
 export type AgentImageStatus = "pending" | "building" | "ready" | "failed";

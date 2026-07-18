@@ -1108,6 +1108,7 @@ export const users = sqliteTable("users", {
     role: text("role").notNull().default("member"),
     deletedAt: text("deleted_at"),
     lastAccessAt: text("last_access_at"),
+    lastSeenAt: text("last_seen_at"),
     syncSequence: integer("sync_sequence").notNull().default(0),
     systemRole: text("system_role"),
     agentRole: text("agent_role"),

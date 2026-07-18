@@ -27,6 +27,7 @@ export interface SubscriberErrorContext {
 export interface LocalPubSubOptions {
     readonly clock?: () => number;
     readonly limits?: Partial<RealtimeLimits>;
+    readonly presenceTtlMs?: number;
     readonly onSubscriberError?: (
         error: unknown,
         context: SubscriberErrorContext,
@@ -36,25 +37,38 @@ export interface LocalPubSubOptions {
 interface LocalConnection {
     readonly connectionId: string;
     readonly userId: string;
-    lastActiveAt: number;
+    lastSeenAt?: number;
+    expiresAt?: number;
 }
 
 /** In-memory, process-local pubsub. All state disappears on close or restart. */
 export class LocalPubSub implements PubSub {
     private readonly clock: () => number;
     private readonly limits: RealtimeLimits;
+    private readonly presenceTtlMs: number;
     private readonly onSubscriberError?: LocalPubSubOptions["onSubscriberError"];
     private readonly subscribers = new Map<RealtimeTopic, Set<RealtimeSubscriber>>();
     private readonly connections = new Map<string, LocalConnection>();
     private readonly connectionsByUser = new Map<string, Set<string>>();
     private readonly lastActivityByUser = new Map<string, number>();
+    private readonly lastOfflineEventByUser = new Map<string, number>();
+    private readonly presenceTimers = new Map<string, NodeJS.Timeout>();
     private closed = false;
 
     constructor(options: LocalPubSubOptions = {}) {
         this.clock = options.clock ?? Date.now;
         this.limits = { ...DEFAULT_REALTIME_LIMITS, ...options.limits };
+        this.presenceTtlMs = options.presenceTtlMs ?? this.limits.maxPresenceTtlMs;
         this.onSubscriberError = options.onSubscriberError;
         assertLimits(this.limits);
+        if (
+            !Number.isSafeInteger(this.presenceTtlMs) ||
+            this.presenceTtlMs < 1 ||
+            this.presenceTtlMs > this.limits.maxPresenceTtlMs
+        )
+            throw new Error(
+                `Presence TTL must be between 1 and ${this.limits.maxPresenceTtlMs} ms`,
+            );
     }
 
     async publish(topic: RealtimeTopic, event: RealtimeEvent): Promise<void> {
@@ -94,29 +108,22 @@ export class LocalPubSub implements PubSub {
         this.assertOpen();
         assertRealtimeId(connection.connectionId, "connection id", this.limits);
         assertRealtimeId(connection.userId, "user id", this.limits);
-        const occurredAt = this.occurredAt(connection.occurredAt);
         const existing = this.connections.get(connection.connectionId);
         if (existing) {
             if (existing.userId !== connection.userId)
                 throw new Error("Presence connection id is already in use");
-            if (occurredAt > existing.lastActiveAt) {
-                existing.lastActiveAt = occurredAt;
-                this.rememberActivity(existing.userId, occurredAt);
-            }
             return this.snapshot(existing.userId);
         }
 
         const local: LocalConnection = {
             connectionId: connection.connectionId,
             userId: connection.userId,
-            lastActiveAt: occurredAt,
         };
         this.connections.set(local.connectionId, local);
         const userConnections = this.connectionsByUser.get(local.userId) ?? new Set<string>();
         userConnections.add(local.connectionId);
         this.connectionsByUser.set(local.userId, userConnections);
-        this.rememberActivity(local.userId, occurredAt);
-        return this.emitPresence("connected", local.userId, occurredAt);
+        return this.snapshot(local.userId);
     }
 
     async recordPresenceActivity(
@@ -128,8 +135,10 @@ export class LocalPubSub implements PubSub {
         const connection = this.connections.get(connectionId);
         if (!connection) return undefined;
         const time = this.occurredAt(occurredAt);
-        connection.lastActiveAt = Math.max(connection.lastActiveAt, time);
-        this.rememberActivity(connection.userId, connection.lastActiveAt);
+        connection.lastSeenAt = Math.max(connection.lastSeenAt ?? 0, time);
+        connection.expiresAt = connection.lastSeenAt + this.presenceTtlMs;
+        this.rememberActivity(connection.userId, connection.lastSeenAt);
+        this.schedulePresenceExpiry(connection);
         return this.emitPresence("activity", connection.userId, time);
     }
 
@@ -142,12 +151,20 @@ export class LocalPubSub implements PubSub {
         const connection = this.connections.get(connectionId);
         if (!connection) return undefined;
         const time = this.occurredAt(occurredAt);
+        const expiresAt = connection.expiresAt;
+        const timer = this.presenceTimers.get(connectionId);
+        if (timer) clearTimeout(timer);
+        this.presenceTimers.delete(connectionId);
         this.connections.delete(connectionId);
         const userConnections = this.connectionsByUser.get(connection.userId);
         userConnections?.delete(connectionId);
         if (userConnections?.size === 0) this.connectionsByUser.delete(connection.userId);
-        this.rememberActivity(connection.userId, Math.max(connection.lastActiveAt, time));
-        return this.emitPresence("disconnected", connection.userId, time);
+        if (connection.lastSeenAt !== undefined)
+            this.rememberActivity(connection.userId, connection.lastSeenAt);
+        if (expiresAt === undefined) return this.snapshot(connection.userId);
+        return expiresAt > this.clock()
+            ? this.emitPresence("disconnected", connection.userId, time)
+            : this.emitPresence("expired", connection.userId, expiresAt);
     }
 
     async getPresenceSnapshot(userIds?: readonly string[]): Promise<readonly PresenceSnapshot[]> {
@@ -162,10 +179,13 @@ export class LocalPubSub implements PubSub {
     async close(): Promise<void> {
         if (this.closed) return;
         this.closed = true;
+        for (const timer of this.presenceTimers.values()) clearTimeout(timer);
+        this.presenceTimers.clear();
         this.subscribers.clear();
         this.connections.clear();
         this.connectionsByUser.clear();
         this.lastActivityByUser.clear();
+        this.lastOfflineEventByUser.clear();
     }
 
     private async emitPresence(
@@ -174,18 +194,45 @@ export class LocalPubSub implements PubSub {
         occurredAt: number,
     ): Promise<PresenceSnapshot> {
         const snapshot = this.snapshot(userId);
+        if (
+            change !== "activity" &&
+            snapshot.status === "offline" &&
+            snapshot.lastSeenAt !== undefined
+        ) {
+            const lastOfflineAt = this.lastOfflineEventByUser.get(userId);
+            if (lastOfflineAt !== undefined && lastOfflineAt >= snapshot.lastSeenAt)
+                return snapshot;
+            this.lastOfflineEventByUser.set(userId, snapshot.lastSeenAt);
+        }
         const event: PresenceEvent = { type: "presence", change, snapshot, occurredAt };
         await this.publish(realtimeTopics.presence, event);
         return snapshot;
     }
 
     private snapshot(userId: string): PresenceSnapshot {
-        const connectionCount = this.connectionsByUser.get(userId)?.size ?? 0;
+        const now = this.clock();
+        const activeConnections = [...(this.connectionsByUser.get(userId) ?? [])]
+            .map((connectionId) => this.connections.get(connectionId))
+            .filter(
+                (connection): connection is LocalConnection & { expiresAt: number } =>
+                    connection !== undefined &&
+                    connection.expiresAt !== undefined &&
+                    connection.expiresAt > now,
+            );
+        const connectionCount = activeConnections.length;
+        const expiresAt = activeConnections.reduce<number | undefined>(
+            (latest, connection) =>
+                latest === undefined
+                    ? connection.expiresAt
+                    : Math.max(latest, connection.expiresAt),
+            undefined,
+        );
         return Object.freeze({
             userId,
             status: connectionCount > 0 ? "online" : "offline",
             connectionCount,
-            lastActiveAt: this.lastActivityByUser.get(userId),
+            lastSeenAt: this.lastActivityByUser.get(userId),
+            expiresAt,
         });
     }
 
@@ -200,7 +247,27 @@ export class LocalPubSub implements PubSub {
             );
             if (!removable) break;
             this.lastActivityByUser.delete(removable);
+            this.lastOfflineEventByUser.delete(removable);
         }
+    }
+
+    private schedulePresenceExpiry(connection: LocalConnection): void {
+        const existing = this.presenceTimers.get(connection.connectionId);
+        if (existing) clearTimeout(existing);
+        const expiresAt = connection.expiresAt!;
+        const timer = setTimeout(
+            () => {
+                this.presenceTimers.delete(connection.connectionId);
+                if (this.closed) return;
+                const current = this.connections.get(connection.connectionId);
+                if (!current || current.expiresAt !== expiresAt) return;
+                current.expiresAt = undefined;
+                void this.emitPresence("expired", current.userId, expiresAt).catch(() => undefined);
+            },
+            Math.max(0, expiresAt - this.clock()),
+        );
+        timer.unref();
+        this.presenceTimers.set(connection.connectionId, timer);
     }
 
     private occurredAt(value: number | undefined): number {

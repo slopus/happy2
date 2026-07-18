@@ -120,6 +120,13 @@
             "when": 1784330000000,
             "tag": "0016_default_happy_agent",
             "breakpoints": true
+        },
+        {
+            "idx": 17,
+            "version": "6",
+            "when": 1784340000000,
+            "tag": "0017_user_product_last_seen",
+            "breakpoints": true
         }
     ]
 }

@@ -141,7 +141,8 @@ export interface PresenceSnapshot {
     readonly userId: string;
     readonly status: "online" | "offline";
     readonly connectionCount: number;
-    readonly lastActiveAt?: number;
+    readonly lastSeenAt?: number;
+    readonly expiresAt?: number;
 }
 
 export interface PresenceSettingsSummary {
@@ -345,7 +346,7 @@ export type RealtimeEvent =
       }
     | {
           readonly type: "presence";
-          readonly change: "connected" | "activity" | "disconnected";
+          readonly change: "activity" | "expired" | "disconnected";
           readonly snapshot: PresenceSnapshot;
           readonly occurredAt: number;
       }

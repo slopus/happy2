@@ -12,7 +12,10 @@ import { userSelection } from "../chat/userSelection.js";
  */
 export async function contactList(executor: DrizzleExecutor): Promise<UserSummary[]> {
     const result = await executor
-        .select(userSelection)
+        .select({
+            ...userSelection,
+            last_seen_at: users.lastSeenAt,
+        })
         .from(users)
         .leftJoin(accounts, eq(accounts.id, users.accountId))
         .where(

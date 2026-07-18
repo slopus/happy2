@@ -8,6 +8,7 @@ import { chatCanPost } from "../modules/chat/chatCanPost.js";
 import { chatCanAccess } from "../modules/chat/chatCanAccess.js";
 import { callCanSignal } from "../modules/call/callCanSignal.js";
 import { type DrizzleExecutor } from "../modules/drizzle.js";
+import { userLastSeenTouch } from "../modules/user/userLastSeenTouch.js";
 import { createId } from "@paralleldrive/cuid2";
 import type { ServerResponse } from "node:http";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -114,6 +115,7 @@ export function registerSyncRoutes(
             request,
             reply,
             current.user.id,
+            current.user.kind === "human",
             auth,
             executor,
             pubsub,
@@ -174,7 +176,9 @@ export function registerSyncRoutes(
                 return reply.code(404).send({
                     error: "presence_connection_not_found",
                 });
-            const presence = await pubsub.recordPresenceActivity(connectionId);
+            const lastSeenAt = Date.now();
+            await userLastSeenTouch(executor, current.user.id, new Date(lastSeenAt).toISOString());
+            const presence = await pubsub.recordPresenceActivity(connectionId, lastSeenAt);
             return presence
                 ? {
                       presence,
@@ -233,6 +237,7 @@ async function openEventStream(
     request: FastifyRequest,
     reply: FastifyReply,
     userId: string,
+    humanPresence: boolean,
     auth: AuthService,
     executor: DrizzleExecutor,
     pubsub: PubSub,
@@ -323,16 +328,19 @@ async function openEventStream(
         ensureSubscription(realtimeTopics.server);
         await reconcileChatSubscriptions();
         if (closed) return;
-        await pubsub.connectPresence({
-            connectionId,
-            userId,
-        });
+        if (humanPresence)
+            await pubsub.connectPresence({
+                connectionId,
+                userId,
+            });
         if (closed) {
-            await pubsub.disconnectPresence(connectionId);
+            if (humanPresence) await pubsub.disconnectPresence(connectionId);
             return;
         }
-        presenceConnected = true;
-        presenceOwners.set(connectionId, userId);
+        if (humanPresence) {
+            presenceConnected = true;
+            presenceOwners.set(connectionId, userId);
+        }
         const state = await syncGetState(executor);
         if (closed) return;
         reply.hijack();

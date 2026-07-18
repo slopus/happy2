@@ -30,6 +30,7 @@ import { LocalPubSub, realtimeTopics, type PubSub } from "./modules/realtime/ind
 import { createDatabase } from "./modules/drizzle.js";
 import { setupGetCurrentSyncHint } from "./modules/setup/index.js";
 import { setupSandboxProviderGetSelected } from "./modules/setup/setupSandboxProviderGetSelected.js";
+import { userLastSeenFinalize } from "./modules/user/userLastSeenFinalize.js";
 import {
     localSandboxProviders,
     SandboxProviderCatalog,
@@ -188,6 +189,7 @@ export async function buildServer(
     let webhookTransport: WebhookTransport | undefined;
     let fileStorage: FileStorage | undefined;
     let unsubscribeWebhookEvents: (() => void) | undefined;
+    let unsubscribePresenceEvents: (() => void) | undefined;
     let agentService: AgentService | undefined;
     let workspaceService: WorkspaceService | undefined;
     let expiryTimer: NodeJS.Timeout | undefined;
@@ -292,6 +294,21 @@ export async function buildServer(
         registerWorkspaceRoutes(app, auth, workspaceService);
         await agentService?.start();
 
+        unsubscribePresenceEvents = livePubsub.subscribe(realtimeTopics.presence, async (event) => {
+            if (
+                event.type !== "presence" ||
+                event.change === "activity" ||
+                event.snapshot.status !== "offline" ||
+                event.snapshot.lastSeenAt === undefined
+            )
+                return;
+            const hint = await userLastSeenFinalize(executor, event.snapshot.userId);
+            await livePubsub.publish(realtimeTopics.server, {
+                type: "sync",
+                ...hint,
+            });
+        });
+
         unsubscribeWebhookEvents = livePubsub.subscribe(realtimeTopics.server, async (event) => {
             if (event.type === "sync")
                 await webhookDeliveryEnqueueSyncSequence(executor, now, event.sequence);
@@ -384,6 +401,7 @@ export async function buildServer(
         await agentService?.close();
         if (expiryTimer) clearInterval(expiryTimer);
         await pendingSweep;
+        unsubscribePresenceEvents?.();
         unsubscribeWebhookEvents?.();
         if (!services.pubsub) await pubsub?.close();
         if (!services.rateLimiter) await rateLimiter.close();
