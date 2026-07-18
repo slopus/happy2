@@ -19,3 +19,26 @@
     padding: 24px;
     background: var(--happy2-scrim);
 }
+
+/*
+ * Fit a hosted Modal card to the safe-area box. The Modal's own root is a
+ * transparent centering layer with an auto height, so a percentage cap on the
+ * dialog cannot resolve through it. Collapse that layer with display:contents
+ * so the dialog becomes a direct flex child of the overlay (still centered by
+ * the overlay's own align/justify) whose max-height resolves against the
+ * definite 24px-gutter content box. Cards that host themselves directly
+ * (Lightbox, the editor panel) bound their own height and are untouched.
+ *
+ * A tall card is capped at min(88%, 760px) of that box, never the full height:
+ * it always keeps a clear margin above and below so it reads as a floating
+ * dialog rather than a full-height panel, and its own body (overflow:auto)
+ * scrolls the overflow while the header and footer stay pinned. A short card
+ * is left at its content height and centered.
+ */
+.happy2-modal-overlay > .happy2-modal {
+    display: contents;
+}
+
+.happy2-modal-overlay > .happy2-modal > .happy2-modal__dialog {
+    max-height: min(88%, 760px);
+}

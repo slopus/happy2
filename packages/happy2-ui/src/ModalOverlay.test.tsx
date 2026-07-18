@@ -119,6 +119,68 @@ it("holds ModalOverlay backdrop geometry, centering, and backdrop-only dismiss",
     await view.screenshot("ModalOverlay.test");
 }, 120_000);
 
+it("caps a taller-than-window card inside the gutter so its body scrolls, not the window", async () => {
+    const view = createRenderer();
+
+    /* A card whose content far exceeds the 460px window: without a height cap it
+     * would grow past the overlay and clip its header/footer at the window edge. */
+    const tall = Array.from({ length: 40 }, (_, i) => <p data-line={i}>Preference row {i + 1}</p>);
+
+    view.render(
+        () => (
+            <WindowFrame>
+                <ModalOverlay data-testid="ov">
+                    <Modal
+                        icon="settings"
+                        onClose={() => {}}
+                        size="large"
+                        title="Profile and settings"
+                    >
+                        {tall}
+                    </Modal>
+                </ModalOverlay>
+            </WindowFrame>
+        ),
+        { width: 800, height: 540, padding: 40 },
+    );
+    await view.ready();
+
+    const overlay = view.$('[data-testid="ov"]');
+    const dialog = view.$('[data-testid="ov"] [data-happy2-ui="modal-dialog"]');
+    const header = view.$('[data-testid="ov"] [data-happy2-ui="modal-header"]');
+    const body = view.$('[data-testid="ov"] [data-happy2-ui="modal-body"]');
+
+    /* ---- Card keeps a clear margin; it never fills the window height ------ */
+
+    const overlayBounds = overlay.bounds();
+    const dialogBounds = dialog.bounds();
+    const topGap = dialogBounds.y - overlayBounds.y;
+    const bottomGap =
+        overlayBounds.y + overlayBounds.height - (dialogBounds.y + dialogBounds.height);
+    /* The card is centered with equal gutters well beyond the 24px minimum, so
+     * it reads as a floating dialog rather than a full-height panel. */
+    expect(Math.abs(topGap - bottomGap)).toBeLessThanOrEqual(0.5);
+    expect(topGap).toBeGreaterThan(36);
+    /* Capped at 88% of the safe box (460 - 48 = 412): a clear slice stays free. */
+    const safeBox = overlayBounds.height - 48;
+    expect(dialogBounds.height).toBeLessThanOrEqual(safeBox * 0.88 + 1);
+    expect(dialogBounds.height).toBeGreaterThan(safeBox * 0.88 - 2);
+
+    /* ---- The body scrolls; the header/footer stay pinned and unclipped ---- */
+
+    const bodyEl = body.element as HTMLElement;
+    /* Overflowing content lives in the body's scroll region, not off-window. */
+    expect(bodyEl.scrollHeight).toBeGreaterThan(bodyEl.clientHeight);
+    /* Header sits fully inside the (capped) dialog — its top is not clipped. */
+    expect(header.bounds().height).toBe(60);
+    expect(header.bounds().y).toBeGreaterThanOrEqual(dialogBounds.y);
+    expect(header.bounds().y + header.bounds().height).toBeLessThanOrEqual(
+        dialogBounds.y + dialogBounds.height + 0.5,
+    );
+
+    await view.screenshot("ModalOverlay.tall.test");
+}, 120_000);
+
 it("does not dismiss when no onDismiss is wired (a click-away-safe surface)", async () => {
     const view = createRenderer();
 
