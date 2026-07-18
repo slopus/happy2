@@ -54,7 +54,7 @@ jobs:
               run: pnpm install --frozen-lockfile
 
             - name: Validate release
-              run: pnpm run check
+              run: pnpm run check:release
 
             - name: Publish package
               run: npm publish --access public

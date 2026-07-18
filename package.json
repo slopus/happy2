@@ -54,7 +54,9 @@
     "format": "oxfmt --write eslint scripts tsconfig.json && pnpm -r --if-present format",
     "format:check": "oxfmt --check eslint scripts tsconfig.json && pnpm -r --if-present format:check",
     "lint": "oxlint eslint scripts && pnpm -r --if-present lint",
-    "check": "pnpm format:check && pnpm lint && pnpm --dir packages/happy2-server architecture:check && pnpm typecheck && pnpm test:coverage-tooling && pnpm test:non-server && pnpm coverage:server:unit && pnpm coverage:server:gym && tsx packages/happy2-server/tooling/server-coverage/cli.ts check && pnpm build",
+    "check:validation": "pnpm format:check && pnpm lint && pnpm --dir packages/happy2-server architecture:check && pnpm typecheck && pnpm test:coverage-tooling && pnpm test:non-server && pnpm coverage:server:unit && pnpm coverage:server:gym",
+    "check": "pnpm check:validation && tsx packages/happy2-server/tooling/server-coverage/cli.ts check && pnpm build",
+    "check:release": "pnpm check:validation && pnpm build",
     "release": "tsx scripts/release.ts",
     "prepack": "pnpm run build",
     "clean": "pnpm -r --if-present clean"
