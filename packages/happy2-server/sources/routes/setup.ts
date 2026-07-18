@@ -14,6 +14,11 @@ import type { DrizzleExecutor } from "../modules/drizzle.js";
 import { realtimeTopics, type PubSub } from "../modules/realtime/index.js";
 import { userOnboardingUpdateStep } from "../modules/user/userOnboardingUpdateStep.js";
 import type { SandboxProviderCatalog } from "../modules/sandbox/index.js";
+import type { AgentService } from "../modules/agents/index.js";
+import { CollaborationError } from "../modules/chat/types.js";
+
+const MAX_IMAGE_NAME_LENGTH = 100;
+const MAX_DOCKERFILE_BYTES = 256 * 1024;
 
 export function registerSetupRoutes(
     app: FastifyInstance,
@@ -21,6 +26,7 @@ export function registerSetupRoutes(
     executor: DrizzleExecutor,
     pubsub: PubSub,
     sandboxProviders: SandboxProviderCatalog,
+    agents: AgentService | undefined,
 ): void {
     app.get("/v0/setup/status", async () => setupGetPublicStatus(executor));
 
@@ -78,6 +84,56 @@ export function registerSetupRoutes(
                 onboarding: await setupGetCombinedStatus(executor, current.accountId),
                 ...(hint ? { sync: hint } : {}),
             };
+        } catch (error) {
+            return handledError(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.get("/v0/setup/baseImages", async (request, reply) => {
+        const current = await auth.authenticate(request);
+        if (!current) return unauthorized(reply);
+        try {
+            if (!agents) throw new SetupError("conflict", "Agent image builds are disabled");
+            return await agents.getSetupBaseImages(current.user.id);
+        } catch (error) {
+            return handledError(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.post("/v0/setup/selectBaseImage", async (request, reply) => {
+        const current = await auth.authenticate(request);
+        if (!current) return unauthorized(reply);
+        try {
+            if (!agents) throw new SetupError("conflict", "Agent image builds are disabled");
+            const body = requestBody(request, ["builtinKey", "custom"]);
+            const selection = baseImageSelection(body);
+            const result = await agents.selectSetupBaseImage({
+                actorUserId: current.user.id,
+                selection,
+            });
+            const baseImages = await agents.getSetupBaseImages(current.user.id);
+            return reply.code(baseImages.selectedImage?.status === "ready" ? 200 : 202).send({
+                baseImages,
+                onboarding: await setupGetCombinedStatus(executor, current.accountId),
+                ...(result.hint ? { sync: result.hint } : {}),
+            });
+        } catch (error) {
+            return handledError(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.post("/v0/setup/retryBaseImageBuild", async (request, reply) => {
+        const current = await auth.authenticate(request);
+        if (!current) return unauthorized(reply);
+        try {
+            if (!agents) throw new SetupError("conflict", "Agent image builds are disabled");
+            requestBody(request, []);
+            const result = await agents.retrySetupBaseImage(current.user.id);
+            return reply.code(202).send({
+                baseImages: await agents.getSetupBaseImages(current.user.id),
+                onboarding: await setupGetCombinedStatus(executor, current.accountId),
+                sync: result.hint,
+            });
         } catch (error) {
             return handledError(reply, error) ?? Promise.reject(error);
         }
@@ -178,10 +234,54 @@ function onboardingOutcome(value: unknown): "complete" | "skipped" {
     return value;
 }
 
+function baseImageSelection(
+    body: Record<string, unknown>,
+):
+    | { builtinKey: "daycare-full" | "daycare-minimal"; kind: "builtin" }
+    | { dockerfile: string; kind: "custom"; name: string } {
+    const hasBuiltin = body.builtinKey !== undefined;
+    const hasCustom = body.custom !== undefined;
+    if (hasBuiltin === hasCustom)
+        throw new SetupError("invalid", "Choose exactly one built-in or custom base image");
+    if (hasBuiltin) {
+        if (body.builtinKey !== "daycare-minimal" && body.builtinKey !== "daycare-full")
+            throw new SetupError("invalid", "Unsupported built-in base image");
+        return { kind: "builtin", builtinKey: body.builtinKey };
+    }
+    if (!body.custom || typeof body.custom !== "object" || Array.isArray(body.custom))
+        throw new SetupError("invalid", "custom must be an object");
+    const custom = body.custom as Record<string, unknown>;
+    const unexpected = Object.keys(custom).find((key) => !["name", "dockerfile"].includes(key));
+    if (unexpected) throw new SetupError("invalid", `Unexpected custom field ${unexpected}`);
+    if (typeof custom.name !== "string" || !custom.name.trim())
+        throw new SetupError("invalid", "custom.name must be a non-empty string");
+    const name = custom.name.trim();
+    if (name.length > MAX_IMAGE_NAME_LENGTH)
+        throw new SetupError("invalid", "custom.name is too long");
+    if (typeof custom.dockerfile !== "string" || !custom.dockerfile.trim())
+        throw new SetupError("invalid", "custom.dockerfile must be a non-empty string");
+    if (Buffer.byteLength(custom.dockerfile, "utf8") > MAX_DOCKERFILE_BYTES)
+        throw new SetupError("invalid", "custom.dockerfile exceeds the 256 KiB limit");
+    return { kind: "custom", name, dockerfile: custom.dockerfile };
+}
+
 function handledError(reply: FastifyReply, error: unknown): FastifyReply | undefined {
-    if (!(error instanceof SetupError)) return undefined;
-    const status = { invalid: 400, forbidden: 403, not_found: 404, conflict: 409 }[error.code];
-    return reply.code(status).send({ error: error.code, message: error.message });
+    if (error instanceof SetupError) {
+        const status = { invalid: 400, forbidden: 403, not_found: 404, conflict: 409 }[error.code];
+        return reply.code(status).send({ error: error.code, message: error.message });
+    }
+    if (error instanceof CollaborationError) {
+        const status = {
+            invalid: 400,
+            forbidden: 403,
+            not_found: 404,
+            conflict: 409,
+            future_state: 409,
+            generation_mismatch: 409,
+        }[error.code];
+        return reply.code(status).send({ error: error.code, message: error.message });
+    }
+    return undefined;
 }
 
 function unauthorized(reply: FastifyReply): FastifyReply {

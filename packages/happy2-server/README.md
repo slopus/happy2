@@ -86,6 +86,28 @@ deployment switch. Docker and Podman are discovered from `PATH`; every image
 build, agent sandbox creation, file transfer, terminal attachment, and cleanup
 uses the selected provider boundary after selection and across server restarts.
 
+The next screen reads `GET /v0/setup/baseImages`. It returns the immutable
+Daycare Minimal and Daycare Full definitions plus custom definitions, the
+durable selected/default identifiers, and full progress, current log line,
+retained log, truncation, and failure details for the selected image. Built-ins
+use the display action `Download and build` because they fetch the pinned
+Daycare context; a custom Dockerfile uses `Build`. The administrator starts one
+choice with `POST /v0/setup/selectBaseImage`, passing either
+`{ "builtinKey": "daycare-minimal" | "daycare-full" }` or
+`{ "custom": { "name": "...", "dockerfile": "..." } }`. An existing
+immutable definition is reused. Otherwise the existing leased image worker owns
+the single durable job, so refresh and restart reconstruct the same progress
+screen without process-local state. A failed selected job is retried with
+`POST /v0/setup/retryBaseImageBuild` and an empty object body.
+
+Build completion, ready status, default-image promotion, setup completion,
+audit, and sync evidence commit in one transaction. If promotion fails, that
+transaction rolls back, the previous default remains unchanged, and the same
+selection becomes a visible retryable failure. Registration policy selection
+also revalidates that the setup selection is still the ready default instead of
+trusting completion flags alone. Image progress, failure, and completion use the
+normal `agent-images` plus `setup` SSE/difference areas.
+
 The final server step is
 `POST /v0/setup/chooseRegistrationPolicy` with `{ "enabled": true | false }`.
 It succeeds only for an active server administrator after all preceding durable
@@ -329,11 +351,13 @@ built-in or custom persisted Dockerfile, and select a ready default. List rows
 include a best-effort 0–100 step percentage and the last non-empty log line;
 detail responses include the Dockerfile, log, and an explicit truncation flag.
 Definitions and content-derived tags never change. Builds are leased in SQLite,
-resume after server restart, use the administrator host's active Docker context,
-and publish durable `agent-images` sync hints over the existing SSE connection.
+resume after server restart without clearing the interrupted attempt's progress
+or log, use the administrator host's selected sandbox provider, and publish
+durable `agent-images` sync hints over the existing SSE connection.
 Docker output is persisted in 500 ms batches so progress remains live without
 turning every process chunk into a SQLite transaction. The latest attempt's log
-is capped at two million characters and retries begin a fresh log.
+is capped at two million characters. An explicit retry begins a fresh log;
+worker restart recovery retains and appends to the interrupted log.
 
 Administrators can assign a ready image to an existing agent with
 `POST /v0/admin/agents/:agentUserId/changeImage`. A real change starts a fresh

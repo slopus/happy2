@@ -6,8 +6,8 @@ import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 
 /**
- * Clears build ownership from agentImages rows whose leases belong to a worker that is shutting down.
- * Releasing only matching leases makes interrupted builds claimable again without disturbing work owned by another process.
+ * Clears build ownership from building agentImages rows while retaining their lifecycle, progress, and log state across shutdown.
+ * Releasing only matching leases makes interrupted builds claimable again without making recovery indistinguishable from a fresh request.
  */
 export async function agentImageReleaseBuildLeases(
     executor: DrizzleExecutor,
@@ -17,7 +17,6 @@ export async function agentImageReleaseBuildLeases(
         const changed = await tx
             .update(agentImages)
             .set({
-                status: "pending",
                 workerId: null,
                 leaseExpiresAt: null,
                 updatedAt: sql`CURRENT_TIMESTAMP`,

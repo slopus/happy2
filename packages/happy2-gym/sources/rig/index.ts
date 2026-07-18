@@ -797,7 +797,7 @@ export class MockAgentSandboxRuntime implements AgentSandboxRuntime {
     private buildsPaused = false;
     private readonly buildWaiters = new Set<() => void>();
     private readonly buildUpdates = new Set<(update: AgentImageBuildUpdate) => void>();
-    private nextBuildError?: Error;
+    private nextBuildFailure?: { error: unknown };
 
     pauseBuilds(): void {
         this.buildsPaused = true;
@@ -810,7 +810,11 @@ export class MockAgentSandboxRuntime implements AgentSandboxRuntime {
     }
 
     failNextBuild(message = "Mock Docker build failed"): void {
-        this.nextBuildError = new Error(message);
+        this.nextBuildFailure = { error: new Error(message) };
+    }
+
+    failNextBuildWith(error: unknown): void {
+        this.nextBuildFailure = { error };
     }
 
     emitBuildUpdate(update: AgentImageBuildUpdate): void {
@@ -828,9 +832,9 @@ export class MockAgentSandboxRuntime implements AgentSandboxRuntime {
         try {
             if (this.buildsPaused) await this.waitForBuildResume(options.signal);
             if (options.signal?.aborted) throw abortError();
-            const error = this.nextBuildError;
-            this.nextBuildError = undefined;
-            if (error) throw error;
+            const failure = this.nextBuildFailure;
+            this.nextBuildFailure = undefined;
+            if (failure) throw failure.error;
             listener?.({ logChunk: "#2 [stage-0 2/2] image assembled\n#2 DONE\n", progress: 95 });
             return { imageId: `sha256:gym-agent-image-${this.buildRequests.length}` };
         } finally {

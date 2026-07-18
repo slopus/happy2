@@ -31,6 +31,9 @@ export type UserOnboardingStepState = "pending" | "complete" | "skipped";
 export type SafeSetupMetadataValue = string | number | boolean | null;
 export type SafeSetupMetadata = Readonly<Record<string, SafeSetupMetadataValue>>;
 
+export type SetupBaseImageBuildMode = "build" | "download_and_build";
+export type SetupBaseImageSource = "builtin" | "custom";
+
 export interface SetupStepStatus<State extends string> {
     state: State;
     metadata?: SafeSetupMetadata;

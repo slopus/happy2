@@ -247,6 +247,17 @@ async function completeServerPrerequisites(server: GymServer, actorUserId: strin
     const client = createClient({ url: server.config.database.url });
     try {
         const executor = createDatabase(client);
+        const imageId = "gym-onboarding-ready-image";
+        await client.execute({
+            sql: `INSERT INTO agent_images
+                (id, name, dockerfile, definition_hash, docker_tag, status, build_progress, docker_image_id, ready_at)
+                VALUES (?, 'Gym ready image', 'FROM scratch', 'gym-onboarding-ready-hash', 'gym:onboarding-ready', 'ready', 100, 'sha256:gym-onboarding-ready', CURRENT_TIMESTAMP)`,
+            args: [imageId],
+        });
+        await client.execute({
+            sql: "UPDATE agent_image_settings SET default_image_id = ?, updated_by_user_id = ? WHERE id = 1",
+            args: [imageId, actorUserId],
+        });
         for (const step of [
             "sandbox_provider_selected",
             "sandbox_provider_validated",
@@ -255,7 +266,12 @@ async function completeServerPrerequisites(server: GymServer, actorUserId: strin
             "base_image_ready",
         ] as const)
             for (const state of ["in_progress", "complete"] as const)
-                await setupRecordOperationalStep(executor, { step, state, actorUserId });
+                await setupRecordOperationalStep(executor, {
+                    step,
+                    state,
+                    actorUserId,
+                    ...(step.startsWith("base_image_") ? { metadata: { imageId } } : {}),
+                });
     } finally {
         client.close();
     }

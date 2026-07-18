@@ -1,4 +1,9 @@
 export { setupChooseRegistrationPolicy } from "./setupChooseRegistrationPolicy.js";
+export { setupBaseImageCompleteBuild } from "./setupBaseImageCompleteBuild.js";
+export { setupBaseImageFailBuild } from "./setupBaseImageFailBuild.js";
+export { setupBaseImageGetStatus } from "./setupBaseImageGetStatus.js";
+export { setupBaseImageRetryBuild } from "./setupBaseImageRetryBuild.js";
+export { setupBaseImageSelect, type SetupBaseImageSelection } from "./setupBaseImageSelect.js";
 export { setupGetCombinedStatus } from "./setupGetCombinedStatus.js";
 export { setupGetCurrentSyncHint } from "./setupGetCurrentSyncHint.js";
 export { setupGetPublicStatus } from "./setupGetPublicStatus.js";

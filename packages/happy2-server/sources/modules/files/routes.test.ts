@@ -1,4 +1,4 @@
-import { createDatabase, type DrizzleExecutor } from "../drizzle.js";
+import { createDatabase, schema, type DrizzleExecutor } from "../drizzle.js";
 import { createClient, type Client } from "@libsql/client";
 import { serverSchemaMigrate } from "../server/serverSchemaMigrate.js";
 import { generateKeyPairSync } from "node:crypto";
@@ -12,6 +12,7 @@ import { buildServer } from "../../server.js";
 import { TokenService } from "../auth/tokens.js";
 import { defaultConfig } from "../config/defaults.js";
 import { setupChooseRegistrationPolicy, setupRecordOperationalStep } from "../setup/index.js";
+import { eq } from "drizzle-orm";
 describe("file pipeline HTTP API", () => {
     let app: FastifyInstance;
     let client: Client;
@@ -177,6 +178,22 @@ async function registerUser(
     };
 }
 async function completeSetup(executor: DrizzleExecutor, actorUserId: string): Promise<void> {
+    const imageId = "file-routes-ready-image";
+    await executor.insert(schema.agentImages).values({
+        id: imageId,
+        name: "File routes ready image",
+        dockerfile: "FROM scratch",
+        definitionHash: "file-routes-ready-image-hash",
+        dockerTag: "file-routes:ready",
+        status: "ready",
+        buildProgress: 100,
+        dockerImageId: "sha256:file-routes-ready",
+        readyAt: new Date().toISOString(),
+    });
+    await executor
+        .update(schema.agentImageSettings)
+        .set({ defaultImageId: imageId, updatedByUserId: actorUserId })
+        .where(eq(schema.agentImageSettings.id, 1));
     for (const step of [
         "sandbox_provider_selected",
         "sandbox_provider_validated",
@@ -188,6 +205,7 @@ async function completeSetup(executor: DrizzleExecutor, actorUserId: string): Pr
             step,
             state: "complete",
             actorUserId,
+            ...(step.startsWith("base_image_") ? { metadata: { imageId } } : {}),
         });
     await setupChooseRegistrationPolicy(executor, actorUserId, true);
 }

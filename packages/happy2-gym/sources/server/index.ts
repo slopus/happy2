@@ -30,6 +30,7 @@ import {
     userOnboardingUpdateStep,
     userCreateProfile,
     type FileStorageFileSystem,
+    type DrizzleExecutor,
     type AgentSandboxRuntime,
     type SandboxProvider,
     type ServerConfig,
@@ -71,8 +72,8 @@ export interface GymServer extends GymRequestClient, AsyncDisposable {
     as(user: GymUser): GymRequestClient;
     /** Binds this same in-process server to an ephemeral loopback port for streaming tests. */
     listen(): Promise<string>;
-    /** Rebuilds every process-local service while preserving durable database and file state. */
-    restart(): Promise<void>;
+    /** Rebuilds every process-local service while preserving durable state; `beforeStart` can model crash residue after shutdown. */
+    restart(options?: { beforeStart?: () => Promise<void> }): Promise<void>;
     close(): Promise<void>;
 }
 
@@ -217,17 +218,7 @@ class GymServerInstance implements GymServer {
                 id: providerId,
                 version: `${providerId} gym runtime`,
             });
-            for (const step of [
-                "base_image_selected",
-                "base_image_build_requested",
-                "base_image_ready",
-            ] as const)
-                await setupRecordOperationalStep(this.executor, {
-                    step,
-                    state: "complete",
-                    actorUserId: user.id,
-                });
-            await setupChooseRegistrationPolicy(this.executor, user.id, true);
+            await this.completeSetupImageFixture(this.executor, user.id, true);
         }
         await userOnboardingUpdateStep(this.executor, {
             userId: user.id,
@@ -263,17 +254,11 @@ class GymServerInstance implements GymServer {
             id: providerId,
             version: `${providerId} gym runtime`,
         });
-        for (const step of [
-            "base_image_selected",
-            "base_image_build_requested",
-            "base_image_ready",
-        ] as const)
-            await setupRecordOperationalStep(executor, {
-                step,
-                state: "complete",
-                actorUserId: input.actorUserId,
-            });
-        await setupChooseRegistrationPolicy(executor, input.actorUserId, input.registrationEnabled);
+        await this.completeSetupImageFixture(
+            executor,
+            input.actorUserId,
+            input.registrationEnabled,
+        );
     }
 
     as(user: GymUser): GymRequestClient {
@@ -286,9 +271,51 @@ class GymServerInstance implements GymServer {
         return this.app.listen({ host: "127.0.0.1", port: 0 });
     }
 
-    async restart(): Promise<void> {
+    private async completeSetupImageFixture(
+        executor: DrizzleExecutor,
+        actorUserId: string,
+        registrationEnabled: boolean,
+    ): Promise<void> {
+        const imageId = "happy2-gym-setup-ready-image";
+        await this.client.execute({
+            sql: `INSERT OR IGNORE INTO agent_images
+                (id, name, dockerfile, definition_hash, docker_tag, status, build_progress, docker_image_id, ready_at)
+                VALUES (?, 'Gym setup image', 'FROM scratch', 'happy2-gym-setup-ready-hash', 'happy2-gym:setup-ready', 'ready', 100, 'sha256:happy2-gym-setup-ready', CURRENT_TIMESTAMP)`,
+            args: [imageId],
+        });
+        await this.client.execute({
+            sql: "UPDATE agent_image_settings SET default_image_id = ?, updated_by_user_id = ? WHERE id = 1",
+            args: [imageId, actorUserId],
+        });
+        try {
+            for (const step of [
+                "base_image_selected",
+                "base_image_build_requested",
+                "base_image_ready",
+            ] as const)
+                await setupRecordOperationalStep(executor, {
+                    step,
+                    state: "complete",
+                    actorUserId,
+                    metadata: { imageId },
+                });
+            await setupChooseRegistrationPolicy(executor, actorUserId, registrationEnabled);
+        } finally {
+            await this.client.execute({
+                sql: "UPDATE agent_image_settings SET default_image_id = NULL, updated_by_user_id = NULL WHERE default_image_id = ?",
+                args: [imageId],
+            });
+            await this.client.execute({
+                sql: "DELETE FROM agent_images WHERE id = ?",
+                args: [imageId],
+            });
+        }
+    }
+
+    async restart(options: { beforeStart?: () => Promise<void> } = {}): Promise<void> {
         this.assertOpen();
         await this.app.close();
+        await options.beforeStart?.();
         this.tokens = await TokenService.create(this.config, this.tokenKeys);
         await syncInitialize(createDatabase(this.client));
         this.app = await buildServer(this.config, {

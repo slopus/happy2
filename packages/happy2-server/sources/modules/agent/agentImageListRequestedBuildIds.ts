@@ -1,10 +1,10 @@
 import { type DrizzleExecutor } from "../drizzle.js";
 import { agentImages } from "../schema.js";
-import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 
 /**
- * Lists non-system images with a requested pending build or an expired building lease, ordered by request and creation time.
- * This queue projection lets workers recover abandoned builds while leaving actively leased and unrequested definitions untouched.
+ * Lists non-system images with requested pending work or any in-progress build, ordered by request and creation time.
+ * Including live leases lets a restarted worker schedule a claim for their expiry instead of leaving crash-interrupted builds stranded.
  */
 export async function agentImageListRequestedBuildIds(
     executor: DrizzleExecutor,
@@ -22,13 +22,7 @@ export async function agentImageListRequestedBuildIds(
                         eq(agentImages.status, "pending"),
                         sql`${agentImages.buildRequestedAt} IS NOT NULL`,
                     ),
-                    and(
-                        eq(agentImages.status, "building"),
-                        or(
-                            isNull(agentImages.leaseExpiresAt),
-                            lte(agentImages.leaseExpiresAt, new Date().toISOString()),
-                        ),
-                    ),
+                    eq(agentImages.status, "building"),
                 ),
             ),
         )

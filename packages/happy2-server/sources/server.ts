@@ -215,7 +215,6 @@ export async function buildServer(
         const sandboxProviderCatalog = new SandboxProviderCatalog(
             services.sandboxProviders ?? localSandboxProviders(),
         );
-        registerSetupRoutes(app, auth, executor, livePubsub, sandboxProviderCatalog);
         const sandboxRuntime = services.agentSandbox
             ? async () => services.agentSandbox!
             : async () => {
@@ -243,6 +242,7 @@ export async function buildServer(
                       (error) => app.log.error(error),
                   )
                 : undefined);
+        registerSetupRoutes(app, auth, executor, livePubsub, sandboxProviderCatalog, agentService);
         webhookTransport = services.webhookTransport ?? new NodeWebhookTransport();
         fileStorage = services.fileStorage ?? new FileStorage(config, executor);
         workspaceService = new WorkspaceService(

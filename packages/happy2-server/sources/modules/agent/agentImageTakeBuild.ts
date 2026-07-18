@@ -9,8 +9,8 @@ import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 
 /**
- * Atomically claims the next eligible agentImages build, assigning a lease token and attempt deadline to one worker.
- * The conditional claim is the concurrency boundary that prevents two builders from executing the same queued image.
+ * Atomically claims an eligible agentImages build, assigning a lease while retaining progress and logs from an abandoned attempt.
+ * A live competing lease returns retryAt while leaving agentImages unchanged, so restart recovery can requeue the same observable job exactly when it becomes claimable.
  */
 export async function agentImageTakeBuild(
     executor: DrizzleExecutor,
@@ -20,6 +20,9 @@ export async function agentImageTakeBuild(
     | {
           build: AgentImageBuild;
           hint: MutationHint;
+      }
+    | {
+          retryAt: string;
       }
     | undefined
 > {
@@ -41,12 +44,12 @@ export async function agentImageTakeBuild(
             .set({
                 status: "building",
                 buildAttempt: sql`${agentImages.buildAttempt} + 1`,
-                buildProgress: 1,
-                buildLog: "",
-                buildLogTruncated: 0,
-                lastBuildLogLine: null,
-                buildLogUpdatedAt: sql`CURRENT_TIMESTAMP`,
-                buildStartedAt: sql`CURRENT_TIMESTAMP`,
+                buildProgress: sql`CASE WHEN ${agentImages.status} = 'building' THEN ${agentImages.buildProgress} ELSE 1 END`,
+                buildLog: sql`CASE WHEN ${agentImages.status} = 'building' THEN ${agentImages.buildLog} ELSE '' END`,
+                buildLogTruncated: sql`CASE WHEN ${agentImages.status} = 'building' THEN ${agentImages.buildLogTruncated} ELSE 0 END`,
+                lastBuildLogLine: sql`CASE WHEN ${agentImages.status} = 'building' THEN ${agentImages.lastBuildLogLine} ELSE NULL END`,
+                buildLogUpdatedAt: sql`CASE WHEN ${agentImages.status} = 'building' THEN ${agentImages.buildLogUpdatedAt} ELSE CURRENT_TIMESTAMP END`,
+                buildStartedAt: sql`CASE WHEN ${agentImages.status} = 'building' THEN ${agentImages.buildStartedAt} ELSE CURRENT_TIMESTAMP END`,
                 lastError: null,
                 workerId,
                 leaseExpiresAt,
@@ -59,7 +62,23 @@ export async function agentImageTakeBuild(
                 dockerfile: agentImages.dockerfile,
                 dockerTag: agentImages.dockerTag,
             });
-        if (!claimed) return undefined;
+        if (!claimed) {
+            const [leased] = await tx
+                .select({
+                    leaseExpiresAt: agentImages.leaseExpiresAt,
+                    status: agentImages.status,
+                })
+                .from(agentImages)
+                .where(and(eq(agentImages.id, imageId), eq(agentImages.systemOnly, 0)))
+                .limit(1);
+            if (
+                leased?.status === "building" &&
+                leased.leaseExpiresAt &&
+                leased.leaseExpiresAt > now
+            )
+                return { retryAt: leased.leaseExpiresAt };
+            return undefined;
+        }
         const sequence = await syncSequenceNext(tx);
         await syncEventInsert(tx, {
             sequence,

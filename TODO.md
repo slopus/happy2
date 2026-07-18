@@ -1081,14 +1081,51 @@ Implementation evidence in progress (2026-07-17):
 
 ### P0.3 — Base image selection/build orchestration (server feature)
 
-- [ ] Reuse existing immutable agent-image records and build workers; expose onboarding-specific selection of `daycare-minimal`, `daycare-full`, or a custom definition.
-- [ ] Make “download/build” wording reflect the chosen image source while keeping one durable job/status contract.
-- [ ] Prevent setup completion until the selected default image is `ready` and has been atomically promoted.
-- [ ] Surface progress, current log line, full log, failure reason, retry, and restart recovery through existing SSE/difference mechanisms.
-- [ ] Define rollback when promotion fails and avoid leaving setup pointing at a failed/missing image.
-- [ ] Add gym coverage for successful build, cached/reused immutable image, failure/retry, server restart mid-build, and setup completion gating.
+- [x] Reuse existing immutable agent-image records and build workers; expose onboarding-specific selection of `daycare-minimal`, `daycare-full`, or a custom definition.
+- [x] Make “download/build” wording reflect the chosen image source while keeping one durable job/status contract.
+- [x] Prevent setup completion until the selected default image is `ready` and has been atomically promoted.
+- [x] Surface progress, current log line, full log, failure reason, retry, and restart recovery through existing SSE/difference mechanisms.
+- [x] Define rollback when promotion fails and avoid leaving setup pointing at a failed/missing image.
+- [x] Add gym coverage for successful build, cached/reused immutable image, failure/retry, server restart mid-build, and setup completion gating.
 
 Acceptance: refreshing during a build returns to the same progress screen; a ready default image unlocks the application exactly once.
+
+Completion evidence (2026-07-17): onboarding now exposes administrator-only base-image
+catalog, selection, status, and retry actions for the two pinned Daycare definitions and
+immutable custom Dockerfiles. Source-specific Build/Download-and-build presentation shares
+one durable job projection with progress, current line, bounded full log, failure, attempt,
+and error state. Selection, setup-step transitions, cached-definition reuse, ready-default
+promotion, audit, and sync events use transactional action boundaries; promotion failure
+rolls back the ready/default state and becomes a retryable setup failure. Startup reclaims
+expired builds and schedules live foreign leases at their durable expiry, preserving the
+interrupted progress and log while preventing duplicate workers. Registration-policy
+completion revalidates that the selected step, ready step, and actual ready default name the
+same image, while exact retries after completion remain idempotent.
+
+The focused Gym file passes 6/6 black-box workflows: built-in build with SSE/difference and
+hard-crash lease recovery, cached immutable reuse, fresh custom creation/build/promotion,
+invalid selections with no durable side effect, failure/retry, and promotion rollback. The
+full server suite passes 89/89 unit tests and the full Gym suite passes 45 files/112 tests;
+workspace state passes 32 files/122 tests plus its benchmark gate, browser Gym passes 18/18,
+`happy2-ui` passes 186 files/486 tests, and `happy2-app` passes 4 files/14 tests.
+
+Coverage inventory grows from 560 to 569 production files. Consecutive pre-rebase P0.3 runs
+measured Gym at 8,253/11,279 statements, 5,015–5,016/8,007 branches, 1,667/2,033 functions,
+and 7,777/10,129 lines; combined at 9,175/11,279, 5,660–5,661/8,007, 1,831/2,033, and
+8,630/10,129. The final integrated run after rebasing onto `c4b129c` measured unit at
+4,173/11,279, 2,522/8,007, 789/2,033, and 3,983/10,129; Gym at 8,252/11,279,
+5,013/8,007, 1,667/2,033, and 7,777/10,129; combined at 9,174/11,279, 5,658/8,007,
+1,831/2,033, and 8,630/10,129. The baseline keeps unit at that exact measurement, Gym at
+8,241/5,008/1,667/7,767, and combined at 9,170/5,649/1,831/8,618, so the rebased tree
+retains margins of 11/5/0/10 and 4/9/0/12. Every Gym and combined floor ratio improves; the
+unit ratio moves from 37.49% to 37.00% because the new
+orchestration action files are deliberately exercised through their observable HTTP,
+transaction, concurrency, and restart behavior in Gym, while absolute unit-covered counts
+still increase in every metric. The final error-fallback correction adds four statements and
+one line to the same production file while its black-box Gym regression covers that behavior;
+the coverage gate passes with the documented floors.
+Repository-wide `pnpm format` and `pnpm check` pass, including architecture, lint,
+typecheck, every test and coverage gate, and every production build.
 
 ### P0.4 — Centered onboarding/router UI (Claude Opus after backend approval)
 

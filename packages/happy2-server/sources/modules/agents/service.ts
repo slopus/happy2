@@ -32,10 +32,8 @@ import { agentImageList } from "../agent/agentImageList.js";
 import { agentImageGetReadyDefault } from "../agent/agentImageGetReadyDefault.js";
 import { agentImageGetChangeContext } from "../agent/agentImageGetChangeContext.js";
 import { agentImageGet } from "../agent/agentImageGet.js";
-import { agentImageFailBuild } from "../agent/agentImageFailBuild.js";
 import { agentImageEnsureDefinitions } from "../agent/agentImageEnsureDefinitions.js";
 import { agentImageCreate } from "../agent/agentImageCreate.js";
-import { agentImageCompleteBuild } from "../agent/agentImageCompleteBuild.js";
 import { agentImageCommitChange } from "../agent/agentImageCommitChange.js";
 import { agentEffortUpdate } from "../agent/agentEffortUpdate.js";
 import { agentEffortInitialize } from "../agent/agentEffortInitialize.js";
@@ -67,6 +65,14 @@ import {
 } from "./daemon.js";
 import { BUILTIN_AGENT_IMAGES } from "./builtin-images.js";
 import type { AgentImageBuildUpdate, AgentSandboxRuntimeResolver } from "../sandbox/types.js";
+import {
+    setupBaseImageCompleteBuild,
+    setupBaseImageFailBuild,
+    setupBaseImageGetStatus,
+    setupBaseImageRetryBuild,
+    setupBaseImageSelect,
+    type SetupBaseImageSelection,
+} from "../setup/index.js";
 const IGNORED_EVENT_CHECKPOINT_INTERVAL = 100;
 const EVENT_RETRY_INTERVAL_MS = 100;
 const TYPING_TTL_MS = 30_000;
@@ -155,6 +161,7 @@ export class AgentService {
         }>
     >();
     private readonly imageBuilds = new Map<string, Promise<void>>();
+    private readonly imageBuildRetries = new Map<string, ReturnType<typeof setTimeout>>();
     private readonly imageMutations = new Map<string, Promise<unknown>>();
     private readonly pendingImageBuilds = new Set<string>();
     private readonly agentConfigurationMutations = new Map<string, Promise<unknown>>();
@@ -353,6 +360,37 @@ export class AgentService {
         const result = await agentImageSetDefault(this.executor, input);
         await this.publishAgentImageHint(result.hint);
         return result.image;
+    }
+    getSetupBaseImages(actorUserId: string) {
+        return setupBaseImageGetStatus(this.executor, actorUserId);
+    }
+    async selectSetupBaseImage(input: {
+        actorUserId: string;
+        selection:
+            | { builtinKey: "daycare-full" | "daycare-minimal"; kind: "builtin" }
+            | { dockerfile: string; kind: "custom"; name: string };
+    }) {
+        const selection: SetupBaseImageSelection =
+            input.selection.kind === "builtin"
+                ? input.selection
+                : (() => {
+                      const definitionHash = agentImageDefinitionHash(input.selection.dockerfile);
+                      return {
+                          ...input.selection,
+                          definitionHash,
+                          dockerTag: agentImageTag(definitionHash),
+                      };
+                  })();
+        const result = await setupBaseImageSelect(this.executor, input.actorUserId, selection);
+        if (result.hint) await this.publishAgentImageHint(result.hint);
+        if (result.queueBuild) this.queueImageBuild(result.imageId);
+        return result;
+    }
+    async retrySetupBaseImage(actorUserId: string) {
+        const result = await setupBaseImageRetryBuild(this.executor, actorUserId);
+        await this.publishAgentImageHint(result.hint);
+        this.queueImageBuild(result.imageId);
+        return result;
     }
     async changeAgentImage(input: {
         actorUserId: string;
@@ -787,6 +825,8 @@ export class AgentService {
         this.stopping = true;
         this.shutdown.abort();
         this.pendingImageBuilds.clear();
+        for (const timer of this.imageBuildRetries.values()) clearTimeout(timer);
+        this.imageBuildRetries.clear();
         for (const stream of this.turnStreams.values()) {
             stream.controller.abort();
             stream.output.close();
@@ -837,6 +877,10 @@ export class AgentService {
     private async buildImage(imageId: string): Promise<void> {
         const claimed = await agentImageTakeBuild(this.executor, imageId, this.workerId);
         if (!claimed) return;
+        if ("retryAt" in claimed) {
+            this.scheduleImageBuildRetry(imageId, claimed.retryAt);
+            return;
+        }
         const build = claimed.build;
         await this.publishAgentImageHint(claimed.hint);
         const output = new AgentImageBuildOutput(
@@ -889,7 +933,7 @@ export class AgentService {
                 },
             );
             await output.finish();
-            const completed = await agentImageCompleteBuild(this.executor, {
+            const completed = await setupBaseImageCompleteBuild(this.executor, {
                 dockerImageId: result.imageId,
                 imageId,
                 workerId: this.workerId,
@@ -908,7 +952,7 @@ export class AgentService {
                 progress: output.currentProgress,
             });
             await output.finish().catch(this.onError);
-            const failed = await agentImageFailBuild(this.executor, {
+            const failed = await setupBaseImageFailBuild(this.executor, {
                 error: message,
                 imageId,
                 workerId: this.workerId,
@@ -918,6 +962,16 @@ export class AgentService {
             clearInterval(renewal);
             output.close();
         }
+    }
+    private scheduleImageBuildRetry(imageId: string, retryAt: string): void {
+        if (this.stopping || this.imageBuildRetries.has(imageId)) return;
+        const delay = Math.max(Date.parse(retryAt) - Date.now(), 0) + 10;
+        const timer = setTimeout(() => {
+            this.imageBuildRetries.delete(imageId);
+            this.queueImageBuild(imageId);
+        }, delay);
+        timer.unref();
+        this.imageBuildRetries.set(imageId, timer);
     }
     private async publishAgentImageHint(hint: {
         areas: string[];
@@ -2008,8 +2062,20 @@ function sandboxDirectories(root: string, agentUserId: string, privateUserId: st
     };
 }
 function agentImageBuildError(error: unknown): string {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = deepestErrorMessage(error);
     return message.slice(0, 16_000) || "Agent image build failed";
+}
+function deepestErrorMessage(error: unknown, seen = new Set<unknown>()): string {
+    if (error === null || error === undefined) return "";
+    if (typeof error !== "object") return String(error);
+    if (seen.has(error)) return "";
+    seen.add(error);
+    const candidate = error as { cause?: unknown; message?: unknown };
+    if (candidate.cause !== undefined) {
+        const cause = deepestErrorMessage(candidate.cause, seen);
+        if (cause) return cause;
+    }
+    return typeof candidate.message === "string" ? candidate.message : "";
 }
 function agentTurnStreamError(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
