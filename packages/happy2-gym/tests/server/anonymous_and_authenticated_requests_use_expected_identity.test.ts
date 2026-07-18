@@ -31,4 +31,14 @@ describe("anonymous and authenticated requests", () => {
         // authenticated route must still reject a token without its session row.
         expect(response.statusCode).toBe(401);
     });
+
+    it("rejects an invalid session token", async () => {
+        await using server = await createGymServer();
+
+        const response = await server.get("/v0/me", {
+            headers: { authorization: "Bearer not-a-jwt" },
+        });
+
+        expect(response.statusCode).toBe(401);
+    });
 });
