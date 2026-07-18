@@ -110,8 +110,12 @@ export { Rail, type RailItem, type RailProps } from "./Rail";
 export { Sidebar, type SidebarItem, type SidebarProps, type SidebarSection } from "./Sidebar";
 export {
     SearchField,
+    type SearchFieldEditableProps,
+    type SearchFieldOpenerProps,
     type SearchFieldProps,
     TitleBar,
+    type TitleBarEditableProps,
+    type TitleBarOpenerProps,
     type TitleBarProps,
     WindowDragRegion,
     type WindowDragRegionProps,
@@ -143,6 +147,7 @@ export { Toolbar, type ToolbarProps, type ToolbarSearch } from "./Toolbar";
 export { Menu, type MenuItem, type MenuProps } from "./Menu";
 export { Modal, type ModalProps, type ModalSize, type ModalTone } from "./Modal";
 export { ModalOverlay, type ModalOverlayProps } from "./ModalOverlay";
+export { CommandPalette, type CommandPaletteProps } from "./CommandPalette";
 export {
     InfoPanel,
     type InfoPanelProfile,
@@ -192,6 +197,7 @@ export {
     type SearchResultItem,
     SearchResults,
     type SearchResultsProps,
+    type SearchResultsVariant,
     type SearchResultType,
 } from "./SearchResults";
 export {

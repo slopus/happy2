@@ -21,6 +21,7 @@ import { ButtonPage } from "./pages/ButtonPage";
 import { CallPanelPage } from "./pages/CallPanelPage";
 import { ChannelHeaderPage } from "./pages/ChannelHeaderPage";
 import { CheckboxPage } from "./pages/CheckboxPage";
+import { CommandPalettePage } from "./pages/CommandPalettePage";
 import { ChatStorePage } from "./pages/ChatStorePage";
 import { ComposerPage } from "./pages/ComposerPage";
 import { DataTablePage } from "./pages/DataTablePage";
@@ -167,6 +168,7 @@ const components: BlueprintPage[] = [
         number: "C-059",
         page: AgentActivityIndicatorPage,
     },
+    { id: "command-palette", label: "Command palette", number: "C-060", page: CommandPalettePage },
 ];
 
 const fullScreens: BlueprintPage[] = [

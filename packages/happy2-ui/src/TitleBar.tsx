@@ -4,14 +4,35 @@ import type { Dimension } from "./dimensions";
 import { toCssDimension } from "./dimensions";
 import { Icon } from "./Icon";
 
-export type SearchFieldProps = {
-    onChange: (value: string) => void;
-    onSubmit?: (value: string) => void;
+type SearchFieldSharedProps = {
     placeholder?: string;
     shortcutHint?: string;
     value: string;
     width?: Dimension;
 };
+
+/** Editable well: reports typing through `onChange` and Enter through `onSubmit`. */
+export type SearchFieldEditableProps = SearchFieldSharedProps & {
+    onChange: (value: string) => void;
+    onSubmit?: (value: string) => void;
+    onOpen?: never;
+};
+
+/**
+ * Opener well: read-only chrome that opens a palette. A click or Enter/Space
+ * invokes `onOpen` instead of editing in place; it never reports typing.
+ */
+export type SearchFieldOpenerProps = SearchFieldSharedProps & {
+    onOpen: () => void;
+    onChange?: never;
+    onSubmit?: never;
+};
+
+/**
+ * The well is either editable (`onChange`, no `onOpen`) or an opener (`onOpen`,
+ * no `onChange`). The two modes are mutually exclusive at the type level.
+ */
+export type SearchFieldProps = SearchFieldEditableProps | SearchFieldOpenerProps;
 
 export type WindowDragRegionProps = Omit<
     JSX.HTMLAttributes<HTMLDivElement>,
@@ -57,11 +78,22 @@ export function SearchField(props: SearchFieldProps) {
                 aria-label={props.placeholder ?? "Search"}
                 class="happy2-search-field__input"
                 data-happy2-ui="search-field-input"
-                onInput={(event) => props.onChange(event.currentTarget.value)}
+                onClick={() => props.onOpen?.()}
+                onInput={(event) => {
+                    if (!props.onOpen) props.onChange?.(event.currentTarget.value);
+                }}
                 onKeyDown={(event) => {
+                    if (props.onOpen) {
+                        if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            props.onOpen();
+                        }
+                        return;
+                    }
                     if (event.key === "Enter") props.onSubmit?.(event.currentTarget.value);
                 }}
                 placeholder={props.placeholder ?? "Search"}
+                readOnly={props.onOpen !== undefined}
                 type="text"
                 value={props.value}
             />
@@ -70,10 +102,9 @@ export function SearchField(props: SearchFieldProps) {
     );
 }
 
-export type TitleBarProps = {
+type TitleBarSharedProps = {
     /** Left slot, e.g. a workspace crumb. */
     leading?: JSX.Element;
-    onSearchChange: (value: string) => void;
     searchPlaceholder?: string;
     searchValue: string;
     /** Reserve 78px at the left edge for native macOS traffic lights. */
@@ -81,6 +112,21 @@ export type TitleBarProps = {
     /** Right slot for actions. */
     trailing?: JSX.Element;
 };
+
+/** Editable search well that reports typing through `onSearchChange`. */
+export type TitleBarEditableProps = TitleBarSharedProps & {
+    onSearchChange: (value: string) => void;
+    onSearchOpen?: never;
+};
+
+/** Opener search well (read-only) that invokes `onSearchOpen` on click/Enter. */
+export type TitleBarOpenerProps = TitleBarSharedProps & {
+    onSearchOpen: () => void;
+    onSearchChange?: never;
+};
+
+/** The search well is either editable or a palette opener, never both. */
+export type TitleBarProps = TitleBarEditableProps | TitleBarOpenerProps;
 
 /**
  * 38px window title bar: draggable app-owned chrome under the transparent
@@ -105,11 +151,24 @@ export function TitleBar(props: TitleBarProps) {
                 {props.leading}
             </div>
             <div class="happy2-title-bar__center" data-happy2-ui="title-bar-center">
-                <SearchField
-                    onChange={(value) => props.onSearchChange(value)}
-                    placeholder={props.searchPlaceholder}
-                    value={props.searchValue}
-                />
+                <Show
+                    when={props.onSearchOpen}
+                    fallback={
+                        <SearchField
+                            onChange={(props as TitleBarEditableProps).onSearchChange}
+                            placeholder={props.searchPlaceholder}
+                            value={props.searchValue}
+                        />
+                    }
+                >
+                    {(onSearchOpen) => (
+                        <SearchField
+                            onOpen={onSearchOpen()}
+                            placeholder={props.searchPlaceholder}
+                            value={props.searchValue}
+                        />
+                    )}
+                </Show>
             </div>
             <div class="happy2-title-bar__trailing" data-happy2-ui="title-bar-trailing">
                 {props.trailing}

@@ -17,6 +17,7 @@ export function SearchOverlay(props: SearchOverlayProps) {
             onSelect={props.onSelect}
             query={props.query}
             store={props.state.search()}
+            variant="flush"
         />
     );
 }

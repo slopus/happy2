@@ -1,0 +1,93 @@
+/*
+ * C-060 CommandPalette — Slack-style ⌘K palette card.
+ *
+ * The card is a 640px raised surface on the 14px shell radius with a 1px strong
+ * hairline and the shared elevated modal shadow. A fixed 60px input row (search
+ * glyph · own text input · ESC cap · ghost close) sits over a scrollable body,
+ * split by a 1px hairline. It renders the card only — no scrim or stacking — so
+ * a host composes it inside ModalOverlay for its dim and centering.
+ */
+
+.happy2-command-palette,
+.happy2-command-palette *,
+.happy2-command-palette *::before,
+.happy2-command-palette *::after {
+    box-sizing: border-box;
+}
+
+.happy2-command-palette {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    width: 640px;
+    max-height: min(560px, calc(100vh - 48px));
+    overflow: hidden;
+    background: var(--happy2-bg-raised);
+    border: 1px solid var(--happy2-border-strong);
+    border-radius: var(--happy2-radius-shell);
+    box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Input row -------------------------------------------------------- */
+
+.happy2-command-palette__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+    min-height: 60px;
+    padding: 0 16px 0 20px;
+    border-bottom: 1px solid var(--happy2-border);
+}
+
+.happy2-command-palette__icon {
+    display: flex;
+    flex: none;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-command-palette__input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 40px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 40px;
+    letter-spacing: -0.01em;
+    font-synthesis: none;
+    caret-color: var(--happy2-accent);
+}
+
+.happy2-command-palette__input::placeholder {
+    color: var(--happy2-text-muted);
+    opacity: 1;
+}
+
+.happy2-command-palette__hint {
+    flex: none;
+}
+
+.happy2-command-palette__close {
+    flex: none;
+}
+
+/* ---- Body ------------------------------------------------------------- */
+
+.happy2-command-palette__body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: auto;
+    padding: 8px;
+}

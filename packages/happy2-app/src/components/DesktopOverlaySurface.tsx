@@ -1,4 +1,4 @@
-import { EmptyState, Modal, ModalOverlay } from "happy2-ui";
+import { CommandPalette, EmptyState, Modal, ModalOverlay } from "happy2-ui";
 import type { HappyState } from "happy2-state";
 import { Match, Show, Switch } from "solid-js";
 import type { AuthSession } from "./AuthGate";
@@ -13,6 +13,7 @@ export interface DesktopOverlaySurfaceProps {
     state: HappyState;
     session?: AuthSession;
     onSearchSelect: (type: import("happy2-ui").SearchResultType, id: string) => void;
+    onSearchQueryChange: (value: string) => void;
 }
 
 /** Renders route-addressable modal layers without owning or replacing the primary surface. */
@@ -39,13 +40,18 @@ export function DesktopOverlaySurface(props: DesktopOverlaySurfaceProps) {
         <Switch fallback={null}>
             <Match when={searchOverlay()}>
                 <ModalOverlay onDismiss={close}>
-                    <Modal icon="search" onClose={close} size="large" title="Search Happy (2)">
+                    <CommandPalette
+                        onClose={close}
+                        onQueryChange={props.onSearchQueryChange}
+                        placeholder="Search Happy (2)…"
+                        query={searchOverlay()?.query ?? ""}
+                    >
                         <SearchOverlay
                             onSelect={props.onSearchSelect}
                             query={searchOverlay()?.query ?? ""}
                             state={props.state}
                         />
-                    </Modal>
+                    </CommandPalette>
                 </ModalOverlay>
             </Match>
             <Match when={profileOverlay()}>

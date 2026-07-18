@@ -30,6 +30,16 @@
     user-select: none;
 }
 
+/* Flush variant: fill a host surface (e.g. CommandPalette) without card chrome. */
+.happy2-search-results[data-variant="flush"] {
+    width: 100%;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
 /* ---- Groups ----------------------------------------------------------- */
 
 .happy2-search-results__group {

@@ -7,6 +7,7 @@ import {
     SearchResults,
     type SearchResultGroup,
     type SearchResultItem,
+    type SearchResultsVariant,
     type SearchResultType,
 } from "../../SearchResults";
 import { StoreSurface } from "../../StoreSurface";
@@ -16,6 +17,8 @@ export interface SearchPageProps {
     query: string;
     imageUrl?: (fileId?: string) => string | undefined;
     onSelect?: (type: SearchResultType, id: string) => void;
+    /** Forwarded to SearchResults; `flush` fills a host such as CommandPalette. */
+    variant?: SearchResultsVariant;
 }
 
 const tones: ToneName[] = ["brand", "ocean", "rose", "amber", "mint", "violet"];
@@ -26,61 +29,74 @@ export function SearchPage(props: SearchPageProps) {
         const query = props.query.trim();
         if (props.store.get().query !== query) props.store.queryUpdate(query);
     });
+    const trimmed = createMemo(() => props.query.trim());
     return (
-        <StoreSurface store={props.store}>
-            {(snapshot) => {
-                const error = createMemo(() => {
-                    const results = snapshot().results;
-                    return results.type === "error" ? results.error.message : undefined;
-                });
-                const groups = createMemo(() => {
-                    const current = snapshot();
-                    return current.results.type === "ready"
-                        ? resultGroups(current.results.value, current.files, props.imageUrl)
-                        : undefined;
-                });
-                return (
-                    <Show
-                        when={!error()}
-                        fallback={
-                            <Banner tone="danger" title="Search unavailable">
-                                {error()}
-                            </Banner>
-                        }
-                    >
+        <Show
+            when={trimmed()}
+            fallback={
+                <EmptyState
+                    description="Find channels, people, messages, and files across your workspace."
+                    icon="search"
+                    title="Search Happy (2)"
+                />
+            }
+        >
+            <StoreSurface store={props.store}>
+                {(snapshot) => {
+                    const error = createMemo(() => {
+                        const results = snapshot().results;
+                        return results.type === "error" ? results.error.message : undefined;
+                    });
+                    const groups = createMemo(() => {
+                        const current = snapshot();
+                        return current.results.type === "ready"
+                            ? resultGroups(current.results.value, current.files, props.imageUrl)
+                            : undefined;
+                    });
+                    return (
                         <Show
-                            when={groups()}
+                            when={!error()}
                             fallback={
-                                <EmptyState
-                                    description={`Searching the workspace for “${props.query.trim()}”.`}
-                                    icon="search"
-                                    title="Searching…"
-                                />
+                                <Banner tone="danger" title="Search unavailable">
+                                    {error()}
+                                </Banner>
                             }
                         >
-                            {(results) => (
-                                <Show
-                                    when={results().length > 0}
-                                    fallback={
-                                        <EmptyState
-                                            description={`No channels, people, messages, or files match “${props.query.trim()}”.`}
-                                            icon="search"
-                                            title="No results"
-                                        />
-                                    }
-                                >
-                                    <SearchResults
-                                        groups={results()}
-                                        onSelect={props.onSelect}
-                                        query={props.query}
+                            <Show
+                                when={groups()}
+                                fallback={
+                                    <EmptyState
+                                        description={`Searching the workspace for “${trimmed()}”.`}
+                                        icon="search"
+                                        title="Searching…"
                                     />
-                                </Show>
-                            )}
+                                }
+                            >
+                                {(results) => (
+                                    <Show
+                                        when={results().length > 0}
+                                        fallback={
+                                            <EmptyState
+                                                description={`No channels, people, messages, or files match “${trimmed()}”.`}
+                                                icon="search"
+                                                title="No results"
+                                            />
+                                        }
+                                    >
+                                        <SearchResults
+                                            groups={results()}
+                                            onSelect={props.onSelect}
+                                            query={props.query}
+                                            variant={props.variant}
+                                        />
+                                    </Show>
+                                )}
+                            </Show>
                         </Show>
-                    </Show>
-                );
-            }}
-        </StoreSurface>
+                    );
+                }}
+            </StoreSurface>
+        </Show>
     );
 }
 

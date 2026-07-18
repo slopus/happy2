@@ -112,6 +112,54 @@ application only after a ready default image and final registration policy exist
 
 - [ ] Implement global `⌘K` with focus return, Escape, arrow navigation, Enter selection, and
       IME-safe input. It remains an overlay over the current surface.
+    - [x] Present search as a centered route-owned palette with its own focused input; opening,
+          querying, and closing it must preserve the exact primary-surface DOM, local state, and
+          scroll rather than replacing the application tree.
+    - [x] Open the empty palette from `⌘K` or the title-bar search well, keep it open when its query
+          is cleared, close it with Escape/backdrop/close, and return focus to the invoking control.
+    - [x] Add UI and application tests for the modal geometry, keyboard/focus lifecycle, IME-safe
+          input, and primary DOM identity across open, query, result updates, and close.
+
+  Progress (Claude UI implementation with Codex reciprocal review and verification complete for
+  the modal/no-remount slice. Arrow/Enter selection and result routing above remain open, so the
+  parent P0.9 item stays unchecked):
+  - New reusable `happy2-ui` `CommandPalette` (C-060): a 640px ModalOverlay-hosted
+    card with its own focused search input, ESC cap, and ghost close over a
+    scrollable body. It autofocuses/selects its input on mount, returns focus to
+    the invoking control on unmount (if still connected), closes on Escape, and
+    coalesces IME composition so a controlled `query` never interrupts an active
+    composition. Files: `packages/happy2-ui/src/CommandPalette.tsx`,
+    `styles/command-palette.css`, blueprint `dev/pages/CommandPalettePage.tsx`.
+  - `SearchResults`/`SearchPage` gained a `flush` variant (no card chrome) so the
+    palette body fills full width; `SearchPage` shows a "Search Happy (2)" prompt
+    for the empty query.
+  - `TitleBar`/`SearchField` are now editable-vs-opener discriminated unions:
+    editable requires `onChange` (no `onOpen`); opener requires `onOpen` (no
+    `onChange`, read-only well opening on click/Enter/Space).
+  - IME commit is a single path: intermediate composition `input` events are held
+    back by both the local composition lifetime and the event hint; only the trailing
+    post-`compositionend` `input` commits, so a value is never emitted twice; Escape
+    stays suppressed while composing.
+  - App wiring (`DesktopApp`, `DesktopOverlaySurface`, `SearchOverlay`): a global
+    `⌘K`/`Ctrl+K` handler (on `window`) opens the empty search overlay without
+    changing the primary route; the title-bar well opens it too; clearing the
+    query keeps it open; Escape/backdrop/close dismiss it. The route-owned palette
+    is a sibling of the primary surface, so opening/typing/closing never remounts
+    the app tree nor the palette input node.
+  - Tests authored: `packages/happy2-ui/src/CommandPalette.test.tsx` (card
+    geometry; autofocus + focus-return; single-commit IME with realistic trailing
+    input; close button); `TitleBar.test.tsx` opener click/Enter/Space + readOnly
+    coverage; and `packages/happy2-app/src/App.test.tsx` ("opens with ⌘K, keeps
+    open when cleared, restores focus" — asserting exact palette-input DOM identity
+    across query/clear — plus a close-button/backdrop dismissal + focus-return
+    test). Two existing primary-DOM identity tests updated for the opener flow.
+  - Verified: `pnpm --dir packages/happy2-app test` (38/38),
+    `pnpm --dir packages/happy2-ui test` (501/501 across Chromium, Firefox, and WebKit), and
+    repository-wide `pnpm format`, `pnpm format:check`, `pnpm lint`, and `pnpm typecheck`. Exact
+    primary and palette-input DOM identities, local draft, keyboard/focus dismissal, and
+    hinted/hintless IME composition are covered. The persisted Claude Opus review found no
+    task-blocking issue; the prior CodeRabbit findings were addressed or classified, while its final
+    rerun was externally rate-limited before analysis.
 - [ ] Carry each result's type and ID into routing: channel open/join, person shared profile and DM,
       message exact chat/thread/page/centering/highlight, and file viewer focus.
 - [ ] Add searchable create/join-channel and new-agent-chat commands with people/agents/channels

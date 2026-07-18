@@ -14,6 +14,7 @@ export type SearchResultItem = {
 };
 export type SearchResultGroup = { type: SearchResultType; results: SearchResultItem[] };
 
+export type SearchResultsVariant = "card" | "flush";
 export type SearchResultsProps = {
     class?: string;
     "data-testid"?: string;
@@ -22,6 +23,11 @@ export type SearchResultsProps = {
     query?: string;
     onSelect?: (type: SearchResultType, id: string) => void;
     emptyLabel?: string;
+    /**
+     * `card` (default) is the standalone popover surface. `flush` drops the
+     * card chrome so the results fill a host surface such as CommandPalette.
+     */
+    variant?: SearchResultsVariant;
 };
 
 const groupLabels: Record<SearchResultType, string> = {
@@ -176,6 +182,7 @@ export function SearchResults(props: SearchResultsProps) {
             class={["happy2-search-results", props.class].filter(Boolean).join(" ")}
             data-happy2-ui="search-results"
             data-testid={props["data-testid"]}
+            data-variant={props.variant ?? "card"}
             style={props.style}
         >
             <Show

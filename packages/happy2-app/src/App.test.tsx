@@ -1,8 +1,8 @@
-import { fireEvent, render, waitFor } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { happyStateCreate, type ChatSummary } from "happy2-state";
 import { createFakeServer, jsonResponse } from "happy2-state/testing";
 import { createSignal } from "solid-js";
-import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { App } from "./App";
 import { DesktopApp } from "./components/DesktopApp";
 import type { AuthSession } from "./components/AuthGate";
@@ -21,6 +21,12 @@ function chatPrimarySurface(container: HTMLElement): HTMLElement {
     if (!surface) throw new Error("chat primary surface not found");
     return surface;
 }
+
+// Vitest globals are not enabled for this package, so testing-library's auto
+// cleanup never registers. Unmount every rendered tree between tests explicitly:
+// otherwise a prior App survives and its window-level ⌘K listener still fires,
+// opening a stale search overlay that corrupts the next test's history/navigation.
+afterEach(cleanup);
 
 beforeEach(() => {
     history.replaceState(null, "", "/chats");
@@ -76,11 +82,14 @@ describe("persistent desktop routing", () => {
             <DesktopApp navigation={navigation} session={session} state={state} />
         ));
         const primary = chatPrimarySurface(screen.container);
-        const input = screen.container.querySelector<HTMLInputElement>(
+        const well = screen.container.querySelector<HTMLInputElement>(
             '[data-happy2-ui="search-field-input"]',
         )!;
 
-        fireEvent.input(input, { target: { value: "relay" } });
+        fireEvent.click(well);
+        expect(
+            screen.container.querySelector('[data-happy2-ui="command-palette-input"]'),
+        ).toBeTruthy();
         expect(screen.container.textContent).toContain("Search Happy (2)");
         expect(chatPrimarySurface(screen.container)).toBe(primary);
 
@@ -239,19 +248,108 @@ describe("persistent desktop routing", () => {
         const screen = render(() => <DesktopApp navigation={navigation} state={state} />);
         await state.whenIdle();
         const primary = chatPrimarySurface(screen.container);
-        fireEvent.input(
+        fireEvent.click(
             screen.container.querySelector<HTMLInputElement>(
                 '[data-happy2-ui="search-field-input"]',
             )!,
-            { target: { value: "relay" } },
         );
+        const paletteInput = screen.container.querySelector<HTMLInputElement>(
+            '[data-happy2-ui="command-palette-input"]',
+        )!;
+        fireEvent.input(paletteInput, { target: { value: "relay" } });
         await state.whenIdle();
 
         server.events.sync({ sequence: "1" });
         await state.whenIdle();
         expect(state.sidebar().get().chats[0]?.chat.unreadCount).toBe(3);
         expect(chatPrimarySurface(screen.container)).toBe(primary);
-        expect(screen.container.textContent).toContain("Search Happy (2)");
+        expect(
+            screen.container.querySelector<HTMLInputElement>(
+                '[data-happy2-ui="command-palette-input"]',
+            )?.value,
+        ).toBe("relay");
+    });
+
+    it("opens the palette with ⌘K, keeps it open when cleared, and restores focus on close", async () => {
+        const navigation = desktopNavigationCreate();
+        onTestFinished(() => navigation[Symbol.dispose]());
+        const screen = render(() => <App navigation={navigation} />);
+        const primary = chatPrimarySurface(screen.container);
+        const paletteInput = () =>
+            screen.container.querySelector<HTMLInputElement>(
+                '[data-happy2-ui="command-palette-input"]',
+            );
+
+        // A stable focused control stands in for whatever was focused at open time.
+        const opener = railItem(screen.container, "home");
+        opener.focus();
+        expect(document.activeElement).toBe(opener);
+
+        // The production shortcut listener is on `window`; keep the opener focused
+        // so focus-return has a target while the event is delivered globally.
+        window.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
+        );
+        await waitFor(() => expect(paletteInput()).toBeTruthy());
+        const inputEl = paletteInput();
+        expect(document.activeElement).toBe(inputEl);
+        expect(navigation.get().overlay).toEqual({ kind: "search", query: "" });
+        expect(chatPrimarySurface(screen.container)).toBe(primary);
+
+        fireEvent.input(paletteInput()!, { target: { value: "relay" } });
+        expect(navigation.get().overlay).toEqual({ kind: "search", query: "relay" });
+        // The route-owned overlay must not remount when its query object changes:
+        // the exact palette input node and the primary surface both persist.
+        expect(paletteInput()).toBe(inputEl);
+        expect(chatPrimarySurface(screen.container)).toBe(primary);
+
+        // Clearing the query leaves the palette open on the same input node.
+        fireEvent.input(paletteInput()!, { target: { value: "" } });
+        expect(paletteInput()).toBe(inputEl);
+        expect(navigation.get().overlay).toEqual({ kind: "search", query: "" });
+        expect(chatPrimarySurface(screen.container)).toBe(primary);
+
+        // Escape dismisses and returns focus to the invoking control.
+        fireEvent.keyDown(paletteInput()!, { key: "Escape" });
+        await waitFor(() => expect(paletteInput()).toBeNull());
+        expect(document.activeElement).toBe(opener);
+        expect(chatPrimarySurface(screen.container)).toBe(primary);
+    });
+
+    it("dismisses the palette from the close button and the backdrop, restoring focus", async () => {
+        const navigation = desktopNavigationCreate();
+        onTestFinished(() => navigation[Symbol.dispose]());
+        const screen = render(() => <App navigation={navigation} />);
+        const primary = chatPrimarySurface(screen.container);
+        const paletteInput = () =>
+            screen.container.querySelector<HTMLInputElement>(
+                '[data-happy2-ui="command-palette-input"]',
+            );
+        const opener = railItem(screen.container, "home");
+
+        // Close button.
+        opener.focus();
+        window.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
+        );
+        await waitFor(() => expect(paletteInput()).toBeTruthy());
+        fireEvent.click(
+            screen.container.querySelector<HTMLButtonElement>(".happy2-command-palette__close")!,
+        );
+        await waitFor(() => expect(paletteInput()).toBeNull());
+        expect(document.activeElement).toBe(opener);
+        expect(chatPrimarySurface(screen.container)).toBe(primary);
+
+        // Backdrop (clicking the scrim outside the card).
+        opener.focus();
+        window.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
+        );
+        await waitFor(() => expect(paletteInput()).toBeTruthy());
+        fireEvent.click(screen.container.querySelector('[data-happy2-ui="modal-overlay"]')!);
+        await waitFor(() => expect(paletteInput()).toBeNull());
+        expect(document.activeElement).toBe(opener);
+        expect(chatPrimarySurface(screen.container)).toBe(primary);
     });
 });
 

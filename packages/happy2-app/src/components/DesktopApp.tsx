@@ -1,6 +1,6 @@
 import { Avatar, Rail, TitleBar, type RailItem, type SearchResultType } from "happy2-ui";
 import type { HappyState } from "happy2-state";
-import { createSignal } from "solid-js";
+import { createSignal, onCleanup, onMount } from "solid-js";
 import type { AuthSession } from "./AuthGate";
 import { DesktopOverlaySurface } from "./DesktopOverlaySurface";
 import { DesktopPrimarySurface } from "./DesktopPrimarySurface";
@@ -73,21 +73,33 @@ export function DesktopApp(props: DesktopAppProps) {
         queueMicrotask(() => setCreateRequest((request) => ({ kind, nonce: request.nonce + 1 })));
     }
 
-    function searchChange(value: string) {
-        const query = value.trimStart();
-        if (!query && route().overlay?.kind === "search") {
-            props.navigation.close("overlay");
-            return;
-        }
-        if (!query) return;
-        const next: DesktopRoute = { ...route(), overlay: { kind: "search", query } };
+    /** Opens the empty palette over the current surface without changing the primary route. */
+    function paletteOpen() {
+        if (route().overlay?.kind === "search") return;
         props.navigation.navigate(
-            next,
-            route().overlay?.kind === "search"
-                ? { replace: true, transient: true }
-                : { layer: "overlay" },
+            { ...route(), overlay: { kind: "search", query: "" } },
+            { layer: "overlay" },
         );
     }
+
+    /** Updates the live palette query, keeping the palette open when the query is cleared. */
+    function searchChange(value: string) {
+        if (route().overlay?.kind !== "search") return;
+        props.navigation.navigate(
+            { ...route(), overlay: { kind: "search", query: value } },
+            { replace: true, transient: true },
+        );
+    }
+
+    function paletteShortcut(event: KeyboardEvent) {
+        if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
+        if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+        if (event.key !== "k" && event.key !== "K") return;
+        event.preventDefault();
+        paletteOpen();
+    }
+    onMount(() => window.addEventListener("keydown", paletteShortcut));
+    onCleanup(() => window.removeEventListener("keydown", paletteShortcut));
 
     function searchSelect(type: SearchResultType, id: string) {
         if (type === "channel")
@@ -164,7 +176,7 @@ export function DesktopApp(props: DesktopAppProps) {
     );
     const titleBar = () => (
         <TitleBar
-            onSearchChange={searchChange}
+            onSearchOpen={paletteOpen}
             searchPlaceholder="Search Happy (2)…"
             searchValue={search()}
             showWindowControls={props.platform === "desktop"}
@@ -186,6 +198,7 @@ export function DesktopApp(props: DesktopAppProps) {
             />
             <DesktopOverlaySurface
                 navigation={props.navigation}
+                onSearchQueryChange={searchChange}
                 onSearchSelect={searchSelect}
                 route={route()}
                 session={props.session}

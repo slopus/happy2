@@ -699,6 +699,8 @@ it("reports SearchField input and submit through callbacks", async () => {
     await view.ready();
 
     const input = view.$('[data-happy2-ui="search-field-input"]').element as HTMLInputElement;
+    /* Editable wells accept typing. */
+    expect(input.readOnly).toBe(false);
     input.value = "deploy checklist";
     input.dispatchEvent(new InputEvent("input", { bubbles: true }));
     expect(changes).toEqual(["deploy checklist"]);
@@ -708,4 +710,42 @@ it("reports SearchField input and submit through callbacks", async () => {
 
     input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "a" }));
     expect(submits).toEqual(["deploy checklist"]);
+});
+
+it("opens as a read-only well through click and Enter/Space in opener mode", async () => {
+    await pinViewport();
+    const opens: number[] = [];
+    const changes: string[] = [];
+    const view = createRenderer().render(
+        () => (
+            <div style={{ background: "#131217", padding: "12px" }}>
+                <SearchField
+                    onOpen={() => opens.push(1)}
+                    placeholder="Search Happy (2)…"
+                    value="ENG-482"
+                    width={300}
+                />
+            </div>
+        ),
+        { width: 324, height: 50 },
+    );
+    await view.ready();
+
+    const input = view.$('[data-happy2-ui="search-field-input"]').element as HTMLInputElement;
+    /* An opener well is read-only chrome — it displays the value but never edits. */
+    expect(input.readOnly).toBe(true);
+    expect(input.value).toBe("ENG-482");
+
+    /* Click opens; input events never leak a change (there is no onChange). */
+    input.click();
+    input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    expect(opens).toEqual([1]);
+    expect(changes).toEqual([]);
+
+    /* Enter and Space open; other keys do not. */
+    input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }));
+    input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: " " }));
+    expect(opens).toEqual([1, 1, 1]);
+    input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "a" }));
+    expect(opens).toEqual([1, 1, 1]);
 });

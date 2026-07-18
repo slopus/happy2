@@ -29,6 +29,7 @@
 @import "./styles/menu.css";
 @import "./styles/modal.css";
 @import "./styles/modal-overlay.css";
+@import "./styles/command-palette.css";
 @import "./styles/lightbox.css";
 @import "./styles/form-row.css";
 @import "./styles/data-table.css";
