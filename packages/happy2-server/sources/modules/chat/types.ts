@@ -99,7 +99,7 @@ export interface AgentImageDetails extends AgentImageSummary {
 export interface AgentSecretSummary {
     id: string;
     description: string;
-    environmentVariables: string[];
+    environmentVariables: readonly string[];
     agentUserIds: string[];
     channelIds: string[];
 }

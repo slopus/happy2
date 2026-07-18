@@ -392,9 +392,24 @@ export class MockRigDaemon implements AsyncDisposable {
         const url = new URL(request.url ?? "/", "http://rig.invalid");
         if (request.method === "GET" && url.pathname === "/health")
             return sendJson(response, 200, {
+                catalog: {
+                    defaultModelId: MOCK_MODEL_ID,
+                    defaultProviderId: "gym",
+                    models: [
+                        {
+                            defaultThinkingLevel: "high",
+                            id: MOCK_MODEL_ID,
+                            name: "Gym mock agent",
+                            thinkingLevels: MOCK_EFFORT_OPTIONS,
+                        },
+                    ],
+                    providers: [],
+                },
                 durableGlobalEventQueue: this.durableGlobalEventQueue,
                 healthy: true,
+                identity: { version: "0.0.24" },
                 ready: true,
+                status: "ready",
             });
         if (request.method === "GET" && url.pathname === "/config") {
             this.configReadCount += 1;

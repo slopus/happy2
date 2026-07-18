@@ -2,6 +2,25 @@ import { execFile } from "node:child_process";
 import { chmod, mkdir, readFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 
+import type {
+    AttachSecretRequest,
+    ChangeEffortRequest,
+    CreateSessionRequest,
+    CreateSessionResponse,
+    GetDaemonConfigResponse,
+    HealthResponse,
+    ListSecretsResponse,
+    ProtocolSession,
+    RegisterSecretRequest,
+    RegisterSecretResponse,
+    SecretSummary,
+    SubmitMessageRequest,
+    SubmitMessageResponse,
+    TrimGlobalEventsRequest,
+    UnregisterSecretResponse,
+    UpdateDaemonConfigRequest,
+} from "@slopus/rig/dist/protocol/index.js";
+
 export interface RigDaemonConfig {
     directory: string;
     socketPath: string;
@@ -17,7 +36,7 @@ interface RigBlock {
 interface RigMessage {
     role: "agent" | "system" | "user";
     id?: string;
-    blocks: RigBlock[];
+    blocks: readonly RigBlock[];
     usage?: RigUsage;
 }
 
@@ -25,41 +44,14 @@ interface RigUsage {
     totalTokens?: number;
 }
 
-interface RigSession {
-    effort?: string;
-    id: string;
-    lastEventId?: string;
-    modelId: string;
-    models: RigModel[];
-    secretIds: string[];
-    projectSecretIds: string[];
-    sessionSecretIds: string[];
-    status: string;
-    snapshot: { messages: RigMessage[] };
-}
-
-interface RigModel {
-    defaultThinkingLevel: string;
-    id: string;
-    thinkingLevels: string[];
-}
-
 export interface RigEffortConfiguration {
     effort: string;
     options: string[];
 }
 
-export interface RigSecretRegistration {
-    description: string;
-    environment: Record<string, string>;
-    id: string;
-}
+export type RigSecretRegistration = RegisterSecretRequest;
 
-export interface RigSecretSummary {
-    description: string;
-    environmentVariables: string[];
-    id: string;
-}
+export type RigSecretSummary = SecretSummary;
 
 export interface RigSessionSecretPlan {
     desiredSecretIds: readonly string[];
@@ -111,14 +103,19 @@ export class RigDaemonClient {
     constructor(private readonly config: RigDaemonConfig) {}
 
     async ensureGlobalEventQueue(signal?: AbortSignal): Promise<void> {
-        const current = await this.connectedRequest<{
-            config: { settings: { durableGlobalEventQueue: boolean } };
-        }>("GET", "/config", undefined, signal);
+        const current = await this.connectedRequest<GetDaemonConfigResponse>(
+            "GET",
+            "/config",
+            undefined,
+            signal,
+        );
         if (current.config.settings.durableGlobalEventQueue) return;
         await this.connectedRequest(
             "PATCH",
             "/config",
-            { settings: { durableGlobalEventQueue: true } },
+            {
+                settings: { durableGlobalEventQueue: true },
+            } satisfies UpdateDaemonConfigRequest,
             signal,
         );
     }
@@ -129,7 +126,7 @@ export class RigDaemonClient {
         effort?: string,
         signal?: AbortSignal,
     ): Promise<{ effort: string; id: string }> {
-        const response = await this.connectedRequest<{ session: RigSession }>(
+        const response = await this.connectedRequest<CreateSessionResponse>(
             "POST",
             "/sessions",
             {
@@ -137,7 +134,7 @@ export class RigDaemonClient {
                 docker: { container: containerName, workingDirectory: "/workspace" },
                 ...(effort ? { effort } : {}),
                 permissionMode: "workspace_write",
-            },
+            } satisfies CreateSessionRequest,
             signal,
         );
         return { id: response.session.id, effort: sessionEffort(response.session).effort };
@@ -155,17 +152,17 @@ export class RigDaemonClient {
         effort: string,
         signal?: AbortSignal,
     ): Promise<RigEffortConfiguration> {
-        const response = await this.connectedRequest<{ session: RigSession }>(
+        const response = await this.connectedRequest<{ session: ProtocolSession }>(
             "PATCH",
             `/sessions/${encodeURIComponent(sessionId)}/effort`,
-            { effort },
+            { effort } satisfies ChangeEffortRequest,
             signal,
         );
         return sessionEffort(response.session);
     }
 
-    async listSecrets(signal?: AbortSignal): Promise<RigSecretSummary[]> {
-        const response = await this.connectedRequest<{ secrets: RigSecretSummary[] }>(
+    async listSecrets(signal?: AbortSignal): Promise<readonly RigSecretSummary[]> {
+        const response = await this.connectedRequest<ListSecretsResponse>(
             "GET",
             "/secrets",
             undefined,
@@ -178,7 +175,7 @@ export class RigDaemonClient {
         secret: RigSecretRegistration,
         signal?: AbortSignal,
     ): Promise<RigSecretSummary> {
-        const response = await this.connectedRequest<{ secret: RigSecretSummary }>(
+        const response = await this.connectedRequest<RegisterSecretResponse>(
             "POST",
             "/secrets",
             secret,
@@ -188,7 +185,7 @@ export class RigDaemonClient {
     }
 
     async unregisterSecret(secretId: string, signal?: AbortSignal): Promise<boolean> {
-        const response = await this.connectedRequest<{ removed: boolean }>(
+        const response = await this.connectedRequest<UnregisterSecretResponse>(
             "DELETE",
             `/secrets/${encodeURIComponent(secretId)}`,
             undefined,
@@ -216,7 +213,7 @@ export class RigDaemonClient {
                     await this.connectedRequest(
                         "POST",
                         `/sessions/${encodeURIComponent(sessionId)}/secrets`,
-                        { secretId, scope: "session" },
+                        { secretId, scope: "session" } satisfies AttachSecretRequest,
                         signal,
                     );
                 }
@@ -293,7 +290,12 @@ export class RigDaemonClient {
     }
 
     async trimGlobalEvents(through: number, signal?: AbortSignal): Promise<void> {
-        await this.connectedRequest("POST", "/events/trim", { through }, signal);
+        await this.connectedRequest(
+            "POST",
+            "/events/trim",
+            { through } satisfies TrimGlobalEventsRequest,
+            signal,
+        );
     }
 
     async sessionCheckpoint(
@@ -349,16 +351,16 @@ export class RigDaemonClient {
         text: string,
         signal?: AbortSignal,
     ): Promise<{ eventId: string; runId: string }> {
-        return this.connectedRequest<{ eventId: string; runId: string }>(
+        return this.connectedRequest<SubmitMessageResponse>(
             "POST",
             `/sessions/${encodeURIComponent(sessionId)}/messages`,
-            { text },
+            { text } satisfies SubmitMessageRequest,
             signal,
         );
     }
 
-    private session(sessionId: string, signal?: AbortSignal): Promise<RigSession> {
-        return this.connectedRequest<{ session: RigSession }>(
+    private session(sessionId: string, signal?: AbortSignal): Promise<ProtocolSession> {
+        return this.connectedRequest<{ session: ProtocolSession }>(
             "GET",
             `/sessions/${encodeURIComponent(sessionId)}`,
             undefined,
@@ -419,11 +421,8 @@ export class RigDaemonClient {
 
     private async healthy(): Promise<boolean> {
         try {
-            const health = await this.request<{ healthy: boolean; ready: boolean }>(
-                "GET",
-                "/health",
-            );
-            return health.healthy && health.ready;
+            const health = await this.request<HealthResponse>("GET", "/health");
+            return health.status === "ready";
         } catch {
             return false;
         }
@@ -754,7 +753,7 @@ function agentText(messages: readonly RigMessage[]): string {
         .join("\n\n");
 }
 
-function sessionEffort(session: RigSession): RigEffortConfiguration {
+function sessionEffort(session: ProtocolSession): RigEffortConfiguration {
     const model = session.models.find((candidate) => candidate.id === session.modelId);
     if (!model) throw new Error(`Rig session uses unknown model '${session.modelId}'.`);
     const effort = session.effort ?? model.defaultThinkingLevel;
