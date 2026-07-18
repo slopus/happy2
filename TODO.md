@@ -112,7 +112,7 @@ happy2-layout/use-flex-layout -- <reason>`: segmented-control (auto-width equal 
   and explicitly approved it with no task-blocking issue remaining.
 ## One user-named default agent and an always-present agent chat
 
-Status: implementation and reciprocal review complete; not yet synced to `main`.
+Status: implementation and reciprocal review complete; synced to `main`.
 
 ### Server
 
@@ -198,4 +198,4 @@ UI/state implementation evidence (2026-07-18):
 
 - [x] Run repository-wide `pnpm format` and all final required checks.
 - [x] Record final evidence here.
-- [ ] Sync the isolated task to `main` when explicitly requested.
+- [x] Sync the isolated task to `main` when explicitly requested.

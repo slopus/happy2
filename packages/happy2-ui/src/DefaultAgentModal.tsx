@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { useId, type CSSProperties } from "react";
 import { Button } from "./Button";
 import { Modal } from "./Modal";
@@ -56,7 +56,7 @@ export type DefaultAgentModalProps = {
  * card never assumes it is called "Happy".
  */
 export function DefaultAgentModal(props: DefaultAgentModalProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

@@ -208,11 +208,26 @@ it("names the default agent through a non-dismissible medium modal", async () =>
         width: "438px",
     });
 
-    /* Body/form geometry stays on Modal's 20px inset and 16px rhythm. */
+    /* The body is a full-bleed scrollport; Modal's inner wrapper owns the
+     * 20px inset while the form keeps its 16px rhythm. */
     const body = view.$('[data-testid="da"] [data-happy2-ui="modal-body"]');
     expect(body.bounds().width).toBe(478);
     expect(
         body.computedStyles(["padding-bottom", "padding-left", "padding-right", "padding-top"]),
+    ).toEqual({
+        "padding-bottom": "0px",
+        "padding-left": "0px",
+        "padding-right": "0px",
+        "padding-top": "0px",
+    });
+    const bodyContent = view.$('[data-testid="da"] [data-happy2-ui="modal-body-content"]');
+    expect(
+        bodyContent.computedStyles([
+            "padding-bottom",
+            "padding-left",
+            "padding-right",
+            "padding-top",
+        ]),
     ).toEqual({
         "padding-bottom": "20px",
         "padding-left": "20px",
