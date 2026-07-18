@@ -147,25 +147,6 @@ application only after a ready default image and final registration policy exist
 
 ## P1. Sidebar, chats, messages, and Happy
 
-### P1.1 — Sidebar information architecture
-
-- [ ] Active implementation boundary (P1.1/P1.3 prerequisite): - Server: create a server-managed executable Happy identity distinct from the service sender;
-      give every channel an authorized default-agent assignment; create independent Happy/agent
-      conversations and Rig bindings; protect Happy while allowing administrator configuration;
-      prove the contract through focused Gym tests and architecture checks. - State: project durable chat kind, Happy/default-agent identity, unread, and mention state into
-      one coarse sidebar store without introducing another subscription or compatibility layer. - UI: order people channels and human DMs before agent chats, keep the canonical Happy entry
-      pinned, render compact empty hints, show unread styling separately from numeric mentions,
-      and move administration into the authorized profile/settings area. - Verification: add exact live/store lifecycle and three-browser Blueprint/application tests,
-      run repository formatting and relevant package/repository checks, then remove this active
-      implementation block when the completed task is merged to `main`.
-- [ ] Put people channels and human DMs before agent chats; place agent DMs in the final section.
-- [ ] Pin the executable default Happy entry so it is always visible and cannot be hidden, archived,
-      or removed.
-- [ ] Replace oversized empty cards with compact one-line hints and useful actions. Distinguish unread
-      chat from direct mention: unread is a stronger label/dot; a numeric badge is only for mentions.
-- [ ] Move administration from the primary rail to a subtle authorized Settings/profile-area entry.
-- [ ] Add exact sidebar order, empty-state, unread, mention, and pinned-Happy UI/live tests.
-
 ### P1.2 — Fast creation and discovery
 
 - [ ] Replace exact-name/browser-prompt DM creation with one autocomplete flow for human DM, agent
@@ -186,15 +167,6 @@ application only after a ready default image and final registration policy exist
       anchored scroll, searched-message paging, and verified root-timeline filtering.
 - [ ] Represent concurrent typers as an expiring per-chat set, and show delivery/generation/edit/
       delete/forward state truthfully under permission/deletion races.
-
-### P1.3 — Executable default Happy agent
-
-- [ ] Add a server-managed executable Happy distinct from the immutable service identity.
-- [ ] Give every channel a default-agent assignment, initially Happy, with authorized changes.
-- [ ] Let each new agent chat create an independent conversation/Rig context rather than deduplicating
-      by participant pair.
-- [ ] Define Happy's lifecycle and update permissions; it must not be deletable while still supporting
-      model/image/policy updates by authorized administrators.
 
 ## P1. Files, media, mentions, reactions, and emoji
 
