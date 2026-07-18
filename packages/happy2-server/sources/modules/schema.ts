@@ -423,6 +423,7 @@ export const agentTurns = sqliteTable(
             .notNull()
             .references(() => chats.id, { onDelete: "cascade" }),
         sessionId: text("session_id").notNull(),
+        prompt: text("prompt").notNull().default(""),
         runId: text("run_id"),
         baselineMessageCount: integer("baseline_message_count"),
         lastSessionEventId: text("last_session_event_id"),
@@ -741,7 +742,22 @@ export const messages = sqliteTable("messages", {
     firstReadAt: text("first_read_at"),
     hardDeleteAt: text("hard_delete_at"),
     deleteReason: text("delete_reason"),
+    audience: text("audience").notNull().default("people"),
 });
+
+export const messageAgentAudiences = sqliteTable(
+    "message_agent_audiences",
+    {
+        messageId: text("message_id")
+            .notNull()
+            .references(() => messages.id, { onDelete: "cascade" }),
+        agentUserId: text("agent_user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [primaryKey({ columns: [table.messageId, table.agentUserId] })],
+);
 
 export const moderationActions = sqliteTable("moderation_actions", {
     id: text("id").primaryKey().notNull(),

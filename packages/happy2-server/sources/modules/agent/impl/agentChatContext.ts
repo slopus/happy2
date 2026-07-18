@@ -4,7 +4,11 @@ export interface AgentChatContext {
     agentEffort?: string;
     chatId: string;
     image: AgentExecutionImage;
-    privateUserId: string;
+    sandboxScope: {
+        kind: "users" | "chats";
+        id: string;
+        conversationId?: string;
+    };
     binding?: {
         containerName: string;
         cwd: string;

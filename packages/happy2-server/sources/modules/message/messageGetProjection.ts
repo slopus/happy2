@@ -7,6 +7,7 @@ import {
     chats,
     files,
     messageAttachments,
+    messageAgentAudiences,
     messageMentions,
     messageReceipts,
     messages,
@@ -46,6 +47,7 @@ export async function messageGetProjection(
             change_pts: messages.changePts,
             sender_user_id: messages.senderUserId,
             kind: messages.kind,
+            audience: messages.audience,
             text: messages.text,
             content_json: messages.contentJson,
             quoted_message_id: messages.quotedMessageId,
@@ -150,6 +152,13 @@ export async function messageGetProjection(
         .from(messageReceipts)
         .where(eq(messageReceipts.messageId, messageId))
         .orderBy(messageReceipts.userId);
+    const audienceRows = await executor
+        .select({
+            agent_user_id: messageAgentAudiences.agentUserId,
+        })
+        .from(messageAgentAudiences)
+        .where(eq(messageAgentAudiences.messageId, messageId))
+        .orderBy(messageAgentAudiences.agentUserId);
     const reactionMap = new Map<string, ReactionSummary>();
     for (const reaction of reactionRows) {
         const existing = reactionMap.get(reaction.reaction_key) ?? {
@@ -205,6 +214,8 @@ export async function messageGetProjection(
               }
             : undefined,
         kind: row.kind as "user" | "automated",
+        audience: row.audience as MessageSummary["audience"],
+        agentUserIds: audienceRows.map(({ agent_user_id }) => agent_user_id),
         text: deleted ? "" : row.text,
         service: deleted ? undefined : asServiceMessage(row.content_json),
         generationStatus:

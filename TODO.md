@@ -287,11 +287,33 @@ and agents look online without the server fabricating presence.
 
 ### P1.9 — Agents in channels and audience mode
 
-- [ ] Route channel messages to the configured default agent and explicitly selected additional agents,
+- [x] Route channel messages to the configured default agent and explicitly selected additional agents,
       with persisted `people`/`agents`/explicit-agent audience and authorization.
-- [ ] Guarantee one Rig session/container per agent and conversation, deterministic multi-agent queue,
+- [x] Guarantee one Rig session/container per agent and conversation, deterministic multi-agent queue,
       thread audience semantics, bounded channel context, author identity, attachments, prompts, and
       restart-safe retries.
+
+Active backend slice (UI remains blocked on explicit backend approval):
+
+- [x] Materialize the server-managed executable Happy separately from the immutable service identity
+      once the default image is ready; keep Happy in every channel, assign it by default to existing
+      and newly created channels, and prevent channel removal or product deletion.
+- [x] Add the durable channel-agent assignment and per-message `people`/`agents` audience schema,
+      projections, migration, manager-only assignment action, and authorized send contract.
+- [x] Generalize Rig bindings and turns from direct DMs to channel conversations while retaining one
+      sandbox/session for each agent-conversation pair and the existing durable queue/retry behavior.
+- [x] Build a bounded, chronological channel prompt from messages after that agent's preceding
+      addressed message, including author identity and an explicit addressed/not-addressed marker on
+      every contextual message; define top-level versus thread context without nesting threads.
+- [x] Prove assignment authorization, people-only suppression, agent routing, persisted projections,
+      context boundaries/marking, session reuse, deterministic ordering, restart recovery, and invalid
+      audience rejection in a behavior-named server Gym test.
+- [x] Run the server architecture check, relevant server/Gym tests, typechecks, formatting, and a
+      Claude Opus medium-effort review; address all actionable findings in the persisted review session.
+
+Backend evidence (2026-07-17): server unit 92/92; server Gym 125/125; server/Gym typechecks and
+lints; server architecture check; repository-wide format and format check; persisted Claude Opus
+session `507f67ed-6889-4041-9c61-38e4236844d9` approved the slice after every finding was addressed.
 
 ### P1.10 — Composer agent controls
 

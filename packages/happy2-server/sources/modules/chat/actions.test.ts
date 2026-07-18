@@ -136,10 +136,13 @@ describe("functional product actions", () => {
             actorUserId: ada.id,
             chatId: created.chat.id,
             text: "Queue this durably",
-            agentTurn: {
-                agentUserId,
-                sessionId: "rig-session",
-            },
+            audience: "agents",
+            agentTurns: [
+                {
+                    agentUserId,
+                    sessionId: "rig-session",
+                },
+            ],
         });
         const inspection = createClient({
             url,

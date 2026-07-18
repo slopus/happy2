@@ -140,6 +140,8 @@ export interface MessageSummary {
     sender?: UserSummary;
     senderBot?: { id: string; name: string; username: string; photoFileId?: string };
     kind: "user" | "automated";
+    audience: "people" | "agents";
+    agentUserIds: string[];
     text: string;
     service?: { type: "user_added" | "user_joined"; userId: string };
     generationStatus?: "streaming" | "complete" | "failed";

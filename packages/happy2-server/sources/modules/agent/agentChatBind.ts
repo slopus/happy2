@@ -1,9 +1,9 @@
 import { CollaborationError } from "../chat/types.js";
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
-import { agentRigBindings, chatMembers, users } from "../schema.js";
-import { and, eq, isNull } from "drizzle-orm";
+import { agentRigBindings } from "../schema.js";
+import { and, eq } from "drizzle-orm";
 
-import { chatGetAccess } from "../chat/chatGetAccess.js";
+import { agentChatGetContext } from "./agentChatGetContext.js";
 
 /**
  * Reassigns an agentRigBindings row only after the requested agent, rig, and chat relationship has been validated.
@@ -26,32 +26,14 @@ export async function agentChatBind(
     sessionId: string;
 }> {
     return withTransaction(executor, async (tx) => {
-        const access = await chatGetAccess(tx, input.actorUserId, input.chatId, true);
-        if (!access || access.kind !== "dm" || access.dmType !== "direct")
-            throw new CollaborationError("not_found", "Agent direct message was not found");
-        const [agent] = await tx
-            .select({
-                id: users.id,
-            })
-            .from(users)
-            .innerJoin(
-                chatMembers,
-                and(
-                    eq(chatMembers.userId, users.id),
-                    eq(chatMembers.chatId, input.chatId),
-                    isNull(chatMembers.leftAt),
-                ),
-            )
-            .where(
-                and(
-                    eq(users.id, input.agentUserId),
-                    eq(users.kind, "agent"),
-                    eq(users.agentImageId, input.imageId),
-                    isNull(users.deletedAt),
-                ),
-            )
-            .limit(1);
-        if (!agent) throw new CollaborationError("not_found", "Agent direct message was not found");
+        const context = await agentChatGetContext(
+            tx,
+            input.actorUserId,
+            input.chatId,
+            input.agentUserId,
+        );
+        if (!context || context.image.id !== input.imageId)
+            throw new CollaborationError("not_found", "Agent conversation was not found");
         await tx
             .insert(agentRigBindings)
             .values({

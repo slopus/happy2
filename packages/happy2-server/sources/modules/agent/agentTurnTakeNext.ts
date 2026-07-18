@@ -79,7 +79,7 @@ export async function agentTurnTakeNext(
             .from(agentTurns)
             .innerJoin(messages, eq(messages.id, agentTurns.userMessageId))
             .where(and(eq(agentTurns.chatId, chatId), eq(agentTurns.status, "pending")))
-            .orderBy(agentTurns.createdAt, agentTurns.userMessageId)
+            .orderBy(messages.sequence, agentTurns.agentUserId)
             .limit(1);
         if (!next?.actorUserId) return undefined;
         const claimed = await tx

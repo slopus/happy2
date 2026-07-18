@@ -43,9 +43,10 @@ import { agentCreate } from "../agent/agentCreate.js";
 import { agentConversationCreate } from "../agent/agentConversationCreate.js";
 import { agentDefaultActivate } from "../agent/agentDefaultActivate.js";
 import { agentChatListUnfinishedIds } from "../agent/agentChatListUnfinishedIds.js";
-import { agentChatGetDirectContext } from "../agent/agentChatGetDirectContext.js";
+import { agentChatGetContext } from "../agent/agentChatGetContext.js";
 import { agentChatBind } from "../agent/agentChatBind.js";
 import { type DrizzleExecutor } from "../drizzle.js";
+import { chatGetAccess } from "../chat/chatGetAccess.js";
 import { createId } from "@paralleldrive/cuid2";
 import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
@@ -194,7 +195,12 @@ export class AgentService {
                 "A ready default agent image must be configured before creating agents",
             );
         const agentUserId = createId();
-        const sandbox = sandboxDirectories(this.defaultCwd, agentUserId, input.actorUserId);
+        const sandbox = sandboxDirectories(
+            this.defaultCwd,
+            agentUserId,
+            "users",
+            input.actorUserId,
+        );
         await Promise.all([
             mkdir(sandbox.home, {
                 recursive: true,
@@ -271,26 +277,68 @@ export class AgentService {
         const chatIds = await agentChatListUnfinishedIds(this.executor);
         for (const chatId of chatIds) this.startDrain(chatId);
     }
-    async prepareTurn(input: { actorUserId: string; chatId: string }): Promise<
-        | {
-              agentUserId: string;
-              sessionId: string;
-          }
-        | undefined
-    > {
-        const context = await agentChatGetDirectContext(
-            this.executor,
-            input.actorUserId,
-            input.chatId,
+    async prepareTurns(input: {
+        actorUserId: string;
+        agentUserIds: readonly string[];
+        chatId: string;
+    }): Promise<Array<{ agentUserId: string; sessionId: string }>> {
+        const access = await chatGetAccess(this.executor, input.actorUserId, input.chatId, true);
+        if (!access) throw new CollaborationError("not_found", "Chat was not found");
+        const requested = [...new Set(input.agentUserIds)];
+        let agentUserIds: string[];
+        if (access.kind === "dm") {
+            const direct = await agentChatGetContext(
+                this.executor,
+                input.actorUserId,
+                input.chatId,
+            );
+            if (!direct)
+                throw new CollaborationError(
+                    "invalid",
+                    "This direct message has no executable agent",
+                );
+            if (requested.some((agentUserId) => agentUserId !== direct.agentUserId))
+                throw new CollaborationError(
+                    "invalid",
+                    "A direct message can only address its member agent",
+                );
+            agentUserIds = [direct.agentUserId];
+        } else {
+            agentUserIds = [
+                ...(access.defaultAgentUserId ? [access.defaultAgentUserId] : []),
+                ...requested,
+            ].filter((agentUserId, index, all) => all.indexOf(agentUserId) === index);
+            if (!agentUserIds.length)
+                throw new CollaborationError(
+                    "conflict",
+                    "The channel needs a default agent before sending to agents",
+                );
+        }
+        const contexts = await Promise.all(
+            agentUserIds.map((agentUserId) =>
+                agentChatGetContext(this.executor, input.actorUserId, input.chatId, agentUserId),
+            ),
         );
-        if (!context) return undefined;
-        const binding = await this.ensureAgentBinding(input.actorUserId, input.chatId);
-        return binding
-            ? {
-                  agentUserId: context.agentUserId,
-                  sessionId: binding.sessionId,
-              }
-            : undefined;
+        if (contexts.some((context) => !context))
+            throw new CollaborationError(
+                "invalid",
+                "Every addressed agent must be a ready executable chat member",
+            );
+        const turns: Array<{ agentUserId: string; sessionId: string }> = [];
+        for (const context of contexts) {
+            const binding = await this.ensureAgentBinding(
+                input.actorUserId,
+                input.chatId,
+                context!.agentUserId,
+            );
+            if (!binding)
+                throw new CollaborationError("conflict", "Agent conversation is not ready");
+            turns.push({
+                agentUserId: context!.agentUserId,
+                sessionId: binding.sessionId,
+            });
+        }
+        return turns;
     }
     startTurn(chatId: string): void {
         this.startDrain(chatId);
@@ -734,6 +782,7 @@ export class AgentService {
     private async ensureAgentBinding(
         actorUserId: string,
         chatId: string,
+        agentUserId: string,
     ): Promise<
         | {
               containerName: string;
@@ -743,7 +792,7 @@ export class AgentService {
         | undefined
     > {
         if (this.stopping) return undefined;
-        const context = await agentChatGetDirectContext(this.executor, actorUserId, chatId);
+        const context = await agentChatGetContext(this.executor, actorUserId, chatId, agentUserId);
         if (!context) return undefined;
         if (context.binding) {
             if (context.agentEffort)
@@ -758,9 +807,14 @@ export class AgentService {
         const pending = this.bindingCreations.get(key);
         if (pending) return pending;
         const creation = this.serializeAgentConfiguration(context.agentUserId, async () => {
-            const latest = await agentChatGetDirectContext(this.executor, actorUserId, chatId);
+            const latest = await agentChatGetContext(
+                this.executor,
+                actorUserId,
+                chatId,
+                agentUserId,
+            );
             if (!latest)
-                throw new CollaborationError("not_found", "Agent direct message was not found");
+                throw new CollaborationError("not_found", "Agent conversation was not found");
             if (latest.binding) {
                 if (latest.agentEffort)
                     await this.reconcileSessionEffort(latest.binding.sessionId, latest.agentEffort);
@@ -769,8 +823,9 @@ export class AgentService {
             const sandbox = sandboxDirectories(
                 this.defaultCwd,
                 latest.agentUserId,
-                latest.privateUserId,
-                chatId,
+                latest.sandboxScope.kind,
+                latest.sandboxScope.id,
+                latest.sandboxScope.conversationId,
             );
             await Promise.all([
                 mkdir(sandbox.home, {
@@ -2070,11 +2125,12 @@ function agentContainerName(): string {
 function sandboxDirectories(
     root: string,
     agentUserId: string,
-    privateUserId: string,
-    chatId?: string,
+    scopeKind: "users" | "chats",
+    scopeId: string,
+    conversationId?: string,
 ) {
-    const userSandbox = join(root, "agents", agentUserId, "users", privateUserId);
-    const sandbox = chatId ? join(userSandbox, "conversations", chatId) : userSandbox;
+    const scope = join(root, "agents", agentUserId, scopeKind, scopeId);
+    const sandbox = conversationId ? join(scope, "conversations", conversationId) : scope;
     return {
         home: join(sandbox, "home"),
         workspace: join(sandbox, "workspace"),

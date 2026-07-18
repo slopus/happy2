@@ -9,12 +9,13 @@ export interface MessageSendInput {
     selfDestructSeconds?: number;
     afterReadScope?: "any_reader" | "all_readers";
     clientMutationId?: string;
+    audience?: "people" | "agents";
     kind?: "user" | "automated";
     senderBotId?: string;
     forwardedFromMessageId?: string;
     agentSessionId?: string;
-    agentTurn?: {
+    agentTurns?: Array<{
         agentUserId: string;
         sessionId: string;
-    };
+    }>;
 }

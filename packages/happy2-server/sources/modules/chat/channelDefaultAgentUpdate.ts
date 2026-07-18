@@ -70,9 +70,16 @@ export async function channelDefaultAgentUpdate(
         );
         await tx
             .update(chats)
-            .set({ defaultAgentUserId: input.agentUserId, updatedAt: sql`CURRENT_TIMESTAMP` })
+            .set({
+                defaultAgentUserId: input.agentUserId,
+                lifecycleVersion: sql`${chats.lifecycleVersion} + 1`,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
             .where(eq(chats.id, input.chatId));
         const chat = await chatRequireManager(tx, input.actorUserId, input.chatId);
-        return { chat, hint: chatHint(sequence, input.chatId, mutation.pts) };
+        return {
+            chat,
+            hint: chatHint(sequence, input.chatId, mutation.pts),
+        };
     });
 }

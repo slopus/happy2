@@ -8,6 +8,7 @@ import {
     botIdentities,
     chatMembers,
     messageAttachments,
+    messageAgentAudiences,
     messages,
     serverSettings,
     userChatPreferences,
@@ -40,6 +41,7 @@ import { chatRequireManager } from "../chat/chatRequireManager.js";
 import { messageRequireInChat } from "../chat/messageRequireInChat.js";
 import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
 import { storeClientMutationDb } from "./impl/storeClientMutationDb.js";
+import { agentTurnPromptBuild } from "../agent/agentTurnPromptBuild.js";
 /**
  * Publishes messages with authorized messageAttachments, search and mention projections, delivery records, and any requested agentTurns work.
  * The caller's transaction makes the channel point the boundary for every consequence of sending, including files, notifications, audit evidence, and agent execution.
@@ -100,21 +102,25 @@ export async function messageSendInTransaction(
                 ? await chatRequireManager(tx, input.actorUserId, input.chatId)
                 : await chatGetAccess(tx, input.actorUserId, input.chatId, true);
         if (!access) throw new CollaborationError("not_found", "Chat was not found");
-        if (input.agentTurn) {
-            if (
-                input.kind === "automated" ||
-                access.parentMessageId ||
-                access.kind !== "dm" ||
-                access.dmType !== "direct"
-            )
-                throw new CollaborationError(
-                    "invalid",
-                    "Agent turns are only supported for top-level direct messages",
-                );
+        const audience = input.audience ?? "people";
+        const requestedTurns = input.agentTurns ?? [];
+        if (audience === "people" && requestedTurns.length)
+            throw new CollaborationError(
+                "invalid",
+                "People-only messages cannot start agent turns",
+            );
+        if (audience === "agents" && !requestedTurns.length)
+            throw new CollaborationError("invalid", "Agent-audience messages require an agent");
+        if (input.kind === "automated" && requestedTurns.length)
+            throw new CollaborationError("invalid", "Automated messages cannot start agent turns");
+        if (access.kind === "dm" && requestedTurns.length && access.dmType !== "direct")
+            throw new CollaborationError(
+                "invalid",
+                "Group direct messages cannot start agent turns",
+            );
+        for (const requestedTurn of requestedTurns) {
             const [binding] = await tx
-                .select({
-                    userId: agentRigBindings.userId,
-                })
+                .select({ userId: agentRigBindings.userId })
                 .from(agentRigBindings)
                 .innerJoin(
                     chatMembers,
@@ -127,19 +133,17 @@ export async function messageSendInTransaction(
                 .where(
                     and(
                         eq(agentRigBindings.chatId, input.chatId),
-                        eq(agentRigBindings.userId, input.agentTurn.agentUserId),
-                        eq(agentRigBindings.sessionId, input.agentTurn.sessionId),
+                        eq(agentRigBindings.userId, requestedTurn.agentUserId),
+                        eq(agentRigBindings.sessionId, requestedTurn.sessionId),
                         isNull(chatMembers.leftAt),
                         isNull(users.deletedAt),
                         eq(users.kind, "agent"),
+                        isNull(users.systemRole),
                     ),
                 )
                 .limit(1);
             if (!binding)
-                throw new CollaborationError(
-                    "conflict",
-                    "Agent direct message is not ready for inference",
-                );
+                throw new CollaborationError("conflict", "Agent conversation is not ready");
         }
         let senderUserId = input.kind === "automated" ? undefined : input.actorUserId;
         if (input.agentSessionId) {
@@ -241,14 +245,15 @@ export async function messageSendInTransaction(
             afterReadScope: input.afterReadScope ?? access.defaultAfterReadScope,
             senderBotId: input.senderBotId,
             publishedAt: input.deferPublication ? null : sql`CURRENT_TIMESTAMP`,
+            audience,
         });
-        if (input.agentTurn)
-            await tx.insert(agentTurns).values({
-                userMessageId: id,
-                agentUserId: input.agentTurn.agentUserId,
-                chatId: input.chatId,
-                sessionId: input.agentTurn.sessionId,
-            });
+        if (requestedTurns.length)
+            await tx.insert(messageAgentAudiences).values(
+                requestedTurns.map(({ agentUserId }) => ({
+                    messageId: id,
+                    agentUserId,
+                })),
+            );
         const mentions = input.deferPublication
             ? {
                   notifyAll: false,
@@ -265,6 +270,25 @@ export async function messageSendInTransaction(
                     position,
                 })),
             );
+        if (requestedTurns.length) {
+            const turns = [];
+            for (const requestedTurn of requestedTurns)
+                turns.push({
+                    userMessageId: id,
+                    agentUserId: requestedTurn.agentUserId,
+                    chatId: input.chatId,
+                    sessionId: requestedTurn.sessionId,
+                    prompt:
+                        access.kind === "dm"
+                            ? input.text
+                            : await agentTurnPromptBuild(tx, {
+                                  agentUserId: requestedTurn.agentUserId,
+                                  chatId: input.chatId,
+                                  currentSequence: mutation.messageSequence,
+                              }),
+                });
+            await tx.insert(agentTurns).values(turns);
+        }
         if (access.parentMessageId) {
             await tx
                 .insert(userChatPreferences)

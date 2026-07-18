@@ -11,7 +11,7 @@ export const agentTurnWorkSelection = {
     leaseExpiresAt: agentTurns.leaseExpiresAt,
     startedAt: agentTurns.startedAt,
     workerId: agentTurns.workerId,
-    text: messages.text,
+    text: agentTurns.prompt,
     streamCommittedText: agentTurns.streamCommittedText,
     userMessageId: agentTurns.userMessageId,
 };

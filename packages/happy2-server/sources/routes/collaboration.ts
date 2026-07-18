@@ -61,7 +61,7 @@ import { callList } from "../modules/call/callList.js";
 import { callGet } from "../modules/call/callGet.js";
 import { callEnd } from "../modules/call/callEnd.js";
 import { callCreate } from "../modules/call/callCreate.js";
-import { agentChatGetDirectContext } from "../modules/agent/agentChatGetDirectContext.js";
+import { agentChatGetContext } from "../modules/agent/agentChatGetContext.js";
 import { type DrizzleExecutor } from "../modules/drizzle.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AuthService } from "../modules/auth/service.js";
@@ -314,6 +314,22 @@ export function registerCollaborationRoutes(
         }),
     );
     app.post(
+        "/v0/chats/:chatId/updateDefaultAgent",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, ["agentUserId"]);
+            const result = await channelDefaultAgentUpdate(executor, {
+                actorUserId: userId,
+                chatId: pathId(request, "chatId"),
+                agentUserId: idField(body, "agentUserId"),
+            });
+            await publishHints(request, pubsub, [result.hint]);
+            return {
+                chat: result.chat,
+                sync: result.hint,
+            };
+        }),
+    );
+    app.post(
         "/v0/chats/:chatId/updateTopic",
         authenticated(auth, async (request, _reply, userId) => {
             const body = requestBody(request, ["topic"]);
@@ -421,19 +437,6 @@ export function registerCollaborationRoutes(
                 chat: result.chat,
                 sync: result.hint,
             };
-        }),
-    );
-    app.post(
-        "/v0/chats/:chatId/updateDefaultAgent",
-        authenticated(auth, async (request, _reply, userId) => {
-            const body = requestBody(request, ["agentUserId"]);
-            const result = await channelDefaultAgentUpdate(executor, {
-                actorUserId: userId,
-                chatId: pathId(request, "chatId"),
-                agentUserId: idField(body, "agentUserId"),
-            });
-            await publishHints(request, pubsub, [result.hint]);
-            return { chat: result.chat, sync: result.hint };
         }),
     );
     for (const [path, archived] of [
@@ -659,12 +662,6 @@ export function registerCollaborationRoutes(
         "/v0/chats/:chatId/sendMessage",
         authenticated(auth, async (request, reply, userId) => {
             const chatId = pathId(request, "chatId");
-            const agentContext = await agentChatGetDirectContext(executor, userId, chatId);
-            if (agentContext && !agents)
-                return reply.code(503).send({
-                    error: "agents_unavailable",
-                    message: "AI agents are not enabled on this Happy (2) server.",
-                });
             const body = requestBody(request, [
                 "text",
                 "attachmentFileIds",
@@ -673,6 +670,8 @@ export function registerCollaborationRoutes(
                 "selfDestructSeconds",
                 "afterReadScope",
                 "clientMutationId",
+                "audience",
+                "agentUserIds",
             ]);
             const attachmentFileIds = optionalIdArrayField(
                 body,
@@ -680,13 +679,22 @@ export function registerCollaborationRoutes(
                 MAX_ATTACHMENTS,
             );
             const text = messageText(body, attachmentFileIds?.length ?? 0);
-            const agentTurn =
-                agentContext && text
-                    ? await agents!.prepareTurn({
-                          actorUserId: userId,
-                          chatId,
-                      })
-                    : undefined;
+            const directContext = await agentChatGetContext(executor, userId, chatId);
+            const audience =
+                optionalEnumField(body, "audience", ["people", "agents"] as const) ??
+                (directContext ? "agents" : "people");
+            const agentUserIds = optionalIdArrayField(body, "agentUserIds", 8) ?? [];
+            if (audience === "people" && agentUserIds.length)
+                throw new InvalidRequest("agentUserIds require the agents audience");
+            if (audience === "agents" && !agents)
+                return reply.code(503).send({
+                    error: "agents_unavailable",
+                    message: "AI agents are not enabled on this Happy (2) server.",
+                });
+            const agentTurns =
+                audience === "agents"
+                    ? await agents!.prepareTurns({ actorUserId: userId, agentUserIds, chatId })
+                    : [];
             const selfDestructSeconds = optionalPositiveIntegerField(
                 body,
                 "selfDestructSeconds",
@@ -710,9 +718,10 @@ export function registerCollaborationRoutes(
                     "all_readers",
                 ] as const),
                 clientMutationId: optionalTokenField(body, "clientMutationId"),
-                agentTurn,
+                audience,
+                agentTurns,
             });
-            if (agentTurn) agents!.startTurn(chatId);
+            if (agentTurns.length) agents!.startTurn(chatId);
             await publishHints(request, pubsub, [result.hint]);
             return reply.code(201).send({
                 message: result.message,

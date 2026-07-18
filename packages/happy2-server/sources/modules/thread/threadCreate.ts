@@ -85,6 +85,7 @@ export async function threadCreate(
                 defaultExpiryMode: parent.defaultExpiryMode,
                 defaultSelfDestructSeconds: parent.defaultSelfDestructSeconds,
                 defaultAfterReadScope: parent.defaultAfterReadScope,
+                defaultAgentUserId: parent.defaultAgentUserId,
             })
             .onConflictDoNothing()
             .returning({ id: chats.id });
