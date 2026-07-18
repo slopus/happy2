@@ -74,6 +74,16 @@ export interface ChannelUpdateInput {
     readonly autoJoin?: boolean;
 }
 
+/** Replaces the channel's default agent durably and reconciles the authoritative summary across retained surfaces. */
+export async function channelDefaultAgentUpdate(
+    context: ChatActionContext,
+    chatId: string,
+    agentUserId: string,
+): Promise<void> {
+    const result = await context.runtime.operation("updateDefaultAgent", { chatId, agentUserId });
+    await chatResultApply(context, result.chat);
+}
+
 /** Updates explicit channel fields and reconciles the same authoritative summary across retained surfaces. */
 export async function channelUpdate(
     context: ChatActionContext,

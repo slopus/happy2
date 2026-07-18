@@ -22,6 +22,7 @@ import type {
     WorkspaceFileStore,
 } from "happy2-state";
 import {
+    composerAudienceHint,
     composerHint,
     entriesProject,
     formatBytes,
@@ -129,6 +130,7 @@ export interface ChatPageActions {
     chatStarSet(chatId: string, starred: boolean): Promise<void>;
     channelCreate(input: import("happy2-state").CreateChannelInput): Promise<void>;
     channelUpdate(chatId: string, input: import("happy2-state").ChannelUpdateInput): Promise<void>;
+    channelDefaultAgentUpdate(chatId: string, agentUserId: string): Promise<void>;
     agentCreate(input: import("happy2-state").CreateAgentInput): Promise<void>;
     directMessageCreate(userId: string): Promise<void>;
 }
@@ -409,6 +411,47 @@ export function ChatPage(props: ChatPageProps) {
             name: person.displayName,
             tone: toneFor(person.id),
         }));
+    const directoryAgents = () => directoryUsers().filter((person) => person.kind === "agent");
+    const channelAgents = () => {
+        const members = chatSnapshot()?.members;
+        return members?.type === "ready"
+            ? members.value.filter((person) => person.kind === "agent")
+            : [];
+    };
+    const composerAgent = (id: string) => {
+        const person =
+            directoryUsers().find((candidate) => candidate.id === id) ??
+            channelAgents().find((candidate) => candidate.id === id);
+        return person
+            ? {
+                  id: person.id,
+                  initials: identityInitials(person),
+                  name: person.displayName,
+                  tone: toneFor(person.id),
+              }
+            : undefined;
+    };
+    const audienceRoutingActive = () =>
+        activeChat() !== undefined &&
+        activeChat()?.kind !== "dm" &&
+        composerSnapshot()?.audience !== undefined;
+    const composerDefaultAgent = () => {
+        const id = activeChat()?.defaultAgentUserId;
+        return id ? composerAgent(id) : undefined;
+    };
+    const messageAudienceLabel = (message: LiveThreadMessage): string | undefined => {
+        if (activeChat()?.kind === "dm") return undefined;
+        const server = message.serverMessage;
+        if (server?.audience !== "agents") return undefined;
+        const ids = server.agentUserIds;
+        const first = ids.length
+            ? directoryUsers().find((person) => person.id === ids[0])
+            : undefined;
+        if (!first) return "To agents";
+        return ids.length > 1
+            ? `To agents · ${first.displayName} + ${ids.length - 1}`
+            : `To agents · ${first.displayName}`;
+    };
     const composerContext: ContextItem[] = pendingAttachments().map((file) => ({
         id: `file:${file.id}`,
         kind: "file",
@@ -419,7 +462,9 @@ export function ChatPage(props: ChatPageProps) {
     const liveComposerHint = () => {
         const actor = typingActor();
         const person = actor && directoryUsers().find((candidate) => candidate.id === actor.userId);
-        return person ? `${person.displayName} is typing…` : (statusHint ?? composerHint);
+        return person
+            ? `${person.displayName} is typing…`
+            : (statusHint ?? (audienceRoutingActive() ? composerAudienceHint : composerHint));
     };
     const activeAgentActivity = (): readonly DeepReadonly<AgentActivityState>[] =>
         chatSnapshot()?.agentActivity ?? [];
@@ -592,6 +637,15 @@ export function ChatPage(props: ChatPageProps) {
                             canEdit={canEditChannel()}
                             channelName={infoModel.channelName}
                             channelTopic={infoModel.channelTopic}
+                            defaultAgentOptions={
+                                canEditChannel()
+                                    ? directoryAgents().map((person) => ({
+                                          label: person.displayName,
+                                          value: person.id,
+                                      }))
+                                    : undefined
+                            }
+                            defaultAgentUserId={activeChat()?.defaultAgentUserId}
                             effortBusy={infoModel.effortBusy()}
                             effortError={infoModel.effortError()}
                             effortOptions={infoModel.effortOptions()}
@@ -604,6 +658,23 @@ export function ChatPage(props: ChatPageProps) {
                             onAutoJoinChange={infoModel.setAutoJoin}
                             onChannelNameChange={infoModel.setChannelName}
                             onChannelTopicChange={infoModel.setChannelTopic}
+                            onDefaultAgentChange={
+                                canEditChannel()
+                                    ? (agentUserId) => {
+                                          startBusy();
+                                          props.actions
+                                              .channelDefaultAgentUpdate(
+                                                  activeConversationId(),
+                                                  agentUserId,
+                                              )
+                                              .then(
+                                                  () => setStatusHint("Default agent updated."),
+                                                  showError,
+                                              )
+                                              .finally(finishBusy);
+                                      }
+                                    : undefined
+                            }
                             onEffortChange={infoModel.effortChange}
                             onSave={() => void infoModel.save()}
                             peer={Boolean(infoModel.peer())}
@@ -639,10 +710,31 @@ export function ChatPage(props: ChatPageProps) {
                     activities={activeAgentActivity()}
                     activityNow={activityNow}
                     busy={busy()}
+                    composerAgentOptions={
+                        audienceRoutingActive()
+                            ? channelAgents().map((person) => ({
+                                  id: person.id,
+                                  initials: identityInitials(person),
+                                  name: person.displayName,
+                                  tone: toneFor(person.id),
+                              }))
+                            : undefined
+                    }
+                    composerAudience={
+                        audienceRoutingActive() ? composerSnapshot()?.audience : undefined
+                    }
+                    composerDefaultAgent={
+                        audienceRoutingActive() ? composerDefaultAgent() : undefined
+                    }
                     composerDisabled={!activeConversationId()}
                     composerHint={liveComposerHint()}
                     composerMentions={mentionCandidates()}
                     composerPending={composerSnapshot()?.submission.status === "pending" || busy()}
+                    composerSelectedAgentIds={
+                        audienceRoutingActive()
+                            ? [...(composerSnapshot()?.agentUserIds ?? [])]
+                            : undefined
+                    }
                     composerSendEnabled={
                         draft().trim().length > 0 || pendingAttachments().length > 0
                     }
@@ -659,6 +751,11 @@ export function ChatPage(props: ChatPageProps) {
                     messageEntries={conversationEntries().map((entry, index, list) =>
                         renderEntry(entry, index, list),
                     )}
+                    onAgentAdd={(agentId) => props.composer?.getState().agentUserAdd(agentId)}
+                    onAgentRemove={(agentId) => props.composer?.getState().agentUserRemove(agentId)}
+                    onAudienceChange={(audience) =>
+                        props.composer?.getState().audienceUpdate(audience)
+                    }
                     onContextRemove={(id) =>
                         props.composer?.getState().attachmentRemove(id.replace(/^file:/u, ""))
                     }
@@ -764,6 +861,7 @@ export function ChatPage(props: ChatPageProps) {
             <ChatMessageEntry
                 key={entry.id}
                 entry={entry}
+                audienceLabel={message ? messageAudienceLabel(message) : undefined}
                 avatarUrl={avatarFor(message?.senderId, message?.photoFileId)}
                 files={message ? mediaModel.files(message) : []}
                 grouped={message ? messagesGrouped(list, index, message) : false}

@@ -3,7 +3,7 @@ import type { StateRuntime } from "../runtime/runtimeState.js";
 import { chatStoreCreate } from "../chat/chatState.js";
 import { composerStoreCreate } from "../composer/composerState.js";
 import { IdentityCatalog } from "../identity/identityState.js";
-import { message } from "../../../tests/fixtures.js";
+import { chat as chatFixture, message } from "../../../tests/fixtures.js";
 import type { MessageActionContext } from "./messageState.js";
 import { messageDelete } from "./messageState.js";
 import { messageEdit } from "./messageState.js";
@@ -38,6 +38,7 @@ describe("message module", () => {
         expect(chat.getState().messages[0]).toMatchObject({
             source: "local",
             delivery: "sending",
+            message: { audience: "people" },
         });
         await Promise.all(pending);
         expect(chat.getState().messages[0]).toMatchObject({ source: "server", delivery: "sent" });
@@ -54,6 +55,79 @@ describe("message module", () => {
             "pinMessage",
             "unpinMessage",
         ]);
+    });
+
+    it("sends audience routing to the server and projects it on the optimistic message", async () => {
+        const chat = chatStoreCreate("chat-1");
+        const pending: Promise<void>[] = [];
+        const operation = vi.fn().mockResolvedValue({
+            message: message({ audience: "agents", agentUserIds: ["agent-1", "agent-2"] }),
+        });
+        const context: MessageActionContext = {
+            runtime: {
+                createId: () => "mutation-1",
+                now: () => 0,
+                operation,
+                background: (task: Promise<void>) => pending.push(task),
+            } as unknown as StateRuntime,
+            identities: new IdentityCatalog(),
+            chatGet: () => chat,
+            composerGet: () => undefined,
+            chatPinsReconcile: vi.fn(),
+        };
+        messageSend(context, "chat-1", {
+            text: "run it",
+            audience: "agents",
+            agentUserIds: ["agent-2"],
+        });
+        expect(chat.getState().messages[0]!.message).toMatchObject({
+            audience: "agents",
+            agentUserIds: ["agent-2"],
+        });
+        await Promise.all(pending);
+        expect(operation).toHaveBeenCalledWith(
+            "sendMessage",
+            expect.objectContaining({
+                audience: "agents",
+                agentUserIds: ["agent-2"],
+                clientMutationId: "mutation-1",
+            }),
+        );
+        expect(chat.getState().messages[0]!.message).toMatchObject({
+            audience: "agents",
+            agentUserIds: ["agent-1", "agent-2"],
+        });
+    });
+
+    it("matches the server's implicit audience for the default-agent conversation", () => {
+        const chat = chatStoreCreate("chat-1");
+        chat.getState().chatInput({
+            type: "chatLoaded",
+            chat: chatFixture({
+                kind: "dm",
+                dmType: "direct",
+                isDefaultAgentConversation: true,
+            }),
+            messages: [],
+            hasMoreMessages: false,
+        });
+        const context: MessageActionContext = {
+            runtime: {
+                createId: () => "mutation-1",
+                now: () => 0,
+                operation: vi.fn(() => new Promise(() => undefined)),
+                background: () => undefined,
+            } as unknown as StateRuntime,
+            identities: new IdentityCatalog(),
+            chatGet: () => chat,
+            composerGet: () => undefined,
+            chatPinsReconcile: vi.fn(),
+        };
+        messageSend(context, "chat-1", { text: "hello agent" });
+        expect(chat.getState().messages[0]!.message).toMatchObject({
+            audience: "agents",
+            agentUserIds: [],
+        });
     });
 
     it("keeps failed optimistic content and reports the displayable error", async () => {

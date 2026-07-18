@@ -5,6 +5,7 @@ import { emojiItems, type LiveThreadMessage, type WorkspaceEntry } from "./chatP
 export interface ChatMessageEntryProps {
     entry: WorkspaceEntry;
     grouped: boolean;
+    audienceLabel?: string;
     avatarUrl?: string;
     images: MessageImage[];
     menuItems: MenuItem[];
@@ -28,6 +29,7 @@ export function ChatMessageEntry(props: ChatMessageEntryProps): ReactNode {
     return (
         <Message
             agent={entry.agent}
+            audienceLabel={props.audienceLabel}
             author={entry.author}
             body={entry.body}
             deliveryState={entry.delivery ?? (entry.id.startsWith("local:") ? "sending" : "sent")}

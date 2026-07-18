@@ -5,10 +5,12 @@ import {
     FormRow,
     InfoPanel,
     SegmentedControl,
+    Select,
     Switch,
     TextField,
     type InfoPanelProfile,
     type MemberItem,
+    type SelectOption,
 } from "./ChatPageComponents.js";
 const formStyle: CSSProperties = { display: "flex", flexDirection: "column" };
 const footerStyle: CSSProperties = {
@@ -30,6 +32,9 @@ export interface ChatInfoPanelProps {
     canChangeEffort: boolean;
     channelName: string;
     channelTopic: string;
+    defaultAgentBusy?: boolean;
+    defaultAgentOptions?: SelectOption[];
+    defaultAgentUserId?: string;
     effortBusy: boolean;
     effortError?: string;
     effortOptions?: readonly string[];
@@ -46,6 +51,7 @@ export interface ChatInfoPanelProps {
     onChannelNameChange(value: string): void;
     onChannelTopicChange(value: string): void;
     onClose(): void;
+    onDefaultAgentChange?(agentUserId: string): void;
     onEffortChange(value: string): void;
     onSave(): void;
 }
@@ -105,6 +111,23 @@ export function ChatInfoPanel(props: ChatInfoPanelProps) {
                                 />
                             }
                             label="Auto-join new members"
+                            layout="stacked"
+                        />
+                    ) : null}
+                    {props.onDefaultAgentChange && (props.defaultAgentOptions?.length ?? 0) > 0 ? (
+                        <FormRow
+                            control={
+                                <Select
+                                    data-testid="channel-default-agent"
+                                    disabled={props.busy || props.defaultAgentBusy}
+                                    fullWidth
+                                    onValueChange={props.onDefaultAgentChange}
+                                    options={props.defaultAgentOptions ?? []}
+                                    placeholder="Choose an agent"
+                                    value={props.defaultAgentUserId}
+                                />
+                            }
+                            label="Default agent"
                             layout="stacked"
                         />
                     ) : null}

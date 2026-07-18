@@ -36,6 +36,7 @@ type ChatResources = {
     workspace?: WorkspaceHandle;
     workspaceFile?: WorkspaceFileHandle;
     chatId?: string;
+    conversationKind?: "chat" | "channel";
     threadId?: string;
     workspaceChatId?: string;
     workspaceFileKey?: string;
@@ -53,6 +54,7 @@ export function ChatView(props: ChatViewProps) {
     const workspaceFileRoute =
         props.route.overlay?.kind === "workspace-file" ? props.route.overlay : undefined;
     const nextChatId = conversation?.chatId;
+    const nextConversationKind = conversation?.conversationKind;
     const nextThreadId =
         props.route.panel?.kind === "thread" ? props.route.panel.rootMessageId : undefined;
     const nextWorkspaceChatId =
@@ -72,19 +74,28 @@ export function ChatView(props: ChatViewProps) {
             next = { ...next, ...patch };
             changed = true;
         };
-        if (next.chatId !== nextChatId) {
+        if (next.chatId !== nextChatId || next.conversationKind !== nextConversationKind) {
             next.thread?.[Symbol.dispose]();
             next.workspaceFile?.[Symbol.dispose]();
             next.workspace?.[Symbol.dispose]();
             next.chat?.[Symbol.dispose]();
             if (next.chatId) state.composerRelease(next.chatId);
-            next = nextChatId
-                ? {
-                      chatId: nextChatId,
-                      chat: state.chatOpen(nextChatId),
-                      composer: state.composer(nextChatId),
-                  }
-                : {};
+            if (!nextChatId) next = {};
+            else {
+                const chat = state.chatOpen(nextChatId);
+                if (nextConversationKind === "channel") chat.getState().membersRetain();
+                next = {
+                    chatId: nextChatId,
+                    conversationKind: nextConversationKind,
+                    chat,
+                    // Channels route message audience; direct messages keep
+                    // the server's own default (agent DMs stay agent-addressed).
+                    composer: state.composer(
+                        nextChatId,
+                        nextConversationKind === "channel" ? { audience: "people" } : {},
+                    ),
+                };
+            }
             changed = true;
         }
         if (next.threadId !== nextThreadId) {
@@ -123,6 +134,7 @@ export function ChatView(props: ChatViewProps) {
     }, [
         state,
         nextChatId,
+        nextConversationKind,
         nextThreadId,
         nextWorkspaceChatId,
         nextWorkspaceFileKey,
@@ -210,6 +222,8 @@ export function ChatView(props: ChatViewProps) {
         chatStarSet: (selectedChatId, starred) => state.chatStarSet(selectedChatId, starred),
         channelCreate: (input) => state.channelCreate(input),
         channelUpdate: (selectedChatId, input) => state.channelUpdate(selectedChatId, input),
+        channelDefaultAgentUpdate: (selectedChatId, agentUserId) =>
+            state.channelDefaultAgentUpdate(selectedChatId, agentUserId),
         agentCreate: (input) => state.agentCreate(input),
         directMessageCreate: (userId) => state.directMessageCreate(userId),
     };

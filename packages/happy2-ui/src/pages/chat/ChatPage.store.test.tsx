@@ -48,6 +48,8 @@ function messageItem(id: string, text: string): ChatMessageItem {
             sequence: id,
             changePts: "1",
             kind: "user",
+            audience: "people",
+            agentUserIds: [],
             text,
             threadReplyCount: 0,
             revision: 1,
@@ -94,6 +96,7 @@ function chatPageActionsCreate(overrides: Partial<ChatPageActions> = {}): ChatPa
         chatStarSet: async () => undefined,
         channelCreate: async () => undefined,
         channelUpdate: async () => undefined,
+        channelDefaultAgentUpdate: async () => undefined,
         agentCreate: async () => undefined,
         directMessageCreate: async () => undefined,
         ...overrides,
@@ -453,6 +456,98 @@ it("creates a direct message from the directory and does not hijack later naviga
     expect(chatSelect.mock.calls.filter(([chatId]) => chatId === "dm-grace")).toHaveLength(1);
 });
 
+it("replaces the channel default agent from the info panel", async () => {
+    const routedChat: ChatSummary = { ...chat, defaultAgentUserId: "agent-happy" };
+    const sidebar = sidebarStoreFixtureCreate();
+    const directory = directoryStoreFixtureCreate();
+    const chatSurface = chatStoreFixtureCreate(chat.id);
+    onTestFinished(() => {
+        sidebar[Symbol.dispose]();
+        directory[Symbol.dispose]();
+        chatSurface[Symbol.dispose]();
+    });
+    const owner = {
+        id: "user-1",
+        displayName: "Ada Lovelace",
+        username: "ada",
+        kind: "human" as const,
+        role: "admin" as const,
+        presence: "online" as const,
+    };
+    directory.input({
+        type: "directoryLoaded",
+        users: [
+            owner,
+            {
+                id: "agent-happy",
+                displayName: "Happy",
+                username: "happy",
+                kind: "agent",
+                agentRole: "default",
+                role: "member",
+                presence: "online",
+            },
+            {
+                id: "agent-claude",
+                displayName: "Claude",
+                username: "claude",
+                kind: "agent",
+                role: "member",
+                presence: "online",
+            },
+        ],
+        channels: [],
+    });
+    sidebar.input({
+        type: "sidebarLoaded",
+        chats: [
+            {
+                chat: routedChat,
+                id: routedChat.id,
+                displayName: routedChat.name!,
+                participants: [],
+            },
+        ],
+        sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+    });
+    chatSurface.input({
+        type: "chatLoaded",
+        chat: routedChat,
+        messages: [],
+        hasMoreMessages: false,
+    });
+    const channelDefaultAgentUpdate = vi.fn(async () => undefined);
+    const view = createRenderer();
+    view.render(
+        () => (
+            <ChatPage
+                actions={chatPageActionsCreate({ channelDefaultAgentUpdate })}
+                chat={chatSurface.store}
+                directory={directory.store}
+                navigation={{ chatId: routedChat.id, panel: { kind: "info" } }}
+                rail={<div>Rail</div>}
+                search=""
+                sidebar={sidebar.store}
+                titleBar={<div>Title</div>}
+                user={{ id: owner.id, firstName: "Ada" }}
+            />
+        ),
+        { width: 1200, height: 800 },
+    );
+    await view.ready();
+
+    const select = view.container.querySelector<HTMLSelectElement>(
+        '[data-testid="channel-default-agent"] select',
+    )!;
+    expect(select.value).toBe("agent-happy");
+    select.value = "agent-claude";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    await expect
+        .poll(() => channelDefaultAgentUpdate.mock.calls)
+        .toEqual([[routedChat.id, "agent-claude"]]);
+    await expect.poll(() => view.container.textContent).toContain("Default agent updated.");
+});
+
 it("edits an own message through the desktop-safe dialog with its current revision", async () => {
     const sidebar = sidebarStoreFixtureCreate();
     const directory = directoryStoreFixtureCreate();
@@ -532,7 +627,7 @@ it("edits an own message through the desktop-safe dialog with its current revisi
     save.click();
     await nextFrame();
     expect(messageEdit).toHaveBeenCalledExactlyOnceWith(chat.id, "message-7", "Updated body", 7);
-    expect(view.container.textContent).not.toContain("Edit message");
+    await expect.poll(() => view.container.textContent).not.toContain("Edit message");
 });
 
 async function nextFrame(): Promise<void> {

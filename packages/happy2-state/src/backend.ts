@@ -132,6 +132,7 @@ export const backendOperations = {
     createAgent: post("/v0/chats/createAgent"),
     createChannel: post("/v0/chats/createChannel"),
     updateChatTopic: post("/v0/chats/:chatId/updateTopic"),
+    updateDefaultAgent: post("/v0/chats/:chatId/updateDefaultAgent"),
     updateChannel: post("/v0/chats/:chatId/updateChannel"),
     updateChannelPolicies: post("/v0/chats/:chatId/updatePolicies"),
     archiveChannel: post("/v0/chats/:chatId/archiveChannel"),
@@ -369,6 +370,7 @@ export interface KnownBackendInputs {
     };
     createAgent: { readonly name: string; readonly username: string };
     updateChatTopic: { readonly chatId: string; readonly topic: string | null };
+    updateDefaultAgent: { readonly chatId: string; readonly agentUserId: string };
     updateChannel: {
         readonly chatId: string;
         readonly name?: string;
@@ -423,8 +425,13 @@ export interface KnownBackendInputs {
         readonly selfDestructSeconds?: number;
         readonly afterReadScope?: "any_reader" | "all_readers";
         readonly clientMutationId?: string;
+        readonly audience?: "people" | "agents";
+        readonly agentUserIds?: readonly string[];
     };
-    sendThreadMessage: Omit<KnownBackendInputs["sendMessage"], "chatId" | "threadRootMessageId"> & {
+    sendThreadMessage: Omit<
+        KnownBackendInputs["sendMessage"],
+        "chatId" | "threadRootMessageId" | "audience" | "agentUserIds"
+    > & {
         readonly messageId: string;
     };
     updateThreadSubscription: {
@@ -911,6 +918,7 @@ export interface KnownBackendResults {
     createChannel: ChatResult;
     createAgent: ChatResult;
     updateChatTopic: ChatResult;
+    updateDefaultAgent: ChatResult;
     updateChannel: ChatResult;
     updateChannelPolicies: ChatResult;
     archiveChannel: ChatResult;

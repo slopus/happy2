@@ -187,6 +187,22 @@
     white-space: nowrap;
 }
 
+.happy2-message__audience {
+    display: inline-flex;
+    align-items: center;
+    height: 16px;
+    padding: 0 6px;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-accent-soft);
+    color: var(--happy2-accent-strong);
+    font-family: var(--happy2-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
 .happy2-message__body {
     font-size: 15px;
     line-height: 22px;

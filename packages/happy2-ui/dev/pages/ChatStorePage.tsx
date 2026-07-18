@@ -24,6 +24,7 @@ const chat: ChatSummary = {
     isListed: true,
     isMain: false,
     autoJoin: false,
+    defaultAgentUserId: "happy-blueprint",
     retentionMode: "inherit",
     defaultExpiryMode: "none",
     defaultAfterReadScope: "all_readers",
@@ -75,6 +76,7 @@ const passiveActions: ChatPageActions = {
     chatStarSet: async () => undefined,
     channelCreate: async () => undefined,
     channelUpdate: async () => undefined,
+    channelDefaultAgentUpdate: async () => undefined,
     agentCreate: async () => undefined,
     directMessageCreate: async () => undefined,
 };
@@ -83,7 +85,7 @@ export function ChatStorePage() {
         const sidebar = sidebarStoreFixtureCreate();
         const directory = directoryStoreFixtureCreate();
         const chatSurface = chatStoreFixtureCreate(chat.id);
-        const composer = composerStoreFixtureCreate(chat.id);
+        const composer = composerStoreFixtureCreate(chat.id, { audience: "agents" });
         directory.input({
             type: "directoryLoaded",
             users: [
@@ -96,6 +98,14 @@ export function ChatStorePage() {
                     presence: "online",
                     availability: "online",
                     customStatusText: "Designing state surfaces",
+                },
+                {
+                    id: "happy-blueprint",
+                    displayName: "Happy",
+                    username: "happy",
+                    kind: "agent",
+                    role: "member",
+                    presence: "online",
                 },
             ],
             channels: [],

@@ -371,6 +371,175 @@ describe("persistent desktop routing", () => {
             )?.value,
         ).toBe("relay");
     });
+    it("keeps each channel's audience mode for the session and applies a default-agent change live", async () => {
+        const server = createFakeServer();
+        const channel = channelFixture();
+        const second: ChatSummary = {
+            ...channel,
+            id: "chat-2",
+            name: "Second channel",
+            slug: "second-channel",
+        };
+        server.respond(
+            "GET",
+            "/v0/sync/state",
+            jsonResponse(200, {
+                state: { protocolVersion: 1, generation: "g", sequence: "0" },
+                serverTime: "now",
+            }),
+        );
+        server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [channel, second] }));
+        server.respond("GET", "/v0/chats/chat-1", jsonResponse(200, { chat: channel }));
+        server.respond("GET", "/v0/chats/chat-2", jsonResponse(200, { chat: second }));
+        server.respond(
+            "GET",
+            /^\/v0\/chats\/chat-[12]\/members/u,
+            jsonResponse(200, {
+                users: [
+                    {
+                        id: "agent-1",
+                        username: "happy",
+                        firstName: "Happy",
+                        role: "member",
+                        kind: "agent",
+                    },
+                ],
+            }),
+        );
+        server.respond(
+            "GET",
+            /^\/v0\/chats\/chat-[12]\/messages/u,
+            jsonResponse(200, { messages: [], hasMore: false, chatPts: "0" }),
+        );
+        server.respond(
+            "GET",
+            "/v0/contacts",
+            jsonResponse(200, {
+                users: [
+                    {
+                        id: "agent-1",
+                        username: "happy",
+                        firstName: "Happy",
+                        role: "member",
+                        kind: "agent",
+                    },
+                ],
+                presence: [],
+                statuses: [],
+            }),
+        );
+        server.respond("GET", "/v0/presence", jsonResponse(200, { presence: [], statuses: [] }));
+        server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
+        server.respond(
+            "POST",
+            "/v0/sync/getDifference",
+            jsonResponse(200, {
+                kind: "empty",
+                changedChats: [{ ...channel, defaultAgentUserId: "agent-1", pts: "1" }],
+                removedChatIds: [],
+                areas: [],
+                state: { protocolVersion: 1, generation: "g", sequence: "1" },
+                targetState: { protocolVersion: 1, generation: "g", sequence: "1" },
+            }),
+        );
+        server.respond(
+            "POST",
+            "/v0/chats/chat-1/getDifference",
+            jsonResponse(200, {
+                kind: "difference",
+                updates: [],
+                messages: [],
+                chat: { ...channel, defaultAgentUserId: "agent-1", pts: "1" },
+                state: { membershipEpoch: "1", pts: "1" },
+                targetState: { membershipEpoch: "1", pts: "1" },
+            }),
+        );
+        const state = happyStateCreate({ transport: server.transport });
+        const composerRelease = vi.spyOn(state, "composerRelease");
+        await state.syncStart();
+        history.replaceState(null, "", "/channels/chat-1");
+        const navigation = desktopNavigationCreate();
+        onTestFinished(() => {
+            navigation[Symbol.dispose]();
+            state[Symbol.dispose]();
+            server.close();
+        });
+        const screen = render(<DesktopApp navigation={navigation} state={state} />);
+        await state.whenIdle();
+        const toggle = () =>
+            screen.container.querySelector<HTMLElement>('[data-happy2-ui="audience-toggle"]');
+        const segment = (label: string) =>
+            Array.from(
+                screen.container.querySelectorAll<HTMLButtonElement>(
+                    '[data-happy2-ui="audience-toggle"] .happy2-segmented-control__segment',
+                ),
+            ).find((candidate) => candidate.textContent === label)!;
+        await waitFor(() => expect(toggle()?.getAttribute("data-value")).toBe("people"));
+        fireEvent.click(segment("Agents"));
+        await waitFor(() => expect(toggle()?.getAttribute("data-value")).toBe("agents"));
+        // Switching to another channel starts from its own default mode…
+        navigation.navigate({
+            ...navigation.get(),
+            primary: { kind: "conversation", conversationKind: "channel", chatId: "chat-2" },
+        });
+        await state.whenIdle();
+        await waitFor(() => expect(toggle()?.getAttribute("data-value")).toBe("people"));
+        // …and returning restores the first channel's remembered Agents mode.
+        navigation.navigate({
+            ...navigation.get(),
+            primary: { kind: "conversation", conversationKind: "channel", chatId: "chat-1" },
+        });
+        await state.whenIdle();
+        await waitFor(() => expect(toggle()?.getAttribute("data-value")).toBe("agents"));
+        // The route kind participates in resource identity even when a malformed or
+        // stale navigation reuses the same chat id for a direct-chat route.
+        const releasesBeforeKindChange = composerRelease.mock.calls.length;
+        navigation.navigate({
+            ...navigation.get(),
+            primary: { kind: "conversation", conversationKind: "chat", chatId: "chat-1" },
+        });
+        await waitFor(() =>
+            expect(composerRelease.mock.calls.length).toBeGreaterThan(releasesBeforeKindChange),
+        );
+        expect(composerRelease).toHaveBeenLastCalledWith("chat-1");
+        navigation.navigate({
+            ...navigation.get(),
+            primary: { kind: "conversation", conversationKind: "channel", chatId: "chat-1" },
+        });
+        await state.whenIdle();
+        await waitFor(() => expect(toggle()?.getAttribute("data-value")).toBe("agents"));
+        // A default-agent change arrives through sync and appears in place:
+        // the primary surface, composer textarea, and draft all persist.
+        const primary = chatPrimarySurface(screen.container);
+        const textarea = screen.container.querySelector<HTMLTextAreaElement>(
+            '[data-happy2-ui="composer-textarea"]',
+        )!;
+        fireEvent.input(textarea, { target: { value: "draft in flight" } });
+        server.events.sync({ sequence: "1", chats: [{ chatId: "chat-1", pts: "1" }] });
+        await state.whenIdle();
+        await waitFor(() =>
+            expect(
+                state
+                    .sidebar()
+                    .getState()
+                    .chats.find(({ id }) => id === "chat-1")?.chat.defaultAgentUserId,
+            ).toBe("agent-1"),
+        );
+        await waitFor(() =>
+            expect(
+                screen.container.querySelector(
+                    '[data-happy2-ui="composer-agent-chip"][data-default]',
+                )?.textContent,
+            ).toContain("Happy"),
+        );
+        expect(chatPrimarySurface(screen.container)).toBe(primary);
+        expect(
+            screen.container.querySelector<HTMLTextAreaElement>(
+                '[data-happy2-ui="composer-textarea"]',
+            ),
+        ).toBe(textarea);
+        expect(textarea.value).toBe("draft in flight");
+    });
     it("opens the palette with ⌘K, keeps it open when cleared, and restores focus on close", async () => {
         const navigation = desktopNavigationCreate();
         onTestFinished(() => navigation[Symbol.dispose]());

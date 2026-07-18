@@ -20,6 +20,7 @@
 
 .happy2-composer {
     position: relative;
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
     background: var(--happy2-bg-surface);
@@ -37,6 +38,110 @@
 .happy2-composer__context {
     display: flex;
     padding: 8px 10px 0;
+}
+
+.happy2-composer__agents {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px 0;
+}
+
+.happy2-composer__agents-label {
+    margin-right: 2px;
+    color: var(--happy2-text-faint);
+    font-family: var(--happy2-font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 24px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/*
+ * The 24px chip holds a 20px xs agent avatar (radius 6). A 1px border plus
+ * 1px padding gives a uniform 2px border-box inset on the avatar side, so the
+ * chip's 8px corners stay parallel curves over the avatar's 6px corners.
+ */
+.happy2-composer__agent-chip {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 8px 0 1px;
+    background: var(--happy2-bg-inset);
+    border: 1px solid var(--happy2-border);
+    border-radius: 8px;
+}
+
+.happy2-composer__agent-chip[data-default] {
+    border-color: var(--happy2-accent-soft);
+    background: var(--happy2-accent-soft);
+}
+
+.happy2-composer__agent-name {
+    color: var(--happy2-text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 22px;
+    white-space: nowrap;
+}
+
+.happy2-composer__agent-chip[data-default] .happy2-composer__agent-name {
+    color: var(--happy2-text);
+}
+
+.happy2-composer__agent-remove {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    /* No negative right margin: a 9px inset keeps the 4px-radius button
+     * outside the chip's 8px corner field, so the corners stay independent. */
+    margin: 0 0 0 -1px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--happy2-text-muted);
+    cursor: pointer;
+    appearance: none;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
+}
+
+.happy2-composer__agent-remove:hover {
+    background: var(--happy2-bg-hover);
+    color: var(--happy2-text);
+}
+
+.happy2-composer__agent-remove:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
+.happy2-composer__agent-remove:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 1px;
+}
+
+.happy2-composer__agent-add {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+}
+
+.happy2-composer__agent-popover {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 20;
 }
 
 .happy2-composer__input {
@@ -155,6 +260,20 @@
     clip: rect(0 0 0 0);
     clip-path: inset(50%);
     white-space: nowrap;
+}
+
+/* A channel can remain open beside the 340px information/thread panel at the
+ * 1024px desktop minimum. Keep every composer action reachable in that narrow
+ * main column by compacting only this component's audience control and hint. */
+@container (max-width: 420px) {
+    .happy2-composer .happy2-audience-toggle .happy2-segmented-control {
+        width: 120px;
+    }
+
+    .happy2-composer .happy2-audience-toggle .happy2-segmented-control__icon,
+    .happy2-composer__hint {
+        display: none;
+    }
 }
 
 /* ---- ContextChips ------------------------------------------------------ */

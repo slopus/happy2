@@ -49,6 +49,98 @@ async function glyphVsPill(part: () => RenderedElement<Element>) {
         dy: glyph.center.y - (bg.bounds.y + bg.bounds.height / 2),
     };
 }
+it("shows the audience pill in the meta row without shifting author or time vertically", async () => {
+    const view = createRenderer()
+        .render(
+            () =>
+                stage(
+                    "message-audience",
+                    <Message
+                        audienceLabel="To agents · Happy + 1"
+                        author="Ada Lovelace"
+                        body="Agents, prepare the launch checklist."
+                        initials="AL"
+                        time="12:55 PM"
+                        tone="mint"
+                    />,
+                ),
+            { width: 620, height: 120, padding: 16 },
+        )
+        .render(
+            () =>
+                stage(
+                    "message-plain",
+                    <Message
+                        author="Ada Lovelace"
+                        body="Just a normal message."
+                        initials="AL"
+                        time="12:55 PM"
+                        tone="mint"
+                    />,
+                ),
+            { width: 620, height: 120, padding: 16 },
+        )
+        .render(
+            () =>
+                stage(
+                    "message-grouped",
+                    <Message
+                        audienceLabel="To agents · Happy"
+                        author="Ada Lovelace"
+                        body="Grouped follow-up keeps the gutter only."
+                        grouped
+                        initials="AL"
+                        time="12:56 PM"
+                        tone="mint"
+                    />,
+                ),
+            { width: 620, height: 80, padding: 16 },
+        );
+    await view.ready();
+    const audience = view.$('[data-testid="message-audience"] [data-happy2-ui="message-audience"]');
+    expect(audience.element.textContent).toBe("To agents · Happy + 1");
+    expect(audience.bounds().height).toBe(16);
+    expect(
+        audience.computedStyles(["font-size", "font-weight", "border-radius", "color"]),
+    ).toMatchObject({
+        "font-size": "10px",
+        "font-weight": "700",
+        "border-radius": "999px",
+        color: "rgb(168, 155, 255)",
+    });
+    const ink = await audience.visibleMetrics();
+    expect(ink.pixelCount).toBeGreaterThan(0);
+    // The pill sits in the meta row between the author and the timestamp.
+    const author = view.$('[data-testid="message-audience"] [data-happy2-ui="message-author"]');
+    const time = view.$('[data-testid="message-audience"] [data-happy2-ui="message-time"]');
+    const plainAuthor = view.$('[data-testid="message-plain"] [data-happy2-ui="message-author"]');
+    const plainTime = view.$('[data-testid="message-plain"] [data-happy2-ui="message-time"]');
+    expect(author.bounds()).toMatchObject({
+        x: plainAuthor.bounds().x,
+        y: plainAuthor.bounds().y,
+        width: plainAuthor.bounds().width,
+        height: plainAuthor.bounds().height,
+    });
+    expect(time.bounds()).toMatchObject({
+        y: plainTime.bounds().y,
+        width: plainTime.bounds().width,
+        height: plainTime.bounds().height,
+    });
+    expect(audience.bounds().x).toBeGreaterThan(author.bounds().x + author.bounds().width);
+    expect(time.bounds().x).toBeGreaterThan(audience.bounds().x + audience.bounds().width);
+    // The label never renders without a meta row or when absent.
+    expect(
+        view.container.querySelector(
+            '[data-testid="message-plain"] [data-happy2-ui="message-audience"]',
+        ),
+    ).toBeNull();
+    expect(
+        view.container.querySelector(
+            '[data-testid="message-grouped"] [data-happy2-ui="message-audience"]',
+        ),
+    ).toBeNull();
+    await view.screenshot("Message.audience.test");
+});
 it("holds Message anatomy, segment styling, and affordances", async () => {
     const view = createRenderer();
     const selectedEmoji: string[] = [];

@@ -71,7 +71,13 @@ import {
     type WorkspaceFileStore,
 } from "./modules/workspace-file/workspaceFileState.js";
 import type { WorkspaceFileHandle } from "./modules/workspace-file/workspaceFileState.js";
-import type { CreateAgentInput, CreateChannelInput, SendMessageInput, UserError } from "./types.js";
+import type {
+    CreateAgentInput,
+    CreateChannelInput,
+    MessageAudience,
+    SendMessageInput,
+    UserError,
+} from "./types.js";
 import { searchQueryUpdate } from "./modules/search/searchState.js";
 import {
     searchStoreCreate,
@@ -140,6 +146,7 @@ import { agentEffortChange } from "./modules/chat-actions/chatActionsState.js";
 import { agentEffortLoad } from "./modules/chat-actions/chatActionsState.js";
 import type { ChatActionContext } from "./modules/chat-actions/chatActionsState.js";
 import { channelCreate } from "./modules/chat-actions/chatActionsState.js";
+import { channelDefaultAgentUpdate } from "./modules/chat-actions/chatActionsState.js";
 import { channelUpdate, type ChannelUpdateInput } from "./modules/chat-actions/chatActionsState.js";
 import { chatJoin } from "./modules/chat-actions/chatActionsState.js";
 import { chatLeave } from "./modules/chat-actions/chatActionsState.js";
@@ -179,6 +186,11 @@ export interface HappyStateOptions extends StateRuntimeOptions {
  */
 export class HappyState implements AsyncDisposable, Disposable {
     private readonly composers = new StoreRegistry<string, ComposerStore>();
+    /** Session-only memory of each chat's last composer audience mode and agent selection. */
+    private readonly composerAudiences = new Map<
+        string,
+        { audience: MessageAudience; agentUserIds: readonly string[] }
+    >();
     private readonly chats = new StoreRegistry<string, ChatStore>();
     private readonly workspaces = new StoreRegistry<string, WorkspaceStore>();
     private readonly workspaceFiles = new StoreRegistry<string, WorkspaceFileStore>();
@@ -475,18 +487,22 @@ export class HappyState implements AsyncDisposable, Disposable {
     }
 
     composer(scopeId: string, options: ComposerStoreOptions = {}): ComposerStore {
-        return this.composers.getOrCreate(scopeId, () =>
-            composerStoreCreate(scopeId, {
+        return this.composers.getOrCreate(scopeId, () => {
+            const remembered = this.composerAudiences.get(scopeId);
+            return composerStoreCreate(scopeId, {
                 ...options,
+                audience: remembered?.audience ?? options.audience,
+                agentUserIds: remembered?.agentUserIds ?? options.agentUserIds,
                 output: (event) => {
                     options.output?.(event);
                     this.eventRoute(event);
                 },
-            }),
-        );
+            });
+        });
     }
 
     composerRelease(scopeId: string): void {
+        this.composerAudienceRemember(scopeId);
         this.composers.release(scopeId);
     }
 
@@ -583,6 +599,10 @@ export class HappyState implements AsyncDisposable, Disposable {
         await channelUpdate(this.chatActionContext(), chatId, input);
     }
 
+    async channelDefaultAgentUpdate(chatId: string, agentUserId: string): Promise<void> {
+        await channelDefaultAgentUpdate(this.chatActionContext(), chatId, agentUserId);
+    }
+
     typingSet(chatId: string, active: boolean): void {
         typingSet(this.chatActionContext(), chatId, active);
     }
@@ -602,6 +622,7 @@ export class HappyState implements AsyncDisposable, Disposable {
         this.workspaceFiles.dispose();
         this.workspaces.dispose();
         this.composers.dispose();
+        this.composerAudiences.clear();
         this.threadSurfaces.dispose();
         this.settingsCoordinator?.[Symbol.dispose]();
         this.identities.clear();
@@ -628,6 +649,12 @@ export class HappyState implements AsyncDisposable, Disposable {
             case "attachmentAdded":
             case "attachmentRemoved":
                 return;
+            case "audienceUpdated":
+            case "agentUserAdded":
+            case "agentUserRemoved": {
+                this.composerAudienceRemember(event.scopeId);
+                return;
+            }
             case "textSubmitted":
                 messageSend(
                     this.messageContext(),
@@ -635,6 +662,14 @@ export class HappyState implements AsyncDisposable, Disposable {
                     {
                         text: event.text,
                         attachmentFileIds: event.attachments.map((attachment) => attachment.id),
+                        ...(event.audience
+                            ? {
+                                  audience: event.audience,
+                                  ...(event.audience === "agents" && event.agentUserIds.length
+                                      ? { agentUserIds: event.agentUserIds }
+                                      : {}),
+                              }
+                            : {}),
                     },
                     event.revision,
                 );
@@ -820,6 +855,15 @@ export class HappyState implements AsyncDisposable, Disposable {
         );
     }
 
+    private composerAudienceRemember(scopeId: string): void {
+        const snapshot = this.composers.get(scopeId)?.getState();
+        if (!snapshot?.audience) return;
+        this.composerAudiences.set(scopeId, {
+            audience: snapshot.audience,
+            agentUserIds: snapshot.agentUserIds,
+        });
+    }
+
     private chatMembersLoad(chatId: string): void {
         this.runtime.background(
             chatMembersLoad(
@@ -827,6 +871,7 @@ export class HappyState implements AsyncDisposable, Disposable {
                     runtime: this.runtime,
                     identities: this.identities,
                     chatGet: (id) => this.chats.get(id),
+                    composerGet: (id) => this.composers.get(id),
                     presenceGet: (userId) => this.sync.presenceGet(userId),
                 },
                 chatId,

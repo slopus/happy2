@@ -74,8 +74,13 @@ export function messageSend(
 ): void {
     const clientMutationId = input.clientMutationId ?? context.runtime.createId();
     const localId = `local:${clientMutationId}`;
+    const chatStatus = context.chatGet(chatId)?.getState().status;
+    const defaultAudience =
+        chatStatus?.type === "ready" && chatStatus.value.isDefaultAgentConversation
+            ? "agents"
+            : "people";
     const optimistic: ChatMessageItem = {
-        message: optimisticMessage(localId, chatId, input, context.runtime.now()),
+        message: optimisticMessage(localId, chatId, input, defaultAudience, context.runtime.now()),
         source: "local",
         delivery: "sending",
         clientMutationId,
@@ -137,6 +142,7 @@ function optimisticMessage(
     id: string,
     chatId: string,
     input: SendMessageInput,
+    defaultAudience: "people" | "agents",
     now: number,
 ): ChatMessageProjection {
     const createdAt = new Date(now).toISOString();
@@ -146,6 +152,8 @@ function optimisticMessage(
         sequence: id,
         changePts: "0",
         kind: "user",
+        audience: input.audience ?? defaultAudience,
+        agentUserIds: input.agentUserIds ?? [],
         text: input.text ?? "",
         threadRootMessageId: input.threadRootMessageId,
         threadReplyCount: 0,

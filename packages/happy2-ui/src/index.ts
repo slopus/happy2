@@ -61,8 +61,10 @@ export {
 export { Box, type BoxProps } from "./Box";
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./Button";
 export { ChannelHeader, type ChannelHeaderProps, type ChannelMember } from "./ChannelHeader";
+export { AudienceToggle, type AudienceToggleProps, type AudienceValue } from "./AudienceToggle";
 export {
     Composer,
+    type ComposerAgent,
     type ComposerProps,
     ContextChips,
     type ContextChipsProps,

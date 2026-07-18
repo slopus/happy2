@@ -23,6 +23,7 @@ import { ChannelHeaderPage } from "./pages/ChannelHeaderPage";
 import { CheckboxPage } from "./pages/CheckboxPage";
 import { CommandPalettePage } from "./pages/CommandPalettePage";
 import { ChatStorePage } from "./pages/ChatStorePage";
+import { AudienceTogglePage } from "./pages/AudienceTogglePage";
 import { ComposerPage } from "./pages/ComposerPage";
 import { DataTablePage } from "./pages/DataTablePage";
 import { DiffSnippetPage } from "./pages/DiffSnippetPage";
@@ -199,6 +200,12 @@ const components: BlueprintPage[] = [
         label: "Default agent modal",
         number: "C-064",
         page: DefaultAgentModalPage,
+    },
+    {
+        id: "audience-toggle",
+        label: "Audience toggle",
+        number: "C-065",
+        page: AudienceTogglePage,
     },
 ];
 const fullScreens: BlueprintPage[] = [

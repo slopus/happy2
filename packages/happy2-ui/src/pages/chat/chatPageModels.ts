@@ -73,9 +73,20 @@ export function messagesGrouped(
     message: LiveThreadMessage,
 ): boolean {
     const previous = list[index - 1];
+    if (previous?.kind !== "message") return false;
+    const previousMessage = previous as LiveThreadMessage;
     return (
-        previous?.kind === "message" && (previous as LiveThreadMessage).author === message.author
+        previousMessage.author === message.author &&
+        (previousMessage.serverMessage?.audience ?? "people") ===
+            (message.serverMessage?.audience ?? "people") &&
+        sameIds(
+            previousMessage.serverMessage?.agentUserIds ?? [],
+            message.serverMessage?.agentUserIds ?? [],
+        )
     );
+}
+function sameIds(left: readonly string[], right: readonly string[]): boolean {
+    return left.length === right.length && left.every((id, index) => id === right[index]);
 }
 export const emojiItems: EmojiItem[] = [
     { id: "rocket", char: "🚀", name: "rocket" },
@@ -86,6 +97,7 @@ export const emojiItems: EmojiItem[] = [
     { id: "thumbsup", char: "👍", name: "thumbs up" },
 ];
 export const composerHint = "Enter to send · Shift+Enter for a new line";
+export const composerAudienceHint = "Enter to send · Shift+Tab to switch audience";
 const tones: ToneName[] = ["violet", "ember", "mint", "ocean", "rose", "amber", "slate"];
 export function toneFor(id: string): ToneName {
     let hash = 0;

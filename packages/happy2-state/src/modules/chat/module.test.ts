@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { UserError } from "../../types.js";
 import { chat, message } from "../../../tests/fixtures.js";
 import { IdentityCatalog } from "../identity/identityState.js";
+import { composerStoreCreate } from "../composer/composerState.js";
 import type { StateRuntime } from "../runtime/runtimeState.js";
 import { chatMembersLoad } from "./chatState.js";
 import { chatStoreCreate } from "./chatState.js";
@@ -111,11 +112,16 @@ describe("chat module", () => {
                 memberships: [],
             }),
         } as unknown as StateRuntime;
+        const composer = composerStoreCreate("chat-1", {
+            audience: "agents",
+            agentUserIds: ["agent-removed"],
+        });
         await chatMembersLoad(
             {
                 runtime,
                 identities: new IdentityCatalog(),
                 chatGet: () => binding,
+                composerGet: () => composer,
                 presenceGet: () => ({ userId: "user-1", status: "online", connectionCount: 1 }),
             },
             "chat-1",
@@ -124,5 +130,6 @@ describe("chat module", () => {
             type: "ready",
             value: [{ role: "owner", displayName: "Ada", presence: "online" }],
         });
+        expect(composer.getState().agentUserIds).toEqual([]);
     });
 });

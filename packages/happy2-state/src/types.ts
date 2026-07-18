@@ -3,6 +3,7 @@ export type ChatRole = "owner" | "admin" | "member";
 export type DirectMessageType = "direct" | "group";
 export type NotificationLevel = "all" | "mentions" | "none";
 export type ExpiryMode = "none" | "after_send" | "after_read";
+export type MessageAudience = "people" | "agents";
 
 export interface SyncState {
     readonly protocolVersion: 1;
@@ -97,6 +98,9 @@ export interface MessageSummary {
         readonly photoFileId?: string;
     };
     readonly kind: "user" | "automated";
+    readonly audience: MessageAudience;
+    /** Every agent this message addressed (default agent plus explicit additions). */
+    readonly agentUserIds: readonly string[];
     readonly text: string;
     readonly service?: {
         readonly type: "user_added" | "user_joined";
@@ -373,6 +377,9 @@ export interface SendMessageInput {
     readonly selfDestructSeconds?: number;
     readonly afterReadScope?: "any_reader" | "all_readers";
     readonly clientMutationId?: string;
+    readonly audience?: MessageAudience;
+    /** Additional agents to address; requires the "agents" audience. */
+    readonly agentUserIds?: readonly string[];
 }
 
 export interface CreateChannelInput {

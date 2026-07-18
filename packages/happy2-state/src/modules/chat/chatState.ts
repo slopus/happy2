@@ -10,6 +10,7 @@ import {
 } from "../../types.js";
 import { type IdentityCatalog } from "../identity/identityState.js";
 import { type IdentityProjection } from "../identity/identityState.js";
+import { type ComposerStore } from "../composer/composerState.js";
 import { type StateRuntime, userError } from "../runtime/runtimeState.js";
 
 function sorted(messages: ChatMessageItem[]): readonly ChatMessageItem[] {
@@ -61,6 +62,7 @@ export interface ChatMembersLoadContext {
     readonly runtime: StateRuntime;
     readonly identities: IdentityCatalog;
     chatGet(chatId: string): ChatStore | undefined;
+    composerGet(chatId: string): ComposerStore | undefined;
     presenceGet(userId: string): PresenceSnapshot | undefined;
 }
 
@@ -85,6 +87,15 @@ export async function chatMembersLoad(
             };
         });
         context.chatGet(chatId)?.getState().chatInput({ type: "membersLoaded", members });
+        context
+            .composerGet(chatId)
+            ?.getState()
+            .composerInput({
+                type: "agentUsersReconciled",
+                agentUserIds: result.users
+                    .filter((user) => user.kind === "agent")
+                    .map((user) => user.id),
+            });
     } catch (error) {
         context
             .chatGet(chatId)

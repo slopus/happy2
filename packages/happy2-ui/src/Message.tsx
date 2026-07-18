@@ -67,6 +67,8 @@ export type MessageProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     actionsVisible?: boolean;
     /** Author is an agent → accent AGENT badge next to the name. */
     agent?: boolean;
+    /** Who the message addressed, e.g. "To agents · Happy + 1". */
+    audienceLabel?: string;
     author: string;
     body: string | MessageSegment[];
     /** Attachment cards (runs, approvals, events) rendered below the body. */
@@ -156,6 +158,7 @@ export function Message(props: MessageProps) {
     const [local, rest] = partitionComponentProps(props, [
         "agent",
         "actionsVisible",
+        "audienceLabel",
         "author",
         "body",
         "children",
@@ -355,6 +358,14 @@ export function Message(props: MessageProps) {
                             </span>
                         )}
                         {local.agent ? <Badge label="AGENT" variant="accent" /> : null}
+                        {local.audienceLabel ? (
+                            <span
+                                className="happy2-message__audience"
+                                data-happy2-ui="message-audience"
+                            >
+                                {local.audienceLabel}
+                            </span>
+                        ) : null}
                         <span className="happy2-message__time" data-happy2-ui="message-time">
                             {local.time}
                         </span>

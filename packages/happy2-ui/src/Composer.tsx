@@ -7,11 +7,13 @@ import {
     type FormEvent,
     type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import { AudienceToggle, type AudienceValue } from "./AudienceToggle";
 import { Avatar, type ToneName } from "./Avatar";
 import { Badge } from "./Badge";
 import { Button } from "./Button";
 import { EmojiPicker, type EmojiItem } from "./EmojiPicker";
 import { Icon, type IconName } from "./Icon";
+import { Menu } from "./Menu";
 /* ---- ContextChips ----------------------------------------------------- */
 export type ContextKind = "file" | "run" | "thread";
 export type ContextItem = {
@@ -192,19 +194,40 @@ export function MentionPicker(props: MentionPickerProps) {
     );
 }
 /* ---- Composer ----------------------------------------------------------- */
+export type ComposerAgent = {
+    id: string;
+    initials: string;
+    name: string;
+    tone?: ToneName;
+};
 export type ComposerProps = {
+    /** Additional selectable agents shown in the Agents-mode picker. */
+    agentOptions?: ComposerAgent[];
     /** Native file-picker accept filter, used with `onAttachmentsSelect`. */
     attachmentAccept?: string;
     /** Allows more than one file in the native picker. */
     attachmentMultiple?: boolean;
+    /**
+     * Current message destination. Supplying it (with `onAudienceChange`)
+     * renders the People/Agents toggle and enables Shift+Tab switching.
+     */
+    audience?: AudienceValue;
     className?: string;
     contextItems?: ContextItem[];
     "data-testid"?: string;
+    /** The chat's default agent, always addressed in Agents mode. */
+    defaultAgent?: ComposerAgent;
     disabled?: boolean;
     /** e.g. "Enter to send · @ to hand off to an agent" */
     hint?: string;
+    /** Adds one additional agent to the Agents-mode selection. */
+    onAgentAdd?: (agentId: string) => void;
+    /** Removes one additional agent from the Agents-mode selection. */
+    onAgentRemove?: (agentId: string) => void;
     /** Opens a host-owned attachment browser. Takes precedence over the native picker. */
     onAttachFile?: () => void;
+    /** Called for toggle clicks and Shift+Tab with the next audience. */
+    onAudienceChange?: (audience: AudienceValue) => void;
     /** Receives files selected through the composer's native attachment picker. */
     onAttachmentsSelect?: (files: File[]) => void;
     onContextRemove?: (id: string) => void;
@@ -224,6 +247,8 @@ export type ComposerProps = {
     emoji?: EmojiItem[];
     /** Emoji ids rendered in the picker's recent section. */
     recentEmoji?: string[];
+    /** Agent ids currently selected in addition to the default agent. */
+    selectedAgentIds?: string[];
     /** Overrides the text-only send check when attached context is sendable. */
     sendEnabled?: boolean;
     style?: CSSProperties;
@@ -246,6 +271,7 @@ export function Composer(props: ComposerProps) {
     const [activeIndex, setActiveIndex] = useState(0);
     const [emojiOpen, setEmojiOpen] = useState(false);
     const [emojiQuery, setEmojiQuery] = useState("");
+    const [agentPickerOpen, setAgentPickerOpen] = useState(false);
     const restoreFocusAfterSend = useRef(false);
     const [selection, setSelection] = useState({ start: 0, end: 0 });
     const busy = Boolean(props.disabled || props.pending);
@@ -268,6 +294,26 @@ export function Composer(props: ComposerProps) {
         );
     };
     const hasAttachmentAction = () => Boolean(props.onAttachFile || props.onAttachmentsSelect);
+    const audienceEnabled = () => Boolean(props.audience && props.onAudienceChange);
+    const selectedAgentIds = () => props.selectedAgentIds ?? [];
+    const selectedAgents = () =>
+        selectedAgentIds()
+            .map((id) => (props.agentOptions ?? []).find((agent) => agent.id === id))
+            .filter(
+                (agent): agent is ComposerAgent =>
+                    agent !== undefined && agent.id !== props.defaultAgent?.id,
+            );
+    const availableAgents = () =>
+        (props.agentOptions ?? []).filter(
+            (agent) =>
+                !selectedAgentIds().includes(agent.id) && agent.id !== props.defaultAgent?.id,
+        );
+    const audienceToggle = () => {
+        if (!props.audience) return;
+        const audience = props.audience === "agents" ? "people" : "agents";
+        if (audience === "people") setAgentPickerOpen(false);
+        props.onAudienceChange?.(audience);
+    };
     /* Auto-grow: collapse to one line, then track content up to 8 lines. */
     useLayoutEffect(() => {
         void props.value;
@@ -288,6 +334,7 @@ export function Composer(props: ComposerProps) {
     const closePopovers = () => {
         closeMention();
         closeEmoji();
+        setAgentPickerOpen(false);
     };
     useLayoutEffect(() => {
         if (wasBusy.current && !busy && restoreFocusAfterSend.current) {
@@ -359,6 +406,7 @@ export function Composer(props: ComposerProps) {
         const el = textareaEl.current;
         if (!el || busy || mentions().length === 0) return;
         closeEmoji();
+        setAgentPickerOpen(false);
         el.focus();
         const caret = el.selectionStart ?? props.value.length;
         const before = props.value.slice(0, caret);
@@ -375,6 +423,7 @@ export function Composer(props: ComposerProps) {
     const triggerEmoji = () => {
         if (busy || emoji().length === 0) return;
         closeMention();
+        setAgentPickerOpen(false);
         rememberSelection();
         const open = !emojiOpen;
         setEmojiOpen(open);
@@ -419,6 +468,17 @@ export function Composer(props: ComposerProps) {
         });
     };
     const onKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+        if (
+            event.key === "Tab" &&
+            event.shiftKey &&
+            audienceEnabled() &&
+            !busy &&
+            !event.nativeEvent.isComposing
+        ) {
+            event.preventDefault();
+            audienceToggle();
+            return;
+        }
         if (mentionOpen()) {
             const list = filtered();
             if (event.key === "ArrowDown" && list.length > 0) {
@@ -431,7 +491,10 @@ export function Composer(props: ComposerProps) {
                 setActiveIndex((index) => (index - 1 + list.length) % list.length);
                 return;
             }
-            if ((event.key === "Enter" || event.key === "Tab") && list.length > 0) {
+            if (
+                (event.key === "Enter" || (event.key === "Tab" && !event.shiftKey)) &&
+                list.length > 0
+            ) {
                 event.preventDefault();
                 const mention = activeMention();
                 if (mention) selectMention(mention);
@@ -483,6 +546,111 @@ export function Composer(props: ComposerProps) {
                     />
                 </div>
             ) : null}
+            {audienceEnabled() && props.audience === "agents" ? (
+                <div className="happy2-composer__agents" data-happy2-ui="composer-agents">
+                    <span
+                        className="happy2-composer__agents-label"
+                        data-happy2-ui="composer-agents-label"
+                    >
+                        To agents
+                    </span>
+                    {props.defaultAgent ? (
+                        <span
+                            className="happy2-composer__agent-chip"
+                            data-agent-id={props.defaultAgent.id}
+                            data-default=""
+                            data-happy2-ui="composer-agent-chip"
+                        >
+                            <Avatar
+                                initials={props.defaultAgent.initials}
+                                size="xs"
+                                tone={props.defaultAgent.tone}
+                                type="agent"
+                            />
+                            <span
+                                className="happy2-composer__agent-name"
+                                data-happy2-ui="composer-agent-name"
+                            >
+                                {props.defaultAgent.name}
+                            </span>
+                        </span>
+                    ) : null}
+                    {selectedAgents().map((agent) => (
+                        <span
+                            className="happy2-composer__agent-chip"
+                            data-agent-id={agent.id}
+                            data-happy2-ui="composer-agent-chip"
+                            key={agent.id}
+                        >
+                            <Avatar
+                                initials={agent.initials}
+                                size="xs"
+                                tone={agent.tone}
+                                type="agent"
+                            />
+                            <span
+                                className="happy2-composer__agent-name"
+                                data-happy2-ui="composer-agent-name"
+                            >
+                                {agent.name}
+                            </span>
+                            {props.onAgentRemove ? (
+                                <button
+                                    aria-label={`Remove ${agent.name}`}
+                                    className="happy2-composer__agent-remove"
+                                    data-happy2-ui="composer-agent-remove"
+                                    disabled={busy}
+                                    onClick={() => props.onAgentRemove?.(agent.id)}
+                                    type="button"
+                                >
+                                    <Icon name="close" size={12} />
+                                </button>
+                            ) : null}
+                        </span>
+                    ))}
+                    {props.onAgentAdd && availableAgents().length > 0 ? (
+                        <span className="happy2-composer__agent-add">
+                            <Button
+                                aria-expanded={agentPickerOpen ? "true" : "false"}
+                                aria-haspopup="menu"
+                                aria-label="Add agent"
+                                disabled={busy}
+                                icon="plus"
+                                onClick={() => {
+                                    closeMention();
+                                    closeEmoji();
+                                    setAgentPickerOpen((open) => !open);
+                                }}
+                                size="small"
+                                variant="ghost"
+                            >
+                                Add agent
+                            </Button>
+                            {agentPickerOpen ? (
+                                <div
+                                    className="happy2-composer__agent-popover"
+                                    data-happy2-ui="composer-agent-popover"
+                                    onMouseDown={(event) => event.preventDefault()}
+                                >
+                                    <Menu
+                                        items={availableAgents().map((agent) => ({
+                                            id: agent.id,
+                                            kind: "item",
+                                            label: agent.name,
+                                        }))}
+                                        onSelect={(id) => {
+                                            setAgentPickerOpen(false);
+                                            props.onAgentAdd?.(id);
+                                            textareaEl.current?.focus();
+                                        }}
+                                        width={216}
+                                    />
+                                </div>
+                            ) : null}
+                        </span>
+                    ) : null}
+                </div>
+            ) : null}
             <div className="happy2-composer__input" data-happy2-ui="composer-input">
                 <textarea
                     className="happy2-composer__textarea"
@@ -502,6 +670,16 @@ export function Composer(props: ComposerProps) {
             </div>
             <div className="happy2-composer__toolbar" data-happy2-ui="composer-toolbar">
                 <div className="happy2-composer__actions" data-happy2-ui="composer-actions">
+                    {audienceEnabled() ? (
+                        <AudienceToggle
+                            disabled={busy}
+                            onChange={(value) => {
+                                if (value === "people") setAgentPickerOpen(false);
+                                props.onAudienceChange?.(value);
+                            }}
+                            value={props.audience!}
+                        />
+                    ) : null}
                     {hasAttachmentAction() ? (
                         <Button
                             aria-label="Attach file"
