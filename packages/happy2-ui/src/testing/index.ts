@@ -11,6 +11,7 @@ export type {
     EdgeOffsets,
     RenderedTextMetrics,
     RendererOptions,
+    VisiblePixelMetricBatch,
     VisiblePixelMetrics,
 } from "happy2-gym/playwright";
 type CornerName = "bottom-left" | "bottom-right" | "top-left" | "top-right";

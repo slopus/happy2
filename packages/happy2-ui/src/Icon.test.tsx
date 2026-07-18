@@ -1,4 +1,3 @@
-import { type ReactNode } from "react";
 import { expect, it } from "vitest";
 import { Icon, iconNames, type IconName } from "./Icon";
 import { createRenderer } from "./testing";
@@ -68,28 +67,6 @@ function ControlSquare(props: { size: number }) {
             <div style={{ position: "absolute", inset, background: "#131217" }} />
         </div>
     );
-}
-/*
- * Renders one icon-sized fixture alone at a fixed position (fresh renderer at
- * the top of an otherwise empty page, fully inside the viewport) and returns
- * its visible-pixel metrics. Rendering every measured part at the same
- * coordinates keeps the capture geometry identical across measurements, which
- * is what lets the ControlSquare calibration cancel capture offsets.
- */
-async function measureFixture(size: number, content: () => ReactNode) {
-    const view = createRenderer();
-    view.render(
-        () => (
-            <div data-testid="optical-fixture" style={{ display: "flex", color: "#131217" }}>
-                {content()}
-            </div>
-        ),
-        { width: size + 24, height: size + 24, padding: 12 },
-    );
-    await view.ready();
-    const metrics = await view.$('[data-testid="optical-fixture"] > *').visibleMetrics();
-    view.destroy();
-    return metrics;
 }
 it("holds Icon box geometry across sizes", async () => {
     const view = createRenderer();
@@ -207,7 +184,45 @@ it("renders the entire pinned glyph set on the 20-unit grid", async () => {
 });
 for (const size of OPTICAL_SIZES) {
     it(`centers glyph ink optically at size ${size}`, async () => {
-        const control = await measureFixture(size, () => <ControlSquare size={size} />);
+        const columns = 8;
+        const gap = 12;
+        const rows = Math.ceil((iconNames.length + 1) / columns);
+        const view = createRenderer().render(
+            () => (
+                <div
+                    data-testid="optical-fixtures"
+                    style={{
+                        alignItems: "flex-start",
+                        color: "#131217",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: `${gap}px`,
+                        width: `${columns * size + (columns - 1) * gap}px`,
+                    }}
+                >
+                    <ControlSquare size={size} />
+                    {iconNames.map((name) => (
+                        <Icon key={name} name={name} size={size} />
+                    ))}
+                </div>
+            ),
+            {
+                height: rows * size + (rows - 1) * gap + 24,
+                padding: 12,
+                width: columns * size + (columns - 1) * gap + 24,
+            },
+        );
+        await view.ready();
+        const controlPart = view.$('[data-testid="optical-fixtures"] > :first-child');
+        const parts = [controlPart, ...iconNames.map((name) => view.$(`[data-name="${name}"]`))];
+        /*
+         * All fixtures share one integer-aligned Retina surface. The harness
+         * reconstructs each element from its true DOM rectangle after taking
+         * one black/white pair, so the control still calibrates the glyphs
+         * without 46 independent screenshot pairs.
+         */
+        const metrics = await view.visibleMetrics(parts);
+        const control = metrics.get(controlPart)!;
         /* A blank or catastrophically misaligned capture can never pass. */
         expect(control.pixelCount).toBeGreaterThan(0);
         expect(Math.abs(control.center.x - size / 2)).toBeLessThanOrEqual(2);
@@ -217,19 +232,20 @@ for (const size of OPTICAL_SIZES) {
             dx: number;
             dy: number;
         }> = [];
-        for (const name of iconNames) {
-            const metrics = await measureFixture(size, () => <Icon name={name} size={size} />);
+        for (const [index, name] of iconNames.entries()) {
+            const icon = metrics.get(parts[index + 1]!);
+            if (!icon) throw new Error(`Missing visible-pixel metrics for ${name}.`);
             /* Ink must exist and paint fully inside the icon box. */
-            expect(metrics.pixelCount, name).toBeGreaterThan(0);
-            expect(metrics.bounds.width, name).toBeGreaterThan(size * 0.2);
-            expect(metrics.bounds.height, name).toBeGreaterThan(size * 0.1);
-            expect(metrics.bounds.x, name).toBeGreaterThanOrEqual(0);
-            expect(metrics.bounds.y, name).toBeGreaterThanOrEqual(0);
-            expect(metrics.bounds.x + metrics.bounds.width, name).toBeLessThanOrEqual(size);
-            expect(metrics.bounds.y + metrics.bounds.height, name).toBeLessThanOrEqual(size);
+            expect(icon.pixelCount, name).toBeGreaterThan(0);
+            expect(icon.bounds.width, name).toBeGreaterThan(size * 0.2);
+            expect(icon.bounds.height, name).toBeGreaterThan(size * 0.1);
+            expect(icon.bounds.x, name).toBeGreaterThanOrEqual(0);
+            expect(icon.bounds.y, name).toBeGreaterThanOrEqual(0);
+            expect(icon.bounds.x + icon.bounds.width, name).toBeLessThanOrEqual(size);
+            expect(icon.bounds.y + icon.bounds.height, name).toBeLessThanOrEqual(size);
             const skip = DIRECTIONAL[name]?.skip ?? "";
-            const dx = Math.round((metrics.center.x - control.center.x) * 1000) / 1000;
-            const dy = Math.round((metrics.center.y - control.center.y) * 1000) / 1000;
+            const dx = Math.round((icon.center.x - control.center.x) * 1000) / 1000;
+            const dy = Math.round((icon.center.y - control.center.y) * 1000) / 1000;
             const xDrifts = !skip.includes("x") && Math.abs(dx) > CENTER_TOLERANCE;
             const yDrifts = !skip.includes("y") && Math.abs(dy) > CENTER_TOLERANCE;
             if (xDrifts || yDrifts) drifted.push({ name, dx, dy });

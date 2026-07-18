@@ -4,7 +4,6 @@ import {
     createServerCoverageOptions,
     repositoryRoot,
 } from "../happy2-server/tooling/server-coverage/config.js";
-
 export default defineConfig({
     root: repositoryRoot,
     resolve: {
@@ -17,8 +16,8 @@ export default defineConfig({
     test: {
         include: ["packages/happy2-gym/tests/**/*.test.ts"],
         exclude: ["**/node_modules/**", "packages/happy2-gym/tests/playwright/**"],
-        // V8 instrumentation substantially increases concurrent file-database load.
-        // Keep the coverage run serialized for the same deterministic boundary as Gym.
+        // V8 instrumentation amplifies file-database teardown races. Keep the
+        // coverage gate deterministic while normal Gym tests use bounded lanes.
         fileParallelism: false,
         coverage: createServerCoverageOptions("gym"),
     },

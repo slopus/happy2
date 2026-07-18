@@ -93,9 +93,11 @@ it("holds its size", async () => {
 });
 ```
 
-The renderer cleans itself up when the test finishes. `screenshot()` writes one browser- and
-platform-specific PNG beside the current test file. These images are inspection artifacts, not
-visual assertions. Every browser context and capture uses a 2× Retina device scale. Use
+The renderer cleans itself up when the test finishes. `screenshot()` is a no-op artifact capture in
+normal test runs: the images are inspection artifacts, not visual assertions, so tests do not
+rewrite tracked PNGs. Run `pnpm --filter happy2-ui test:artifacts` when deliberately refreshing
+the browser- and platform-specific PNGs beside test files. Every browser context and capture uses
+a 2× Retina device scale. Use
 `pageBounds()` when document coordinates are needed, or `width()` and `height()` for individual
 dimension assertions. `offsets()` measures an element within its parent;
 `textMetrics()` adds its line-box bounds, computed font properties, raw Canvas font metrics, and

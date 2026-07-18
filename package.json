@@ -42,7 +42,8 @@
     "dev:server": "pnpm --dir packages/happy2-server dev",
     "start": "node packages/happy2-server/dist/runner.js",
     "build": "pnpm -r --if-present build && VITE_HAPPY2_SERVER_URL='/' pnpm --filter happy2-web exec vite build --outDir ../happy2-server/dist/web --emptyOutDir false",
-    "test": "pnpm test:coverage-tooling && pnpm -r --if-present test",
+        "test": "pnpm test:coverage-tooling && pnpm -r --if-present test",
+        "test:non-server": "pnpm --parallel --filter happy2-state --filter happy2-ui --filter happy2-app test && pnpm --dir packages/happy2-gym test:playwright",
     "test:coverage-tooling": "pnpm --dir packages/happy2-server test:coverage-tooling",
     "coverage:server:unit": "pnpm --dir packages/happy2-server test:coverage",
     "coverage:server:gym": "pnpm --dir packages/happy2-gym test:server:coverage",
@@ -53,7 +54,7 @@
     "format": "oxfmt --write eslint scripts tsconfig.json && pnpm -r --if-present format",
     "format:check": "oxfmt --check eslint scripts tsconfig.json && pnpm -r --if-present format:check",
     "lint": "oxlint eslint scripts && pnpm -r --if-present lint",
-    "check": "pnpm format:check && pnpm lint && pnpm --dir packages/happy2-server architecture:check && pnpm typecheck && pnpm test && pnpm coverage:server && pnpm build",
+        "check": "pnpm format:check && pnpm lint && pnpm --dir packages/happy2-server architecture:check && pnpm typecheck && pnpm test:coverage-tooling && pnpm test:non-server && pnpm coverage:server:unit && pnpm coverage:server:gym && tsx packages/happy2-server/tooling/server-coverage/cli.ts check && pnpm build",
     "release": "tsx scripts/release.ts",
     "prepack": "pnpm run build",
     "clean": "pnpm -r --if-present clean"

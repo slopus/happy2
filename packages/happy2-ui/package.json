@@ -12,6 +12,7 @@
         "dev": "vite --host 127.0.0.1",
         "build": "vite build",
         "test": "node ../../scripts/run-ui-alignment-tests.mjs",
+        "test:artifacts": "VITE_HAPPY2_WRITE_SCREENSHOTS=1 node ../../scripts/run-ui-alignment-tests.mjs",
         "test:watch": "playwright install chromium firefox webkit && vitest",
         "typecheck": "tsc --project tsconfig.json",
         "format": "oxfmt --write .",

@@ -88,3 +88,11 @@ baseline; `ink.baseline` and `verticalOffset` remain compatibility aliases. The 
 a temporary zero-size inline probe and is not inferred from canvas. `textMetrics().fontMetrics`
 separately exposes the browser's raw Canvas `TextMetrics` values. Those values describe font and
 outline metrics and must not be treated as rasterized visible bounds.
+
+`renderer.visibleMetrics([first, second])` measures independent elements on one render surface from
+one black/white screenshot pair, preserving each element's real DOM rectangle and 2× pixel math.
+Use it for fixture sheets rather than issuing repeated `element.visibleMetrics()` calls. Elements in
+one batch cannot contain one another because changing ancestor backgrounds would otherwise alter a
+second measurement's paint. `renderer.screenshot()` only writes inspection PNGs when
+`VITE_HAPPY2_WRITE_SCREENSHOTS=1`; use `pnpm --filter happy2-gym test:playwright:artifacts` for a
+deliberate artifact refresh.

@@ -88,6 +88,8 @@ export type VisiblePixelMetrics = {
     pixelCount: number;
 };
 
+export type VisiblePixelMetricBatch = ReadonlyMap<RenderedElement<Element>, VisiblePixelMetrics>;
+
 export type RendererOptions = {
     height: number;
     padding?: number;
@@ -165,6 +167,160 @@ async function imageData(base64: string) {
     if (!context) throw new Error("Canvas pixel analysis is unavailable.");
     context.drawImage(image, 0, 0);
     return context.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+function emptyVisiblePixelMetrics(): VisiblePixelMetrics {
+    return {
+        alphaMass: 0,
+        bounds: { x: 0, y: 0, width: 0, height: 0 },
+        center: { x: 0, y: 0 },
+        pixelCount: 0,
+    };
+}
+
+function metricsFromPixels(
+    blackPixels: ImageData,
+    whitePixels: ImageData,
+    captureBounds: DOMRect,
+    elementBounds: DOMRect,
+): VisiblePixelMetrics {
+    const scaleX = captureBounds.width / blackPixels.width;
+    const scaleY = captureBounds.height / blackPixels.height;
+    const elementX = elementBounds.x - captureBounds.x;
+    const elementY = elementBounds.y - captureBounds.y;
+    const firstX = Math.max(0, Math.floor(elementX / scaleX));
+    const firstY = Math.max(0, Math.floor(elementY / scaleY));
+    const lastX = Math.min(
+        blackPixels.width - 1,
+        Math.ceil((elementX + elementBounds.width) / scaleX) - 1,
+    );
+    const lastY = Math.min(
+        blackPixels.height - 1,
+        Math.ceil((elementY + elementBounds.height) / scaleY) - 1,
+    );
+    let minX = blackPixels.width;
+    let minY = blackPixels.height;
+    let maxX = -1;
+    let maxY = -1;
+    let totalAlpha = 0;
+    let weightedX = 0;
+    let weightedY = 0;
+    let pixelCount = 0;
+    for (let y = firstY; y <= lastY; y += 1) {
+        for (let x = firstX; x <= lastX; x += 1) {
+            const index = (y * blackPixels.width + x) * 4;
+            // Cwhite - Cblack = 255 * (1 - alpha), independently of
+            // foreground color. Averaging RGB suppresses channel-level
+            // quantization while retaining every partially covered pixel.
+            const backgroundShare =
+                (whitePixels.data[index]! -
+                    blackPixels.data[index]! +
+                    (whitePixels.data[index + 1]! - blackPixels.data[index + 1]!) +
+                    (whitePixels.data[index + 2]! - blackPixels.data[index + 2]!)) /
+                (3 * 255);
+            const alpha = Math.min(1, Math.max(0, 1 - backgroundShare));
+            if (alpha <= 0) continue;
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+            totalAlpha += alpha;
+            weightedX += (x + 0.5) * alpha;
+            weightedY += (y + 0.5) * alpha;
+            pixelCount += 1;
+        }
+    }
+    if (pixelCount === 0 || totalAlpha === 0) return emptyVisiblePixelMetrics();
+
+    return {
+        alphaMass: rounded(totalAlpha),
+        bounds: {
+            x: rounded(minX * scaleX - elementX),
+            y: rounded(minY * scaleY - elementY),
+            width: rounded((maxX - minX + 1) * scaleX),
+            height: rounded((maxY - minY + 1) * scaleY),
+        },
+        center: {
+            x: rounded((weightedX / totalAlpha) * scaleX - elementX),
+            y: rounded((weightedY / totalAlpha) * scaleY - elementY),
+        },
+        pixelCount,
+    };
+}
+
+/**
+ * Reconstructs visible pixels for independent elements on one render surface
+ * from a shared black/white capture pair. The selected elements must not
+ * contain one another: changing the ancestor backgrounds for such a pair
+ * would make one measurement alter the other's paint.
+ */
+async function captureVisiblePixelMetrics(
+    elements: readonly RenderedElement<Element>[],
+    container: HTMLElement,
+): Promise<VisiblePixelMetricBatch> {
+    assertRetina();
+    await document.fonts.ready;
+    const unique = [...new Set(elements)];
+    if (unique.some((element) => element.element.closest("[data-gym-surface]") !== container)) {
+        throw new Error("Visible-pixel batch elements must belong to one render surface.");
+    }
+    if (
+        unique.some((element, index) =>
+            unique.some(
+                (other, otherIndex) =>
+                    index !== otherIndex && element.element.contains(other.element),
+            ),
+        )
+    ) {
+        throw new Error("Visible-pixel batch elements must not contain one another.");
+    }
+
+    const bounds = new Map(
+        unique.map((element) => [element, element.element.getBoundingClientRect()] as const),
+    );
+    const captureBounds = container.getBoundingClientRect();
+    const ancestors = new Map<HTMLElement, string>();
+    for (const item of unique) {
+        let ancestor = item.element.parentElement;
+        while (ancestor) {
+            if (!ancestors.has(ancestor)) ancestors.set(ancestor, ancestor.style.cssText);
+            if (ancestor === container) break;
+            ancestor = ancestor.parentElement;
+        }
+    }
+    const paintBackground = (color: string) => {
+        for (const element of ancestors.keys()) {
+            element.style.setProperty("background", color, "important");
+            element.style.setProperty("transition", "none", "important");
+        }
+    };
+
+    try {
+        paintBackground("#000000");
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        const black = await page.screenshot({ element: container, save: false });
+        paintBackground("#ffffff");
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        const white = await page.screenshot({ element: container, save: false });
+        const [blackPixels, whitePixels] = await Promise.all([imageData(black), imageData(white)]);
+        if (blackPixels.width !== whitePixels.width || blackPixels.height !== whitePixels.height) {
+            throw new Error("Visible pixel captures have mismatched dimensions.");
+        }
+        return new Map(
+            unique.map((element) => [
+                element,
+                metricsFromPixels(blackPixels, whitePixels, captureBounds, bounds.get(element)!),
+            ]),
+        );
+    } finally {
+        for (const [element, style] of ancestors) {
+            element.style.cssText = style;
+            element.style.setProperty("transition", "none", "important");
+        }
+        void document.body.offsetHeight;
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        for (const [element, style] of ancestors) element.style.cssText = style;
+    }
 }
 
 function firstRenderedText(element: Element) {
@@ -304,7 +460,7 @@ export class RenderedElement<T extends Element = HTMLElement> {
 
     constructor(
         readonly element: T,
-        private readonly container: HTMLElement,
+        readonly container: HTMLElement,
     ) {}
 
     /** Rendered border-box bounds in CSS pixels, relative to the render surface. */
@@ -449,18 +605,17 @@ export class RenderedElement<T extends Element = HTMLElement> {
         return this.bounds().width;
     }
 
+    recordVisiblePixelMetrics(metrics: VisiblePixelMetrics) {
+        this.visiblePixelMetrics = Promise.resolve(metrics);
+    }
+
     private async measureVisiblePixels(): Promise<VisiblePixelMetrics> {
         assertRetina();
         await document.fonts.ready;
         const elementBounds = this.element.getBoundingClientRect();
         const captureBounds = this.container.getBoundingClientRect();
         if (elementBounds.width === 0 || elementBounds.height === 0) {
-            return {
-                alphaMass: 0,
-                bounds: { x: 0, y: 0, width: 0, height: 0 },
-                center: { x: 0, y: 0 },
-                pixelCount: 0,
-            };
+            return emptyVisiblePixelMetrics();
         }
 
         const ancestors: Array<{ element: HTMLElement; style: string }> = [];
@@ -498,75 +653,7 @@ export class RenderedElement<T extends Element = HTMLElement> {
                 throw new Error("Visible pixel captures have mismatched dimensions.");
             }
 
-            const scaleX = captureBounds.width / blackPixels.width;
-            const scaleY = captureBounds.height / blackPixels.height;
-            const elementX = elementBounds.x - captureBounds.x;
-            const elementY = elementBounds.y - captureBounds.y;
-            const firstX = Math.max(0, Math.floor(elementX / scaleX));
-            const firstY = Math.max(0, Math.floor(elementY / scaleY));
-            const lastX = Math.min(
-                blackPixels.width - 1,
-                Math.ceil((elementX + elementBounds.width) / scaleX) - 1,
-            );
-            const lastY = Math.min(
-                blackPixels.height - 1,
-                Math.ceil((elementY + elementBounds.height) / scaleY) - 1,
-            );
-            let minX = blackPixels.width;
-            let minY = blackPixels.height;
-            let maxX = -1;
-            let maxY = -1;
-            let totalAlpha = 0;
-            let weightedX = 0;
-            let weightedY = 0;
-            let pixelCount = 0;
-            for (let y = firstY; y <= lastY; y += 1) {
-                for (let x = firstX; x <= lastX; x += 1) {
-                    const index = (y * blackPixels.width + x) * 4;
-                    // Cwhite - Cblack = 255 * (1 - alpha), independently of
-                    // foreground color. Averaging RGB suppresses channel-level
-                    // quantization while retaining every partially covered pixel.
-                    const backgroundShare =
-                        (whitePixels.data[index]! -
-                            blackPixels.data[index]! +
-                            (whitePixels.data[index + 1]! - blackPixels.data[index + 1]!) +
-                            (whitePixels.data[index + 2]! - blackPixels.data[index + 2]!)) /
-                        (3 * 255);
-                    const alpha = Math.min(1, Math.max(0, 1 - backgroundShare));
-                    if (alpha <= 0) continue;
-                    minX = Math.min(minX, x);
-                    minY = Math.min(minY, y);
-                    maxX = Math.max(maxX, x);
-                    maxY = Math.max(maxY, y);
-                    totalAlpha += alpha;
-                    weightedX += (x + 0.5) * alpha;
-                    weightedY += (y + 0.5) * alpha;
-                    pixelCount += 1;
-                }
-            }
-            if (pixelCount === 0 || totalAlpha === 0) {
-                return {
-                    alphaMass: 0,
-                    bounds: { x: 0, y: 0, width: 0, height: 0 },
-                    center: { x: 0, y: 0 },
-                    pixelCount: 0,
-                };
-            }
-
-            return {
-                alphaMass: rounded(totalAlpha),
-                bounds: {
-                    x: rounded(minX * scaleX - elementX),
-                    y: rounded(minY * scaleY - elementY),
-                    width: rounded((maxX - minX + 1) * scaleX),
-                    height: rounded((maxY - minY + 1) * scaleY),
-                },
-                center: {
-                    x: rounded((weightedX / totalAlpha) * scaleX - elementX),
-                    y: rounded((weightedY / totalAlpha) * scaleY - elementY),
-                },
-                pixelCount,
-            };
+            return metricsFromPixels(blackPixels, whitePixels, captureBounds, elementBounds);
         } finally {
             for (const entry of ancestors) {
                 entry.element.style.cssText = entry.style;
@@ -618,8 +705,23 @@ export function createRenderer<Component>(
             await renderer.ready();
             return page.screenshot({
                 element: container,
-                path: `./${name}.${server.browser}.${server.platform}.png`,
+                ...(import.meta.env.VITE_HAPPY2_WRITE_SCREENSHOTS === "1"
+                    ? { path: `./${name}.${server.browser}.${server.platform}.png` }
+                    : {}),
             });
+        },
+        /**
+         * Measures independent elements from one black/white surface capture
+         * pair. This keeps the same true-DOM-rectangle and Retina pixel math as
+         * visibleMetrics(), while avoiding repeated screenshots of one fixture.
+         */
+        async visibleMetrics(elements: readonly RenderedElement<Element>[]) {
+            if (elements.length === 0) {
+                return new Map<RenderedElement<Element>, VisiblePixelMetrics>();
+            }
+            const metrics = await captureVisiblePixelMetrics(elements, elements[0]!.container);
+            for (const [element, visible] of metrics) element.recordVisiblePixelMetrics(visible);
+            return metrics;
         },
         render(component: () => Component, options = defaultOptions) {
             if (!options) {

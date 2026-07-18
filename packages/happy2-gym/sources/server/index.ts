@@ -106,7 +106,7 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
     const config = gymConfig(databaseUrl);
     options.configure?.(config);
     const executor = createDatabase(client);
-    const tokenKeys = generateKeys();
+    const tokenKeys = gymTokenKeys();
     const integrationProtector = new AesGcmSecretProtector(randomBytes(32));
     let app: FastifyInstance | undefined;
 
@@ -396,6 +396,21 @@ function generateKeys(): { privateKey: string; publicKey: string } {
         privateKeyEncoding: { type: "pkcs8", format: "pem" },
     });
     return { privateKey: pair.privateKey, publicKey: pair.publicKey };
+}
+
+type GymTokenKeys = Readonly<{ privateKey: string; publicKey: string }>;
+
+const gymGlobal = globalThis as typeof globalThis & {
+    __happy2GymTokenKeys?: GymTokenKeys;
+};
+
+/**
+ * Shares a process-local signing fixture across disposable Gym instances so
+ * fixture setup does not synchronously generate a new RSA key pair per server.
+ * Authentication remains isolated by the session-row check on every request.
+ */
+function gymTokenKeys(): GymTokenKeys {
+    return (gymGlobal.__happy2GymTokenKeys ??= generateKeys());
 }
 
 class MemoryFileSystem implements FileStorageFileSystem {
