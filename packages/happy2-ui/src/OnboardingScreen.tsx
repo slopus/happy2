@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Icon } from "./Icon";
 export type OnboardingStepState = "complete" | "current" | "upcoming";
@@ -44,7 +44,7 @@ export type OnboardingScreenProps = {
  * component owns no onboarding state.
  */
 export function OnboardingScreen(props: OnboardingScreenProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

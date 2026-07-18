@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
 import { KeyCap } from "./Badge";
 import type { Dimension } from "./dimensions";
@@ -36,7 +36,7 @@ export type WindowDragRegionProps = Omit<HTMLAttributes<HTMLDivElement>, "childr
 };
 /** Transparent window-drag overlay for full-window states without a TitleBar. */
 export function WindowDragRegion(props: WindowDragRegionProps) {
-    const [local, rest] = splitProps(props, ["className", "height", "style"]);
+    const [local, rest] = partitionComponentProps(props, ["className", "height", "style"]);
     return (
         <div
             {...rest}

@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 export type ModalOverlayProps = {
     className?: string;
@@ -24,7 +24,12 @@ export type ModalOverlayProps = {
  * clicks inside the card never dismiss.
  */
 export function ModalOverlay(props: ModalOverlayProps) {
-    const [local, rest] = splitProps(props, ["className", "style", "children", "onDismiss"]);
+    const [local, rest] = partitionComponentProps(props, [
+        "className",
+        "style",
+        "children",
+        "onDismiss",
+    ]);
     return (
         <div
             {...rest}

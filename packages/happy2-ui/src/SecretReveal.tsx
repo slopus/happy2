@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties } from "react";
 import { Banner } from "./Banner";
 import { Button } from "./Button";
@@ -31,7 +31,7 @@ const MASK = "•".repeat(24);
  * Button primitive and the warning reuses Banner — neither glyph is re-tuned.
  */
 export function SecretReveal(props: SecretRevealProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

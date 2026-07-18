@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Badge } from "./Badge";
 import { Banner } from "./Banner";
@@ -80,7 +80,7 @@ const VARIABLE_PREVIEW = 4;
  * consumer keeps `secrets` live from the realtime stream.
  */
 export function AgentSecretPanel(props: AgentSecretPanelProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "className",
         "style",
         "title",

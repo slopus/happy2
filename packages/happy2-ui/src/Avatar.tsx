@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type HTMLAttributes } from "react";
 export type AvatarSize = "xs" | "sm" | "md" | "lg";
 export type AvatarType = "human" | "agent";
@@ -13,7 +13,7 @@ export type AvatarProps = Omit<HTMLAttributes<HTMLSpanElement>, "style"> & {
     type?: AvatarType;
 };
 export function Avatar(props: AvatarProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "children",
         "className",
         "imageUrl",

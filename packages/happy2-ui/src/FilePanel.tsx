@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties } from "react";
 import { Button } from "./Button";
 import { FileTree, type FileTreeNode, type FileTreeProps } from "./FileTree";
@@ -34,7 +34,7 @@ export type FilePanelProps = {
  * handlers; the panel never fetches.
  */
 export function FilePanel(props: FilePanelProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

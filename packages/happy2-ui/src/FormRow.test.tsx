@@ -10,7 +10,7 @@ import { Button } from "./Button";
 import { FormRow } from "./FormRow";
 import { createRenderer } from "./testing";
 type Engine = "chromium" | "firefox" | "webkit";
-/* Solid text colors so every engine reports the same rgb(). */
+/* Fixed text colors so every engine reports the same rgb(). */
 const TEXT = "rgb(237, 234, 242)"; // --happy2-text  #edeaf2
 const MUTED = "rgb(117, 112, 133)"; // --happy2-text-muted #757085
 const HAIRLINE = "rgba(255, 255, 255, 0.07)"; // --happy2-border

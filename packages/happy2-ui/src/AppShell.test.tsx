@@ -140,7 +140,7 @@ async function expectRightEdgeDivider(part: RenderedElement<Element>, label: str
  *    square chrome surfaces paint wall to wall while rounded cards miss only
  *    the four corner cuts, minus the partial-alpha arc ring that the
  *    alpha-diff still counts as painted.
- * 4. Solid fills are symmetric ink, so the alpha-weighted centroid must sit
+ * 4. Opaque fills are symmetric ink, so the alpha-weighted centroid must sit
  *    on the geometric box center; any interior blank region drags it off.
  *    (AppShell renders no glyphs — surface centroids are its optical truth.)
  */

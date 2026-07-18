@@ -31,7 +31,7 @@ it is slow or has not produced intermediate output. Wait for Claude to finish,
 then use its completed result. Run review turns with Claude Opus at medium
 effort and streaming/verbose output so progress is visible.
 
-Every task in `TODO.md` uses the following completion loop:
+Every feature uses the following completion loop:
 
 1. Finish the isolated implementation and its required tests.
 2. Start a Claude Opus review of the complete task diff. Do not use
@@ -41,10 +41,9 @@ Every task in `TODO.md` uses the following completion loop:
    replace the reviewer with a fresh session.
 4. Repeat implementation/review turns until both Codex and Opus explicitly
    agree that no task-blocking issue remains.
-5. Run repository-wide `pnpm format`, then the final required checks. Update
-   `TODO.md` with the final evidence and sync the task to `main` using
-   the workflow below. Only after that merge may the same worktree begin the
-   next `TODO.md` task.
+5. Run repository-wide `pnpm format`, then the final required checks and sync
+   the task to `main` using the workflow below. Only after that merge may the
+   same worktree begin the next feature.
 
 For Claude-owned UI tasks, Claude Opus performs the implementation and Codex
 performs the reciprocal review; resume the same Opus session for fixes until
@@ -56,12 +55,7 @@ new-server/backend and UI design unless the current task explicitly requires a
 compatibility or data-preservation contract; do not add legacy branches solely
 to preserve obsolete behavior.
 
-## Single backlog
-
-Record every planned task, discovered problem, implementation step, acceptance
-criterion, deferral, and progress update in the repository-root `TODO.md`.
-`TODO.md` is the only planning source of truth. Do not create additional todo,
-roadmap, audit-plan, or implementation-plan files elsewhere in the repository.
+## Model ownership
 
 Model ownership is strict:
 
@@ -112,62 +106,42 @@ Asynchronous server work (a build, an export, a job) must stream its status
 changes to the UI through the same mechanism, not wait for a user-initiated
 reload.
 
-## Solid UI reactivity and identity
+## React UI reactivity and identity
 
-Solid does not re-render a component into a Virtual DOM tree and structurally
-diff that tree after every state change. Components and JSX render children
-normally run once per mounted identity; signals, memos, stores, and render
-effects update the specific expressions that read them. Write Solid code in
-that model rather than porting React render patterns literally.
+React surfaces render immutable `happy2-state` snapshots. Keep component and
+DOM identity stable across ordinary store notifications so focus, selection,
+scroll, measurements, and local UI state survive updates.
 
-- A framework adapter for a `happy2-state` surface must own one coarse store
-  subscription and mount its child tree once per store identity. Pass the
-  snapshot as an `Accessor<Snapshot>` and read `snapshot()` inside JSX, a memo,
-  or an effect. Never call a render child with `snapshot()` from a reactive
-  expression: doing so constructs new DOM and loses focus, selection, scroll,
-  and component-local state.
-- Treat a change of store identity as an explicit lifetime boundary. A keyed
-  boundary may dispose the old subscription and remount for a genuinely new
-  store. Ordinary notifications from the same store must retain the existing
-  component and DOM identities.
-- Keep reactive props reactive. Do not freeze a changing prop with
-  `const value = props.value`, destructure changing props, or read an accessor
-  outside a tracking scope. Use `props.value`, an accessor such as
-  `const value = () => props.value`, or `splitProps`. A one-time read is allowed
-  only when the value is an explicit lifetime invariant.
-- Use `createMemo` for reactive derived values and cached projections. Use
-  `createEffect` only for effects such as subscription coordination, imperative
-  browser APIs, or resource loading, and always register cleanup. Do not use an
-  effect merely to copy one reactive value into another signal.
-- Use `<For>` for reorderable entity collections and preserve each item's value
-  identity. `<For>` reconciles by item identity, not by an arbitrary `id` field.
-  Do not put a whole-list `.map()` in front of `<For>` if it creates fresh
-  wrapper objects for unchanged entities.
-- For immutable snapshots whose changed entity receives a new reference, keep
-  an ID-keyed row slot per materialized entity. `<For>` iterates the stable slot
-  objects; the slot exposes a lightweight accessor for the current entity. A
-  difference updates only the affected slot accessor, so the row component and
-  its local menu, reaction, focus, and measurement state stay mounted. Prune
-  slots immediately when their entities leave the materialized list.
-- A row-local signal/accessor is not a product-store subscription. Thousands of
-  repeated rows may have the normal Solid render bindings needed for their DOM,
-  but they must not call `store.subscribe()` individually, mirror authoritative
-  product state, start transport work, or own server synchronization. One
-  surface subscription fans out only to changed row slots.
-- Use `<Index>` only for genuinely position-stable primitive/value lists where
-  an index, rather than an entity, owns the row lifetime. Do not use it for
-  messages, users, files, notifications, or another reorderable entity list.
-- Treat `<Show>`, `<Switch>`, and `<Match>` branch changes as potential mount and
-  disposal boundaries. Use `keyed` only when a reference change intentionally
-  means a new lifetime. Do not put focused controls or stateful panels behind a
-  changing keyed boundary unless resetting them is the product behavior.
-- Changing one entity field must not replace its owning row DOM. Pass the row
-  accessor through reactive component props so a body, reaction, delivery, or
-  menu expression updates inside the existing component. Preserve sibling row
-  references and DOM identities as well.
-- Virtualize collections that can contain thousands of entries. Fine-grained
-  reactivity avoids unnecessary update work but does not make thousands of
-  simultaneous DOM nodes, layout boxes, images, or observers free.
+- A framework adapter for a `happy2-state` surface owns one coarse
+  `useSyncExternalStore` subscription per materialized store. Repeated rows must
+  not subscribe to the product store individually.
+- Treat a change of store identity as an explicit lifetime boundary. A changing
+  React `key` may remount a tree for a genuinely new store. Notifications from
+  the same store must retain existing component and DOM identities.
+- Read changing values from props or the current external-store snapshot. Do
+  not mirror props or product snapshots into component state, and do not use an
+  effect to keep duplicated state synchronized.
+- Let React Compiler handle ordinary render memoization. Add manual memoization
+  only for a measured identity or performance contract, and document that
+  contract beside the code.
+- Product state belongs in `happy2-state`. `happy2-app` may not use `useState`
+  or `useEffect`; reusable `happy2-ui` components may own narrowly scoped local
+  UI state, but may not use `useEffect`. Use an event handler, external-store
+  subscription, ref callback, or render-time derivation instead. An imperative
+  browser integration may use `useLayoutEffect` only when no declarative or
+  event-driven boundary exists, with complete cleanup.
+- Key reorderable entity collections by stable entity ID, never by array index.
+  Preserve references for unchanged entities; changing one field must update
+  its row without replacing that row's DOM node or its siblings.
+- Thousands of repeated rows may have normal render bindings, but they must not
+  mirror authoritative product state, start transport work, or own server
+  synchronization. One surface subscription fans out through immutable props.
+- Treat conditional branches and changing keys as potential mount/disposal
+  boundaries. Do not place focused controls or stateful panels behind a
+  changing key unless resetting them is the product behavior.
+- Virtualize collections that can contain thousands of entries. Efficient
+  reconciliation does not make thousands of simultaneous DOM nodes, layout
+  boxes, images, or observers free.
 - Browser tests for a store adapter or repeated-row projection must prove the
   lifecycle contract, not only visible text: assert child mount count,
   subscription cleanup, exact DOM-node identity, `document.activeElement`,

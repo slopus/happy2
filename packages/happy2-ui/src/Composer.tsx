@@ -100,31 +100,27 @@ export type Mentionable = {
     status?: "ready" | "working";
     tone?: ToneName;
 };
-/** @deprecated Prefer the product-neutral `Mentionable` name. */
-export type MentionableAgent = Mentionable;
 export type MentionPickerProps = {
-    /** Optional controlled highlight; defaults to the first filtered agent. */
+    /** Optional controlled highlight; defaults to the first filtered mention. */
     activeId?: string;
-    agents?: Mentionable[];
     className?: string;
     "data-testid"?: string;
     /** Visible heading for the picker (default "Mentions"). */
     label?: string;
-    /** Product-neutral mention candidates; takes precedence over `agents`. */
     mentions?: Mentionable[];
     onSelect: (mention: Mentionable) => void;
     query: string;
     style?: CSSProperties;
 };
-function filterAgents(agents: Mentionable[], query: string) {
+function filterMentions(mentions: Mentionable[], query: string) {
     const needle = query.trim().toLowerCase();
-    if (!needle) return agents;
-    return agents.filter((agent) => agent.name.toLowerCase().includes(needle));
+    if (!needle) return mentions;
+    return mentions.filter((mention) => mention.name.toLowerCase().includes(needle));
 }
 /** 320px raised popover listing mention candidates, filtered by `query`. */
 export function MentionPicker(props: MentionPickerProps) {
-    const candidates = () => props.mentions ?? props.agents ?? [];
-    const filtered = () => filterAgents(candidates(), props.query);
+    const candidates = () => props.mentions ?? [];
+    const filtered = () => filterMentions(candidates(), props.query);
     const activeId = () => props.activeId ?? filtered()[0]?.id;
     return (
         <div
@@ -139,22 +135,22 @@ export function MentionPicker(props: MentionPickerProps) {
                 {props.label ?? "Mentions"}
             </div>
             {filtered().length > 0 ? (
-                filtered().map((agent) => (
+                filtered().map((mention) => (
                     <button
-                        aria-selected={agent.id === activeId() ? "true" : "false"}
-                        key={agent.id}
+                        aria-selected={mention.id === activeId() ? "true" : "false"}
+                        key={mention.id}
                         className="happy2-mention-picker__row"
-                        data-active={agent.id === activeId() ? "" : undefined}
-                        data-agent-id={agent.id}
+                        data-active={mention.id === activeId() ? "" : undefined}
                         data-happy2-ui="mention-picker-row"
-                        onClick={() => props.onSelect(agent)}
+                        data-mention-id={mention.id}
+                        onClick={() => props.onSelect(mention)}
                         role="option"
                         type="button"
                     >
                         <Avatar
-                            initials={agent.initials}
+                            initials={mention.initials}
                             size="sm"
-                            tone={agent.tone}
+                            tone={mention.tone}
                             type="agent"
                         />
                         <span
@@ -165,25 +161,25 @@ export function MentionPicker(props: MentionPickerProps) {
                                 className="happy2-mention-picker__name"
                                 data-happy2-ui="mention-picker-name"
                             >
-                                {agent.name}
+                                {mention.name}
                             </span>
-                            {agent.description ? (
+                            {mention.description ? (
                                 <span
                                     className="happy2-mention-picker__description"
                                     data-happy2-ui="mention-picker-description"
                                 >
-                                    {agent.description}
+                                    {mention.description}
                                 </span>
                             ) : null}
                         </span>
-                        {agent.status
+                        {mention.status
                             ? ((status) => (
                                   <Badge
                                       className="happy2-mention-picker__status"
                                       label={status}
                                       variant={status === "ready" ? "success" : "warning"}
                                   />
-                              ))(agent.status)
+                              ))(mention.status)
                             : null}
                     </button>
                 ))
@@ -197,7 +193,6 @@ export function MentionPicker(props: MentionPickerProps) {
 }
 /* ---- Composer ----------------------------------------------------------- */
 export type ComposerProps = {
-    agents?: MentionableAgent[];
     /** Native file-picker accept filter, used with `onAttachmentsSelect`. */
     attachmentAccept?: string;
     /** Allows more than one file in the native picker. */
@@ -216,8 +211,7 @@ export type ComposerProps = {
     /** Called after an emoji is selected. Unicode emoji are also inserted into the draft. */
     onEmojiSelect?: (emoji: EmojiItem) => void;
     /** Called when a mention is inserted from the picker. */
-    onMentionSelect?: (agent: MentionableAgent) => void;
-    /** Product-neutral mention candidates; takes precedence over `agents`. */
+    onMentionSelect?: (mention: Mentionable) => void;
     mentions?: Mentionable[];
     /** Visible heading above the mention candidates (default "Mentions"). */
     mentionPickerLabel?: string;
@@ -255,10 +249,10 @@ export function Composer(props: ComposerProps) {
     const restoreFocusAfterSend = useRef(false);
     const [selection, setSelection] = useState({ start: 0, end: 0 });
     const busy = Boolean(props.disabled || props.pending);
-    const agents = () => props.mentions ?? props.agents ?? [];
-    const filtered = () => filterAgents(agents(), mentionQuery);
-    const mentionOpen = () => !busy && mentionStart !== null && agents().length > 0;
-    const activeAgent = () => {
+    const mentions = () => props.mentions ?? [];
+    const filtered = () => filterMentions(mentions(), mentionQuery);
+    const mentionOpen = () => !busy && mentionStart !== null && mentions().length > 0;
+    const activeMention = () => {
         const list = filtered();
         if (list.length === 0) return undefined;
         return list[Math.min(activeIndex, list.length - 1)];
@@ -334,7 +328,7 @@ export function Composer(props: ComposerProps) {
         focusAt(nextCaret);
     };
     const detectMention = (el: HTMLTextAreaElement) => {
-        if (agents().length === 0) return;
+        if (mentions().length === 0) return;
         const caret = el.selectionStart ?? el.value.length;
         const before = el.value.slice(0, caret);
         const match = /(^|[\s([{])@([\w-]*)$/.exec(before);
@@ -348,22 +342,22 @@ export function Composer(props: ComposerProps) {
         setMentionStart(start);
         setMentionQuery(query);
     };
-    const selectMention = (agent: MentionableAgent) => {
+    const selectMention = (mention: Mentionable) => {
         const el = textareaEl.current;
         const start = mentionStart;
         if (!el || start === null) return;
         const caret = el.selectionStart ?? el.value.length;
-        const insertion = `@${agent.name} `;
+        const insertion = `@${mention.name} `;
         const next = el.value.slice(0, start) + insertion + el.value.slice(caret);
         closeMention();
         props.onValueChange(next);
-        props.onMentionSelect?.(agent);
+        props.onMentionSelect?.(mention);
         const nextCaret = start + insertion.length;
         focusAt(nextCaret);
     };
     const triggerMention = () => {
         const el = textareaEl.current;
-        if (!el || busy || agents().length === 0) return;
+        if (!el || busy || mentions().length === 0) return;
         closeEmoji();
         el.focus();
         const caret = el.selectionStart ?? props.value.length;
@@ -439,8 +433,8 @@ export function Composer(props: ComposerProps) {
             }
             if ((event.key === "Enter" || event.key === "Tab") && list.length > 0) {
                 event.preventDefault();
-                const agent = activeAgent();
-                if (agent) selectMention(agent);
+                const mention = activeMention();
+                if (mention) selectMention(mention);
                 return;
             }
             if (event.key === "Escape") {
@@ -519,7 +513,7 @@ export function Composer(props: ComposerProps) {
                             variant="ghost"
                         />
                     ) : null}
-                    {agents().length > 0 ? (
+                    {mentions().length > 0 ? (
                         <Button
                             aria-label="Mention someone"
                             disabled={busy}
@@ -569,9 +563,9 @@ export function Composer(props: ComposerProps) {
                     onMouseDown={(event) => event.preventDefault()}
                 >
                     <MentionPicker
-                        activeId={activeAgent()?.id}
+                        activeId={activeMention()?.id}
                         label={props.mentionPickerLabel}
-                        mentions={agents()}
+                        mentions={mentions()}
                         onSelect={selectMention}
                         query={mentionQuery}
                     />

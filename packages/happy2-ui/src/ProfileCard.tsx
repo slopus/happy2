@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Avatar, type AvatarSize, type ToneName } from "./Avatar";
 export type ProfileCardSize = "compact" | "full";
@@ -35,7 +35,7 @@ const avatarSizes: Record<ProfileCardSize, AvatarSize> = {
  * row of cards keeps one name/username baseline. Colours are tokens only.
  */
 export function ProfileCard(props: ProfileCardProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { Badge, type BadgeVariant } from "./Badge";
@@ -59,7 +59,7 @@ const statusLabels: Record<ModerationStatus, string> = {
  * and an optional footer holds the resolution actions.
  */
 export function ModerationReportCard(props: ModerationReportCardProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

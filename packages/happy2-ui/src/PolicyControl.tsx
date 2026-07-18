@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties } from "react";
 import { FormRow } from "./FormRow";
 import { SegmentedControl, type SegmentedControlSegment } from "./SegmentedControl";
@@ -56,7 +56,7 @@ const RETENTION_OPTIONS: SelectOption[] = [
  * Props only, desktop only; every color and radius is a --happy2-* token.
  */
 export function PolicyControl(props: PolicyControlProps) {
-    const [local] = splitProps(props, ["className", "style"]);
+    const [local] = partitionComponentProps(props, ["className", "style"]);
     const showTimer = () => props.expiryMode !== "none";
     const showScope = () => props.expiryMode === "after_read";
     const showRetention = () => props.retentionMode !== undefined;

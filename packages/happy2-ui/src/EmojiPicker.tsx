@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties } from "react";
 import { TextField } from "./TextField";
 export type EmojiItem = {
@@ -82,7 +82,7 @@ function EmojiCell(props: {
  * filters `emoji` for the current `query` and the component only renders it.
  */
 export function EmojiPicker(props: EmojiPickerProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "className",
         "style",
         "emoji",

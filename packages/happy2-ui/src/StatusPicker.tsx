@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties } from "react";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
@@ -39,7 +39,7 @@ const AVAILABILITY: {
  * and a reused ghost Button to clear. Props-only and fully controlled.
  */
 export function StatusPicker(props: StatusPickerProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "availability",
         "className",
         "data-testid",

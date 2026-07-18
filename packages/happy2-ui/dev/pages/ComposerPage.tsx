@@ -8,12 +8,12 @@ import {
     ContextChips,
     MentionPicker,
     type ContextItem,
-    type MentionableAgent,
+    type Mentionable,
 } from "../../src/Composer";
 import type { EmojiItem } from "../../src/EmojiPicker";
 import { StoreSurface } from "../../src/StoreSurface";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-const AGENTS: MentionableAgent[] = [
+const MENTIONS: Mentionable[] = [
     {
         description: "Ships code end to end",
         id: "codex",
@@ -134,7 +134,7 @@ function Playground() {
             {(snapshot, store) => (
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     <Composer
-                        agents={AGENTS}
+                        mentions={MENTIONS}
                         attachmentMultiple
                         contextItems={contextItems(snapshot)}
                         emoji={EMOJI}
@@ -303,12 +303,12 @@ export function ComposerPage() {
                             <DimensionRule label="width 320" />
                             <MentionPicker
                                 activeId="claude"
-                                agents={AGENTS}
+                                mentions={MENTIONS}
                                 onSelect={noop}
                                 query=""
                             />
                         </div>
-                        <MentionPicker agents={AGENTS} onSelect={noop} query="zephyr" />
+                        <MentionPicker mentions={MENTIONS} onSelect={noop} query="zephyr" />
                     </div>
                 </Specimen>
             </div>
@@ -350,7 +350,7 @@ export function ComposerPage() {
                 >
                     <div style={{ width: "640px", padding: "24px 20px" }}>
                         <Composer
-                            agents={AGENTS}
+                            mentions={MENTIONS}
                             emoji={EMOJI}
                             onAttachFile={noop}
                             onSend={noop}

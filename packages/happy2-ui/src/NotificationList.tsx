@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useRef, type CSSProperties, type ReactNode, type UIEvent } from "react";
 import { Avatar, type ToneName } from "./Avatar";
@@ -205,7 +205,7 @@ function notificationLabel(item: NotificationItem): string {
  * accent dot and heavier text.
  */
 export function NotificationList(props: NotificationListProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "className",
         "emptyLabel",
         "hasMore",

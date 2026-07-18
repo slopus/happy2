@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type HTMLAttributes } from "react";
 import type { Dimension } from "./dimensions";
 import { toCssDimension } from "./dimensions";
@@ -8,7 +8,13 @@ export type BoxProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     width?: Dimension;
 };
 export function Box(props: BoxProps) {
-    const [local, rest] = splitProps(props, ["children", "className", "height", "style", "width"]);
+    const [local, rest] = partitionComponentProps(props, [
+        "children",
+        "className",
+        "height",
+        "style",
+        "width",
+    ]);
     return (
         <div
             {...rest}

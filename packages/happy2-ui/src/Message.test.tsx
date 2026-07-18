@@ -1302,6 +1302,7 @@ it("renders string bodies as safe streaming Markdown", async () => {
                         "- Registers after settle\n" +
                         "- Retries on cold start\n\n" +
                         "```ts\nconst token = requestPushToken();\n```\n\n" +
+                        "| Check | Result |\n| --- | --- |\n| Compiler | ~~pending~~ complete |\n\n" +
                         "Safe [launch checklist](https://example.com/launch) and " +
                         "unsafe [do not run](javascript:alert(1))."
                     }
@@ -1311,10 +1312,10 @@ it("renders string bodies as safe streaming Markdown", async () => {
                     tone="mint"
                 />,
             ),
-        { width: 560, height: 320 },
+        { width: 560, height: 390 },
     );
-    /* Untrusted raw HTML and a Markdown image: neither may create a live <img>
-       or <script>, and the image must not trigger an implicit network load. */
+    /* Untrusted raw HTML and Markdown images: none may create a live <img> or
+       <script>, trigger an implicit network load, or nest interactive links. */
     view.render(
         () =>
             stage(
@@ -1325,7 +1326,9 @@ it("renders string bodies as safe streaming Markdown", async () => {
                     body={
                         'Injected <img src=x onerror="window.__pwned=1"> and ' +
                         "<script>window.__pwned=1</script>.\n\n" +
-                        "![diagram](https://cdn.example.com/diagram.png)"
+                        "![diagram](https://cdn.example.com/diagram.png)\n\n" +
+                        "[*![preview](https://cdn.example.com/preview.png)*]" +
+                        "(https://example.com/full)"
                     }
                     generationStatus="complete"
                     initials="CX"
@@ -1403,6 +1406,7 @@ it("renders string bodies as safe streaming Markdown", async () => {
     expect(mdRoot.element.getAttribute("aria-busy")).toBeNull();
     const heading = mdBody.element.querySelector("h2");
     expect(heading?.textContent).toBe("Cold-start fix");
+    expect(heading?.hasAttribute("id")).toBe(false);
     const listItems = mdBody.element.querySelectorAll("ul > li");
     expect(listItems.length).toBe(2);
     expect(mdBody.element.querySelector("strong")?.textContent).toBe("handshake");
@@ -1411,10 +1415,17 @@ it("renders string bodies as safe streaming Markdown", async () => {
     const preCode = mdBody.element.querySelector("pre code");
     expect(preCode?.textContent).toContain("const token = requestPushToken();");
     expect(preCode?.textContent).not.toContain("```");
+    const table = mdBody.element.querySelector("table");
+    expect(table?.querySelector("th")?.textContent).toBe("Check");
+    expect(table?.querySelector("td")?.textContent).toBe("Compiler");
+    expect(table?.querySelector("del")?.textContent).toBe("pending");
+    expect((table as HTMLElement).scrollWidth).toBeGreaterThanOrEqual(
+        (table as HTMLElement).clientWidth,
+    );
     /* ---- Multi-block stacking: 8px gap between adjacent blocks ---------- */
-    /* `wrapper: null` makes every block a direct body child, so the body's
-       `> * + *` 8px rule is truthful. Adjacent blocks must sit exactly 8px
-       apart (no leftover UA margin, no wrapper masking the rule). */
+    /* The Markdown renderer emits every block as a direct body child, so the
+       body's `> * + *` 8px rule is truthful. Adjacent blocks must sit exactly
+       8px apart (no leftover UA margin or wrapper masking the rule). */
     const mdBlocks = [...mdBody.element.children].filter(
         (node): node is HTMLElement =>
             node instanceof HTMLElement &&
@@ -1464,6 +1475,17 @@ it("renders string bodies as safe streaming Markdown", async () => {
     expect(mdImage.element.getAttribute("href")).toBe("https://cdn.example.com/diagram.png");
     expect(mdImage.element.getAttribute("data-md-src")).toBe("https://cdn.example.com/diagram.png");
     expect(mdImage.element.textContent).toBe("diagram");
+    /* A linked image contributes labelled content to its one outer anchor;
+       nested interactive elements are invalid and produce ambiguous focus. */
+    const linkedImage = view.$(
+        '[data-testid="md-unsafe"] [data-md-src="https://cdn.example.com/preview.png"]',
+    );
+    expect(linkedImage.element.tagName).toBe("SPAN");
+    expect(linkedImage.element.textContent).toBe("preview");
+    const linkedImageAnchor = linkedImage.element.closest("a");
+    expect(linkedImageAnchor?.tagName).toBe("A");
+    expect(linkedImageAnchor?.getAttribute("href")).toBe("https://example.com/full");
+    expect(linkedImageAnchor?.querySelector("a"), "no nested anchor").toBeNull();
     /* ---- Streaming affordance + incomplete syntax ---------------------- */
     const streamRoot = view.$('[data-testid="md-stream"] [data-happy2-ui="message"]');
     expect(streamRoot.element.getAttribute("data-generation-status")).toBe("streaming");
@@ -1516,10 +1538,64 @@ it("renders string bodies as safe streaming Markdown", async () => {
     const failed = view.$('[data-testid="md-failed"] [data-happy2-ui="message-generation-failed"]');
     expect(failed.element.getAttribute("aria-label")).toBe("Generation failed");
     expect(failed.computedStyle("background-color")).toBe("rgb(248, 113, 113)");
+    const failedParagraph = view.$('[data-testid="md-failed"] [data-happy2-ui="message-body"] p');
+    const failedParagraphBounds = failedParagraph.bounds();
+    const failedBounds = failed.bounds();
+    expect(failedBounds.y, "failure marker overlaps the final text line").toBeLessThan(
+        failedParagraphBounds.y + failedParagraphBounds.height,
+    );
+    expect(
+        failedBounds.y + failedBounds.height,
+        "failure marker overlaps the final text line",
+    ).toBeGreaterThan(failedParagraphBounds.y);
     /* The partial reply is still readable at full opacity. */
     const failedContent = view.$('[data-testid="md-failed"] [data-happy2-ui="message-content"]');
     expect(failedContent.computedStyle("opacity")).toBe("1");
     await view.screenshot("Message.markdown.test");
+});
+it("preserves Message DOM identity while a streamed Markdown body advances", async () => {
+    let streamUpdate = (_next: { body: string; status: "streaming" | "complete" }) => {};
+    function StreamingMessage() {
+        const [stream, setStream] = useState<{
+            body: string;
+            status: "streaming" | "complete";
+        }>({
+            body: "Checking the **compiler**",
+            status: "streaming",
+        });
+        streamUpdate = setStream;
+        return stage(
+            "stream-identity",
+            <Message
+                agent
+                author="Codex"
+                body={stream.body}
+                generationStatus={stream.status}
+                initials="CX"
+                time="11:02"
+                tone="mint"
+            />,
+        );
+    }
+    const view = createRenderer().render(() => <StreamingMessage />, {
+        width: 560,
+        height: 100,
+    });
+    await view.ready();
+    const row = view.$('[data-testid="stream-identity"] [data-happy2-ui="message"]').element;
+    const body = view.$('[data-testid="stream-identity"] [data-happy2-ui="message-body"]').element;
+    expect(body.querySelector("strong")?.textContent).toBe("compiler");
+    expect(body.querySelector('[data-happy2-ui="message-stream-caret"]')).not.toBeNull();
+
+    flushSync(() => streamUpdate({ body: "The **compiler** is ready.", status: "complete" }));
+    await nextFrame();
+
+    expect(view.$('[data-testid="stream-identity"] [data-happy2-ui="message"]').element).toBe(row);
+    expect(view.$('[data-testid="stream-identity"] [data-happy2-ui="message-body"]').element).toBe(
+        body,
+    );
+    expect(body.textContent).toContain("The compiler is ready.");
+    expect(body.querySelector('[data-happy2-ui="message-stream-caret"]')).toBeNull();
 });
 it("centers SystemNotice service lines and lifts @user / #channel refs", async () => {
     const view = createRenderer();

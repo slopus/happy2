@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties } from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { CountBadge } from "./Badge";
@@ -140,7 +140,7 @@ function ThreadRow(props: { onSelect?: (id: string) => void; thread: ThreadItem 
  * accent unread CountBadge. Muted (unsubscribed) threads carry a faint bell.
  */
 export function ThreadList(props: ThreadListProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "className",
         "emptyLabel",
         "onSelect",

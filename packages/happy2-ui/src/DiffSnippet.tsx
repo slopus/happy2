@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type HTMLAttributes } from "react";
 export type DiffLineKind = "add" | "del" | "context" | "meta";
 export type DiffLine = {
@@ -22,7 +22,13 @@ function gutterGlyph(kind: DiffLineKind) {
     return "";
 }
 export function DiffSnippet(props: DiffSnippetProps) {
-    const [local, rest] = splitProps(props, ["className", "file", "lines", "stats", "style"]);
+    const [local, rest] = partitionComponentProps(props, [
+        "className",
+        "file",
+        "lines",
+        "stats",
+        "style",
+    ]);
     const numbered = () => local.lines.some((line) => line.number !== undefined);
     return (
         <div

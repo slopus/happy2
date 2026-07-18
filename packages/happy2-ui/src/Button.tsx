@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type ButtonHTMLAttributes, type CSSProperties } from "react";
 import type { Dimension } from "./dimensions";
 import { toCssDimension } from "./dimensions";
@@ -20,7 +20,7 @@ const iconSizes: Record<ButtonSize, 14 | 16 | 18> = {
     large: 18,
 };
 export function Button(props: ButtonProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "children",
         "className",
         "fullWidth",

@@ -14,7 +14,7 @@ type Engine = "chromium" | "firefox" | "webkit";
 
 const engine = () => server.browser as Engine;
 
-/* Solid theme colors so every engine reports the same rgb(). */
+/* Fixed theme colors so every engine reports the same rgb(). */
 const TEXT = "rgb(237, 234, 242)"; // --happy2-text  #edeaf2
 const SECONDARY = "rgb(165, 160, 176)"; // --happy2-text-secondary #a5a0b0
 const MUTED = "rgb(117, 112, 133)"; // --happy2-text-muted #757085

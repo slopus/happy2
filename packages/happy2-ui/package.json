@@ -25,9 +25,10 @@
         "@fontsource-variable/jetbrains-mono": "^5.2.8",
         "@tanstack/react-virtual": "^3.14.6",
         "happy2-state": "workspace:*",
-        "markdown-to-jsx": "^9.8.2",
         "react": "19.2.7",
         "react-dom": "19.2.7",
+        "react-markdown": "^10.1.0",
+        "remark-gfm": "^4.0.1",
         "zustand": "5.0.14"
     },
     "devDependencies": {

@@ -224,7 +224,7 @@ export function AuthGate(props: AuthGateProps) {
     /* Probes the server for its authentication method and public setup phase, then
      * routes to the first pre-application step. It is the single entry the mount
      * and the unavailable-screen retry both call, so recovery happens in place —
-     * no remount and no location.reload — and the email/password/profile signals
+     * no remount and no location.reload — and the email/password/profile fields
      * keep whatever the user has already typed. The public setup status is
      * required for canonical fresh-install routing, so a failure surfaces the
      * unavailable screen instead of silently guessing sign-in. */

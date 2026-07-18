@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { Icon } from "./Icon";
 export type CheckboxProps = {
@@ -22,7 +22,7 @@ export type CheckboxProps = {
  * FormRow/DataTable/Menu wherever a boolean toggle is needed.
  */
 export function Checkbox(props: CheckboxProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "aria-label",
         "checked",
         "className",

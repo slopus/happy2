@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { Badge, type BadgeVariant } from "./Badge";
@@ -59,7 +59,7 @@ function clampProgress(progress: number | undefined) {
 }
 /** The hero card of the product: an agent run with status, diffstat, and steps. */
 export function AgentRunCard(props: AgentRunCardProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "actions",
         "children",
         "className",

@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import {
     useLayoutEffect,
     useRef,
@@ -42,7 +42,7 @@ export type CommandPaletteProps = {
  * it inside `ModalOverlay` so it dims and centers like every other dialog.
  */
 export function CommandPalette(props: CommandPaletteProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "query",
         "onQueryChange",
         "onClose",

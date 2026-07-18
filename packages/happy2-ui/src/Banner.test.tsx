@@ -33,7 +33,7 @@ const computedFontFamily =
         ? "happy2 Figtree, system-ui, sans-serif"
         : `"happy2 Figtree", system-ui, sans-serif`;
 
-/* Solid theme tokens, resolved to the exact rgb()/rgba() each engine reports. */
+/* Fixed theme tokens, resolved to the exact rgb()/rgba() each engine reports. */
 const toneStyles: Record<
     BannerTone,
     {

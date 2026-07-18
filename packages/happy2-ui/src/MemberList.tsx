@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { Badge, type BadgeVariant } from "./Badge";
@@ -128,7 +128,7 @@ function MemberRow(props: {
  * it drops straight into a channel-members panel.
  */
 export function MemberList(props: MemberListProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "actionLabel",
         "className",
         "members",

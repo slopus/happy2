@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
     Children,
@@ -153,7 +153,7 @@ function hasRenderableChild(value: ReactNode): boolean {
  * rich body segments, attachment slot, reactions, and reply affordance.
  */
 export function Message(props: MessageProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "agent",
         "actionsVisible",
         "author",

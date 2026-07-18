@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Badge, type BadgeVariant } from "./Badge";
 import { Banner } from "./Banner";
@@ -92,7 +92,7 @@ function progressValue(value: number | undefined): number {
  * realtime stream so asynchronous build-status changes appear on their own.
  */
 export function AgentImagePanel(props: AgentImagePanelProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "className",
         "style",
         "title",

@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties } from "react";
 import { Icon, type IconName } from "./Icon";
 /** Git working-tree state of a file, mirrored from the workspace API. */
@@ -324,7 +324,7 @@ function FileTreeRow(props: {
  * driven by props — the tree never fetches or holds state.
  */
 export function FileTree(props: FileTreeProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

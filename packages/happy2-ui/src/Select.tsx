@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties } from "react";
 import type { Dimension } from "./dimensions";
 import { toCssDimension } from "./dimensions";
@@ -42,7 +42,7 @@ const chevronSizes: Record<SelectSize, 14 | 16> = {
  * size are prop-driven so a fixture renders every state without a store.
  */
 export function Select(props: SelectProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

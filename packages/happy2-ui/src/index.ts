@@ -69,7 +69,6 @@ export {
     type ContextItem,
     type ContextKind,
     type Mentionable,
-    type MentionableAgent,
     MentionPicker,
     type MentionPickerProps,
 } from "./Composer";

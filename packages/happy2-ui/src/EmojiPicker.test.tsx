@@ -7,7 +7,7 @@ import "./styles/icon.css";
 import { EmojiPicker, type EmojiItem } from "./EmojiPicker";
 import { createRenderer } from "./testing";
 
-/* Solid violet square — a deterministic, fully-opaque, network-free custom
+/* Opaque violet square — a deterministic, network-free custom
  * emoji image. object-fit fills the 24px slot, so its visible bounds equal the
  * slot exactly (parity reference against the unicode glyph slot). */
 const CUSTOM_IMAGE =

@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
@@ -28,7 +28,7 @@ export type ModalProps = {
  * body slot, and an optional right-aligned footer action row.
  */
 export function Modal(props: ModalProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "className",
         "closeLabel",
         "style",

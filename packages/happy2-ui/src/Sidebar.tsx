@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { CountBadge } from "./Badge";
@@ -130,7 +130,7 @@ function SidebarRow(props: { active: boolean; item: SidebarItem; onSelect: (id: 
  * actions), actionable empty-section guidance, and an optional pinned footer.
  */
 export function Sidebar(props: SidebarProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "activeItemId",
         "className",
         "composeLabel",

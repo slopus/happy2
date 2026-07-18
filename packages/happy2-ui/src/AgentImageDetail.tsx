@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import type { AgentImageStatus } from "./AgentImagePanel";
 import { Badge, type BadgeVariant } from "./Badge";
@@ -47,7 +47,7 @@ function progressValue(value: number | undefined): number {
  * Designed to sit inside a Modal (which carries the image name as its title).
  */
 export function AgentImageDetail(props: AgentImageDetailProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "className",
         "style",
         "status",

@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Badge } from "./Badge";
 import { Banner } from "./Banner";
@@ -49,7 +49,7 @@ export type AgentSecretDetailProps = {
  * carries the secret's description as its title).
  */
 export function AgentSecretDetail(props: AgentSecretDetailProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "className",
         "style",
         "environmentVariables",

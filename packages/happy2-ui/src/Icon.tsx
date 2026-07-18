@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 export type IconName =
     | "home"
@@ -315,7 +315,7 @@ const glyphs: Record<IconName, () => ReactNode> = {
 };
 export const iconNames = Object.keys(glyphs) as IconName[];
 export function Icon(props: IconProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "aria-label",
         "className",
         "color",

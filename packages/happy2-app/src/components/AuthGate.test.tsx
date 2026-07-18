@@ -271,7 +271,7 @@ describe("AuthGate password onboarding", () => {
 
         // Recovery happens in place — the same mounted gate re-probes and resolves to
         // sign-in. A page reload would neither re-invoke this fetch mock's second
-        // methods call nor keep the component's signals, so the incremented probe
+        // methods call nor keep the component's draft fields, so the incremented probe
         // count proves the retry ran probeServer() rather than location.reload().
         await screen.findByRole("button", { name: "Sign in" });
         expect(methodsCalls).toBe(2);

@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { useId, type CSSProperties } from "react";
 import { Icon, type IconName } from "./Icon";
 export type TextFieldType = "text" | "email" | "password" | "search";
@@ -43,7 +43,7 @@ const MULTILINE_LINE_HEIGHT = 20;
  * leading icon, hint, and error message. Props-only and fully controlled.
  */
 export function TextField(props: TextFieldProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "autoComplete",
         "className",
         "data-testid",

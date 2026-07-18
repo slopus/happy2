@@ -293,8 +293,8 @@ The individual report commands are `pnpm coverage:server:unit` and
 both suites before replacing the checked-in exact-ratio thresholds with that
 run's measurements. Timing-sensitive Gym paths may require a narrow reviewed
 floor below a sampled measurement. Any deliberate threshold reduction must
-include the measured range and rationale in `TODO.md` in the same reviewed
-commit; improvements do not require a rationale.
+include the measured range and rationale in the same reviewed change;
+improvements do not require a rationale.
 
 ## Collaboration API
 

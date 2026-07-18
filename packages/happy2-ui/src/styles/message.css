@@ -261,6 +261,14 @@
     line-height: 22px;
 }
 
+/* A marker following a paragraph belongs to its final text line. Markdown
+   paragraphs are blocks by default, so make only that trailing paragraph
+   inline; markers after code, lists, and other blocks keep their own line. */
+.happy2-message__body--markdown > p:has(+ .happy2-message__caret),
+.happy2-message__body--markdown > p:has(+ .happy2-message__gen-failed) {
+    display: inline;
+}
+
 .happy2-message__body--markdown h1,
 .happy2-message__body--markdown h2,
 .happy2-message__body--markdown h3,
@@ -298,6 +306,33 @@
 
 .happy2-message__body--markdown em {
     font-style: italic;
+}
+
+.happy2-message__body--markdown del {
+    color: var(--happy2-text-muted);
+}
+
+.happy2-message__body--markdown table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: 14px;
+    line-height: 20px;
+}
+
+.happy2-message__body--markdown th,
+.happy2-message__body--markdown td {
+    border: 1px solid var(--happy2-border);
+    padding: 6px 8px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.happy2-message__body--markdown th {
+    background: var(--happy2-bg-inset);
+    color: var(--happy2-text);
+    font-weight: 700;
 }
 
 .happy2-message__body--markdown ul,

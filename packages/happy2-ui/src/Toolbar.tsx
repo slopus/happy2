@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Icon } from "./Icon";
 export type ToolbarSearch = {
@@ -25,7 +25,7 @@ export type ToolbarProps = {
  * Composes on --happy2-bg-surface with a bottom hairline.
  */
 export function Toolbar(props: ToolbarProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

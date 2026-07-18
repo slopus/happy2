@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties } from "react";
 import { Icon, type IconName } from "./Icon";
 export type SegmentedControlSize = "small" | "medium" | "large";
@@ -32,7 +32,7 @@ const iconSizes: Record<SegmentedControlSize, 14 | 16 | 18> = {
  * the already-tuned Icon primitive.
  */
 export function SegmentedControl(props: SegmentedControlProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "disabled",

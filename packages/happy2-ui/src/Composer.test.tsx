@@ -15,7 +15,7 @@ import {
     ContextChips,
     MentionPicker,
     type ContextItem,
-    type MentionableAgent,
+    type Mentionable,
 } from "./Composer";
 import type { EmojiItem } from "./EmojiPicker";
 import { createRenderer } from "./testing";
@@ -25,7 +25,7 @@ const uiFont = () =>
         : '"happy2 Figtree", system-ui, sans-serif';
 /* The Gecko textarea correction (translateY(-0.5px)) moves the painted box. */
 const textareaY = () => (server.browser === "firefox" ? 32.5 : 33);
-const agents: MentionableAgent[] = [
+const mentions: Mentionable[] = [
     {
         description: "Ships code end to end",
         id: "codex",
@@ -143,11 +143,11 @@ async function differentialDrift(view: View, boxSelector: string) {
     };
 }
 function Harness(props: {
-    agents?: MentionableAgent[];
+    mentions?: Mentionable[];
     disabled?: boolean;
     emoji?: EmojiItem[];
     initial?: string;
-    onMention?: (agent: MentionableAgent) => void;
+    onMention?: (mention: Mentionable) => void;
     onEmoji?: (emoji: EmojiItem) => void;
     onSend?: (value: string) => void;
     spacerTop?: number;
@@ -157,12 +157,12 @@ function Harness(props: {
     return (
         <div style={{ marginTop: `${props.spacerTop ?? 0}px` }}>
             <Composer
-                agents={props.agents}
                 data-testid={props.testid}
                 disabled={props.disabled}
                 emoji={props.emoji}
                 onEmojiSelect={props.onEmoji}
                 onMentionSelect={props.onMention}
+                mentions={props.mentions}
                 onSend={() => props.onSend?.(value)}
                 onValueChange={setValue}
                 value={value}
@@ -176,7 +176,7 @@ it("holds Composer geometry, colors, and typography", async () => {
         .render(
             () => (
                 <Composer
-                    agents={agents}
+                    mentions={mentions}
                     data-testid="composer-default"
                     emoji={emoji}
                     hint="Enter to send · @ agents"
@@ -262,7 +262,7 @@ it("holds Composer geometry, colors, and typography", async () => {
         .render(
             () => (
                 <Composer
-                    agents={agents}
+                    mentions={mentions}
                     data-testid="composer-pending"
                     emoji={emoji}
                     onAttachFile={noop}
@@ -709,7 +709,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
             () => (
                 <MentionPicker
                     activeId="claude"
-                    agents={agents}
+                    mentions={mentions}
                     data-testid="picker"
                     onSelect={(agent) => picked.push(agent.id)}
                     query=""
@@ -720,7 +720,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         .render(
             () => (
                 <MentionPicker
-                    agents={[{ id: "solo", initials: "SO", name: "Solo" }]}
+                    mentions={[{ id: "solo", initials: "SO", name: "Solo" }]}
                     data-testid="picker-single"
                     onSelect={(agent) => picked.push(agent.id)}
                     query=""
@@ -731,7 +731,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         .render(
             () => (
                 <MentionPicker
-                    agents={agents}
+                    mentions={mentions}
                     data-testid="picker-empty"
                     onSelect={(agent) => picked.push(agent.id)}
                     query="zq"
@@ -962,7 +962,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     ).toBeGreaterThan(0);
     // Meta lanes: 16px name and 16px description line boxes stack to a 32px
     // block on integer offsets (6px top and bottom of the 44px row).
-    const codexRow = '[data-testid="picker"] [data-agent-id="codex"]';
+    const codexRow = '[data-testid="picker"] [data-mention-id="codex"]';
     const meta = view.$(`${codexRow} [data-happy2-ui="mention-picker-meta"]`);
     expect(meta.bounds().height).toBe(32);
     expect(meta.offsets().top).toBe(6);
@@ -1004,7 +1004,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     const activeRow = view.$(
         '[data-testid="picker"] [data-happy2-ui="mention-picker-row"][data-active]',
     );
-    expect(activeRow.element.getAttribute("data-agent-id")).toBe("claude");
+    expect(activeRow.element.getAttribute("data-mention-id")).toBe("claude");
     expect(activeRow.computedStyle("background-color")).toBe("rgba(139, 124, 247, 0.15)");
     expect(
         view
@@ -1014,7 +1014,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     // Status badges: ready → success soft/strong, working → warning; the 18px
     // badge box rides the exact vertical center of the 44px row.
     const readyBadge = view.$(
-        '[data-testid="picker"] [data-agent-id="codex"] [data-happy2-ui="badge"]',
+        '[data-testid="picker"] [data-mention-id="codex"] [data-happy2-ui="badge"]',
     );
     expect(readyBadge.computedStyles(["background-color", "color", "height"])).toEqual({
         "background-color": "rgba(52, 211, 153, 0.13)",
@@ -1025,7 +1025,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     const badgeDrift = await centroidDrift(view, codexRow, `${codexRow} [data-happy2-ui="badge"]`);
     expect(Math.abs(badgeDrift.dy)).toBeLessThanOrEqual(0.75);
     const workingBadge = view.$(
-        '[data-testid="picker"] [data-agent-id="claude"] [data-happy2-ui="badge"]',
+        '[data-testid="picker"] [data-mention-id="claude"] [data-happy2-ui="badge"]',
     );
     expect(workingBadge.computedStyles(["background-color", "color"])).toEqual({
         "background-color": "rgba(251, 191, 36, 0.13)",
@@ -1033,7 +1033,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     });
     // Long description truncates inside the row.
     const description = view.$(
-        '[data-testid="picker"] [data-agent-id="claude"] [data-happy2-ui="mention-picker-description"]',
+        '[data-testid="picker"] [data-mention-id="claude"] [data-happy2-ui="mention-picker-description"]',
     );
     expect(
         description.computedStyles(["color", "overflow-x", "text-overflow", "white-space"]),
@@ -1048,7 +1048,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     );
     // Single minimal agent: no description or status — the 16px name line box
     // centers alone in the 44px row (integer 14px offsets).
-    const soloRow = '[data-testid="picker-single"] [data-agent-id="solo"]';
+    const soloRow = '[data-testid="picker-single"] [data-mention-id="solo"]';
     expect(view.$(soloRow).bounds().height).toBe(44);
     const soloMeta = view.$(`${soloRow} [data-happy2-ui="mention-picker-meta"]`);
     expect(soloMeta.bounds().height).toBe(16);
@@ -1077,7 +1077,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
 });
 it("handles typing, sending, and mention picking", async () => {
     const sends: string[] = [];
-    const mentions: string[] = [];
+    const selectedMentionIds: string[] = [];
     let releaseBusy = () => {};
     const BusyHarness = () => {
         const [busy, setBusy] = useState(false);
@@ -1102,8 +1102,8 @@ it("handles typing, sending, and mention picking", async () => {
         .render(
             () => (
                 <Harness
-                    agents={agents}
-                    onMention={(agent) => mentions.push(agent.id)}
+                    mentions={mentions}
+                    onMention={(mention) => selectedMentionIds.push(mention.id)}
                     onSend={(value) => sends.push(value)}
                     spacerTop={200}
                     testid="composer-mention"
@@ -1114,15 +1114,15 @@ it("handles typing, sending, and mention picking", async () => {
         .render(
             () => (
                 <Harness
-                    agents={agents}
-                    onMention={(agent) => mentions.push(agent.id)}
+                    mentions={mentions}
+                    onMention={(mention) => selectedMentionIds.push(mention.id)}
                     spacerTop={200}
                     testid="composer-nav"
                 />
             ),
             { width: 620, height: 360, padding: 20 },
         )
-        .render(() => <Harness agents={agents} initial="email" testid="composer-boundary" />, {
+        .render(() => <Harness mentions={mentions} initial="email" testid="composer-boundary" />, {
             width: 600,
             height: 140,
             padding: 20,
@@ -1130,8 +1130,8 @@ it("handles typing, sending, and mention picking", async () => {
         .render(
             () => (
                 <Harness
-                    agents={agents}
-                    onMention={(agent) => mentions.push(agent.id)}
+                    mentions={mentions}
+                    onMention={(mention) => selectedMentionIds.push(mention.id)}
                     spacerTop={200}
                     testid="composer-at"
                 />
@@ -1158,7 +1158,7 @@ it("handles typing, sending, and mention picking", async () => {
             .querySelector(
                 `[data-testid="${testid}"] [data-happy2-ui="mention-picker-row"][data-active]`,
             )
-            ?.getAttribute("data-agent-id");
+            ?.getAttribute("data-mention-id");
     // Typing updates the value and enables send; Enter sends without newline.
     const typing = textareaOf("composer-typing");
     const typingSend = view.$('[data-testid="composer-typing"] .happy2-composer__send')
@@ -1207,7 +1207,7 @@ it("handles typing, sending, and mention picking", async () => {
     expect(activeIdOf("composer-mention")).toBe("codex");
     await userEvent.keyboard("{Enter}");
     expect(mention.value).toBe("Ping @Codex ");
-    expect(mentions).toEqual(["codex"]);
+    expect(selectedMentionIds).toEqual(["codex"]);
     expect(popoverOf("composer-mention")).toBeNull();
     expect(sends.length).toBe(2);
     // Escape closes; an unmatched query shows the empty state.
@@ -1238,7 +1238,7 @@ it("handles typing, sending, and mention picking", async () => {
     expect(activeIdOf("composer-nav")).toBe("triage");
     await userEvent.keyboard("{Enter}");
     expect(nav.value).toBe("@Triage ");
-    expect(mentions).toEqual(["codex", "triage"]);
+    expect(selectedMentionIds).toEqual(["codex", "triage"]);
     expect(popoverOf("composer-nav")).toBeNull();
     // No word boundary — "email@" must not open the picker.
     const boundary = textareaOf("composer-boundary");
@@ -1258,7 +1258,7 @@ it("handles typing, sending, and mention picking", async () => {
     expect(popoverOf("composer-at")).not.toBeNull();
     await userEvent.click(rowsOf("composer-at")[1]!);
     expect(textareaOf("composer-at").value).toBe("@Claude ");
-    expect(mentions).toEqual(["codex", "triage", "claude"]);
+    expect(selectedMentionIds).toEqual(["codex", "triage", "claude"]);
     expect(popoverOf("composer-at")).toBeNull();
     // Leave one picker open for the capture.
     await userEvent.click(nav);

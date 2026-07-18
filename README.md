@@ -1,13 +1,13 @@
 # Happy (2)
 
 Happy (2) is a desktop work and coding app that evolves by adopting itself. This
-pnpm monorepo delivers its shared Solid UI through a web app and an Electron
+pnpm monorepo delivers its shared React UI through a web app and an Electron
 desktop app. Happy (2) is desktop-only; its UI must not assume mobile use or adapt
 for mobile viewports.
 
 ## Packages
 
-- `happy2-app` contains the shared Solid component and its tests.
+- `happy2-app` contains the shared React application and its tests.
 - `happy2-web` imports `happy2-app` and creates a browser build.
 - `happy2-desktop` imports `happy2-app` in an Electron renderer and builds its
   Electron main process with Vite.

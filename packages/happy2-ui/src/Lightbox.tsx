@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Button } from "./Button";
 export type LightboxProps = {
@@ -25,7 +25,7 @@ export type LightboxProps = {
  * caption/detail + actions header and a contained image on the code surface.
  */
 export function Lightbox(props: LightboxProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "className",
         "style",
         "imageUrl",

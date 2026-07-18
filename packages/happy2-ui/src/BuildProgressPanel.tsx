@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { Badge, type BadgeVariant } from "./Badge";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
@@ -39,7 +39,7 @@ const statusBadges: Record<BuildProgressStatus, StatusBadge> = {
  * shows a static, non-animated ring rather than a spinner.
  */
 export function BuildProgressPanel(props: BuildProgressPanelProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "title",

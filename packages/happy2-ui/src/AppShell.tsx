@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
 export type AppShellProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     children: ReactNode;
@@ -17,7 +17,7 @@ export type AppShellProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
  * form one continuous content panel.
  */
 export function AppShell(props: AppShellProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "children",
         "className",
         "panel",

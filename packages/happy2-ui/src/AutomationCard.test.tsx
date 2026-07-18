@@ -22,7 +22,7 @@ const computedFontFamily =
 const uiFont = "happy2 Figtree, system-ui, sans-serif";
 const monoFont = "happy2 Mono, ui-monospace, monospace";
 
-/* Solid theme tokens resolved to the exact rgb()/rgba() each engine reports. */
+/* Fixed theme tokens resolved to the exact rgb()/rgba() each engine reports. */
 const TEXT = "rgb(237, 234, 242)";
 const SECONDARY = "rgb(165, 160, 176)";
 const MUTED = "rgb(117, 112, 133)";

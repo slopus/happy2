@@ -1,9 +1,11 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, extname, join, relative, resolve } from "node:path";
+import { moduleSpecifiersParse } from "./moduleSpecifiersParse.mjs";
 
 const root = new URL("../src/", import.meta.url).pathname;
 const files = walk(root).filter((path) => path.endsWith(".ts"));
 const failures: string[] = [];
+const allowedExternalSpecifiers = new Set(["vitest", "zustand/vanilla"]);
 
 for (const directory of readdirSync(join(root, "modules"))) {
     const moduleDirectory = join(root, "modules", directory);
@@ -20,12 +22,11 @@ for (const directory of readdirSync(join(root, "modules"))) {
 for (const file of files) {
     const source = readFileSync(file, "utf8");
     const name = relative(root, file);
-    if (
-        /(?:\bfrom\s*|\bimport\s*(?:\(\s*)?|\brequire\s*\(\s*)["'](?:react|react-dom|solid-js|svelte|vue|@preact\/signals)(?=["'/])/.test(
-            source,
-        )
-    )
-        failures.push(`${name}: state core must not import a UI framework`);
+    for (const specifier of moduleSpecifiersParse(source, file)) {
+        if (specifier.startsWith(".") || specifier.startsWith("/")) continue;
+        if (!allowedExternalSpecifiers.has(specifier))
+            failures.push(`${name}: external package ${specifier} is not allowed in state core`);
+    }
     if (/\b(?:getField|setField|updateField)\b/.test(source))
         failures.push(`${name}: generic known-field mutation API is forbidden`);
     if (/\b(?:field|path)\s*:\s*keyof\b/.test(source))

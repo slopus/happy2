@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties } from "react";
 import { Icon, type IconName } from "./Icon";
 export type StatTrend = "up" | "down" | "flat";
@@ -36,7 +36,7 @@ const trendArrows: Record<StatTrend, string> = {
  * muted) and selects its arrow.
  */
 export function StatTile(props: StatTileProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

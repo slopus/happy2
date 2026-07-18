@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties } from "react";
 import { Icon, type IconName } from "./Icon";
 export type FileAttachmentKind = "file" | "photo" | "video" | "gif" | "audio" | "archive";
@@ -34,7 +34,7 @@ const kindIcons: Record<FileAttachmentKind, IconName> = {
  * keeps the entire attachment one accessible action.
  */
 export function FileAttachment(props: FileAttachmentProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "actionsVisible",
         "className",
         "data-testid",

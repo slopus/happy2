@@ -72,7 +72,7 @@ export function ComponentPage(props: {
                 <dl>
                     <div>
                         <dt>Framework</dt>
-                        <dd>SolidJS</dd>
+                        <dd>React</dd>
                     </div>
                     <div>
                         <dt>Contract</dt>

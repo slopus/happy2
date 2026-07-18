@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import {
     useLayoutEffect,
     useRef,
@@ -46,7 +46,7 @@ export type ChannelHeaderProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
  * pill, an agent chip, a free actions slot, and an overflow "⋮" menu.
  */
 export function ChannelHeader(props: ChannelHeaderProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "actions",
         "agentCount",
         "className",

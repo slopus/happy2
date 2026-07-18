@@ -22,6 +22,7 @@
         "zustand": "5.0.14"
     },
     "devDependencies": {
+        "oxc-parser": "^0.140.0",
         "typescript": "^7.0.2",
         "vitest": "^4.1.10"
     }

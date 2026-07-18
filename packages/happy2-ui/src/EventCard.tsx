@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type HTMLAttributes } from "react";
 import { Badge, type BadgeVariant } from "./Badge";
 import { Icon, type IconName } from "./Icon";
@@ -23,7 +23,7 @@ export type EventCardProps = Omit<HTMLAttributes<HTMLElement>, "onSelect" | "ref
  * Renders a real <button> whenever `onSelect` is provided.
  */
 export function EventCard(props: EventCardProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "badge",
         "className",
         "from",

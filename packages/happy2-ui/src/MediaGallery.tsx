@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Badge } from "./Badge";
 import { Icon, type IconName } from "./Icon";
@@ -116,7 +116,7 @@ function MediaTile(props: { item: MediaItem; onOpen?: (id: string) => void }) {
  * props; the component never loads a network asset.
  */
 export function MediaGallery(props: MediaGalleryProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "columns",
         "data-testid",

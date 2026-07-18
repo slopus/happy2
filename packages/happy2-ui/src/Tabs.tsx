@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties } from "react";
 import { CountBadge } from "./Badge";
 import { Icon, type IconName } from "./Icon";
@@ -30,7 +30,7 @@ const iconSizes: Record<TabsSize, 14 | 16 | 18> = {
  * and switches its label/icon to the primary text color. Sizes 32/40/48 high.
  */
 export function Tabs(props: TabsProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "className",
         "style",
         "activeId",

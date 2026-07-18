@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Button } from "./Button";
 import { SURFACE_HEADER_HEIGHT } from "./InfoPanel";
@@ -23,7 +23,7 @@ export type ThreadPanelProps = {
  * Props only — the app supplies the message list, composer, and close handler.
  */
 export function ThreadPanel(props: ThreadPanelProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

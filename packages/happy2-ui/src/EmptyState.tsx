@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties } from "react";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
@@ -30,7 +30,7 @@ const actionSize: Record<EmptyStateSize, "small" | "medium"> = { panel: "medium"
  * region, `inline` is a compact content-sized block.
  */
 export function EmptyState(props: EmptyStateProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "action",
         "className",
         "data-testid",

@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Icon } from "./Icon";
 export type AuthScreenState = "form" | "loading";
@@ -36,7 +36,7 @@ export type AuthScreenProps = {
  * component owns no auth state.
  */
 export function AuthScreen(props: AuthScreenProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

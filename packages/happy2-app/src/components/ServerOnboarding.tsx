@@ -320,7 +320,7 @@ function SandboxProviderStep(props: { snapshot: SetupSnapshot; store: SetupStore
 function BaseImageStep(props: { snapshot: SetupSnapshot; store: SetupStore }) {
     const baseImages = props.snapshot.baseImages;
     const imageView = baseImages.type === "ready" ? baseImages.value : undefined;
-    // The custom-image draft lives in stable local signals owned by this step, so
+    // The custom-image draft lives in stable local reducer state owned by this step, so
     // it survives every background base-image reload (which replaces the loadable
     // reference and remounts the keyed built-in list) and every transient submit
     // failure. It is never derived from the changing snapshot.

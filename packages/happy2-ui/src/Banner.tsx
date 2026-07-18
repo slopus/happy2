@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
@@ -27,7 +27,7 @@ export type BannerProps = {
  * balanced). Props-only, desktop-only.
  */
 export function Banner(props: BannerProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

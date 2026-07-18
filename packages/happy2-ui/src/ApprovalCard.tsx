@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type HTMLAttributes } from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { Badge } from "./Badge";
@@ -31,7 +31,7 @@ export type ApprovalCardProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
  * denied collapse the actions into a state line under a resolution banner.
  */
 export function ApprovalCard(props: ApprovalCardProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "className",
         "expanded",
         "onExpandedChange",

@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { Icon } from "./Icon";
 export type DataTableAlign = "start" | "end" | "center";
@@ -80,7 +80,7 @@ function TableCheckbox(props: {
  * truncation, and a sticky header all resolve to exact geometry.
  */
 export function DataTable(props: DataTableProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

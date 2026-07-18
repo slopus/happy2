@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 import { type ToneName } from "./Avatar";
 import { Button } from "./Button";
@@ -54,7 +54,7 @@ export type InfoPanelProps = {
  * app supplies data and the member/close handlers.
  */
 export function InfoPanel(props: InfoPanelProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import {
     type CSSProperties,
     type KeyboardEvent as ReactKeyboardEvent,
@@ -51,7 +51,7 @@ function splitPath(path: string): {
  * renders and reports intent.
  */
 export function FileEditor(props: FileEditorProps) {
-    const [local] = splitProps(props, [
+    const [local] = partitionComponentProps(props, [
         "className",
         "data-testid",
         "style",

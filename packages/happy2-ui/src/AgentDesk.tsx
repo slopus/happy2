@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type HTMLAttributes } from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { Badge } from "./Badge";
@@ -38,7 +38,7 @@ function clampProgress(value: number | undefined) {
  * fills its container's height, and scrolls its body.
  */
 export function AgentDesk(props: AgentDeskProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "className",
         "done",
         "onItemSelect",

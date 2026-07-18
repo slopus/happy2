@@ -1,4 +1,4 @@
-import { splitProps } from "./reactProps";
+import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type ReactNode } from "react";
 export type FormRowLayout = "inline" | "stacked";
 export type FormRowAlign = "start" | "center";
@@ -21,7 +21,7 @@ export type FormRowProps = {
  * divider lets rows stack into a settings list without extra chrome.
  */
 export function FormRow(props: FormRowProps) {
-    const [local, rest] = splitProps(props, [
+    const [local, rest] = partitionComponentProps(props, [
         "align",
         "className",
         "control",
