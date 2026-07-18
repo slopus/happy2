@@ -108,21 +108,21 @@ application only after a ready default image and final registration policy exist
 
 ### P0.8 — Synchronized presence, availability, and last seen
 
-- [ ] Make realtime transport registration presence-neutral. A human becomes online only after an
+- [x] Make realtime transport registration presence-neutral. A human becomes online only after an
       explicit client presence heartbeat, each heartbeat carries `lastSeenAt` and a 60-second
       `expiresAt`, and observers expire a silent lease locally; an explicit disconnect goes offline
       immediately without advancing last seen past the final heartbeat.
-- [ ] Persist each heartbeat's exact `lastSeenAt` without global sync fanout, then emit one durable
+- [x] Persist each heartbeat's exact `lastSeenAt` without global sync fanout, then emit one durable
       `presence` difference when the final active lease expires or disconnects so offline profiles
       reconcile without a per-user 30-second refetch storm.
-- [ ] Define the later desktop activity policy as a heartbeat every 30 seconds only while the app
+- [x] Define the later desktop activity policy as a heartbeat every 30 seconds only while the app
       window is visible and the user has been recently active through mouse or keyboard input.
-- [ ] Expose a human user's durable `lastSeenAt` in the ordinary contact/directory profile
+- [x] Expose a human user's durable `lastSeenAt` in the ordinary contact/directory profile
       contract without exposing authentication-session telemetry; keep agents without server-owned
       online or last-seen state.
-- [ ] Prove in Gym that availability and custom status changes advance the `presence` sync area,
+- [x] Prove in Gym that availability and custom status changes advance the `presence` sync area,
       survive restart, and are visible together with another human's durable `lastSeenAt`.
-- [ ] Stop after the server contract and Gym coverage for explicit backend approval before beginning
+- [x] Stop after the server contract and Gym coverage for explicit backend approval before beginning
       the UI/state implementation.
 - [ ] Reconcile the durable `presence` sync area into every already-materialized directory/profile
       projection, including status text/emoji, without a manual refresh or remount.
