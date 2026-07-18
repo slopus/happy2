@@ -2,6 +2,10 @@
   "name": "happy2",
   "version": "0.0.5",
   "description": "Happy (2) desktop web app and server bundle",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/slopus/happy2.git"
+  },
   "bin": {
     "happy2": "packages/happy2-server/bin/happy2.js"
   },
@@ -23,7 +27,8 @@
     }
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   },
   "packageManager": "pnpm@10.28.1",
   "engines": {

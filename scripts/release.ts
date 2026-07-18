@@ -111,9 +111,6 @@ async function release(): Promise<void> {
         console.log(`Resuming the local ${releaseTag} release commit.`);
     }
 
-    console.log("Checking npm authentication...");
-    runCommand("pnpm", ["whoami"]);
-
     const releasingInitialVersion =
         requestedCurrentVersion &&
         !retryingRelease &&
@@ -150,27 +147,13 @@ async function release(): Promise<void> {
         cwd: PACKAGE_DIRECTORY,
     });
 
-    console.log("Pushing the release commit and tag...");
-    runCommand("git", ["push", "origin", "main", "--follow-tags"]);
+    const pushedReleaseTag = `v${releaseManifest.version}`;
+    console.log("Pushing the release commit and tag atomically...");
+    runCommand("git", ["push", "--atomic", "origin", "main", pushedReleaseTag]);
 
-    console.log(`Publishing ${releaseManifest.name}@${releaseManifest.version}...`);
-    const publishResult = runCommand("pnpm", ["publish", "--access", "public", "--no-git-checks"], {
-        allowFailure: retryingRelease,
-        captureOutput: retryingRelease,
-        cwd: PACKAGE_DIRECTORY,
-    });
-    if (publishResult.status !== 0) {
-        if (packageVersionIsPublished(releaseManifest.name, releaseManifest.version)) {
-            console.log(`${releaseManifest.name}@${releaseManifest.version} is already published.`);
-            return;
-        }
-        if (publishResult.stderr.length > 0) {
-            console.error(publishResult.stderr);
-        }
-        throw new Error("Command failed: pnpm publish --access public --no-git-checks");
-    }
-
-    console.log(`Published ${releaseManifest.name}@${releaseManifest.version} successfully.`);
+    console.log(
+        `Queued ${releaseManifest.name}@${releaseManifest.version} for publishing through GitHub Actions.`,
+    );
 }
 
 try {
