@@ -155,7 +155,7 @@ it("holds StatusPicker card, availability dots, segmented layout, and status fie
         "border-radius": "6px",
         "border-top-color": "rgba(255, 255, 255, 0.07)",
         "box-sizing": "border-box",
-        display: "grid",
+        display: "flex",
         height: "36px",
     });
     // Online is the second option, so the pill index resolves to 1.

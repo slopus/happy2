@@ -72,6 +72,7 @@
 /* ---- Grid of fixed equal slots ---------------------------------------- */
 
 .happy2-emoji-picker__grid {
+    /* eslint-disable-next-line happy2-layout/use-flex-layout -- true 2-D emoji grid: fixed 36px slots wrap into an aligned multi-row matrix flexbox cannot keep column-aligned */
     display: grid;
     /* grid-template-columns comes inline: repeat(columns, 36px). */
     justify-content: start;

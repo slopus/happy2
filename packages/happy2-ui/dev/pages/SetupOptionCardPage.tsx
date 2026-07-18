@@ -86,6 +86,27 @@ export function SetupOptionCardPage() {
                     />
                 </div>
             </Specimen>
+
+            <Specimen
+                detail="Title-only (compact) — the icon chip and title center on one line; a status pill stays on that line, while any description/meta/hint restores top alignment"
+                label="Compact vs detailed alignment"
+                number="04"
+                stage="app"
+            >
+                <div style={column}>
+                    <SetupOptionCard icon="image" title="Daycare Minimal" />
+                    <SetupOptionCard
+                        icon="terminal"
+                        status={{ label: "HEALTHY", variant: "success", icon: "check-circle" }}
+                        title="Docker"
+                    />
+                    <SetupOptionCard
+                        description="A lean sandbox with the core agent toolchain."
+                        icon="image"
+                        title="Daycare Minimal"
+                    />
+                </div>
+            </Specimen>
         </ComponentPage>
     );
 }

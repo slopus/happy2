@@ -68,145 +68,150 @@ export function AgentDesk(props: AgentDeskProps) {
                 />
             </header>
             <div className="happy2-agent-desk__body" data-happy2-ui="agent-desk-body">
-                {local.running.map((run) => (
-                    <section
-                        aria-label={`${run.agent} · ${run.title}`}
-                        className="happy2-agent-desk__run"
-                        key={run.id}
-                        data-happy2-ui="agent-desk-run"
-                    >
-                        <div
-                            className="happy2-agent-desk__run-head"
-                            data-happy2-ui="agent-desk-run-head"
+                <div
+                    className="happy2-agent-desk__body-content"
+                    data-happy2-ui="agent-desk-body-content"
+                >
+                    {local.running.map((run) => (
+                        <section
+                            aria-label={`${run.agent} · ${run.title}`}
+                            className="happy2-agent-desk__run"
+                            key={run.id}
+                            data-happy2-ui="agent-desk-run"
                         >
-                            <Avatar
-                                aria-label={run.agent}
-                                initials={run.initials}
-                                size="xs"
-                                tone={run.tone}
-                                type="agent"
-                            />
-                            <span
-                                className="happy2-agent-desk__run-title"
-                                data-happy2-ui="agent-desk-run-title"
+                            <div
+                                className="happy2-agent-desk__run-head"
+                                data-happy2-ui="agent-desk-run-head"
                             >
-                                {run.title}
-                            </span>
-                            {run.eta ? (
+                                <Avatar
+                                    aria-label={run.agent}
+                                    initials={run.initials}
+                                    size="xs"
+                                    tone={run.tone}
+                                    type="agent"
+                                />
                                 <span
-                                    className="happy2-agent-desk__run-eta"
-                                    data-happy2-ui="agent-desk-run-eta"
+                                    className="happy2-agent-desk__run-title"
+                                    data-happy2-ui="agent-desk-run-title"
                                 >
-                                    {run.eta}
+                                    {run.title}
                                 </span>
-                            ) : null}
-                        </div>
-                        {run.detail ? (
-                            <div
-                                className="happy2-agent-desk__run-detail"
-                                data-happy2-ui="agent-desk-run-detail"
-                            >
-                                {run.detail}
+                                {run.eta ? (
+                                    <span
+                                        className="happy2-agent-desk__run-eta"
+                                        data-happy2-ui="agent-desk-run-eta"
+                                    >
+                                        {run.eta}
+                                    </span>
+                                ) : null}
                             </div>
-                        ) : null}
-                        {run.progress !== undefined ? (
-                            <div
-                                aria-valuemax={100}
-                                aria-valuemin={0}
-                                aria-valuenow={clampProgress(run.progress)}
-                                className="happy2-agent-desk__run-track"
-                                data-happy2-ui="agent-desk-run-track"
-                                role="progressbar"
-                            >
+                            {run.detail ? (
                                 <div
-                                    className="happy2-agent-desk__run-fill"
-                                    data-happy2-ui="agent-desk-run-fill"
-                                    style={{ width: `${clampProgress(run.progress)}%` }}
-                                />
+                                    className="happy2-agent-desk__run-detail"
+                                    data-happy2-ui="agent-desk-run-detail"
+                                >
+                                    {run.detail}
+                                </div>
+                            ) : null}
+                            {run.progress !== undefined ? (
+                                <div
+                                    aria-valuemax={100}
+                                    aria-valuemin={0}
+                                    aria-valuenow={clampProgress(run.progress)}
+                                    className="happy2-agent-desk__run-track"
+                                    data-happy2-ui="agent-desk-run-track"
+                                    role="progressbar"
+                                >
+                                    <div
+                                        className="happy2-agent-desk__run-fill"
+                                        data-happy2-ui="agent-desk-run-fill"
+                                        style={{ width: `${clampProgress(run.progress)}%` }}
+                                    />
+                                </div>
+                            ) : null}
+                        </section>
+                    ))}
+                    {(local.queued?.length ?? 0) > 0 ? (
+                        <>
+                            <div
+                                className="happy2-agent-desk__section-label"
+                                data-happy2-ui="agent-desk-section-label"
+                                data-section="queued"
+                            >
+                                Queued
                             </div>
-                        ) : null}
-                    </section>
-                ))}
-                {(local.queued?.length ?? 0) > 0 ? (
-                    <>
-                        <div
-                            className="happy2-agent-desk__section-label"
-                            data-happy2-ui="agent-desk-section-label"
-                            data-section="queued"
-                        >
-                            Queued
-                        </div>
-                        {(local.queued ?? []).map((item) => (
-                            <button
-                                className="happy2-agent-desk__queued"
-                                key={item.id}
-                                data-happy2-ui="agent-desk-queued"
-                                onClick={() => local.onItemSelect?.(item.id)}
-                                type="button"
-                            >
-                                <Icon
-                                    className="happy2-agent-desk__row-icon"
-                                    name={item.icon ?? "clock"}
-                                    size={14}
-                                />
-                                <span
-                                    className="happy2-agent-desk__row-title"
-                                    data-happy2-ui="agent-desk-row-title"
+                            {(local.queued ?? []).map((item) => (
+                                <button
+                                    className="happy2-agent-desk__queued"
+                                    key={item.id}
+                                    data-happy2-ui="agent-desk-queued"
+                                    onClick={() => local.onItemSelect?.(item.id)}
+                                    type="button"
                                 >
-                                    {item.title}
-                                </span>
-                                {item.meta ? (
+                                    <Icon
+                                        className="happy2-agent-desk__row-icon"
+                                        name={item.icon ?? "clock"}
+                                        size={14}
+                                    />
                                     <span
-                                        className="happy2-agent-desk__row-meta"
-                                        data-happy2-ui="agent-desk-row-meta"
+                                        className="happy2-agent-desk__row-title"
+                                        data-happy2-ui="agent-desk-row-title"
                                     >
-                                        {item.meta}
+                                        {item.title}
                                     </span>
-                                ) : null}
-                            </button>
-                        ))}
-                    </>
-                ) : null}
-                {(local.done?.length ?? 0) > 0 ? (
-                    <>
-                        <div
-                            className="happy2-agent-desk__section-label"
-                            data-happy2-ui="agent-desk-section-label"
-                            data-section="done"
-                        >
-                            Done today
-                        </div>
-                        {(local.done ?? []).map((item) => (
-                            <button
-                                className="happy2-agent-desk__done"
-                                key={item.id}
-                                data-happy2-ui="agent-desk-done"
-                                onClick={() => local.onItemSelect?.(item.id)}
-                                type="button"
+                                    {item.meta ? (
+                                        <span
+                                            className="happy2-agent-desk__row-meta"
+                                            data-happy2-ui="agent-desk-row-meta"
+                                        >
+                                            {item.meta}
+                                        </span>
+                                    ) : null}
+                                </button>
+                            ))}
+                        </>
+                    ) : null}
+                    {(local.done?.length ?? 0) > 0 ? (
+                        <>
+                            <div
+                                className="happy2-agent-desk__section-label"
+                                data-happy2-ui="agent-desk-section-label"
+                                data-section="done"
                             >
-                                <Icon
-                                    className="happy2-agent-desk__row-icon"
-                                    name={item.icon ?? "check"}
-                                    size={14}
-                                />
-                                <span
-                                    className="happy2-agent-desk__row-title"
-                                    data-happy2-ui="agent-desk-row-title"
+                                Done today
+                            </div>
+                            {(local.done ?? []).map((item) => (
+                                <button
+                                    className="happy2-agent-desk__done"
+                                    key={item.id}
+                                    data-happy2-ui="agent-desk-done"
+                                    onClick={() => local.onItemSelect?.(item.id)}
+                                    type="button"
                                 >
-                                    {item.title}
-                                </span>
-                                {item.meta ? (
+                                    <Icon
+                                        className="happy2-agent-desk__row-icon"
+                                        name={item.icon ?? "check"}
+                                        size={14}
+                                    />
                                     <span
-                                        className="happy2-agent-desk__row-meta"
-                                        data-happy2-ui="agent-desk-row-meta"
+                                        className="happy2-agent-desk__row-title"
+                                        data-happy2-ui="agent-desk-row-title"
                                     >
-                                        {item.meta}
+                                        {item.title}
                                     </span>
-                                ) : null}
-                            </button>
-                        ))}
-                    </>
-                ) : null}
+                                    {item.meta ? (
+                                        <span
+                                            className="happy2-agent-desk__row-meta"
+                                            data-happy2-ui="agent-desk-row-meta"
+                                        >
+                                            {item.meta}
+                                        </span>
+                                    ) : null}
+                                </button>
+                            ))}
+                        </>
+                    ) : null}
+                </div>
             </div>
         </div>
     );

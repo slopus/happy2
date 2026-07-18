@@ -953,6 +953,8 @@ it("anchors MessageList to the bottom and lays out sparse histories", async () =
     /* ---- Sparse history bottom-anchors ---------------------------------- */
     const sparse = view.$('[data-testid="sparse"] [data-happy2-ui="message-list"]');
     expect(sparse.bounds().height).toBe(360);
+    /* Scrollport edge-to-edge; the inner content wrapper owns the 12px top/bottom
+       breathing room. */
     expect(
         sparse.computedStyles([
             "display",
@@ -965,6 +967,14 @@ it("anchors MessageList to the bottom and lays out sparse histories", async () =
         display: "flex",
         "flex-direction": "column",
         "overflow-y": "auto",
+        "padding-bottom": "0px",
+        "padding-top": "0px",
+    });
+    expect(
+        view
+            .$('[data-testid="sparse"] [data-happy2-ui="message-list-content"]')
+            .computedStyles(["padding-bottom", "padding-top"]),
+    ).toEqual({
         "padding-bottom": "12px",
         "padding-top": "12px",
     });

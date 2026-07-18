@@ -80,7 +80,6 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
             "column-gap",
             "display",
             "font-size",
-            "grid-template-columns",
             "height",
             "line-height",
             "padding-bottom",
@@ -96,13 +95,14 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
         "border-top-width": "0px",
         "box-sizing": "border-box",
         "column-gap": "12px",
-        display: "grid",
+        // Three flex lanes: 1fr | 0 1 420px | 1fr. At 1360 the sides resolve to
+        // 446px each (1360 - 24 padding - 24 gaps - 420 center = 892 → 446),
+        // proven by the leading/center/trailing bounds asserted below.
+        display: "flex",
         /* Deterministic chrome text metrics: bare slotted text must not ride
            each engine's `line-height: normal` guess (Gecko floated it ~1.2px
            lower than Blink before this was pinned). */
         "font-size": "13px",
-        /* 1360 - 24 padding - 24 gaps - 420 center = 892 → 446 per side. */
-        "grid-template-columns": "446px 420px 446px",
         height: "38px",
         "line-height": "16px",
         "padding-bottom": "0px",
@@ -173,8 +173,21 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
     const insetRoot = view.$('[data-happy2-ui="title-bar"][data-window-controls]');
     expect(insetRoot.bounds()).toEqual({ x: 0, y: 0, width: 640, height: 38 });
     expect(insetRoot.computedStyle("padding-left")).toBe("0px");
-    /* 640 - 12 right padding - 24 gaps - 420 center = 184 → 92 per side. */
-    expect(insetRoot.computedStyle("grid-template-columns")).toBe("92px 420px 92px");
+    /* 640 - 12 right padding - 24 gaps - 420 center = 184 → 92 per side. The
+       flex lanes resolve to those widths (leading at x 0, trailing ending at the
+       12px right pad), with the 420px center between them. */
+    const insetLeading = view.$(
+        '[data-happy2-ui="title-bar"][data-window-controls] [data-happy2-ui="title-bar-leading"]',
+    );
+    const insetCenter = view.$(
+        '[data-happy2-ui="title-bar"][data-window-controls] [data-happy2-ui="title-bar-center"]',
+    );
+    const insetTrailing = view.$(
+        '[data-happy2-ui="title-bar"][data-window-controls] [data-happy2-ui="title-bar-trailing"]',
+    );
+    expect(insetLeading.bounds()).toMatchObject({ x: 0, width: 92 });
+    expect(insetCenter.bounds()).toMatchObject({ x: 104, width: 420 });
+    expect(insetTrailing.bounds()).toMatchObject({ x: 536, width: 92 });
 
     const controls = view.$('[data-happy2-ui="title-bar-controls"]');
     expect(controls.bounds()).toEqual({ x: 0, y: 0, width: 78, height: 38 });

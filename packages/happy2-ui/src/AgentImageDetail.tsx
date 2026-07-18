@@ -110,7 +110,9 @@ export function AgentImageDetail(props: AgentImageDetailProps) {
                                 className="happy2-agent-image-detail__code"
                                 data-happy2-ui="agent-image-detail-dockerfile"
                             >
-                                {local.dockerfile}
+                                <code className="happy2-agent-image-detail__code-inner">
+                                    {local.dockerfile}
+                                </code>
                             </pre>
                         ) : (
                             <p className="happy2-agent-image-detail__empty">Loading Dockerfile…</p>
@@ -129,7 +131,9 @@ export function AgentImageDetail(props: AgentImageDetailProps) {
                                 className="happy2-agent-image-detail__code"
                                 data-happy2-ui="agent-image-detail-log"
                             >
-                                {local.buildLog}
+                                <code className="happy2-agent-image-detail__code-inner">
+                                    {local.buildLog}
+                                </code>
                             </pre>
                         ) : (
                             <p className="happy2-agent-image-detail__empty">No build output yet.</p>

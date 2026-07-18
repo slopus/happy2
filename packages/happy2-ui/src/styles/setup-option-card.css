@@ -27,6 +27,15 @@
     cursor: pointer;
 }
 
+/*
+ * Title-only cards (no description / meta / hint) are a single line, so the icon
+ * chip and the title row center on one horizontal line instead of top-aligning.
+ * Driven by the explicit `data-compact` attribute, never a relational selector.
+ */
+.happy2-setup-option[data-compact] {
+    align-items: center;
+}
+
 .happy2-setup-option:hover:not(:disabled) {
     background: var(--happy2-bg-hover);
     border-color: var(--happy2-border-strong);

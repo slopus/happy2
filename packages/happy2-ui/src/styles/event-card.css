@@ -50,10 +50,10 @@
 }
 
 .happy2-event-card__chip {
-    display: grid;
+    display: flex;
     flex: none;
     align-items: center;
-    justify-items: center;
+    justify-content: center;
     width: 24px;
     height: 24px;
     background: var(--happy2-bg-inset);

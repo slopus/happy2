@@ -73,8 +73,7 @@
 
 .happy2-notification-row {
     position: relative;
-    display: grid;
-    grid-template-columns: 8px 36px minmax(0, 1fr) auto;
+    display: flex;
     align-items: center;
     column-gap: 12px;
     width: 100%;
@@ -124,8 +123,10 @@
 /* ---- Unread dot ------------------------------------------------------- */
 
 .happy2-notification-row__unread-lane {
-    display: grid;
-    place-items: center;
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
     width: 8px;
 }
 
@@ -140,17 +141,19 @@
 
 .happy2-notification-row__media {
     position: relative;
-    display: grid;
+    display: flex;
     flex: none;
-    place-items: center;
+    align-items: center;
+    justify-content: center;
     width: 36px;
     height: 36px;
 }
 
 .happy2-notification-row__kind {
-    display: grid;
+    display: flex;
     flex: none;
-    place-items: center;
+    align-items: center;
+    justify-content: center;
     border-radius: var(--happy2-radius-pill);
     color: var(--nl-kind-color);
 }
@@ -209,6 +212,7 @@
 
 .happy2-notification-row__body {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
@@ -276,8 +280,9 @@
 /* ---- Empty state ------------------------------------------------------ */
 
 .happy2-notification-list__empty {
-    display: grid;
-    place-items: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     min-height: 96px;
     padding: 24px 16px;
     color: var(--happy2-text-muted);

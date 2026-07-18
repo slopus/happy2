@@ -31,9 +31,15 @@ export function SetupOptionCard(props: SetupOptionCardProps) {
     const hintTone = () => props.hintTone ?? "muted";
     const isDisabled = () => props.disabled === true;
     const isPending = () => props.pending === true;
+    // A title-only card is a single-line body: the icon chip and the title row
+    // share one horizontal line, so it centers instead of top-aligning. Any
+    // secondary body line (description, meta, or hint) makes the body taller
+    // than the icon, so the card keeps the icon pinned to the title at the top.
+    const isCompact = () => !props.description && !props.meta && !props.hint;
     return (
         <button
             className={["happy2-setup-option", props.className].filter(Boolean).join(" ")}
+            data-compact={isCompact() ? "" : undefined}
             data-disabled={isDisabled() ? "" : undefined}
             data-happy2-ui="setup-option"
             data-pending={isPending() ? "" : undefined}

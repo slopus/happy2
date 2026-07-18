@@ -258,10 +258,20 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
 
     const body = view.$('[data-testid="full"] [data-happy2-ui="sidebar-body"]');
     expect(body.bounds().y).toBe(52);
+    /* Scrollport edge-to-edge; the inner content wrapper owns the 8px inset. */
     expect(
         body.computedStyles(["overflow-y", "padding-left", "padding-right", "padding-top"]),
     ).toEqual({
         "overflow-y": "auto",
+        "padding-left": "0px",
+        "padding-right": "0px",
+        "padding-top": "0px",
+    });
+    expect(
+        view
+            .$('[data-testid="full"] [data-happy2-ui="sidebar-body-content"]')
+            .computedStyles(["padding-left", "padding-right", "padding-top"]),
+    ).toEqual({
         "padding-left": "8px",
         "padding-right": "8px",
         "padding-top": "8px",

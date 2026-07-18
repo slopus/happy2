@@ -35,10 +35,13 @@ export type OnboardingScreenProps = {
  * background image (degrading to the window backdrop) plus a legibility scrim,
  * and centers a single card. The card stacks an optional brand mast, an
  * optional horizontal step rail, a content block (kicker, large Figtree title,
- * secondary copy), a scrolling body slot for the current step's form, and an
- * optional footer. When `state="loading"` the body slot is replaced by a
- * deterministic, non-animated loader row (static ring + label) so the screen
- * stays screenshot-safe.
+ * secondary copy), a full-bleed scrolling body slot for the current step's form,
+ * and an optional footer. The body slot is a zero-margin, zero-padding scrollport
+ * whose inner content wrapper owns the 12px sibling gap for the app's children
+ * plus a focus-safe gutter, so external focus rings are never clipped at a scroll
+ * edge. When `state="loading"` the body content is replaced by a deterministic,
+ * non-animated loader row (static ring + label) so the screen stays
+ * screenshot-safe.
  *
  * Props only: the app passes its step form / content as `children`; this
  * component owns no onboarding state.
@@ -180,26 +183,31 @@ export function OnboardingScreen(props: OnboardingScreenProps) {
                 </div>
 
                 <div className="happy2-onboarding-screen__body" data-happy2-ui="onboarding-body">
-                    {state() === "loading" ? (
-                        <div
-                            className="happy2-onboarding-screen__loader"
-                            data-happy2-ui="onboarding-loader"
-                            role="status"
-                        >
-                            <span
-                                className="happy2-onboarding-screen__spinner"
-                                data-happy2-ui="onboarding-spinner"
-                            />
-                            <span
-                                className="happy2-onboarding-screen__loading-label"
-                                data-happy2-ui="onboarding-loading-label"
+                    <div
+                        className="happy2-onboarding-screen__body-content"
+                        data-happy2-ui="onboarding-body-content"
+                    >
+                        {state() === "loading" ? (
+                            <div
+                                className="happy2-onboarding-screen__loader"
+                                data-happy2-ui="onboarding-loader"
+                                role="status"
                             >
-                                {local.loadingLabel ?? "Loading…"}
-                            </span>
-                        </div>
-                    ) : (
-                        local.children
-                    )}
+                                <span
+                                    className="happy2-onboarding-screen__spinner"
+                                    data-happy2-ui="onboarding-spinner"
+                                />
+                                <span
+                                    className="happy2-onboarding-screen__loading-label"
+                                    data-happy2-ui="onboarding-loading-label"
+                                >
+                                    {local.loadingLabel ?? "Loading…"}
+                                </span>
+                            </div>
+                        ) : (
+                            local.children
+                        )}
+                    </div>
                 </div>
 
                 {local.footer ? (

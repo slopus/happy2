@@ -105,305 +105,328 @@ export function SettingsPage(props: SettingsPageProps) {
                 return (
                     <Box
                         style={{
-                            alignItems: "center",
                             boxSizing: "border-box",
                             display: "flex",
                             flex: "1 1 0%",
                             flexDirection: "column",
                             minHeight: "0",
                             overflowY: "auto",
-                            padding: "32px 24px",
                             width: "100%",
                         }}
                     >
-                        {snapshot.status.type !== "loading" ? (
-                            !statusError() ? (
-                                <>
-                                    <Box
-                                        style={{
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            gap: "16px",
-                                            maxWidth: "640px",
-                                            width: "100%",
-                                        }}
-                                    >
-                                        <Banner
-                                            tone={
-                                                error() ? "danger" : saving() ? "info" : "success"
-                                            }
-                                            title={
-                                                error()
-                                                    ? "Changes were not saved"
-                                                    : saving()
-                                                      ? "Saving changes…"
-                                                      : "All changes saved"
-                                            }
-                                        >
-                                            {error() ??
-                                                (saving()
-                                                    ? "Your workspace is updating."
-                                                    : "Profile and notification settings are up to date.")}
-                                        </Banner>
-                                        <ProfileCard
-                                            actions={
-                                                props.avatarActions ? (
-                                                    <>
-                                                        <input
-                                                            accept="image/*"
-                                                            hidden
-                                                            onChange={(event) =>
-                                                                void avatarUpload(
-                                                                    event.currentTarget.files,
-                                                                )
-                                                            }
-                                                            ref={avatarInput}
-                                                            type="file"
-                                                        />
-                                                        <Button
-                                                            disabled={avatarUploading}
-                                                            onClick={() =>
-                                                                avatarInput.current?.click()
-                                                            }
-                                                            size="small"
-                                                            type="button"
-                                                            variant="secondary"
-                                                        >
-                                                            {avatarUploading
-                                                                ? "Uploading…"
-                                                                : "Change photo"}
-                                                        </Button>
-                                                    </>
-                                                ) : undefined
-                                            }
-                                            imageUrl={props.avatarUrl}
-                                            initials={initials(name())}
-                                            name={name()}
-                                            presence={props.presence}
-                                            status={
-                                                snapshot.presence.customStatusText ||
-                                                snapshot.presence.customStatusEmoji
-                                                    ? {
-                                                          emoji: snapshot.presence
-                                                              .customStatusEmoji,
-                                                          text: snapshot.presence.customStatusText,
-                                                      }
-                                                    : undefined
-                                            }
-                                            title={snapshot.title}
-                                            tone={props.avatarTone ?? "brand"}
-                                            username={snapshot.profile.username}
-                                        />
-                                        <StatusPicker
-                                            availability={snapshot.presence.availability}
-                                            onAvailabilityChange={store.availabilityUpdate}
-                                            onClearStatus={() => {
-                                                store.statusTextUpdate(undefined);
-                                                store.statusEmojiUpdate(undefined);
+                        <Box
+                            style={{
+                                alignItems: "center",
+                                display: "flex",
+                                flexDirection: "column",
+                                padding: "32px 24px",
+                                width: "100%",
+                            }}
+                        >
+                            {snapshot.status.type !== "loading" ? (
+                                !statusError() ? (
+                                    <>
+                                        <Box
+                                            style={{
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                gap: "16px",
+                                                maxWidth: "640px",
+                                                width: "100%",
                                             }}
-                                            onStatusTextChange={(value) =>
-                                                store.statusTextUpdate(value || undefined)
-                                            }
-                                            statusEmoji={snapshot.presence.customStatusEmoji}
-                                            statusText={snapshot.presence.customStatusText ?? ""}
-                                        />
-                                        <Box>
-                                            <FormRow
-                                                control={
-                                                    <Box width={260}>
-                                                        <TextField
-                                                            fullWidth
-                                                            id="settings-name"
-                                                            onValueChange={displayNameUpdate}
-                                                            size="small"
-                                                            value={name()}
-                                                        />
-                                                    </Box>
+                                        >
+                                            <Banner
+                                                tone={
+                                                    error()
+                                                        ? "danger"
+                                                        : saving()
+                                                          ? "info"
+                                                          : "success"
                                                 }
-                                                description="Shown on your messages and across the workspace"
-                                                htmlFor="settings-name"
-                                                label="Display name"
-                                            />
-                                            <FormRow
-                                                control={
-                                                    <Box
-                                                        style={{
-                                                            alignItems: "center",
-                                                            display: "flex",
-                                                            gap: "8px",
-                                                            width: "360px",
-                                                        }}
-                                                    >
-                                                        <TextField
-                                                            fullWidth
-                                                            id="settings-username"
-                                                            leadingIcon="at"
-                                                            onValueChange={(value) => {
-                                                                setHandleDirty(true);
-                                                                setHandleDraft(value);
-                                                            }}
-                                                            size="small"
-                                                            value={usernameDraft}
-                                                        />
-                                                        {usernameDraft.trim().toLowerCase() !==
-                                                        snapshot.profile.username ? (
-                                                            <Button
-                                                                onClick={() =>
-                                                                    setUsernameConfirmationOpen(
-                                                                        true,
+                                                title={
+                                                    error()
+                                                        ? "Changes were not saved"
+                                                        : saving()
+                                                          ? "Saving changes…"
+                                                          : "All changes saved"
+                                                }
+                                            >
+                                                {error() ??
+                                                    (saving()
+                                                        ? "Your workspace is updating."
+                                                        : "Profile and notification settings are up to date.")}
+                                            </Banner>
+                                            <ProfileCard
+                                                actions={
+                                                    props.avatarActions ? (
+                                                        <>
+                                                            <input
+                                                                accept="image/*"
+                                                                hidden
+                                                                onChange={(event) =>
+                                                                    void avatarUpload(
+                                                                        event.currentTarget.files,
                                                                     )
+                                                                }
+                                                                ref={avatarInput}
+                                                                type="file"
+                                                            />
+                                                            <Button
+                                                                disabled={avatarUploading}
+                                                                onClick={() =>
+                                                                    avatarInput.current?.click()
                                                                 }
                                                                 size="small"
                                                                 type="button"
                                                                 variant="secondary"
                                                             >
-                                                                Confirm username
+                                                                {avatarUploading
+                                                                    ? "Uploading…"
+                                                                    : "Change photo"}
                                                             </Button>
-                                                        ) : null}
-                                                    </Box>
+                                                        </>
+                                                    ) : undefined
                                                 }
-                                                description="Your unique handle for mentions"
-                                                htmlFor="settings-username"
-                                                label="Username"
-                                            />
-                                            <FormRow
-                                                control={
-                                                    <Box width={260}>
-                                                        <TextField
-                                                            disabled
-                                                            fullWidth
-                                                            id="settings-title"
-                                                            placeholder="Add a title"
-                                                            size="small"
-                                                            value={snapshot.title ?? ""}
-                                                        />
-                                                    </Box>
+                                                imageUrl={props.avatarUrl}
+                                                initials={initials(name())}
+                                                name={name()}
+                                                presence={props.presence}
+                                                status={
+                                                    snapshot.presence.customStatusText ||
+                                                    snapshot.presence.customStatusEmoji
+                                                        ? {
+                                                              emoji: snapshot.presence
+                                                                  .customStatusEmoji,
+                                                              text: snapshot.presence
+                                                                  .customStatusText,
+                                                          }
+                                                        : undefined
                                                 }
-                                                description="Managed by workspace administrators"
-                                                htmlFor="settings-title"
-                                                label="Title"
+                                                title={snapshot.title}
+                                                tone={props.avatarTone ?? "brand"}
+                                                username={snapshot.profile.username}
                                             />
-                                            <FormRow
-                                                control={
-                                                    <Box width={260}>
-                                                        <TextField
-                                                            fullWidth
-                                                            id="settings-email"
-                                                            onValueChange={emailUpdate}
-                                                            size="small"
-                                                            type="email"
-                                                            value={snapshot.profile.email ?? ""}
-                                                        />
-                                                    </Box>
+                                            <StatusPicker
+                                                availability={snapshot.presence.availability}
+                                                onAvailabilityChange={store.availabilityUpdate}
+                                                onClearStatus={() => {
+                                                    store.statusTextUpdate(undefined);
+                                                    store.statusEmojiUpdate(undefined);
+                                                }}
+                                                onStatusTextChange={(value) =>
+                                                    store.statusTextUpdate(value || undefined)
                                                 }
-                                                description="Used for sign-in and account notices"
-                                                htmlFor="settings-email"
-                                                label="Email"
-                                            />
-                                        </Box>
-                                        <Box>
-                                            <FormRow
-                                                control={
-                                                    <SegmentedControl
-                                                        onChange={(value) =>
-                                                            notificationLevelUpdate(
-                                                                store,
-                                                                value as NotificationLevel,
-                                                            )
-                                                        }
-                                                        segments={notificationSegments}
-                                                        size="small"
-                                                        value={notificationLevel()}
-                                                    />
+                                                statusEmoji={snapshot.presence.customStatusEmoji}
+                                                statusText={
+                                                    snapshot.presence.customStatusText ?? ""
                                                 }
-                                                description="Choose what activity sends you a notification"
-                                                label="Notifications"
                                             />
-                                            <FormRow
-                                                control={
-                                                    <Switch
-                                                        aria-label="Desktop notifications"
-                                                        checked={
-                                                            snapshot.notifications
-                                                                .desktopNotifications
-                                                        }
-                                                        onChange={store.desktopNotificationsUpdate}
-                                                    />
-                                                }
-                                                description="Show notifications for new messages and mentions on this device"
-                                                label="Desktop notifications"
-                                            />
-                                            <FormRow
-                                                control={
-                                                    <Switch
-                                                        aria-label="Email notifications"
-                                                        checked={
-                                                            snapshot.notifications
-                                                                .emailNotifications
-                                                        }
-                                                        onChange={store.emailNotificationsUpdate}
-                                                    />
-                                                }
-                                                description="Allow account and activity notifications by email"
-                                                label="Email notifications"
-                                            />
-                                        </Box>
-                                    </Box>
-                                    {usernameConfirmationOpen ? (
-                                        <ModalOverlay
-                                            onDismiss={() => setUsernameConfirmationOpen(false)}
-                                        >
-                                            <Modal
-                                                footer={
-                                                    <>
-                                                        <Button
-                                                            onClick={() => {
-                                                                setHandleDraft(
-                                                                    snapshot.profile.username,
-                                                                );
-                                                                setHandleDirty(false);
-                                                                setUsernameConfirmationOpen(false);
+                                            <Box>
+                                                <FormRow
+                                                    control={
+                                                        <Box width={260}>
+                                                            <TextField
+                                                                fullWidth
+                                                                id="settings-name"
+                                                                onValueChange={displayNameUpdate}
+                                                                size="small"
+                                                                value={name()}
+                                                            />
+                                                        </Box>
+                                                    }
+                                                    description="Shown on your messages and across the workspace"
+                                                    htmlFor="settings-name"
+                                                    label="Display name"
+                                                />
+                                                <FormRow
+                                                    control={
+                                                        <Box
+                                                            style={{
+                                                                alignItems: "center",
+                                                                display: "flex",
+                                                                gap: "8px",
+                                                                width: "360px",
                                                             }}
-                                                            size="small"
-                                                            type="button"
-                                                            variant="ghost"
                                                         >
-                                                            Cancel
-                                                        </Button>
-                                                        <Button
-                                                            onClick={usernameConfirm}
+                                                            <TextField
+                                                                fullWidth
+                                                                id="settings-username"
+                                                                leadingIcon="at"
+                                                                onValueChange={(value) => {
+                                                                    setHandleDirty(true);
+                                                                    setHandleDraft(value);
+                                                                }}
+                                                                size="small"
+                                                                value={usernameDraft}
+                                                            />
+                                                            {usernameDraft.trim().toLowerCase() !==
+                                                            snapshot.profile.username ? (
+                                                                <Button
+                                                                    onClick={() =>
+                                                                        setUsernameConfirmationOpen(
+                                                                            true,
+                                                                        )
+                                                                    }
+                                                                    size="small"
+                                                                    type="button"
+                                                                    variant="secondary"
+                                                                >
+                                                                    Confirm username
+                                                                </Button>
+                                                            ) : null}
+                                                        </Box>
+                                                    }
+                                                    description="Your unique handle for mentions"
+                                                    htmlFor="settings-username"
+                                                    label="Username"
+                                                />
+                                                <FormRow
+                                                    control={
+                                                        <Box width={260}>
+                                                            <TextField
+                                                                disabled
+                                                                fullWidth
+                                                                id="settings-title"
+                                                                placeholder="Add a title"
+                                                                size="small"
+                                                                value={snapshot.title ?? ""}
+                                                            />
+                                                        </Box>
+                                                    }
+                                                    description="Managed by workspace administrators"
+                                                    htmlFor="settings-title"
+                                                    label="Title"
+                                                />
+                                                <FormRow
+                                                    control={
+                                                        <Box width={260}>
+                                                            <TextField
+                                                                fullWidth
+                                                                id="settings-email"
+                                                                onValueChange={emailUpdate}
+                                                                size="small"
+                                                                type="email"
+                                                                value={snapshot.profile.email ?? ""}
+                                                            />
+                                                        </Box>
+                                                    }
+                                                    description="Used for sign-in and account notices"
+                                                    htmlFor="settings-email"
+                                                    label="Email"
+                                                />
+                                            </Box>
+                                            <Box>
+                                                <FormRow
+                                                    control={
+                                                        <SegmentedControl
+                                                            onChange={(value) =>
+                                                                notificationLevelUpdate(
+                                                                    store,
+                                                                    value as NotificationLevel,
+                                                                )
+                                                            }
+                                                            segments={notificationSegments}
                                                             size="small"
-                                                            type="button"
-                                                        >
-                                                            Change username
-                                                        </Button>
-                                                    </>
-                                                }
-                                                icon="at"
-                                                onClose={() => setUsernameConfirmationOpen(false)}
-                                                size="small"
-                                                title="Confirm username change"
+                                                            value={notificationLevel()}
+                                                        />
+                                                    }
+                                                    description="Choose what activity sends you a notification"
+                                                    label="Notifications"
+                                                />
+                                                <FormRow
+                                                    control={
+                                                        <Switch
+                                                            aria-label="Desktop notifications"
+                                                            checked={
+                                                                snapshot.notifications
+                                                                    .desktopNotifications
+                                                            }
+                                                            onChange={
+                                                                store.desktopNotificationsUpdate
+                                                            }
+                                                        />
+                                                    }
+                                                    description="Show notifications for new messages and mentions on this device"
+                                                    label="Desktop notifications"
+                                                />
+                                                <FormRow
+                                                    control={
+                                                        <Switch
+                                                            aria-label="Email notifications"
+                                                            checked={
+                                                                snapshot.notifications
+                                                                    .emailNotifications
+                                                            }
+                                                            onChange={
+                                                                store.emailNotificationsUpdate
+                                                            }
+                                                        />
+                                                    }
+                                                    description="Allow account and activity notifications by email"
+                                                    label="Email notifications"
+                                                />
+                                            </Box>
+                                        </Box>
+                                        {usernameConfirmationOpen ? (
+                                            <ModalOverlay
+                                                onDismiss={() => setUsernameConfirmationOpen(false)}
                                             >
-                                                Your username will change from @
-                                                {snapshot.profile.username} to @
-                                                {usernameDraft.trim().toLowerCase()}. Mentions and
-                                                profile links will use the new username.
-                                            </Modal>
-                                        </ModalOverlay>
-                                    ) : null}
-                                </>
+                                                <Modal
+                                                    footer={
+                                                        <>
+                                                            <Button
+                                                                onClick={() => {
+                                                                    setHandleDraft(
+                                                                        snapshot.profile.username,
+                                                                    );
+                                                                    setHandleDirty(false);
+                                                                    setUsernameConfirmationOpen(
+                                                                        false,
+                                                                    );
+                                                                }}
+                                                                size="small"
+                                                                type="button"
+                                                                variant="ghost"
+                                                            >
+                                                                Cancel
+                                                            </Button>
+                                                            <Button
+                                                                onClick={usernameConfirm}
+                                                                size="small"
+                                                                type="button"
+                                                            >
+                                                                Change username
+                                                            </Button>
+                                                        </>
+                                                    }
+                                                    icon="at"
+                                                    onClose={() =>
+                                                        setUsernameConfirmationOpen(false)
+                                                    }
+                                                    size="small"
+                                                    title="Confirm username change"
+                                                >
+                                                    Your username will change from @
+                                                    {snapshot.profile.username} to @
+                                                    {usernameDraft.trim().toLowerCase()}. Mentions
+                                                    and profile links will use the new username.
+                                                </Modal>
+                                            </ModalOverlay>
+                                        ) : null}
+                                    </>
+                                ) : (
+                                    <Banner tone="danger" title="Settings unavailable">
+                                        {statusError()}
+                                    </Banner>
+                                )
                             ) : (
-                                <Banner tone="danger" title="Settings unavailable">
-                                    {statusError()}
-                                </Banner>
-                            )
-                        ) : (
-                            <EmptyState
-                                description="Retrieving your workspace profile and preferences."
-                                icon="at"
-                                title="Loading settings…"
-                            />
-                        )}
+                                <EmptyState
+                                    description="Retrieving your workspace profile and preferences."
+                                    icon="at"
+                                    title="Loading settings…"
+                                />
+                            )}
+                        </Box>
                     </Box>
                 );
             }}

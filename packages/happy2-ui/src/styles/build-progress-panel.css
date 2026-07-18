@@ -144,10 +144,10 @@
     text-transform: uppercase;
 }
 
+/* Scrollport: edge-to-edge, no padding; the inner <code> carries the inset. */
 .happy2-build-progress__log {
     margin: 0;
     max-height: 160px;
-    padding: 12px;
     overflow: auto;
     background: var(--happy2-bg-code);
     border-radius: var(--happy2-radius-sm);
@@ -157,6 +157,16 @@
     line-height: 18px;
     white-space: pre-wrap;
     word-break: break-word;
+}
+
+/* Inner content block carries the 12px inset off the scrollport. */
+.happy2-build-progress__log-inner {
+    display: block;
+    font: inherit;
+    color: inherit;
+    white-space: inherit;
+    word-break: inherit;
+    padding: 12px;
 }
 
 /* ---- Failure block ---------------------------------------------------- */

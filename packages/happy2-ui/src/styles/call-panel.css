@@ -57,6 +57,7 @@
 /* ---- Participant tiles ------------------------------------------------- */
 
 .happy2-call-panel__tiles {
+    /* eslint-disable-next-line happy2-layout/use-flex-layout -- true 2-D tile mosaic: 3–4 participants wrap into a 2-column, multi-row grid of equal cells flexbox cannot align */
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
@@ -76,9 +77,10 @@
 
 .happy2-call-panel__avatar {
     position: relative;
-    display: grid;
+    display: flex;
     flex: none;
-    place-items: center;
+    align-items: center;
+    justify-content: center;
     width: 48px;
     height: 48px;
 }
@@ -96,8 +98,9 @@
     position: absolute;
     right: 0;
     bottom: 0;
-    display: grid;
-    place-items: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 18px;
     height: 18px;
     background: var(--happy2-bg-raised);

@@ -140,7 +140,12 @@ export function CommandPalette(props: CommandPaletteProps) {
                 />
             </div>
             <div className="happy2-command-palette__body" data-happy2-ui="command-palette-body">
-                {local.children}
+                <div
+                    className="happy2-command-palette__body-content"
+                    data-happy2-ui="command-palette-body-content"
+                >
+                    {local.children}
+                </div>
             </div>
         </div>
     );

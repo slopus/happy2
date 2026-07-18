@@ -372,16 +372,18 @@
     background: var(--happy2-bg-code);
     border: 1px solid var(--happy2-border);
     border-radius: 8px;
-    padding: 10px 12px;
     overflow-x: auto;
     max-width: 100%;
 }
 
+/* The <pre> is the scrollport (edge-to-edge, no padding); its inner <code>
+   block carries the 10px/12px inset so the right pad survives horizontal
+   scroll instead of being clipped by the overflow boundary. */
 .happy2-message__body--markdown pre code {
     display: block;
     background: transparent;
     border-radius: 0;
-    padding: 0;
+    padding: 10px 12px;
     color: var(--happy2-text);
     line-height: 20px;
     white-space: pre;
@@ -405,7 +407,7 @@
  * itself stays at full opacity — only this marker signals in-progress state.
  */
 .happy2-message__caret {
-    display: inline-block;
+    display: inline-flex;
     width: 8px;
     height: 15px;
     background: var(--happy2-accent);
@@ -418,7 +420,7 @@
  * partial body stays fully visible so the reader keeps whatever text arrived.
  */
 .happy2-message__gen-failed {
-    display: inline-block;
+    display: inline-flex;
     width: 8px;
     height: 8px;
     background: var(--happy2-danger);
@@ -449,6 +451,7 @@
 /* ---- Inline photo attachments ----------------------------------------- */
 
 .happy2-message__media {
+    /* eslint-disable-next-line happy2-layout/use-flex-layout -- true 2-D photo grid: 2–4 attachments tile into a 2-column, multi-row mosaic flexbox cannot lay out */
     display: grid;
     gap: 4px;
     margin-top: 8px;
@@ -644,6 +647,7 @@
 
 /* ---- MessageList ------------------------------------------------------ */
 
+/* Scrollport: edge-to-edge, no padding of its own. */
 .happy2-message-list {
     display: flex;
     flex-direction: column;
@@ -651,7 +655,6 @@
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 12px 0;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     /* Slack-style scrollbar (desktop): a narrow, rounded thumb over a
@@ -694,6 +697,16 @@
 
 .happy2-message-list::-webkit-scrollbar-corner {
     background: transparent;
+}
+
+/* Inner content wrapper owns the 12px top/bottom breathing room; it fills the
+   scrollport height so the spacer's `margin-top: auto` still bottom-aligns a
+   short thread, and it preserves the virtual container's offset exactly. */
+.happy2-message-list__content {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+    padding: 12px 0;
 }
 
 .happy2-message-list__spacer {

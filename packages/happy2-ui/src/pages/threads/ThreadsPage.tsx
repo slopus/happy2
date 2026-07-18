@@ -45,16 +45,23 @@ export function ThreadsPage(props: ThreadsPageProps) {
                             flexDirection: "column",
                             minHeight: 0,
                             overflowY: "auto",
-                            padding: "16px",
                         }}
                     >
-                        <ThreadList
-                            onSelect={(id) => {
-                                store.threadReadMark(id);
-                                props.onSelect?.(id);
+                        <Box
+                            style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                padding: "16px",
                             }}
-                            threads={threads}
-                        />
+                        >
+                            <ThreadList
+                                onSelect={(id) => {
+                                    store.threadReadMark(id);
+                                    props.onSelect?.(id);
+                                }}
+                                threads={threads}
+                            />
+                        </Box>
                     </Box>
                 ) : (
                     <EmptyState

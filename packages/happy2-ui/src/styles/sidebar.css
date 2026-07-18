@@ -98,12 +98,22 @@
 
 /* ---- Body ------------------------------------------------------------- */
 
+/* Scrollport: edge-to-edge, no padding of its own. */
 .happy2-sidebar__body {
+    display: flex;
     flex: 1;
+    flex-direction: column;
     min-height: 0;
-    padding: 8px;
     overflow-x: hidden;
     overflow-y: auto;
+}
+
+/* Inner content wrapper carries the 8px inset around the sections. */
+.happy2-sidebar__body-content {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+    padding: 8px;
 }
 
 .happy2-sidebar__section {

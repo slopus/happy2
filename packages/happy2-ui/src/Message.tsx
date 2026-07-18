@@ -642,53 +642,55 @@ export function MessageList(props: MessageListProps) {
             ref={list}
             style={props.style}
         >
-            <div
-                aria-hidden="true"
-                className="happy2-message-list__spacer"
-                data-happy2-ui="message-list-spacer"
-            />
-            {props.intro
-                ? ((intro) => (
-                      <header
-                          className="happy2-message-list__intro"
-                          data-happy2-ui="message-list-intro"
-                      >
-                          <h2
-                              className="happy2-message-list__intro-title"
-                              data-happy2-ui="message-list-intro-title"
-                          >
-                              {intro.title}
-                          </h2>
-                          <p
-                              className="happy2-message-list__intro-description"
-                              data-happy2-ui="message-list-intro-description"
-                          >
-                              {intro.description}
-                          </p>
-                      </header>
-                  ))(props.intro)
-                : null}
-            {virtualized ? (
+            <div className="happy2-message-list__content" data-happy2-ui="message-list-content">
                 <div
-                    className="happy2-message-list__virtual"
-                    data-happy2-ui="message-list-virtual"
-                    style={{ height: `${virtualizer.getTotalSize()}px` }}
-                >
-                    {virtualizer.getVirtualItems().map((virtualItem) => (
-                        <div
-                            className="happy2-message-list__virtual-row"
-                            data-index={virtualItem.index}
-                            key={virtualItem.key}
-                            ref={virtualizer.measureElement}
-                            style={{ transform: `translateY(${virtualItem.start}px)` }}
-                        >
-                            {items[virtualItem.index]}
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                props.children
-            )}
+                    aria-hidden="true"
+                    className="happy2-message-list__spacer"
+                    data-happy2-ui="message-list-spacer"
+                />
+                {props.intro
+                    ? ((intro) => (
+                          <header
+                              className="happy2-message-list__intro"
+                              data-happy2-ui="message-list-intro"
+                          >
+                              <h2
+                                  className="happy2-message-list__intro-title"
+                                  data-happy2-ui="message-list-intro-title"
+                              >
+                                  {intro.title}
+                              </h2>
+                              <p
+                                  className="happy2-message-list__intro-description"
+                                  data-happy2-ui="message-list-intro-description"
+                              >
+                                  {intro.description}
+                              </p>
+                          </header>
+                      ))(props.intro)
+                    : null}
+                {virtualized ? (
+                    <div
+                        className="happy2-message-list__virtual"
+                        data-happy2-ui="message-list-virtual"
+                        style={{ height: `${virtualizer.getTotalSize()}px` }}
+                    >
+                        {virtualizer.getVirtualItems().map((virtualItem) => (
+                            <div
+                                className="happy2-message-list__virtual-row"
+                                data-index={virtualItem.index}
+                                key={virtualItem.key}
+                                ref={virtualizer.measureElement}
+                                style={{ transform: `translateY(${virtualItem.start}px)` }}
+                            >
+                                {items[virtualItem.index]}
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    props.children
+                )}
+            </div>
         </div>
     );
 }

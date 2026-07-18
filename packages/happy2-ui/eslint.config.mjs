@@ -1,12 +1,15 @@
 import js from "@eslint/js";
+import css from "@eslint/css";
 import babelParser from "@babel/eslint-parser";
 import { defineConfig, globalIgnores } from "eslint/config";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
+import layoutPolicy from "../../eslint/layout-policy.mjs";
 
 const common = {
+    plugins: { "happy2-layout": layoutPolicy },
     extends: [
         js.configs.recommended,
         react.configs.flat.recommended,
@@ -45,6 +48,9 @@ const common = {
         "jsx-a11y/no-autofocus": "off",
         "jsx-a11y/no-noninteractive-element-interactions": "off",
         "jsx-a11y/no-static-element-interactions": "off",
+        "happy2-layout/require-layout-exception-reason": "error",
+        "happy2-layout/scrollport-no-spacing": "error",
+        "happy2-layout/use-flex-layout": "error",
     },
 };
 
@@ -72,10 +78,26 @@ export default defineConfig(
         languageOptions: languageOptions(["typescript", "jsx"]),
     },
     {
+        files: ["src/**/*.css"],
+        language: "css/css",
+        languageOptions: { tolerant: true },
+        plugins: { css, "happy2-layout": layoutPolicy },
+        rules: {
+            "happy2-layout/require-layout-exception-reason": "error",
+            "happy2-layout/scrollport-no-spacing": "error",
+            "happy2-layout/use-flex-layout": "error",
+        },
+    },
+    {
         files: ["**/*.test.tsx"],
         rules: {
+            "happy2-layout/use-flex-layout": "off",
             "react-hooks/globals": "off",
             "react/no-children-prop": "off",
         },
+    },
+    {
+        files: ["dev/**/*.{ts,tsx}"],
+        rules: { "happy2-layout/use-flex-layout": "off" },
     },
 );

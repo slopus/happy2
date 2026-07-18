@@ -95,11 +95,12 @@
     color: var(--happy2-text-faint);
 }
 
+/* Scrollport: edge-to-edge, no padding; the inner <code> carries the inset so
+   it survives horizontal scroll. */
 .happy2-agent-image-detail__code {
     margin: 0;
     max-height: 260px;
     overflow: auto;
-    padding: 12px 14px;
     border: 1px solid var(--happy2-border);
     border-radius: var(--happy2-radius-md);
     background: var(--happy2-bg-code);
@@ -109,6 +110,14 @@
     line-height: 18px;
     white-space: pre;
     tab-size: 4;
+}
+
+/* Inner content block carries the 12px/14px inset off the scrollport. */
+.happy2-agent-image-detail__code-inner {
+    display: block;
+    font: inherit;
+    color: inherit;
+    padding: 12px 14px;
 }
 
 .happy2-agent-image-detail__empty {

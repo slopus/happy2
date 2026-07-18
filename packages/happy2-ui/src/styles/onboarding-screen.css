@@ -20,6 +20,7 @@
 .happy2-onboarding-screen__step-dot,
 .happy2-onboarding-screen__content,
 .happy2-onboarding-screen__body,
+.happy2-onboarding-screen__body-content,
 .happy2-onboarding-screen__loader,
 .happy2-onboarding-screen__spinner,
 .happy2-onboarding-screen__footer {
@@ -210,13 +211,38 @@
 
 /* ---- Body slot -------------------------------------------------------- */
 
+/*
+ * Full-bleed scrollport: it owns scrolling and fills the entire region the card
+ * allocates to it, edge to edge, with zero margin and zero padding so the
+ * viewport and scrollbar run to the card's content-box edges. All spacing,
+ * centering, and focus-ring clearance live on the inner content wrapper below,
+ * never on the scrollport itself.
+ */
 .happy2-onboarding-screen__body {
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
     min-height: 0;
-    margin-top: 28px;
+    width: 100%;
+    margin: 0;
+    padding: 0;
     overflow-y: auto;
+}
+
+/*
+ * Inner content wrapper: a flex column that owns the 12px sibling gap for the
+ * app's body children (banners, option cards, forms) and a focus-safe gutter.
+ * The 28px top gutter restores the separation from the content block above; the
+ * 8px side and bottom gutters keep the complete painted extent of an external
+ * focus ring (TextField 3px, SetupOptionCard 4px) inside the wrapper so the
+ * scrollport can never clip a focus indicator at any scroll edge.
+ */
+.happy2-onboarding-screen__body-content {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 12px;
+    padding: 28px 8px 8px;
 }
 
 /* ---- Loading state ---------------------------------------------------- */

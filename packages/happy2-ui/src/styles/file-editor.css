@@ -104,6 +104,13 @@
 
 /* ---- Code body -------------------------------------------------------- */
 
+/*
+ * The code body is a native <textarea> — an atomic scroll control that scrolls
+ * its own value by the UA default (scrollbars appear at the control's border
+ * edge on overflow). There is no child element to host an inner wrapper, so the
+ * 12px inset stays as the control's own text padding; the scroll behavior is the
+ * UA default rather than an explicit `overflow` on this box.
+ */
 .happy2-file-editor__area {
     display: block;
     flex: 1 1 0%;
@@ -122,7 +129,6 @@
     tab-size: 4;
     resize: none;
     white-space: pre;
-    overflow: auto;
 }
 
 .happy2-file-editor__area::placeholder {

@@ -27,14 +27,22 @@
     flex: none;
 }
 
+/* Scrollport: edge-to-edge, no padding/gap of its own. */
 .happy2-info-panel__body {
     display: flex;
     flex: 1 1 0%;
     flex-direction: column;
-    gap: 16px;
     min-height: 0;
-    padding: 16px;
     overflow: auto;
+}
+
+/* Inner content wrapper owns the 16px inset and the 16px section gap. */
+.happy2-info-panel__body-content {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
 }
 
 /* ---- Read-only channel About ----------------------------------------- */

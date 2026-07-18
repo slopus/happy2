@@ -82,7 +82,9 @@ export function Modal(props: ModalProps) {
                     ) : null}
                 </header>
                 <div className="happy2-modal__body" data-happy2-ui="modal-body">
-                    {local.children}
+                    <div className="happy2-modal__body-content" data-happy2-ui="modal-body-content">
+                        {local.children}
+                    </div>
                 </div>
                 {local.footer ? (
                     <footer className="happy2-modal__footer" data-happy2-ui="modal-footer">

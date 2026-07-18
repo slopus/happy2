@@ -172,7 +172,7 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
         "border-radius": "8px",
         "box-sizing": "border-box",
         color: "rgb(255, 255, 255)",
-        display: "grid",
+        display: "flex",
     });
     expect(mark.computedStyle("background-image")).toContain("linear-gradient");
     /* Wordmark sits after the 28px mark + 12px gap. */

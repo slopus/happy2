@@ -84,16 +84,21 @@ export function FilePanel(props: FilePanelProps) {
                 </div>
             ) : null}
             <div className="happy2-file-panel__body" data-happy2-ui="file-panel-body">
-                <FileTree
-                    emptyLabel={local.emptyLabel}
-                    loading={local.loading}
-                    loadingLabel={local.loadingLabel}
-                    nodes={local.nodes}
-                    onLoadMore={local.onLoadMore}
-                    onSelect={local.onSelect}
-                    onToggle={local.onToggle}
-                    selectedId={local.selectedId}
-                />
+                <div
+                    className="happy2-file-panel__body-content"
+                    data-happy2-ui="file-panel-body-content"
+                >
+                    <FileTree
+                        emptyLabel={local.emptyLabel}
+                        loading={local.loading}
+                        loadingLabel={local.loadingLabel}
+                        nodes={local.nodes}
+                        onLoadMore={local.onLoadMore}
+                        onSelect={local.onSelect}
+                        onToggle={local.onToggle}
+                        selectedId={local.selectedId}
+                    />
+                </div>
             </div>
         </section>
     );

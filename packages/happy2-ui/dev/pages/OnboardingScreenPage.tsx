@@ -1,6 +1,9 @@
 import { type ReactNode } from "react";
+import { Banner } from "../../src/Banner";
 import { Button } from "../../src/Button";
 import { OnboardingScreen, type OnboardingStep } from "../../src/OnboardingScreen";
+import { SetupOptionCard } from "../../src/SetupOptionCard";
+import { TextField } from "../../src/TextField";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
 /*
  * Deterministic, network-free background fill: a static inline-SVG data URI
@@ -69,7 +72,7 @@ export function OnboardingScreenPage() {
     return (
         <ComponentPage
             number="C-061"
-            summary="Centered desktop onboarding card — a single card floats over the shared onboarding background and legibility scrim. Brand mast, horizontal step rail, content block, scrolling body slot, and footer. Relay dark theme."
+            summary="Centered desktop onboarding card — a single card floats over the shared onboarding background and legibility scrim. Brand mast, horizontal step rail, content block, a full-bleed scrolling body slot whose inner wrapper owns a 12px gap and a focus-safe gutter, and footer. Relay dark theme."
             title="Onboarding screen"
         >
             <Specimen
@@ -97,18 +100,16 @@ export function OnboardingScreenPage() {
                         steps={serverSteps}
                         title="Connect your server"
                     >
-                        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                            <Field
-                                hint="The base URL of your Relay server."
-                                label="Server URL"
-                                value="https://relay.acme.studio"
-                            />
-                            <Field
-                                hint="Used to authenticate this device."
-                                label="Access token"
-                                value="rl_live_9f3c…a21b"
-                            />
-                        </div>
+                        <Field
+                            hint="The base URL of your Relay server."
+                            label="Server URL"
+                            value="https://relay.acme.studio"
+                        />
+                        <Field
+                            hint="Used to authenticate this device."
+                            label="Access token"
+                            value="rl_live_9f3c…a21b"
+                        />
                     </OnboardingScreen>,
                 )}
             </Specimen>
@@ -143,23 +144,21 @@ export function OnboardingScreenPage() {
                         title="Set up your workspace"
                         width="large"
                     >
-                        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                            <Field
-                                hint="Shown to teammates you invite."
-                                label="Workspace name"
-                                value="Acme Studio"
-                            />
-                            <Field
-                                hint="Agents boot from this image."
-                                label="Base image"
-                                value="relay/base:2026.07"
-                            />
-                            <Field
-                                hint="Applied to every new agent run."
-                                label="Default model"
-                                value="claude-opus-4-8"
-                            />
-                        </div>
+                        <Field
+                            hint="Shown to teammates you invite."
+                            label="Workspace name"
+                            value="Acme Studio"
+                        />
+                        <Field
+                            hint="Agents boot from this image."
+                            label="Base image"
+                            value="relay/base:2026.07"
+                        />
+                        <Field
+                            hint="Applied to every new agent run."
+                            label="Default model"
+                            value="claude-opus-4-8"
+                        />
                     </OnboardingScreen>,
                 )}
             </Specimen>
@@ -198,16 +197,56 @@ export function OnboardingScreenPage() {
             >
                 {window1024(
                     <OnboardingScreen title="Enter your invite code">
-                        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                            <Field
-                                hint="Sent to you by your workspace admin."
-                                label="Invite code"
-                                value="ACME-4821-QK"
-                            />
-                            <Button fullWidth size="large" variant="primary">
-                                Continue
-                            </Button>
-                        </div>
+                        <Field
+                            hint="Sent to you by your workspace admin."
+                            label="Invite code"
+                            value="ACME-4821-QK"
+                        />
+                        <Button fullWidth size="large" variant="primary">
+                            Continue
+                        </Button>
+                    </OnboardingScreen>,
+                )}
+            </Specimen>
+
+            <Specimen
+                detail="server flow — an optional provider Banner and the SetupOptionCards share the body's one 12px flex-gap flow; a focus-safe gutter keeps every ring unclipped at a scroll edge"
+                label="Server setup flow"
+                number="05"
+                stage="chrome"
+            >
+                {window1024(
+                    <OnboardingScreen
+                        backgroundUrl={backgroundDataUri}
+                        brand={{ name: "Happy (2)" }}
+                        copy="The base image is downloaded and built once, then becomes the default sandbox for every agent."
+                        kicker="Server setup"
+                        steps={serverSteps}
+                        title="Pick a base image"
+                    >
+                        <Banner icon="shield" tone="info">
+                            Agent code runs inside the Docker sandbox (version 25.0.3).
+                        </Banner>
+                        <SetupOptionCard
+                            description="A lean sandbox with the core agent toolchain."
+                            icon="image"
+                            meta="Download and build"
+                            selected
+                            title="Daycare Minimal"
+                        />
+                        <SetupOptionCard
+                            description="A complete sandbox with the full Daycare toolchain."
+                            icon="image"
+                            meta="Download and build"
+                            title="Daycare Full"
+                        />
+                        <SetupOptionCard
+                            description="Build a sandbox from your own Dockerfile."
+                            icon="code"
+                            meta="Build"
+                            title="Custom Dockerfile"
+                        />
+                        <TextField label="Image name" value="acme/base" />
                     </OnboardingScreen>,
                 )}
             </Specimen>

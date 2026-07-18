@@ -359,3 +359,88 @@ it("invokes onSelect on click and never while disabled", async () => {
     (view.$('[data-testid="blocked"]').element as HTMLButtonElement).click();
     expect(onDisabled, "disabled card never fires onSelect").not.toHaveBeenCalled();
 }, 120_000);
+
+it("centers the icon on the title for title-only cards and top-aligns detailed cards", async () => {
+    const view = createRenderer();
+
+    view.render(
+        () => (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "440px" }}>
+                {/* Title only → single line → icon + title share one centered line. */}
+                <SetupOptionCard data-testid="only-title" icon="image" title="Daycare Minimal" />
+                {/* Same, but with a trailing status pill on the title row (still one line). */}
+                <SetupOptionCard
+                    data-testid="only-title-status"
+                    icon="terminal"
+                    status={{ label: "HEALTHY", variant: "success", icon: "check-circle" }}
+                    title="Docker"
+                />
+                {/* A description adds a second body line → keep the icon pinned to the top. */}
+                <SetupOptionCard
+                    data-testid="with-description"
+                    description="A lean sandbox with the core agent toolchain."
+                    icon="image"
+                    title="Daycare Minimal"
+                />
+                {/* A meta line alone is enough to opt back into top alignment. */}
+                <SetupOptionCard
+                    data-testid="with-meta"
+                    icon="code"
+                    meta="Build"
+                    title="Custom Dockerfile"
+                />
+            </div>
+        ),
+        { width: 480, height: 420 },
+    );
+    await view.ready();
+
+    /* Vertical center of a card part, in the shared surface coordinate system. */
+    const centerY = (host: RenderedElement<Element>) => {
+        const b = host.bounds();
+        return b.y + b.height / 2;
+    };
+
+    /* ---- Title-only card: icon chip and title row center on one line ----- */
+
+    for (const id of ["only-title", "only-title-status"] as const) {
+        const card = view.$(`[data-testid="${id}"]`);
+        expect(card.element.getAttribute("data-compact"), `${id} is compact`).toBe("");
+        expect(card.computedStyle("align-items"), `${id} align-items`).toBe("center");
+
+        const icon = part(view, id, "setup-option-icon");
+        const titleRow = part(view, id, "setup-option-title-row");
+        expect(icon.bounds().height, `${id} icon chip height`).toBe(36);
+        /* The icon chip center and the title-row center land on one line. */
+        expect(
+            Math.abs(centerY(icon) - centerY(titleRow)),
+            `${id} icon vs title centering`,
+        ).toBeLessThanOrEqual(0.5);
+        await paints(part(view, id, "setup-option-title"), `${id} title`);
+    }
+
+    /* ---- Detailed cards keep the icon pinned to the title at the top ----- */
+
+    for (const id of ["with-description", "with-meta"] as const) {
+        const card = view.$(`[data-testid="${id}"]`);
+        expect(card.element.getAttribute("data-compact"), `${id} not compact`).toBeNull();
+        expect(card.computedStyle("align-items"), `${id} align-items`).toBe("flex-start");
+
+        const icon = part(view, id, "setup-option-icon");
+        const titleRow = part(view, id, "setup-option-title-row");
+        /* Top-aligned: the icon chip top and the title-row top share the 16px
+           card inset (well within a pixel of each other). */
+        expect(
+            Math.abs(icon.bounds().y - titleRow.bounds().y),
+            `${id} icon/title top alignment`,
+        ).toBeLessThanOrEqual(0.5);
+        /* Because the 36px icon is taller than the 20px title row, its center
+           sits clearly below the title-row center — proving it is not centered. */
+        expect(
+            centerY(icon) - centerY(titleRow),
+            `${id} icon center below title center`,
+        ).toBeGreaterThan(4);
+    }
+
+    await view.screenshot("SetupOptionCard.compact.test");
+}, 120_000);

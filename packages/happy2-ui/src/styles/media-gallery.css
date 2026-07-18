@@ -14,6 +14,7 @@
 }
 
 .happy2-media-gallery {
+    /* eslint-disable-next-line happy2-layout/use-flex-layout -- true 2-D media grid: thumbnails tile into a 4-column, multi-row matrix with full-row spans (__empty uses grid-column 1 / -1) */
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
@@ -55,8 +56,9 @@
 
 .happy2-media-gallery__thumb {
     position: relative;
-    display: grid;
-    place-items: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
     aspect-ratio: 4 / 3;
     overflow: hidden;
@@ -78,8 +80,9 @@
 /* File-glyph medallion: reuses the 48px chip / 20px Icon proportions the rest
  * of the system uses, so the composed glyph stays optically centered. */
 .happy2-media-gallery__glyph {
-    display: grid;
-    place-items: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 48px;
     height: 48px;
     background: var(--happy2-bg-inset);

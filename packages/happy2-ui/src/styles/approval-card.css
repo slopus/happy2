@@ -87,10 +87,10 @@
 }
 
 .happy2-approval-card__chip {
-    display: grid;
+    display: flex;
     flex: none;
     align-items: center;
-    justify-items: center;
+    justify-content: center;
     width: 26px;
     height: 26px;
     background: var(--happy2-warning-soft);

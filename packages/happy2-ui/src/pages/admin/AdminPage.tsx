@@ -138,43 +138,56 @@ export function AdminPage(props: AdminPageProps) {
                                 flex: "1 1 0%",
                                 minHeight: 0,
                                 overflow: "auto",
-                                padding: "16px",
                             }}
                         >
-                            {tab() === "images" ? (
-                                <AgentImagesPage query={query} store={props.agentImagesStore()} />
-                            ) : tab() === "secrets" ? (
-                                <AgentSecretsPage query={query} store={props.agentSecretsStore()} />
-                            ) : loadable?.type !== "error" ? (
-                                loadable?.type === "ready" ? (
-                                    <DataTable
-                                        columns={columns[tab()] ?? []}
-                                        empty={
-                                            <EmptyState
-                                                description={
-                                                    needle
-                                                        ? "Try a different search term."
-                                                        : `The server returned no ${tab()}.`
-                                                }
-                                                icon="search"
-                                                size="inline"
-                                                title={needle ? "No matches" : "Nothing here"}
-                                            />
-                                        }
-                                        rows={rows}
+                            <Box
+                                style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    padding: "16px",
+                                }}
+                            >
+                                {tab() === "images" ? (
+                                    <AgentImagesPage
+                                        query={query}
+                                        store={props.agentImagesStore()}
                                     />
+                                ) : tab() === "secrets" ? (
+                                    <AgentSecretsPage
+                                        query={query}
+                                        store={props.agentSecretsStore()}
+                                    />
+                                ) : loadable?.type !== "error" ? (
+                                    loadable?.type === "ready" ? (
+                                        <DataTable
+                                            columns={columns[tab()] ?? []}
+                                            empty={
+                                                <EmptyState
+                                                    description={
+                                                        needle
+                                                            ? "Try a different search term."
+                                                            : `The server returned no ${tab()}.`
+                                                    }
+                                                    icon="search"
+                                                    size="inline"
+                                                    title={needle ? "No matches" : "Nothing here"}
+                                                />
+                                            }
+                                            rows={rows}
+                                        />
+                                    ) : (
+                                        <EmptyState
+                                            description={`Loading ${tab()}.`}
+                                            icon="shield"
+                                            title="Loading administration…"
+                                        />
+                                    )
                                 ) : (
-                                    <EmptyState
-                                        description={`Loading ${tab()}.`}
-                                        icon="shield"
-                                        title="Loading administration…"
-                                    />
-                                )
-                            ) : (
-                                <Banner tone="danger" title="Admin access unavailable">
-                                    {loadError ?? "Administrative data could not load."}
-                                </Banner>
-                            )}
+                                    <Banner tone="danger" title="Admin access unavailable">
+                                        {loadError ?? "Administrative data could not load."}
+                                    </Banner>
+                                )}
+                            </Box>
                         </Box>
                     </Box>
                 );

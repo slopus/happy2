@@ -69,9 +69,10 @@
 }
 
 .happy2-modal__icon {
-    display: grid;
+    display: flex;
     flex: none;
-    place-items: center;
+    align-items: center;
+    justify-content: center;
     width: 28px;
     height: 28px;
     background: var(--happy2-accent-soft);
@@ -106,14 +107,21 @@
 
 /* ---- Body ------------------------------------------------------------ */
 
+/* Scrollport: edge-to-edge, no padding of its own. */
 .happy2-modal__body {
     flex: 1 1 auto;
-    padding: 4px 20px 20px;
     overflow: auto;
     color: var(--happy2-text-secondary);
     font-size: 13px;
     font-weight: 400;
     line-height: 20px;
+}
+
+/* Inner content wrapper carries the 4/20/20 body inset; block flow so arbitrary
+   modal content lays out exactly as before. */
+.happy2-modal__body-content {
+    display: block;
+    padding: 4px 20px 20px;
 }
 
 /* ---- Footer ---------------------------------------------------------- */

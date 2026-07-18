@@ -106,47 +106,52 @@ export function InfoPanel(props: InfoPanelProps) {
                 }
             />
             <div className="happy2-info-panel__body" data-happy2-ui="info-panel-body">
-                {local.profile
-                    ? ((profile) => (
-                          <ProfileCard
-                              imageUrl={profile.imageUrl}
-                              initials={profile.initials}
-                              name={profile.name}
-                              presence={profile.presence}
-                              status={profile.status}
-                              title={profile.title}
-                              tone={profile.tone}
-                              username={profile.username}
-                          />
-                      ))(local.profile)
-                    : null}
-                {local.about !== undefined ? (
-                    <div className="happy2-info-panel__about" data-happy2-ui="info-panel-about">
-                        <span className="happy2-info-panel__about-label">
-                            {local.aboutLabel ?? "About"}
-                        </span>
-                        <span className="happy2-info-panel__about-text">{local.about}</span>
-                    </div>
-                ) : null}
-                {local.children}
-                {local.members && local.members.length > 0
-                    ? ((_) => (
-                          <div
-                              className="happy2-info-panel__members"
-                              data-happy2-ui="info-panel-members"
-                          >
-                              <span className="happy2-info-panel__section-label">
-                                  {local.membersLabel ?? "Members"} · {local.members!.length}
-                              </span>
-                              <MemberList
-                                  actionLabel={local.memberActionLabel}
-                                  members={local.members!}
-                                  onAction={local.onMemberAction}
-                                  rowMenu={local.memberRowMenu}
+                <div
+                    className="happy2-info-panel__body-content"
+                    data-happy2-ui="info-panel-body-content"
+                >
+                    {local.profile
+                        ? ((profile) => (
+                              <ProfileCard
+                                  imageUrl={profile.imageUrl}
+                                  initials={profile.initials}
+                                  name={profile.name}
+                                  presence={profile.presence}
+                                  status={profile.status}
+                                  title={profile.title}
+                                  tone={profile.tone}
+                                  username={profile.username}
                               />
-                          </div>
-                      ))(local.members && local.members.length > 0)
-                    : null}
+                          ))(local.profile)
+                        : null}
+                    {local.about !== undefined ? (
+                        <div className="happy2-info-panel__about" data-happy2-ui="info-panel-about">
+                            <span className="happy2-info-panel__about-label">
+                                {local.aboutLabel ?? "About"}
+                            </span>
+                            <span className="happy2-info-panel__about-text">{local.about}</span>
+                        </div>
+                    ) : null}
+                    {local.children}
+                    {local.members && local.members.length > 0
+                        ? ((_) => (
+                              <div
+                                  className="happy2-info-panel__members"
+                                  data-happy2-ui="info-panel-members"
+                              >
+                                  <span className="happy2-info-panel__section-label">
+                                      {local.membersLabel ?? "Members"} · {local.members!.length}
+                                  </span>
+                                  <MemberList
+                                      actionLabel={local.memberActionLabel}
+                                      members={local.members!}
+                                      onAction={local.onMemberAction}
+                                      rowMenu={local.memberRowMenu}
+                                  />
+                              </div>
+                          ))(local.members && local.members.length > 0)
+                        : null}
+                </div>
             </div>
         </section>
     );

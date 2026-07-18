@@ -12,10 +12,10 @@
 
 .happy2-avatar {
     position: relative;
-    display: grid;
+    display: flex;
     flex: none;
     align-items: center;
-    justify-items: center;
+    justify-content: center;
     border-radius: var(--happy2-radius-pill);
     background: var(--happy2-tone-slate);
     color: var(--happy2-text-on-accent);

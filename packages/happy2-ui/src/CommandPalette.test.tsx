@@ -121,8 +121,16 @@ it("holds CommandPalette card geometry, input row, and body split", async () => 
     /* ---- Body ----------------------------------------------------------- */
     const body = view.$('[data-testid="cp"] [data-happy2-ui="command-palette-body"]');
     expect(body.bounds().width).toBe(638); /* 640 - 2 * 1px border */
+    /* Scrollport edge-to-edge; the inner wrapper carries the 8px inset. */
     expect(body.computedStyles(["overflow-y", "padding-top", "padding-left"])).toEqual({
         "overflow-y": "auto",
+        "padding-top": "0px",
+        "padding-left": "0px",
+    });
+    const bodyContent = view.$(
+        '[data-testid="cp"] [data-happy2-ui="command-palette-body-content"]',
+    );
+    expect(bodyContent.computedStyles(["padding-top", "padding-left"])).toEqual({
         "padding-top": "8px",
         "padding-left": "8px",
     });

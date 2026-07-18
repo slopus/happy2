@@ -73,23 +73,23 @@ should make declared dimensions easy to inspect.
 
 Current reference dimensions are:
 
-| Element                   | Reference dimension            |
-| ------------------------- | ------------------------------ |
-| Minimum app window        | 1024 × 704 px                  |
-| App title/navigation row  | 38 px high                     |
-| Feature rail              | 76 px wide                     |
-| Standard sidebar          | 288 px wide                    |
-| Main content shell inset  | 0 top/left · 8 px right/bottom |
-| Main content shell radius | 8 px (macOS window match)      |
-| Surface header row        | 52 px high                     |
-| Section toolbar           | 48 px high                     |
-| Small button              | 28 px high                     |
-| Medium button             | 36 px high                     |
-| Large button              | 44 px high                     |
-| Modal dialog widths       | 360 / 480 / 640 (small/med/lg) |
+| Element                   | Reference dimension             |
+| ------------------------- | ------------------------------- |
+| Minimum app window        | 1024 × 704 px                   |
+| App title/navigation row  | 38 px high                      |
+| Feature rail              | 76 px wide                      |
+| Standard sidebar          | 288 px wide                     |
+| Main content shell inset  | 0 top/left · 8 px right/bottom  |
+| Main content shell radius | 8 px (macOS window match)       |
+| Surface header row        | 52 px high                      |
+| Section toolbar           | 48 px high                      |
+| Small button              | 28 px high                      |
+| Medium button             | 36 px high                      |
+| Large button              | 44 px high                      |
+| Modal dialog widths       | 360 / 480 / 640 (small/med/lg)  |
 | Modal overlay gutter      | 24 px safe-area around the card |
-| Blueprint toolbar         | 42 px high                     |
-| Blueprint specimen grid   | 16 px minor / 80 px major      |
+| Blueprint toolbar         | 42 px high                      |
+| Blueprint specimen grid   | 16 px minor / 80 px major       |
 
 The **surface header row** is the 52 px context strip at the top of a main
 surface or a side panel: `ChannelHeader`, `InfoPanel`, and `ThreadPanel` all use
@@ -136,8 +136,76 @@ absolute positioning for layouts that flexbox handles; absolute positioning is
 reserved for overlays, popovers, and badges that intentionally leave the flow.
 Do not reach for Grid merely to center a single child — a one-item flex container
 (`display: flex; align-items: center; justify-content: center`) is the standard
-centering box. When a reviewer sees a non-flex layout, the component must justify
-why flexbox was not possible.
+centering box.
+
+Whenever component CSS deliberately uses a non-flex mechanism to arrange
+multiple children, put a comment immediately beside that rule or declaration
+explaining the concrete geometry that flexbox cannot express. This applies to
+Grid, absolute positioning used for layout, table layout, and any other
+alternative. A distant design note or an implicit visual argument is not a
+justification. Ordinary text flow and the internal display mode of a leaf glyph
+or control do not need a comment because they are not arranging a component's
+children.
+
+ESLint enforces this contract in production CSS and inline JSX through
+`happy2-layout/use-flex-layout`. An exception must target exactly one
+declaration and carry a concrete explanation of the geometry, for example:
+
+```css
+/* eslint-disable-next-line happy2-layout/use-flex-layout -- Two-dimensional media matrix with equal row and column tracks. */
+display: grid;
+```
+
+File-wide and block-wide disables are forbidden. The companion
+`happy2-layout/require-layout-exception-reason` rule rejects non-local or
+unexplained suppressions.
+
+### Spacing between siblings
+
+The flex parent owns the spacing between its immediate visual children through
+`gap` or `row-gap`/`column-gap`. Reusable children such as buttons, banners,
+fields, cards, and list rows must not create external margins to separate
+themselves from unknown siblings. Do not simulate sibling spacing with spacer
+elements, adjacent-sibling selectors, `:first-child`/`:last-child` margin
+exceptions, or margins that depend on whether an optional child exists.
+
+Conditional children must remain in the same flex flow as the elements around
+them. A missing child contributes neither a box nor a gap; when it appears, the
+parent's existing `gap` separates it on both sides automatically. Do not split
+one visual sequence across fragments or nested wrappers that create independent
+spacing islands. If a wrapper is required, it becomes a flex parent and declares
+the gap for its own immediate children explicitly.
+
+Choose gaps from the 4 px foundational grid and assert the rendered distance
+between every representative pair of adjacent children. Tests for a flow with
+optional content must render both the present and absent states and prove that
+all remaining adjacent pairs keep the declared gap.
+
+### Full-bleed scrollports
+
+An element that owns scrolling (`overflow: auto` or `overflow: scroll`) fills
+the entire region its parent allocates to it. The scrollport itself has no
+margin or padding: its viewport and scrollbar run from edge to edge on both
+axes. In a flex layout it normally uses `flex: 1 1 auto`, `min-width: 0`,
+`min-height: 0`, and `width: 100%` as applicable to make that ownership
+explicit.
+
+Spacing, readable maximum widths, centering, and focus-ring clearance belong to
+an inner content wrapper, never to the scrollport. That wrapper is normally a
+flex column with an explicit `gap`; a further inner measure may use a maximum
+width and center the content while the scrollport still spans the full parent.
+Keep at least the complete painted extent of an external focus ring inside the
+content wrapper's safe gutter so scrolling cannot clip it.
+
+`happy2-layout/scrollport-no-spacing` enforces zero scrollport margin and
+padding in production CSS and inline JSX. Do not suppress it: introduce an
+inner flex wrapper and put the spacing there.
+
+Rendering tests for every scroll surface must prove at 2× device scale that the
+scrollport matches its allocated parent region, has zero computed margin and
+padding, and keeps the painted focus indicator of the first, last, widest, and
+narrowest representative interactive children visible in Chromium, Firefox,
+and WebKit.
 
 ## Nested rounded corners
 

@@ -21,6 +21,7 @@
 
     position: relative;
     box-sizing: border-box;
+    /* eslint-disable-next-line happy2-layout/use-flex-layout -- equal 1fr segment tracks must each be as wide as the widest label; flexbox cannot size auto-width columns equally */
     display: inline-grid;
     grid-auto-rows: 1fr;
     align-items: stretch;
@@ -33,6 +34,7 @@
 }
 
 .happy2-segmented-control[data-full-width] {
+    /* eslint-disable-next-line happy2-layout/use-flex-layout -- keeps the same equal 1fr segment-track model as the auto-width control, now stretched to full width */
     display: grid;
     width: 100%;
 }

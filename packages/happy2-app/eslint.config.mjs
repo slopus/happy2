@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import css from "@eslint/css";
 import babelParser from "@babel/eslint-parser";
 import router from "@tanstack/eslint-plugin-router";
 import { defineConfig, globalIgnores } from "eslint/config";
@@ -6,8 +7,10 @@ import jsxA11y from "eslint-plugin-jsx-a11y";
 import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
+import layoutPolicy from "../../eslint/layout-policy.mjs";
 
 const common = {
+    plugins: { "happy2-layout": layoutPolicy },
     extends: [
         js.configs.recommended,
         react.configs.flat.recommended,
@@ -44,6 +47,9 @@ const common = {
         ],
         "react/prop-types": "off",
         "react-hooks/exhaustive-deps": "error",
+        "happy2-layout/require-layout-exception-reason": "error",
+        "happy2-layout/scrollport-no-spacing": "error",
+        "happy2-layout/use-flex-layout": "error",
     },
 };
 
@@ -69,5 +75,16 @@ export default defineConfig(
         ...common,
         files: ["**/*.tsx"],
         languageOptions: languageOptions(["typescript", "jsx"]),
+    },
+    {
+        files: ["**/*.css"],
+        language: "css/css",
+        languageOptions: { tolerant: true },
+        plugins: { css, "happy2-layout": layoutPolicy },
+        rules: {
+            "happy2-layout/require-layout-exception-reason": "error",
+            "happy2-layout/scrollport-no-spacing": "error",
+            "happy2-layout/use-flex-layout": "error",
+        },
     },
 );

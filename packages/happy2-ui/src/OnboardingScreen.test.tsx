@@ -3,9 +3,54 @@ import { server } from "vitest/browser";
 import "./theme.css";
 import "./styles/onboarding-screen.css";
 import "./styles/icon.css";
+import "./styles/setup-option-card.css";
+import "./styles/text-field.css";
+import "./styles/banner.css";
+import "./styles/badge.css";
 import { OnboardingScreen, type OnboardingStep } from "./OnboardingScreen";
 import { Icon } from "./Icon";
-import { createRenderer, type RenderedElement } from "./testing";
+import { SetupOptionCard } from "./SetupOptionCard";
+import { TextField } from "./TextField";
+import { Banner } from "./Banner";
+import { createRenderer, type Bounds, type RenderedElement } from "./testing";
+
+/*
+ * External focus-ring painted extent beyond an interactive child's border box.
+ * These are the component contracts the body scrollport must never clip:
+ * SetupOptionCard `:focus-visible` is `2px` outline + `2px` outline-offset, and
+ * TextField's control `:focus-within` is `2px` outline + `1px` outline-offset.
+ */
+const OPTION_RING_EXTENT = 4;
+const FIELD_RING_EXTENT = 3;
+
+/*
+ * Asserts an interactive child sits far enough inside the scrollport that its
+ * external focus ring cannot be clipped on the requested edges. Insets are read
+ * from border boxes, so the right inset conservatively includes the scrollbar
+ * gutter; every reported inset must still clear the ring's painted extent.
+ */
+function assertRingClearance(
+    scrollport: Bounds,
+    child: Bounds,
+    extent: number,
+    edges: readonly string[],
+    name: string,
+) {
+    expect(child.x - scrollport.x, `${name}: left ring clearance`).toBeGreaterThanOrEqual(extent);
+    expect(
+        scrollport.x + scrollport.width - (child.x + child.width),
+        `${name}: right ring clearance`,
+    ).toBeGreaterThanOrEqual(extent);
+    if (edges.includes("top"))
+        expect(child.y - scrollport.y, `${name}: top ring clearance`).toBeGreaterThanOrEqual(
+            extent,
+        );
+    if (edges.includes("bottom"))
+        expect(
+            scrollport.y + scrollport.height - (child.y + child.height),
+            `${name}: bottom ring clearance`,
+        ).toBeGreaterThanOrEqual(extent);
+}
 
 type Renderer = ReturnType<typeof createRenderer>;
 
@@ -315,15 +360,65 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
     expect(title.offsets().top - (kicker.offsets().top + kicker.height())).toBe(12);
     expect(copy.offsets().top - (title.offsets().top + title.height())).toBe(14);
 
-    /* ---- Body slot hosts the app children ------------------------------ */
+    /* ---- Body slot: full-bleed scrollport + inner content wrapper ------- */
 
     const body = view.$('[data-happy2-ui="onboarding-body"]');
+    const bodyContent = view.$('[data-happy2-ui="onboarding-body-content"]');
     const bodyChild = view.$('[data-testid="onboarding-body-child"]');
     expect(bodyChild.height()).toBe(44);
-    expect(body.computedStyles(["margin-top", "overflow-y"])).toEqual({
-        "margin-top": "28px",
+
+    /* The scrollport owns scrolling and fills its allocated region with zero
+     * margin and zero padding, edge to edge on both axes. */
+    expect(
+        body.computedStyles([
+            "margin-top",
+            "margin-right",
+            "margin-bottom",
+            "margin-left",
+            "padding-top",
+            "padding-right",
+            "padding-bottom",
+            "padding-left",
+            "overflow-y",
+        ]),
+    ).toEqual({
+        "margin-top": "0px",
+        "margin-right": "0px",
+        "margin-bottom": "0px",
+        "margin-left": "0px",
+        "padding-top": "0px",
+        "padding-right": "0px",
+        "padding-bottom": "0px",
+        "padding-left": "0px",
         "overflow-y": "auto",
     });
+    /* The scrollport spans the full card content-box width (480 − 2×1 border −
+     * 2×40 padding) with no extra inset of its own on either side. */
+    expect(body.bounds().width).toBe(398);
+    expect(body.offsets()).toMatchObject({ left: 41, right: 41 });
+
+    /* Spacing, gap, and the focus-safe gutter live on the inner wrapper. */
+    expect(
+        bodyContent.computedStyles([
+            "display",
+            "flex-direction",
+            "gap",
+            "padding-top",
+            "padding-right",
+            "padding-bottom",
+            "padding-left",
+        ]),
+    ).toEqual({
+        display: "flex",
+        "flex-direction": "column",
+        gap: "12px",
+        "padding-top": "28px",
+        "padding-right": "8px",
+        "padding-bottom": "8px",
+        "padding-left": "8px",
+    });
+    /* The 28px content→body separation is preserved by the wrapper's top gutter. */
+    expect(bodyChild.offsets().top).toBe(28);
 
     /* ---- Footer -------------------------------------------------------- */
 
@@ -505,4 +600,211 @@ it("holds OnboardingScreen loading, large width, and minimal variants", async ()
     ).toBe(480);
 
     await view.screenshot("OnboardingScreen.variants.test");
+}, 120_000);
+
+it("holds a full-bleed body scrollport that never clips a child's focus ring", async () => {
+    const view = createRenderer();
+
+    view.render(
+        () => (
+            <OnboardingScreen
+                copy="Agent code runs inside the selected sandbox provider."
+                data-testid="scroll"
+                kicker="Server setup"
+                title="Choose a sandbox"
+            >
+                <SetupOptionCard
+                    data-testid="opt-first"
+                    description="Docker 25 is ready to run agents."
+                    icon="terminal"
+                    title="Docker"
+                />
+                <TextField data-testid="field-mid" label="Image name" value="daycare" />
+                <SetupOptionCard
+                    description="A lean sandbox with the core agent toolchain."
+                    icon="image"
+                    title="Daycare Minimal"
+                />
+                <SetupOptionCard
+                    description="A complete sandbox with the full Daycare toolchain."
+                    icon="image"
+                    title="Daycare Full"
+                />
+                <TextField
+                    data-testid="field-last"
+                    label="Notes"
+                    value="Ship it when the build turns green."
+                />
+            </OnboardingScreen>
+        ),
+        { width: 1024, height: 380 },
+    );
+    await view.ready();
+
+    /* ---- The scrollport fills the card's content-box region exactly ------ */
+
+    const card = view.$('[data-testid="scroll"] [data-happy2-ui="onboarding-card"]');
+    const body = view.$('[data-testid="scroll"] [data-happy2-ui="onboarding-body"]');
+    const bodyEl = body.element as HTMLElement;
+    /* Full bleed: the scrollport spans the card's whole content box (the medium
+     * card is 480 − 2×1 border − 2×40 padding = 398) and, as the last card
+     * child here, runs to the content-box edge on the sides and the bottom. */
+    expect(card.bounds().width).toBe(480);
+    expect(body.bounds().width, "scrollport width == card content width").toBe(398);
+    expect(body.offsets()).toMatchObject({ left: 41, right: 41, bottom: 41 });
+    expect(
+        body.computedStyles([
+            "margin-top",
+            "margin-right",
+            "margin-bottom",
+            "margin-left",
+            "padding-top",
+            "padding-right",
+            "padding-bottom",
+            "padding-left",
+        ]),
+    ).toEqual({
+        "margin-top": "0px",
+        "margin-right": "0px",
+        "margin-bottom": "0px",
+        "margin-left": "0px",
+        "padding-top": "0px",
+        "padding-right": "0px",
+        "padding-bottom": "0px",
+        "padding-left": "0px",
+    });
+    /* The content genuinely overflows, so both scroll edges are exercised. */
+    expect(bodyEl.scrollHeight, "content overflows the scrollport").toBeGreaterThan(
+        bodyEl.clientHeight,
+    );
+
+    /* ---- Scrolled to the top: first child's ring clears the top edge ----- */
+
+    bodyEl.scrollTop = 0;
+    const firstOption = view.$('[data-testid="opt-first"]');
+    assertRingClearance(
+        body.bounds(),
+        firstOption.bounds(),
+        OPTION_RING_EXTENT,
+        ["top"],
+        "first option",
+    );
+    /* The 28px content→body separation lives in the wrapper's top gutter. */
+    expect(firstOption.offsets().top, "first child rests at the 28px gutter").toBe(28);
+    await paintsUnclipped(firstOption, "first option card");
+
+    /* A TextField near the top edge is likewise clear on its sides. */
+    const midControl = view.$('[data-testid="field-mid"] [data-happy2-ui="text-field-control"]');
+    assertRingClearance(body.bounds(), midControl.bounds(), FIELD_RING_EXTENT, [], "mid field");
+
+    /* ---- Scrolled to the bottom: last child's ring clears the bottom ----- */
+
+    bodyEl.scrollTop = bodyEl.scrollHeight;
+    const lastControl = view.$('[data-testid="field-last"] [data-happy2-ui="text-field-control"]');
+    const lastInput = view.$('[data-testid="field-last"] [data-happy2-ui="text-field-input"]');
+    assertRingClearance(
+        body.bounds(),
+        lastControl.bounds(),
+        FIELD_RING_EXTENT,
+        ["bottom"],
+        "last field",
+    );
+
+    /* Focus the trailing field: its accent ring is really painted and stays
+     * inside the scrollport at the bottom scroll edge. */
+    (lastInput.element as HTMLInputElement).focus();
+    (lastInput.element as HTMLInputElement).style.caretColor = "transparent";
+    await new Promise<void>((resolve) => setTimeout(resolve, 250));
+    expect(document.activeElement).toBe(lastInput.element);
+    expect(
+        lastControl.computedStyles([
+            "outline-color",
+            "outline-offset",
+            "outline-style",
+            "outline-width",
+        ]),
+    ).toEqual({
+        "outline-color": "rgb(168, 155, 255)",
+        "outline-offset": "1px",
+        "outline-style": "solid",
+        "outline-width": "2px",
+    });
+    expect((await lastInput.visibleMetrics()).pixelCount, "focused field paints").toBeGreaterThan(
+        0,
+    );
+    /* The painted ring rectangle (border box + 3px) is inside the scrollport. */
+    const sp = body.bounds();
+    const ring = lastControl.bounds();
+    expect(ring.y - FIELD_RING_EXTENT - sp.y, "ring top inside scrollport").toBeGreaterThanOrEqual(
+        0,
+    );
+    expect(
+        sp.y + sp.height - (ring.y + ring.height + FIELD_RING_EXTENT),
+        "ring bottom inside scrollport",
+    ).toBeGreaterThanOrEqual(0);
+    expect(ring.x - FIELD_RING_EXTENT - sp.x, "ring left inside scrollport").toBeGreaterThanOrEqual(
+        0,
+    );
+
+    await view.screenshot("OnboardingScreen.scroll.test");
+}, 120_000);
+
+it("keeps the declared body gap whether an optional leading banner is present or absent", async () => {
+    const view = createRenderer();
+
+    /* With a leading provider banner (the ServerOnboarding provider notice). */
+    view.render(
+        () => (
+            <OnboardingScreen
+                data-testid="with-banner"
+                kicker="Server setup"
+                title="Pick a base image"
+            >
+                <Banner data-testid="note" icon="shield" tone="info">
+                    Agent code runs inside the Docker sandbox.
+                </Banner>
+                <SetupOptionCard data-testid="wb-first" icon="image" title="Daycare Minimal" />
+                <SetupOptionCard data-testid="wb-second" icon="image" title="Daycare Full" />
+            </OnboardingScreen>
+        ),
+        { width: 1024, height: 640 },
+    );
+    /* Without the banner: the same two option cards, nothing else. */
+    view.render(
+        () => (
+            <OnboardingScreen
+                data-testid="no-banner"
+                kicker="Server setup"
+                title="Pick a base image"
+            >
+                <SetupOptionCard data-testid="nb-first" icon="image" title="Daycare Minimal" />
+                <SetupOptionCard data-testid="nb-second" icon="image" title="Daycare Full" />
+            </OnboardingScreen>
+        ),
+        { width: 1024, height: 640 },
+    );
+    await view.ready();
+
+    const gapBetween = (top: RenderedElement<Element>, bottom: RenderedElement<Element>) =>
+        bottom.offsets().top - (top.offsets().top + top.height());
+
+    /* ---- Present: banner→first card and card→card are both the 12px gap -- */
+
+    const note = view.$('[data-testid="note"]');
+    const wbFirst = view.$('[data-testid="wb-first"]');
+    const wbSecond = view.$('[data-testid="wb-second"]');
+    /* The banner is the first flow child: it rests at the wrapper's top gutter,
+     * never touching the content block, with no external margin of its own. */
+    expect(note.offsets().top, "banner at top gutter").toBe(28);
+    expect(gapBetween(note, wbFirst), "banner → first card gap").toBe(12);
+    expect(gapBetween(wbFirst, wbSecond), "card → card gap (with banner)").toBe(12);
+
+    /* ---- Absent: the first card takes the banner's place, gaps unchanged -- */
+
+    const nbFirst = view.$('[data-testid="nb-first"]');
+    const nbSecond = view.$('[data-testid="nb-second"]');
+    expect(nbFirst.offsets().top, "first card at top gutter").toBe(28);
+    expect(gapBetween(nbFirst, nbSecond), "card → card gap (no banner)").toBe(12);
+
+    await view.screenshot("OnboardingScreen.gaps.test");
 }, 120_000);

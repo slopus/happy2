@@ -255,6 +255,11 @@ function ServerOnboardingBody(props: {
         </OnboardingScreen>
     );
 }
+// The active step's banners and option cards flatten into the OnboardingScreen
+// body's one flex-gap flow (a fragment, not a nested wrapper), so the provider
+// notice, any error banner, and the first SetupOptionCard are separated by the
+// same declared 12px grid gap the option cards use between themselves — whether
+// or not the optional banners are present.
 function Switchboard(props: {
     snapshot: SetupSnapshot;
     state: HappyState;
@@ -262,7 +267,7 @@ function Switchboard(props: {
     store: SetupStore;
 }): ReactNode {
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        <>
             {props.step === "sandbox-provider" ? (
                 <SandboxProviderStep snapshot={props.snapshot} store={props.store} />
             ) : null}
@@ -280,7 +285,7 @@ function Switchboard(props: {
                     You will enter the workspace automatically once server setup is complete.
                 </Banner>
             ) : null}
-        </div>
+        </>
     );
 }
 function SandboxProviderStep(props: { snapshot: SetupSnapshot; store: SetupStore }) {

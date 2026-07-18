@@ -150,24 +150,31 @@ function FilesPageContent(props: FilesPageProps & { snapshot: FilesSnapshot }) {
                     flex: "1 1 0%",
                     minHeight: "0",
                     overflow: "auto",
-                    padding: "16px",
                 }}
             >
-                <MediaGallery
-                    empty={
-                        <EmptyState
-                            description="Try a different filter or search term."
-                            icon={needle ? "search" : "files"}
-                            size="inline"
-                            title="No files match"
-                        />
-                    }
-                    items={filtered}
-                    onOpen={(id) => {
-                        const file = snapshot.files.find((item) => item.id === id);
-                        if (file) void open(file);
+                <Box
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        padding: "16px",
                     }}
-                />
+                >
+                    <MediaGallery
+                        empty={
+                            <EmptyState
+                                description="Try a different filter or search term."
+                                icon={needle ? "search" : "files"}
+                                size="inline"
+                                title="No files match"
+                            />
+                        }
+                        items={filtered}
+                        onOpen={(id) => {
+                            const file = snapshot.files.find((item) => item.id === id);
+                            if (file) void open(file);
+                        }}
+                    />
+                </Box>
             </Box>
         </>
     ) : !loadError ? (

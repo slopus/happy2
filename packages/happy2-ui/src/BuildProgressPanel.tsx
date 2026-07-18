@@ -143,7 +143,7 @@ export function BuildProgressPanel(props: BuildProgressPanelProps) {
                               className="happy2-build-progress__log"
                               data-happy2-ui="build-progress-log"
                           >
-                              {log}
+                              <code className="happy2-build-progress__log-inner">{log}</code>
                           </pre>
                       </div>
                   ))(local.log)

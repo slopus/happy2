@@ -3,7 +3,7 @@ import babel from "@rolldown/plugin-babel";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { playwright } from "@vitest/browser-playwright";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
     plugins: [tailwindcss(), react(), babel({ presets: [reactCompilerPreset()] })],
@@ -18,6 +18,7 @@ export default defineConfig({
         },
     },
     test: {
+        exclude: [...configDefaults.exclude, "eslint/**"],
         browser: {
             enabled: true,
             headless: true,

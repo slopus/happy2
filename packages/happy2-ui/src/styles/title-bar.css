@@ -35,8 +35,7 @@
 /* ---- TitleBar --------------------------------------------------------- */
 
 .happy2-title-bar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 420px) minmax(0, 1fr);
+    display: flex;
     align-items: center;
     column-gap: 12px;
     width: 100%;
@@ -85,6 +84,9 @@
 .happy2-title-bar__leading,
 .happy2-title-bar__trailing {
     display: flex;
+    /* Equal side lanes (was 1fr | … | 1fr): each takes half the space left of
+       the centered search well, so the well stays centered in the bar. */
+    flex: 1 1 0;
     align-items: center;
     gap: 8px;
     min-width: 0;
@@ -97,6 +99,9 @@
 
 .happy2-title-bar__center {
     display: flex;
+    /* Center lane capped at 420px (was minmax(0, 420px)); it never grows past
+       420 and shrinks on a narrow window while the side lanes absorb slack. */
+    flex: 0 1 420px;
     align-items: center;
     min-width: 0;
 }

@@ -64,9 +64,7 @@
 
     position: relative;
     box-sizing: border-box;
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    grid-auto-rows: 1fr;
+    display: flex;
     align-items: stretch;
     width: 100%;
     height: 36px;
@@ -101,6 +99,9 @@
     z-index: 1;
     box-sizing: border-box;
     display: flex;
+    /* Equal contiguous columns (was repeat(4, 1fr)); the absolute pill of the
+       same one-quarter width slides by index across them. */
+    flex: 1 1 0;
     align-items: center;
     justify-content: center;
     gap: 6px;

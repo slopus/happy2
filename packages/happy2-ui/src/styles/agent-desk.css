@@ -62,14 +62,22 @@
 
 /* ---- Scrolling body --------------------------------------------------- */
 
+/* Scrollport: edge-to-edge, no padding/gap of its own. */
 .happy2-agent-desk__body {
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
-    gap: 8px;
     min-height: 0;
-    padding: 12px 14px 16px;
     overflow-y: auto;
+}
+
+/* Inner content wrapper owns the 8px row gap and the 12/14/16px inset. */
+.happy2-agent-desk__body-content {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px 16px;
 }
 
 /* ---- Running tiles ----------------------------------------------------- */

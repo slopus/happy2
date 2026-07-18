@@ -46,53 +46,60 @@ export function CallsPage(props: CallsPageProps) {
                             display: "flex",
                             flex: "1 1 auto",
                             flexDirection: "column",
-                            gap: "16px",
                             minHeight: "0",
                             overflowY: "auto",
-                            padding: "24px",
                         }}
                     >
-                        {incoming
-                            ? ((call) => (
-                                  <CallPanel
-                                      kind={call.kind}
-                                      onDecline={() => store.callDecline(call.id)}
-                                      onJoin={() => store.callJoin(call.id)}
-                                      participants={participants(call, props.imageUrl)}
-                                      status="ringing"
-                                      variant="incoming"
-                                  />
-                              ))(incoming)
-                            : null}
-                        {active
-                            ? ((call) => (
-                                  <CallPanel
-                                      durationLabel={duration(call, now)}
-                                      kind={call.kind}
-                                      muted={muted}
-                                      onLeave={() => store.callLeave(call.id)}
-                                      onToggleMute={() => setMuted((value) => !value)}
-                                      onToggleVideo={() => setVideoOn((value) => !value)}
-                                      participants={participants(call, props.imageUrl)}
-                                      status="active"
-                                      videoOn={videoOn}
-                                  />
-                              ))(active)
-                            : null}
-                        <Box style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                            <Badge label="Recent calls" variant="neutral" />
-                            <DataTable
-                                columns={historyColumns}
-                                empty={
-                                    <EmptyState
-                                        description="Calls you place or receive will show up here."
-                                        icon="clock"
-                                        size="inline"
-                                        title="No calls yet"
-                                    />
-                                }
-                                rows={history.map((call) => historyRow(call, props.imageUrl))}
-                            />
+                        <Box
+                            style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "16px",
+                                padding: "24px",
+                            }}
+                        >
+                            {incoming
+                                ? ((call) => (
+                                      <CallPanel
+                                          kind={call.kind}
+                                          onDecline={() => store.callDecline(call.id)}
+                                          onJoin={() => store.callJoin(call.id)}
+                                          participants={participants(call, props.imageUrl)}
+                                          status="ringing"
+                                          variant="incoming"
+                                      />
+                                  ))(incoming)
+                                : null}
+                            {active
+                                ? ((call) => (
+                                      <CallPanel
+                                          durationLabel={duration(call, now)}
+                                          kind={call.kind}
+                                          muted={muted}
+                                          onLeave={() => store.callLeave(call.id)}
+                                          onToggleMute={() => setMuted((value) => !value)}
+                                          onToggleVideo={() => setVideoOn((value) => !value)}
+                                          participants={participants(call, props.imageUrl)}
+                                          status="active"
+                                          videoOn={videoOn}
+                                      />
+                                  ))(active)
+                                : null}
+                            <Box style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                                <Badge label="Recent calls" variant="neutral" />
+                                <DataTable
+                                    columns={historyColumns}
+                                    empty={
+                                        <EmptyState
+                                            description="Calls you place or receive will show up here."
+                                            icon="clock"
+                                            size="inline"
+                                            title="No calls yet"
+                                        />
+                                    }
+                                    rows={history.map((call) => historyRow(call, props.imageUrl))}
+                                />
+                            </Box>
                         </Box>
                     </Box>
                 ) : (

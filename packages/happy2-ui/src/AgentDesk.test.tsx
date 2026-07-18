@@ -179,6 +179,7 @@ it("holds AgentDesk geometry, colors, and typography in the 340px shell panel", 
     // Body: scroll container below the header.
     const body = view.$('[data-happy2-ui="agent-desk-body"]');
     expect(body.bounds()).toEqual({ x: 0, y: 48, width: 340, height: 572 });
+    /* Scrollport edge-to-edge; the inner content wrapper owns gap + inset. */
     expect(
         body.computedStyles([
             "overflow-y",
@@ -189,6 +190,16 @@ it("holds AgentDesk geometry, colors, and typography in the 340px shell panel", 
         ]),
     ).toEqual({
         "overflow-y": "auto",
+        "padding-bottom": "0px",
+        "padding-left": "0px",
+        "padding-right": "0px",
+        "padding-top": "0px",
+    });
+    expect(
+        view
+            .$('[data-happy2-ui="agent-desk-body-content"]')
+            .computedStyles(["padding-bottom", "padding-left", "padding-right", "padding-top"]),
+    ).toEqual({
         "padding-bottom": "16px",
         "padding-left": "14px",
         "padding-right": "14px",

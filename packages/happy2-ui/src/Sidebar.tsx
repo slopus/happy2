@@ -193,72 +193,76 @@ export function Sidebar(props: SidebarProps) {
                 </div>
             ) : null}
             <div className="happy2-sidebar__body" data-happy2-ui="sidebar-body">
-                {local.sections.map((section) => (
-                    <section
-                        className="happy2-sidebar__section"
-                        key={section.id}
-                        data-happy2-ui="sidebar-section"
-                        data-section-id={section.id}
-                    >
-                        {section.label ? (
-                            <div
-                                className="happy2-sidebar__section-head"
-                                data-happy2-ui="sidebar-section-head"
-                            >
-                                <span
-                                    className="happy2-sidebar__section-label"
-                                    data-happy2-ui="sidebar-section-label"
+                <div className="happy2-sidebar__body-content" data-happy2-ui="sidebar-body-content">
+                    {local.sections.map((section) => (
+                        <section
+                            className="happy2-sidebar__section"
+                            key={section.id}
+                            data-happy2-ui="sidebar-section"
+                            data-section-id={section.id}
+                        >
+                            {section.label ? (
+                                <div
+                                    className="happy2-sidebar__section-head"
+                                    data-happy2-ui="sidebar-section-head"
                                 >
-                                    {section.label}
-                                </span>
-                                {section.action
-                                    ? ((action) => (
-                                          <button
-                                              aria-label={action.label}
-                                              className="happy2-sidebar__section-action"
-                                              data-happy2-ui="sidebar-section-action"
-                                              onClick={() => local.onSectionAction?.(section.id)}
-                                              type="button"
+                                    <span
+                                        className="happy2-sidebar__section-label"
+                                        data-happy2-ui="sidebar-section-label"
+                                    >
+                                        {section.label}
+                                    </span>
+                                    {section.action
+                                        ? ((action) => (
+                                              <button
+                                                  aria-label={action.label}
+                                                  className="happy2-sidebar__section-action"
+                                                  data-happy2-ui="sidebar-section-action"
+                                                  onClick={() =>
+                                                      local.onSectionAction?.(section.id)
+                                                  }
+                                                  type="button"
+                                              >
+                                                  <Icon name={action.icon} size={12} />
+                                              </button>
+                                          ))(section.action)
+                                        : null}
+                                </div>
+                            ) : null}
+                            {section.items.map((item) => (
+                                <SidebarRow
+                                    active={item.id === local.activeItemId}
+                                    key={item.id}
+                                    item={item}
+                                    onSelect={local.onItemSelect}
+                                />
+                            ))}
+                            {(section.items.length === 0 ? section.empty : undefined)
+                                ? ((empty) => (
+                                      <div
+                                          className="happy2-sidebar__empty"
+                                          data-happy2-ui="sidebar-section-empty"
+                                      >
+                                          <span
+                                              className="happy2-sidebar__empty-description"
+                                              data-happy2-ui="sidebar-section-empty-description"
                                           >
-                                              <Icon name={action.icon} size={12} />
-                                          </button>
-                                      ))(section.action)
-                                    : null}
-                            </div>
-                        ) : null}
-                        {section.items.map((item) => (
-                            <SidebarRow
-                                active={item.id === local.activeItemId}
-                                key={item.id}
-                                item={item}
-                                onSelect={local.onItemSelect}
-                            />
-                        ))}
-                        {(section.items.length === 0 ? section.empty : undefined)
-                            ? ((empty) => (
-                                  <div
-                                      className="happy2-sidebar__empty"
-                                      data-happy2-ui="sidebar-section-empty"
-                                  >
-                                      <span
-                                          className="happy2-sidebar__empty-description"
-                                          data-happy2-ui="sidebar-section-empty-description"
-                                      >
-                                          {empty.description}
-                                      </span>
-                                      <Button
-                                          className="happy2-sidebar__empty-action"
-                                          onClick={() => local.onSectionAction?.(section.id)}
-                                          size="small"
-                                          variant="ghost"
-                                      >
-                                          {empty.actionLabel}
-                                      </Button>
-                                  </div>
-                              ))((section.items.length === 0 ? section.empty : undefined)!)
-                            : null}
-                    </section>
-                ))}
+                                              {empty.description}
+                                          </span>
+                                          <Button
+                                              className="happy2-sidebar__empty-action"
+                                              onClick={() => local.onSectionAction?.(section.id)}
+                                              size="small"
+                                              variant="ghost"
+                                          >
+                                              {empty.actionLabel}
+                                          </Button>
+                                      </div>
+                                  ))((section.items.length === 0 ? section.empty : undefined)!)
+                                : null}
+                        </section>
+                    ))}
+                </div>
             </div>
             {local.footer ? (
                 <footer className="happy2-sidebar__footer" data-happy2-ui="sidebar-footer">

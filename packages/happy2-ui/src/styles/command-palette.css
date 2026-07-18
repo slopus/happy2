@@ -83,11 +83,19 @@
 
 /* ---- Body ------------------------------------------------------------- */
 
+/* Scrollport: edge-to-edge, no padding of its own. */
 .happy2-command-palette__body {
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
     min-height: 0;
     overflow: auto;
+}
+
+/* Inner content wrapper carries the 8px inset around the command groups. */
+.happy2-command-palette__body-content {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
     padding: 8px;
 }

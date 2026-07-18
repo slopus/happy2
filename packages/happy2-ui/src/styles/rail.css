@@ -198,9 +198,10 @@
 }
 
 .happy2-rail__footer-action {
-    display: grid;
+    display: flex;
     flex: none;
-    place-items: center;
+    align-items: center;
+    justify-content: center;
     width: 36px;
     height: 36px;
     margin: 0;

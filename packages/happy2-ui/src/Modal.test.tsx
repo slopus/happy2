@@ -243,12 +243,15 @@ it("holds Modal dialog geometry, header/body/footer layout, and optical glyph ce
 
     const body = view.$('[data-testid="md"] [data-happy2-ui="modal-body"]');
     expect(body.bounds().width).toBe(478); /* 480 - 2 * 1px border */
+    /* The scrollport stays edge-to-edge (no padding of its own); the inner
+       content wrapper carries the 4/20/20 inset. */
     expect(
         body.computedStyles([
             "color",
             "font-size",
             "font-weight",
             "line-height",
+            "overflow-y",
             "padding-bottom",
             "padding-left",
             "padding-right",
@@ -259,6 +262,21 @@ it("holds Modal dialog geometry, header/body/footer layout, and optical glyph ce
         "font-size": "13px",
         "font-weight": "400",
         "line-height": "20px",
+        "overflow-y": "auto",
+        "padding-bottom": "0px",
+        "padding-left": "0px",
+        "padding-right": "0px",
+        "padding-top": "0px",
+    });
+    const bodyContent = view.$('[data-testid="md"] [data-happy2-ui="modal-body-content"]');
+    expect(
+        bodyContent.computedStyles([
+            "padding-bottom",
+            "padding-left",
+            "padding-right",
+            "padding-top",
+        ]),
+    ).toEqual({
         "padding-bottom": "20px",
         "padding-left": "20px",
         "padding-right": "20px",

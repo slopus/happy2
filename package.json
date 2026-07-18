@@ -45,9 +45,9 @@
     "coverage:server:baseline": "pnpm test:coverage-tooling && pnpm coverage:server:unit && pnpm coverage:server:gym && tsx packages/happy2-server/tooling/server-coverage/cli.ts baseline",
     "test:watch": "pnpm -r --parallel --if-present test:watch",
     "typecheck": "tsc --project tsconfig.json && pnpm -r --if-present typecheck",
-    "format": "oxfmt --write scripts tsconfig.json && pnpm -r --if-present format",
-    "format:check": "oxfmt --check scripts tsconfig.json && pnpm -r --if-present format:check",
-    "lint": "oxlint scripts && pnpm -r --if-present lint",
+    "format": "oxfmt --write eslint scripts tsconfig.json && pnpm -r --if-present format",
+    "format:check": "oxfmt --check eslint scripts tsconfig.json && pnpm -r --if-present format:check",
+    "lint": "oxlint eslint scripts && pnpm -r --if-present lint",
     "check": "pnpm format:check && pnpm lint && pnpm --dir packages/happy2-server architecture:check && pnpm typecheck && pnpm test && pnpm coverage:server && pnpm build",
     "release": "tsx scripts/release.ts",
     "prepack": "pnpm run build",
@@ -70,6 +70,7 @@
     "thumbhash": "^0.1.1"
   },
   "devDependencies": {
+    "@eslint/css": "^1.4.0",
     "@rolldown/plugin-babel": "0.2.3",
     "@types/node": "^26.1.1",
     "babel-plugin-react-compiler": "1.0.0",
