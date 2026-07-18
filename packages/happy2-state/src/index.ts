@@ -88,6 +88,7 @@ export type {
     AgentSecretsSnapshot,
     AgentSecretsStore,
 } from "./modules/agent-secrets/agentSecretsState.js";
+export type { PluginsSnapshot, PluginsStore } from "./modules/plugins/pluginsState.js";
 export type { ThreadHandle, ThreadSnapshot, ThreadStore } from "./modules/thread/threadState.js";
 export type {
     ThreadsSnapshot,

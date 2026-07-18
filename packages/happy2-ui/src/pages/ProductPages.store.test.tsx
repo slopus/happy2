@@ -2,6 +2,7 @@ import {
     adminStoreFixtureCreate,
     agentImagesStoreFixtureCreate,
     agentSecretsStoreFixtureCreate,
+    pluginsStoreFixtureCreate,
     callsStoreFixtureCreate,
     directoryStoreFixtureCreate,
     filesStoreFixtureCreate,
@@ -17,6 +18,7 @@ import { ActivityPage } from "./activity/ActivityPage";
 import { AdminPage } from "./admin/AdminPage";
 import { AgentImagesPage } from "./admin/AgentImagesPage";
 import { AgentSecretsPage } from "./admin/AgentSecretsPage";
+import { PluginsPage } from "./admin/PluginsPage";
 import { CallsPage } from "./calls/CallsPage";
 import { FilesPage } from "./files/FilesPage";
 import { HomePage } from "./home/HomePage";
@@ -66,9 +68,11 @@ it("renders AdminPage without materializing optional admin subpages", async () =
     const admin = owned(adminStoreFixtureCreate());
     const images = owned(agentImagesStoreFixtureCreate());
     const secrets = owned(agentSecretsStoreFixtureCreate());
+    const plugins = owned(pluginsStoreFixtureCreate());
     admin.input({ type: "adminLoading" });
     let imageAccesses = 0;
     let secretAccesses = 0;
+    let pluginAccesses = 0;
     const view = createRenderer();
     view.render(
         () => (
@@ -83,6 +87,10 @@ it("renders AdminPage without materializing optional admin subpages", async () =
                     return secrets.store;
                 }}
                 onSectionChange={() => undefined}
+                pluginsStore={() => {
+                    pluginAccesses += 1;
+                    return plugins.store;
+                }}
                 store={admin.store}
             />
         ),
@@ -90,7 +98,7 @@ it("renders AdminPage without materializing optional admin subpages", async () =
     );
     await view.ready();
     expect(view.container.textContent).toContain("Admin");
-    expect([imageAccesses, secretAccesses]).toEqual([0, 0]);
+    expect([imageAccesses, secretAccesses, pluginAccesses]).toEqual([0, 0, 0]);
 });
 
 it("renders AgentImagesPage from its independent store", async () => {
@@ -109,6 +117,143 @@ it("renders AgentSecretsPage from its independent store", async () => {
     view.render(() => <AgentSecretsPage store={fixture.store} />, { width: 1024, height: 704 });
     await view.ready();
     expect(view.container.textContent).toContain("Loading");
+});
+
+it("renders PluginsPage from its independent store and routes the typed install intent", async () => {
+    const outputs: unknown[] = [];
+    const fixture = owned(pluginsStoreFixtureCreate((event) => outputs.push(event)));
+    const images = owned(agentImagesStoreFixtureCreate());
+    let imageAccesses = 0;
+    fixture.input({ type: "pluginsLoading" });
+    const view = createRenderer();
+    view.render(
+        () => (
+            <PluginsPage
+                agentImagesStore={() => {
+                    imageAccesses += 1;
+                    return images.store;
+                }}
+                store={fixture.store}
+            />
+        ),
+        { width: 1024, height: 704 },
+    );
+    await view.ready();
+    expect(view.container.textContent).toContain("Loading plugins");
+
+    fixture.input({
+        type: "pluginsLoaded",
+        plugins: [
+            {
+                displayName: "Project Search",
+                shortName: "project-search",
+                description: "Searches source code and project documentation.",
+                version: "2.1.0",
+                packageDigest: "digest-1",
+                skills: [],
+                mcp: { type: "remote", container: "none" },
+                variables: [
+                    {
+                        key: "PROJECT_API_TOKEN",
+                        displayName: "API token",
+                        description: "Token used by the MCP server.",
+                        kind: "secret",
+                    },
+                ],
+            },
+        ],
+    });
+    await view.ready();
+    const cardBefore = view.container.querySelector('[data-plugin-short-name="project-search"]')!;
+
+    // Authoritative reconciliation must retain the card's DOM identity, and a
+    // remote-MCP catalog never materializes the agent images store.
+    fixture.input({
+        type: "pluginsLoaded",
+        plugins: [
+            {
+                displayName: "Project Search",
+                shortName: "project-search",
+                description: "Searches source code and project documentation.",
+                version: "2.1.0",
+                packageDigest: "digest-1",
+                skills: [],
+                mcp: { type: "remote", container: "none" },
+                variables: [
+                    {
+                        key: "PROJECT_API_TOKEN",
+                        displayName: "API token",
+                        description: "Token used by the MCP server.",
+                        kind: "secret",
+                    },
+                ],
+                systemPlugin: {
+                    id: "plugin-1",
+                    displayName: "Project Search",
+                    shortName: "project-search",
+                    description: "Searches source code and project documentation.",
+                    sourceVersion: "2.1.0",
+                    packageDigest: "digest-1",
+                    variables: [],
+                    image: {
+                        contentType: "image/png",
+                        size: 10,
+                        width: 1024,
+                        height: 1024,
+                        thumbhash: "hash",
+                        checksumSha256: "checksum",
+                    },
+                    installedAt: "2026-01-01T00:00:00.000Z",
+                    updatedAt: "2026-01-01T00:00:00.000Z",
+                    updateAvailable: false,
+                    installations: [
+                        {
+                            id: "ins-1",
+                            pluginId: "plugin-1",
+                            shortName: "project-search",
+                            sourceVersion: "2.1.0",
+                            packageDigest: "digest-1",
+                            status: "ready",
+                            installedAt: "2026-01-01T00:00:00.000Z",
+                            updatedAt: "2026-01-01T00:00:00.000Z",
+                        },
+                    ],
+                },
+            },
+        ],
+    });
+    await view.ready();
+    const cardAfter = view.container.querySelector('[data-plugin-short-name="project-search"]')!;
+    expect(cardAfter, "card DOM identity survives reconciliation").toBe(cardBefore);
+    expect(cardAfter.textContent).toContain("Ready");
+    expect(imageAccesses, "remote MCP never materializes agent images").toBe(0);
+
+    // The install dialog collects the declared variable and emits one typed intent.
+    view.container
+        .querySelector<HTMLButtonElement>(
+            '[data-plugin-short-name="project-search"] .happy2-plugin-catalog-panel__card-actions button',
+        )!
+        .click();
+    await view.ready();
+    const secretInput = view.container.querySelector<HTMLInputElement>(
+        '[data-happy2-ui="modal-dialog"] input',
+    )!;
+    secretInput.value = "token-value";
+    secretInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await view.ready();
+    const submit = Array.from(
+        view.container.querySelectorAll<HTMLButtonElement>(
+            '[data-happy2-ui="modal-footer"] button',
+        ),
+    ).find((button) => button.textContent?.includes("Install plugin"))!;
+    submit.click();
+    expect(outputs).toEqual([
+        {
+            type: "pluginInstallSubmitted",
+            shortName: "project-search",
+            variables: { PROJECT_API_TOKEN: "token-value" },
+        },
+    ]);
 });
 
 it("renders ActivityPage from NotificationsStore input", async () => {

@@ -26,6 +26,14 @@ export {
     type AgentSecretPanelProps,
 } from "./AgentSecretPanel";
 export {
+    PluginCatalogPanel,
+    type PluginCatalogEntry,
+    type PluginCatalogPanelProps,
+    type PluginInstallationItem,
+    type PluginInstallationStatus,
+    type PluginVariableField,
+} from "./PluginCatalogPanel";
+export {
     AgentRunCard,
     type AgentRun,
     type AgentRunAction,
@@ -280,6 +288,7 @@ export {
 } from "./pages/chat/ChatPage";
 export { AgentImagesPage, type AgentImagesPageProps } from "./pages/admin/AgentImagesPage";
 export { AgentSecretsPage, type AgentSecretsPageProps } from "./pages/admin/AgentSecretsPage";
+export { PluginsPage, type PluginsPageProps } from "./pages/admin/PluginsPage";
 export { AdminPage, type AdminPageProps, type AdminPageSection } from "./pages/admin/AdminPage";
 export { ActivityPage, type ActivityPageProps } from "./pages/activity/ActivityPage";
 export { ProfilePage, type ProfilePageProps } from "./pages/profile/ProfilePage";

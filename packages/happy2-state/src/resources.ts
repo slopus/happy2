@@ -242,6 +242,92 @@ export interface AgentSecretSummary {
     readonly channelIds: readonly string[];
 }
 
+/**
+ * Server plugin catalog wire shapes mirrored from `/v0/admin/plugins`. Server
+ * URLs are intentionally absent: icon bytes travel through the authenticated
+ * transport, and secret variable values never appear in any read.
+ */
+export type PluginVariableKind = "secret" | "text";
+
+export type PluginInstallationStatus =
+    | "preparing"
+    | "starting"
+    | "ready"
+    | "broken_configuration"
+    | "failed";
+
+export interface PluginVariableDefinition {
+    readonly key: string;
+    readonly displayName: string;
+    readonly description: string;
+    readonly kind: PluginVariableKind;
+}
+
+export interface PluginSkillSummary {
+    readonly name: string;
+    readonly description: string;
+    readonly directory: string;
+}
+
+export interface PluginMcpRequirement {
+    readonly type: "remote" | "stdio";
+    readonly container: "bundled" | "selection_required" | "none";
+}
+
+export interface PluginImageSummary {
+    readonly contentType: "image/png";
+    readonly size: number;
+    readonly width: number;
+    readonly height: number;
+    readonly thumbhash: string;
+    readonly checksumSha256: string;
+}
+
+export interface PluginInstallationSummary {
+    readonly id: string;
+    readonly pluginId: string;
+    readonly shortName: string;
+    readonly sourceVersion: string;
+    readonly packageDigest: string;
+    readonly status: PluginInstallationStatus;
+    readonly statusDetail?: string;
+    readonly lastError?: string;
+    readonly containerImageId?: string;
+    readonly installedByUserId?: string;
+    readonly installedAt: string;
+    readonly updatedAt: string;
+    readonly readyAt?: string;
+}
+
+export interface SystemPluginSummary {
+    readonly id: string;
+    readonly displayName: string;
+    readonly shortName: string;
+    readonly description: string;
+    readonly sourceVersion: string;
+    readonly packageDigest: string;
+    readonly variables: readonly PluginVariableDefinition[];
+    readonly mcp?: PluginMcpRequirement;
+    readonly image: PluginImageSummary;
+    readonly installedByUserId?: string;
+    readonly installedAt: string;
+    readonly updatedAt: string;
+    readonly updateAvailable: boolean;
+    readonly installations: readonly PluginInstallationSummary[];
+}
+
+export interface PluginCatalogItem {
+    readonly displayName: string;
+    readonly shortName: string;
+    readonly description: string;
+    readonly version: string;
+    readonly packageDigest: string;
+    readonly skills: readonly PluginSkillSummary[];
+    readonly mcp?: PluginMcpRequirement;
+    readonly variables: readonly PluginVariableDefinition[];
+    readonly systemPlugin?: SystemPluginSummary;
+}
+
 export interface IntegrationSummary {
     readonly id: string;
     readonly kind: IntegrationKind;

@@ -7,6 +7,7 @@ import type {
     AutomationSummary,
     IntegrationSummary,
     ModerationReport,
+    PluginsStore,
 } from "happy2-state";
 import { Badge } from "../../Badge";
 import { Banner } from "../../Banner";
@@ -18,10 +19,14 @@ import { Tabs, type TabItem } from "../../Tabs";
 import { Toolbar } from "../../Toolbar";
 import { AgentImagesPage } from "./AgentImagesPage";
 import { AgentSecretsPage } from "./AgentSecretsPage";
+import { PluginsPage } from "./PluginsPage";
 export interface AdminPageProps {
     store: AdminStore;
     agentImagesStore: () => AgentImagesStore;
     agentSecretsStore: () => AgentSecretsStore;
+    pluginsStore: () => PluginsStore;
+    /** Display-only plugin icon URL per catalog short name, resolved by the consumer. */
+    pluginIconUrl?: (shortName: string) => string | undefined;
     activeSection: AdminPageSection;
     onSectionChange: (section: AdminPageSection) => void;
 }
@@ -31,7 +36,8 @@ export type AdminPageSection =
     | "automations"
     | "integrations"
     | "images"
-    | "secrets";
+    | "secrets"
+    | "plugins";
 const tabs: TabItem[] = [
     { id: "users", label: "Users", icon: "users" },
     { id: "reports", label: "Reports", icon: "shield" },
@@ -39,6 +45,7 @@ const tabs: TabItem[] = [
     { id: "integrations", label: "Integrations", icon: "link" },
     { id: "images", label: "Agent images", icon: "spark" },
     { id: "secrets", label: "Agent secrets", icon: "shield" },
+    { id: "plugins", label: "Plugins", icon: "braces" },
 ];
 const columns: Record<string, DataTableColumn[]> = {
     users: [
@@ -156,6 +163,13 @@ export function AdminPage(props: AdminPageProps) {
                                     <AgentSecretsPage
                                         query={query}
                                         store={props.agentSecretsStore()}
+                                    />
+                                ) : tab() === "plugins" ? (
+                                    <PluginsPage
+                                        agentImagesStore={props.agentImagesStore}
+                                        iconUrl={props.pluginIconUrl}
+                                        query={query}
+                                        store={props.pluginsStore()}
                                     />
                                 ) : loadable?.type !== "error" ? (
                                     loadable?.type === "ready" ? (

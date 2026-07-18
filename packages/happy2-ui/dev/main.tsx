@@ -24,6 +24,7 @@ import { CheckboxPage } from "./pages/CheckboxPage";
 import { CommandPalettePage } from "./pages/CommandPalettePage";
 import { ChatStorePage } from "./pages/ChatStorePage";
 import { AudienceTogglePage } from "./pages/AudienceTogglePage";
+import { PluginCatalogPanelPage } from "./pages/PluginCatalogPanelPage";
 import { ComposerPage } from "./pages/ComposerPage";
 import { DataTablePage } from "./pages/DataTablePage";
 import { DiffSnippetPage } from "./pages/DiffSnippetPage";
@@ -206,6 +207,12 @@ const components: BlueprintPage[] = [
         label: "Audience toggle",
         number: "C-065",
         page: AudienceTogglePage,
+    },
+    {
+        id: "plugin-catalog-panel",
+        label: "Plugin catalog panel",
+        number: "C-066",
+        page: PluginCatalogPanelPage,
     },
 ];
 const fullScreens: BlueprintPage[] = [

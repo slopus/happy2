@@ -6,7 +6,8 @@ export type DesktopAdminSection =
     | "automations"
     | "integrations"
     | "images"
-    | "secrets";
+    | "secrets"
+    | "plugins";
 
 export type DesktopSettingsSection = "profile" | "notifications" | "account" | "appearance";
 

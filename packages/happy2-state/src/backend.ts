@@ -36,6 +36,8 @@ import type {
     ModerationAction,
     ModerationReport,
     NotificationPreferences,
+    PluginCatalogItem,
+    PluginInstallationSummary,
     PublicServerSetupStatus,
     SandboxProviderDiscovery,
     SandboxProviderStatus,
@@ -203,6 +205,9 @@ export const backendOperations = {
     createAgentImage: post("/v0/admin/agentImages/createImage"),
     buildAgentImage: post("/v0/admin/agentImages/:imageId/buildImage"),
     setDefaultAgentImage: post("/v0/admin/agentImages/:imageId/setDefaultImage"),
+    getPluginCatalog: get("/v0/admin/plugins"),
+    installPlugin: post("/v0/admin/plugins/:shortName/installPlugin"),
+    downloadPluginIcon: get("/v0/admin/plugins/:shortName/icon"),
     getAgentSecrets: get("/v0/admin/agentSecrets"),
     createAgentSecret: sensitivePost("/v0/admin/agentSecrets/createSecret"),
     deleteAgentSecret: post("/v0/admin/agentSecrets/:secretId/deleteSecret"),
@@ -520,6 +525,11 @@ export interface KnownBackendInputs {
     createAgentImage: { readonly name: string; readonly dockerfile: string };
     buildAgentImage: { readonly imageId: string };
     setDefaultAgentImage: { readonly imageId: string };
+    installPlugin: {
+        readonly shortName: string;
+        readonly variables?: Readonly<Record<string, string>>;
+        readonly containerImageId?: string;
+    };
     createAgentSecret: {
         readonly id: string;
         readonly description: string;
@@ -880,6 +890,9 @@ export interface KnownBackendResults {
         readonly defaultImageId: string;
         readonly image: AgentImageSummary;
     };
+    getPluginCatalog: { readonly plugins: readonly PluginCatalogItem[] };
+    installPlugin: { readonly installation: PluginInstallationSummary };
+    downloadPluginIcon: ArrayBuffer;
     getAgentSecrets: { readonly secrets: readonly AgentSecretSummary[] };
     createAgentSecret: { readonly secret: AgentSecretSummary; readonly sync: unknown };
     deleteAgentSecret: { readonly removed: boolean; readonly sync: unknown };

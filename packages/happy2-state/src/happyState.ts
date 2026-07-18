@@ -109,6 +109,12 @@ import {
     agentSecretsLoad,
     agentSecretsOutputRoute,
 } from "./modules/agent-secrets/agentSecretsState.js";
+import { pluginsLoad, pluginsOutputRoute } from "./modules/plugins/pluginsState.js";
+import {
+    pluginsStoreCreate,
+    type PluginsOutput,
+    type PluginsStore,
+} from "./modules/plugins/pluginsState.js";
 import {
     agentSecretsStoreCreate,
     type AgentSecretsOutput,
@@ -171,6 +177,7 @@ export type HappyStateEvent =
     | CallsOutput
     | AgentImagesOutput
     | AgentSecretsOutput
+    | PluginsOutput
     | SetupOutput;
 
 export interface HappyStateOptions extends StateRuntimeOptions {
@@ -203,6 +210,7 @@ export class HappyState implements AsyncDisposable, Disposable {
     private setupBinding?: SetupStore;
     private agentImagesBinding?: AgentImagesStore;
     private agentSecretsBinding?: AgentSecretsStore;
+    private pluginsBinding?: PluginsStore;
     private notificationsBinding?: NotificationsStore;
     private threadsBinding?: ThreadsStore;
     private callsBinding?: CallsStore;
@@ -391,6 +399,22 @@ export class HappyState implements AsyncDisposable, Disposable {
                 );
         }
         return this.agentSecretsBinding;
+    }
+
+    plugins(): PluginsStore {
+        if (!this.pluginsBinding) {
+            this.pluginsBinding = pluginsStoreCreate((event) => this.eventRoute(event));
+            if (this.runtime.connected)
+                this.runtime.background(
+                    pluginsLoad({ runtime: this.runtime, plugins: this.pluginsBinding }),
+                );
+        }
+        return this.pluginsBinding;
+    }
+
+    /** Downloads one catalog package icon PNG through the authenticated transport. */
+    async pluginIconDownload(shortName: string): Promise<ArrayBuffer> {
+        return this.runtime.operation("downloadPluginIcon", { shortName });
     }
 
     threadOpen(rootMessageId: string): ThreadHandle {
@@ -788,6 +812,15 @@ export class HappyState implements AsyncDisposable, Disposable {
                         ),
                     );
                 return;
+            case "pluginInstallSubmitted":
+                if (this.pluginsBinding)
+                    this.backgroundIfConnected(() =>
+                        pluginsOutputRoute(
+                            { runtime: this.runtime, plugins: this.pluginsBinding! },
+                            event,
+                        ),
+                    );
+                return;
             case "threadsMoreRequested":
             case "threadReadSubmitted":
             case "threadSubscriptionSubmitted":
@@ -980,6 +1013,12 @@ export class HappyState implements AsyncDisposable, Disposable {
                             }),
                         );
                 },
+                pluginsReconcile: () => {
+                    if (this.pluginsBinding)
+                        this.runtime.background(
+                            pluginsLoad({ runtime: this.runtime, plugins: this.pluginsBinding }),
+                        );
+                },
                 identitiesReconcile: () =>
                     this.runtime.background(
                         identitiesReconcile({
@@ -1070,6 +1109,10 @@ export class HappyState implements AsyncDisposable, Disposable {
                     identities: this.identities,
                     secrets: this.agentSecretsBinding,
                 }),
+            );
+        if (this.pluginsBinding)
+            this.runtime.background(
+                pluginsLoad({ runtime: this.runtime, plugins: this.pluginsBinding }),
             );
         if (this.threadsBinding)
             this.runtime.background(

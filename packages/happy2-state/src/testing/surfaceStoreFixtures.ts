@@ -14,6 +14,8 @@ import type {
     AgentSecretsOutput,
     AgentSecretsStore,
 } from "../modules/agent-secrets/agentSecretsState.js";
+import { pluginsStoreCreate } from "../modules/plugins/pluginsState.js";
+import type { PluginsInput, PluginsOutput, PluginsStore } from "../modules/plugins/pluginsState.js";
 import { callsStoreCreate } from "../modules/calls/callsState.js";
 import type { CallsInput, CallsOutput, CallsStore } from "../modules/calls/callsState.js";
 import { chatStoreCreate } from "../modules/chat/chatState.js";
@@ -121,6 +123,13 @@ export function agentImagesStoreFixtureCreate(
 ): SurfaceStoreFixture<AgentImagesStore, AgentImagesInput> {
     const store = agentImagesStoreCreate(output);
     return fixtureCreate(store, (event) => store.getState().agentImagesInput(event));
+}
+
+export function pluginsStoreFixtureCreate(
+    output: (event: PluginsOutput) => void = () => undefined,
+): SurfaceStoreFixture<PluginsStore, PluginsInput> {
+    const store = pluginsStoreCreate(output);
+    return fixtureCreate(store, (event) => store.getState().pluginsInput(event));
 }
 
 export function agentSecretsStoreFixtureCreate(

@@ -21,6 +21,7 @@ export {
     directoryStoreFixtureCreate,
     filesStoreFixtureCreate,
     notificationsStoreFixtureCreate,
+    pluginsStoreFixtureCreate,
     searchStoreFixtureCreate,
     setupStoreFixtureCreate,
     settingsStoreFixtureCreate,

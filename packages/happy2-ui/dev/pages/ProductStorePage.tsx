@@ -3,6 +3,7 @@ import {
     adminStoreFixtureCreate,
     agentImagesStoreFixtureCreate,
     agentSecretsStoreFixtureCreate,
+    pluginsStoreFixtureCreate,
     callsStoreFixtureCreate,
     filesStoreFixtureCreate,
     notificationsStoreFixtureCreate,
@@ -171,14 +172,16 @@ function SearchPageSpecimen() {
     );
 }
 function AdminPageSpecimen() {
-    const [{ fixture, images, secrets }] = useState(() => {
+    const [{ fixture, images, secrets, plugins }] = useState(() => {
         const fixture = adminStoreFixtureCreate();
         const images = agentImagesStoreFixtureCreate();
         const secrets = agentSecretsStoreFixtureCreate();
+        const plugins = pluginsStoreFixtureCreate();
         fixture.input({ type: "usersLoaded", users: [] });
         images.input({ type: "imagesLoaded", images: [] });
         secrets.input({ type: "secretsLoaded", secrets: [], agents: [], channels: [] });
-        return { fixture, images, secrets };
+        plugins.input({ type: "pluginsLoaded", plugins: [] });
+        return { fixture, images, secrets, plugins };
     });
     const [section, setSection] = useState<AdminPageSection>("users");
     useLayoutEffect(
@@ -186,18 +189,20 @@ function AdminPageSpecimen() {
             fixture[Symbol.dispose]();
             images[Symbol.dispose]();
             secrets[Symbol.dispose]();
+            plugins[Symbol.dispose]();
         },
-        [fixture, images, secrets],
+        [fixture, images, secrets, plugins],
     );
     return frame(
         "P-009",
         "Admin",
-        "ready user catalog with lazy image and secret stores",
+        "ready user catalog with lazy image, secret, and plugin stores",
         <AdminPage
             activeSection={section}
             agentImagesStore={() => images.store}
             agentSecretsStore={() => secrets.store}
             onSectionChange={setSection}
+            pluginsStore={() => plugins.store}
             store={fixture.store}
         />,
     );

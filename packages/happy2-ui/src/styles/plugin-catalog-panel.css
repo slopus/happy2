@@ -1,0 +1,210 @@
+/*
+ * PluginCatalogPanel — administrator surface for the server plugin catalog.
+ *
+ * Contract: fills its container, stacks a header row over a column of plugin
+ * cards. Each card is a row: a fixed 40px icon slot, a flexible body (name,
+ * version, capability badges, per-installation health), and a right-pinned
+ * install action. The install dialog renders in a self-contained absolute
+ * overlay so the panel owns its own scrim without a positioned ancestor.
+ * Secret variable values are write-only and never rendered here.
+ */
+
+.happy2-plugin-catalog-panel,
+.happy2-plugin-catalog-panel * {
+    box-sizing: border-box;
+}
+
+.happy2-plugin-catalog-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0%;
+    min-height: 0;
+    gap: 16px;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Header ----------------------------------------------------------- */
+
+.happy2-plugin-catalog-panel__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+}
+
+.happy2-plugin-catalog-panel__heading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.happy2-plugin-catalog-panel__title {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+    color: var(--happy2-text);
+}
+
+.happy2-plugin-catalog-panel__subtitle {
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--happy2-text-muted);
+}
+
+/* ---- Cards ------------------------------------------------------------ */
+
+.happy2-plugin-catalog-panel__list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.happy2-plugin-catalog-panel__card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--happy2-border);
+    border-radius: 10px;
+    background: var(--happy2-bg-surface);
+}
+
+.happy2-plugin-catalog-panel__icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--happy2-bg-raised);
+    color: var(--happy2-text-muted);
+}
+
+.happy2-plugin-catalog-panel__icon-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.happy2-plugin-catalog-panel__body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.happy2-plugin-catalog-panel__name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.happy2-plugin-catalog-panel__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    color: var(--happy2-text);
+}
+
+.happy2-plugin-catalog-panel__version {
+    flex: none;
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.happy2-plugin-catalog-panel__description {
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-plugin-catalog-panel__capabilities {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.happy2-plugin-catalog-panel__installations {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding-top: 2px;
+}
+
+.happy2-plugin-catalog-panel__installation {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.happy2-plugin-catalog-panel__installation-version {
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.happy2-plugin-catalog-panel__card-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+/* ---- Install overlay --------------------------------------------------- */
+
+.happy2-plugin-catalog-panel__overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgb(0 0 0 / 0.48);
+    z-index: 30;
+}
+
+.happy2-plugin-catalog-panel__modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.happy2-plugin-catalog-panel__form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.happy2-plugin-catalog-panel__form-summary {
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-plugin-catalog-panel__form-note {
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--happy2-text-muted);
+}
