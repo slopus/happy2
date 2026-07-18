@@ -1,6 +1,6 @@
-import { For, Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties } from "react";
 import { Icon, type IconName } from "./Icon";
-
 /** Git working-tree state of a file, mirrored from the workspace API. */
 export type FileTreeGitStatus =
     | "added"
@@ -9,7 +9,6 @@ export type FileTreeGitStatus =
     | "modified"
     | "renamed"
     | "untracked";
-
 /**
  * One entry in the tree. Directories carry `children` (materialized on expand)
  * and disclosure/paging flags; files are leaves. The caller owns the shape —
@@ -30,11 +29,10 @@ export type FileTreeNode = {
     hasMore?: boolean;
     children?: FileTreeNode[];
 };
-
 export type FileTreeProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     nodes: FileTreeNode[];
     /** Currently selected entry id, if any. */
     selectedId?: string;
@@ -51,9 +49,14 @@ export type FileTreeProps = {
     emptyLabel?: string;
     moreLabel?: string;
 };
-
 /** Single-letter git decoration and the semantic token driving its color. */
-const GIT_STATUS: Record<FileTreeGitStatus, { letter: string; label: string }> = {
+const GIT_STATUS: Record<
+    FileTreeGitStatus,
+    {
+        letter: string;
+        label: string;
+    }
+> = {
     added: { letter: "A", label: "Added" },
     deleted: { letter: "D", label: "Deleted" },
     ignored: { letter: "I", label: "Ignored" },
@@ -61,10 +64,8 @@ const GIT_STATUS: Record<FileTreeGitStatus, { letter: string; label: string }> =
     renamed: { letter: "R", label: "Renamed" },
     untracked: { letter: "U", label: "Untracked" },
 };
-
 const BASE_PADDING = 8;
 const DEFAULT_INDENT = 16;
-
 /**
  * File-type icon vocabulary, keyed by lowercase extension. Everything a code
  * explorer routinely shows maps to one of the shared Icon glyphs; anything
@@ -168,7 +169,6 @@ const EXTENSION_ICON: Record<string, IconName> = {
     adoc: "doc",
     pdf: "doc",
 };
-
 /** Bare filenames (no useful extension) that still have a conventional icon. */
 const FILENAME_ICON: Record<string, IconName> = {
     dockerfile: "code",
@@ -180,7 +180,6 @@ const FILENAME_ICON: Record<string, IconName> = {
     ".prettierrc": "settings",
     ".dockerignore": "settings",
 };
-
 /**
  * Pick a file's row icon from its name. Directories always use the folder glyph;
  * files resolve by a special-cased bare name first, then by extension, then the
@@ -197,7 +196,6 @@ function fileIcon(node: FileTreeNode): IconName {
     const ext = dot > 0 ? name.slice(dot + 1) : dot === 0 ? name.slice(1) : "";
     return EXTENSION_ICON[ext] ?? "doc";
 }
-
 function FileTreeRow(props: {
     node: FileTreeNode;
     depth: number;
@@ -213,25 +211,24 @@ function FileTreeRow(props: {
     const selected = () => props.selectedId === node().id;
     const status = () => (node().gitStatus ? GIT_STATUS[node().gitStatus!] : undefined);
     const padLeft = () => BASE_PADDING + props.depth * props.indent;
-
     return (
         <>
             <div
-                class="happy2-file-tree__row"
+                className="happy2-file-tree__row"
                 data-happy2-ui="file-tree-row"
                 data-kind={node().kind}
                 data-path={node().id}
                 data-selected={selected() ? "" : undefined}
                 data-status={node().gitStatus}
                 data-expanded={directory() && node().expanded ? "" : undefined}
-                style={{ "padding-left": `${padLeft()}px` }}
+                style={{ paddingLeft: `${padLeft()}px` }}
             >
-                <span class="happy2-file-tree__disc" data-happy2-ui="file-tree-disc">
-                    <Show when={directory()}>
+                <span className="happy2-file-tree__disc" data-happy2-ui="file-tree-disc">
+                    {directory() ? (
                         <button
                             aria-expanded={node().expanded ? "true" : "false"}
                             aria-label={`${node().expanded ? "Collapse" : "Expand"} ${node().name}`}
-                            class="happy2-file-tree__chevron"
+                            className="happy2-file-tree__chevron"
                             data-happy2-ui="file-tree-chevron"
                             onClick={(event) => {
                                 event.stopPropagation();
@@ -244,85 +241,80 @@ function FileTreeRow(props: {
                                 size={12}
                             />
                         </button>
-                    </Show>
+                    ) : null}
                 </span>
                 <button
                     aria-current={selected() ? "true" : undefined}
-                    class="happy2-file-tree__entry"
+                    className="happy2-file-tree__entry"
                     data-happy2-ui="file-tree-entry"
                     onClick={() => props.onSelect?.(node().id)}
-                    onDblClick={() => directory() && props.onToggle?.(node().id)}
+                    onDoubleClick={() => directory() && props.onToggle?.(node().id)}
                     type="button"
                 >
-                    <span class="happy2-file-tree__icon" data-happy2-ui="file-tree-icon">
+                    <span className="happy2-file-tree__icon" data-happy2-ui="file-tree-icon">
                         <Icon name={fileIcon(node())} size={14} />
                     </span>
-                    <span class="happy2-file-tree__name" data-happy2-ui="file-tree-name">
+                    <span className="happy2-file-tree__name" data-happy2-ui="file-tree-name">
                         {node().name}
                     </span>
-                    <Show when={status()}>
-                        {(entry) => (
-                            <span
-                                class="happy2-file-tree__status"
-                                data-happy2-ui="file-tree-status"
-                                title={entry().label}
-                            >
-                                {entry().letter}
-                            </span>
-                        )}
-                    </Show>
+                    {status()
+                        ? ((entry) => (
+                              <span
+                                  className="happy2-file-tree__status"
+                                  data-happy2-ui="file-tree-status"
+                                  title={entry.label}
+                              >
+                                  {entry.letter}
+                              </span>
+                          ))(status()!)
+                        : null}
                 </button>
             </div>
-            <Show when={directory() && node().expanded}>
-                <Show
-                    when={node().loading}
-                    fallback={
-                        <>
-                            <For each={node().children ?? []}>
-                                {(child) => (
-                                    <FileTreeRow
-                                        depth={props.depth + 1}
-                                        indent={props.indent}
-                                        moreLabel={props.moreLabel}
-                                        node={child}
-                                        onLoadMore={props.onLoadMore}
-                                        onSelect={props.onSelect}
-                                        onToggle={props.onToggle}
-                                        selectedId={props.selectedId}
-                                    />
-                                )}
-                            </For>
-                            <Show when={node().hasMore}>
-                                <button
-                                    class="happy2-file-tree__more"
-                                    data-happy2-ui="file-tree-more"
-                                    onClick={() => props.onLoadMore?.(node().id)}
-                                    style={{
-                                        "padding-left": `${BASE_PADDING + (props.depth + 1) * props.indent}px`,
-                                    }}
-                                    type="button"
-                                >
-                                    {props.moreLabel}
-                                </button>
-                            </Show>
-                        </>
-                    }
-                >
+            {directory() && node().expanded ? (
+                node().loading ? (
                     <div
-                        class="happy2-file-tree__loading"
+                        className="happy2-file-tree__loading"
                         data-happy2-ui="file-tree-loading"
                         style={{
-                            "padding-left": `${BASE_PADDING + (props.depth + 1) * props.indent}px`,
+                            paddingLeft: `${BASE_PADDING + (props.depth + 1) * props.indent}px`,
                         }}
                     >
                         Loading…
                     </div>
-                </Show>
-            </Show>
+                ) : (
+                    <>
+                        {(node().children ?? []).map((child) => (
+                            <FileTreeRow
+                                depth={props.depth + 1}
+                                key={child.id}
+                                indent={props.indent}
+                                moreLabel={props.moreLabel}
+                                node={child}
+                                onLoadMore={props.onLoadMore}
+                                onSelect={props.onSelect}
+                                onToggle={props.onToggle}
+                                selectedId={props.selectedId}
+                            />
+                        ))}
+                        {node().hasMore ? (
+                            <button
+                                className="happy2-file-tree__more"
+                                data-happy2-ui="file-tree-more"
+                                onClick={() => props.onLoadMore?.(node().id)}
+                                style={{
+                                    paddingLeft: `${BASE_PADDING + (props.depth + 1) * props.indent}px`,
+                                }}
+                                type="button"
+                            >
+                                {props.moreLabel}
+                            </button>
+                        ) : null}
+                    </>
+                )
+            ) : null}
         </>
     );
 }
-
 /**
  * C-052 FileTree — a props-only, indentable file/folder tree modeled on a
  * code-editor explorer. Directories disclose with a chevron and reveal their
@@ -333,7 +325,7 @@ function FileTreeRow(props: {
  */
 export function FileTree(props: FileTreeProps) {
     const [local] = splitProps(props, [
-        "class",
+        "className",
         "data-testid",
         "style",
         "nodes",
@@ -348,50 +340,42 @@ export function FileTree(props: FileTreeProps) {
         "moreLabel",
     ]);
     const indent = () => local.indent ?? DEFAULT_INDENT;
-
     return (
         <div
-            class={["happy2-file-tree", local.class].filter(Boolean).join(" ")}
+            className={["happy2-file-tree", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="file-tree"
             data-testid={local["data-testid"]}
             role="tree"
             style={local.style}
         >
-            <Show
-                when={!local.loading}
-                fallback={
-                    <div
-                        class="happy2-file-tree__status-line"
-                        data-happy2-ui="file-tree-status-line"
-                    >
-                        {local.loadingLabel ?? "Loading files…"}
+            {!local.loading ? (
+                local.nodes.length > 0 ? (
+                    local.nodes.map((node) => (
+                        <FileTreeRow
+                            depth={0}
+                            key={node.id}
+                            indent={indent()}
+                            moreLabel={local.moreLabel ?? "Show more…"}
+                            node={node}
+                            onLoadMore={local.onLoadMore}
+                            onSelect={local.onSelect}
+                            onToggle={local.onToggle}
+                            selectedId={local.selectedId}
+                        />
+                    ))
+                ) : (
+                    <div className="happy2-file-tree__status-line" data-happy2-ui="file-tree-empty">
+                        {local.emptyLabel ?? "No files to show."}
                     </div>
-                }
-            >
-                <Show
-                    when={local.nodes.length > 0}
-                    fallback={
-                        <div class="happy2-file-tree__status-line" data-happy2-ui="file-tree-empty">
-                            {local.emptyLabel ?? "No files to show."}
-                        </div>
-                    }
+                )
+            ) : (
+                <div
+                    className="happy2-file-tree__status-line"
+                    data-happy2-ui="file-tree-status-line"
                 >
-                    <For each={local.nodes}>
-                        {(node) => (
-                            <FileTreeRow
-                                depth={0}
-                                indent={indent()}
-                                moreLabel={local.moreLabel ?? "Show more…"}
-                                node={node}
-                                onLoadMore={local.onLoadMore}
-                                onSelect={local.onSelect}
-                                onToggle={local.onToggle}
-                                selectedId={local.selectedId}
-                            />
-                        )}
-                    </For>
-                </Show>
-            </Show>
+                    {local.loadingLabel ?? "Loading files…"}
+                </div>
+            )}
         </div>
     );
 }

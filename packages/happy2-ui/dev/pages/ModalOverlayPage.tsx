@@ -1,15 +1,14 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { Button } from "../../src/Button";
 import { Modal } from "../../src/Modal";
 import { ModalOverlay } from "../../src/ModalOverlay";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 /*
  * The overlay is `position: fixed`; a transformed wrapper establishes a
  * containing block so the specimen renders it inside a bounded, screenshot-safe
  * window frame instead of escaping to the viewport.
  */
-function WindowFrame(props: { children: JSX.Element; width: number; height: number }) {
+function WindowFrame(props: { children: ReactNode; width: number; height: number }) {
     return (
         <div
             style={{
@@ -18,7 +17,7 @@ function WindowFrame(props: { children: JSX.Element; width: number; height: numb
                 height: `${props.height}px`,
                 overflow: "hidden",
                 transform: "translateZ(0)",
-                "border-radius": "8px",
+                borderRadius: "8px",
                 border: "1px solid var(--happy2-border-strong)",
                 background: "var(--happy2-bg-app)",
             }}
@@ -27,7 +26,6 @@ function WindowFrame(props: { children: JSX.Element; width: number; height: numb
         </div>
     );
 }
-
 export function ModalOverlayPage() {
     return (
         <ComponentPage
@@ -35,7 +33,7 @@ export function ModalOverlayPage() {
             summary="The single backdrop every modal-class surface sits on — one dim (scrim), one stacking level, fixed to the app window, centering a single card inside a 24px safe-area gutter. Clicking the dim outside the card dismisses when wired."
             title="Modal overlay"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="scrim dim · card centered · 24px safe-area gutter"
                     label="Backdrop"
@@ -68,14 +66,14 @@ export function ModalOverlayPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="fixed inset:0 · z-index var(--happy2-z-overlay) · 24px gutter"
                     label="Anatomy"
                     number="O-02"
                     stage="app"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <DimensionRule label="24px safe-area gutter" />
                         <WindowFrame height={300} width={560}>
                             <ModalOverlay onDismiss={() => {}}>

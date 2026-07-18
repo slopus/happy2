@@ -1,11 +1,10 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { AuthScreen } from "../../src/AuthScreen";
 import { Banner } from "../../src/Banner";
 import { Button } from "../../src/Button";
 import { Icon } from "../../src/Icon";
 import { TextField } from "../../src/TextField";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 /*
  * Deterministic, network-free hero fill: a static inline-SVG data URI stands in
  * for the generated background image so the has-image path renders without a
@@ -23,10 +22,9 @@ const heroDataUri =
             `<circle cx='30' cy='66' r='42' fill='url(%23g)' opacity='0.9'/>` +
             `<circle cx='72' cy='26' r='18' fill='%2338bdf8' opacity='0.5'/></svg>`,
     );
-
-function SignInForm(): JSX.Element {
+function SignInForm(): ReactNode {
     return (
-        <div style={{ display: "flex", "flex-direction": "column", gap: "14px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             <TextField
                 fullWidth
                 label="Work email"
@@ -52,16 +50,14 @@ function SignInForm(): JSX.Element {
         </div>
     );
 }
-
-function window1024(children: JSX.Element) {
+function window1024(children: ReactNode) {
     return (
-        <div style={{ display: "flex", "flex-direction": "column", gap: "8px", width: "1024px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "1024px" }}>
             <div style={{ height: "704px", width: "1024px" }}>{children}</div>
             <DimensionRule label="1024px × 704px — minimum window contract" />
         </div>
     );
 }
-
 export function AuthScreenPage() {
     return (
         <ComponentPage
@@ -108,7 +104,7 @@ export function AuthScreenPage() {
                         kicker="Get started"
                         title="Create your workspace"
                     >
-                        <div style={{ display: "flex", "flex-direction": "column", gap: "14px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                             <Banner tone="info" title="Invite accepted">
                                 You were invited to Acme Studio. Finish setup to join.
                             </Banner>
@@ -156,7 +152,7 @@ export function AuthScreenPage() {
             >
                 {window1024(
                     <AuthScreen title="Enter your access code">
-                        <div style={{ display: "flex", "flex-direction": "column", gap: "14px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                             <TextField fullWidth label="Access code" placeholder="XXXX-XXXX" />
                             <Button fullWidth size="large" variant="primary">
                                 Continue

@@ -1,13 +1,16 @@
-import { For, Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties } from "react";
 import { Icon, type IconName } from "./Icon";
-
 export type SegmentedControlSize = "small" | "medium" | "large";
-export type SegmentedControlSegment = { value: string; label: string; icon?: IconName };
-
+export type SegmentedControlSegment = {
+    value: string;
+    label: string;
+    icon?: IconName;
+};
 export type SegmentedControlProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     value: string;
     onChange?: (value: string) => void;
     segments: SegmentedControlSegment[];
@@ -15,13 +18,11 @@ export type SegmentedControlProps = {
     fullWidth?: boolean;
     disabled?: boolean;
 };
-
 const iconSizes: Record<SegmentedControlSize, 14 | 16 | 18> = {
     small: 14,
     medium: 16,
     large: 18,
 };
-
 /**
  * C-022 SegmentedControl — inline exclusive choice group (2–5 segments) with a
  * sliding raised pill under the selected segment. Segments share one equal
@@ -32,7 +33,7 @@ const iconSizes: Record<SegmentedControlSize, 14 | 16 | 18> = {
  */
 export function SegmentedControl(props: SegmentedControlProps) {
     const [local] = splitProps(props, [
-        "class",
+        "className",
         "data-testid",
         "disabled",
         "fullWidth",
@@ -47,62 +48,62 @@ export function SegmentedControl(props: SegmentedControlProps) {
         const index = local.segments.findIndex((segment) => segment.value === local.value);
         return index < 0 ? 0 : index;
     };
-
     return (
         <div
-            class={["happy2-segmented-control", local.class].filter(Boolean).join(" ")}
+            className={["happy2-segmented-control", local.className].filter(Boolean).join(" ")}
             data-disabled={local.disabled ? "" : undefined}
             data-full-width={local.fullWidth ? "" : undefined}
             data-happy2-ui="segmented-control"
             data-size={size()}
             data-testid={local["data-testid"]}
             role="group"
-            style={{
-                ...local.style,
-                "--happy2-segmented-count": String(local.segments.length),
-                "--happy2-segmented-index": String(selectedIndex()),
-                "grid-template-columns": `repeat(${local.segments.length}, 1fr)`,
-            }}
+            style={
+                {
+                    ...local.style,
+                    "--happy2-segmented-count": String(local.segments.length),
+                    "--happy2-segmented-index": String(selectedIndex()),
+                    gridTemplateColumns: `repeat(${local.segments.length}, 1fr)`,
+                } as CSSProperties
+            }
         >
             <span
                 aria-hidden="true"
-                class="happy2-segmented-control__pill"
+                className="happy2-segmented-control__pill"
                 data-happy2-ui="segmented-control-pill"
             />
-            <For each={local.segments}>
-                {(segment) => {
-                    const active = () => segment.value === local.value;
-                    return (
-                        <button
-                            aria-pressed={active()}
-                            class="happy2-segmented-control__segment"
-                            data-active={active() ? "" : undefined}
-                            data-happy2-ui="segmented-control-segment"
-                            data-value={segment.value}
-                            disabled={local.disabled}
-                            onClick={() => local.onChange?.(segment.value)}
-                            type="button"
+            {local.segments.map((segment) => {
+                const active = () => segment.value === local.value;
+                return (
+                    <button
+                        aria-pressed={active()}
+                        key={segment.value}
+                        className="happy2-segmented-control__segment"
+                        data-active={active() ? "" : undefined}
+                        data-happy2-ui="segmented-control-segment"
+                        data-value={segment.value}
+                        disabled={local.disabled}
+                        onClick={() => local.onChange?.(segment.value)}
+                        type="button"
+                    >
+                        {segment.icon
+                            ? ((name) => (
+                                  <span
+                                      className="happy2-segmented-control__icon"
+                                      data-happy2-ui="segmented-control-icon"
+                                  >
+                                      <Icon name={name} size={iconSizes[size()]} />
+                                  </span>
+                              ))(segment.icon)
+                            : null}
+                        <span
+                            className="happy2-segmented-control__label"
+                            data-happy2-ui="segmented-control-label"
                         >
-                            <Show when={segment.icon}>
-                                {(name) => (
-                                    <span
-                                        class="happy2-segmented-control__icon"
-                                        data-happy2-ui="segmented-control-icon"
-                                    >
-                                        <Icon name={name()} size={iconSizes[size()]} />
-                                    </span>
-                                )}
-                            </Show>
-                            <span
-                                class="happy2-segmented-control__label"
-                                data-happy2-ui="segmented-control-label"
-                            >
-                                {segment.label}
-                            </span>
-                        </button>
-                    );
-                }}
-            </For>
+                            {segment.label}
+                        </span>
+                    </button>
+                );
+            })}
         </div>
     );
 }

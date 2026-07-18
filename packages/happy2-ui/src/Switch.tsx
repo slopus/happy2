@@ -1,11 +1,9 @@
-import { Show, type JSX } from "solid-js";
-
+import { type CSSProperties } from "react";
 export type SwitchSize = "small" | "medium";
-
 export type SwitchProps = {
     "aria-label"?: string;
     checked: boolean;
-    class?: string;
+    className?: string;
     "data-testid"?: string;
     description?: string;
     disabled?: boolean;
@@ -13,9 +11,8 @@ export type SwitchProps = {
     label?: string;
     onChange?: (checked: boolean) => void;
     size?: SwitchSize;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
 };
-
 /**
  * C-020 Switch — Relay toggle. Integer track/thumb geometry on the 4px grid,
  * accent-filled when on and inset-welled when off, with an optional label and
@@ -28,7 +25,7 @@ export function Switch(props: SwitchProps) {
         <button
             aria-checked={props.checked}
             aria-label={props["aria-label"]}
-            class={["happy2-switch", props.class].filter(Boolean).join(" ")}
+            className={["happy2-switch", props.className].filter(Boolean).join(" ")}
             data-checked={props.checked ? "" : undefined}
             data-disabled={props.disabled ? "" : undefined}
             data-happy2-ui="switch"
@@ -41,28 +38,28 @@ export function Switch(props: SwitchProps) {
             style={props.style}
             type="button"
         >
-            <span class="happy2-switch__track" data-happy2-ui="switch-track">
-                <span class="happy2-switch__thumb" data-happy2-ui="switch-thumb" />
+            <span className="happy2-switch__track" data-happy2-ui="switch-track">
+                <span className="happy2-switch__thumb" data-happy2-ui="switch-thumb" />
             </span>
-            <Show when={props.label}>
-                {(label) => (
-                    <span class="happy2-switch__text" data-happy2-ui="switch-text">
-                        <span class="happy2-switch__label" data-happy2-ui="switch-label">
-                            {label()}
-                        </span>
-                        <Show when={props.description}>
-                            {(description) => (
-                                <span
-                                    class="happy2-switch__description"
-                                    data-happy2-ui="switch-description"
-                                >
-                                    {description()}
-                                </span>
-                            )}
-                        </Show>
-                    </span>
-                )}
-            </Show>
+            {props.label
+                ? ((label) => (
+                      <span className="happy2-switch__text" data-happy2-ui="switch-text">
+                          <span className="happy2-switch__label" data-happy2-ui="switch-label">
+                              {label}
+                          </span>
+                          {props.description
+                              ? ((description) => (
+                                    <span
+                                        className="happy2-switch__description"
+                                        data-happy2-ui="switch-description"
+                                    >
+                                        {description}
+                                    </span>
+                                ))(props.description)
+                              : null}
+                      </span>
+                  ))(props.label)
+                : null}
         </button>
     );
 }

@@ -1,8 +1,7 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { FilePanel } from "../../src/FilePanel";
 import type { FileTreeNode } from "../../src/FileTree";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const nodes: FileTreeNode[] = [
     {
         id: "src/",
@@ -34,14 +33,13 @@ const nodes: FileTreeNode[] = [
     { id: "README.md", name: "README.md", kind: "file", gitStatus: "modified" },
     { id: ".env.local", name: ".env.local", kind: "file", gitStatus: "untracked" },
 ];
-
-function panelFrame(children: JSX.Element, height = 520) {
+function panelFrame(children: ReactNode, height = 520) {
     return (
         <div
             style={{
                 background: "var(--happy2-bg-surface)",
                 border: "1px solid var(--happy2-border)",
-                "border-radius": "10px",
+                borderRadius: "10px",
                 height: `${height}px`,
                 overflow: "hidden",
                 width: "320px",
@@ -51,7 +49,6 @@ function panelFrame(children: JSX.Element, height = 520) {
         </div>
     );
 }
-
 export function FilePanelPage() {
     return (
         <ComponentPage
@@ -65,7 +62,7 @@ export function FilePanelPage() {
                 number="01"
                 stage="surface"
             >
-                <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     {panelFrame(
                         <FilePanel
                             note="6 changes on this branch"

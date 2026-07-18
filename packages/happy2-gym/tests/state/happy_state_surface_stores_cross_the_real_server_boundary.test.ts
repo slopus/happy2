@@ -19,7 +19,7 @@ describe("HappyState surface stores across the real server boundary", () => {
         });
         const created = state
             .sidebar()
-            .get()
+            .getState()
             .chats.find((chat) => chat.chat.slug === "surface-state-laboratory");
         expect(created).toMatchObject({
             displayName: "Surface state laboratory",
@@ -28,17 +28,17 @@ describe("HappyState surface stores across the real server boundary", () => {
 
         using chat = state.chatOpen(created!.chat.id);
         await state.whenIdle();
-        expect(chat.get()).toMatchObject({ status: { type: "ready" }, messages: [] });
+        expect(chat.getState()).toMatchObject({ status: { type: "ready" }, messages: [] });
 
         state.messageSend(created!.chat.id, { text: "one retained surface message" });
-        expect(chat.get().messages).toEqual([
+        expect(chat.getState().messages).toEqual([
             expect.objectContaining({
                 delivery: "sending",
                 message: expect.objectContaining({ text: "one retained surface message" }),
             }),
         ]);
         await state.whenIdle();
-        expect(chat.get().messages).toEqual([
+        expect(chat.getState().messages).toEqual([
             expect.objectContaining({
                 delivery: "sent",
                 message: expect.objectContaining({ text: "one retained surface message" }),

@@ -1,5 +1,5 @@
-import { createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
-import { render } from "solid-js/web";
+import { Fragment, useLayoutEffect, useState, type ReactNode } from "react";
+import { createRoot } from "react-dom/client";
 import "../src/index";
 import "./workbench.css";
 import { AgentActivityIndicatorPage } from "./pages/AgentActivityIndicatorPage";
@@ -68,9 +68,12 @@ import { ThreadListPage } from "./pages/ThreadListPage";
 import { ThreadPanelPage } from "./pages/ThreadPanelPage";
 import { TitleBarPage } from "./pages/TitleBarPage";
 import { ToolbarPage } from "./pages/ToolbarPage";
-
-type BlueprintPage = { id: string; label: string; number: string; page: () => JSX.Element };
-
+type BlueprintPage = {
+    id: string;
+    label: string;
+    number: string;
+    page: () => ReactNode;
+};
 const components: BlueprintPage[] = [
     { id: "box", label: "Box", number: "C-001", page: BoxPage },
     { id: "icon", label: "Icon", number: "C-002", page: IconPage },
@@ -191,7 +194,6 @@ const components: BlueprintPage[] = [
         page: BuildProgressPanelPage,
     },
 ];
-
 const fullScreens: BlueprintPage[] = [
     { id: "settings-store", label: "Settings", number: "P-001", page: SettingsStorePage },
     { id: "chat-store", label: "Chat", number: "P-002", page: ChatStorePage },
@@ -251,75 +253,67 @@ const fullScreens: BlueprintPage[] = [
     },
 ];
 const pages = [...components, ...fullScreens];
-
 function componentFromHash(): string {
     const id = window.location.hash.slice(1).toLowerCase();
     return pages.some((page) => page.id === id) ? id : "icon";
 }
-
 function Workbench() {
-    const [active, setActive] = createSignal(componentFromHash());
+    const [active, setActive] = useState(componentFromHash());
     const syncHash = () => setActive(componentFromHash());
-
-    onMount(() => window.addEventListener("hashchange", syncHash));
-    onCleanup(() => window.removeEventListener("hashchange", syncHash));
-
+    useLayoutEffect(() => {
+        window.addEventListener("hashchange", syncHash);
+        return () => window.removeEventListener("hashchange", syncHash);
+    });
     const selectComponent = (id: string) => {
         window.location.hash = id;
         setActive(id);
     };
-
     return (
-        <div class="workbench-shell">
-            <header class="workbench-header">
-                <a href="#icon" class="workbench-brand" aria-label="happy2-ui home">
+        <div className="workbench-shell">
+            <header className="workbench-header">
+                <a href="#icon" className="workbench-brand" aria-label="happy2-ui home">
                     <span>R</span>
                     <strong>happy2-ui</strong>
                     <i>component plans</i>
                 </a>
-                <div class="header-axis" aria-hidden="true">
+                <div className="header-axis" aria-hidden="true">
                     <span>0</span>
                     <i />
                     <span>1200</span>
                 </div>
-                <label class="component-select">
-                    <span>Component</span>
+                <label className="component-select">
+                    <span>ComponentType</span>
                     <select
                         aria-label="Open component page"
-                        value={active()}
+                        value={active}
                         onInput={(event) => selectComponent(event.currentTarget.value)}
                     >
                         <optgroup label="Components">
-                            <For each={components}>
-                                {(component) => (
-                                    <option value={component.id}>
-                                        {component.number} · {component.label}
-                                    </option>
-                                )}
-                            </For>
+                            {components.map((component) => (
+                                <option key={component.id} value={component.id}>
+                                    {component.number} · {component.label}
+                                </option>
+                            ))}
                         </optgroup>
-                        <Show when={fullScreens.length > 0}>
+                        {fullScreens.length > 0 ? (
                             <optgroup label="Full screens">
-                                <For each={fullScreens}>
-                                    {(screen) => (
-                                        <option value={screen.id}>
-                                            {screen.number} · {screen.label}
-                                        </option>
-                                    )}
-                                </For>
+                                {fullScreens.map((screen) => (
+                                    <option key={screen.id} value={screen.id}>
+                                        {screen.number} · {screen.label}
+                                    </option>
+                                ))}
                             </optgroup>
-                        </Show>
+                        ) : null}
                     </select>
                     <b aria-hidden="true">⌄</b>
                 </label>
             </header>
-            <div class="blueprint-field">
-                <For each={pages}>
-                    {(page) => <Show when={active() === page.id}>{page.page()}</Show>}
-                </For>
+            <div className="blueprint-field">
+                {pages.map((page) =>
+                    active === page.id ? <Fragment key={page.id}>{page.page()}</Fragment> : null,
+                )}
             </div>
         </div>
     );
 }
-
-render(() => <Workbench />, document.getElementById("root")!);
+createRoot(document.getElementById("root")!).render(<Workbench />);

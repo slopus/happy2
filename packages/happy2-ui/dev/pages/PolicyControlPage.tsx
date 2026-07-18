@@ -1,11 +1,9 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { PolicyControl } from "../../src/PolicyControl";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
-function Panel(props: { children: JSX.Element; width?: number }) {
+function Panel(props: { children: ReactNode; width?: number }) {
     return <div style={{ width: `${props.width ?? 400}px` }}>{props.children}</div>;
 }
-
 export function PolicyControlPage() {
     return (
         <ComponentPage
@@ -13,14 +11,14 @@ export function PolicyControlPage() {
             summary="Disappearing / retention policy editor composing SegmentedControl, Select, Switch, and FormRow. Conditional rows reveal a duration Select and after-read Switch only when the mode calls for them."
             title="Policy control"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="expiry Off — segmented only, no timer, no retention"
                     label="Disabled"
                     number="P-01"
                     stage="app"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <Panel>
                             <PolicyControl afterReadScope="any_reader" expiryMode="none" />
                         </Panel>
@@ -34,7 +32,7 @@ export function PolicyControlPage() {
                     number="P-02"
                     stage="app"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <Panel>
                             <PolicyControl
                                 afterReadScope="any_reader"
@@ -47,14 +45,14 @@ export function PolicyControlPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="after reading — timer Select + wait-for-all-readers Switch + retention section"
                     label="Full policy"
                     number="P-03"
                     stage="app"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <Panel>
                             <PolicyControl
                                 afterReadScope="all_readers"
@@ -74,7 +72,7 @@ export function PolicyControlPage() {
                     number="P-04"
                     stage="app"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <Panel>
                             <PolicyControl
                                 afterReadScope="any_reader"

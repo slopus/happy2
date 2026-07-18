@@ -1,15 +1,14 @@
-import { Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties } from "react";
 import { Icon, type IconName } from "./Icon";
-
 export type FileAttachmentKind = "file" | "photo" | "video" | "gif" | "audio" | "archive";
 export type FileAttachmentVariant = "compact" | "chat";
-
 export type FileAttachmentProps = {
     /** Keeps the hover affordance visible in deterministic blueprint fixtures. */
     actionsVisible?: boolean;
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     /** File name, shown truncated with an ellipsis when it overflows. */
     name: string;
     /** Human size string, e.g. "283 KB". */
@@ -21,7 +20,6 @@ export type FileAttachmentProps = {
     onOpen?: () => void;
     "aria-label"?: string;
 };
-
 const kindIcons: Record<FileAttachmentKind, IconName> = {
     file: "doc",
     photo: "files",
@@ -30,7 +28,6 @@ const kindIcons: Record<FileAttachmentKind, IconName> = {
     audio: "mic",
     archive: "files",
 };
-
 /**
  * C-049 FileAttachment — a non-image file rendered as either a compact control
  * or a bounded chat-list card. A single element (a real <button> when clickable)
@@ -39,7 +36,7 @@ const kindIcons: Record<FileAttachmentKind, IconName> = {
 export function FileAttachment(props: FileAttachmentProps) {
     const [local] = splitProps(props, [
         "actionsVisible",
-        "class",
+        "className",
         "data-testid",
         "style",
         "name",
@@ -63,90 +60,92 @@ export function FileAttachment(props: FileAttachmentProps) {
             video: "Video",
         }[kind()];
     };
-
     const compactInner = (
         <>
-            <span class="happy2-file-attachment__icon" data-happy2-ui="file-attachment-icon">
+            <span className="happy2-file-attachment__icon" data-happy2-ui="file-attachment-icon">
                 <Icon name={kindIcons[kind()]} size={16} />
             </span>
-            <span class="happy2-file-attachment__name" data-happy2-ui="file-attachment-name">
+            <span className="happy2-file-attachment__name" data-happy2-ui="file-attachment-name">
                 {local.name}
             </span>
-            <Show when={local.size}>
-                <span class="happy2-file-attachment__size" data-happy2-ui="file-attachment-size">
+            {local.size ? (
+                <span
+                    className="happy2-file-attachment__size"
+                    data-happy2-ui="file-attachment-size"
+                >
                     {local.size}
                 </span>
-            </Show>
+            ) : null}
         </>
     );
     const chatInner = (
         <>
-            <span class="happy2-file-attachment__icon" data-happy2-ui="file-attachment-icon">
+            <span className="happy2-file-attachment__icon" data-happy2-ui="file-attachment-icon">
                 <Icon name={kindIcons[kind()]} size={20} />
             </span>
-            <span class="happy2-file-attachment__copy" data-happy2-ui="file-attachment-copy">
-                <span class="happy2-file-attachment__name" data-happy2-ui="file-attachment-name">
+            <span className="happy2-file-attachment__copy" data-happy2-ui="file-attachment-copy">
+                <span
+                    className="happy2-file-attachment__name"
+                    data-happy2-ui="file-attachment-name"
+                >
                     {local.name}
                 </span>
-                <span class="happy2-file-attachment__meta" data-happy2-ui="file-attachment-meta">
-                    <span class="happy2-file-attachment__meta-default">
+                <span
+                    className="happy2-file-attachment__meta"
+                    data-happy2-ui="file-attachment-meta"
+                >
+                    <span className="happy2-file-attachment__meta-default">
                         {typeLabel()}
-                        <Show when={local.size}>{(size) => <> · {size()}</>}</Show>
+                        {local.size ? ((size) => <> · {size}</>)(local.size) : null}
                     </span>
-                    <Show when={local.onOpen}>
-                        <span class="happy2-file-attachment__meta-hover">
+                    {local.onOpen ? (
+                        <span className="happy2-file-attachment__meta-hover">
                             Download {typeLabel()}
                         </span>
-                    </Show>
+                    ) : null}
                 </span>
             </span>
-            <Show when={local.onOpen}>
+            {local.onOpen ? (
                 <span
                     aria-hidden="true"
-                    class="happy2-file-attachment__action"
+                    className="happy2-file-attachment__action"
                     data-happy2-ui="file-attachment-action"
                 >
                     <Icon name="arrow-right" size={16} />
                 </span>
-            </Show>
+            ) : null}
         </>
     );
-    const className = ["happy2-file-attachment", local.class].filter(Boolean).join(" ");
+    const className = ["happy2-file-attachment", local.className].filter(Boolean).join(" ");
     const inner = () => (variant() === "chat" ? chatInner : compactInner);
-
-    return (
-        <Show
-            fallback={
-                <div
-                    class={className}
-                    data-actions-visible={local.actionsVisible ? "" : undefined}
-                    data-kind={kind()}
-                    data-happy2-ui="file-attachment"
-                    data-variant={variant()}
-                    data-testid={local["data-testid"]}
-                    style={local.style}
-                >
-                    {inner()}
-                </div>
-            }
-            when={local.onOpen}
+    return local.onOpen ? (
+        ((onOpen) => (
+            <button
+                aria-label={local["aria-label"] ?? `Open ${local.name}`}
+                className={className}
+                data-actions-visible={local.actionsVisible ? "" : undefined}
+                data-kind={kind()}
+                data-happy2-ui="file-attachment"
+                data-variant={variant()}
+                data-testid={local["data-testid"]}
+                onClick={() => onOpen()}
+                style={local.style}
+                type="button"
+            >
+                {inner()}
+            </button>
+        ))(local.onOpen)
+    ) : (
+        <div
+            className={className}
+            data-actions-visible={local.actionsVisible ? "" : undefined}
+            data-kind={kind()}
+            data-happy2-ui="file-attachment"
+            data-variant={variant()}
+            data-testid={local["data-testid"]}
+            style={local.style}
         >
-            {(onOpen) => (
-                <button
-                    aria-label={local["aria-label"] ?? `Open ${local.name}`}
-                    class={className}
-                    data-actions-visible={local.actionsVisible ? "" : undefined}
-                    data-kind={kind()}
-                    data-happy2-ui="file-attachment"
-                    data-variant={variant()}
-                    data-testid={local["data-testid"]}
-                    onClick={() => onOpen()()}
-                    style={local.style}
-                    type="button"
-                >
-                    {inner()}
-                </button>
-            )}
-        </Show>
+            {inner()}
+        </div>
     );
 }

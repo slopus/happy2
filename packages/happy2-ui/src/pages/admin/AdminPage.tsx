@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
     AdminStore,
     AdminUserSummary,
@@ -7,7 +8,6 @@ import type {
     IntegrationSummary,
     ModerationReport,
 } from "happy2-state";
-import { createMemo, createSignal, Match, Show, Switch } from "solid-js";
 import { Badge } from "../../Badge";
 import { Banner } from "../../Banner";
 import { Box } from "../../Box";
@@ -18,7 +18,6 @@ import { Tabs, type TabItem } from "../../Tabs";
 import { Toolbar } from "../../Toolbar";
 import { AgentImagesPage } from "./AgentImagesPage";
 import { AgentSecretsPage } from "./AgentSecretsPage";
-
 export interface AdminPageProps {
     store: AdminStore;
     agentImagesStore: () => AgentImagesStore;
@@ -26,7 +25,6 @@ export interface AdminPageProps {
     activeSection: AdminPageSection;
     onSectionChange: (section: AdminPageSection) => void;
 }
-
 export type AdminPageSection =
     | "users"
     | "reports"
@@ -34,7 +32,6 @@ export type AdminPageSection =
     | "integrations"
     | "images"
     | "secrets";
-
 const tabs: TabItem[] = [
     { id: "users", label: "Users", icon: "users" },
     { id: "reports", label: "Reports", icon: "shield" },
@@ -69,29 +66,27 @@ const columns: Record<string, DataTableColumn[]> = {
         { id: "status", header: "Status", width: 120 },
     ],
 };
-
 /** Complete admin page with independently materialized catalog, image, and secret stores. */
 export function AdminPage(props: AdminPageProps) {
-    const [query, setQuery] = createSignal("");
+    const [query, setQuery] = useState("");
     return (
         <StoreSurface store={props.store}>
             {(snapshot) => {
                 const tab = () => props.activeSection;
-                const loadable = createMemo(() =>
+                const loadable =
                     tab() === "users"
-                        ? snapshot().users
+                        ? snapshot.users
                         : tab() === "reports"
-                          ? snapshot().reports
+                          ? snapshot.reports
                           : tab() === "automations"
-                            ? snapshot().automations
+                            ? snapshot.automations
                             : tab() === "integrations"
-                              ? snapshot().integrations
-                              : undefined,
-                );
-                const needle = createMemo(() => query().trim().toLowerCase());
-                const rows = createMemo<DataTableRow[]>(() => {
+                              ? snapshot.integrations
+                              : undefined;
+                const needle = query.trim().toLowerCase();
+                const rows = (() => {
                     let values: DataTableRow[] = [];
-                    const current = snapshot();
+                    const current = snapshot;
                     if (tab() === "users" && current.users.type === "ready")
                         values = userRows(current.users.value);
                     else if (tab() === "reports" && current.reports.type === "ready")
@@ -100,30 +95,30 @@ export function AdminPage(props: AdminPageProps) {
                         values = automationRows(current.automations.value);
                     else if (tab() === "integrations" && current.integrations.type === "ready")
                         values = integrationRows(current.integrations.value);
-                    if (!needle()) return values;
+                    if (!needle) return values;
                     return values.filter((row) =>
                         Object.values(row.cells).some(
                             (cell) =>
-                                typeof cell === "string" && cell.toLowerCase().includes(needle()),
+                                typeof cell === "string" && cell.toLowerCase().includes(needle),
                         ),
                     );
-                });
-                const loadError = createMemo(() => {
-                    const state = loadable();
+                })();
+                const loadError = (() => {
+                    const state = loadable;
                     return state?.type === "error" ? state.error.message : undefined;
-                });
+                })();
                 return (
                     <Box
                         style={{
                             display: "flex",
                             flex: "1 1 0%",
-                            "flex-direction": "column",
-                            "min-height": 0,
+                            flexDirection: "column",
+                            minHeight: 0,
                         }}
                     >
                         <Toolbar
                             search={{
-                                value: query(),
+                                value: query,
                                 onChange: setQuery,
                                 placeholder: `Search ${tab()}`,
                             }}
@@ -141,67 +136,45 @@ export function AdminPage(props: AdminPageProps) {
                         <Box
                             style={{
                                 flex: "1 1 0%",
-                                "min-height": 0,
+                                minHeight: 0,
                                 overflow: "auto",
                                 padding: "16px",
                             }}
                         >
-                            <Switch
-                                fallback={
-                                    <Show
-                                        when={loadable()?.type !== "error"}
-                                        fallback={
-                                            <Banner tone="danger" title="Admin access unavailable">
-                                                {loadError() ??
-                                                    "Administrative data could not load."}
-                                            </Banner>
-                                        }
-                                    >
-                                        <Show
-                                            when={loadable()?.type === "ready"}
-                                            fallback={
-                                                <EmptyState
-                                                    description={`Loading ${tab()}.`}
-                                                    icon="shield"
-                                                    title="Loading administration…"
-                                                />
-                                            }
-                                        >
-                                            <DataTable
-                                                columns={columns[tab()] ?? []}
-                                                empty={
-                                                    <EmptyState
-                                                        description={
-                                                            needle()
-                                                                ? "Try a different search term."
-                                                                : `The server returned no ${tab()}.`
-                                                        }
-                                                        icon="search"
-                                                        size="inline"
-                                                        title={
-                                                            needle() ? "No matches" : "Nothing here"
-                                                        }
-                                                    />
+                            {tab() === "images" ? (
+                                <AgentImagesPage query={query} store={props.agentImagesStore()} />
+                            ) : tab() === "secrets" ? (
+                                <AgentSecretsPage query={query} store={props.agentSecretsStore()} />
+                            ) : loadable?.type !== "error" ? (
+                                loadable?.type === "ready" ? (
+                                    <DataTable
+                                        columns={columns[tab()] ?? []}
+                                        empty={
+                                            <EmptyState
+                                                description={
+                                                    needle
+                                                        ? "Try a different search term."
+                                                        : `The server returned no ${tab()}.`
                                                 }
-                                                rows={rows()}
+                                                icon="search"
+                                                size="inline"
+                                                title={needle ? "No matches" : "Nothing here"}
                                             />
-                                        </Show>
-                                    </Show>
-                                }
-                            >
-                                <Match when={tab() === "images"}>
-                                    <AgentImagesPage
-                                        query={query()}
-                                        store={props.agentImagesStore()}
+                                        }
+                                        rows={rows}
                                     />
-                                </Match>
-                                <Match when={tab() === "secrets"}>
-                                    <AgentSecretsPage
-                                        query={query()}
-                                        store={props.agentSecretsStore()}
+                                ) : (
+                                    <EmptyState
+                                        description={`Loading ${tab()}.`}
+                                        icon="shield"
+                                        title="Loading administration…"
                                     />
-                                </Match>
-                            </Switch>
+                                )
+                            ) : (
+                                <Banner tone="danger" title="Admin access unavailable">
+                                    {loadError ?? "Administrative data could not load."}
+                                </Banner>
+                            )}
                         </Box>
                     </Box>
                 );
@@ -209,7 +182,6 @@ export function AdminPage(props: AdminPageProps) {
         </StoreSurface>
     );
 }
-
 function userRows(users: readonly AdminUserSummary[]): DataTableRow[] {
     return users.map((user) => ({
         id: user.id,

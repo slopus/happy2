@@ -1,14 +1,11 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { expect, it } from "vitest";
 import { Icon, iconNames, type IconName } from "./Icon";
 import { createRenderer } from "./testing";
 import "./styles.css";
-
 const SIZES = [12, 14, 16, 18, 20] as const;
-
 /* Sizes the optical-centering contract is enforced at (px). */
 const OPTICAL_SIZES = [14, 16, 20] as const;
-
 /*
  * Alpha-weighted ink centroid must sit on the box center within this many CSS
  * px on both axes, at every optical size, in every engine. Measured drift
@@ -16,13 +13,20 @@ const OPTICAL_SIZES = [14, 16, 20] as const;
  * engine-specific stroke rasterization at small sizes.
  */
 const CENTER_TOLERANCE = 0.6;
-
 /*
  * Directional glyphs deliberately carry off-center ink on the named axis, so
  * the centroid assertion is skipped there (visible-bounds sanity still runs).
  * Every axis not listed here is asserted at CENTER_TOLERANCE.
  */
-const DIRECTIONAL: Partial<Record<IconName, { skip: "x" | "xy"; reason: string }>> = {
+const DIRECTIONAL: Partial<
+    Record<
+        IconName,
+        {
+            skip: "x" | "xy";
+            reason: string;
+        }
+    >
+> = {
     "arrow-right": {
         skip: "x",
         reason: "arrowhead mass pulls the centroid right; the shaft is bounds-centered",
@@ -44,7 +48,6 @@ const DIRECTIONAL: Partial<Record<IconName, { skip: "x" | "xy"; reason: string }
         reason: "prompt chevron + baseline underscore are corner-weighted like a text label",
     },
 };
-
 /*
  * A plain filled square centered in an icon-sized box, rendered at the exact
  * fixture position each glyph is measured at. Its measured centroid calibrates
@@ -66,7 +69,6 @@ function ControlSquare(props: { size: number }) {
         </div>
     );
 }
-
 /*
  * Renders one icon-sized fixture alone at a fixed position (fresh renderer at
  * the top of an otherwise empty page, fully inside the viewport) and returns
@@ -74,7 +76,7 @@ function ControlSquare(props: { size: number }) {
  * coordinates keeps the capture geometry identical across measurements, which
  * is what lets the ControlSquare calibration cancel capture offsets.
  */
-async function measureFixture(size: number, content: () => JSX.Element) {
+async function measureFixture(size: number, content: () => ReactNode) {
     const view = createRenderer();
     view.render(
         () => (
@@ -89,7 +91,6 @@ async function measureFixture(size: number, content: () => JSX.Element) {
     view.destroy();
     return metrics;
 }
-
 it("holds Icon box geometry across sizes", async () => {
     const view = createRenderer();
     for (const size of SIZES) {
@@ -127,7 +128,6 @@ it("holds Icon box geometry across sizes", async () => {
         { width: 44, height: 44, padding: 12 },
     );
     await view.ready();
-
     for (const size of SIZES) {
         const icon = view.$(`[data-testid="icon-size-${size}"] [data-happy2-ui="icon"]`);
         expect(icon.bounds()).toEqual({ x: 12, y: 12, width: size, height: size });
@@ -154,19 +154,16 @@ it("holds Icon box geometry across sizes", async () => {
         });
         expect(icon.element.getAttribute("viewBox")).toBe("0 0 20 20");
     }
-
     const fallback = view.$('[data-testid="icon-default"] [data-happy2-ui="icon"]');
     expect(fallback.bounds()).toEqual({ x: 12, y: 12, width: 16, height: 16 });
     expect(fallback.element.getAttribute("aria-hidden")).toBe("true");
     expect(fallback.element.getAttribute("role")).toBeNull();
     expect(fallback.element.getAttribute("data-name")).toBe("check");
-
     const inherit = view.$('[data-testid="icon-inherit"] [data-happy2-ui="icon"]');
     expect(inherit.computedStyles(["color", "stroke"])).toEqual({
         color: "rgb(165, 160, 176)",
         stroke: "rgb(165, 160, 176)",
     });
-
     const colored = view.$('[data-testid="icon-colored"] [data-happy2-ui="icon"]');
     expect(colored.computedStyles(["color", "stroke"])).toEqual({
         color: "rgb(139, 124, 247)",
@@ -176,7 +173,6 @@ it("holds Icon box geometry across sizes", async () => {
     expect(colored.element.getAttribute("role")).toBe("img");
     expect(colored.element.getAttribute("aria-hidden")).toBeNull();
 });
-
 it("renders the entire pinned glyph set on the 20-unit grid", async () => {
     const view = createRenderer().render(
         () => (
@@ -184,22 +180,21 @@ it("renders the entire pinned glyph set on the 20-unit grid", async () => {
                 data-testid="icon-sheet"
                 style={{
                     display: "grid",
-                    "grid-template-columns": "repeat(7, 28px)",
-                    "justify-items": "center",
-                    "align-items": "center",
+                    gridTemplateColumns: "repeat(7, 28px)",
+                    justifyItems: "center",
+                    alignItems: "center",
                     gap: "4px",
                     color: "#131217",
                 }}
             >
                 {iconNames.map((name) => (
-                    <Icon name={name} size={20} />
+                    <Icon key={name} name={name} size={20} />
                 ))}
             </div>
         ),
         { width: 248, height: 236, padding: 12 },
     );
     await view.ready();
-
     expect(iconNames.length).toBe(45);
     for (const name of iconNames) {
         const icon = view.$(`[data-name="${name}"]`);
@@ -208,10 +203,8 @@ it("renders the entire pinned glyph set on the 20-unit grid", async () => {
         expect(bounds.height, name).toBe(20);
         expect(icon.element.getAttribute("data-happy2-ui")).toBe("icon");
     }
-
     await view.screenshot("Icon.test");
 });
-
 for (const size of OPTICAL_SIZES) {
     it(`centers glyph ink optically at size ${size}`, async () => {
         const control = await measureFixture(size, () => <ControlSquare size={size} />);
@@ -219,11 +212,13 @@ for (const size of OPTICAL_SIZES) {
         expect(control.pixelCount).toBeGreaterThan(0);
         expect(Math.abs(control.center.x - size / 2)).toBeLessThanOrEqual(2);
         expect(Math.abs(control.center.y - size / 2)).toBeLessThanOrEqual(2);
-
-        const drifted: Array<{ name: IconName; dx: number; dy: number }> = [];
+        const drifted: Array<{
+            name: IconName;
+            dx: number;
+            dy: number;
+        }> = [];
         for (const name of iconNames) {
             const metrics = await measureFixture(size, () => <Icon name={name} size={size} />);
-
             /* Ink must exist and paint fully inside the icon box. */
             expect(metrics.pixelCount, name).toBeGreaterThan(0);
             expect(metrics.bounds.width, name).toBeGreaterThan(size * 0.2);
@@ -232,14 +227,13 @@ for (const size of OPTICAL_SIZES) {
             expect(metrics.bounds.y, name).toBeGreaterThanOrEqual(0);
             expect(metrics.bounds.x + metrics.bounds.width, name).toBeLessThanOrEqual(size);
             expect(metrics.bounds.y + metrics.bounds.height, name).toBeLessThanOrEqual(size);
-
             const skip = DIRECTIONAL[name]?.skip ?? "";
-            const dx = Math.round((metrics.center.x - control.center.x) * 1_000) / 1_000;
-            const dy = Math.round((metrics.center.y - control.center.y) * 1_000) / 1_000;
+            const dx = Math.round((metrics.center.x - control.center.x) * 1000) / 1000;
+            const dy = Math.round((metrics.center.y - control.center.y) * 1000) / 1000;
             const xDrifts = !skip.includes("x") && Math.abs(dx) > CENTER_TOLERANCE;
             const yDrifts = !skip.includes("y") && Math.abs(dy) > CENTER_TOLERANCE;
             if (xDrifts || yDrifts) drifted.push({ name, dx, dy });
         }
         expect(drifted).toEqual([]);
-    }, 240_000);
+    }, 240000);
 }

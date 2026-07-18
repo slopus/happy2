@@ -1,8 +1,7 @@
-import { createSignal } from "solid-js";
+import { useState } from "react";
 import { Avatar } from "../../src/Avatar";
 import { Rail, type RailItem } from "../../src/Rail";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const items: RailItem[] = [
     { badge: 12, icon: "inbox", id: "inbox", label: "Inbox" },
     { icon: "chat", id: "chat", label: "Chat" },
@@ -10,16 +9,13 @@ const items: RailItem[] = [
     { icon: "tasks", id: "tasks", label: "Tasks" },
     { icon: "files", id: "files", label: "Files" },
 ];
-
 const row: Record<string, string> = {
     display: "flex",
     gap: "32px",
-    "align-items": "flex-start",
+    alignItems: "flex-start",
 };
-
 export function RailPage() {
-    const [activeId, setActiveId] = createSignal("inbox");
-
+    const [activeId, setActiveId] = useState("inbox");
     return (
         <ComponentPage
             number="C-008"
@@ -35,7 +31,7 @@ export function RailPage() {
                 <div style={row}>
                     <div style={{ height: "560px" }}>
                         <Rail
-                            activeItemId={activeId()}
+                            activeItemId={activeId}
                             footer={<Avatar initials="SK" online size="sm" tone="mint" />}
                             footerLabel="Open profile"
                             items={items}
@@ -47,9 +43,9 @@ export function RailPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-direction": "column",
+                            flexDirection: "column",
                             gap: "12px",
-                            "padding-top": "8px",
+                            paddingTop: "8px",
                         }}
                     >
                         <DimensionRule label="76 px wide" />
@@ -86,9 +82,9 @@ export function RailPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-direction": "column",
+                            flexDirection: "column",
                             gap: "12px",
-                            "padding-top": "8px",
+                            paddingTop: "8px",
                         }}
                     >
                         <DimensionRule label="active = accent-soft · aria-current" />

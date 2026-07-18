@@ -8,7 +8,7 @@ export function StatTilePage() {
             summary="Metric card — muted label, tone icon chip, large tabular value, and a trend delta with an optional hint."
             title="Stat tile"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="240px card · 16px padding · radius 10 · 28px value"
                     label="Anatomy"
@@ -60,7 +60,7 @@ export function StatTilePage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="neutral · accent · success · warning · danger"
                     label="Tones"
@@ -70,7 +70,7 @@ export function StatTilePage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-wrap": "wrap",
+                            flexWrap: "wrap",
                             gap: "16px",
                             padding: "28px",
                         }}
@@ -99,7 +99,7 @@ export function StatTilePage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="value only · hint only · long value truncation"
                     label="Content states"
@@ -109,7 +109,7 @@ export function StatTilePage() {
                     <div
                         style={{
                             display: "flex",
-                            "align-items": "flex-start",
+                            alignItems: "flex-start",
                             gap: "16px",
                             padding: "28px",
                         }}

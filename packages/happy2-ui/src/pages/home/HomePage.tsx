@@ -1,28 +1,27 @@
-import type { NotificationsStore } from "happy2-state";
-import { createMemo, For, Show } from "solid-js";
+import type { NotificationProjection, NotificationsStore } from "happy2-state";
 import { Box } from "../../Box";
 import { EmptyState } from "../../EmptyState";
-import { NotificationList, type NotificationItem } from "../../NotificationList";
+import { NotificationList } from "../../NotificationList";
 import { StatTile, type StatTileProps } from "../../StatTile";
 import { StoreSurface } from "../../StoreSurface";
-
 export interface HomePageProps {
     notificationsStore: NotificationsStore;
     imageUrl?: (fileId?: string) => string | undefined;
+    contextLabel?: (notification: NotificationProjection) => string | undefined;
+    onSelect?: (notification: NotificationProjection) => void;
 }
-
 /** Complete day-at-a-glance page projected from the retained notification surface. */
 export function HomePage(props: HomePageProps) {
     return (
         <StoreSurface store={props.notificationsStore}>
-            {(snapshot) => {
-                const notifications = createMemo(() => {
-                    const state = snapshot().notifications;
+            {(snapshot, store) => {
+                const notifications = (() => {
+                    const state = snapshot.notifications;
                     return state.type === "ready" ? state.value : [];
-                });
-                const stats = createMemo<StatTileProps[]>(() => {
-                    const unread = notifications().filter((item) => !item.readAt).length;
-                    const mentions = notifications().filter(
+                })();
+                const stats: StatTileProps[] = (() => {
+                    const unread = notifications.filter((item) => !item.readAt).length;
+                    const mentions = notifications.filter(
                         (item) => item.kind === "mention" && !item.readAt,
                     ).length;
                     return [
@@ -41,8 +40,7 @@ export function HomePage(props: HomePageProps) {
                         {
                             label: "Threads",
                             value: String(
-                                notifications().filter((item) => item.kind === "thread_reply")
-                                    .length,
+                                notifications.filter((item) => item.kind === "thread_reply").length,
                             ),
                             icon: "thread",
                             tone: "accent",
@@ -50,80 +48,102 @@ export function HomePage(props: HomePageProps) {
                         {
                             label: "Calls",
                             value: String(
-                                notifications().filter((item) => item.kind === "call").length,
+                                notifications.filter((item) => item.kind === "call").length,
                             ),
                             icon: "mic",
                             tone: "success",
                         },
                     ];
-                });
-                const recent = createMemo<NotificationItem[]>(() =>
-                    notifications()
-                        .slice(0, 6)
-                        .map((item) => ({
-                            id: item.id,
-                            kind: item.kind,
-                            actor: item.actor
-                                ? {
-                                      name: item.actor.displayName,
-                                      initials: initials(item.actor.displayName),
-                                      imageUrl: props.imageUrl?.(item.actor.photoFileId),
-                                  }
-                                : undefined,
-                            text: item.kind.replaceAll("_", " "),
-                            context: item.chatId,
-                            time: formatDate(item.createdAt),
-                            unread: !item.readAt,
-                        })),
-                );
+                })();
+                const recentNotifications = notifications.slice(0, 6);
+                const recent = recentNotifications.map((item) => ({
+                    id: item.id,
+                    kind: item.kind,
+                    actor: item.actor
+                        ? {
+                              name: item.actor.displayName,
+                              initials: initials(item.actor.displayName),
+                              imageUrl: props.imageUrl?.(item.actor.photoFileId),
+                          }
+                        : undefined,
+                    text: notificationText(item.kind),
+                    context: props.contextLabel?.(item),
+                    time: formatDate(item.createdAt),
+                    unread: !item.readAt,
+                }));
                 return (
                     <Box
                         style={{
                             display: "flex",
-                            "flex-direction": "column",
+                            flexDirection: "column",
                             gap: "16px",
                             height: "100%",
-                            "min-height": "0",
+                            minHeight: "0",
                             overflow: "hidden",
                             padding: "20px",
                         }}
                     >
                         <Box style={{ display: "flex", gap: "12px", flex: "none" }}>
-                            <For each={stats()}>
-                                {(stat) => (
-                                    <Box style={{ flex: "1 1 0%" }}>
-                                        <StatTile {...stat} />
-                                    </Box>
-                                )}
-                            </For>
+                            {stats.map((stat) => (
+                                <Box key={stat.label} style={{ flex: "1 1 0%" }}>
+                                    <StatTile {...stat} />
+                                </Box>
+                            ))}
                         </Box>
                         <Box
                             style={{
                                 display: "flex",
-                                "flex-direction": "column",
+                                flexDirection: "column",
                                 flex: "1 1 0%",
-                                "min-height": "0",
-                                "overflow-y": "auto",
+                                minHeight: "0",
+                                overflowY: "auto",
                             }}
                         >
-                            <Show
-                                when={recent().length > 0}
-                                fallback={
-                                    <EmptyState
-                                        description="Your day at a glance — nothing needs you right now."
-                                        icon="home"
-                                        title="Home"
-                                    />
-                                }
-                            >
-                                <NotificationList notifications={recent()} />
-                            </Show>
+                            {recent.length > 0 ? (
+                                <NotificationList
+                                    notifications={recent}
+                                    onSelect={(id) => {
+                                        const notification = recentNotifications.find(
+                                            (item) => item.id === id,
+                                        );
+                                        if (!notification) return;
+                                        store.notificationsRead([id]);
+                                        props.onSelect?.(notification);
+                                    }}
+                                />
+                            ) : (
+                                <EmptyState
+                                    description="Your day at a glance — nothing needs you right now."
+                                    icon="home"
+                                    title="Home"
+                                />
+                            )}
                         </Box>
                     </Box>
                 );
             }}
         </StoreSurface>
     );
+}
+function notificationText(kind: NotificationProjection["kind"]): string {
+    switch (kind) {
+        case "mention":
+            return "mentioned you";
+        case "thread_reply":
+            return "replied in a thread";
+        case "direct_message":
+            return "sent you a direct message";
+        case "reaction":
+            return "reacted to your message";
+        case "call":
+            return "started a call";
+        case "moderation":
+            return "updated a moderation report";
+        case "automation":
+            return "ran an automation";
+        case "system":
+            return "posted a system update";
+    }
 }
 function initials(value: string): string {
     return value

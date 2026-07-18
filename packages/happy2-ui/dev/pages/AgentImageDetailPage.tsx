@@ -1,8 +1,7 @@
-import type { JSX } from "solid-js";
+import { type CSSProperties } from "react";
 import { AgentImageDetail } from "../../src/AgentImageDetail";
 import { Modal } from "../../src/Modal";
 import { ComponentPage, Specimen } from "../kit";
-
 const dockerfile = [
     "FROM happy2/agent-base:latest",
     "RUN apt-get update && apt-get install -y python3 python3-pip nodejs",
@@ -10,7 +9,6 @@ const dockerfile = [
     "RUN pip install --no-cache-dir -r /tmp/requirements.txt",
     'ENTRYPOINT ["/usr/local/bin/happy2-agent"]',
 ].join("\n");
-
 const buildLog = [
     "#1 [internal] load build definition from Dockerfile",
     "#2 [internal] load metadata for docker.io/happy2/agent-base:latest",
@@ -22,12 +20,11 @@ const buildLog = [
     "#6 [4/4] RUN pip install --no-cache-dir -r /tmp/requirements.txt",
     "#6 4.2 Collecting anthropic",
 ].join("\n");
-
-function frame(height: number, width = 560): JSX.CSSProperties {
+function frame(height: number, width = 560): CSSProperties {
     return {
         background: "var(--happy2-bg-app)",
         border: "1px solid var(--happy2-border)",
-        "border-radius": "14px",
+        borderRadius: "14px",
         display: "flex",
         height: `${height}px`,
         overflow: "hidden",
@@ -35,7 +32,6 @@ function frame(height: number, width = 560): JSX.CSSProperties {
         width: `${width}px`,
     };
 }
-
 export function AgentImageDetailPage() {
     return (
         <ComponentPage
@@ -96,7 +92,7 @@ export function AgentImageDetailPage() {
                 number="03"
                 stage="app"
             >
-                <div style={{ display: "flex", gap: "24px", "flex-wrap": "wrap" }}>
+                <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
                     <div style={frame(440)}>
                         <Modal
                             icon="spark"

@@ -1,6 +1,5 @@
-import type { JSX } from "solid-js";
-import { splitProps } from "solid-js";
-
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 export type IconName =
     | "home"
     | "inbox"
@@ -47,17 +46,15 @@ export type IconName =
     | "filter"
     | "edit"
     | "dot";
-
 export type IconProps = {
     name: IconName;
     size?: 12 | 14 | 16 | 18 | 20;
     color?: string;
-    class?: string;
-    style?: JSX.CSSProperties;
+    className?: string;
+    style?: CSSProperties;
     "aria-label"?: string;
     "data-testid"?: string;
 };
-
 /*
  * Hand-drawn glyphs on a 20-unit grid. Every stroked path uses the shared
  * 1.7-unit stroke with round caps and joins so the whole set carries the same
@@ -69,7 +66,7 @@ export type IconProps = {
  * reply, play, terminal) keep intentional off-axis ink and are exempt on the
  * axis they point along.
  */
-const glyphs: Record<IconName, () => JSX.Element> = {
+const glyphs: Record<IconName, () => ReactNode> = {
     home: () => (
         <>
             <path d="M3.3 8.25 10 2.45l6.7 5.8" />
@@ -95,13 +92,7 @@ const glyphs: Record<IconName, () => JSX.Element> = {
         </>
     ),
     tasks: () => (
-        <>
-            <path d="M2.65 5l1.6 1.6 3.2 -3.2" />
-            <path d="M10.75 5h6.1" />
-            <path d="M10.75 10h6.1" />
-            <path d="M2.65 15l1.6 1.6 3.2 -3.2" />
-            <path d="M10.75 15h6.1" />
-        </>
+        <path d="M2.65 5l1.6 1.6 3.2 -3.2 M10.75 5h6.1 M10.75 10h6.1 M2.65 15l1.6 1.6 3.2 -3.2 M10.75 15h6.1" />
     ),
     files: () => (
         <>
@@ -322,25 +313,22 @@ const glyphs: Record<IconName, () => JSX.Element> = {
     ),
     dot: () => <circle cx="10" cy="10" r="3" fill="currentColor" stroke="none" />,
 };
-
 export const iconNames = Object.keys(glyphs) as IconName[];
-
 export function Icon(props: IconProps) {
     const [local] = splitProps(props, [
         "aria-label",
-        "class",
+        "className",
         "color",
         "data-testid",
         "name",
         "size",
         "style",
     ]);
-
     return (
         <svg
             aria-hidden={local["aria-label"] ? undefined : "true"}
             aria-label={local["aria-label"]}
-            class={["happy2-icon", local.class].filter(Boolean).join(" ")}
+            className={["happy2-icon", local.className].filter(Boolean).join(" ")}
             data-name={local.name}
             data-happy2-ui="icon"
             data-testid={local["data-testid"]}
@@ -348,9 +336,9 @@ export function Icon(props: IconProps) {
             height={local.size ?? 16}
             role={local["aria-label"] ? "img" : undefined}
             stroke="currentColor"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.7"
             style={local.color === undefined ? local.style : { ...local.style, color: local.color }}
             viewBox="0 0 20 20"
             width={local.size ?? 16}

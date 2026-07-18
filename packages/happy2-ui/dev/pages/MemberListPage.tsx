@@ -129,7 +129,7 @@ export function MemberListPage() {
             summary="Chat roster rows: 36px presence avatar, name/title identity, role badge, and a trailing action or menu on a 56px grid."
             title="Member list"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="56px rows · avatar 36 · role badge · trailing action"
                     label="Roster"
@@ -143,7 +143,7 @@ export function MemberListPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid specimen-grid--sizes">
+            <div className="specimen-grid specimen-grid--sizes">
                 <Specimen
                     detail="owner accent · admin info · member neutral"
                     label="Role badges"

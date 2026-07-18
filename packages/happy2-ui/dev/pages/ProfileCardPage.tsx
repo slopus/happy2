@@ -18,7 +18,7 @@ export function ProfileCardPage() {
             summary="Profile header: avatar + presence, name, @username, title, status pill, actions."
             title="Profile card"
         >
-            <div class="specimen-grid specimen-grid--sizes">
+            <div className="specimen-grid specimen-grid--sizes">
                 <Specimen
                     detail="lg avatar · 16px padding · 16px gap"
                     label="Full"
@@ -63,7 +63,7 @@ export function ProfileCardPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="online dot · offline (no dot) · image avatar"
                     label="Presence and identity"

@@ -1,7 +1,7 @@
-import { For, Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 import { Badge } from "./Badge";
 import { Icon, type IconName } from "./Icon";
-
 export type MediaKind = "photo" | "video" | "gif" | "file";
 export type MediaItem = {
     id: string;
@@ -11,17 +11,15 @@ export type MediaItem = {
     size?: string;
     duration?: string;
 };
-
 export type MediaGalleryProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     items: MediaItem[];
     columns?: number;
     onOpen?: (id: string) => void;
-    empty?: JSX.Element;
+    empty?: ReactNode;
 };
-
 /* Fallback glyph for a tile with no thumbnail, by kind. `doc` is the file
  * document glyph; the others cover a missing preview. Only the symmetric
  * glyphs are optically strict — directional ones (play) keep their own axis
@@ -32,85 +30,84 @@ const glyphIcons: Record<MediaKind, IconName> = {
     gif: "play",
     file: "doc",
 };
-
 /* Only ambiguous thumbnail kinds carry a kind badge overlay. */
 const kindLabels: Partial<Record<MediaKind, string>> = {
     video: "VIDEO",
     gif: "GIF",
 };
-
 function MediaTile(props: { item: MediaItem; onOpen?: (id: string) => void }) {
     const item = () => props.item;
     const kindLabel = () => kindLabels[item().kind];
     const hasFooter = () => item().name !== undefined || item().size !== undefined;
-
     return (
         <button
-            class="happy2-media-gallery__tile"
+            className="happy2-media-gallery__tile"
             data-kind={item().kind}
             data-media-id={item().id}
             data-happy2-ui="media-tile"
             onClick={() => props.onOpen?.(item().id)}
             type="button"
         >
-            <span class="happy2-media-gallery__thumb" data-happy2-ui="media-thumb">
-                <Show
-                    when={item().thumbnailUrl}
-                    fallback={
-                        <span class="happy2-media-gallery__glyph" data-happy2-ui="media-glyph">
-                            <Icon name={glyphIcons[item().kind]} size={20} />
-                        </span>
-                    }
-                >
-                    {(url) => (
+            <span className="happy2-media-gallery__thumb" data-happy2-ui="media-thumb">
+                {item().thumbnailUrl ? (
+                    ((url) => (
                         <img
                             alt={item().name ?? ""}
-                            class="happy2-media-gallery__image"
+                            className="happy2-media-gallery__image"
                             data-happy2-ui="media-image"
-                            src={url()}
+                            src={url}
                         />
-                    )}
-                </Show>
-                <Show when={kindLabel()}>
-                    {(label) => (
-                        <span class="happy2-media-gallery__kind" data-happy2-ui="media-kind">
-                            <Badge label={label()} variant="neutral" />
-                        </span>
-                    )}
-                </Show>
-                <Show when={item().duration}>
-                    {(duration) => (
-                        <span
-                            class="happy2-media-gallery__duration"
-                            data-happy2-ui="media-duration"
-                        >
-                            {duration()}
-                        </span>
-                    )}
-                </Show>
+                    ))(item().thumbnailUrl!)
+                ) : (
+                    <span className="happy2-media-gallery__glyph" data-happy2-ui="media-glyph">
+                        <Icon name={glyphIcons[item().kind]} size={20} />
+                    </span>
+                )}
+                {kindLabel()
+                    ? ((label) => (
+                          <span className="happy2-media-gallery__kind" data-happy2-ui="media-kind">
+                              <Badge label={label} variant="neutral" />
+                          </span>
+                      ))(kindLabel()!)
+                    : null}
+                {item().duration
+                    ? ((duration) => (
+                          <span
+                              className="happy2-media-gallery__duration"
+                              data-happy2-ui="media-duration"
+                          >
+                              {duration}
+                          </span>
+                      ))(item().duration!)
+                    : null}
             </span>
-            <Show when={hasFooter()}>
-                <span class="happy2-media-gallery__footer" data-happy2-ui="media-footer">
-                    <Show when={item().name}>
-                        {(name) => (
-                            <span class="happy2-media-gallery__name" data-happy2-ui="media-name">
-                                {name()}
-                            </span>
-                        )}
-                    </Show>
-                    <Show when={item().size}>
-                        {(size) => (
-                            <span class="happy2-media-gallery__size" data-happy2-ui="media-size">
-                                {size()}
-                            </span>
-                        )}
-                    </Show>
+            {hasFooter() ? (
+                <span className="happy2-media-gallery__footer" data-happy2-ui="media-footer">
+                    {item().name
+                        ? ((name) => (
+                              <span
+                                  className="happy2-media-gallery__name"
+                                  data-happy2-ui="media-name"
+                              >
+                                  {name}
+                              </span>
+                          ))(item().name)
+                        : null}
+                    {item().size
+                        ? ((size) => (
+                              <span
+                                  className="happy2-media-gallery__size"
+                                  data-happy2-ui="media-size"
+                              >
+                                  {size}
+                              </span>
+                          ))(item().size)
+                        : null}
                 </span>
-            </Show>
+            ) : null}
         </button>
     );
 }
-
 /**
  * C-038 MediaGallery — files/media grid. An equal-track grid of tiles; each
  * tile is a 4:3 thumbnail (data-URI image or a centered file-glyph medallion)
@@ -120,7 +117,7 @@ function MediaTile(props: { item: MediaItem; onOpen?: (id: string) => void }) {
  */
 export function MediaGallery(props: MediaGalleryProps) {
     const [local] = splitProps(props, [
-        "class",
+        "className",
         "columns",
         "data-testid",
         "empty",
@@ -130,29 +127,25 @@ export function MediaGallery(props: MediaGalleryProps) {
     ]);
     const columns = () => local.columns ?? 4;
     const isEmpty = () => local.items.length === 0 && local.empty !== undefined;
-
     return (
         <div
-            class={["happy2-media-gallery", local.class].filter(Boolean).join(" ")}
+            className={["happy2-media-gallery", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="media-gallery"
             data-testid={local["data-testid"]}
             style={{
                 ...local.style,
-                "grid-template-columns": `repeat(${columns()}, minmax(0, 1fr))`,
+                gridTemplateColumns: `repeat(${columns()}, minmax(0, 1fr))`,
             }}
         >
-            <Show
-                when={!isEmpty()}
-                fallback={
-                    <div class="happy2-media-gallery__empty" data-happy2-ui="media-empty">
-                        {local.empty}
-                    </div>
-                }
-            >
-                <For each={local.items}>
-                    {(item) => <MediaTile item={item} onOpen={local.onOpen} />}
-                </For>
-            </Show>
+            {!isEmpty() ? (
+                local.items.map((item) => (
+                    <MediaTile key={item.id} item={item} onOpen={local.onOpen} />
+                ))
+            ) : (
+                <div className="happy2-media-gallery__empty" data-happy2-ui="media-empty">
+                    {local.empty}
+                </div>
+            )}
         </div>
     );
 }

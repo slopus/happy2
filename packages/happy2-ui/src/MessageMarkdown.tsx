@@ -1,7 +1,5 @@
-import { compiler, sanitizer, type SolidOptions } from "markdown-to-jsx/solid";
-import { type Component, type JSX } from "solid-js";
-import { Dynamic } from "solid-js/web";
-
+import { createElement, type ComponentType, type ReactNode } from "react";
+import { compiler, sanitizer, type MarkdownToJSX } from "markdown-to-jsx/react";
 /**
  * Agent generation lifecycle for a streamed reply. This is deliberately kept
  * separate from `MessageDeliveryState`: delivery describes an *outgoing* message
@@ -10,7 +8,6 @@ import { Dynamic } from "solid-js/web";
  * being generated ("streaming").
  */
 export type MessageGenerationStatus = "streaming" | "complete" | "failed";
-
 /**
  * Schemes an untrusted chat link/image may navigate to. The library sanitizer
  * only blocks `javascript:`/`vbscript:`/non-image `data:`, so on its own it still
@@ -18,7 +15,6 @@ export type MessageGenerationStatus = "streaming" | "complete" | "failed";
  * targets. This is the explicit allowlist applied after sanitization.
  */
 const NAVIGABLE_SCHEMES = new Set(["http", "https", "mailto"]);
-
 /**
  * Sanitized navigable URL, or `undefined` when unsafe/empty. First runs
  * markdown-to-jsx's own filter, then enforces a strict scheme allowlist: only an
@@ -37,32 +33,30 @@ function safeHref(value: unknown): string | undefined {
     if (!scheme) return undefined;
     return NAVIGABLE_SCHEMES.has(scheme[1]!.toLowerCase()) ? sanitized : undefined;
 }
-
 /**
  * Links inside untrusted chat content open in a fresh browsing context and never
  * replace the app window; `rel` severs the opener channel and drops the referrer.
  */
-const MarkdownLink: Component<Record<string, unknown>> = (props) => {
+const MarkdownLink: ComponentType<Record<string, unknown>> = (props) => {
     const href = () => safeHref(props.href);
     return (
         <a
-            class="happy2-message__md-link"
+            className="happy2-message__md-link"
             data-happy2-ui="message-md-link"
             href={href()}
             rel="noopener noreferrer nofollow"
             target="_blank"
         >
-            {props.children as JSX.Element}
+            {props.children as ReactNode}
         </a>
     );
 };
-
 /**
  * A Markdown image is rendered as a safe labelled link, never an `<img>`: an
  * untrusted body must not trigger an implicit remote fetch merely by being
  * displayed. First-class attachments use the Message image grid instead.
  */
-const MarkdownImage: Component<Record<string, unknown>> = (props) => {
+const MarkdownImage: ComponentType<Record<string, unknown>> = (props) => {
     const href = () => safeHref(props.src);
     const label = () => {
         const alt = typeof props.alt === "string" ? props.alt.trim() : "";
@@ -70,7 +64,7 @@ const MarkdownImage: Component<Record<string, unknown>> = (props) => {
     };
     return (
         <a
-            class="happy2-message__md-link happy2-message__md-image"
+            className="happy2-message__md-link happy2-message__md-image"
             data-md-src={href()}
             data-happy2-ui="message-md-image"
             href={href()}
@@ -81,7 +75,6 @@ const MarkdownImage: Component<Record<string, unknown>> = (props) => {
         </a>
     );
 };
-
 /**
  * Headings render with no generated `id`. Chat bodies are untrusted and appear
  * many-to-a-page, so markdown-to-jsx's slugified heading `id` is a hazard: it
@@ -93,10 +86,12 @@ const MarkdownImage: Component<Record<string, unknown>> = (props) => {
  */
 const headingOverride = (
     tag: "h1" | "h2" | "h3" | "h4" | "h5" | "h6",
-): Component<Record<string, unknown>> => {
-    return (props) => <Dynamic component={tag}>{props.children as JSX.Element}</Dynamic>;
+): ComponentType<Record<string, unknown>> => {
+    const MarkdownHeading = (props: Record<string, unknown>) =>
+        createElement(tag, undefined, props.children as ReactNode);
+    MarkdownHeading.displayName = `MarkdownHeading(${tag})`;
+    return MarkdownHeading;
 };
-
 /**
  * The only `<div>` the compiler emits (raw HTML is disabled) is the footnote
  * footer's per-definition block, which markdown-to-jsx tags with a slugified
@@ -106,11 +101,10 @@ const headingOverride = (
  * matching footnote-reference link is already made inert by `safeHref`, which
  * rejects `#fragment` navigation.
  */
-const MarkdownDiv: Component<Record<string, unknown>> = (props) => (
-    <div>{props.children as JSX.Element}</div>
+const MarkdownDiv: ComponentType<Record<string, unknown>> = (props) => (
+    <div>{props.children as ReactNode}</div>
 );
-
-const markdownOptions: SolidOptions = {
+const markdownOptions: MarkdownToJSX.Options = {
     /*
      * Emit block nodes as direct children of the body: without a wrapper the
      * compiler would otherwise nest multiple blocks inside a generated `<div>`,
@@ -143,8 +137,7 @@ const markdownOptions: SolidOptions = {
         h6: headingOverride("h6"),
     },
 };
-
-/** Compile a Markdown string into Solid nodes for the Message body. */
-export function renderMessageMarkdown(text: string): JSX.Element {
-    return compiler(text, markdownOptions) as JSX.Element;
+/** Compile a Markdown string into React nodes for the Message body. */
+export function renderMessageMarkdown(text: string): ReactNode {
+    return compiler(text, markdownOptions) as ReactNode;
 }

@@ -1,19 +1,16 @@
-import { createSignal, type JSX } from "solid-js";
+import { useState, type CSSProperties } from "react";
 import { Box, Button, FormRow, Modal, ModalOverlay, TextField } from "./ChatPageComponents.js";
-
-const stackStyle: JSX.CSSProperties = { display: "flex", "flex-direction": "column", gap: "8px" };
-const actionsStyle: JSX.CSSProperties = { display: "flex", "align-items": "center", gap: "8px" };
-
+const stackStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: "8px" };
+const actionsStyle: CSSProperties = { display: "flex", alignItems: "center", gap: "8px" };
 export interface ChatAgentCreateDialogProps {
     busy: boolean;
     onClose(): void;
     onCreate(name: string, username: string): void;
 }
-
 export function ChatAgentCreateDialog(props: ChatAgentCreateDialogProps) {
-    const [name, setName] = createSignal("");
-    const [username, setUsername] = createSignal("");
-    const [usernameEdited, setUsernameEdited] = createSignal(false);
+    const [name, setName] = useState("");
+    const [username, setUsername] = useState("");
+    const [usernameEdited, setUsernameEdited] = useState(false);
     return (
         <ModalOverlay onDismiss={props.onClose}>
             <Modal
@@ -23,11 +20,9 @@ export function ChatAgentCreateDialog(props: ChatAgentCreateDialogProps) {
                             Cancel
                         </Button>
                         <Button
-                            disabled={
-                                props.busy || !name().trim() || !validAgentUsername(username())
-                            }
+                            disabled={props.busy || !name.trim() || !validAgentUsername(username)}
                             icon="plus"
-                            onClick={() => props.onCreate(name().trim(), username())}
+                            onClick={() => props.onCreate(name.trim(), username)}
                         >
                             Create agent
                         </Button>
@@ -45,9 +40,9 @@ export function ChatAgentCreateDialog(props: ChatAgentCreateDialogProps) {
                                 fullWidth
                                 onValueChange={(value) => {
                                     setName(value);
-                                    if (!usernameEdited()) setUsername(agentUsername(value));
+                                    if (!usernameEdited) setUsername(agentUsername(value));
                                 }}
-                                value={name()}
+                                value={name}
                             />
                         }
                         label="Name"
@@ -61,7 +56,7 @@ export function ChatAgentCreateDialog(props: ChatAgentCreateDialogProps) {
                                     setUsernameEdited(true);
                                     setUsername(agentUsername(value));
                                 }}
-                                value={username()}
+                                value={username}
                             />
                         }
                         label="Username"
@@ -72,7 +67,6 @@ export function ChatAgentCreateDialog(props: ChatAgentCreateDialogProps) {
         </ModalOverlay>
     );
 }
-
 function agentUsername(value: string): string {
     return value
         .trim()

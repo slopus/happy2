@@ -3,8 +3,8 @@ import { ComponentPage, DimensionRule, Specimen } from "../kit";
 
 const column: Record<string, string> = {
     display: "flex",
-    "flex-direction": "column",
-    "align-items": "flex-start",
+    flexDirection: "column",
+    alignItems: "flex-start",
     gap: "10px",
 };
 

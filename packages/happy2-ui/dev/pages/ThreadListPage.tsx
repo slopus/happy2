@@ -115,14 +115,14 @@ export function ThreadListPage() {
             summary="Followed-thread rows: root/snippet, stacked participant avatars, reply/unread counts."
             title="Thread list"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="row 64 · avatars sm 28 with 18px step · title 13/600 · snippet 12 muted · trailing 16 off the edge"
                     label="Followed threads"
                     number="01"
                     stage="app"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <ThreadList
                             onSelect={() => {}}
                             style={{ width: "440px" }}
@@ -138,7 +138,7 @@ export function ThreadListPage() {
                     number="02"
                     stage="app"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <ThreadList
                             onSelect={() => {}}
                             style={{ width: "440px" }}
@@ -154,7 +154,7 @@ export function ThreadListPage() {
                     number="03"
                     stage="app"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <ThreadList
                             emptyLabel="No followed threads yet"
                             style={{ width: "440px" }}

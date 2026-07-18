@@ -1,17 +1,13 @@
-import { Show } from "solid-js";
 import { Badge, type BadgeVariant } from "./Badge";
 import { Icon, type IconName } from "./Icon";
-
 export type SetupOptionStatus = {
     readonly label: string;
     readonly variant: BadgeVariant;
     readonly icon?: IconName;
 };
-
 export type SetupOptionHintTone = "muted" | "warning" | "danger";
-
 export type SetupOptionCardProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
     icon?: IconName;
     title: string;
@@ -26,7 +22,6 @@ export type SetupOptionCardProps = {
     pending?: boolean;
     onSelect?: () => void;
 };
-
 /*
  * Full-width selectable onboarding option. The whole card is a real
  * <button type="button">, so selection is entirely props-driven; the component
@@ -36,10 +31,9 @@ export function SetupOptionCard(props: SetupOptionCardProps) {
     const hintTone = () => props.hintTone ?? "muted";
     const isDisabled = () => props.disabled === true;
     const isPending = () => props.pending === true;
-
     return (
         <button
-            class={["happy2-setup-option", props.class].filter(Boolean).join(" ")}
+            className={["happy2-setup-option", props.className].filter(Boolean).join(" ")}
             data-disabled={isDisabled() ? "" : undefined}
             data-happy2-ui="setup-option"
             data-pending={isPending() ? "" : undefined}
@@ -50,92 +44,96 @@ export function SetupOptionCard(props: SetupOptionCardProps) {
             onClick={() => props.onSelect?.()}
             type="button"
         >
-            <Show when={props.icon}>
-                {(name) => (
-                    <span class="happy2-setup-option__icon" data-happy2-ui="setup-option-icon">
-                        <Icon name={name()} size={18} />
-                    </span>
-                )}
-            </Show>
-            <span class="happy2-setup-option__body" data-happy2-ui="setup-option-body">
+            {props.icon
+                ? ((name) => (
+                      <span
+                          className="happy2-setup-option__icon"
+                          data-happy2-ui="setup-option-icon"
+                      >
+                          <Icon name={name} size={18} />
+                      </span>
+                  ))(props.icon)
+                : null}
+            <span className="happy2-setup-option__body" data-happy2-ui="setup-option-body">
                 <span
-                    class="happy2-setup-option__title-row"
+                    className="happy2-setup-option__title-row"
                     data-happy2-ui="setup-option-title-row"
                 >
-                    <span class="happy2-setup-option__title" data-happy2-ui="setup-option-title">
+                    <span
+                        className="happy2-setup-option__title"
+                        data-happy2-ui="setup-option-title"
+                    >
                         {props.title}
                     </span>
-                    <Show when={props.recommended}>
+                    {props.recommended ? (
                         <span
-                            class="happy2-setup-option__recommended"
+                            className="happy2-setup-option__recommended"
                             data-happy2-ui="setup-option-recommended"
                         >
                             Recommended
                         </span>
-                    </Show>
-                    <Show when={props.status}>
-                        {(status) => (
-                            <span
-                                class="happy2-setup-option__status"
-                                data-happy2-ui="setup-option-status"
-                            >
-                                <Badge
-                                    icon={status().icon}
-                                    label={status().label}
-                                    variant={status().variant}
-                                />
-                            </span>
-                        )}
-                    </Show>
+                    ) : null}
+                    {props.status
+                        ? ((status) => (
+                              <span
+                                  className="happy2-setup-option__status"
+                                  data-happy2-ui="setup-option-status"
+                              >
+                                  <Badge
+                                      icon={status.icon}
+                                      label={status.label}
+                                      variant={status.variant}
+                                  />
+                              </span>
+                          ))(props.status)
+                        : null}
                 </span>
-                <Show when={props.description}>
-                    {(description) => (
-                        <span
-                            class="happy2-setup-option__description"
-                            data-happy2-ui="setup-option-description"
-                        >
-                            {description()}
-                        </span>
-                    )}
-                </Show>
-                <Show when={props.meta}>
-                    {(meta) => (
-                        <span class="happy2-setup-option__meta" data-happy2-ui="setup-option-meta">
-                            {meta()}
-                        </span>
-                    )}
-                </Show>
-                <Show when={props.hint}>
-                    {(hint) => (
-                        <span
-                            class="happy2-setup-option__hint"
-                            data-happy2-ui="setup-option-hint"
-                            data-tone={hintTone()}
-                        >
-                            {hint()}
-                        </span>
-                    )}
-                </Show>
+                {props.description
+                    ? ((description) => (
+                          <span
+                              className="happy2-setup-option__description"
+                              data-happy2-ui="setup-option-description"
+                          >
+                              {description}
+                          </span>
+                      ))(props.description)
+                    : null}
+                {props.meta
+                    ? ((meta) => (
+                          <span
+                              className="happy2-setup-option__meta"
+                              data-happy2-ui="setup-option-meta"
+                          >
+                              {meta}
+                          </span>
+                      ))(props.meta)
+                    : null}
+                {props.hint
+                    ? ((hint) => (
+                          <span
+                              className="happy2-setup-option__hint"
+                              data-happy2-ui="setup-option-hint"
+                              data-tone={hintTone()}
+                          >
+                              {hint}
+                          </span>
+                      ))(props.hint)
+                    : null}
             </span>
-            <span class="happy2-setup-option__trailing" data-happy2-ui="setup-option-trailing">
-                <Show
-                    when={isPending()}
-                    fallback={
-                        <Show when={props.selected}>
-                            <span
-                                class="happy2-setup-option__check"
-                                data-happy2-ui="setup-option-check"
-                            >
-                                <Icon name="check-circle" size={20} />
-                            </span>
-                        </Show>
-                    }
-                >
+            <span className="happy2-setup-option__trailing" data-happy2-ui="setup-option-trailing">
+                {isPending() ? (
                     <span
-                        class="happy2-setup-option__spinner"
+                        className="happy2-setup-option__spinner"
                         data-happy2-ui="setup-option-spinner"
                     />
-                </Show>
+                ) : props.selected ? (
+                    <span
+                        className="happy2-setup-option__check"
+                        data-happy2-ui="setup-option-check"
+                    >
+                        <Icon name="check-circle" size={20} />
+                    </span>
+                ) : null}
             </span>
         </button>
     );

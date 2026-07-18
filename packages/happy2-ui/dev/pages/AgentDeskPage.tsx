@@ -1,7 +1,6 @@
-import type { JSX } from "solid-js";
+import { type CSSProperties } from "react";
 import { AgentDesk, type DeskListItem, type DeskRun } from "../../src/AgentDesk";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const running: DeskRun[] = [
     {
         agent: "Codex",
@@ -24,42 +23,36 @@ const running: DeskRun[] = [
         tone: "ember",
     },
 ];
-
 const queued: DeskListItem[] = [
     { id: "q-triage", meta: "Fri 9:00", title: "Weekly triage sweep" },
     { icon: "branch", id: "q-backport", meta: "after review", title: "Backport fix to v2.2" },
 ];
-
 const done: DeskListItem[] = [
     { id: "d-eng479", meta: "merged", title: "ENG-479 rate limiter fix" },
     { id: "d-sup88", meta: "posted", title: "SUP-88 triage summary" },
 ];
-
-function panelFrame(width: number, height: number): JSX.CSSProperties {
+function panelFrame(width: number, height: number): CSSProperties {
     return {
         background: "var(--happy2-bg-app)",
         border: "1px solid var(--happy2-border)",
-        "border-radius": "14px",
+        borderRadius: "14px",
         display: "flex",
         height: `${height}px`,
         overflow: "hidden",
         width: `${width}px`,
     };
 }
-
-const row: JSX.CSSProperties = {
-    "align-items": "flex-start",
+const row: CSSProperties = {
+    alignItems: "flex-start",
     display: "flex",
     gap: "24px",
-    "flex-wrap": "wrap",
+    flexWrap: "wrap",
 };
-
-const column: JSX.CSSProperties = {
+const column: CSSProperties = {
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     gap: "12px",
 };
-
 export function AgentDeskPage() {
     return (
         <ComponentPage

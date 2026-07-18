@@ -1,3 +1,4 @@
+import { useLayoutEffect, useState, type ReactNode } from "react";
 import { UserError, type ComposerStore } from "happy2-state";
 import {
     adminStoreFixtureCreate,
@@ -17,16 +18,13 @@ import {
     workspaceFileStoreFixtureCreate,
     workspaceStoreFixtureCreate,
 } from "happy2-state/testing";
-import { createSignal, type JSX } from "solid-js";
 import { expect, it, onTestFinished } from "vitest";
 import { StoreSurface } from "./StoreSurface";
 import { createRenderer } from "./testing";
-
 function fixtureDispose<Fixture extends Disposable>(fixture: Fixture): Fixture {
     onTestFinished(() => fixture[Symbol.dispose]());
     return fixture;
 }
-
 it("renders every concrete HappyState surface from its deterministic real-store fixture", async () => {
     const sidebar = fixtureDispose(sidebarStoreFixtureCreate());
     const chat = fixtureDispose(chatStoreFixtureCreate("chat-1"));
@@ -45,97 +43,95 @@ it("renders every concrete HappyState surface from its deterministic real-store 
     const workspace = fixtureDispose(workspaceStoreFixtureCreate("chat-1"));
     const workspaceFile = fixtureDispose(workspaceFileStoreFixtureCreate("chat-1", "src/main.ts"));
     const view = createRenderer();
-    const render = (component: () => JSX.Element) =>
+    const render = (component: () => ReactNode) =>
         view.render(component, { width: 240, height: 32 });
-
     render(() => (
         <StoreSurface store={sidebar.store}>
-            {(snapshot) => <output data-testid="sidebar">{snapshot().status.type}</output>}
+            {(snapshot) => <output data-testid="sidebar">{snapshot.status.type}</output>}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={chat.store}>
-            {(snapshot) => <output data-testid="chat">{snapshot().status.type}</output>}
+            {(snapshot) => <output data-testid="chat">{snapshot.status.type}</output>}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={composer}>
-            {(snapshot) => <output data-testid="composer">{snapshot().text}</output>}
+            {(snapshot) => <output data-testid="composer">{snapshot.text}</output>}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={search.store}>
-            {(snapshot) => <output data-testid="search">{snapshot().results.type}</output>}
+            {(snapshot) => <output data-testid="search">{snapshot.results.type}</output>}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={files.store}>
-            {(snapshot) => <output data-testid="files">{snapshot().status.type}</output>}
+            {(snapshot) => <output data-testid="files">{snapshot.status.type}</output>}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={directory.store}>
-            {(snapshot) => <output data-testid="directory">{snapshot().status.type}</output>}
+            {(snapshot) => <output data-testid="directory">{snapshot.status.type}</output>}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={admin.store}>
-            {(snapshot) => <output data-testid="admin">{snapshot().users.type}</output>}
+            {(snapshot) => <output data-testid="admin">{snapshot.users.type}</output>}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={images.store}>
-            {(snapshot) => <output data-testid="images">{snapshot().images.type}</output>}
+            {(snapshot) => <output data-testid="images">{snapshot.images.type}</output>}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={secrets.store}>
-            {(snapshot) => <output data-testid="secrets">{snapshot().secrets.type}</output>}
+            {(snapshot) => <output data-testid="secrets">{snapshot.secrets.type}</output>}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={notifications.store}>
             {(snapshot) => (
-                <output data-testid="notifications">{snapshot().notifications.type}</output>
+                <output data-testid="notifications">{snapshot.notifications.type}</output>
             )}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={threads.store}>
-            {(snapshot) => <output data-testid="threads">{snapshot().threads.type}</output>}
+            {(snapshot) => <output data-testid="threads">{snapshot.threads.type}</output>}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={thread.store}>
-            {(snapshot) => <output data-testid="thread">{snapshot().root.type}</output>}
+            {(snapshot) => <output data-testid="thread">{snapshot.root.type}</output>}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={calls.store}>
-            {(snapshot) => <output data-testid="calls">{snapshot().calls.type}</output>}
+            {(snapshot) => <output data-testid="calls">{snapshot.calls.type}</output>}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={settings.store}>
-            {(snapshot) => <output data-testid="settings">{snapshot().status.type}</output>}
+            {(snapshot) => <output data-testid="settings">{snapshot.status.type}</output>}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={workspace.store}>
-            {(snapshot) => <output data-testid="workspace">{snapshot().status.type}</output>}
+            {(snapshot) => <output data-testid="workspace">{snapshot.status.type}</output>}
         </StoreSurface>
     ));
     render(() => (
         <StoreSurface store={workspaceFile.store}>
-            {(snapshot) => <output data-testid="workspace-file">{snapshot().file.type}</output>}
+            {(snapshot) => <output data-testid="workspace-file">{snapshot.file.type}</output>}
         </StoreSurface>
     ));
     await view.ready();
-
     sidebar.input({ type: "sidebarLoading" });
     chat.input({ type: "chatLoading" });
-    composer.textUpdate("typed locally");
-    search.store.queryUpdate("relay");
+    composer.getState().textUpdate("typed locally");
+    search.store.getState().queryUpdate("relay");
     search.input({ type: "searchLoading", query: "relay" });
     files.input({ type: "filesLoading" });
     directory.input({ type: "directoryLoading" });
@@ -149,7 +145,7 @@ it("renders every concrete HappyState surface from its deterministic real-store 
     settings.input({ type: "settingsLoadFailed", error: new UserError("offline") });
     workspace.input({ type: "workspaceLoading" });
     workspaceFile.input({ type: "fileLoading" });
-
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     for (const id of [
         "sidebar",
         "chat",
@@ -176,7 +172,6 @@ it("renders every concrete HappyState surface from its deterministic real-store 
     );
     expect(view.container.querySelector('[data-testid="settings"]')?.textContent).toBe("error");
 });
-
 function subscriptionTracked(store: ComposerStore) {
     const counts = { active: 0, total: 0 };
     const tracked: ComposerStore = {
@@ -193,50 +188,62 @@ function subscriptionTracked(store: ComposerStore) {
     };
     return { counts, store: tracked };
 }
-
 it("owns one subscription, routes safe actions, and rebinds cleanly when store identity changes", async () => {
     const firstFixture = fixtureDispose(composerStoreFixtureCreate("first"));
     const secondFixture = fixtureDispose(composerStoreFixtureCreate("second"));
     const first = subscriptionTracked(firstFixture);
     const second = subscriptionTracked(secondFixture);
-    const [store, setStore] = createSignal<ComposerStore>(first.store);
     const view = createRenderer();
     let childMounts = 0;
-
-    view.render(
-        () => (
-            <StoreSurface store={store()}>
-                {(snapshot, actions) => {
-                    childMounts += 1;
-                    return (
-                        <button
-                            data-testid="draft"
-                            onClick={() => actions.textUpdate(`${snapshot().scopeId} updated`)}
-                        >
-                            {snapshot().scopeId}:{snapshot().text}
-                        </button>
-                    );
-                }}
+    let setStore!: (store: ComposerStore) => void;
+    function DraftButton(props: {
+        actions: ReturnType<ComposerStore["getState"]>;
+        scopeId: string;
+        text: string;
+    }) {
+        useLayoutEffect(() => {
+            childMounts += 1;
+        }, []);
+        return (
+            <button
+                data-testid="draft"
+                onClick={() => props.actions.textUpdate(`${props.scopeId} updated`)}
+            >
+                {props.scopeId}:{props.text}
+            </button>
+        );
+    }
+    function SurfaceFixture() {
+        const [store, updateStore] = useState<ComposerStore>(first.store);
+        setStore = updateStore;
+        return (
+            <StoreSurface store={store}>
+                {(snapshot, actions) => (
+                    <DraftButton
+                        actions={actions}
+                        scopeId={snapshot.scopeId}
+                        text={snapshot.text}
+                    />
+                )}
             </StoreSurface>
-        ),
-        { width: 240, height: 40 },
-    );
+        );
+    }
+    view.render(SurfaceFixture, { width: 240, height: 40 });
     await view.ready();
-
     expect(first.counts).toEqual({ active: 1, total: 1 });
     expect(childMounts).toBe(1);
     view.container.querySelector<HTMLButtonElement>('[data-testid="draft"]')?.click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     expect(view.container.querySelector('[data-testid="draft"]')?.textContent).toBe(
         "first:first updated",
     );
     expect(childMounts).toBe(1);
-
     setStore(second.store);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     expect(first.counts.active).toBe(0);
     expect(second.counts).toEqual({ active: 1, total: 1 });
     expect(childMounts).toBe(2);
     expect(view.container.querySelector('[data-testid="draft"]')?.textContent).toBe("second:");
-
     view.destroy();
     expect(second.counts.active).toBe(0);
 });

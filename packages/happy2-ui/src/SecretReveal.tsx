@@ -1,11 +1,11 @@
-import { Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties } from "react";
 import { Banner } from "./Banner";
 import { Button } from "./Button";
-
 export type SecretRevealProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     secret: string;
     label?: string;
     revealed?: boolean;
@@ -15,14 +15,12 @@ export type SecretRevealProps = {
     warning?: string;
     meta?: string;
 };
-
 /*
  * A fixed 24-glyph mask, independent of the real secret length so the masked
  * view never leaks how long the token is. JetBrains Mono renders the bullet at
  * the same advance as every other glyph, so the masked row stays tabular.
  */
 const MASK = "•".repeat(24);
-
 /**
  * C-042 SecretReveal — one-time token/secret display. A card with a header
  * (label + mono meta) and a reveal/copy action pair, a `--happy2-bg-code` well
@@ -34,7 +32,7 @@ const MASK = "•".repeat(24);
  */
 export function SecretReveal(props: SecretRevealProps) {
     const [local] = splitProps(props, [
-        "class",
+        "className",
         "data-testid",
         "style",
         "secret",
@@ -48,40 +46,45 @@ export function SecretReveal(props: SecretRevealProps) {
     ]);
     const revealed = () => local.revealed ?? false;
     const copied = () => local.copied ?? false;
-
     return (
         <div
-            class={["happy2-secret-reveal", local.class].filter(Boolean).join(" ")}
+            className={["happy2-secret-reveal", local.className].filter(Boolean).join(" ")}
             data-copied={copied() ? "" : undefined}
             data-revealed={revealed() ? "" : undefined}
             data-happy2-ui="secret-reveal"
             data-testid={local["data-testid"]}
             style={local.style}
         >
-            <div class="happy2-secret-reveal__header" data-happy2-ui="secret-reveal-header">
-                <div class="happy2-secret-reveal__heading" data-happy2-ui="secret-reveal-heading">
-                    <Show when={local.label}>
+            <div className="happy2-secret-reveal__header" data-happy2-ui="secret-reveal-header">
+                <div
+                    className="happy2-secret-reveal__heading"
+                    data-happy2-ui="secret-reveal-heading"
+                >
+                    {local.label ? (
                         <span
-                            class="happy2-secret-reveal__label"
+                            className="happy2-secret-reveal__label"
                             data-happy2-ui="secret-reveal-label"
                         >
                             {local.label}
                         </span>
-                    </Show>
-                    <Show when={local.meta}>
+                    ) : null}
+                    {local.meta ? (
                         <span
-                            class="happy2-secret-reveal__meta"
+                            className="happy2-secret-reveal__meta"
                             data-happy2-ui="secret-reveal-meta"
                         >
                             {local.meta}
                         </span>
-                    </Show>
+                    ) : null}
                 </div>
-                <div class="happy2-secret-reveal__actions" data-happy2-ui="secret-reveal-actions">
+                <div
+                    className="happy2-secret-reveal__actions"
+                    data-happy2-ui="secret-reveal-actions"
+                >
                     <Button
                         aria-label={revealed() ? "Hide secret" : "Reveal secret"}
                         aria-pressed={revealed() ? "true" : "false"}
-                        class="happy2-secret-reveal__reveal"
+                        className="happy2-secret-reveal__reveal"
                         icon="eye"
                         iconOnly
                         onClick={() => local.onToggleReveal?.()}
@@ -89,7 +92,7 @@ export function SecretReveal(props: SecretRevealProps) {
                         variant="ghost"
                     />
                     <Button
-                        class="happy2-secret-reveal__copy"
+                        className="happy2-secret-reveal__copy"
                         icon={copied() ? "check" : "files"}
                         onClick={() => local.onCopy?.()}
                         size="small"
@@ -101,12 +104,12 @@ export function SecretReveal(props: SecretRevealProps) {
             </div>
 
             <div
-                class="happy2-secret-reveal__field"
+                className="happy2-secret-reveal__field"
                 data-revealed={revealed() ? "" : undefined}
                 data-happy2-ui="secret-reveal-field"
             >
                 <span
-                    class="happy2-secret-reveal__token"
+                    className="happy2-secret-reveal__token"
                     data-masked={revealed() ? undefined : ""}
                     data-happy2-ui="secret-reveal-token"
                 >
@@ -114,13 +117,17 @@ export function SecretReveal(props: SecretRevealProps) {
                 </span>
             </div>
 
-            <Show when={local.warning}>
-                {(warning) => (
-                    <Banner class="happy2-secret-reveal__warning" icon="shield" tone="warning">
-                        {warning()}
-                    </Banner>
-                )}
-            </Show>
+            {local.warning
+                ? ((warning) => (
+                      <Banner
+                          className="happy2-secret-reveal__warning"
+                          icon="shield"
+                          tone="warning"
+                      >
+                          {warning}
+                      </Banner>
+                  ))(local.warning)
+                : null}
         </div>
     );
 }

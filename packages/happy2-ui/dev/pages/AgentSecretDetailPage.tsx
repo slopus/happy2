@@ -1,32 +1,27 @@
-import type { JSX } from "solid-js";
+import { type CSSProperties } from "react";
 import { AgentSecretDetail, type AgentSecretBinding } from "../../src/AgentSecretDetail";
 import { Modal } from "../../src/Modal";
 import { ComponentPage, Specimen } from "../kit";
-
 const agents: AgentSecretBinding[] = [
     { id: "agent-1", name: "Secret Worker", secondary: "@secret_worker" },
     { id: "agent-2", name: "Deploy Bot", secondary: "@deploy_bot" },
 ];
-
 const channels: AgentSecretBinding[] = [
     { id: "chan-1", name: "Deployments", secondary: "#secret-deployments" },
 ];
-
 const availableAgents = [
     { value: "agent-3", label: "Release Agent (@release_agent)" },
     { value: "agent-4", label: "QA Agent (@qa_agent)" },
 ];
-
 const availableChannels = [
     { value: "chan-2", label: "Incidents (#incidents)" },
     { value: "chan-3", label: "On-call (#on-call)" },
 ];
-
-function frame(height: number, width = 560): JSX.CSSProperties {
+function frame(height: number, width = 560): CSSProperties {
     return {
         background: "var(--happy2-bg-app)",
         border: "1px solid var(--happy2-border)",
-        "border-radius": "14px",
+        borderRadius: "14px",
         display: "flex",
         height: `${height}px`,
         overflow: "hidden",
@@ -34,7 +29,6 @@ function frame(height: number, width = 560): JSX.CSSProperties {
         width: `${width}px`,
     };
 }
-
 export function AgentSecretDetailPage() {
     return (
         <ComponentPage

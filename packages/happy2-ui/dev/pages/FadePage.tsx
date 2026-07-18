@@ -1,35 +1,31 @@
-import { createSignal } from "solid-js";
+import { useState } from "react";
 import { Fade } from "../../src/Fade";
 import { ComponentPage, Specimen } from "../kit";
-
 const screens = ["loading", "sign-in", "workspace"] as const;
-
 function ScreenCard(props: { label: string }) {
     return (
         <div
             style={{
                 display: "flex",
-                "align-items": "center",
-                "justify-content": "center",
+                alignItems: "center",
+                justifyContent: "center",
                 width: "100%",
                 height: "100%",
                 color: "var(--happy2-text)",
                 background: "var(--happy2-bg-app)",
-                "font-family": "var(--happy2-font-ui)",
-                "font-size": "18px",
-                "font-weight": "600",
+                fontFamily: "var(--happy2-font-ui)",
+                fontSize: "18px",
+                fontWeight: "600",
             }}
         >
             {props.label}
         </div>
     );
 }
-
 export function FadePage() {
-    const [index, setIndex] = createSignal(0);
-    const active = () => screens[index()];
+    const [index, setIndex] = useState(0);
+    const active = () => screens[index];
     const advance = () => setIndex((current) => (current + 1) % screens.length);
-
     return (
         <ComponentPage
             number="C-057"
@@ -43,14 +39,14 @@ export function FadePage() {
                     detail="advance to blend between screens"
                     stage="chrome"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                         <div
                             style={{
                                 position: "relative",
                                 width: "480px",
                                 height: "240px",
                                 overflow: "hidden",
-                                "border-radius": "var(--happy2-radius-md)",
+                                borderRadius: "var(--happy2-radius-md)",
                                 border: "1px solid var(--happy2-border)",
                             }}
                         >
@@ -63,13 +59,13 @@ export function FadePage() {
                             type="button"
                             onClick={advance}
                             style={{
-                                "align-self": "flex-start",
+                                alignSelf: "flex-start",
                                 padding: "8px 16px",
                                 color: "var(--happy2-text)",
                                 background: "var(--happy2-bg-raised)",
                                 border: "1px solid var(--happy2-border-strong)",
-                                "border-radius": "var(--happy2-radius-sm)",
-                                "font-family": "var(--happy2-font-ui)",
+                                borderRadius: "var(--happy2-radius-sm)",
+                                fontFamily: "var(--happy2-font-ui)",
                                 cursor: "pointer",
                             }}
                         >

@@ -9,16 +9,12 @@ import { Badge } from "./Badge";
 import { Button } from "./Button";
 import { FormRow } from "./FormRow";
 import { createRenderer } from "./testing";
-
 type Engine = "chromium" | "firefox" | "webkit";
-
 /* Solid text colors so every engine reports the same rgb(). */
 const TEXT = "rgb(237, 234, 242)"; // --happy2-text  #edeaf2
 const MUTED = "rgb(117, 112, 133)"; // --happy2-text-muted #757085
 const HAIRLINE = "rgba(255, 255, 255, 0.07)"; // --happy2-border
-
 type Renderer = ReturnType<typeof createRenderer>;
-
 /*
  * Alpha-weighted ink centroid of `partSelector`, expressed as an offset from
  * the center of `hostSelector` (positive = right/low). Refuses blank or
@@ -47,7 +43,6 @@ async function inkDrift(view: Renderer, hostSelector: string, partSelector: stri
         dy: visible.center.y + partBounds.y - hostBounds.y - hostBounds.height / 2,
     };
 }
-
 /* A left-aligned word label paints asymmetric ink, so its centroid is not
  * chased. Instead assert the capture is non-blank and unclipped inside its own
  * line box: a truncated or empty render then fails loudly. */
@@ -67,10 +62,8 @@ async function assertLegibleUnclipped(view: Renderer, selector: string) {
         `${selector} ink clipped at bottom`,
     ).toBeLessThan(box.height);
 }
-
 it("holds FormRow layout, typography, colors, divider, and control alignment", async () => {
     const view = createRenderer();
-
     // Inline, label + description, control right-aligned in a fixed 420px row.
     view.render(
         () => (
@@ -89,7 +82,6 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
         ),
         { width: 460, height: 105, padding: 20 },
     );
-
     // Inline, label only, icon-only control — the symmetric plus glyph is the
     // centroid calibration reference.
     view.render(
@@ -112,7 +104,6 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
         ),
         { width: 460, height: 92, padding: 20 },
     );
-
     // Stacked, align start — control drops below the text on its own line.
     view.render(
         () => (
@@ -137,14 +128,13 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
         ),
         { width: 460, height: 160, padding: 20 },
     );
-
     // Inline vertical-align contract: a short 18px control (Badge) against the
     // 40px label+description text block. align=center centers the control in
     // the block; align=start pins it to the first (label) line. Both cases keep
     // single-line descriptions so the block stays exactly 40px in every engine.
     view.render(
         () => (
-            <div style={{ display: "grid", width: "420px", "row-gap": "16px" }}>
+            <div style={{ display: "grid", width: "420px", rowGap: "16px" }}>
                 <FormRow
                     align="center"
                     control={<Badge label="PRO" variant="accent" />}
@@ -165,12 +155,10 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
         { width: 460, height: 222, padding: 20 },
     );
     await view.ready();
-
     const fontFamily =
         (server.browser as Engine) === "webkit"
             ? "happy2 Figtree, system-ui, sans-serif"
             : '"happy2 Figtree", system-ui, sans-serif';
-
     // ---- Inline row contract ------------------------------------------------
     const inline = view.$('[data-testid="inline"]');
     // text 20 + 4 + 16 = 40 content, + 32 padding + 1 hairline = 73.
@@ -204,7 +192,6 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
         "font-family": fontFamily,
         padding: "16px 0px",
     });
-
     const inlineText = view.$('[data-testid="inline"] [data-happy2-ui="form-row-text"]');
     expect(inlineText.computedStyles(["display", "flex-direction", "gap", "min-width"])).toEqual({
         display: "flex",
@@ -216,7 +203,6 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
     expect(Math.abs(inlineText.offsets().left), "text left inset").toBeLessThanOrEqual(0.1);
     expect(Math.abs(inlineText.offsets().top - 16), "text top padding").toBeLessThanOrEqual(0.1);
     expect(inlineText.height(), "text block height").toBe(40);
-
     // Control is right-aligned and vertically centered against the text block.
     // offsets().top is relative to the FormRow border box, so content-box
     // center = padding-top 16 + content 40 / 2 = 36.
@@ -226,7 +212,6 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
     expect(Math.abs(controlCenter - 36), "control vertical center").toBeLessThanOrEqual(0.6);
     const textCenter = inlineText.offsets().top + inlineText.height() / 2;
     expect(Math.abs(textCenter - 36), "text vertical center").toBeLessThanOrEqual(0.6);
-
     // Label typography (13/600/20) and description typography (12/400/16).
     const label = view.$('[data-testid="inline"] [data-happy2-ui="form-row-label"]');
     expect(label.textMetrics()).toMatchObject({
@@ -240,7 +225,6 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
         text: "Appearance",
     });
     expect(label.computedStyle("color"), "label color").toBe(TEXT);
-
     const description = view.$('[data-testid="inline"] [data-happy2-ui="form-row-description"]');
     expect(description.textMetrics()).toMatchObject({
         font: {
@@ -253,7 +237,6 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
         text: "Applies across every workspace",
     });
     expect(description.computedStyle("color"), "description muted color").toBe(MUTED);
-
     // Label sits above description with the declared 4px gap.
     const labelBounds = label.bounds();
     const descriptionBounds = description.bounds();
@@ -263,14 +246,12 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
         Math.abs(descriptionBounds.y - (labelBounds.y + labelBounds.height) - 4),
         "label→description gap",
     ).toBeLessThanOrEqual(0.1);
-
     // Word labels are asymmetric ink: assert non-blank + unclipped, not centroid.
     await assertLegibleUnclipped(view, '[data-testid="inline"] [data-happy2-ui="form-row-label"]');
     await assertLegibleUnclipped(
         view,
         '[data-testid="inline"] [data-happy2-ui="form-row-description"]',
     );
-
     // ---- Label-only inline row ---------------------------------------------
     const plain = view.$('[data-testid="plain"]');
     // control 28 taller than the single 20px label → content 28, + 33 = 61.
@@ -288,7 +269,6 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
     expect(Math.abs(plainControl.offsets().right), "icon control right edge").toBeLessThanOrEqual(
         0.1,
     );
-
     // Symmetric glyph reference: the plus icon is optically centered in its
     // 28px control square on both axes (reuses the already-tuned Icon glyph).
     const plainButton = '[data-testid="plain"] [data-happy2-ui="button"]';
@@ -298,7 +278,6 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
     const glyph = await inkDrift(view, plainButton, `${plainButton} svg`);
     expect(Math.abs(glyph.dx), "plus glyph horizontal centroid").toBeLessThanOrEqual(0.4);
     expect(Math.abs(glyph.dy), "plus glyph vertical centroid").toBeLessThanOrEqual(0.4);
-
     // ---- Stacked row --------------------------------------------------------
     const stacked = view.$('[data-testid="stacked"]');
     expect(stacked.computedStyles(["align-items", "display", "flex-direction", "row-gap"])).toEqual(
@@ -325,7 +304,6 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
         "stacked control below text",
     ).toBeLessThanOrEqual(0.1);
     expect(stackedControl.bounds().height, "stacked control height").toBe(36);
-
     // ---- Inline vertical-align contract -------------------------------------
     // Both rows are inline with a 40px text block (label 20 + gap 4 + desc 16)
     // and an 18px Badge control, so the row's cross size is 40px. align only
@@ -337,7 +315,6 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
     // Same content, so both rows resolve to the same height (16 + 40 + 16 + 1).
     expect(alignCenter.bounds(), "align=center row box").toMatchObject({ width: 420, height: 73 });
     expect(alignStart.bounds(), "align=start row box").toMatchObject({ width: 420, height: 73 });
-
     const centerControl = view.$(
         '[data-testid="align-center"] [data-happy2-ui="form-row-control"]',
     );
@@ -375,6 +352,5 @@ it("holds FormRow layout, typography, colors, divider, and control alignment", a
             .pixelCount,
         "start badge ink",
     ).toBeGreaterThan(0);
-
     await view.screenshot("FormRow.test");
-}, 120_000);
+}, 120000);

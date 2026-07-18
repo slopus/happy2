@@ -1,6 +1,6 @@
-import { composerStoreCreateBinding } from "../modules/composer/composerStore.js";
-import type { ComposerStoreOptions } from "../modules/composer/composerStore.js";
-import type { ComposerInput, ComposerStore } from "../modules/composer/composerTypes.js";
+import { composerStoreCreate } from "../modules/composer/composerState.js";
+import type { ComposerStoreOptions } from "../modules/composer/composerState.js";
+import type { ComposerInput, ComposerStore } from "../modules/composer/composerState.js";
 
 /** Test-only composer surface that exposes owner input without widening the application API. */
 export interface ComposerStoreFixture extends ComposerStore, Disposable {
@@ -12,11 +12,11 @@ export function composerStoreFixtureCreate(
     scopeId: string,
     options: ComposerStoreOptions = {},
 ): ComposerStoreFixture {
-    const binding = composerStoreCreateBinding(scopeId, options);
+    const store = composerStoreCreate(scopeId, options);
     return {
-        ...binding.store,
-        input: binding.composerInput,
-        [Symbol.dispose]: binding.dispose,
+        ...store,
+        input: (event) => store.getState().composerInput(event),
+        [Symbol.dispose]: () => undefined,
     };
 }
 

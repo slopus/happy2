@@ -39,7 +39,7 @@ it("renders ready settings, routes typed field actions, and follows authoritativ
     const name = view.container.querySelector<HTMLInputElement>("#settings-name")!;
     name.value = "Grace Hopper";
     name.dispatchEvent(new Event("input", { bubbles: true }));
-    expect(fixture.store.get().profile).toMatchObject({
+    expect(fixture.store.getState().profile).toMatchObject({
         firstName: "Grace",
         lastName: "Hopper",
     });
@@ -50,12 +50,13 @@ it("renders ready settings, routes typed field actions, and follows authoritativ
         profile: { ...loaded.profile, username: "remote-ada" },
         avatarRevision: 0,
     });
-    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     expect(view.container.querySelector<HTMLInputElement>("#settings-username")?.value).toBe(
         "remote-ada",
     );
 
     fixture.input({ type: "profileSaveFailed", error: new UserError("Profile rejected") });
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     expect(view.container.textContent).toContain("Profile rejected");
 });
 
@@ -74,7 +75,7 @@ it("preserves the focused input node across synchronous typed field store update
     input.value = "Ada Byron";
     input.dispatchEvent(new InputEvent("input", { bubbles: true, data: "n" }));
 
-    expect(fixture.store.get().profile).toMatchObject({
+    expect(fixture.store.getState().profile).toMatchObject({
         firstName: "Ada",
         lastName: "Byron",
     });

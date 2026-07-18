@@ -1,15 +1,13 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { DiffSnippet } from "../../src/DiffSnippet";
 import { FileAttachment } from "../../src/FileAttachment";
 import { DayDivider, Message, MessageList, SystemNotice } from "../../src/Message";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const column: Record<string, string> = {
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     gap: "14px",
 };
-
 /* Screenshot-safe inline artwork so the blueprint never loads a network asset. */
 function demoImage(width: number, height: number, from: string, to: string): string {
     const svg =
@@ -19,17 +17,16 @@ function demoImage(width: number, height: number, from: string, to: string): str
         `</linearGradient></defs><rect width='100%' height='100%' fill='url(#g)'/></svg>`;
     return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
-
 /* Messages are full-bleed rows; specimens frame them in an app-surface card. */
-function channelFrame(children: JSX.Element, height?: string) {
+function channelFrame(children: ReactNode, height?: string) {
     return (
         <div
             style={{
                 background: "var(--happy2-bg-app)",
                 border: "1px solid var(--happy2-border)",
-                "border-radius": "10px",
+                borderRadius: "10px",
                 display: "flex",
-                "flex-direction": "column",
+                flexDirection: "column",
                 ...(height ? { height } : { padding: "8px 0" }),
                 overflow: "hidden",
                 width: "680px",
@@ -39,7 +36,6 @@ function channelFrame(children: JSX.Element, height?: string) {
         </div>
     );
 }
-
 export function MessagePage() {
     return (
         <ComponentPage

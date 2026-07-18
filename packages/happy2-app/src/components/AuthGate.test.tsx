@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@solidjs/testing-library";
+import { fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 
@@ -110,7 +110,7 @@ describe("AuthGate password onboarding", () => {
         vi.stubGlobal("fetch", fetchMock);
         const store = stubLocalStorage();
 
-        const screen = render(() => <App serverUrl="http://server" />);
+        const screen = render(<App serverUrl="http://server" />);
 
         // Switch the password screen from sign-in to registration, then submit.
         fireEvent.click(await screen.findByRole("button", { name: "Create a new account" }));
@@ -132,7 +132,7 @@ describe("AuthGate password onboarding", () => {
         vi.stubGlobal("fetch", fetchMock);
         const store = stubLocalStorage();
 
-        const screen = render(() => <App serverUrl="http://server" />);
+        const screen = render(<App serverUrl="http://server" />);
         await fillAndSubmitCredentials(screen, "Sign in");
 
         expect(await screen.findByText("Make it yours.")).toBeTruthy();
@@ -151,7 +151,7 @@ describe("AuthGate password onboarding", () => {
         vi.stubGlobal("fetch", fetchMock);
         const store = stubLocalStorage({ [tokenKey]: "saved-token" });
 
-        const screen = render(() => <App serverUrl="http://server" />);
+        const screen = render(<App serverUrl="http://server" />);
 
         expect(await screen.findByText("Make it yours.")).toBeTruthy();
         // Refresh runs automatically on the saved bearer — no manual control.
@@ -174,7 +174,7 @@ describe("AuthGate password onboarding", () => {
         vi.stubGlobal("fetch", fetchMock);
         stubLocalStorage();
 
-        const screen = render(() => <App serverUrl="http://server" />);
+        const screen = render(<App serverUrl="http://server" />);
         await fillAndSubmitCredentials(screen, "Sign in");
 
         // Reaching the workspace proves the active profile resolved normally.
@@ -193,7 +193,7 @@ describe("AuthGate password onboarding", () => {
         vi.stubGlobal("fetch", fetchMock);
         stubLocalStorage();
 
-        const screen = render(() => <App serverUrl="http://server" />);
+        const screen = render(<App serverUrl="http://server" />);
 
         // The account-creation form is the default — no toggle from sign-in needed.
         expect(await screen.findByRole("button", { name: "Create account" })).toBeTruthy();
@@ -220,7 +220,7 @@ describe("AuthGate password onboarding", () => {
         vi.stubGlobal("fetch", fetchMock);
         const store = stubLocalStorage();
 
-        const screen = render(() => <App serverUrl="http://server" />);
+        const screen = render(<App serverUrl="http://server" />);
 
         // Sign in is shown so the existing account can authenticate — not a
         // create-account form that would only 403.
@@ -263,7 +263,7 @@ describe("AuthGate password onboarding", () => {
         vi.stubGlobal("fetch", fetchMock);
         stubLocalStorage();
 
-        const screen = render(() => <App serverUrl="http://server" />);
+        const screen = render(<App serverUrl="http://server" />);
 
         // The failed initial probe surfaces the unavailable screen with a retry control.
         const retry = await screen.findByRole("button", { name: "Try again" });

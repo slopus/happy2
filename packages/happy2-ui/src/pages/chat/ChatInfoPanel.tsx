@@ -1,4 +1,4 @@
-import { Show, type Accessor, type JSX } from "solid-js";
+import { type CSSProperties } from "react";
 import {
     Box,
     Button,
@@ -10,20 +10,18 @@ import {
     type InfoPanelProfile,
     type MemberItem,
 } from "./ChatPageComponents.js";
-
-const formStyle: JSX.CSSProperties = { display: "flex", "flex-direction": "column" };
-const footerStyle: JSX.CSSProperties = {
+const formStyle: CSSProperties = { display: "flex", flexDirection: "column" };
+const footerStyle: CSSProperties = {
     display: "flex",
-    "justify-content": "flex-end",
+    justifyContent: "flex-end",
     gap: "8px",
-    "padding-top": "4px",
+    paddingTop: "4px",
 };
-const effortStyle: JSX.CSSProperties = {
-    "font-size": "13px",
-    "line-height": "20px",
+const effortStyle: CSSProperties = {
+    fontSize: "13px",
+    lineHeight: "20px",
     color: "var(--happy2-text-muted)",
 };
-
 export interface ChatInfoPanelProps {
     about?: string;
     autoJoin: boolean;
@@ -51,7 +49,6 @@ export interface ChatInfoPanelProps {
     onEffortChange(value: string): void;
     onSave(): void;
 }
-
 export function ChatInfoPanel(props: ChatInfoPanelProps) {
     return (
         <InfoPanel
@@ -74,7 +71,7 @@ export function ChatInfoPanel(props: ChatInfoPanelProps) {
             }
             title={props.profileOverride?.name ?? props.title}
         >
-            <Show when={!props.profileOverride && !props.peer && props.canEdit}>
+            {!props.profileOverride && !props.peer && props.canEdit ? (
                 <Box style={formStyle}>
                     <FormRow
                         control={
@@ -98,7 +95,7 @@ export function ChatInfoPanel(props: ChatInfoPanelProps) {
                         label="About"
                         layout="stacked"
                     />
-                    <Show when={props.isServerAdmin && !props.isMain}>
+                    {props.isServerAdmin && !props.isMain ? (
                         <FormRow
                             control={
                                 <Switch
@@ -110,7 +107,7 @@ export function ChatInfoPanel(props: ChatInfoPanelProps) {
                             label="Auto-join new members"
                             layout="stacked"
                         />
-                    </Show>
+                    ) : null}
                     <Box style={footerStyle}>
                         <Button
                             disabled={props.busy || !props.channelName.trim()}
@@ -120,40 +117,36 @@ export function ChatInfoPanel(props: ChatInfoPanelProps) {
                         </Button>
                     </Box>
                 </Box>
-            </Show>
-            <Show when={!props.profileOverride && props.isAgent}>
+            ) : null}
+            {!props.profileOverride && props.isAgent ? (
                 <FormRow
                     control={
-                        <Show
-                            when={props.effortOptions}
-                            fallback={
-                                <Box style={effortStyle}>
-                                    {props.effortError ?? "Loading effort levels…"}
-                                </Box>
-                            }
-                        >
-                            {(options: Accessor<readonly string[]>) => (
+                        props.effortOptions ? (
+                            ((options: readonly string[]) => (
                                 <SegmentedControl
                                     disabled={!props.canChangeEffort || props.effortBusy}
                                     fullWidth
                                     onChange={props.onEffortChange}
-                                    segments={options().map((value) => ({
+                                    segments={options.map((value) => ({
                                         label: effortLabel(value),
                                         value,
                                     }))}
-                                    value={props.effortValue ?? options()[0] ?? ""}
+                                    value={props.effortValue ?? options[0] ?? ""}
                                 />
-                            )}
-                        </Show>
+                            ))(props.effortOptions)
+                        ) : (
+                            <Box style={effortStyle}>
+                                {props.effortError ?? "Loading effort levels…"}
+                            </Box>
+                        )
                     }
                     label="Reasoning effort"
                     layout="stacked"
                 />
-            </Show>
+            ) : null}
         </InfoPanel>
     );
 }
-
 function effortLabel(value: string): string {
     return value === "xhigh" ? "X-High" : value.charAt(0).toUpperCase() + value.slice(1);
 }

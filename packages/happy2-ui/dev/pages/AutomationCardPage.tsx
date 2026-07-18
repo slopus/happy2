@@ -10,7 +10,7 @@ export function AutomationCardPage() {
             summary="Automation summary — trigger→action identity badges, an active toggle, run metadata, a run-now action, and a danger banner for the last error."
             title="Automation card"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="400px card · 16px padding · radius 10 · 12px row rhythm"
                     label="Anatomy"
@@ -35,7 +35,7 @@ export function AutomationCardPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="schedule info · event accent · webhook warning"
                     label="Trigger types"
@@ -45,8 +45,8 @@ export function AutomationCardPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-wrap": "wrap",
-                            "align-items": "flex-start",
+                            flexWrap: "wrap",
+                            alignItems: "flex-start",
                             gap: "24px",
                             padding: "28px",
                         }}
@@ -95,7 +95,7 @@ export function AutomationCardPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="active · paused (switch off) · error banner · minimal"
                     label="States"
@@ -105,8 +105,8 @@ export function AutomationCardPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-wrap": "wrap",
-                            "align-items": "flex-start",
+                            flexWrap: "wrap",
+                            alignItems: "flex-start",
                             gap: "24px",
                             padding: "28px",
                         }}

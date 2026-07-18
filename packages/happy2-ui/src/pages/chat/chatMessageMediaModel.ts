@@ -1,19 +1,18 @@
-import { createSignal, onCleanup } from "solid-js";
+import { useLayoutEffect, useState } from "react";
 import type { DeepReadonly, FileSummary } from "happy2-state";
 import type { MessageImage } from "./ChatPageComponents.js";
 import type { ChatPageActions } from "./ChatPage.js";
 import type { LiveThreadMessage } from "./chatPageModels.js";
-
-export function chatMessageMediaModelCreate(
+export function useChatMessageMediaModel(
     actions: ChatPageActions,
     onError: (error: unknown) => void,
 ) {
-    const [lightbox, setLightbox] = createSignal<{
+    const [lightbox, setLightbox] = useState<{
         url: string;
         caption?: string;
         detail?: string;
     }>();
-    const urls = new Map<string, string>();
+    const [urls] = useState(() => new Map<string, string>());
     async function ensureUrl(fileId: string, preview = false) {
         const cached = urls.get(fileId);
         if (cached) return cached;
@@ -70,12 +69,14 @@ export function chatMessageMediaModelCreate(
         link.download = file.originalName ?? "download";
         link.click();
     }
-    onCleanup(() => {
-        for (const url of urls.values()) URL.revokeObjectURL(url);
-    });
+    useLayoutEffect(
+        () => () => {
+            for (const url of urls.values()) URL.revokeObjectURL(url);
+        },
+        [urls],
+    );
     return { lightbox, closeLightbox: () => setLightbox(undefined), images, files, imageOpen };
 }
-
 function formatBytes(size: number): string {
     if (size < 1024) return `${size} B`;
     if (size < 1024 * 1024) return `${Math.round(size / 102.4) / 10} KB`;

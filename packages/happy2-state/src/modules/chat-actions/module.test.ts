@@ -1,20 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
-import type { StateRuntime } from "../runtime/stateRuntime.js";
-import { sidebarStoreCreateBinding } from "../sidebar/sidebarStore.js";
+import type { StateRuntime } from "../runtime/runtimeState.js";
+import { sidebarStoreCreate } from "../sidebar/sidebarState.js";
 import { chat } from "../../../tests/fixtures.js";
-import { agentCreate } from "./agentCreate.js";
-import { agentEffortChange } from "./agentEffortChange.js";
-import { agentEffortLoad } from "./agentEffortLoad.js";
-import { channelCreate } from "./channelCreate.js";
-import { channelUpdate } from "./channelUpdate.js";
-import type { ChatActionContext } from "./chatActionContext.js";
-import { chatJoin } from "./chatJoin.js";
-import { chatLeave } from "./chatLeave.js";
-import { chatReadMark } from "./chatReadMark.js";
-import { chatStarSet } from "./chatStarSet.js";
-import { directMessageCreate } from "./directMessageCreate.js";
-import { groupDirectMessageCreate } from "./groupDirectMessageCreate.js";
-import { typingSet } from "./typingSet.js";
+import { agentCreate } from "./chatActionsState.js";
+import { agentEffortChange } from "./chatActionsState.js";
+import { agentEffortLoad } from "./chatActionsState.js";
+import { channelCreate } from "./chatActionsState.js";
+import { channelUpdate } from "./chatActionsState.js";
+import type { ChatActionContext } from "./chatActionsState.js";
+import { chatJoin } from "./chatActionsState.js";
+import { chatLeave } from "./chatActionsState.js";
+import { chatReadMark } from "./chatActionsState.js";
+import { chatStarSet } from "./chatActionsState.js";
+import { directMessageCreate } from "./chatActionsState.js";
+import { groupDirectMessageCreate } from "./chatActionsState.js";
+import { typingSet } from "./chatActionsState.js";
 
 describe("chat actions module", () => {
     it("routes every durable chat operation through one authoritative projection boundary", async () => {
@@ -25,7 +25,7 @@ describe("chat actions module", () => {
             return { chat: summary };
         });
         const background = vi.fn((task: Promise<void>) => void task);
-        const sidebar = sidebarStoreCreateBinding();
+        const sidebar = sidebarStoreCreate();
         const chatInput = vi.fn();
         const context = {
             runtime: {
@@ -35,7 +35,7 @@ describe("chat actions module", () => {
                 background,
             } as unknown as StateRuntime,
             sidebar,
-            chatGet: () => ({ chatInput }) as never,
+            chatGet: () => ({ getState: () => ({ chatInput }) }) as never,
             sidebarChatProject: async (value: typeof summary) => ({
                 chat: value,
                 id: value.id,
@@ -72,8 +72,7 @@ describe("chat actions module", () => {
         expect(chatInput).toHaveBeenCalledWith(
             expect.objectContaining({ type: "agentEffortLoaded" }),
         );
-        expect(sidebar.store.get().chats).toEqual([]);
-        sidebar.dispose();
+        expect(sidebar.getState().chats).toEqual([]);
     });
 
     it("projects effort failures only into a retained chat", async () => {
@@ -82,14 +81,13 @@ describe("chat actions module", () => {
             runtime: {
                 operation: vi.fn().mockRejectedValue(new Error("effort failed")),
             } as unknown as StateRuntime,
-            sidebar: sidebarStoreCreateBinding(),
-            chatGet: () => ({ chatInput }),
+            sidebar: sidebarStoreCreate(),
+            chatGet: () => ({ getState: () => ({ chatInput }) }),
             sidebarChatProject: vi.fn(),
         } as unknown as ChatActionContext;
         await agentEffortLoad(context, "chat-1", "agent-1");
         expect(chatInput).toHaveBeenCalledWith(
             expect.objectContaining({ type: "agentEffortFailed", agentUserId: "agent-1" }),
         );
-        context.sidebar.dispose();
     });
 });

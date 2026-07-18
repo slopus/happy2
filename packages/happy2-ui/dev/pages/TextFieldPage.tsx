@@ -5,7 +5,7 @@ const column = {
     display: "grid",
     gap: "16px",
     padding: "28px",
-    "justify-items": "start",
+    justifyItems: "start",
 } as const;
 
 export function TextFieldPage() {
@@ -15,7 +15,7 @@ export function TextFieldPage() {
             summary="Labeled text input / textarea — three heights, hint/error/leading-icon."
             title="Text field"
         >
-            <div class="specimen-grid specimen-grid--sizes">
+            <div className="specimen-grid specimen-grid--sizes">
                 <Specimen
                     detail="28px high · 12px text"
                     label="Small"
@@ -51,7 +51,7 @@ export function TextFieldPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="empty placeholder · committed value"
                     label="Content states"
@@ -95,7 +95,7 @@ export function TextFieldPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="leading icon 14/16/18 · 8px gap"
                     label="Leading icon"
@@ -148,7 +148,7 @@ export function TextFieldPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="multiline textarea · 3 rows · 20px line"
                     label="Textarea"

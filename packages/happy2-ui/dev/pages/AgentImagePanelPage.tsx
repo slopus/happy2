@@ -1,7 +1,6 @@
-import { createSignal, type JSX } from "solid-js";
+import { useState, type CSSProperties } from "react";
 import { AgentImagePanel, type AgentImageItem } from "../../src/AgentImagePanel";
 import { ComponentPage, Specimen } from "../kit";
-
 const images: AgentImageItem[] = [
     {
         id: "img-default",
@@ -40,12 +39,11 @@ const images: AgentImageItem[] = [
         updatedLabel: "Jul 13, 8:47 AM",
     },
 ];
-
-function frame(height: number): JSX.CSSProperties {
+function frame(height: number): CSSProperties {
     return {
         background: "var(--happy2-bg-app)",
         border: "1px solid var(--happy2-border)",
-        "border-radius": "14px",
+        borderRadius: "14px",
         display: "flex",
         height: `${height}px`,
         overflow: "hidden",
@@ -53,14 +51,12 @@ function frame(height: number): JSX.CSSProperties {
         width: "980px",
     };
 }
-
 export function AgentImagePanelPage() {
-    const [createOpen, setCreateOpen] = createSignal(false);
-    const [name, setName] = createSignal("Python + Node toolchain");
-    const [dockerfile, setDockerfile] = createSignal(
+    const [createOpen, setCreateOpen] = useState(false);
+    const [name, setName] = useState("Python + Node toolchain");
+    const [dockerfile, setDockerfile] = useState(
         "FROM happy2/agent-base:latest\nRUN apt-get update && apt-get install -y python3 nodejs",
     );
-
     return (
         <ComponentPage
             number="C-050"
@@ -107,7 +103,7 @@ export function AgentImagePanelPage() {
                 number="03"
                 stage="app"
             >
-                <div style={{ display: "flex", gap: "24px", "flex-wrap": "wrap" }}>
+                <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
                     <div style={frame(240)}>
                         <AgentImagePanel images={[]} onOpenCreate={() => undefined} />
                     </div>
@@ -125,9 +121,9 @@ export function AgentImagePanelPage() {
             >
                 <div style={frame(420)}>
                     <AgentImagePanel
-                        createOpen={createOpen()}
-                        draftDockerfile={dockerfile()}
-                        draftName={name()}
+                        createOpen={createOpen}
+                        draftDockerfile={dockerfile}
+                        draftName={name}
                         images={images}
                         onCloseCreate={() => setCreateOpen(false)}
                         onDraftDockerfileChange={setDockerfile}

@@ -1,11 +1,11 @@
-import { For, Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 import { Badge } from "./Badge";
 import { Banner } from "./Banner";
 import { Box } from "./Box";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
 import { Select, type SelectOption } from "./Select";
-
 /** An agent or channel a secret is attached to. */
 export type AgentSecretBinding = {
     id: string;
@@ -13,11 +13,10 @@ export type AgentSecretBinding = {
     /** Secondary line: a username, slug, or kind, shown muted under the name. */
     secondary?: string;
 };
-
 export type AgentSecretDetailProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     /** The secret's environment-variable names. Values never reach the client. */
     environmentVariables: readonly string[];
     agents: readonly AgentSecretBinding[];
@@ -40,7 +39,6 @@ export type AgentSecretDetailProps = {
     onAttachChannel?: (channelId: string) => void;
     onDetachChannel?: (channelId: string) => void;
 };
-
 /**
  * C-056 AgentSecretDetail — the body of an agent secret's detail: the secret's
  * environment-variable names (values are held only in the Rig and never shown),
@@ -52,7 +50,7 @@ export type AgentSecretDetailProps = {
  */
 export function AgentSecretDetail(props: AgentSecretDetailProps) {
     const [local, rest] = splitProps(props, [
-        "class",
+        "className",
         "style",
         "environmentVariables",
         "agents",
@@ -70,34 +68,32 @@ export function AgentSecretDetail(props: AgentSecretDetailProps) {
         "onAttachChannel",
         "onDetachChannel",
     ]);
-
     return (
         <Box
             {...rest}
-            class={["happy2-agent-secret-detail", local.class].filter(Boolean).join(" ")}
+            className={["happy2-agent-secret-detail", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="agent-secret-detail"
             style={local.style}
         >
-            <Show when={local.error}>
-                {(reason) => (
-                    <Banner onDismiss={local.onDismissError} tone="danger" title="Action failed">
-                        {reason()}
-                    </Banner>
-                )}
-            </Show>
+            {local.error
+                ? ((reason) => (
+                      <Banner onDismiss={local.onDismissError} tone="danger" title="Action failed">
+                          {reason}
+                      </Banner>
+                  ))(local.error)
+                : null}
 
             <Section label="Environment variables">
-                <Show
-                    when={local.environmentVariables.length > 0}
-                    fallback={<p class="happy2-agent-secret-detail__empty">No variables.</p>}
-                >
-                    <Box class="happy2-agent-secret-detail__variables">
-                        <For each={local.environmentVariables}>
-                            {(name) => <Badge label={name} variant="outline" />}
-                        </For>
+                {local.environmentVariables.length > 0 ? (
+                    <Box className="happy2-agent-secret-detail__variables">
+                        {local.environmentVariables.map((name) => (
+                            <Badge key={name} label={name} variant="outline" />
+                        ))}
                     </Box>
-                </Show>
-                <p class="happy2-agent-secret-detail__note">
+                ) : (
+                    <p className="happy2-agent-secret-detail__empty">No variables.</p>
+                )}
+                <p className="happy2-agent-secret-detail__note">
                     <Icon name="shield" size={14} />
                     Values are stored in the Rig and never leave it.
                 </p>
@@ -133,18 +129,16 @@ export function AgentSecretDetail(props: AgentSecretDetailProps) {
         </Box>
     );
 }
-
-function Section(props: { label: string; children: JSX.Element }) {
+function Section(props: { label: string; children: ReactNode }) {
     return (
-        <section class="happy2-agent-secret-detail__section">
-            <header class="happy2-agent-secret-detail__section-head">
-                <span class="happy2-agent-secret-detail__section-label">{props.label}</span>
+        <section className="happy2-agent-secret-detail__section">
+            <header className="happy2-agent-secret-detail__section-head">
+                <span className="happy2-agent-secret-detail__section-label">{props.label}</span>
             </header>
             {props.children}
         </section>
     );
 }
-
 function BindingSection(props: {
     label: string;
     part: string;
@@ -161,63 +155,60 @@ function BindingSection(props: {
     const options = () => props.available ?? [];
     const canAttach = () => Boolean(props.onAttach) && options().length > 0 && !props.attaching;
     const busy = (id: string) => props.busyIds?.includes(id) ?? false;
-
     return (
         <section
-            class="happy2-agent-secret-detail__section"
+            className="happy2-agent-secret-detail__section"
             data-happy2-ui={`agent-secret-detail-${props.part}`}
         >
-            <header class="happy2-agent-secret-detail__section-head">
-                <span class="happy2-agent-secret-detail__section-label">{props.label}</span>
-                <span class="happy2-agent-secret-detail__section-count">
+            <header className="happy2-agent-secret-detail__section-head">
+                <span className="happy2-agent-secret-detail__section-label">{props.label}</span>
+                <span className="happy2-agent-secret-detail__section-count">
                     {props.bindings.length}
                 </span>
             </header>
 
-            <Show
-                when={props.bindings.length > 0}
-                fallback={<p class="happy2-agent-secret-detail__empty">{props.emptyLabel}</p>}
-            >
-                <Box class="happy2-agent-secret-detail__bindings">
-                    <For each={props.bindings}>
-                        {(binding) => (
-                            <Box
-                                class="happy2-agent-secret-detail__binding"
-                                data-binding-id={binding.id}
-                            >
-                                <span class="happy2-agent-secret-detail__binding-icon">
-                                    <Icon name={props.icon} size={16} />
+            {props.bindings.length > 0 ? (
+                <Box className="happy2-agent-secret-detail__bindings">
+                    {props.bindings.map((binding) => (
+                        <Box
+                            className="happy2-agent-secret-detail__binding"
+                            key={binding.id}
+                            data-binding-id={binding.id}
+                        >
+                            <span className="happy2-agent-secret-detail__binding-icon">
+                                <Icon name={props.icon} size={16} />
+                            </span>
+                            <Box className="happy2-agent-secret-detail__binding-text">
+                                <span className="happy2-agent-secret-detail__binding-name">
+                                    {binding.name}
                                 </span>
-                                <Box class="happy2-agent-secret-detail__binding-text">
-                                    <span class="happy2-agent-secret-detail__binding-name">
-                                        {binding.name}
+                                {binding.secondary ? (
+                                    <span className="happy2-agent-secret-detail__binding-secondary">
+                                        {binding.secondary}
                                     </span>
-                                    <Show when={binding.secondary}>
-                                        <span class="happy2-agent-secret-detail__binding-secondary">
-                                            {binding.secondary}
-                                        </span>
-                                    </Show>
-                                </Box>
-                                <Show when={props.onDetach}>
-                                    <Button
-                                        aria-label={`Detach ${binding.name}`}
-                                        disabled={busy(binding.id)}
-                                        icon="close"
-                                        iconOnly
-                                        onClick={() => props.onDetach?.(binding.id)}
-                                        size="small"
-                                        variant="ghost"
-                                    />
-                                </Show>
+                                ) : null}
                             </Box>
-                        )}
-                    </For>
+                            {props.onDetach ? (
+                                <Button
+                                    aria-label={`Detach ${binding.name}`}
+                                    disabled={busy(binding.id)}
+                                    icon="close"
+                                    iconOnly
+                                    onClick={() => props.onDetach?.(binding.id)}
+                                    size="small"
+                                    variant="ghost"
+                                />
+                            ) : null}
+                        </Box>
+                    ))}
                 </Box>
-            </Show>
+            ) : (
+                <p className="happy2-agent-secret-detail__empty">{props.emptyLabel}</p>
+            )}
 
-            <Show when={props.onAttach}>
+            {props.onAttach ? (
                 <Select
-                    class="happy2-agent-secret-detail__picker"
+                    className="happy2-agent-secret-detail__picker"
                     disabled={!canAttach()}
                     fullWidth
                     onValueChange={(value) => {
@@ -232,7 +223,7 @@ function BindingSection(props: {
                     size="small"
                     value=""
                 />
-            </Show>
+            ) : null}
         </section>
     );
 }

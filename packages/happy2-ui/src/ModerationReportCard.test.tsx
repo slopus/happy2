@@ -316,12 +316,11 @@ it("holds ModerationReportCard status variants and content states", async () => 
     const statuses: readonly ModerationStatus[] = ["open", "reviewing", "resolved", "dismissed"];
     view.render(
         () => (
-            <div
-                style={{ display: "flex", "flex-direction": "column", gap: "16px", width: "420px" }}
-            >
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px", width: "420px" }}>
                 {statuses.map((s) => (
                     <ModerationReportCard
                         data-testid={`mrc-${s}`}
+                        key={s}
                         reason="Spam"
                         reporter={{ initials: "AL", name: "Ada Lovelace", tone: "violet" }}
                         status={s}

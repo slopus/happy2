@@ -1,10 +1,10 @@
-import { Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 import { Button } from "./Button";
-
 export type LightboxProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     imageUrl: string;
     alt?: string;
     /** Primary label above the frame — usually the file name. */
@@ -12,11 +12,10 @@ export type LightboxProps = {
     /** Secondary meta above the frame — usually size / dimensions. */
     detail?: string;
     /** Trailing controls in the header, e.g. a download button. */
-    actions?: JSX.Element;
+    actions?: ReactNode;
     onClose?: () => void;
     closeLabel?: string;
 };
-
 /**
  * C-046 Lightbox — full image preview shown inside a web modal (never a new
  * browser tab). Like Modal, the root `.happy2-lightbox` is a transparent
@@ -27,7 +26,7 @@ export type LightboxProps = {
  */
 export function Lightbox(props: LightboxProps) {
     const [local, rest] = splitProps(props, [
-        "class",
+        "className",
         "style",
         "imageUrl",
         "alt",
@@ -39,44 +38,43 @@ export function Lightbox(props: LightboxProps) {
     ]);
     const hasHeader = () =>
         Boolean(local.caption || local.detail || local.actions || local.onClose);
-
     return (
         <div
             {...rest}
-            class={["happy2-lightbox", local.class].filter(Boolean).join(" ")}
+            className={["happy2-lightbox", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="lightbox"
             style={local.style}
         >
             <div
                 aria-label={local.caption ?? local.alt ?? "Image preview"}
                 aria-modal="true"
-                class="happy2-lightbox__dialog"
+                className="happy2-lightbox__dialog"
                 data-happy2-ui="lightbox-dialog"
                 role="dialog"
             >
-                <Show when={hasHeader()}>
-                    <header class="happy2-lightbox__header" data-happy2-ui="lightbox-header">
-                        <div class="happy2-lightbox__caption" data-happy2-ui="lightbox-caption">
-                            <Show when={local.caption}>
+                {hasHeader() ? (
+                    <header className="happy2-lightbox__header" data-happy2-ui="lightbox-header">
+                        <div className="happy2-lightbox__caption" data-happy2-ui="lightbox-caption">
+                            {local.caption ? (
                                 <span
-                                    class="happy2-lightbox__caption-title"
+                                    className="happy2-lightbox__caption-title"
                                     data-happy2-ui="lightbox-caption-title"
                                 >
                                     {local.caption}
                                 </span>
-                            </Show>
-                            <Show when={local.detail}>
+                            ) : null}
+                            {local.detail ? (
                                 <span
-                                    class="happy2-lightbox__caption-detail"
+                                    className="happy2-lightbox__caption-detail"
                                     data-happy2-ui="lightbox-caption-detail"
                                 >
                                     {local.detail}
                                 </span>
-                            </Show>
+                            ) : null}
                         </div>
-                        <div class="happy2-lightbox__tools" data-happy2-ui="lightbox-tools">
+                        <div className="happy2-lightbox__tools" data-happy2-ui="lightbox-tools">
                             {local.actions}
-                            <Show when={local.onClose}>
+                            {local.onClose ? (
                                 <Button
                                     aria-label={local.closeLabel ?? "Close"}
                                     icon="close"
@@ -85,14 +83,14 @@ export function Lightbox(props: LightboxProps) {
                                     size="small"
                                     variant="ghost"
                                 />
-                            </Show>
+                            ) : null}
                         </div>
                     </header>
-                </Show>
-                <div class="happy2-lightbox__frame" data-happy2-ui="lightbox-frame">
+                ) : null}
+                <div className="happy2-lightbox__frame" data-happy2-ui="lightbox-frame">
                     <img
                         alt={local.alt ?? local.caption ?? ""}
-                        class="happy2-lightbox__image"
+                        className="happy2-lightbox__image"
                         data-happy2-ui="lightbox-image"
                         draggable={false}
                         src={local.imageUrl}

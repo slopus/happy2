@@ -70,7 +70,9 @@
     "thumbhash": "^0.1.1"
   },
   "devDependencies": {
+    "@rolldown/plugin-babel": "0.2.3",
     "@types/node": "^26.1.1",
+    "babel-plugin-react-compiler": "1.0.0",
     "concurrently": "^10.0.3",
     "oxfmt": "^0.57.0",
     "oxlint": "^1.73.0",

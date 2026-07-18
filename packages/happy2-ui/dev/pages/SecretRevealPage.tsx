@@ -10,14 +10,14 @@ export function SecretRevealPage() {
             summary="One-time token/secret: a card with a label + mono meta, a reveal/copy action pair, a code-well mono token (dot mask when hidden, wrapping token when revealed), and a warning banner. Composes Button and Banner."
             title="Secret reveal"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="masked · 24-dot mask · warning banner · card 16 pad · well radius 6"
                     label="One-time token (hidden)"
                     number="01"
                     stage="surface"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <div style={{ width: "380px" }}>
                             <SecretReveal
                                 label="Personal access token"
@@ -36,7 +36,7 @@ export function SecretRevealPage() {
                     number="02"
                     stage="surface"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <div style={{ width: "380px" }}>
                             <SecretReveal
                                 label="Personal access token"
@@ -51,14 +51,14 @@ export function SecretRevealPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="copied feedback · copy Button switches to success + check glyph"
                     label="Copied state"
                     number="03"
                     stage="surface"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <div style={{ width: "380px" }}>
                             <SecretReveal
                                 copied
@@ -78,7 +78,7 @@ export function SecretRevealPage() {
                     number="04"
                     stage="surface"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <div style={{ width: "300px" }}>
                             <SecretReveal secret="sk_test_51H8x2eLkd0" />
                         </div>

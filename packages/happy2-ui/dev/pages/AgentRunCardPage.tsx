@@ -1,22 +1,19 @@
-import { createSignal } from "solid-js";
+import { useState } from "react";
 import { AgentRunCard, type AgentRun, type AgentRunStep } from "../../src/AgentRunCard";
 import { DiffSnippet, type DiffLine } from "../../src/DiffSnippet";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const reviewSteps: AgentRunStep[] = [
     { label: "Reproduced flake locally (14/200 fails)", status: "done" },
     { label: "Traced race in token refresh mutex", status: "done" },
     { label: "Rewrote refresh queue, added jitter", status: "done" },
     { label: "200/200 green · CI passing", status: "done" },
 ];
-
 const workingSteps: AgentRunStep[] = [
     { label: "Pulled merged PRs since v2.3.1", status: "done" },
     { label: "Drafting highlights for mobile v2", status: "working" },
     { label: "Cross-link issues and screenshots", status: "pending" },
     { label: "Post draft to #launch-week", status: "pending" },
 ];
-
 const reviewRun: AgentRun = {
     agent: "Codex",
     branch: "fix/auth-flake",
@@ -27,7 +24,6 @@ const reviewRun: AgentRun = {
     title: "Fix flaky auth token refresh tests",
     tone: "mint",
 };
-
 const workingRun: AgentRun = {
     agent: "Claude",
     initials: "CL",
@@ -38,7 +34,6 @@ const workingRun: AgentRun = {
     title: "Draft release notes for mobile v2",
     tone: "ember",
 };
-
 const queuedRun: AgentRun = {
     agent: "Codex",
     initials: "CX",
@@ -52,7 +47,6 @@ const queuedRun: AgentRun = {
     title: "Weekly triage sweep",
     tone: "mint",
 };
-
 const completeRun: AgentRun = {
     agent: "Codex",
     branch: "fix/rate-limit-429",
@@ -63,7 +57,6 @@ const completeRun: AgentRun = {
     title: "Rate limiter returns 500 not 429",
     tone: "mint",
 };
-
 const diffLines: DiffLine[] = [
     { kind: "meta", text: "src/auth/refresh.ts" },
     { kind: "del", text: "const lock = await mutex.tryLock()" },
@@ -71,18 +64,15 @@ const diffLines: DiffLine[] = [
     { kind: "add", text: "  timeout: 5_000, jitter: true" },
     { kind: "add", text: "})" },
 ];
-
 function log(id: string) {
     console.info(`[blueprint] AgentRunCard action: ${id}`);
 }
-
 export function AgentRunCardPage() {
-    const [reviewExpanded, setReviewExpanded] = createSignal(false);
-    const [reviewOpenExpanded, setReviewOpenExpanded] = createSignal(true);
-    const [workingExpanded, setWorkingExpanded] = createSignal(true);
-    const [queuedExpanded, setQueuedExpanded] = createSignal(false);
-    const [completeExpanded, setCompleteExpanded] = createSignal(false);
-
+    const [reviewExpanded, setReviewExpanded] = useState(false);
+    const [reviewOpenExpanded, setReviewOpenExpanded] = useState(true);
+    const [workingExpanded, setWorkingExpanded] = useState(true);
+    const [queuedExpanded, setQueuedExpanded] = useState(false);
+    const [completeExpanded, setCompleteExpanded] = useState(false);
     return (
         <ComponentPage
             number="C-013"
@@ -98,7 +88,7 @@ export function AgentRunCardPage() {
                 <div
                     style={{
                         display: "flex",
-                        "flex-direction": "column",
+                        flexDirection: "column",
                         gap: "8px",
                         width: "680px",
                     }}
@@ -108,7 +98,7 @@ export function AgentRunCardPage() {
                             { id: "review-diff", label: "Review diff", variant: "primary" },
                             { id: "open-channel", label: "Open in #eng-core" },
                         ]}
-                        expanded={reviewExpanded()}
+                        expanded={reviewExpanded}
                         onAction={log}
                         onExpandedChange={setReviewExpanded}
                         run={reviewRun}
@@ -129,7 +119,7 @@ export function AgentRunCardPage() {
                             { id: "approve-merge", label: "Approve & merge", variant: "primary" },
                             { id: "request-changes", label: "Request changes" },
                         ]}
-                        expanded={reviewOpenExpanded()}
+                        expanded={reviewOpenExpanded}
                         onAction={log}
                         onExpandedChange={setReviewOpenExpanded}
                         run={reviewRun}
@@ -148,7 +138,7 @@ export function AgentRunCardPage() {
                 <div style={{ width: "620px" }}>
                     <AgentRunCard
                         actions={[{ id: "pause", label: "Pause run" }]}
-                        expanded={workingExpanded()}
+                        expanded={workingExpanded}
                         onAction={log}
                         onExpandedChange={setWorkingExpanded}
                         run={workingRun}
@@ -165,13 +155,13 @@ export function AgentRunCardPage() {
                 <div
                     style={{
                         display: "flex",
-                        "flex-direction": "column",
+                        flexDirection: "column",
                         gap: "8px",
                         width: "520px",
                     }}
                 >
                     <AgentRunCard
-                        expanded={queuedExpanded()}
+                        expanded={queuedExpanded}
                         onExpandedChange={setQueuedExpanded}
                         run={queuedRun}
                     />
@@ -188,7 +178,7 @@ export function AgentRunCardPage() {
                 <div style={{ width: "620px" }}>
                     <AgentRunCard
                         actions={[{ id: "open-channel", label: "Open in #eng-core" }]}
-                        expanded={completeExpanded()}
+                        expanded={completeExpanded}
                         onAction={log}
                         onExpandedChange={setCompleteExpanded}
                         run={completeRun}

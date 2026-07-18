@@ -1,168 +1,173 @@
 import { StoreRegistry } from "./kernel/storeRegistry.js";
-import { chatLoad } from "./modules/chat/chatLoad.js";
-import { chatMembersLoad } from "./modules/chat/chatMembersLoad.js";
-import { chatPinsLoad } from "./modules/chat/chatPinsLoad.js";
-import { chatOpen, type ChatOpenContext } from "./modules/chat/chatOpen.js";
-import { chatOutputRoute } from "./modules/chat/chatOutputRoute.js";
-import { reactionActorsLoad } from "./modules/chat/reactionActorsLoad.js";
-import { chatStoreCreateBinding, type ChatStoreBinding } from "./modules/chat/chatStore.js";
-import type { ChatHandle } from "./modules/chat/chatTypes.js";
+import { chatLoad } from "./modules/chat/chatState.js";
+import { chatMembersLoad } from "./modules/chat/chatState.js";
+import { chatPinsLoad } from "./modules/chat/chatState.js";
+import { chatOpen, type ChatOpenContext } from "./modules/chat/chatState.js";
+import { reactionActorsLoad } from "./modules/chat/chatState.js";
+import { chatStoreCreate, type ChatOutput, type ChatStore } from "./modules/chat/chatState.js";
+import type { ChatHandle } from "./modules/chat/chatState.js";
 import {
-    composerStoreCreateBinding,
-    type ComposerStoreBinding,
+    composerStoreCreate,
+    type ComposerStore,
     type ComposerStoreOptions,
-} from "./modules/composer/composerStore.js";
-import {
-    composerOutputRoute,
-    type ComposerOutputContext,
-} from "./modules/composer/composerOutputRoute.js";
-import type { ComposerOutput, ComposerStore } from "./modules/composer/composerTypes.js";
+} from "./modules/composer/composerState.js";
+import type { ComposerOutput } from "./modules/composer/composerState.js";
 import {
     draftUpdate,
     type DraftActionContext,
     type DraftUpdated,
-} from "./modules/draft/draftUpdate.js";
-import { IdentityCatalog } from "./modules/identity/identityCatalog.js";
-import { identitiesReconcile } from "./modules/identity/identitiesReconcile.js";
-import { messageDelete } from "./modules/message/messageDelete.js";
-import { messageEdit } from "./modules/message/messageEdit.js";
-import { messageSend } from "./modules/message/messageSend.js";
-import { messagePin } from "./modules/message/messagePin.js";
-import { messageUnpin } from "./modules/message/messageUnpin.js";
-import { reactionAdd } from "./modules/reaction/reactionAdd.js";
-import { reactionRemove } from "./modules/reaction/reactionRemove.js";
-import type { ReactionSelector } from "./modules/reaction/reactionTypes.js";
-import { filesLoad } from "./modules/files/filesLoad.js";
-import { fileUpload } from "./modules/files/fileUpload.js";
-import { filesStoreCreateBinding, type FilesStoreBinding } from "./modules/files/filesStore.js";
-import type { FilesStore } from "./modules/files/filesTypes.js";
-import { StateRuntime, type StateRuntimeOptions } from "./modules/runtime/stateRuntime.js";
-import { sidebarStoreCreateBinding } from "./modules/sidebar/sidebarStore.js";
-import type { SidebarStore } from "./modules/sidebar/sidebarTypes.js";
-import { SidebarChatsProjector } from "./modules/sidebar/sidebarChatsProject.js";
-import { SettingsCoordinator } from "./modules/settings/settingsCoordinator.js";
-import { avatarUpload } from "./modules/settings/avatarUpload.js";
+} from "./modules/draft/draftState.js";
+import { IdentityCatalog } from "./modules/identity/identityState.js";
+import { identitiesReconcile } from "./modules/identity/identityState.js";
+import { messageDelete } from "./modules/message/messageState.js";
+import { messageEdit } from "./modules/message/messageState.js";
+import { messageSend } from "./modules/message/messageState.js";
+import { messagePin } from "./modules/message/messageState.js";
+import { messageUnpin } from "./modules/message/messageState.js";
+import { reactionAdd } from "./modules/reaction/reactionState.js";
+import { reactionRemove } from "./modules/reaction/reactionState.js";
+import type { ReactionSelector } from "./modules/reaction/reactionState.js";
+import { filesLoad } from "./modules/files/filesState.js";
+import { fileUpload } from "./modules/files/filesState.js";
+import { filesStoreCreate, type FilesOutput, type FilesStore } from "./modules/files/filesState.js";
+import { StateRuntime, type StateRuntimeOptions } from "./modules/runtime/runtimeState.js";
+import { sidebarStoreCreate } from "./modules/sidebar/sidebarState.js";
+import type { SidebarStore } from "./modules/sidebar/sidebarState.js";
+import { SidebarChatsProjector } from "./modules/sidebar/sidebarState.js";
+import { SettingsCoordinator } from "./modules/settings/settingsState.js";
+import { avatarUpload } from "./modules/settings/settingsState.js";
 import {
-    settingsStoreCreateBinding,
-    type SettingsStoreBinding,
-} from "./modules/settings/settingsStore.js";
-import type { SettingsStore, SettingsStoreOptions } from "./modules/settings/settingsTypes.js";
-import { SyncCoordinator } from "./modules/sync/syncCoordinator.js";
-import { syncStart } from "./modules/sync/syncStart.js";
-import { syncStop } from "./modules/sync/syncStop.js";
-import type { WorkspaceActionContext } from "./modules/workspace/workspaceActionContext.js";
-import { workspaceDirectoriesUpdate } from "./modules/workspace/workspaceDirectoriesUpdate.js";
-import { workspaceDirectoryMore } from "./modules/workspace/workspaceDirectoryMore.js";
-import { workspaceLoad } from "./modules/workspace/workspaceLoad.js";
-import { workspaceOpen, type WorkspaceOpenContext } from "./modules/workspace/workspaceOpen.js";
+    settingsStoreCreate,
+    type SettingsOutput,
+    type SettingsStore,
+    type SettingsStoreOptions,
+} from "./modules/settings/settingsState.js";
+import { SyncCoordinator } from "./modules/sync/syncState.js";
+import { syncStart } from "./modules/sync/syncState.js";
+import { syncStop } from "./modules/sync/syncState.js";
+import type { WorkspaceActionContext } from "./modules/workspace/workspaceState.js";
+import { workspaceDirectoriesUpdate } from "./modules/workspace/workspaceState.js";
+import { workspaceDirectoryMore } from "./modules/workspace/workspaceState.js";
+import { workspaceLoad } from "./modules/workspace/workspaceState.js";
+import { workspaceOpen, type WorkspaceOpenContext } from "./modules/workspace/workspaceState.js";
+import { workspaceReconcile } from "./modules/workspace/workspaceState.js";
 import {
-    workspaceOutputRoute,
-    type WorkspaceOutputContext,
-} from "./modules/workspace/workspaceOutputRoute.js";
-import { workspaceReconcile } from "./modules/workspace/workspaceReconcile.js";
-import {
-    workspaceStoreCreateBinding,
-    type WorkspaceStoreBinding,
-} from "./modules/workspace/workspaceStore.js";
-import type { WorkspaceHandle } from "./modules/workspace/workspaceTypes.js";
-import type { WorkspaceFileActionContext } from "./modules/workspace-file/workspaceFileActionContext.js";
-import { workspaceFileDelete } from "./modules/workspace-file/workspaceFileDelete.js";
-import { workspaceFileLoad } from "./modules/workspace-file/workspaceFileLoad.js";
+    workspaceStoreCreate,
+    type WorkspaceOutput,
+    type WorkspaceStore,
+} from "./modules/workspace/workspaceState.js";
+import type { WorkspaceHandle } from "./modules/workspace/workspaceState.js";
+import type { WorkspaceFileActionContext } from "./modules/workspace-file/workspaceFileState.js";
+import { workspaceFileDelete } from "./modules/workspace-file/workspaceFileState.js";
+import { workspaceFileLoad } from "./modules/workspace-file/workspaceFileState.js";
 import {
     workspaceFileOpen,
     type WorkspaceFileOpenContext,
-} from "./modules/workspace-file/workspaceFileOpen.js";
+} from "./modules/workspace-file/workspaceFileState.js";
+import { workspaceFileSave } from "./modules/workspace-file/workspaceFileState.js";
 import {
-    workspaceFileOutputRoute,
-    type WorkspaceFileOutputContext,
-} from "./modules/workspace-file/workspaceFileOutputRoute.js";
-import { workspaceFileSave } from "./modules/workspace-file/workspaceFileSave.js";
-import {
-    workspaceFileStoreCreateBinding,
-    type WorkspaceFileStoreBinding,
-} from "./modules/workspace-file/workspaceFileStore.js";
-import type { WorkspaceFileHandle } from "./modules/workspace-file/workspaceFileTypes.js";
+    workspaceFileStoreCreate,
+    type WorkspaceFileOutput,
+    type WorkspaceFileStore,
+} from "./modules/workspace-file/workspaceFileState.js";
+import type { WorkspaceFileHandle } from "./modules/workspace-file/workspaceFileState.js";
 import type { CreateAgentInput, CreateChannelInput, SendMessageInput, UserError } from "./types.js";
-import { searchQueryUpdate } from "./modules/search/searchQueryUpdate.js";
-import { searchStoreCreateBinding, type SearchStoreBinding } from "./modules/search/searchStore.js";
-import type { SearchStore } from "./modules/search/searchTypes.js";
-import { directoryLoad } from "./modules/directory/directoryLoad.js";
+import { searchQueryUpdate } from "./modules/search/searchState.js";
 import {
-    directoryStoreCreateBinding,
-    type DirectoryStoreBinding,
-} from "./modules/directory/directoryStore.js";
-import type { DirectoryStore } from "./modules/directory/directoryTypes.js";
-import { adminLoad } from "./modules/admin/adminLoad.js";
-import { adminStoreCreateBinding, type AdminStoreBinding } from "./modules/admin/adminStore.js";
-import type { AdminStore } from "./modules/admin/adminTypes.js";
+    searchStoreCreate,
+    type SearchOutput,
+    type SearchStore,
+} from "./modules/search/searchState.js";
+import { directoryLoad } from "./modules/directory/directoryState.js";
+import { directoryStoreCreate, type DirectoryStore } from "./modules/directory/directoryState.js";
+import { adminLoad } from "./modules/admin/adminState.js";
+import { adminStoreCreate, type AdminStore } from "./modules/admin/adminState.js";
 import {
     agentImagesLoad,
     agentImagesOutputRoute,
-} from "./modules/agent-images/agentImagesRoute.js";
+} from "./modules/agent-images/agentImagesState.js";
 import {
-    agentImagesStoreCreateBinding,
-    type AgentImagesStoreBinding,
-} from "./modules/agent-images/agentImagesStore.js";
-import type { AgentImagesStore } from "./modules/agent-images/agentImagesTypes.js";
+    agentImagesStoreCreate,
+    type AgentImagesOutput,
+    type AgentImagesStore,
+} from "./modules/agent-images/agentImagesState.js";
 import {
     setupBaseImagesLoad,
     setupOutputRoute,
     setupReconcile,
     setupSandboxProvidersLoad,
     setupStatusLoad,
-} from "./modules/setup/setupRoute.js";
-import { setupStoreCreateBinding, type SetupStoreBinding } from "./modules/setup/setupStore.js";
-import type { SetupStore } from "./modules/setup/setupTypes.js";
+} from "./modules/setup/setupState.js";
+import { setupStoreCreate, type SetupOutput, type SetupStore } from "./modules/setup/setupState.js";
 import {
     agentSecretsLoad,
     agentSecretsOutputRoute,
-} from "./modules/agent-secrets/agentSecretsRoute.js";
+} from "./modules/agent-secrets/agentSecretsState.js";
 import {
-    agentSecretsStoreCreateBinding,
-    type AgentSecretsStoreBinding,
-} from "./modules/agent-secrets/agentSecretsStore.js";
-import type { AgentSecretsStore } from "./modules/agent-secrets/agentSecretsTypes.js";
-import { threadLoad, type ThreadActionContext } from "./modules/thread/threadLoad.js";
-import { threadMessageSend } from "./modules/thread/threadMessageSend.js";
-import { threadOpen, type ThreadOpenContext } from "./modules/thread/threadOpen.js";
-import { threadStoreCreateBinding, type ThreadStoreBinding } from "./modules/thread/threadStore.js";
-import type { ThreadHandle } from "./modules/thread/threadTypes.js";
-import { threadsLoad } from "./modules/threads/threadsLoad.js";
-import { threadsOutputRoute } from "./modules/threads/threadsOutputRoute.js";
+    agentSecretsStoreCreate,
+    type AgentSecretsOutput,
+    type AgentSecretsStore,
+} from "./modules/agent-secrets/agentSecretsState.js";
+import { threadLoad, type ThreadActionContext } from "./modules/thread/threadState.js";
+import { threadMessageSend } from "./modules/thread/threadState.js";
+import { threadOpen, type ThreadOpenContext } from "./modules/thread/threadState.js";
 import {
-    threadsStoreCreateBinding,
-    type ThreadsStoreBinding,
-} from "./modules/threads/threadsStore.js";
-import type { ThreadsStore } from "./modules/threads/threadsTypes.js";
+    threadStoreCreate,
+    type ThreadOutput,
+    type ThreadStore,
+} from "./modules/thread/threadState.js";
+import type { ThreadHandle } from "./modules/thread/threadState.js";
+import { threadsLoad } from "./modules/threads/threadsState.js";
+import { threadsOutputRoute } from "./modules/threads/threadsState.js";
+import {
+    threadsStoreCreate,
+    type ThreadsOutput,
+    type ThreadsStore,
+} from "./modules/threads/threadsState.js";
 import {
     notificationsLoad,
     notificationsOutputRoute,
-} from "./modules/notifications/notificationsRoute.js";
+} from "./modules/notifications/notificationsState.js";
 import {
-    notificationsStoreCreateBinding,
-    type NotificationsStoreBinding,
-} from "./modules/notifications/notificationsStore.js";
-import type { NotificationsStore } from "./modules/notifications/notificationsTypes.js";
-import { callsLoad, callsOutputRoute } from "./modules/calls/callsRoute.js";
-import { callsStoreCreateBinding, type CallsStoreBinding } from "./modules/calls/callsStore.js";
-import type { CallsStore } from "./modules/calls/callsTypes.js";
-import { agentCreate } from "./modules/chat-actions/agentCreate.js";
-import { agentEffortChange } from "./modules/chat-actions/agentEffortChange.js";
-import { agentEffortLoad } from "./modules/chat-actions/agentEffortLoad.js";
-import type { ChatActionContext } from "./modules/chat-actions/chatActionContext.js";
-import { channelCreate } from "./modules/chat-actions/channelCreate.js";
-import { channelUpdate, type ChannelUpdateInput } from "./modules/chat-actions/channelUpdate.js";
-import { chatJoin } from "./modules/chat-actions/chatJoin.js";
-import { chatLeave } from "./modules/chat-actions/chatLeave.js";
-import { chatReadMark } from "./modules/chat-actions/chatReadMark.js";
-import { chatStarSet } from "./modules/chat-actions/chatStarSet.js";
-import { directMessageCreate } from "./modules/chat-actions/directMessageCreate.js";
-import { groupDirectMessageCreate } from "./modules/chat-actions/groupDirectMessageCreate.js";
-import { typingSet } from "./modules/chat-actions/typingSet.js";
-import { areaReconcile as areaReconcileAction } from "./modules/sync/areaReconcile.js";
+    notificationsStoreCreate,
+    type NotificationsOutput,
+    type NotificationsStore,
+} from "./modules/notifications/notificationsState.js";
+import { callsLoad, callsOutputRoute } from "./modules/calls/callsState.js";
+import { callsStoreCreate, type CallsOutput, type CallsStore } from "./modules/calls/callsState.js";
+import { agentCreate } from "./modules/chat-actions/chatActionsState.js";
+import { agentEffortChange } from "./modules/chat-actions/chatActionsState.js";
+import { agentEffortLoad } from "./modules/chat-actions/chatActionsState.js";
+import type { ChatActionContext } from "./modules/chat-actions/chatActionsState.js";
+import { channelCreate } from "./modules/chat-actions/chatActionsState.js";
+import { channelUpdate, type ChannelUpdateInput } from "./modules/chat-actions/chatActionsState.js";
+import { chatJoin } from "./modules/chat-actions/chatActionsState.js";
+import { chatLeave } from "./modules/chat-actions/chatActionsState.js";
+import { chatReadMark } from "./modules/chat-actions/chatActionsState.js";
+import { chatStarSet } from "./modules/chat-actions/chatActionsState.js";
+import { directMessageCreate } from "./modules/chat-actions/chatActionsState.js";
+import { groupDirectMessageCreate } from "./modules/chat-actions/chatActionsState.js";
+import { typingSet } from "./modules/chat-actions/chatActionsState.js";
+import { areaReconcile as areaReconcileAction } from "./modules/sync/syncState.js";
+
+export type HappyStateEvent =
+    | ComposerOutput
+    | ChatOutput
+    | FilesOutput
+    | SearchOutput
+    | SettingsOutput
+    | WorkspaceOutput
+    | WorkspaceFileOutput
+    | ThreadOutput
+    | ThreadsOutput
+    | NotificationsOutput
+    | CallsOutput
+    | AgentImagesOutput
+    | AgentSecretsOutput
+    | SetupOutput;
 
 export interface HappyStateOptions extends StateRuntimeOptions {
-    readonly composerOutput?: (event: ComposerOutput) => void;
+    readonly event?: (event: HappyStateEvent) => void;
     readonly draftUpdated?: (event: DraftUpdated) => void;
     readonly backgroundError?: (error: UserError) => void;
     readonly unknownSyncArea?: (area: string) => void;
@@ -173,41 +178,41 @@ export interface HappyStateOptions extends StateRuntimeOptions {
  * method is a store accessor or a thin forwarder into a same-named product action.
  */
 export class HappyState implements AsyncDisposable, Disposable {
-    private readonly composers = new StoreRegistry<string, ComposerStoreBinding>();
-    private readonly chats = new StoreRegistry<string, ChatStoreBinding>();
-    private readonly workspaces = new StoreRegistry<string, WorkspaceStoreBinding>();
-    private readonly workspaceFiles = new StoreRegistry<string, WorkspaceFileStoreBinding>();
-    private readonly threadSurfaces = new StoreRegistry<string, ThreadStoreBinding>();
-    private readonly sidebarBinding = sidebarStoreCreateBinding();
-    private filesBinding?: FilesStoreBinding;
-    private searchBinding?: SearchStoreBinding;
-    private directoryBinding?: DirectoryStoreBinding;
-    private adminBinding?: AdminStoreBinding;
-    private setupBinding?: SetupStoreBinding;
-    private agentImagesBinding?: AgentImagesStoreBinding;
-    private agentSecretsBinding?: AgentSecretsStoreBinding;
-    private notificationsBinding?: NotificationsStoreBinding;
-    private threadsBinding?: ThreadsStoreBinding;
-    private callsBinding?: CallsStoreBinding;
-    private settingsBinding?: SettingsStoreBinding;
+    private readonly composers = new StoreRegistry<string, ComposerStore>();
+    private readonly chats = new StoreRegistry<string, ChatStore>();
+    private readonly workspaces = new StoreRegistry<string, WorkspaceStore>();
+    private readonly workspaceFiles = new StoreRegistry<string, WorkspaceFileStore>();
+    private readonly threadSurfaces = new StoreRegistry<string, ThreadStore>();
+    private readonly sidebarBinding = sidebarStoreCreate();
+    private filesBinding?: FilesStore;
+    private searchBinding?: SearchStore;
+    private directoryBinding?: DirectoryStore;
+    private adminBinding?: AdminStore;
+    private setupBinding?: SetupStore;
+    private agentImagesBinding?: AgentImagesStore;
+    private agentSecretsBinding?: AgentSecretsStore;
+    private notificationsBinding?: NotificationsStore;
+    private threadsBinding?: ThreadsStore;
+    private callsBinding?: CallsStore;
+    private settingsBinding?: SettingsStore;
     private settingsCoordinator?: SettingsCoordinator;
     private readonly identities = new IdentityCatalog();
     private readonly sidebarChats: SidebarChatsProjector;
     private readonly runtime: StateRuntime;
     private readonly sync: SyncCoordinator;
-    private readonly context: ComposerOutputContext &
+    private readonly context: DraftActionContext &
         ChatOpenContext &
         WorkspaceOpenContext &
-        WorkspaceOutputContext &
         WorkspaceFileOpenContext &
-        WorkspaceFileOutputContext &
         ThreadOpenContext;
     private disposed = false;
     private readonly unknownSyncArea: (area: string) => void;
+    private readonly eventListener: (event: HappyStateEvent) => void;
 
     constructor(options: HappyStateOptions = {}) {
         const backgroundError =
             options.backgroundError ?? options.onBackgroundError ?? (() => undefined);
+        this.eventListener = options.event ?? (() => undefined);
         this.unknownSyncArea = options.unknownSyncArea ?? (() => undefined);
         this.runtime = new StateRuntime({
             ...options,
@@ -216,64 +221,29 @@ export class HappyState implements AsyncDisposable, Disposable {
         this.sidebarChats = new SidebarChatsProjector(this.runtime, this.identities);
         this.context = {
             composerGet: (scopeId) => this.composers.get(scopeId),
-            composerOutput: options.composerOutput ?? (() => undefined),
             draftUpdated: options.draftUpdated ?? (() => undefined),
-            messageSend: (chatId, input, revision) =>
-                messageSend(this.messageContext(), chatId, input, revision),
             chatAcquire: (chatId) =>
                 this.chats.getOrCreate(chatId, () =>
-                    chatStoreCreateBinding(chatId, (event) =>
-                        chatOutputRoute(
-                            {
-                                chatMembersLoad: (id) => this.chatMembersLoad(id),
-                                chatPinsLoad: (id) => this.chatPinsLoad(id),
-                                reactionActorsLoad: (id, messageId, reactionKey) =>
-                                    this.reactionActorsLoad(id, messageId, reactionKey),
-                                agentEffortLoad: (id, agentUserId) =>
-                                    this.agentEffortLoad(id, agentUserId),
-                                agentEffortChange: (id, agentUserId, effort) =>
-                                    this.agentEffortChange(id, agentUserId, effort),
-                            },
-                            event,
-                        ),
-                    ),
+                    chatStoreCreate(chatId, (event) => this.eventRoute(event)),
                 ),
             chatRelease: (chatId) => this.chats.release(chatId),
             chatLoad: (chatId) => this.chatLoad(chatId),
             workspaceAcquire: (chatId) =>
                 this.workspaces.getOrCreate(chatId, () =>
-                    workspaceStoreCreateBinding(chatId, (event) =>
-                        workspaceOutputRoute(this.context, event),
-                    ),
+                    workspaceStoreCreate(chatId, (event) => this.eventRoute(event)),
                 ),
             workspaceRelease: (chatId) => this.workspaces.release(chatId),
             workspaceLoad: (chatId) => this.workspaceLoad(chatId),
-            workspaceDirectoriesUpdate: (chatId, directories) =>
-                this.workspaceDirectoriesUpdate(chatId, directories),
-            workspaceDirectoryMore: (chatId, directory) =>
-                this.workspaceDirectoryMore(chatId, directory),
             workspaceFileAcquire: (chatId, path) =>
                 this.workspaceFiles.getOrCreate(workspaceFileKey(chatId, path), () =>
-                    workspaceFileStoreCreateBinding(chatId, path, (event) =>
-                        workspaceFileOutputRoute(this.context, event),
-                    ),
+                    workspaceFileStoreCreate(chatId, path, (event) => this.eventRoute(event)),
                 ),
             workspaceFileRelease: (chatId, path) =>
                 this.workspaceFiles.release(workspaceFileKey(chatId, path)),
             workspaceFileLoad: (chatId, path) => this.workspaceFileLoad(chatId, path),
-            workspaceFileSave: (chatId, path) => this.workspaceFileSave(chatId, path),
-            workspaceFileDelete: (chatId, path) => this.workspaceFileDelete(chatId, path),
             threadAcquire: (rootMessageId) =>
                 this.threadSurfaces.getOrCreate(rootMessageId, () =>
-                    threadStoreCreateBinding(rootMessageId, (event) =>
-                        this.backgroundIfConnected(() =>
-                            threadMessageSend(
-                                this.threadContext(),
-                                event.rootMessageId,
-                                event.input,
-                            ),
-                        ),
-                    ),
+                    threadStoreCreate(rootMessageId, (event) => this.eventRoute(event)),
                 ),
             threadRelease: (rootMessageId) => this.threadSurfaces.release(rootMessageId),
             threadLoad: (rootMessageId) => this.threadLoad(rootMessageId),
@@ -294,49 +264,32 @@ export class HappyState implements AsyncDisposable, Disposable {
     }
 
     sidebar(): SidebarStore {
-        return this.sidebarBinding.store;
+        return this.sidebarBinding;
     }
 
     files(): FilesStore {
         if (!this.filesBinding) {
-            let binding: FilesStoreBinding;
-            binding = filesStoreCreateBinding(() => {
-                if (this.runtime.connected)
-                    this.runtime.background(
-                        filesLoad({ runtime: this.runtime, files: binding }, true),
-                    );
-            });
+            let binding: FilesStore;
+            binding = filesStoreCreate((event) => this.eventRoute(event));
             this.filesBinding = binding;
             if (this.runtime.connected)
                 this.runtime.background(filesLoad({ runtime: this.runtime, files: binding }));
         }
-        return this.filesBinding.store;
+        return this.filesBinding;
     }
 
     search(): SearchStore {
         if (!this.searchBinding) {
-            let binding: SearchStoreBinding;
-            binding = searchStoreCreateBinding((event) => {
-                if (this.runtime.connected)
-                    this.runtime.background(
-                        searchQueryUpdate(
-                            {
-                                runtime: this.runtime,
-                                identities: this.identities,
-                                search: binding,
-                            },
-                            event.query,
-                        ),
-                    );
-            });
+            let binding: SearchStore;
+            binding = searchStoreCreate((event) => this.eventRoute(event));
             this.searchBinding = binding;
         }
-        return this.searchBinding.store;
+        return this.searchBinding;
     }
 
     directory(): DirectoryStore {
         if (!this.directoryBinding) {
-            this.directoryBinding = directoryStoreCreateBinding();
+            this.directoryBinding = directoryStoreCreate();
             if (this.runtime.connected)
                 this.runtime.background(
                     directoryLoad({
@@ -346,36 +299,29 @@ export class HappyState implements AsyncDisposable, Disposable {
                     }),
                 );
         }
-        return this.directoryBinding.store;
+        return this.directoryBinding;
     }
 
     admin(): AdminStore {
         if (!this.adminBinding) {
-            this.adminBinding = adminStoreCreateBinding();
+            this.adminBinding = adminStoreCreate();
             if (this.runtime.connected)
                 this.runtime.background(
                     adminLoad({ runtime: this.runtime, admin: this.adminBinding }),
                 );
         }
-        return this.adminBinding.store;
+        return this.adminBinding;
     }
 
     agentImages(): AgentImagesStore {
         if (!this.agentImagesBinding) {
-            this.agentImagesBinding = agentImagesStoreCreateBinding((event) =>
-                this.backgroundIfConnected(() =>
-                    agentImagesOutputRoute(
-                        { runtime: this.runtime, images: this.agentImagesBinding! },
-                        event,
-                    ),
-                ),
-            );
+            this.agentImagesBinding = agentImagesStoreCreate((event) => this.eventRoute(event));
             if (this.runtime.connected)
                 this.runtime.background(
                     agentImagesLoad({ runtime: this.runtime, images: this.agentImagesBinding }),
                 );
         }
-        return this.agentImagesBinding.store;
+        return this.agentImagesBinding;
     }
 
     /**
@@ -387,17 +333,13 @@ export class HappyState implements AsyncDisposable, Disposable {
      */
     setup(): SetupStore {
         if (!this.setupBinding) {
-            this.setupBinding = setupStoreCreateBinding((event) =>
-                this.backgroundIfConnected(() =>
-                    setupOutputRoute({ runtime: this.runtime, setup: this.setupBinding! }, event),
-                ),
-            );
+            this.setupBinding = setupStoreCreate((event) => this.eventRoute(event));
             if (this.runtime.connected)
                 this.runtime.background(
                     setupStatusLoad({ runtime: this.runtime, setup: this.setupBinding }),
                 );
         }
-        return this.setupBinding.store;
+        return this.setupBinding;
     }
 
     /** Reloads the durable combined onboarding status without a user-initiated refresh. */
@@ -426,18 +368,7 @@ export class HappyState implements AsyncDisposable, Disposable {
 
     agentSecrets(): AgentSecretsStore {
         if (!this.agentSecretsBinding) {
-            this.agentSecretsBinding = agentSecretsStoreCreateBinding((event) =>
-                this.backgroundIfConnected(() =>
-                    agentSecretsOutputRoute(
-                        {
-                            runtime: this.runtime,
-                            identities: this.identities,
-                            secrets: this.agentSecretsBinding!,
-                        },
-                        event,
-                    ),
-                ),
-            );
+            this.agentSecretsBinding = agentSecretsStoreCreate((event) => this.eventRoute(event));
             if (this.runtime.connected)
                 this.runtime.background(
                     agentSecretsLoad({
@@ -447,7 +378,7 @@ export class HappyState implements AsyncDisposable, Disposable {
                     }),
                 );
         }
-        return this.agentSecretsBinding.store;
+        return this.agentSecretsBinding;
     }
 
     threadOpen(rootMessageId: string): ThreadHandle {
@@ -456,18 +387,7 @@ export class HappyState implements AsyncDisposable, Disposable {
 
     threads(): ThreadsStore {
         if (!this.threadsBinding) {
-            this.threadsBinding = threadsStoreCreateBinding((event) =>
-                this.backgroundIfConnected(() =>
-                    threadsOutputRoute(
-                        {
-                            runtime: this.runtime,
-                            identities: this.identities,
-                            threads: this.threadsBinding!,
-                        },
-                        event,
-                    ),
-                ),
-            );
+            this.threadsBinding = threadsStoreCreate((event) => this.eventRoute(event));
             if (this.runtime.connected)
                 this.runtime.background(
                     threadsLoad({
@@ -477,23 +397,12 @@ export class HappyState implements AsyncDisposable, Disposable {
                     }),
                 );
         }
-        return this.threadsBinding.store;
+        return this.threadsBinding;
     }
 
     notifications(): NotificationsStore {
         if (!this.notificationsBinding) {
-            this.notificationsBinding = notificationsStoreCreateBinding((event) =>
-                this.backgroundIfConnected(() =>
-                    notificationsOutputRoute(
-                        {
-                            runtime: this.runtime,
-                            identities: this.identities,
-                            notifications: this.notificationsBinding!,
-                        },
-                        event,
-                    ),
-                ),
-            );
+            this.notificationsBinding = notificationsStoreCreate((event) => this.eventRoute(event));
             if (this.runtime.connected)
                 this.runtime.background(
                     notificationsLoad({
@@ -503,23 +412,12 @@ export class HappyState implements AsyncDisposable, Disposable {
                     }),
                 );
         }
-        return this.notificationsBinding.store;
+        return this.notificationsBinding;
     }
 
     calls(): CallsStore {
         if (!this.callsBinding) {
-            this.callsBinding = callsStoreCreateBinding((event) =>
-                this.backgroundIfConnected(() =>
-                    callsOutputRoute(
-                        {
-                            runtime: this.runtime,
-                            identities: this.identities,
-                            calls: this.callsBinding!,
-                        },
-                        event,
-                    ),
-                ),
-            );
+            this.callsBinding = callsStoreCreate((event) => this.eventRoute(event));
             if (this.runtime.connected)
                 this.runtime.background(
                     callsLoad({
@@ -529,7 +427,7 @@ export class HappyState implements AsyncDisposable, Disposable {
                     }),
                 );
         }
-        return this.callsBinding.store;
+        return this.callsBinding;
     }
 
     async fileDownload(fileId: string): Promise<ArrayBuffer> {
@@ -551,7 +449,7 @@ export class HappyState implements AsyncDisposable, Disposable {
     async avatarSet(fileId: string): Promise<void> {
         const result = await this.runtime.operation("updateAvatar", { fileId });
         if (result.user.photoFileId)
-            this.settingsBinding?.settingsInput({
+            this.settingsBinding?.getState().settingsInput({
                 type: "avatarSaved",
                 fileId: result.user.photoFileId,
             });
@@ -564,14 +462,12 @@ export class HappyState implements AsyncDisposable, Disposable {
     settings(options: SettingsStoreOptions = {}): SettingsStore {
         if (!this.settingsBinding) {
             let coordinator: SettingsCoordinator;
-            this.settingsBinding = settingsStoreCreateBinding(options, (event) =>
-                coordinator.output(event),
-            );
+            this.settingsBinding = settingsStoreCreate(options, (event) => this.eventRoute(event));
             coordinator = new SettingsCoordinator(this.runtime, this.settingsBinding);
             this.settingsCoordinator = coordinator;
             this.runtime.background(coordinator.load());
         }
-        return this.settingsBinding.store;
+        return this.settingsBinding;
     }
 
     chatOpen(chatId: string): ChatHandle {
@@ -580,14 +476,14 @@ export class HappyState implements AsyncDisposable, Disposable {
 
     composer(scopeId: string, options: ComposerStoreOptions = {}): ComposerStore {
         return this.composers.getOrCreate(scopeId, () =>
-            composerStoreCreateBinding(scopeId, {
+            composerStoreCreate(scopeId, {
                 ...options,
                 output: (event) => {
                     options.output?.(event);
-                    composerOutputRoute(this.context, event);
+                    this.eventRoute(event);
                 },
             }),
-        ).store;
+        );
     }
 
     composerRelease(scopeId: string): void {
@@ -706,20 +602,8 @@ export class HappyState implements AsyncDisposable, Disposable {
         this.workspaceFiles.dispose();
         this.workspaces.dispose();
         this.composers.dispose();
-        this.sidebarBinding.dispose();
-        this.searchBinding?.dispose();
-        this.filesBinding?.dispose();
-        this.directoryBinding?.dispose();
-        this.adminBinding?.dispose();
-        this.setupBinding?.dispose();
-        this.agentImagesBinding?.dispose();
-        this.agentSecretsBinding?.dispose();
-        this.notificationsBinding?.dispose();
-        this.threadsBinding?.dispose();
-        this.callsBinding?.dispose();
         this.threadSurfaces.dispose();
         this.settingsCoordinator?.[Symbol.dispose]();
-        this.settingsBinding?.dispose();
         this.identities.clear();
         this.sidebarChats.clear();
     }
@@ -727,6 +611,199 @@ export class HappyState implements AsyncDisposable, Disposable {
     async [Symbol.asyncDispose](): Promise<void> {
         this[Symbol.dispose]();
         await this.runtime.whenIdle();
+    }
+
+    /** The only cross-store boundary: route one globally discriminated store event. */
+    private eventRoute(event: HappyStateEvent): void {
+        this.eventHandle(event);
+        this.eventListener(event);
+    }
+
+    /** Exhaustive central dispatch; stores never route or import one another. */
+    private eventHandle(event: HappyStateEvent): void {
+        switch (event.type) {
+            case "textUpdated":
+                draftUpdate(this.context, event.scopeId, event.text);
+                return;
+            case "attachmentAdded":
+            case "attachmentRemoved":
+                return;
+            case "textSubmitted":
+                messageSend(
+                    this.messageContext(),
+                    event.scopeId,
+                    {
+                        text: event.text,
+                        attachmentFileIds: event.attachments.map((attachment) => attachment.id),
+                    },
+                    event.revision,
+                );
+                return;
+            case "membersRetained":
+                this.chatMembersLoad(event.chatId);
+                return;
+            case "pinsRetained":
+                this.chatPinsLoad(event.chatId);
+                return;
+            case "reactionActorsRetained":
+                this.reactionActorsLoad(event.chatId, event.messageId, event.reactionKey);
+                return;
+            case "agentEffortRetained":
+                this.agentEffortLoad(event.chatId, event.agentUserId);
+                return;
+            case "agentEffortSubmitted":
+                this.agentEffortChange(event.chatId, event.agentUserId, event.effort);
+                return;
+            case "directoriesUpdated":
+                this.workspaceDirectoriesUpdate(event.chatId, event.directories);
+                return;
+            case "directoryMoreRequested":
+                this.workspaceDirectoryMore(event.chatId, event.directory);
+                return;
+            case "contentSaveRequested":
+                this.workspaceFileSave(event.chatId, event.path);
+                return;
+            case "fileDeleteRequested":
+                this.workspaceFileDelete(event.chatId, event.path);
+                return;
+            case "threadReplySubmitted":
+                this.backgroundIfConnected(() =>
+                    threadMessageSend(this.threadContext(), event.rootMessageId, event.input),
+                );
+                return;
+            case "filesMoreRequested":
+                if (this.filesBinding)
+                    this.backgroundIfConnected(() =>
+                        filesLoad({ runtime: this.runtime, files: this.filesBinding! }, true),
+                    );
+                return;
+            case "queryUpdated":
+                if (this.searchBinding)
+                    this.backgroundIfConnected(() =>
+                        searchQueryUpdate(
+                            {
+                                runtime: this.runtime,
+                                identities: this.identities,
+                                search: this.searchBinding!,
+                            },
+                            event.query,
+                        ),
+                    );
+                return;
+            case "displayNameUpdated":
+            case "usernameUpdated":
+            case "emailUpdated":
+            case "phoneUpdated":
+            case "availabilityUpdated":
+            case "statusTextUpdated":
+            case "statusEmojiUpdated":
+            case "statusExpiryUpdated":
+            case "dndUntilUpdated":
+            case "directMessagesUpdated":
+            case "mentionsUpdated":
+            case "threadRepliesUpdated":
+            case "reactionsUpdated":
+            case "callsUpdated":
+            case "emailNotificationsUpdated":
+            case "desktopNotificationsUpdated":
+            case "dndScheduleUpdated":
+            case "timezoneUpdated":
+                this.settingsCoordinator?.output(event);
+                return;
+            case "imageSelected":
+            case "imageBuildSubmitted":
+            case "defaultImageSubmitted":
+            case "imageCreateSubmitted":
+                if (this.agentImagesBinding)
+                    this.backgroundIfConnected(() =>
+                        agentImagesOutputRoute(
+                            { runtime: this.runtime, images: this.agentImagesBinding! },
+                            event,
+                        ),
+                    );
+                return;
+            case "sandboxProviderSelectSubmitted":
+            case "baseImageSelectSubmitted":
+            case "baseImageBuildRetrySubmitted":
+            case "registrationPolicyChooseSubmitted":
+                if (this.setupBinding)
+                    this.backgroundIfConnected(() =>
+                        setupOutputRoute(
+                            { runtime: this.runtime, setup: this.setupBinding! },
+                            event,
+                        ),
+                    );
+                return;
+            case "secretCreateSubmitted":
+            case "secretDeleteSubmitted":
+            case "secretAgentAttached":
+            case "secretAgentDetached":
+            case "secretChannelAttached":
+            case "secretChannelDetached":
+                if (this.agentSecretsBinding)
+                    this.backgroundIfConnected(() =>
+                        agentSecretsOutputRoute(
+                            {
+                                runtime: this.runtime,
+                                identities: this.identities,
+                                secrets: this.agentSecretsBinding!,
+                            },
+                            event,
+                        ),
+                    );
+                return;
+            case "threadsMoreRequested":
+            case "threadReadSubmitted":
+            case "threadSubscriptionSubmitted":
+                if (this.threadsBinding)
+                    this.backgroundIfConnected(() =>
+                        threadsOutputRoute(
+                            {
+                                runtime: this.runtime,
+                                identities: this.identities,
+                                threads: this.threadsBinding!,
+                            },
+                            event,
+                        ),
+                    );
+                return;
+            case "notificationsReadSubmitted":
+            case "notificationsMoreRequested":
+                if (this.notificationsBinding)
+                    this.backgroundIfConnected(() =>
+                        notificationsOutputRoute(
+                            {
+                                runtime: this.runtime,
+                                identities: this.identities,
+                                notifications: this.notificationsBinding!,
+                            },
+                            event,
+                        ),
+                    );
+                return;
+            case "callCreateSubmitted":
+            case "callJoinSubmitted":
+            case "callDeclineSubmitted":
+            case "callLeaveSubmitted":
+            case "callEndSubmitted":
+            case "callSignalSubmitted":
+                if (this.callsBinding)
+                    this.backgroundIfConnected(() =>
+                        callsOutputRoute(
+                            {
+                                runtime: this.runtime,
+                                identities: this.identities,
+                                calls: this.callsBinding!,
+                            },
+                            event,
+                        ),
+                    );
+                return;
+            default: {
+                const exhaustive: never = event;
+                throw new Error(`Unhandled HappyState event: ${JSON.stringify(exhaustive)}`);
+            }
+        }
     }
 
     private chatLoad(chatId: string): void {
@@ -885,7 +962,7 @@ export class HappyState implements AsyncDisposable, Disposable {
                             },
                             sidebarIdentityReconcile: (identity) => {
                                 for (const chat of this.sidebarChats.reconcileIdentity(identity))
-                                    this.sidebarBinding.sidebarInput({
+                                    this.sidebarBinding.getState().sidebarInput({
                                         type: "chatSummaryUpserted",
                                         chat,
                                     });
@@ -902,15 +979,15 @@ export class HappyState implements AsyncDisposable, Disposable {
         for (const [chatId] of this.chats.values()) this.chatLoad(chatId);
         for (const [chatId] of this.workspaces.values()) this.workspaceReconcile(chatId);
         for (const [, binding] of this.workspaceFiles.values()) {
-            const { chatId, path } = binding.store.get();
+            const { chatId, path } = binding.getState();
             this.workspaceFileLoad(chatId, path);
         }
         for (const [rootMessageId] of this.threadSurfaces.values()) this.threadLoad(rootMessageId);
         const files = this.filesBinding;
-        if (files && files.store.get().status.type !== "unloaded")
+        if (files && files.getState().status.type !== "unloaded")
             this.runtime.background(filesLoad({ runtime: this.runtime, files }));
         const search = this.searchBinding;
-        const query = search?.store.get().query;
+        const query = search?.getState().query;
         if (search && query)
             this.runtime.background(
                 searchQueryUpdate(
@@ -981,7 +1058,7 @@ export class HappyState implements AsyncDisposable, Disposable {
             identities: this.identities,
             chatGet: (chatId: string) => this.chats.get(chatId),
             chatPinsReconcile: (chatId: string) => {
-                const pins = this.chats.get(chatId)?.store.get().pins;
+                const pins = this.chats.get(chatId)?.getState().pins;
                 if (pins?.type === "loading" || pins?.type === "ready") this.chatPinsLoad(chatId);
             },
             composerGet: (scopeId: string) => this.composers.get(scopeId),
@@ -997,7 +1074,7 @@ export class HappyState implements AsyncDisposable, Disposable {
         };
     }
 
-    private *chatEntries(): IterableIterator<readonly [string, ChatStoreBinding]> {
+    private *chatEntries(): IterableIterator<readonly [string, ChatStore]> {
         yield* this.chats.values();
     }
 

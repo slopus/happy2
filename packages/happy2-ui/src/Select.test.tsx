@@ -78,9 +78,9 @@ const sizes = ["small", "medium", "large"] as const;
  * measurement, so it never biases a centroid. */
 const stage: Record<string, string> = {
     background: "#1c1b22",
-    "box-sizing": "border-box",
+    boxSizing: "border-box",
     display: "flex",
-    "align-items": "flex-start",
+    alignItems: "flex-start",
     gap: "24px",
     height: "100%",
     padding: "24px",
@@ -116,6 +116,7 @@ it("holds Select geometry, tokens, typography, chevron centering, and value cent
                 {sizes.map((size) => (
                     <Select
                         data-testid={`sel-${size}`}
+                        key={size}
                         label="Role"
                         options={options}
                         size={size}
@@ -330,7 +331,7 @@ it("holds Select placeholder, error, disabled, focus, truncation, and fullWidth 
     const view = createRenderer();
     view.render(
         () => (
-            <div style={{ ...stage, "flex-wrap": "wrap" }}>
+            <div style={{ ...stage, flexWrap: "wrap" }}>
                 <Select
                     data-testid="sel-placeholder"
                     label="Role"
@@ -368,7 +369,7 @@ it("holds Select placeholder, error, disabled, focus, truncation, and fullWidth 
     );
     view.render(
         () => (
-            <div style={{ ...stage, "align-items": "center" }}>
+            <div style={{ ...stage, alignItems: "center" }}>
                 <Select
                     data-testid="sel-trunc"
                     options={[

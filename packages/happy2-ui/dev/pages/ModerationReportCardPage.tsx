@@ -25,7 +25,7 @@ export function ModerationReportCardPage() {
             summary="Moderation queue item — kind chip + target descriptor, status badge, inset reason well, reporter/assignee credits, and a resolution action row."
             title="Moderation report card"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="440px card · 16px padding · radius 10 · 12px rhythm"
                     label="Anatomy"
@@ -59,7 +59,7 @@ export function ModerationReportCardPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-wrap": "wrap",
+                            flexWrap: "wrap",
                             gap: "16px",
                             padding: "28px",
                         }}
@@ -122,7 +122,7 @@ export function ModerationReportCardPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="user · chat · message · file — kind chip glyph"
                     label="Target kinds"
@@ -132,7 +132,7 @@ export function ModerationReportCardPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-wrap": "wrap",
+                            flexWrap: "wrap",
                             gap: "16px",
                             padding: "28px",
                         }}
@@ -193,7 +193,7 @@ export function ModerationReportCardPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="minimal · details paragraph · full action row"
                     label="Content states"
@@ -203,8 +203,8 @@ export function ModerationReportCardPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-wrap": "wrap",
-                            "align-items": "flex-start",
+                            flexWrap: "wrap",
+                            alignItems: "flex-start",
                             gap: "16px",
                             padding: "28px",
                         }}

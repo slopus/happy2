@@ -1,48 +1,47 @@
 import { describe, expect, it, vi } from "vitest";
 import { UserError } from "../../types.js";
-import { textPatchApply, textPatchFromContents, textPatchRebase } from "./textPatch.js";
-import { workspaceFileStoreCreateBinding } from "./workspaceFileStore.js";
-import type { StateRuntime } from "../runtime/stateRuntime.js";
-import { workspaceFileDelete } from "./workspaceFileDelete.js";
-import { workspaceFileSave } from "./workspaceFileSave.js";
+import { textPatchApply, textPatchFromContents, textPatchRebase } from "./workspaceFileState.js";
+import { workspaceFileStoreCreate } from "./workspaceFileState.js";
+import type { StateRuntime } from "../runtime/runtimeState.js";
+import { workspaceFileDelete } from "./workspaceFileState.js";
+import { workspaceFileSave } from "./workspaceFileState.js";
 
 describe("workspace file module", () => {
     it("tracks local edits through save, conflict, and delete transitions", () => {
         const output = vi.fn();
-        const binding = workspaceFileStoreCreateBinding("chat-1", "src/a.ts", output);
-        binding.workspaceFileInput({ type: "fileLoaded", file: file("one", "v1") });
-        binding.store.contentUpdate("two");
-        binding.store.contentSave();
-        binding.store.fileDelete();
+        const binding = workspaceFileStoreCreate("chat-1", "src/a.ts", output);
+        binding.getState().workspaceFileInput({ type: "fileLoaded", file: file("one", "v1") });
+        binding.getState().contentUpdate("two");
+        binding.getState().contentSave();
+        binding.getState().fileDelete();
         expect(output.mock.calls.map(([event]) => event.type)).toEqual([
             "contentSaveRequested",
             "fileDeleteRequested",
         ]);
-        binding.workspaceFileInput({ type: "contentSaving" });
-        binding.store.contentUpdate("three");
-        binding.workspaceFileInput({
+        binding.getState().workspaceFileInput({ type: "contentSaving" });
+        binding.getState().contentUpdate("three");
+        binding.getState().workspaceFileInput({
             type: "contentSaved",
             file: file("two", "v2"),
             submittedContent: "two",
         });
-        expect(binding.store.get()).toMatchObject({
+        expect(binding.getState()).toMatchObject({
             content: "three",
             saveState: { type: "dirty" },
         });
-        binding.workspaceFileInput({
+        binding.getState().workspaceFileInput({
             type: "contentConflict",
             error: new UserError("conflict"),
             currentFile: file("remote", "v3"),
         });
-        expect(binding.store.get().saveState.type).toBe("conflict");
-        binding.workspaceFileInput({ type: "fileDeleted" });
-        expect(binding.store.get()).toMatchObject({ content: "", file: { type: "unloaded" } });
-        binding.dispose();
+        expect(binding.getState().saveState.type).toBe("conflict");
+        binding.getState().workspaceFileInput({ type: "fileDeleted" });
+        expect(binding.getState()).toMatchObject({ content: "", file: { type: "unloaded" } });
     });
 
     it("deletes with one explicit idempotency key and reconciles the retained tree", async () => {
-        const binding = workspaceFileStoreCreateBinding("chat-1", "src/a.ts");
-        binding.workspaceFileInput({ type: "fileLoaded", file: file("one", "v1") });
+        const binding = workspaceFileStoreCreate("chat-1", "src/a.ts");
+        binding.getState().workspaceFileInput({ type: "fileLoaded", file: file("one", "v1") });
         const operationWithIdempotencyKey = vi.fn().mockResolvedValue({ removed: true });
         const workspaceReconcile = vi.fn();
         await workspaceFileDelete(
@@ -62,14 +61,13 @@ describe("workspace file module", () => {
             "delete-1",
             { chatId: "chat-1", path: "src/a.ts", expectedVersion: "v1" },
         );
-        expect(binding.store.get().file.type).toBe("unloaded");
+        expect(binding.getState().file.type).toBe("unloaded");
         expect(workspaceReconcile).toHaveBeenCalledWith("chat-1");
-        binding.dispose();
     });
 
     it("uses a new logical mutation key after an unchanged-content delete conflict", async () => {
-        const binding = workspaceFileStoreCreateBinding("chat-1", "src/a.ts");
-        binding.workspaceFileInput({ type: "fileLoaded", file: file("one", "v1") });
+        const binding = workspaceFileStoreCreate("chat-1", "src/a.ts");
+        binding.getState().workspaceFileInput({ type: "fileLoaded", file: file("one", "v1") });
         const ids = ["delete-v1", "delete-v2"];
         const operationWithIdempotencyKey = vi
             .fn()
@@ -92,14 +90,15 @@ describe("workspace file module", () => {
             "delete-v1",
             "delete-v2",
         ]);
-        expect(binding.store.get().file.type).toBe("unloaded");
-        binding.dispose();
+        expect(binding.getState().file.type).toBe("unloaded");
     });
 
     it("uses a new logical mutation key for a rebased save payload", async () => {
-        const binding = workspaceFileStoreCreateBinding("chat-1", "src/a.ts");
-        binding.workspaceFileInput({ type: "fileLoaded", file: file("hello world", "v1") });
-        binding.store.contentUpdate("hello codex");
+        const binding = workspaceFileStoreCreate("chat-1", "src/a.ts");
+        binding
+            .getState()
+            .workspaceFileInput({ type: "fileLoaded", file: file("hello world", "v1") });
+        binding.getState().contentUpdate("hello codex");
         const ids = ["save-v1", "save-v2"];
         const operationWithIdempotencyKey = vi
             .fn()
@@ -124,11 +123,10 @@ describe("workspace file module", () => {
             "save-v1",
             "save-v2",
         ]);
-        expect(binding.store.get()).toMatchObject({
+        expect(binding.getState()).toMatchObject({
             content: "header\nhello codex",
             saveState: { type: "clean" },
         });
-        binding.dispose();
     });
 
     it("applies, derives, rebases, and rejects invalid text patches", () => {

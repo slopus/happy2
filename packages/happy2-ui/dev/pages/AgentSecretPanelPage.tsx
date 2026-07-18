@@ -1,11 +1,10 @@
-import { batch, createSignal, type JSX } from "solid-js";
+import { useState, type CSSProperties } from "react";
 import {
     AgentSecretPanel,
     type AgentSecretDraftVariable,
     type AgentSecretItem,
 } from "../../src/AgentSecretPanel";
 import { ComponentPage, Specimen } from "../kit";
-
 const secrets: AgentSecretItem[] = [
     {
         id: "service-api",
@@ -35,12 +34,11 @@ const secrets: AgentSecretItem[] = [
         channelCount: 3,
     },
 ];
-
-function frame(height: number): JSX.CSSProperties {
+function frame(height: number): CSSProperties {
     return {
         background: "var(--happy2-bg-app)",
         border: "1px solid var(--happy2-border)",
-        "border-radius": "14px",
+        borderRadius: "14px",
         display: "flex",
         height: `${height}px`,
         overflow: "hidden",
@@ -48,23 +46,20 @@ function frame(height: number): JSX.CSSProperties {
         width: "980px",
     };
 }
-
 export function AgentSecretPanelPage() {
-    const [createOpen, setCreateOpen] = createSignal(false);
-    const [id, setId] = createSignal("service-api");
-    const [description, setDescription] = createSignal("Service API credentials");
-    const [variables, setVariables] = createSignal<AgentSecretDraftVariable[]>([
+    const [createOpen, setCreateOpen] = useState(false);
+    const [id, setId] = useState("service-api");
+    const [description, setDescription] = useState("Service API credentials");
+    const [variables, setVariables] = useState<AgentSecretDraftVariable[]>([
         { name: "SERVICE_API_TOKEN", value: "sk-live-9f2c" },
         { name: "SERVICE_API_REGION", value: "west" },
     ]);
-
     const changeVariable = (index: number, field: "name" | "value", value: string) =>
         setVariables((current) =>
             current.map((variable, i) =>
                 i === index ? { ...variable, [field]: value } : variable,
             ),
         );
-
     return (
         <ComponentPage
             number="C-055"
@@ -109,7 +104,7 @@ export function AgentSecretPanelPage() {
                 number="03"
                 stage="app"
             >
-                <div style={{ display: "flex", gap: "24px", "flex-wrap": "wrap" }}>
+                <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
                     <div style={frame(240)}>
                         <AgentSecretPanel onOpenCreate={() => undefined} secrets={[]} />
                     </div>
@@ -127,10 +122,10 @@ export function AgentSecretPanelPage() {
             >
                 <div style={frame(520)}>
                     <AgentSecretPanel
-                        createOpen={createOpen()}
-                        draftDescription={description()}
-                        draftId={id()}
-                        draftVariables={variables()}
+                        createOpen={createOpen}
+                        draftDescription={description}
+                        draftId={id}
+                        draftVariables={variables}
                         onAddDraftVariable={() =>
                             setVariables((current) => [...current, { name: "", value: "" }])
                         }
@@ -143,9 +138,9 @@ export function AgentSecretPanelPage() {
                             setVariables((current) => current.filter((_, i) => i !== index))
                         }
                         onSubmitCreate={() =>
-                            batch(() => {
+                            (() => {
                                 setCreateOpen(false);
-                            })
+                            })()
                         }
                         secrets={secrets}
                     />

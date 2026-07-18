@@ -4,7 +4,7 @@ import { ComponentPage, DimensionRule, Specimen } from "../kit";
 
 const column: Record<string, string> = {
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     gap: "14px",
 };
 

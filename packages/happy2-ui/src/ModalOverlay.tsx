@@ -1,10 +1,10 @@
-import { splitProps, type JSX } from "solid-js";
-
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 export type ModalOverlayProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
-    children: JSX.Element;
+    style?: CSSProperties;
+    children: ReactNode;
     /**
      * Called when the dim outside the hosted card is clicked. Wiring it makes
      * the backdrop dismissable; omit it for surfaces that must not be closed by
@@ -12,7 +12,6 @@ export type ModalOverlayProps = {
      */
     onDismiss?: () => void;
 };
-
 /**
  * C-058 ModalOverlay — the single backdrop every modal-class surface sits on.
  *
@@ -25,15 +24,17 @@ export type ModalOverlayProps = {
  * clicks inside the card never dismiss.
  */
 export function ModalOverlay(props: ModalOverlayProps) {
-    const [local, rest] = splitProps(props, ["class", "style", "children", "onDismiss"]);
-
+    const [local, rest] = splitProps(props, ["className", "style", "children", "onDismiss"]);
     return (
         <div
             {...rest}
-            class={["happy2-modal-overlay", local.class].filter(Boolean).join(" ")}
+            className={["happy2-modal-overlay", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="modal-overlay"
             onClick={(event) => {
                 if (local.onDismiss && event.target === event.currentTarget) local.onDismiss();
+            }}
+            onKeyDown={(event) => {
+                if (event.key === "Escape") local.onDismiss?.();
             }}
             style={local.style}
         >

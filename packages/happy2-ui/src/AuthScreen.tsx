@@ -1,24 +1,25 @@
-import { Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 import { Icon } from "./Icon";
-
 export type AuthScreenState = "form" | "loading";
-export type AuthBrand = { name: string; mark?: JSX.Element };
-
+export type AuthBrand = {
+    name: string;
+    mark?: ReactNode;
+};
 export type AuthScreenProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     backgroundUrl?: string;
     brand?: AuthBrand;
     kicker?: string;
     title: string;
     copy?: string;
-    children: JSX.Element;
-    footer?: JSX.Element;
+    children: ReactNode;
+    footer?: ReactNode;
     state?: AuthScreenState;
     loadingLabel?: string;
 };
-
 /**
  * C-032 AuthScreen — full-window auth / onboarding split for the Relay dark
  * theme (replaces the old green / light auth).
@@ -36,7 +37,7 @@ export type AuthScreenProps = {
  */
 export function AuthScreen(props: AuthScreenProps) {
     const [local] = splitProps(props, [
-        "class",
+        "className",
         "data-testid",
         "style",
         "backgroundUrl",
@@ -50,10 +51,9 @@ export function AuthScreen(props: AuthScreenProps) {
         "loadingLabel",
     ]);
     const state = () => local.state ?? "form";
-
     return (
         <div
-            class={["happy2-auth-screen", local.class].filter(Boolean).join(" ")}
+            className={["happy2-auth-screen", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="auth-screen"
             data-state={state()}
             data-testid={local["data-testid"]}
@@ -61,78 +61,75 @@ export function AuthScreen(props: AuthScreenProps) {
         >
             <div
                 aria-hidden="true"
-                class="happy2-auth-screen__hero"
+                className="happy2-auth-screen__hero"
                 data-has-image={local.backgroundUrl ? "" : undefined}
                 data-happy2-ui="auth-hero"
                 style={
                     local.backgroundUrl
-                        ? { "background-image": `url("${local.backgroundUrl}")` }
+                        ? { backgroundImage: `url("${local.backgroundUrl}")` }
                         : undefined
                 }
             />
-            <div class="happy2-auth-screen__panel" data-happy2-ui="auth-panel">
-                <Show when={local.brand}>
-                    {(brand) => (
-                        <div class="happy2-auth-screen__brand" data-happy2-ui="auth-brand">
-                            <span class="happy2-auth-screen__mark" data-happy2-ui="auth-mark">
-                                <Show
-                                    when={brand().mark}
-                                    fallback={<Icon name="spark" size={16} />}
-                                >
-                                    {brand().mark}
-                                </Show>
-                            </span>
-                            <span
-                                class="happy2-auth-screen__brand-name"
-                                data-happy2-ui="auth-brand-name"
-                            >
-                                {brand().name}
-                            </span>
-                        </div>
-                    )}
-                </Show>
+            <div className="happy2-auth-screen__panel" data-happy2-ui="auth-panel">
+                {local.brand
+                    ? ((brand) => (
+                          <div className="happy2-auth-screen__brand" data-happy2-ui="auth-brand">
+                              <span className="happy2-auth-screen__mark" data-happy2-ui="auth-mark">
+                                  {brand.mark ?? <Icon name="spark" size={16} />}
+                              </span>
+                              <span
+                                  className="happy2-auth-screen__brand-name"
+                                  data-happy2-ui="auth-brand-name"
+                              >
+                                  {brand.name}
+                              </span>
+                          </div>
+                      ))(local.brand)
+                    : null}
 
-                <div class="happy2-auth-screen__content" data-happy2-ui="auth-content">
-                    <Show when={local.kicker}>
-                        <p class="happy2-auth-screen__kicker" data-happy2-ui="auth-kicker">
+                <div className="happy2-auth-screen__content" data-happy2-ui="auth-content">
+                    {local.kicker ? (
+                        <p className="happy2-auth-screen__kicker" data-happy2-ui="auth-kicker">
                             {local.kicker}
                         </p>
-                    </Show>
-                    <h1 class="happy2-auth-screen__title" data-happy2-ui="auth-title">
+                    ) : null}
+                    <h1 className="happy2-auth-screen__title" data-happy2-ui="auth-title">
                         {local.title}
                     </h1>
-                    <Show when={local.copy}>
-                        <p class="happy2-auth-screen__copy" data-happy2-ui="auth-copy">
+                    {local.copy ? (
+                        <p className="happy2-auth-screen__copy" data-happy2-ui="auth-copy">
                             {local.copy}
                         </p>
-                    </Show>
-                    <div class="happy2-auth-screen__form" data-happy2-ui="auth-form">
-                        <Show when={state() === "loading"} fallback={local.children}>
+                    ) : null}
+                    <div className="happy2-auth-screen__form" data-happy2-ui="auth-form">
+                        {state() === "loading" ? (
                             <div
-                                class="happy2-auth-screen__loader"
+                                className="happy2-auth-screen__loader"
                                 data-happy2-ui="auth-loader"
                                 role="status"
                             >
                                 <span
-                                    class="happy2-auth-screen__spinner"
+                                    className="happy2-auth-screen__spinner"
                                     data-happy2-ui="auth-spinner"
                                 />
                                 <span
-                                    class="happy2-auth-screen__loading-label"
+                                    className="happy2-auth-screen__loading-label"
                                     data-happy2-ui="auth-loading-label"
                                 >
                                     {local.loadingLabel ?? "Loading…"}
                                 </span>
                             </div>
-                        </Show>
+                        ) : (
+                            local.children
+                        )}
                     </div>
                 </div>
 
-                <Show when={local.footer}>
-                    <div class="happy2-auth-screen__footer" data-happy2-ui="auth-footer">
+                {local.footer ? (
+                    <div className="happy2-auth-screen__footer" data-happy2-ui="auth-footer">
                         {local.footer}
                     </div>
-                </Show>
+                ) : null}
             </div>
         </div>
     );

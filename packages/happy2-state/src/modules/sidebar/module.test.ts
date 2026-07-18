@@ -1,32 +1,31 @@
 import { describe, expect, it } from "vitest";
 import { chat } from "../../../tests/fixtures.js";
-import { sidebarStoreCreateBinding } from "./sidebarStore.js";
+import { sidebarStoreCreate } from "./sidebarState.js";
 
 describe("sidebar module", () => {
     it("orders, replaces, removes, and structurally shares chat summary projections", () => {
-        const binding = sidebarStoreCreateBinding();
+        const binding = sidebarStoreCreate();
         const first = projection("chat-1", 1);
         const second = projection("chat-2", 2);
-        binding.sidebarInput({
+        binding.getState().sidebarInput({
             type: "sidebarLoaded",
             chats: [first, second],
             sync: { protocolVersion: 1, generation: "g", sequence: "1" },
         });
-        const loaded = binding.store.get();
-        binding.sidebarInput({
+        const loaded = binding.getState();
+        binding.getState().sidebarInput({
             type: "chatSummariesReconciled",
             changedChats: [first],
             removedChatIds: [],
             sync: loaded.sync!,
         });
-        expect(binding.store.get()).toBe(loaded);
+        expect(binding.getState()).toBe(loaded);
         const changed = projection("chat-1", 3);
-        binding.sidebarInput({ type: "chatSummaryUpserted", chat: changed });
-        expect(binding.store.get().chats.map(({ id }) => id)).toEqual(["chat-1", "chat-2"]);
-        expect(binding.store.get().chats[1]).toBe(second);
-        binding.sidebarInput({ type: "chatSummaryRemoved", chatId: "chat-1" });
-        expect(binding.store.get().chats).toEqual([second]);
-        binding.dispose();
+        binding.getState().sidebarInput({ type: "chatSummaryUpserted", chat: changed });
+        expect(binding.getState().chats.map(({ id }) => id)).toEqual(["chat-1", "chat-2"]);
+        expect(binding.getState().chats[1]).toBe(second);
+        binding.getState().sidebarInput({ type: "chatSummaryRemoved", chatId: "chat-1" });
+        expect(binding.getState().chats).toEqual([second]);
     });
 });
 

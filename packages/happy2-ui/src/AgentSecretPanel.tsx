@@ -1,4 +1,5 @@
-import { createMemo, For, Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 import { Badge } from "./Badge";
 import { Banner } from "./Banner";
 import { Box } from "./Box";
@@ -9,7 +10,6 @@ import { FormRow } from "./FormRow";
 import { Icon } from "./Icon";
 import { Modal } from "./Modal";
 import { TextField } from "./TextField";
-
 export type AgentSecretItem = {
     id: string;
     /** Human description of what the secret is for. */
@@ -21,14 +21,15 @@ export type AgentSecretItem = {
     /** Number of channels the secret is currently attached to. */
     channelCount: number;
 };
-
 /** One environment variable in the create draft: its name and its (write-only) value. */
-export type AgentSecretDraftVariable = { name: string; value: string };
-
+export type AgentSecretDraftVariable = {
+    name: string;
+    value: string;
+};
 export type AgentSecretPanelProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     title?: string;
     subtitle?: string;
     secrets: AgentSecretItem[];
@@ -44,7 +45,6 @@ export type AgentSecretPanelProps = {
     /** Opens the secret's detail (variables + attachments) — the row click. */
     onSelectSecret?: (id: string) => void;
     onDeleteSecret?: (id: string) => void;
-
     /* Create dialog — controlled, like TextField/Select. */
     createOpen?: boolean;
     draftId?: string;
@@ -61,16 +61,13 @@ export type AgentSecretPanelProps = {
     onRemoveDraftVariable?: (index: number) => void;
     onSubmitCreate?: () => void;
 };
-
 const columns: DataTableColumn[] = [
     { id: "secret", header: "Secret" },
     { id: "variables", header: "Variables" },
     { id: "attachments", header: "Attachments", width: 200 },
 ];
-
 /** How many variable-name badges to show before collapsing the rest into "+N". */
 const VARIABLE_PREVIEW = 4;
-
 /**
  * C-055 AgentSecretPanel — the administrator surface for Rig-owned secrets: named
  * bundles of environment variables the Rig injects into the agents and channels
@@ -84,7 +81,7 @@ const VARIABLE_PREVIEW = 4;
  */
 export function AgentSecretPanel(props: AgentSecretPanelProps) {
     const [local, rest] = splitProps(props, [
-        "class",
+        "className",
         "style",
         "title",
         "subtitle",
@@ -111,7 +108,6 @@ export function AgentSecretPanel(props: AgentSecretPanelProps) {
         "onRemoveDraftVariable",
         "onSubmitCreate",
     ]);
-
     const title = () => local.title ?? "Agent secrets";
     const busy = (id: string) => local.busySecretIds?.includes(id) ?? false;
     const variables = () => local.draftVariables ?? [];
@@ -120,79 +116,72 @@ export function AgentSecretPanel(props: AgentSecretPanelProps) {
         Boolean(local.draftId?.trim()) &&
         Boolean(local.draftDescription?.trim()) &&
         variables().some((variable) => variable.name.trim() !== "" && variable.value !== "");
-
-    const rows = createMemo<DataTableRow[]>(() =>
-        local.secrets.map((secret) => {
-            const preview = secret.environmentVariables.slice(0, VARIABLE_PREVIEW);
-            const overflow = secret.environmentVariables.length - preview.length;
-            return {
-                id: secret.id,
-                onClick: local.onSelectSecret ? () => local.onSelectSecret?.(secret.id) : undefined,
-                cells: {
-                    secret: (
-                        <Box class="happy2-agent-secret-panel__secret">
-                            <span class="happy2-agent-secret-panel__description">
-                                {secret.description}
-                            </span>
-                            <span class="happy2-agent-secret-panel__id" title={secret.id}>
-                                {secret.id}
-                            </span>
-                        </Box>
-                    ),
-                    variables: (
-                        <Box class="happy2-agent-secret-panel__variables">
-                            <Show
-                                when={preview.length > 0}
-                                fallback={<span class="happy2-agent-secret-panel__none">—</span>}
-                            >
-                                <For each={preview}>
-                                    {(name) => <Badge label={name} variant="outline" />}
-                                </For>
-                                <Show when={overflow > 0}>
+    const rows = local.secrets.map((secret) => {
+        const preview = secret.environmentVariables.slice(0, VARIABLE_PREVIEW);
+        const overflow = secret.environmentVariables.length - preview.length;
+        return {
+            id: secret.id,
+            onClick: local.onSelectSecret ? () => local.onSelectSecret?.(secret.id) : undefined,
+            cells: {
+                secret: (
+                    <Box className="happy2-agent-secret-panel__secret">
+                        <span className="happy2-agent-secret-panel__description">
+                            {secret.description}
+                        </span>
+                        <span className="happy2-agent-secret-panel__id" title={secret.id}>
+                            {secret.id}
+                        </span>
+                    </Box>
+                ),
+                variables: (
+                    <Box className="happy2-agent-secret-panel__variables">
+                        {preview.length > 0 ? (
+                            <>
+                                {preview.map((name) => (
+                                    <Badge key={name} label={name} variant="outline" />
+                                ))}
+                                {overflow > 0 ? (
                                     <span
-                                        class="happy2-agent-secret-panel__overflow"
+                                        className="happy2-agent-secret-panel__overflow"
                                         title={secret.environmentVariables.join(", ")}
                                     >
                                         +{overflow}
                                     </span>
-                                </Show>
-                            </Show>
-                        </Box>
-                    ),
-                    attachments: (
-                        <Box class="happy2-agent-secret-panel__attachments">
-                            <span
-                                class="happy2-agent-secret-panel__count"
-                                data-happy2-ui="agent-secret-panel-agent-count"
-                                title={`Attached to ${secret.agentCount} ${
-                                    secret.agentCount === 1 ? "agent" : "agents"
-                                }`}
-                            >
-                                <Icon name="agents" size={14} />
-                                {secret.agentCount}
-                            </span>
-                            <span
-                                class="happy2-agent-secret-panel__count"
-                                data-happy2-ui="agent-secret-panel-channel-count"
-                                title={`Attached to ${secret.channelCount} ${
-                                    secret.channelCount === 1 ? "channel" : "channels"
-                                }`}
-                            >
-                                <Icon name="hash" size={14} />
-                                {secret.channelCount}
-                            </span>
-                        </Box>
-                    ),
-                },
-            };
-        }),
-    );
-
-    const rowActions = (row: DataTableRow): JSX.Element => {
+                                ) : null}
+                            </>
+                        ) : (
+                            <span className="happy2-agent-secret-panel__none">—</span>
+                        )}
+                    </Box>
+                ),
+                attachments: (
+                    <Box className="happy2-agent-secret-panel__attachments">
+                        <span
+                            className="happy2-agent-secret-panel__count"
+                            data-happy2-ui="agent-secret-panel-agent-count"
+                            title={`Attached to ${secret.agentCount} ${secret.agentCount === 1 ? "agent" : "agents"}`}
+                        >
+                            <Icon name="agents" size={14} />
+                            {secret.agentCount}
+                        </span>
+                        <span
+                            className="happy2-agent-secret-panel__count"
+                            data-happy2-ui="agent-secret-panel-channel-count"
+                            title={`Attached to ${secret.channelCount} ${secret.channelCount === 1 ? "channel" : "channels"}`}
+                        >
+                            <Icon name="hash" size={14} />
+                            {secret.channelCount}
+                        </span>
+                    </Box>
+                ),
+            },
+        };
+    });
+    const rowActions = (row: DataTableRow): ReactNode => {
         if (!local.onDeleteSecret) return null;
         return (
             <Box
-                class="happy2-agent-secret-panel__row-actions"
+                className="happy2-agent-secret-panel__row-actions"
                 onClick={(event) => event.stopPropagation()}
             >
                 <Button
@@ -207,60 +196,45 @@ export function AgentSecretPanel(props: AgentSecretPanelProps) {
             </Box>
         );
     };
-
     return (
         <Box
             {...rest}
-            class={["happy2-agent-secret-panel", local.class].filter(Boolean).join(" ")}
+            className={["happy2-agent-secret-panel", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="agent-secret-panel"
             style={local.style}
         >
-            <Box class="happy2-agent-secret-panel__header">
-                <Box class="happy2-agent-secret-panel__heading">
-                    <span class="happy2-agent-secret-panel__title">{title()}</span>
-                    <Show when={local.subtitle}>
-                        <span class="happy2-agent-secret-panel__subtitle">{local.subtitle}</span>
-                    </Show>
+            <Box className="happy2-agent-secret-panel__header">
+                <Box className="happy2-agent-secret-panel__heading">
+                    <span className="happy2-agent-secret-panel__title">{title()}</span>
+                    {local.subtitle ? (
+                        <span className="happy2-agent-secret-panel__subtitle">
+                            {local.subtitle}
+                        </span>
+                    ) : null}
                 </Box>
-                <Box class="happy2-agent-secret-panel__actions">
-                    <Show when={local.onOpenCreate}>
+                <Box className="happy2-agent-secret-panel__actions">
+                    {local.onOpenCreate ? (
                         <Button icon="plus" onClick={() => local.onOpenCreate?.()} size="small">
                             New secret
                         </Button>
-                    </Show>
+                    ) : null}
                 </Box>
             </Box>
 
-            <Show when={local.actionError}>
-                {(reason) => (
-                    <Banner
-                        onDismiss={local.onDismissActionError}
-                        tone="danger"
-                        title="Action failed"
-                    >
-                        {reason()}
-                    </Banner>
-                )}
-            </Show>
+            {local.actionError
+                ? ((reason) => (
+                      <Banner
+                          onDismiss={local.onDismissActionError}
+                          tone="danger"
+                          title="Action failed"
+                      >
+                          {reason}
+                      </Banner>
+                  ))(local.actionError)
+                : null}
 
-            <Show
-                when={!local.error}
-                fallback={
-                    <Banner tone="danger" title="Agent secrets unavailable">
-                        {local.error!}
-                    </Banner>
-                }
-            >
-                <Show
-                    when={!local.loading}
-                    fallback={
-                        <EmptyState
-                            description="Loading agent secrets and their attachments."
-                            icon="shield"
-                            title="Loading agent secrets…"
-                        />
-                    }
-                >
+            {!local.error ? (
+                !local.loading ? (
                     <DataTable
                         actionsWidth={120}
                         columns={columns}
@@ -282,21 +256,31 @@ export function AgentSecretPanel(props: AgentSecretPanelProps) {
                             />
                         }
                         rowActions={local.onDeleteSecret ? rowActions : undefined}
-                        rows={rows()}
+                        rows={rows}
                     />
-                </Show>
-            </Show>
+                ) : (
+                    <EmptyState
+                        description="Loading agent secrets and their attachments."
+                        icon="shield"
+                        title="Loading agent secrets…"
+                    />
+                )
+            ) : (
+                <Banner tone="danger" title="Agent secrets unavailable">
+                    {local.error!}
+                </Banner>
+            )}
 
-            <Show when={local.createOpen}>
+            {local.createOpen ? (
                 <Box
-                    class="happy2-agent-secret-panel__overlay"
+                    className="happy2-agent-secret-panel__overlay"
                     data-happy2-ui="agent-secret-panel-overlay"
                     onClick={() => local.onCloseCreate?.()}
                 >
                     <Box onClick={(event) => event.stopPropagation()}>
                         <Modal
                             footer={
-                                <Box class="happy2-agent-secret-panel__modal-actions">
+                                <Box className="happy2-agent-secret-panel__modal-actions">
                                     <Button onClick={() => local.onCloseCreate?.()} variant="ghost">
                                         Cancel
                                     </Button>
@@ -314,7 +298,7 @@ export function AgentSecretPanel(props: AgentSecretPanelProps) {
                             size="medium"
                             title="New agent secret"
                         >
-                            <Box class="happy2-agent-secret-panel__form">
+                            <Box className="happy2-agent-secret-panel__form">
                                 <FormRow
                                     control={
                                         <TextField
@@ -346,63 +330,64 @@ export function AgentSecretPanel(props: AgentSecretPanelProps) {
                                     layout="stacked"
                                 />
 
-                                <Box class="happy2-agent-secret-panel__variables-field">
-                                    <Box class="happy2-agent-secret-panel__variables-head">
-                                        <span class="happy2-agent-secret-panel__variables-label">
+                                <Box className="happy2-agent-secret-panel__variables-field">
+                                    <Box className="happy2-agent-secret-panel__variables-head">
+                                        <span className="happy2-agent-secret-panel__variables-label">
                                             Environment variables
                                         </span>
-                                        <span class="happy2-agent-secret-panel__variables-note">
+                                        <span className="happy2-agent-secret-panel__variables-note">
                                             Values are sent once and never shown again.
                                         </span>
                                     </Box>
-                                    <Box class="happy2-agent-secret-panel__variables-list">
-                                        <For each={variables()}>
-                                            {(variable, index) => (
-                                                <Box class="happy2-agent-secret-panel__variable-row">
-                                                    <TextField
-                                                        class="happy2-agent-secret-panel__variable-name"
-                                                        onValueChange={(value) =>
-                                                            local.onDraftVariableChange?.(
-                                                                index(),
-                                                                "name",
-                                                                value,
-                                                            )
-                                                        }
-                                                        placeholder="NAME"
-                                                        value={variable.name}
-                                                    />
-                                                    <TextField
-                                                        class="happy2-agent-secret-panel__variable-value"
-                                                        fullWidth
-                                                        onValueChange={(value) =>
-                                                            local.onDraftVariableChange?.(
-                                                                index(),
-                                                                "value",
-                                                                value,
-                                                            )
-                                                        }
-                                                        placeholder="value"
-                                                        type="password"
-                                                        value={variable.value}
-                                                    />
-                                                    <Button
-                                                        aria-label="Remove variable"
-                                                        disabled={variables().length <= 1}
-                                                        icon="close"
-                                                        iconOnly
-                                                        onClick={() =>
-                                                            local.onRemoveDraftVariable?.(index())
-                                                        }
-                                                        size="small"
-                                                        variant="ghost"
-                                                    />
-                                                </Box>
-                                            )}
-                                        </For>
+                                    <Box className="happy2-agent-secret-panel__variables-list">
+                                        {variables().map((variable, index) => (
+                                            <Box
+                                                className="happy2-agent-secret-panel__variable-row"
+                                                key={index}
+                                            >
+                                                <TextField
+                                                    className="happy2-agent-secret-panel__variable-name"
+                                                    onValueChange={(value) =>
+                                                        local.onDraftVariableChange?.(
+                                                            index,
+                                                            "name",
+                                                            value,
+                                                        )
+                                                    }
+                                                    placeholder="NAME"
+                                                    value={variable.name}
+                                                />
+                                                <TextField
+                                                    className="happy2-agent-secret-panel__variable-value"
+                                                    fullWidth
+                                                    onValueChange={(value) =>
+                                                        local.onDraftVariableChange?.(
+                                                            index,
+                                                            "value",
+                                                            value,
+                                                        )
+                                                    }
+                                                    placeholder="value"
+                                                    type="password"
+                                                    value={variable.value}
+                                                />
+                                                <Button
+                                                    aria-label="Remove variable"
+                                                    disabled={variables().length <= 1}
+                                                    icon="close"
+                                                    iconOnly
+                                                    onClick={() =>
+                                                        local.onRemoveDraftVariable?.(index)
+                                                    }
+                                                    size="small"
+                                                    variant="ghost"
+                                                />
+                                            </Box>
+                                        ))}
                                     </Box>
-                                    <Show when={local.onAddDraftVariable}>
+                                    {local.onAddDraftVariable ? (
                                         <Button
-                                            class="happy2-agent-secret-panel__add-variable"
+                                            className="happy2-agent-secret-panel__add-variable"
                                             icon="plus"
                                             onClick={() => local.onAddDraftVariable?.()}
                                             size="small"
@@ -410,21 +395,21 @@ export function AgentSecretPanel(props: AgentSecretPanelProps) {
                                         >
                                             Add variable
                                         </Button>
-                                    </Show>
+                                    ) : null}
                                 </Box>
 
-                                <Show when={local.createError}>
-                                    {(reason) => (
-                                        <Banner tone="danger" title="Could not create secret">
-                                            {reason()}
-                                        </Banner>
-                                    )}
-                                </Show>
+                                {local.createError
+                                    ? ((reason) => (
+                                          <Banner tone="danger" title="Could not create secret">
+                                              {reason}
+                                          </Banner>
+                                      ))(local.createError)
+                                    : null}
                             </Box>
                         </Modal>
                     </Box>
                 </Box>
-            </Show>
+            ) : null}
         </Box>
     );
 }

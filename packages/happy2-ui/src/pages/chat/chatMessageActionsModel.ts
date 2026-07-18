@@ -1,15 +1,13 @@
-import type { Accessor } from "solid-js";
 import type { MenuItem } from "./ChatPageComponents.js";
 import type { ChatPageActions } from "./ChatPage.js";
 import { emojiItems, type LiveThreadMessage } from "./chatPageModels.js";
-
 export interface ChatMessageActionsModelOptions {
-    userId: Accessor<string>;
-    activeChatId: Accessor<string>;
+    userId: () => string;
+    activeChatId: () => string;
     actions: ChatPageActions;
     onError(error: unknown): void;
+    onEdit(message: LiveThreadMessage): void;
 }
-
 export function chatMessageActionsModelCreate(options: ChatMessageActionsModelOptions) {
     async function reactionToggle(message: LiveThreadMessage, emoji: string) {
         const source = message.serverMessage;
@@ -53,16 +51,7 @@ export function chatMessageActionsModelCreate(options: ChatMessageActionsModelOp
         try {
             if (action === "copy") return void (await navigator.clipboard?.writeText(source.text));
             if (source.sender?.id !== options.userId()) return;
-            if (action === "edit") {
-                const text = window.prompt("Edit message", source.text)?.trim();
-                if (text && text !== source.text)
-                    await options.actions.messageEdit(
-                        options.activeChatId(),
-                        source.id,
-                        text,
-                        source.revision,
-                    );
-            }
+            if (action === "edit") return options.onEdit(message);
             if (action === "delete" && window.confirm("Delete this message?"))
                 await options.actions.messageDelete(options.activeChatId(), source.id);
         } catch (error) {

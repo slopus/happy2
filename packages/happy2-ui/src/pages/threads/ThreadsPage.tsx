@@ -1,23 +1,20 @@
 import type { ThreadsStore } from "happy2-state";
-import { createMemo, Show } from "solid-js";
 import { Box } from "../../Box";
 import { EmptyState } from "../../EmptyState";
 import { StoreSurface } from "../../StoreSurface";
-import { ThreadList, type ThreadItem } from "../../ThreadList";
-
+import { ThreadList } from "../../ThreadList";
 export interface ThreadsPageProps {
     store: ThreadsStore;
     imageUrl?: (fileId?: string) => string | undefined;
     onSelect?: (rootMessageId: string) => void;
 }
-
 /** Complete followed-thread index backed by one ThreadsStore. */
 export function ThreadsPage(props: ThreadsPageProps) {
     return (
         <StoreSurface store={props.store}>
             {(snapshot, store) => {
-                const threads = createMemo<ThreadItem[]>(() => {
-                    const state = snapshot().threads;
+                const threads = (() => {
+                    const state = snapshot.threads;
                     return state.type === "ready"
                         ? state.value.map((thread) => ({
                               id: thread.root.id,
@@ -39,47 +36,37 @@ export function ThreadsPage(props: ThreadsPageProps) {
                               subscribed: thread.subscribed,
                           }))
                         : [];
-                });
-                return (
-                    <Show
-                        when={threads().length > 0}
-                        fallback={
-                            <EmptyState
-                                description="Follow-up conversations and thread replies collect here."
-                                icon="thread"
-                                title={
-                                    snapshot().threads.type === "loading"
-                                        ? "Loading threads…"
-                                        : "Threads"
-                                }
-                            />
-                        }
+                })();
+                return threads.length > 0 ? (
+                    <Box
+                        style={{
+                            display: "flex",
+                            flex: "1 1 0%",
+                            flexDirection: "column",
+                            minHeight: 0,
+                            overflowY: "auto",
+                            padding: "16px",
+                        }}
                     >
-                        <Box
-                            style={{
-                                display: "flex",
-                                flex: "1 1 0%",
-                                "flex-direction": "column",
-                                "min-height": 0,
-                                "overflow-y": "auto",
-                                padding: "16px",
+                        <ThreadList
+                            onSelect={(id) => {
+                                store.threadReadMark(id);
+                                props.onSelect?.(id);
                             }}
-                        >
-                            <ThreadList
-                                onSelect={(id) => {
-                                    store.threadReadMark(id);
-                                    props.onSelect?.(id);
-                                }}
-                                threads={threads()}
-                            />
-                        </Box>
-                    </Show>
+                            threads={threads}
+                        />
+                    </Box>
+                ) : (
+                    <EmptyState
+                        description="Follow-up conversations and thread replies collect here."
+                        icon="thread"
+                        title={snapshot.threads.type === "loading" ? "Loading threads…" : "Threads"}
+                    />
                 );
             }}
         </StoreSurface>
     );
 }
-
 function initials(value: string): string {
     return value
         .trim()

@@ -1,15 +1,20 @@
-import { For, Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 import { Icon } from "./Icon";
-
 export type OnboardingStepState = "complete" | "current" | "upcoming";
-export type OnboardingStep = { readonly label: string; readonly state: OnboardingStepState };
+export type OnboardingStep = {
+    readonly label: string;
+    readonly state: OnboardingStepState;
+};
 export type OnboardingScreenState = "form" | "loading";
-export type OnboardingBrand = { name: string; mark?: JSX.Element };
-
+export type OnboardingBrand = {
+    name: string;
+    mark?: ReactNode;
+};
 export type OnboardingScreenProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     backgroundUrl?: string;
     brand?: OnboardingBrand;
     steps?: readonly OnboardingStep[];
@@ -17,12 +22,11 @@ export type OnboardingScreenProps = {
     title: string;
     copy?: string;
     width?: "medium" | "large";
-    children: JSX.Element;
-    footer?: JSX.Element;
+    children: ReactNode;
+    footer?: ReactNode;
     state?: OnboardingScreenState;
     loadingLabel?: string;
 };
-
 /**
  * C-061 OnboardingScreen — the centered desktop setup card that replaces the
  * split auth panel for onboarding flows in the Relay dark theme.
@@ -41,7 +45,7 @@ export type OnboardingScreenProps = {
  */
 export function OnboardingScreen(props: OnboardingScreenProps) {
     const [local] = splitProps(props, [
-        "class",
+        "className",
         "data-testid",
         "style",
         "backgroundUrl",
@@ -59,10 +63,9 @@ export function OnboardingScreen(props: OnboardingScreenProps) {
     const state = () => local.state ?? "form";
     const width = () => local.width ?? "medium";
     const steps = () => local.steps ?? [];
-
     return (
         <div
-            class={["happy2-onboarding-screen", local.class].filter(Boolean).join(" ")}
+            className={["happy2-onboarding-screen", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="onboarding-screen"
             data-state={state()}
             data-testid={local["data-testid"]}
@@ -70,135 +73,143 @@ export function OnboardingScreen(props: OnboardingScreenProps) {
         >
             <div
                 aria-hidden="true"
-                class="happy2-onboarding-screen__bg"
+                className="happy2-onboarding-screen__bg"
                 data-has-image={local.backgroundUrl ? "" : undefined}
                 data-happy2-ui="onboarding-bg"
                 style={
                     local.backgroundUrl
-                        ? { "background-image": `url("${local.backgroundUrl}")` }
+                        ? { backgroundImage: `url("${local.backgroundUrl}")` }
                         : undefined
                 }
             />
             <div
                 aria-hidden="true"
-                class="happy2-onboarding-screen__scrim"
+                className="happy2-onboarding-screen__scrim"
                 data-happy2-ui="onboarding-scrim"
             />
             <div
-                class="happy2-onboarding-screen__card"
+                className="happy2-onboarding-screen__card"
                 data-happy2-ui="onboarding-card"
                 data-width={width()}
             >
-                <Show when={local.brand}>
-                    {(brand) => (
-                        <div
-                            class="happy2-onboarding-screen__brand"
-                            data-happy2-ui="onboarding-brand"
-                        >
-                            <span
-                                class="happy2-onboarding-screen__mark"
-                                data-happy2-ui="onboarding-mark"
-                            >
-                                <Show
-                                    when={brand().mark}
-                                    fallback={<Icon name="spark" size={16} />}
-                                >
-                                    {brand().mark}
-                                </Show>
-                            </span>
-                            <span
-                                class="happy2-onboarding-screen__brand-name"
-                                data-happy2-ui="onboarding-brand-name"
-                            >
-                                {brand().name}
-                            </span>
-                        </div>
-                    )}
-                </Show>
+                {local.brand
+                    ? ((brand) => (
+                          <div
+                              className="happy2-onboarding-screen__brand"
+                              data-happy2-ui="onboarding-brand"
+                          >
+                              <span
+                                  className="happy2-onboarding-screen__mark"
+                                  data-happy2-ui="onboarding-mark"
+                              >
+                                  {brand.mark ?? <Icon name="spark" size={16} />}
+                              </span>
+                              <span
+                                  className="happy2-onboarding-screen__brand-name"
+                                  data-happy2-ui="onboarding-brand-name"
+                              >
+                                  {brand.name}
+                              </span>
+                          </div>
+                      ))(local.brand)
+                    : null}
 
-                <Show when={steps().length > 0}>
-                    <div class="happy2-onboarding-screen__steps" data-happy2-ui="onboarding-steps">
-                        <For each={steps()}>
-                            {(step) => (
-                                <div
-                                    class="happy2-onboarding-screen__step"
-                                    data-happy2-ui="onboarding-step"
+                {steps().length > 0 ? (
+                    <div
+                        className="happy2-onboarding-screen__steps"
+                        data-happy2-ui="onboarding-steps"
+                    >
+                        {steps().map((step) => (
+                            <div
+                                key={step.label}
+                                className="happy2-onboarding-screen__step"
+                                data-happy2-ui="onboarding-step"
+                                data-state={step.state}
+                            >
+                                <span
+                                    className="happy2-onboarding-screen__step-dot"
+                                    data-happy2-ui="onboarding-step-dot"
                                     data-state={step.state}
                                 >
-                                    <span
-                                        class="happy2-onboarding-screen__step-dot"
-                                        data-happy2-ui="onboarding-step-dot"
-                                        data-state={step.state}
-                                    >
-                                        <Show when={step.state === "complete"}>
-                                            <Icon
-                                                color="var(--happy2-text-on-fill)"
-                                                name="check"
-                                                size={12}
-                                            />
-                                        </Show>
-                                    </span>
-                                    <span
-                                        class="happy2-onboarding-screen__step-label"
-                                        data-happy2-ui="onboarding-step-label"
-                                        data-state={step.state}
-                                    >
-                                        {step.label}
-                                    </span>
-                                </div>
-                            )}
-                        </For>
+                                    {step.state === "complete" ? (
+                                        <Icon
+                                            color="var(--happy2-text-on-fill)"
+                                            name="check"
+                                            size={12}
+                                        />
+                                    ) : null}
+                                </span>
+                                <span
+                                    className="happy2-onboarding-screen__step-label"
+                                    data-happy2-ui="onboarding-step-label"
+                                    data-state={step.state}
+                                >
+                                    {step.label}
+                                </span>
+                            </div>
+                        ))}
                     </div>
-                </Show>
+                ) : null}
 
-                <div class="happy2-onboarding-screen__content" data-happy2-ui="onboarding-content">
-                    <Show when={local.kicker}>
+                <div
+                    className="happy2-onboarding-screen__content"
+                    data-happy2-ui="onboarding-content"
+                >
+                    {local.kicker ? (
                         <p
-                            class="happy2-onboarding-screen__kicker"
+                            className="happy2-onboarding-screen__kicker"
                             data-happy2-ui="onboarding-kicker"
                         >
                             {local.kicker}
                         </p>
-                    </Show>
-                    <h1 class="happy2-onboarding-screen__title" data-happy2-ui="onboarding-title">
+                    ) : null}
+                    <h1
+                        className="happy2-onboarding-screen__title"
+                        data-happy2-ui="onboarding-title"
+                    >
                         {local.title}
                     </h1>
-                    <Show when={local.copy}>
-                        <p class="happy2-onboarding-screen__copy" data-happy2-ui="onboarding-copy">
+                    {local.copy ? (
+                        <p
+                            className="happy2-onboarding-screen__copy"
+                            data-happy2-ui="onboarding-copy"
+                        >
                             {local.copy}
                         </p>
-                    </Show>
+                    ) : null}
                 </div>
 
-                <div class="happy2-onboarding-screen__body" data-happy2-ui="onboarding-body">
-                    <Show when={state() === "loading"} fallback={local.children}>
+                <div className="happy2-onboarding-screen__body" data-happy2-ui="onboarding-body">
+                    {state() === "loading" ? (
                         <div
-                            class="happy2-onboarding-screen__loader"
+                            className="happy2-onboarding-screen__loader"
                             data-happy2-ui="onboarding-loader"
                             role="status"
                         >
                             <span
-                                class="happy2-onboarding-screen__spinner"
+                                className="happy2-onboarding-screen__spinner"
                                 data-happy2-ui="onboarding-spinner"
                             />
                             <span
-                                class="happy2-onboarding-screen__loading-label"
+                                className="happy2-onboarding-screen__loading-label"
                                 data-happy2-ui="onboarding-loading-label"
                             >
                                 {local.loadingLabel ?? "Loading…"}
                             </span>
                         </div>
-                    </Show>
+                    ) : (
+                        local.children
+                    )}
                 </div>
 
-                <Show when={local.footer}>
+                {local.footer ? (
                     <div
-                        class="happy2-onboarding-screen__footer"
+                        className="happy2-onboarding-screen__footer"
                         data-happy2-ui="onboarding-footer"
                     >
                         {local.footer}
                     </div>
-                </Show>
+                ) : null}
             </div>
         </div>
     );

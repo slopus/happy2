@@ -1,14 +1,14 @@
-import { Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties } from "react";
 import { Button } from "./Button";
 import { FileTree, type FileTreeNode, type FileTreeProps } from "./FileTree";
 import { Icon } from "./Icon";
 import { SURFACE_HEADER_HEIGHT } from "./InfoPanel";
 import { Toolbar } from "./Toolbar";
-
 export type FilePanelProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     title?: string;
     /** Header subtitle — typically the branch name or workspace revision. */
     subtitle?: string;
@@ -26,7 +26,6 @@ export type FilePanelProps = {
     /** Optional message shown under the header (e.g. a git-status hint). */
     note?: string;
 };
-
 /**
  * C-053 FilePanel — the workspace file-tree side panel. A 52px surface header
  * (shared height with ChannelHeader / InfoPanel / ThreadPanel) with an optional
@@ -36,7 +35,7 @@ export type FilePanelProps = {
  */
 export function FilePanel(props: FilePanelProps) {
     const [local] = splitProps(props, [
-        "class",
+        "className",
         "data-testid",
         "style",
         "title",
@@ -53,22 +52,21 @@ export function FilePanel(props: FilePanelProps) {
         "emptyLabel",
         "note",
     ]);
-
     return (
         <section
-            class={["happy2-file-panel", local.class].filter(Boolean).join(" ")}
+            className={["happy2-file-panel", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="file-panel"
             data-testid={local["data-testid"]}
             style={local.style}
         >
             <Toolbar
-                class="happy2-file-panel__header"
+                className="happy2-file-panel__header"
                 height={SURFACE_HEADER_HEIGHT}
                 leading={<Icon name="files" size={16} />}
                 subtitle={local.subtitle}
                 title={local.title ?? "Files"}
                 trailing={
-                    <Show when={local.onClose}>
+                    local.onClose ? (
                         <Button
                             aria-label={local.closeLabel ?? "Close files"}
                             icon="close"
@@ -77,15 +75,15 @@ export function FilePanel(props: FilePanelProps) {
                             size="small"
                             variant="ghost"
                         />
-                    </Show>
+                    ) : null
                 }
             />
-            <Show when={local.note}>
-                <div class="happy2-file-panel__note" data-happy2-ui="file-panel-note">
+            {local.note ? (
+                <div className="happy2-file-panel__note" data-happy2-ui="file-panel-note">
                     {local.note}
                 </div>
-            </Show>
-            <div class="happy2-file-panel__body" data-happy2-ui="file-panel-body">
+            ) : null}
+            <div className="happy2-file-panel__body" data-happy2-ui="file-panel-body">
                 <FileTree
                     emptyLabel={local.emptyLabel}
                     loading={local.loading}

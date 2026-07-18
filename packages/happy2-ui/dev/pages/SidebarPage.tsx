@@ -1,9 +1,8 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { Avatar } from "../../src/Avatar";
 import { Button } from "../../src/Button";
 import { Sidebar, type SidebarSection } from "../../src/Sidebar";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const workspaceSections: SidebarSection[] = [
     {
         id: "views",
@@ -90,11 +89,9 @@ const workspaceSections: SidebarSection[] = [
         label: "Direct",
     },
 ];
-
 /* A tiny inline photo so the blueprint shows the image-avatar row state. */
 const PHOTO =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAT0lEQVR4nGPorvk+ufrTrOp3i6perqx8srHiwY6K2wfKrzNgFT1edokBq+j5srMMWEWvlZ5kwCp6r+QIA1bRp8X7GbCKvi3ezYBV9EvRNgD7aoNVazUeBQAAAABJRU5ErkJggg==";
-
 const treatmentSections: SidebarSection[] = [
     {
         id: "states",
@@ -149,25 +146,24 @@ const treatmentSections: SidebarSection[] = [
         label: "Row kinds",
     },
 ];
-
 function FooterUser() {
     return (
         <div
             style={{
-                "align-items": "center",
+                alignItems: "center",
                 display: "flex",
                 gap: "10px",
                 width: "100%",
             }}
         >
             <Avatar initials="SK" online size="sm" tone="ocean" />
-            <div style={{ display: "flex", "flex-direction": "column", "min-width": "0" }}>
+            <div style={{ display: "flex", flexDirection: "column", minWidth: "0" }}>
                 <span
                     style={{
                         color: "var(--happy2-text)",
-                        "font-size": "13px",
-                        "font-weight": "600",
-                        "line-height": "16px",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        lineHeight: "16px",
                     }}
                 >
                     Sasha K.
@@ -175,8 +171,8 @@ function FooterUser() {
                 <span
                     style={{
                         color: "var(--happy2-text-muted)",
-                        "font-size": "11px",
-                        "line-height": "14px",
+                        fontSize: "11px",
+                        lineHeight: "14px",
                     }}
                 >
                     Online
@@ -187,14 +183,13 @@ function FooterUser() {
                 icon="settings"
                 iconOnly
                 size="small"
-                style={{ "margin-left": "auto", "margin-right": "-6px" }}
+                style={{ marginLeft: "auto", marginRight: "-6px" }}
                 variant="ghost"
             />
         </div>
     );
 }
-
-function Frame(props: { children: JSX.Element; height: number }) {
+function Frame(props: { children: ReactNode; height: number }) {
     return (
         <div
             style={{
@@ -209,7 +204,6 @@ function Frame(props: { children: JSX.Element; height: number }) {
         </div>
     );
 }
-
 export function SidebarPage() {
     return (
         <ComponentPage
@@ -223,7 +217,7 @@ export function SidebarPage() {
                 number="01"
                 stage="app"
             >
-                <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                     <Frame height={620}>
                         <Sidebar
                             activeItemId="inbox"
@@ -255,7 +249,7 @@ export function SidebarPage() {
                 number="02"
                 stage="app"
             >
-                <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                     <Frame height={460}>
                         <Sidebar
                             activeItemId="active"
@@ -274,7 +268,7 @@ export function SidebarPage() {
                 number="03"
                 stage="app"
             >
-                <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                     <Frame height={220}>
                         <Sidebar
                             activeItemId="second"
@@ -319,7 +313,7 @@ export function SidebarPage() {
                 number="04"
                 stage="app"
             >
-                <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                     <Frame height={320}>
                         <Sidebar
                             activeItemId=""

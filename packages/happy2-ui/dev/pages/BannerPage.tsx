@@ -10,7 +10,7 @@ export function BannerPage() {
             summary="Inline alert — soft tone fill, hairline border, tone-colored leading icon. Five tones, optional title, action, and dismiss."
             title="Banner"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="info · success · warning · danger · neutral — 66px (title + message)"
                     label="Tones"
@@ -53,7 +53,7 @@ export function BannerPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="message only · no icon · with action — 44px single line"
                     label="Content states"
@@ -75,7 +75,7 @@ export function BannerPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="action Button (small · secondary) + dismiss"
                     label="Actions"

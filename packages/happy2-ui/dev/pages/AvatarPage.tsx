@@ -1,32 +1,29 @@
-import { For } from "solid-js";
 import { Avatar, type AvatarSize, type ToneName } from "../../src/Avatar";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const FIXTURE_IMAGE =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAT0lEQVR4nGPorvk+ufrTrOp3i6perqx8srHiwY6K2wfKrzNgFT1edokBq+j5srMMWEWvlZ5kwCp6r+QIA1bRp8X7GbCKvi3ezYBV9EvRNgD7aoNVazUeBQAAAABJRU5ErkJggg==";
-
-const SIZES: Array<{ dimension: number; initials: string; size: AvatarSize }> = [
+const SIZES: Array<{
+    dimension: number;
+    initials: string;
+    size: AvatarSize;
+}> = [
     { size: "xs", dimension: 20, initials: "MJ" },
     { size: "sm", dimension: 28, initials: "SK" },
     { size: "md", dimension: 36, initials: "ST" },
     { size: "lg", dimension: 44, initials: "AR" },
 ];
-
 const TONES: ToneName[] = ["violet", "ember", "mint", "ocean", "rose", "amber", "slate", "brand"];
-
 const row: Record<string, string> = {
     display: "flex",
-    "align-items": "flex-end",
+    alignItems: "flex-end",
     gap: "24px",
 };
-
 const cell: Record<string, string> = {
     display: "flex",
-    "flex-direction": "column",
-    "align-items": "center",
+    flexDirection: "column",
+    alignItems: "center",
     gap: "10px",
 };
-
 export function AvatarPage() {
     return (
         <ComponentPage
@@ -41,14 +38,12 @@ export function AvatarPage() {
                 stage="app"
             >
                 <div style={row}>
-                    <For each={SIZES}>
-                        {(entry) => (
-                            <div style={cell}>
-                                <Avatar initials={entry.initials} size={entry.size} tone="violet" />
-                                <DimensionRule label={`${entry.dimension}`} />
-                            </div>
-                        )}
-                    </For>
+                    {SIZES.map((entry) => (
+                        <div key={entry.size} style={cell}>
+                            <Avatar initials={entry.initials} size={entry.size} tone="violet" />
+                            <DimensionRule label={`${entry.dimension}`} />
+                        </div>
+                    ))}
                 </div>
             </Specimen>
 
@@ -59,15 +54,14 @@ export function AvatarPage() {
                 stage="app"
             >
                 <div style={row}>
-                    <For each={["O", "ST", "MJ", "AI", "A"]}>
-                        {(initials) => (
-                            <Avatar
-                                initials={initials}
-                                size="md"
-                                tone={initials === "O" ? "ocean" : "slate"}
-                            />
-                        )}
-                    </For>
+                    {["O", "ST", "MJ", "AI", "A"].map((initials) => (
+                        <Avatar
+                            key={initials}
+                            initials={initials}
+                            size="md"
+                            tone={initials === "O" ? "ocean" : "slate"}
+                        />
+                    ))}
                 </div>
             </Specimen>
 
@@ -78,14 +72,12 @@ export function AvatarPage() {
                 stage="app"
             >
                 <div style={row}>
-                    <For each={SIZES}>
-                        {(entry) => (
-                            <div style={cell}>
-                                <Avatar initials="AI" size={entry.size} tone="mint" type="agent" />
-                                <DimensionRule label={`${entry.dimension}`} />
-                            </div>
-                        )}
-                    </For>
+                    {SIZES.map((entry) => (
+                        <div key={entry.size} style={cell}>
+                            <Avatar initials="AI" size={entry.size} tone="mint" type="agent" />
+                            <DimensionRule label={`${entry.dimension}`} />
+                        </div>
+                    ))}
                 </div>
             </Specimen>
 
@@ -96,18 +88,16 @@ export function AvatarPage() {
                 stage="app"
             >
                 <div style={row}>
-                    <For each={TONES}>
-                        {(tone) => (
-                            <div style={cell}>
-                                <Avatar
-                                    initials={tone.slice(0, 2).toUpperCase()}
-                                    size="md"
-                                    tone={tone}
-                                />
-                                <DimensionRule label={tone} />
-                            </div>
-                        )}
-                    </For>
+                    {TONES.map((tone) => (
+                        <div key={tone} style={cell}>
+                            <Avatar
+                                initials={tone.slice(0, 2).toUpperCase()}
+                                size="md"
+                                tone={tone}
+                            />
+                            <DimensionRule label={tone} />
+                        </div>
+                    ))}
                 </div>
             </Specimen>
 
@@ -118,19 +108,17 @@ export function AvatarPage() {
                 stage="app"
             >
                 <div style={row}>
-                    <For each={SIZES}>
-                        {(entry) => (
-                            <div style={cell}>
-                                <Avatar
-                                    initials={entry.initials}
-                                    size={entry.size}
-                                    tone="ocean"
-                                    online
-                                />
-                                <DimensionRule label={entry.size} />
-                            </div>
-                        )}
-                    </For>
+                    {SIZES.map((entry) => (
+                        <div key={entry.size} style={cell}>
+                            <Avatar
+                                initials={entry.initials}
+                                size={entry.size}
+                                tone="ocean"
+                                online
+                            />
+                            <DimensionRule label={entry.size} />
+                        </div>
+                    ))}
                     <div style={cell}>
                         <Avatar initials="AI" size="md" tone="rose" type="agent" online />
                         <DimensionRule label="agent" />
@@ -145,19 +133,17 @@ export function AvatarPage() {
                 stage="app"
             >
                 <div style={row}>
-                    <For each={SIZES}>
-                        {(entry) => (
-                            <div style={cell}>
-                                <Avatar
-                                    imageUrl={FIXTURE_IMAGE}
-                                    initials={entry.initials}
-                                    size={entry.size}
-                                    online={entry.size === "md"}
-                                />
-                                <DimensionRule label={entry.size} />
-                            </div>
-                        )}
-                    </For>
+                    {SIZES.map((entry) => (
+                        <div key={entry.size} style={cell}>
+                            <Avatar
+                                imageUrl={FIXTURE_IMAGE}
+                                initials={entry.initials}
+                                size={entry.size}
+                                online={entry.size === "md"}
+                            />
+                            <DimensionRule label={entry.size} />
+                        </div>
+                    ))}
                     <div style={cell}>
                         <Avatar imageUrl={FIXTURE_IMAGE} initials="AI" size="lg" type="agent" />
                         <DimensionRule label="agent lg" />
@@ -171,29 +157,26 @@ export function AvatarPage() {
                 detail="Facepile overlap −6px with chrome ring · humans and agents mixed"
                 stage="chrome"
             >
-                <div style={{ display: "flex", "align-items": "center", gap: "32px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "32px" }}>
                     <div style={{ display: "flex" }}>
-                        <For
-                            each={[
-                                { initials: "MJ", tone: "ember" as ToneName },
-                                { initials: "SK", tone: "violet" as ToneName },
-                                { initials: "AR", tone: "ocean" as ToneName },
-                            ]}
-                        >
-                            {(member, index) => (
-                                <Avatar
-                                    initials={member.initials}
-                                    size="xs"
-                                    tone={member.tone}
-                                    style={{
-                                        "margin-left": index() === 0 ? "0" : "-6px",
-                                        "box-shadow": "0 0 0 2px var(--happy2-bg-chrome)",
-                                    }}
-                                />
-                            )}
-                        </For>
+                        {[
+                            { initials: "MJ", tone: "ember" as ToneName },
+                            { initials: "SK", tone: "violet" as ToneName },
+                            { initials: "AR", tone: "ocean" as ToneName },
+                        ].map((member, index) => (
+                            <Avatar
+                                key={member.initials}
+                                initials={member.initials}
+                                size="xs"
+                                tone={member.tone}
+                                style={{
+                                    marginLeft: index === 0 ? "0" : "-6px",
+                                    boxShadow: "0 0 0 2px var(--happy2-bg-chrome)",
+                                }}
+                            />
+                        ))}
                     </div>
-                    <div style={{ display: "flex", "align-items": "center", gap: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                         <Avatar initials="CX" size="xs" tone="brand" type="agent" online />
                         <span
                             style={{
@@ -204,7 +187,7 @@ export function AvatarPage() {
                             Codex
                         </span>
                     </div>
-                    <div style={{ display: "flex", "align-items": "center", gap: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                         <Avatar initials="MJ" size="sm" tone="ember" online />
                         <span
                             style={{

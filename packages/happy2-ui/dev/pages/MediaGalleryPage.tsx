@@ -100,7 +100,7 @@ export function MediaGalleryPage() {
             summary="Media grid tiles — 4:3 thumbnail or file-glyph medallion, kind badge and duration overlays, and a name + size footer on an equal-track grid."
             title="Media gallery"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="4 columns · 160px tiles · 12px gutters · 4:3 thumbnails"
                     label="Grid"
@@ -114,7 +114,7 @@ export function MediaGalleryPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="photo · video · gif · file — thumbnail vs file-glyph fallback"
                     label="Kinds"
@@ -127,7 +127,7 @@ export function MediaGalleryPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="kind badge top-left · duration chip bottom-right · 48px glyph medallion"
                     label="Tile anatomy"
@@ -147,7 +147,7 @@ export function MediaGalleryPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="2-column density · long-name truncation · empty slot"
                     label="Layout states"
@@ -177,13 +177,13 @@ export function MediaGalleryPage() {
                                     <div
                                         style={{
                                             display: "grid",
-                                            "place-items": "center",
+                                            placeItems: "center",
                                             height: "120px",
                                             border: "1px dashed var(--happy2-border-strong)",
-                                            "border-radius": "10px",
+                                            borderRadius: "10px",
                                             color: "var(--happy2-text-muted)",
-                                            "font-family": "var(--happy2-font-ui)",
-                                            "font-size": "13px",
+                                            fontFamily: "var(--happy2-font-ui)",
+                                            fontSize: "13px",
                                         }}
                                     >
                                         No files shared yet

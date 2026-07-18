@@ -1,14 +1,12 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { Button } from "../../src/Button";
 import { Toolbar } from "../../src/Toolbar";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const column: Record<string, string> = {
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     gap: "14px",
 };
-
 function trailing() {
     return (
         <>
@@ -17,11 +15,9 @@ function trailing() {
         </>
     );
 }
-
-function Frame(props: { children: JSX.Element; width: number }) {
+function Frame(props: { children: ReactNode; width: number }) {
     return <div style={{ width: `${props.width}px` }}>{props.children}</div>;
 }
-
 export function ToolbarPage() {
     return (
         <ComponentPage

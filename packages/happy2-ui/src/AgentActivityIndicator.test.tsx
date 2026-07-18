@@ -73,14 +73,14 @@ it("holds AgentActivityIndicator geometry, colors, and typography", async () => 
                 style={{
                     background: "#17161c",
                     display: "flex",
-                    "flex-direction": "column",
+                    flexDirection: "column",
                     gap: "12px",
                     padding: "16px",
-                    "align-items": "flex-start",
+                    alignItems: "flex-start",
                 }}
             >
                 <AgentActivityIndicator
-                    class="ind-think"
+                    className="ind-think"
                     elapsedSeconds={7}
                     initials="AD"
                     name="Ada"
@@ -89,7 +89,7 @@ it("holds AgentActivityIndicator geometry, colors, and typography", async () => 
                     tone="violet"
                 />
                 <AgentActivityIndicator
-                    class="ind-type"
+                    className="ind-type"
                     elapsedSeconds={3_723}
                     initials="CX"
                     name="Codex"
@@ -216,17 +216,18 @@ it("keeps name, phase, and meta ink vertically centered in both phases", async (
                 style={{
                     background: "#17161c",
                     display: "flex",
-                    "flex-direction": "column",
+                    flexDirection: "column",
                     gap: "12px",
                     padding: "16px",
-                    "align-items": "flex-start",
+                    alignItems: "flex-start",
                 }}
             >
                 {cases.map((entry) => (
                     <AgentActivityIndicator
-                        class={entry.cls}
+                        className={entry.cls}
                         elapsedSeconds={entry.secs}
                         initials="RE"
+                        key={entry.name}
                         name={entry.name}
                         phase={entry.phase}
                         tokenCount={entry.tokens}

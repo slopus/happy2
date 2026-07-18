@@ -1,4 +1,5 @@
-import { createSignal } from "solid-js";
+import { useState } from "react";
+import { flushSync } from "react-dom";
 import { expect, it } from "vitest";
 import { server, userEvent } from "vitest/browser";
 import "./theme.css";
@@ -18,15 +19,12 @@ import {
 } from "./Composer";
 import type { EmojiItem } from "./EmojiPicker";
 import { createRenderer } from "./testing";
-
 const uiFont = () =>
     server.browser === "webkit"
         ? "happy2 Figtree, system-ui, sans-serif"
         : '"happy2 Figtree", system-ui, sans-serif';
-
 /* The Gecko textarea correction (translateY(-0.5px)) moves the painted box. */
 const textareaY = () => (server.browser === "firefox" ? 32.5 : 33);
-
 const agents: MentionableAgent[] = [
     {
         description: "Ships code end to end",
@@ -53,13 +51,11 @@ const agents: MentionableAgent[] = [
         tone: "amber",
     },
 ];
-
 const contextItems: ContextItem[] = [
     { detail: "src/auth", id: "file-1", kind: "file", label: "refresh.ts" },
     { id: "run-1", kind: "run", label: "fix/auth-flake" },
     { id: "thread-1", kind: "thread", label: "#eng-core" },
 ];
-
 const emoji: EmojiItem[] = [
     { char: "👍", id: "thumbsup", name: "thumbs up" },
     { char: "🎉", id: "tada", name: "tada" },
@@ -70,9 +66,7 @@ const emoji: EmojiItem[] = [
     { char: "👀", id: "eyes", name: "eyes" },
     { char: "🙏", id: "pray", name: "folded hands" },
 ];
-
 type View = ReturnType<typeof createRenderer>;
-
 /*
  * Alpha-weighted ink centroid of `part`, as a drift from the geometric center
  * of `box` (CSS px; +x right, +y low). Guards pixelCount so a clipped or
@@ -90,7 +84,6 @@ async function centroidDrift(view: View, boxSelector: string, partSelector: stri
         dy: visible.center.y + partBounds.y - boxBounds.y - boxBounds.height / 2,
     };
 }
-
 /*
  * True painted vertical centroid of one lane, in `staticBox` coordinates:
  * hides the sibling lanes and captures the static ancestor box, so the
@@ -111,7 +104,6 @@ async function isolatedLaneY(view: View, staticBox: string, hide: string[]) {
     expect(metrics.pixelCount, `${staticBox} lane paints no pixels`).toBeGreaterThan(0);
     return metrics.center.y;
 }
-
 /* Ink bounding box of `part` in `box` coordinates (CSS px). */
 async function inkSpan(view: View, boxSelector: string, partSelector: string) {
     const box = view.$(boxSelector);
@@ -127,7 +119,6 @@ async function inkSpan(view: View, boxSelector: string, partSelector: string) {
         right: visible.bounds.x + visible.bounds.width + partBounds.x - boxBounds.x,
     };
 }
-
 /*
  * Horizontal glyph drift measured differentially against the box itself
  * painted solid: element captures round their origin to device pixels, so a
@@ -151,7 +142,6 @@ async function differentialDrift(view: View, boxSelector: string) {
         dy: glyph.center.y - solid.center.y,
     };
 }
-
 function Harness(props: {
     agents?: MentionableAgent[];
     disabled?: boolean;
@@ -163,9 +153,9 @@ function Harness(props: {
     spacerTop?: number;
     testid: string;
 }) {
-    const [value, setValue] = createSignal(props.initial ?? "");
+    const [value, setValue] = useState(props.initial ?? "");
     return (
-        <div style={{ "margin-top": `${props.spacerTop ?? 0}px` }}>
+        <div style={{ marginTop: `${props.spacerTop ?? 0}px` }}>
             <Composer
                 agents={props.agents}
                 data-testid={props.testid}
@@ -173,14 +163,13 @@ function Harness(props: {
                 emoji={props.emoji}
                 onEmojiSelect={props.onEmoji}
                 onMentionSelect={props.onMention}
-                onSend={() => props.onSend?.(value())}
+                onSend={() => props.onSend?.(value)}
                 onValueChange={setValue}
-                value={value()}
+                value={value}
             />
         </div>
     );
 }
-
 it("holds Composer geometry, colors, and typography", async () => {
     const noop = () => {};
     const view = createRenderer()
@@ -286,7 +275,6 @@ it("holds Composer geometry, colors, and typography", async () => {
             { width: 600, height: 140, padding: 20 },
         );
     await view.ready();
-
     // Container: surface card, hairline border, radius 10, 1-line total 80px.
     const root = view.$('[data-testid="composer-default"]');
     expect(root.bounds()).toEqual({ x: 20, y: 20, width: 560, height: 80 });
@@ -313,7 +301,6 @@ it("holds Composer geometry, colors, and typography", async () => {
         "font-family": uiFont(),
         position: "relative",
     });
-
     // Textarea: 15px/22px UI font, transparent, one line high when empty.
     // (Gecko carries a measured -0.5px optical correction, so its painted box
     // reports 0.5px higher; see the corrections block in composer.css.)
@@ -353,7 +340,6 @@ it("holds Composer geometry, colors, and typography", async () => {
         resize: "none",
     });
     expect((textarea.element as HTMLTextAreaElement).placeholder).toBe("Message #launch-week");
-
     // First-line ink: draft and placeholder paint the same string on the same
     // baseline, identically in every engine. Measured against the static
     // input wrapper (padding-top 12 + line-height/2 = 23px to the first
@@ -377,7 +363,6 @@ it("holds Composer geometry, colors, and typography", async () => {
     expect(Math.abs(draftDrift - 0.8)).toBeLessThanOrEqual(0.4);
     expect(Math.abs(ghostDrift - 0.8)).toBeLessThanOrEqual(0.4);
     expect(Math.abs(draftDrift - ghostDrift)).toBeLessThanOrEqual(0.25);
-
     // Toolbar: 40px lane with only the three backed, 28px actions on a 30px pitch.
     const toolbar = view.$('[data-testid="composer-default"] [data-happy2-ui="composer-toolbar"]');
     expect(toolbar.bounds()).toEqual({ x: 21, y: 59, width: 558, height: 40 });
@@ -400,7 +385,6 @@ it("holds Composer geometry, colors, and typography", async () => {
         expect(rect.width).toBeCloseTo(28, 1);
         expect(rect.height).toBeCloseTo(28, 1);
     });
-
     // Every toolbar glyph is optically centered in its 28px ghost square
     // (raw measured drift ≤ 0.13px in all three engines — no corrections).
     for (const label of ["Attach file", "Mention someone", "Add emoji"]) {
@@ -409,7 +393,6 @@ it("holds Composer geometry, colors, and typography", async () => {
         expect(Math.abs(drift.dx), `${label} dx`).toBeLessThanOrEqual(0.4);
         expect(Math.abs(drift.dy), `${label} dy`).toBeLessThanOrEqual(0.4);
     }
-
     // Send: primary 28px square, symmetric 7px border-box inset at the
     // composer's bottom-right curve, disabled while empty.
     const send = view.$('[data-testid="composer-default"] .happy2-composer__send');
@@ -428,7 +411,6 @@ it("holds Composer geometry, colors, and typography", async () => {
         opacity: "0.48",
     });
     expect((send.element as HTMLButtonElement).disabled).toBe(true);
-
     // Send glyph: the paper plane's visible ink bounds sit exactly centered in
     // the 28px square (measured 8..20 on both axes in every engine). Its
     // centroid deliberately leans up-right — the glyph points up-right, the
@@ -442,7 +424,6 @@ it("holds Composer geometry, colors, and typography", async () => {
     expect(view.$(`${sendSelector} svg`).bounds()).toMatchObject({ width: 16, height: 16 });
     expect(Math.abs(sendInk.top - (28 - sendInk.bottom))).toBeLessThanOrEqual(0.5);
     expect(Math.abs(sendInk.left - (28 - sendInk.right))).toBeLessThanOrEqual(0.5);
-
     // Hint: 11px faint mono, 14px line box centered in the 40px toolbar lane,
     // 10px gap before the send square. Word ink is asymmetric (the "g"
     // descender pulls the centroid low), so the vertical centroid is pinned to
@@ -468,7 +449,6 @@ it("holds Composer geometry, colors, and typography", async () => {
         '[data-testid="composer-default"] [data-happy2-ui="composer-hint"]',
     );
     expect(Math.abs(hintDrift.dy - 0.6)).toBeLessThanOrEqual(0.4);
-
     // Auto-grow: 3 lines → 66px textarea, 124px card; 12 lines cap at 176px.
     const multiline = view.$(
         '[data-testid="composer-multiline"] [data-happy2-ui="composer-textarea"]',
@@ -483,7 +463,6 @@ it("holds Composer geometry, colors, and typography", async () => {
     expect(overflow.bounds().height).toBe(176);
     expect((overflow.element as HTMLTextAreaElement).scrollHeight).toBe(264);
     expect(view.$('[data-testid="composer-overflow"]').bounds().height).toBe(234);
-
     // Context chips row: 8px top padding, 24px chips, 112px card total.
     const chipsRoot = view.$('[data-testid="composer-chips"]');
     expect(chipsRoot.bounds().height).toBe(112);
@@ -496,7 +475,6 @@ it("holds Composer geometry, colors, and typography", async () => {
     expect(firstChip.bounds().x - chipsRoot.bounds().x).toBe(11);
     expect(firstChip.bounds().y - chipsRoot.bounds().y).toBe(9);
     expect(firstChip.bounds().height).toBe(24);
-
     // Focus-within: hairline strengthens to border-strong (120ms transition).
     const settle = () => new Promise((resolve) => setTimeout(resolve, 250));
     await userEvent.click(textarea.element);
@@ -505,7 +483,6 @@ it("holds Composer geometry, colors, and typography", async () => {
     (document.activeElement as HTMLElement | null)?.blur();
     await settle();
     expect(root.computedStyle("border-top-color")).toBe("rgba(255, 255, 255, 0.07)");
-
     // Disabled: textarea and controls disabled, muted draft text still paints.
     const disabledArea = view.$(
         '[data-testid="composer-disabled"] [data-happy2-ui="composer-textarea"]',
@@ -522,7 +499,6 @@ it("holds Composer geometry, colors, and typography", async () => {
                 .element as HTMLButtonElement
         ).disabled,
     ).toBe(true);
-
     // Pending preserves the full 80px layout and visible draft while making
     // every mutation affordance inert; readOnly retains textarea focus.
     const pendingRoot = view.$('[data-testid="composer-pending"]');
@@ -544,10 +520,8 @@ it("holds Composer geometry, colors, and typography", async () => {
             ),
         ).every((button) => button.disabled),
     ).toBe(true);
-
     await view.screenshot("Composer.test");
 });
-
 it("exposes only backed actions and handles host-owned and native attachments", async () => {
     let attachments = 0;
     let sends = 0;
@@ -592,7 +566,6 @@ it("exposes only backed actions and handles host-owned and native attachments", 
             { width: 600, height: 140, padding: 20 },
         );
     await view.ready();
-
     const attach = view.container.querySelector<HTMLButtonElement>(
         '[data-testid="composer-attachment"] [aria-label="Attach file"]',
     )!;
@@ -604,7 +577,6 @@ it("exposes only backed actions and handles host-owned and native attachments", 
     await userEvent.click(send);
     expect(attachments).toBe(1);
     expect(sends).toBe(1);
-
     const input = view.container.querySelector<HTMLInputElement>(
         '[data-testid="composer-native-attachment"] input[type="file"]',
     )!;
@@ -619,14 +591,12 @@ it("exposes only backed actions and handles host-owned and native attachments", 
         ["one.png", "two.png"],
     ]);
     expect(input.value).toBe("");
-
     expect(
         view.container.querySelectorAll(
             '[data-testid="composer-actionless"] [data-happy2-ui="composer-actions"] button',
         ).length,
     ).toBe(0);
 });
-
 it("searches and inserts emoji at the saved caret without dropping composer focus", async () => {
     const selected: string[] = [];
     const view = createRenderer().render(
@@ -642,14 +612,12 @@ it("searches and inserts emoji at the saved caret without dropping composer focu
         { width: 620, height: 300, padding: 20 },
     );
     await view.ready();
-
     const textarea = view.container.querySelector<HTMLTextAreaElement>(
         '[data-testid="composer-emoji"] [data-happy2-ui="composer-textarea"]',
     )!;
     await userEvent.click(textarea);
     textarea.setSelectionRange(5, 5);
     textarea.dispatchEvent(new Event("select", { bubbles: true }));
-
     const trigger = view.container.querySelector<HTMLButtonElement>(
         '[data-testid="composer-emoji"] [aria-label="Add emoji"]',
     )!;
@@ -665,13 +633,11 @@ it("searches and inserts emoji at the saved caret without dropping composer focu
     const cells = dialog.querySelectorAll<HTMLElement>('[data-happy2-ui="emoji-picker-cell"]');
     expect(cells.length).toBe(1);
     expect(cells[0]?.getAttribute("data-emoji-id")).toBe("rocket");
-
     await userEvent.click(cells[0]!);
     expect(textarea.value).toBe("Ship 🚀now");
     expect(selected).toEqual(["rocket"]);
     expect(document.activeElement).toBe(textarea);
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
-
     await userEvent.click(trigger);
     expect(
         view.container.querySelectorAll(
@@ -692,7 +658,6 @@ it("searches and inserts emoji at the saved caret without dropping composer focu
     await userEvent.click(trigger);
     await view.screenshot("Composer.emoji.test");
 });
-
 it("holds ContextChips and MentionPicker geometry and colors", async () => {
     const removed: string[] = [];
     const picked: string[] = [];
@@ -723,9 +688,9 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
             () => (
                 <>
                     {/* The engine nudges shift the text spans onto the chip's
-                        1px hairline border rows; its faint ink would smear the
-                        measured bounds, so the baseline fixture hides the
-                        border color (layout is untouched). */}
+            1px hairline border rows; its faint ink would smear the
+            measured bounds, so the baseline fixture hides the
+            border color (layout is untouched). */}
                     <style>
                         {`[data-testid="chips-baseline"] [data-happy2-ui="context-chips-chip"] {
                             border-color: transparent;
@@ -775,7 +740,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
             { width: 400, height: 160, padding: 30 },
         );
     await view.ready();
-
     // Chip: 24px inset pill, radius 6, hairline border.
     const chip = view.$('[data-testid="chips"] [data-happy2-ui="context-chips-chip"]');
     expect(chip.bounds().height).toBe(24);
@@ -811,7 +775,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         "run",
         "thread",
     ]);
-
     // Kind icons: 12px, muted, optically centered on the 24px chip lane —
     // every kind (raw vertical drift ≤ 0.05px in all engines). Horizontal
     // drift is measured differentially because fractional-width text precedes
@@ -834,7 +797,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
             expect(Math.abs(diff.dx), `${kind} icon dx`).toBeLessThanOrEqual(0.75);
         }
     }
-
     // Labels: 12px/600 secondary label, 11px muted detail, mono chips label.
     const chipText = view.$('[data-testid="chips"] [data-happy2-ui="context-chips-text"]');
     expect(chipText.textMetrics()).toMatchObject({
@@ -863,7 +825,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         "text-transform": "uppercase",
     });
     expect(chipsLabel.computedStyle("font-family")).toContain("happy2 Mono");
-
     // Chip text lanes: word ink is asymmetric (ascender-topped, dot-bottomed
     // label; slash-descended detail), so vertical centroids are pinned to the
     // engine-consensus placements (+0.5px label, +0.9px detail below chip
@@ -881,7 +842,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         `${fileChip} [data-happy2-ui="context-chips-detail"]`,
     );
     expect(Math.abs(detailDrift.dy - 0.9)).toBeLessThanOrEqual(0.4);
-
     // Label and detail share one baseline: with x-height-only strings the ink
     // bottom is the softened baseline — both must sit at 16px of the 24px chip
     // in every engine (raw Blink painted the 11px detail a full pixel high).
@@ -899,7 +859,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     expect(Math.abs(baselineText.bottom - 16)).toBeLessThanOrEqual(0.3);
     expect(Math.abs(baselineDetail.bottom - 16)).toBeLessThanOrEqual(0.3);
     expect(Math.abs(baselineText.bottom - baselineDetail.bottom)).toBeLessThanOrEqual(0.25);
-
     // Chips label: uppercase mono ink is symmetric enough for a true centroid
     // assertion against the 24px lane center (corrected per engine).
     const labelDrift = await centroidDrift(
@@ -908,7 +867,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         '[data-testid="chips"] [data-happy2-ui="context-chips-label"]',
     );
     expect(Math.abs(labelDrift.dy)).toBeLessThanOrEqual(0.4);
-
     // Removal: 14px hit area, hidden when readOnly, reports the item id.
     const removeButtons = Array.from(
         view.container.querySelectorAll(
@@ -921,7 +879,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         .bounds();
     expect(removeBounds.width).toBe(14);
     expect(removeBounds.height).toBe(14);
-
     // Remove glyph: vertically centered (raw dy ≤ 0.09px). Horizontally the
     // 12px close glyph is path-symmetric, but Gecko snaps small SVG strokes to
     // the half-device-pixel grid, so at the fractional x that follows text its
@@ -933,7 +890,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     const removeDiff = await differentialDrift(view, removeSelector);
     expect(Math.abs(removeDiff.dx)).toBeLessThanOrEqual(0.75);
     expect(Math.abs(removeDiff.dy)).toBeLessThanOrEqual(0.4);
-
     await userEvent.click(removeButtons[1]!);
     expect(removed).toEqual(["run-1"]);
     expect(
@@ -941,13 +897,11 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
             '[data-testid="chips-readonly"] [data-happy2-ui="context-chips-remove"]',
         ).length,
     ).toBe(0);
-
     // Readonly chips keep the same lanes without the remove affordance.
     expect(
         view.$('[data-testid="chips-readonly"] [data-happy2-ui="context-chips-chip"]').bounds()
             .height,
     ).toBe(24);
-
     // Picker: 320px raised popover — radius 10, strong border, drop shadow.
     const picker = view.$('[data-testid="picker"]');
     expect(picker.bounds()).toEqual({ x: 30, y: 30, width: 320, height: 172 });
@@ -971,7 +925,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         width: "320px",
     });
     expect(picker.computedStyle("box-shadow")).toContain("12px 32px");
-
     // Header: 26px mono uppercase faint lane, centroid on the lane center
     // (uppercase mono ink is symmetric enough for a true centroid assertion).
     const header = view.$('[data-testid="picker"] [data-happy2-ui="mention-picker-header"]');
@@ -989,7 +942,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         '[data-testid="picker"] [data-happy2-ui="mention-picker-header"]',
     );
     expect(Math.abs(headerDrift.dy)).toBeLessThanOrEqual(0.4);
-
     // Rows: 44px, sm agent avatar centered on the row, 13px/700 name.
     const rows = Array.from(
         view.container.querySelectorAll(
@@ -1008,7 +960,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         (await view.$('[data-testid="picker"] [data-happy2-ui="avatar-initials"]').visibleMetrics())
             .pixelCount,
     ).toBeGreaterThan(0);
-
     // Meta lanes: 16px name and 16px description line boxes stack to a 32px
     // block on integer offsets (6px top and bottom of the 44px row).
     const codexRow = '[data-testid="picker"] [data-agent-id="codex"]';
@@ -1027,7 +978,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     });
     expect(name.computedStyle("color")).toBe("rgb(237, 234, 242)");
     expect(name.bounds().height).toBe(16);
-
     // Name ink, measured as true paint through the static meta box (its line
     // box spans meta 0..16, center 8): word ink is asymmetric (cap-topped, no
     // descenders in "Codex"), so the vertical centroid is pinned to the
@@ -1039,7 +989,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     const descriptionSelector = `${codexRow} [data-happy2-ui="mention-picker-description"]`;
     const nameLaneY = await isolatedLaneY(view, metaSelector, [descriptionSelector]);
     expect(Math.abs(nameLaneY - 8.5)).toBeLessThanOrEqual(0.5);
-
     // Description: 12px/16px muted lane directly under the name (its line box
     // spans meta 16..32, center 24). Word ink is asymmetric (descenders in
     // "Ships code…"), so the vertical centroid is pinned to the
@@ -1051,7 +1000,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     expect(codexDescription.offsets().top).toBe(server.browser === "firefox" ? 15.5 : 16);
     const descriptionLaneY = await isolatedLaneY(view, metaSelector, [nameSelector]);
     expect(Math.abs(descriptionLaneY - (24 + 0.6))).toBeLessThanOrEqual(0.4);
-
     // Active row uses the accent-soft wash; inactive rows stay transparent.
     const activeRow = view.$(
         '[data-testid="picker"] [data-happy2-ui="mention-picker-row"][data-active]',
@@ -1063,7 +1011,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
             .$('[data-testid="picker"] [data-happy2-ui="mention-picker-row"]')
             .computedStyle("background-color"),
     ).toBe("rgba(0, 0, 0, 0)");
-
     // Status badges: ready → success soft/strong, working → warning; the 18px
     // badge box rides the exact vertical center of the 44px row.
     const readyBadge = view.$(
@@ -1084,7 +1031,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         "background-color": "rgba(251, 191, 36, 0.13)",
         color: "rgb(252, 211, 77)",
     });
-
     // Long description truncates inside the row.
     const description = view.$(
         '[data-testid="picker"] [data-agent-id="claude"] [data-happy2-ui="mention-picker-description"]',
@@ -1100,7 +1046,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     expect((description.element as HTMLElement).scrollWidth).toBeGreaterThan(
         description.bounds().width,
     );
-
     // Single minimal agent: no description or status — the 16px name line box
     // centers alone in the 44px row (integer 14px offsets).
     const soloRow = '[data-testid="picker-single"] [data-agent-id="solo"]';
@@ -1116,7 +1061,6 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         .$(`${soloRow} [data-happy2-ui="mention-picker-name"]`)
         .visibleMetrics();
     expect(soloName.pixelCount).toBeGreaterThan(0);
-
     // Row click reports the agent; empty query state renders a message row.
     await userEvent.click(rows[2]!);
     expect(picked).toEqual(["triage"]);
@@ -1129,25 +1073,23 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
             '[data-testid="picker-empty"] [data-happy2-ui="mention-picker-row"]',
         ).length,
     ).toBe(0);
-
     await view.screenshot("Composer.parts.test");
 });
-
 it("handles typing, sending, and mention picking", async () => {
     const sends: string[] = [];
     const mentions: string[] = [];
     let releaseBusy = () => {};
     const BusyHarness = () => {
-        const [busy, setBusy] = createSignal(false);
-        const [value, setValue] = createSignal("Wait for it");
+        const [busy, setBusy] = useState(false);
+        const [value, setValue] = useState("Wait for it");
         releaseBusy = () => setBusy(false);
         return (
             <Composer
                 data-testid="composer-busy"
-                disabled={busy()}
+                disabled={busy}
                 onSend={() => setBusy(true)}
                 onValueChange={setValue}
-                value={value()}
+                value={value}
             />
         );
     };
@@ -1198,7 +1140,6 @@ it("handles typing, sending, and mention picking", async () => {
         )
         .render(() => <BusyHarness />, { width: 600, height: 140, padding: 20 });
     await view.ready();
-
     const textareaOf = (testid: string) =>
         view.$(`[data-testid="${testid}"] [data-happy2-ui="composer-textarea"]`)
             .element as HTMLTextAreaElement;
@@ -1218,7 +1159,6 @@ it("handles typing, sending, and mention picking", async () => {
                 `[data-testid="${testid}"] [data-happy2-ui="mention-picker-row"][data-active]`,
             )
             ?.getAttribute("data-agent-id");
-
     // Typing updates the value and enables send; Enter sends without newline.
     const typing = textareaOf("composer-typing");
     const typingSend = view.$('[data-testid="composer-typing"] .happy2-composer__send')
@@ -1231,30 +1171,26 @@ it("handles typing, sending, and mention picking", async () => {
     expect(sends).toEqual(["Ship it"]);
     expect(typing.value).toBe("Ship it");
     expect(document.activeElement).toBe(typing);
-
     // Shift+Enter inserts a newline and grows the textarea; nothing is sent.
     await userEvent.keyboard("{Shift>}{Enter}{/Shift}");
     await userEvent.keyboard("done");
     expect(typing.value).toBe("Ship it\ndone");
     expect(sends.length).toBe(1);
     expect(typing.getBoundingClientRect().height).toBeCloseTo(44, 1);
-
     // Clicking send reports the current draft.
     await userEvent.click(typingSend);
     expect(sends).toEqual(["Ship it", "Ship it\ndone"]);
     expect(document.activeElement).toBe(typing);
-
     // If the host temporarily disables the composer during a send, focus is
     // restored as soon as the busy state clears rather than being lost.
     const busyArea = textareaOf("composer-busy");
     await userEvent.click(busyArea);
     await userEvent.keyboard("{Enter}");
     expect(busyArea.disabled).toBe(true);
-    releaseBusy();
+    flushSync(releaseBusy);
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     expect(busyArea.disabled).toBe(false);
     expect(document.activeElement).toBe(busyArea);
-
     // "@" at a word boundary opens the picker anchored above the composer.
     const mention = textareaOf("composer-mention");
     await userEvent.click(mention);
@@ -1265,7 +1201,6 @@ it("handles typing, sending, and mention picking", async () => {
     const popoverRect = popoverOf("composer-mention")!.getBoundingClientRect();
     expect(composerRect.y - (popoverRect.y + popoverRect.height)).toBeCloseTo(8, 1);
     expect(popoverRect.x - composerRect.x).toBeCloseTo(12, 1);
-
     // Filtering narrows the list; Enter inserts "@Name " and reports it.
     await userEvent.keyboard("cod");
     expect(rowsOf("composer-mention").length).toBe(1);
@@ -1275,7 +1210,6 @@ it("handles typing, sending, and mention picking", async () => {
     expect(mentions).toEqual(["codex"]);
     expect(popoverOf("composer-mention")).toBeNull();
     expect(sends.length).toBe(2);
-
     // Escape closes; an unmatched query shows the empty state.
     await userEvent.keyboard("@");
     expect(popoverOf("composer-mention")).not.toBeNull();
@@ -1289,7 +1223,6 @@ it("handles typing, sending, and mention picking", async () => {
         ),
     ).not.toBeNull();
     await userEvent.keyboard("{Escape}");
-
     // Arrow keys walk and wrap the list; Enter picks the active agent.
     const nav = textareaOf("composer-nav");
     await userEvent.click(nav);
@@ -1307,7 +1240,6 @@ it("handles typing, sending, and mention picking", async () => {
     expect(nav.value).toBe("@Triage ");
     expect(mentions).toEqual(["codex", "triage"]);
     expect(popoverOf("composer-nav")).toBeNull();
-
     // No word boundary — "email@" must not open the picker.
     const boundary = textareaOf("composer-boundary");
     await userEvent.click(boundary);
@@ -1317,7 +1249,6 @@ it("handles typing, sending, and mention picking", async () => {
     await userEvent.keyboard(" @");
     expect(popoverOf("composer-boundary")).not.toBeNull();
     await userEvent.keyboard("{Escape}");
-
     // The @ toolbar action inserts "@" and opens the picker; a row click picks.
     const atButton = view.container.querySelector(
         '[data-testid="composer-at"] [aria-label="Mention someone"]',
@@ -1329,7 +1260,6 @@ it("handles typing, sending, and mention picking", async () => {
     expect(textareaOf("composer-at").value).toBe("@Claude ");
     expect(mentions).toEqual(["codex", "triage", "claude"]);
     expect(popoverOf("composer-at")).toBeNull();
-
     // Leave one picker open for the capture.
     await userEvent.click(nav);
     await userEvent.keyboard("{ArrowRight}");

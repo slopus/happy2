@@ -1,24 +1,23 @@
-import { createMemo, createSignal, type Accessor } from "solid-js";
+import { useState } from "react";
 import type {
+    ChatSnapshot,
     ChatStore,
     ChatSummary,
     DeepReadonly,
     DirectoryUserProjection,
     SidebarChatProjection,
 } from "happy2-state";
-import type { InfoPanelProfile, MemberItem } from "./ChatPageComponents.js";
+import type { InfoPanelProfile } from "./ChatPageComponents.js";
 import type { ChatPageActions } from "./ChatPage.js";
 import { identityInitials, toneFor, type LiveThreadMessage } from "./chatPageModels.js";
-
 type Participant = DeepReadonly<SidebarChatProjection>["participants"][number];
-
 export interface ChatInfoModelOptions {
-    activeChat: Accessor<DeepReadonly<ChatSummary> | undefined>;
-    activePeer: Accessor<Participant | undefined>;
-    chatSnapshot: Accessor<ReturnType<ChatStore["get"]> | undefined>;
-    chatStore: Accessor<ChatStore | undefined>;
-    directoryUsers: Accessor<readonly DeepReadonly<DirectoryUserProjection>[]>;
-    isServerAdmin: Accessor<boolean>;
+    activeChat: () => DeepReadonly<ChatSummary> | undefined;
+    activePeer: () => Participant | undefined;
+    chatSnapshot: () => ChatSnapshot | undefined;
+    chatStore: () => ChatStore | undefined;
+    directoryUsers: () => readonly DeepReadonly<DirectoryUserProjection>[];
+    isServerAdmin: () => boolean;
     actions: ChatPageActions;
     avatarFor(userId?: string, fallback?: string): string | undefined;
     onInfoOpen(): void;
@@ -28,11 +27,10 @@ export interface ChatInfoModelOptions {
     onError(error: unknown): void;
     onSaved(): void;
 }
-
-export function chatInfoModelCreate(options: ChatInfoModelOptions) {
-    const [channelName, setChannelName] = createSignal("");
-    const [channelTopic, setChannelTopic] = createSignal("");
-    const [autoJoin, setAutoJoin] = createSignal(false);
+export function useChatInfoModel(options: ChatInfoModelOptions) {
+    const [channelName, setChannelName] = useState("");
+    const [channelTopic, setChannelTopic] = useState("");
+    const [autoJoin, setAutoJoin] = useState(false);
     const peer = options.activePeer;
     const agent = () => (peer()?.kind === "agent" ? peer() : undefined);
     const presenceFor = (id: string) =>
@@ -45,7 +43,7 @@ export function chatInfoModelCreate(options: ChatInfoModelOptions) {
         const value = options.directoryUsers().find((person) => person.id === userId);
         return value ? profileProject(value) : undefined;
     };
-    const members = createMemo<MemberItem[]>(() => {
+    const members = (() => {
         const value = options.chatSnapshot()?.members;
         if (value?.type !== "ready") return [];
         return value.value.map((member) => ({
@@ -61,7 +59,7 @@ export function chatInfoModelCreate(options: ChatInfoModelOptions) {
             tone: toneFor(member.id),
             username: member.username,
         }));
-    });
+    })();
     function messageProfile(message: LiveThreadMessage): InfoPanelProfile | undefined {
         const sender = message.serverMessage?.sender;
         if (!sender) return undefined;
@@ -93,7 +91,7 @@ export function chatInfoModelCreate(options: ChatInfoModelOptions) {
     };
     function effortChange(value: string) {
         const target = agent();
-        if (target) options.chatStore()?.agentEffortChange(target.id, value);
+        if (target) options.chatStore()?.getState().agentEffortChange(target.id, value);
     }
     function open(override?: InfoPanelProfile) {
         if (override?.id) options.onProfileOpen(override.id);
@@ -104,9 +102,9 @@ export function chatInfoModelCreate(options: ChatInfoModelOptions) {
             setChannelTopic(chat.topic ?? "");
             setAutoJoin(chat.autoJoin);
         }
-        options.chatStore()?.membersRetain();
+        options.chatStore()?.getState().membersRetain();
         const target = agent();
-        if (target) options.chatStore()?.agentEffortRetain(target.id);
+        if (target) options.chatStore()?.getState().agentEffortRetain(target.id);
     }
     async function save() {
         const chat = options.activeChat();
@@ -116,9 +114,9 @@ export function chatInfoModelCreate(options: ChatInfoModelOptions) {
         options.onBusyStart();
         try {
             await options.actions.channelUpdate(chat.id, {
-                name: channelName().trim(),
-                topic: channelTopic().trim() || undefined,
-                ...(options.isServerAdmin() && !chat.isMain ? { autoJoin: autoJoin() } : {}),
+                name: channelName.trim(),
+                topic: channelTopic.trim() || undefined,
+                ...(options.isServerAdmin() && !chat.isMain ? { autoJoin: autoJoin } : {}),
             });
             options.onSaved();
         } catch (error) {
@@ -149,7 +147,6 @@ export function chatInfoModelCreate(options: ChatInfoModelOptions) {
         setChannelName,
         setChannelTopic,
     };
-
     function profileProject(value: Participant | DeepReadonly<DirectoryUserProjection>) {
         return {
             id: value.id,

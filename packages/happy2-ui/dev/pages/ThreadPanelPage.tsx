@@ -1,17 +1,16 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { Composer } from "../../src/Composer";
 import { DayDivider, Message, MessageList } from "../../src/Message";
 import { ThreadPanel } from "../../src/ThreadPanel";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 /* A fixed 320px panel region, the width the side panel occupies in the shell. */
-function panelFrame(children: JSX.Element, height = 560) {
+function panelFrame(children: ReactNode, height = 560) {
     return (
         <div
             style={{
                 background: "var(--happy2-bg-surface)",
                 border: "1px solid var(--happy2-border)",
-                "border-radius": "10px",
+                borderRadius: "10px",
                 height: `${height}px`,
                 overflow: "hidden",
                 width: "320px",
@@ -21,7 +20,6 @@ function panelFrame(children: JSX.Element, height = 560) {
         </div>
     );
 }
-
 export function ThreadPanelPage() {
     return (
         <ComponentPage
@@ -35,7 +33,7 @@ export function ThreadPanelPage() {
                 number="01"
                 stage="surface"
             >
-                <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     {panelFrame(
                         <ThreadPanel
                             composer={

@@ -7,20 +7,24 @@ export {
 } from "./transport.js";
 export * from "./types.js";
 export * from "./resources.js";
-export { HappyState, happyStateCreate, type HappyStateOptions } from "./happyState.js";
-export { type DeepReadonly, type ReadonlyStore } from "./kernel/readonlyStore.js";
+export {
+    HappyState,
+    happyStateCreate,
+    type HappyStateEvent,
+    type HappyStateOptions,
+} from "./happyState.js";
+export { type DeepReadonly } from "./deepReadonly.js";
 export {
     composerStoreCreate,
     type ComposerStoreOptions,
-} from "./modules/composer/composerStore.js";
+} from "./modules/composer/composerState.js";
 export {
     type ComposerAttachment,
     type ComposerOutput,
     type ComposerSnapshot,
     type ComposerStore,
     type ComposerSubmission,
-    type StandaloneComposerStore,
-} from "./modules/composer/composerTypes.js";
+} from "./modules/composer/composerState.js";
 export type {
     ChatHandle,
     ChatMemberProjection,
@@ -32,75 +36,75 @@ export type {
     ChatStore,
     Loadable,
     ReactionActors,
-} from "./modules/chat/chatTypes.js";
+} from "./modules/chat/chatState.js";
 export type {
     SidebarChatProjection,
     SidebarSnapshot,
     SidebarStatus,
     SidebarStore,
-} from "./modules/sidebar/sidebarTypes.js";
-export type { IdentityProjection } from "./modules/identity/identityTypes.js";
+} from "./modules/sidebar/sidebarState.js";
+export type { IdentityProjection } from "./modules/identity/identityState.js";
 export type {
     WorkspaceHandle,
     WorkspaceSnapshot,
     WorkspaceStore,
-} from "./modules/workspace/workspaceTypes.js";
+} from "./modules/workspace/workspaceState.js";
 export type {
     WorkspaceFileHandle,
     WorkspaceFileSaveState,
     WorkspaceFileSnapshot,
     WorkspaceFileStore,
-} from "./modules/workspace-file/workspaceFileTypes.js";
+} from "./modules/workspace-file/workspaceFileState.js";
 export type {
     SettingsSaveState,
     SettingsFieldStates,
     SettingsSnapshot,
     SettingsStore,
     SettingsStoreOptions,
-} from "./modules/settings/settingsTypes.js";
+} from "./modules/settings/settingsState.js";
 export type {
     SearchResultProjection,
     SearchSnapshot,
     SearchStore,
-} from "./modules/search/searchTypes.js";
-export type { FilesSnapshot, FilesStore } from "./modules/files/filesTypes.js";
+} from "./modules/search/searchState.js";
+export type { FilesSnapshot, FilesStore } from "./modules/files/filesState.js";
 export type {
     DirectorySnapshot,
     DirectoryStore,
     DirectoryUserProjection,
-} from "./modules/directory/directoryTypes.js";
-export type { AdminSnapshot, AdminStore } from "./modules/admin/adminTypes.js";
+} from "./modules/directory/directoryState.js";
+export type { AdminSnapshot, AdminStore } from "./modules/admin/adminState.js";
 export type {
     AgentImagesSnapshot,
     AgentImagesStore,
-} from "./modules/agent-images/agentImagesTypes.js";
+} from "./modules/agent-images/agentImagesState.js";
 export type {
     SetupAction,
     SetupPending,
     SetupSnapshot,
     SetupStore,
-} from "./modules/setup/setupTypes.js";
+} from "./modules/setup/setupState.js";
 export type {
     AgentSecretsSnapshot,
     AgentSecretsStore,
-} from "./modules/agent-secrets/agentSecretsTypes.js";
-export type { ThreadHandle, ThreadSnapshot, ThreadStore } from "./modules/thread/threadTypes.js";
+} from "./modules/agent-secrets/agentSecretsState.js";
+export type { ThreadHandle, ThreadSnapshot, ThreadStore } from "./modules/thread/threadState.js";
 export type {
     ThreadsSnapshot,
     ThreadsStore,
     ThreadSummaryProjection,
-} from "./modules/threads/threadsTypes.js";
+} from "./modules/threads/threadsState.js";
 export type {
     NotificationProjection,
     NotificationsSnapshot,
     NotificationsStore,
-} from "./modules/notifications/notificationsTypes.js";
+} from "./modules/notifications/notificationsState.js";
 export type {
     CallParticipantProjection,
     CallProjection,
     CallsSnapshot,
     CallsStore,
     CallSignalProjection,
-} from "./modules/calls/callsTypes.js";
-export type { ChannelUpdateInput } from "./modules/chat-actions/channelUpdate.js";
-export type { ReactionSelector } from "./modules/reaction/reactionTypes.js";
+} from "./modules/calls/callsState.js";
+export type { ChannelUpdateInput } from "./modules/chat-actions/chatActionsState.js";
+export type { ReactionSelector } from "./modules/reaction/reactionState.js";

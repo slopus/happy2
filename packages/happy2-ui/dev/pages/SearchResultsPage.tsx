@@ -60,7 +60,7 @@ export function SearchResultsPage() {
             summary="Grouped unified search: message / channel / user / file rows with query highlight."
             title="Search results"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="400px card · 28px group heads · 44px rows · accent highlight"
                     label="Grouped results"
@@ -76,7 +76,7 @@ export function SearchResultsPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="channel = hash tile · user = avatar · message = author + snippet"
                     label="Row types"

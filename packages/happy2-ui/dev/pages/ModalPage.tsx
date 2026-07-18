@@ -22,9 +22,9 @@ export function ModalPage() {
             summary="Dialog card — header (leading icon chip · title · close) / body / right-aligned footer actions, three fixed widths on a 14px shell radius. Rendered as a specimen card; a host portals it over its own backdrop."
             title="Modal"
         >
-            <div class="specimen-grid specimen-grid--sizes">
+            <div className="specimen-grid specimen-grid--sizes">
                 <Specimen detail="width 360" label="Small" number="M-01" stage="app">
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <DimensionRule label="width 360" />
                         <Modal icon="link" onClose={() => {}} size="small" title="Copy invite link">
                             Anyone with this link can join #launch-week as a guest until it is
@@ -33,7 +33,7 @@ export function ModalPage() {
                     </div>
                 </Specimen>
                 <Specimen detail="width 480" label="Medium" number="M-02" stage="app">
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <DimensionRule label="width 480" />
                         <Modal
                             footer={<ConfirmFooter confirmLabel="Create channel" />}
@@ -48,7 +48,7 @@ export function ModalPage() {
                     </div>
                 </Specimen>
                 <Specimen detail="width 640" label="Large" number="M-03" stage="app">
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <DimensionRule label="width 640" />
                         <Modal
                             footer={
@@ -73,7 +73,7 @@ export function ModalPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="tone default (accent chip) vs danger (danger chip + danger action)"
                     label="Tone"
@@ -83,7 +83,7 @@ export function ModalPage() {
                     <div
                         style={{
                             display: "flex",
-                            "align-items": "flex-start",
+                            alignItems: "flex-start",
                             gap: "24px",
                             padding: "8px",
                         }}
@@ -112,14 +112,14 @@ export function ModalPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="header 60 · body · footer 69 (with 1px top hairline)"
                     label="Anatomy"
                     number="M-05"
                     stage="app"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <DimensionRule label="header 60 · footer 69" />
                         <Modal
                             footer={<ConfirmFooter confirmLabel="Confirm" />}
@@ -139,7 +139,7 @@ export function ModalPage() {
                     number="M-06"
                     stage="app"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <DimensionRule label="width 360 · header 60" />
                         <Modal size="small" title="Saving changes">
                             Your changes are being applied. This dialog closes automatically when

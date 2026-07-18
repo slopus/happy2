@@ -1,13 +1,12 @@
-import { Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { useId, type CSSProperties } from "react";
 import { Icon, type IconName } from "./Icon";
-
 export type TextFieldType = "text" | "email" | "password" | "search";
 export type TextFieldSize = "small" | "medium" | "large";
-
 export type TextFieldProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     value?: string;
     onValueChange?: (value: string) => void;
     label?: string;
@@ -24,25 +23,20 @@ export type TextFieldProps = {
     fullWidth?: boolean;
     id?: string;
     name?: string;
-    autocomplete?: string;
+    autoComplete?: string;
 };
-
 /** Leading-icon glyph box by control size (matches Button's 14/16/18 ramp). */
 const iconSizes: Record<TextFieldSize, 14 | 16 | 18> = {
     small: 14,
     medium: 16,
     large: 18,
 };
-
 /*
  * Multiline line box. The textarea is given an explicit height of
  * rows × MULTILINE_LINE_HEIGHT so its box is deterministic across engines
  * (native `rows` sizing drifts a pixel or two between Blink/Gecko/WebKit).
  */
 const MULTILINE_LINE_HEIGHT = 20;
-
-let nextId = 0;
-
 /**
  * C-018 TextField — labeled text input / textarea on the Relay inset well.
  * Three contract heights (28/36/44), optional label with required marker,
@@ -50,8 +44,8 @@ let nextId = 0;
  */
 export function TextField(props: TextFieldProps) {
     const [local] = splitProps(props, [
-        "autocomplete",
-        "class",
+        "autoComplete",
+        "className",
         "data-testid",
         "disabled",
         "error",
@@ -71,20 +65,18 @@ export function TextField(props: TextFieldProps) {
         "type",
         "value",
     ]);
-
     const size = () => local.size ?? "medium";
     const invalid = () => local.error !== undefined && local.error !== "";
     const message = () => (invalid() ? local.error : local.hint);
     const rows = () => local.rows ?? 3;
-
-    const fallbackId = `rg-text-field-${(nextId += 1)}`;
+    const generatedId = useId();
+    const fallbackId = `happy2-text-field-${generatedId}`;
     const fieldId = () => local.id ?? fallbackId;
     const messageId = () => `${fieldId()}-message`;
     const describedBy = () => (message() ? messageId() : undefined);
-
     return (
         <div
-            class={["happy2-text-field", local.class].filter(Boolean).join(" ")}
+            className={["happy2-text-field", local.className].filter(Boolean).join(" ")}
             data-disabled={local.disabled ? "" : undefined}
             data-full-width={local.fullWidth ? "" : undefined}
             data-invalid={invalid() ? "" : undefined}
@@ -94,68 +86,49 @@ export function TextField(props: TextFieldProps) {
             data-testid={local["data-testid"]}
             style={local.style}
         >
-            <Show when={local.label}>
+            {local.label ? (
                 <label
-                    class="happy2-text-field__label"
+                    className="happy2-text-field__label"
                     data-happy2-ui="text-field-label"
-                    for={fieldId()}
+                    htmlFor={fieldId()}
                 >
                     {local.label}
-                    <Show when={local.required}>
+                    {local.required ? (
                         <span
                             aria-hidden="true"
-                            class="happy2-text-field__required"
+                            className="happy2-text-field__required"
                             data-happy2-ui="text-field-required"
                         >
                             *
                         </span>
-                    </Show>
+                    ) : null}
                 </label>
-            </Show>
+            ) : null}
 
             <div
-                class="happy2-text-field__control"
+                className="happy2-text-field__control"
                 data-invalid={invalid() ? "" : undefined}
                 data-multiline={local.multiline ? "" : undefined}
                 data-happy2-ui="text-field-control"
                 data-size={size()}
             >
-                <Show when={local.leadingIcon}>
-                    {(name) => (
-                        <span
-                            aria-hidden="true"
-                            class="happy2-text-field__icon"
-                            data-happy2-ui="text-field-icon"
-                        >
-                            <Icon name={name()} size={iconSizes[size()]} />
-                        </span>
-                    )}
-                </Show>
+                {local.leadingIcon
+                    ? ((name) => (
+                          <span
+                              aria-hidden="true"
+                              className="happy2-text-field__icon"
+                              data-happy2-ui="text-field-icon"
+                          >
+                              <Icon name={name} size={iconSizes[size()]} />
+                          </span>
+                      ))(local.leadingIcon)
+                    : null}
 
-                <Show
-                    when={local.multiline}
-                    fallback={
-                        <input
-                            aria-describedby={describedBy()}
-                            aria-invalid={invalid() ? "true" : undefined}
-                            autocomplete={local.autocomplete}
-                            class="happy2-text-field__input"
-                            data-happy2-ui="text-field-input"
-                            disabled={local.disabled}
-                            id={fieldId()}
-                            name={local.name}
-                            onInput={(event) => local.onValueChange?.(event.currentTarget.value)}
-                            placeholder={local.placeholder}
-                            required={local.required}
-                            type={local.type ?? "text"}
-                            value={local.value ?? ""}
-                        />
-                    }
-                >
+                {local.multiline ? (
                     <textarea
                         aria-describedby={describedBy()}
                         aria-invalid={invalid() ? "true" : undefined}
-                        class="happy2-text-field__input"
+                        className="happy2-text-field__input"
                         data-happy2-ui="text-field-input"
                         disabled={local.disabled}
                         id={fieldId()}
@@ -167,19 +140,35 @@ export function TextField(props: TextFieldProps) {
                         style={{ height: `${rows() * MULTILINE_LINE_HEIGHT}px` }}
                         value={local.value ?? ""}
                     />
-                </Show>
+                ) : (
+                    <input
+                        aria-describedby={describedBy()}
+                        aria-invalid={invalid() ? "true" : undefined}
+                        autoComplete={local.autoComplete}
+                        className="happy2-text-field__input"
+                        data-happy2-ui="text-field-input"
+                        disabled={local.disabled}
+                        id={fieldId()}
+                        name={local.name}
+                        onInput={(event) => local.onValueChange?.(event.currentTarget.value)}
+                        placeholder={local.placeholder}
+                        required={local.required}
+                        type={local.type ?? "text"}
+                        value={local.value ?? ""}
+                    />
+                )}
             </div>
 
-            <Show when={message()}>
+            {message() ? (
                 <div
-                    class="happy2-text-field__message"
+                    className="happy2-text-field__message"
                     data-happy2-ui={invalid() ? "text-field-error" : "text-field-hint"}
                     data-tone={invalid() ? "error" : "hint"}
                     id={messageId()}
                 >
                     {message()}
                 </div>
-            </Show>
+            ) : null}
         </div>
     );
 }

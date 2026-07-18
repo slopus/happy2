@@ -666,6 +666,19 @@
     margin-top: auto;
 }
 
+.happy2-message-list__virtual {
+    position: relative;
+    flex: none;
+    width: 100%;
+}
+
+.happy2-message-list__virtual-row {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+}
+
 .happy2-message-list__intro {
     flex: none;
     padding: 6px 20px 14px;

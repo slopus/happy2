@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { TransportError } from "../../transport.js";
 import { createFakeServer, jsonResponse } from "../../testing/index.js";
-import { StateRuntime, userError } from "./stateRuntime.js";
+import { StateRuntime, userError } from "./runtimeState.js";
 
 describe("runtime module", () => {
     it("reuses one idempotency key, reports background errors, and stops retries", async () => {

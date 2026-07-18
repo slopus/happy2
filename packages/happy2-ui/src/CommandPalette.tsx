@@ -1,8 +1,14 @@
-import { createSignal, onCleanup, onMount, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import {
+    useLayoutEffect,
+    useRef,
+    type CSSProperties,
+    type KeyboardEvent as ReactKeyboardEvent,
+    type ReactNode,
+} from "react";
 import { KeyCap } from "./Badge";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
-
 export type CommandPaletteProps = {
     /** The current query text; the palette input is a controlled reflection of it. */
     query: string;
@@ -11,7 +17,7 @@ export type CommandPaletteProps = {
     /** Dismisses the palette from Escape or the close button. */
     onClose: () => void;
     /** Result/command body rendered under the input row. */
-    children: JSX.Element;
+    children: ReactNode;
     placeholder?: string;
     closeLabel?: string;
     /**
@@ -19,11 +25,10 @@ export type CommandPaletteProps = {
      * ready to type; disable it only for deterministic screenshot fixtures.
      */
     autoFocus?: boolean;
-    class?: string;
-    style?: JSX.CSSProperties;
+    className?: string;
+    style?: CSSProperties;
     "data-testid"?: string;
 };
-
 /**
  * C-060 CommandPalette — a Slack-style ⌘K palette card with its own focused
  * search input over a scrollable result/command body, hosted by ModalOverlay.
@@ -45,44 +50,39 @@ export function CommandPalette(props: CommandPaletteProps) {
         "placeholder",
         "closeLabel",
         "autoFocus",
-        "class",
+        "className",
         "style",
     ]);
-    let inputEl: HTMLInputElement | undefined;
-    let invoker: HTMLElement | null = null;
-    const [composing, setComposing] = createSignal(false);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const invokerRef = useRef<HTMLElement | null>(null);
+    const composingRef = useRef(false);
     const label = () => local.placeholder ?? "Search";
-
-    onMount(() => {
+    useLayoutEffect(() => {
         // Capture the invoking control before autofocus moves focus into the
         // input, so closing the palette can hand focus back to it.
-        invoker = document.activeElement as HTMLElement | null;
-        if (local.autoFocus !== false && inputEl) {
-            inputEl.focus();
-            inputEl.select();
+        invokerRef.current = document.activeElement as HTMLElement | null;
+        if (local.autoFocus !== false && inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
         }
-    });
-    onCleanup(() => {
-        if (
-            invoker &&
-            invoker !== inputEl &&
-            invoker.isConnected &&
-            typeof invoker.focus === "function"
-        )
-            invoker.focus();
-    });
-
+    }, [local.autoFocus]);
+    useLayoutEffect(
+        () => () => {
+            const invoker = invokerRef.current;
+            if (invoker && invoker !== inputRef.current && invoker.isConnected) invoker.focus();
+        },
+        [],
+    );
     // 229 is the legacy IME "processing" keyCode some engines still report when
     // `isComposing` is not yet set on the keydown that starts a composition.
-    const isComposing = (event: KeyboardEvent) =>
-        composing() || event.isComposing || event.keyCode === 229;
-
+    const isComposing = (event: ReactKeyboardEvent) =>
+        composingRef.current || event.nativeEvent.isComposing || event.keyCode === 229;
     return (
         <div
             {...rest}
             aria-label={label()}
             aria-modal="true"
-            class={["happy2-command-palette", local.class].filter(Boolean).join(" ")}
+            className={["happy2-command-palette", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="command-palette"
             onKeyDown={(event) => {
                 if (event.key === "Escape" && !isComposing(event)) {
@@ -94,20 +94,24 @@ export function CommandPalette(props: CommandPaletteProps) {
             role="dialog"
             style={local.style}
         >
-            <div class="happy2-command-palette__header" data-happy2-ui="command-palette-header">
+            <div className="happy2-command-palette__header" data-happy2-ui="command-palette-header">
                 <span
                     aria-hidden="true"
-                    class="happy2-command-palette__icon"
+                    className="happy2-command-palette__icon"
                     data-happy2-ui="command-palette-icon"
                 >
                     <Icon name="search" size={18} />
                 </span>
                 <input
                     aria-label={label()}
-                    class="happy2-command-palette__input"
+                    className="happy2-command-palette__input"
                     data-happy2-ui="command-palette-input"
-                    onCompositionEnd={() => setComposing(false)}
-                    onCompositionStart={() => setComposing(true)}
+                    onCompositionEnd={() => {
+                        composingRef.current = false;
+                    }}
+                    onCompositionStart={() => {
+                        composingRef.current = true;
+                    }}
                     onInput={(event) => {
                         // Single commit path. Intermediate composition input events
                         // are held back on either signal: the local composition flag
@@ -116,20 +120,18 @@ export function CommandPalette(props: CommandPaletteProps) {
                         // `compositionend` clears the flag before the browser's
                         // trailing input (isComposing === false), so that one event is
                         // the sole commit — a value is never emitted twice.
-                        if (composing() || event.isComposing) return;
+                        if (composingRef.current || event.nativeEvent.isComposing) return;
                         local.onQueryChange(event.currentTarget.value);
                     }}
                     placeholder={label()}
-                    ref={(element) => {
-                        inputEl = element;
-                    }}
+                    ref={inputRef}
                     type="text"
                     value={local.query}
                 />
-                <KeyCap class="happy2-command-palette__hint" keys="ESC" />
+                <KeyCap className="happy2-command-palette__hint" keys="ESC" />
                 <Button
                     aria-label={local.closeLabel ?? "Close"}
-                    class="happy2-command-palette__close"
+                    className="happy2-command-palette__close"
                     icon="close"
                     iconOnly
                     onClick={() => local.onClose()}
@@ -137,7 +139,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                     variant="ghost"
                 />
             </div>
-            <div class="happy2-command-palette__body" data-happy2-ui="command-palette-body">
+            <div className="happy2-command-palette__body" data-happy2-ui="command-palette-body">
                 {local.children}
             </div>
         </div>

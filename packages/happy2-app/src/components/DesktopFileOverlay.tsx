@@ -1,44 +1,47 @@
+import { useReducer } from "react";
 import { Banner, FileAttachment, Modal, ModalOverlay, StoreSurface } from "happy2-ui";
 import type { HappyState } from "happy2-state";
-import { createSignal, Show } from "solid-js";
-
 export interface DesktopFileOverlayProps {
     fileId: string;
     state: HappyState;
     onClose: () => void;
 }
-
 /** Hosts one route-addressable file card over the still-mounted primary surface. */
 export function DesktopFileOverlay(props: DesktopFileOverlayProps) {
     const store = props.state.files();
-    const [downloading, setDownloading] = createSignal(false);
-    const [downloadError, setDownloadError] = createSignal<string>();
+    const [downloadState, updateDownload] = useReducer(
+        (
+            current: { downloading: boolean; error?: string },
+            patch: Partial<{ downloading: boolean; error?: string }>,
+        ) => ({ ...current, ...patch }),
+        { downloading: false },
+    );
+    const { downloading, error: downloadError } = downloadState;
     const download = async () => {
-        if (downloading()) return;
-        setDownloading(true);
-        setDownloadError(undefined);
+        if (downloading) return;
+        updateDownload({ downloading: true, error: undefined });
         try {
-            const file = store.get().files.find((candidate) => candidate.id === props.fileId);
+            const file = store.getState().files.find((candidate) => candidate.id === props.fileId);
             const bytes = await props.state.fileDownload(props.fileId);
             const url = URL.createObjectURL(new Blob([bytes], { type: file?.contentType }));
             const anchor = document.createElement("a");
             anchor.href = url;
             anchor.download = file?.originalName ?? "download";
             anchor.click();
-            setTimeout(() => URL.revokeObjectURL(url), 1_000);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
         } catch (error) {
-            setDownloadError(
-                error instanceof Error ? error.message : "The file could not be downloaded.",
-            );
+            updateDownload({
+                error: error instanceof Error ? error.message : "The file could not be downloaded.",
+            });
         } finally {
-            setDownloading(false);
+            updateDownload({ downloading: false });
         }
     };
     return (
         <StoreSurface store={store}>
             {(snapshot) => {
                 const file = () =>
-                    snapshot().files.find((candidate) => candidate.id === props.fileId);
+                    snapshot.files.find((candidate) => candidate.id === props.fileId);
                 return (
                     <ModalOverlay onDismiss={props.onClose}>
                         <Modal
@@ -47,14 +50,14 @@ export function DesktopFileOverlay(props: DesktopFileOverlayProps) {
                             size="large"
                             title={file()?.originalName ?? "File"}
                         >
-                            <Show when={downloadError()}>
+                            {downloadError ? (
                                 <Banner tone="danger" title="Download failed">
-                                    {downloadError()}
+                                    {downloadError}
                                 </Banner>
-                            </Show>
-                            <Show when={downloading()}>
+                            ) : null}
+                            {downloading ? (
                                 <Banner tone="info">Downloading the original file…</Banner>
-                            </Show>
+                            ) : null}
                             <FileAttachment
                                 kind={file()?.kind ?? "file"}
                                 name={file()?.originalName ?? props.fileId}
@@ -69,7 +72,6 @@ export function DesktopFileOverlay(props: DesktopFileOverlayProps) {
         </StoreSurface>
     );
 }
-
 function formatBytes(size: number): string {
     if (size < 1024) return `${size} B`;
     if (size < 1024 * 1024) return `${Math.round(size / 102.4) / 10} KB`;

@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@solidjs/testing-library";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { happyStateCreate, type HappyState } from "happy2-state";
 import { ServerOnboarding } from "./ServerOnboarding";
@@ -122,9 +122,9 @@ function routedFetch(routes: Record<string, Handler>) {
 
 function mount(state: HappyState, onComplete = vi.fn()) {
     const navigation = desktopNavigationCreate();
-    const screen = render(() => (
-        <ServerOnboarding navigation={navigation} onComplete={onComplete} state={state} />
-    ));
+    const screen = render(
+        <ServerOnboarding navigation={navigation} onComplete={onComplete} state={state} />,
+    );
     return { navigation, screen, onComplete };
 }
 
@@ -318,9 +318,9 @@ describe("ServerOnboarding", () => {
                 transport: createAuthenticatedTransport("http://server", "t"),
             });
             const navigation = desktopNavigationCreate();
-            const { unmount } = render(() => (
-                <ServerOnboarding navigation={navigation} onComplete={vi.fn()} state={state} />
-            ));
+            const { unmount } = render(
+                <ServerOnboarding navigation={navigation} onComplete={vi.fn()} state={state} />,
+            );
             const probes = () =>
                 fetchMock.mock.calls.filter(
                     ([url]) => new URL(url as string).pathname === "/v0/setup/sandboxProviders",

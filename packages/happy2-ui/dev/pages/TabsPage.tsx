@@ -1,7 +1,6 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { type TabItem, Tabs, type TabsSize } from "../../src/Tabs";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const inboxTabs: TabItem[] = [
     { id: "all", label: "All", icon: "inbox" },
     { id: "unread", label: "Unread", badge: 3 },
@@ -9,14 +8,12 @@ const inboxTabs: TabItem[] = [
     { id: "threads", label: "Threads", icon: "thread" },
     { id: "reactions", label: "Reactions" },
 ];
-
 const adminTabs: TabItem[] = [
     { id: "members", label: "Members", badge: 128 },
     { id: "bans", label: "Bans", badge: 4 },
     { id: "audit", label: "Audit log" },
     { id: "backups", label: "Backups" },
 ];
-
 function Bar(props: { active: string; size?: TabsSize; tabs: TabItem[]; width?: number }) {
     return (
         <div style={{ width: `${props.width ?? 560}px` }}>
@@ -24,16 +21,14 @@ function Bar(props: { active: string; size?: TabsSize; tabs: TabItem[]; width?: 
         </div>
     );
 }
-
-function Stack(props: { children: JSX.Element; rule: string }) {
+function Stack(props: { children: ReactNode; rule: string }) {
     return (
-        <div style={{ display: "flex", "flex-direction": "column", gap: "12px", padding: "24px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "24px" }}>
             {props.children}
             <DimensionRule label={props.rule} />
         </div>
     );
 }
-
 export function TabsPage() {
     return (
         <ComponentPage
@@ -41,7 +36,7 @@ export function TabsPage() {
             summary="Horizontal tab bar on a bottom hairline — leading icons, trailing count badges, and a 2px accent underline on the active tab. Three contract heights."
             title="Tabs"
         >
-            <div class="specimen-grid specimen-grid--sizes">
+            <div className="specimen-grid specimen-grid--sizes">
                 <Specimen detail="32px high · 12px label" label="Small" number="T-01" stage="app">
                     <Stack rule="height 32 · pad 0 12 · gap 6">
                         <Bar active="unread" size="small" tabs={inboxTabs} width={520} />
@@ -59,7 +54,7 @@ export function TabsPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="leading icon · trailing CountBadge · plain label"
                     label="Tab content"
@@ -72,7 +67,7 @@ export function TabsPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="active underline sweeps · 2px accent overlapping the hairline"
                     label="Active states"
@@ -82,7 +77,7 @@ export function TabsPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-direction": "column",
+                            flexDirection: "column",
                             gap: "20px",
                             padding: "24px",
                         }}
@@ -95,7 +90,7 @@ export function TabsPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="2–5 tabs · count badges 4 / 12 / 128 · accent when active"
                     label="Counts and arity"
@@ -105,7 +100,7 @@ export function TabsPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-direction": "column",
+                            flexDirection: "column",
                             gap: "20px",
                             padding: "24px",
                         }}

@@ -134,7 +134,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
                         onMenuSelect: onPrimarySelect,
                     }}
                 />
-                <div style={{ "padding-left": "0px", height: "100%" }}>
+                <div style={{ paddingLeft: "0px", height: "100%" }}>
                     <Rail
                         activeItemId="agents"
                         data-testid="rail-m"
@@ -157,7 +157,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
                             data-testid="custom-brand"
                             style={{
                                 background: "#38bdf8",
-                                "border-radius": "10px",
+                                borderRadius: "10px",
                                 display: "block",
                                 height: "34px",
                                 width: "34px",
@@ -168,7 +168,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
                     items={items.slice(0, 2)}
                     onItemSelect={() => {}}
                 />
-                <div style={{ "padding-left": "0px", height: "100%" }}>
+                <div style={{ paddingLeft: "0px", height: "100%" }}>
                     <Rail
                         activeItemId="inbox"
                         data-testid="rail-brand"
@@ -182,7 +182,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     );
     view.render(
         () => (
-            <div style={{ "padding-left": "0px", height: "100%" }}>
+            <div style={{ paddingLeft: "0px", height: "100%" }}>
                 <Rail
                     activeItemId="files"
                     data-testid="rail-badges"
@@ -491,14 +491,17 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     expect(onFooterSelect).toHaveBeenCalledTimes(1);
 
     (primary.element as HTMLButtonElement).click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     expect(primary.element.getAttribute("aria-expanded")).toBe("true");
     const createAgent = view.$(
         '[data-testid="rail-main"] [data-happy2-ui="rail-primary-popover"] [data-item-id="agent"]',
     );
     (createAgent.element as HTMLButtonElement).click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     expect(onPrimarySelect).toHaveBeenCalledWith("agent");
     expect(primary.element.getAttribute("aria-expanded")).toBe("false");
     (primary.element as HTMLButtonElement).click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     const reopenedCreateAgent = view.$(
         '[data-testid="rail-main"] [data-happy2-ui="rail-primary-popover"] [data-item-id="agent"]',
     );
@@ -506,10 +509,13 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     reopenedCreateAgent.element.dispatchEvent(
         new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
     );
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     expect(primary.element.getAttribute("aria-expanded")).toBe("false");
     expect(document.activeElement).toBe(primary.element);
     (primary.element as HTMLButtonElement).click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     (chat.element as HTMLButtonElement).focus();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     expect(primary.element.getAttribute("aria-expanded")).toBe("false");
 
     /* ---- Selection callback -------------------------------------------------- */

@@ -3,7 +3,6 @@ import { Box } from "../../src/Box";
 import { Button } from "../../src/Button";
 import { FormRow } from "../../src/FormRow";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 export function FormRowPage() {
     return (
         <ComponentPage
@@ -11,7 +10,7 @@ export function FormRowPage() {
             summary="Settings row: label + optional muted description on the left, a trailing control slot, inline or stacked, with a hairline divider so rows tile into a list."
             title="Form row"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="inline · label + description · 16px vertical padding"
                     label="Inline"
@@ -56,7 +55,7 @@ export function FormRowPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="stacked · control drops below the text at 12px gap"
                     label="Stacked"
@@ -102,7 +101,7 @@ export function FormRowPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="rows tile into a settings list — one hairline between each"
                     label="Settings list"
@@ -129,7 +128,7 @@ export function FormRowPage() {
                                 <Box
                                     height={24}
                                     style={{
-                                        "border-radius": "var(--happy2-radius-sm)",
+                                        borderRadius: "var(--happy2-radius-sm)",
                                         background: "var(--happy2-brand-gradient)",
                                     }}
                                     width={24}

@@ -137,11 +137,9 @@ function overlayQueryParse(
 ): DesktopOverlayRoute | undefined {
     const kind = search.get("overlay");
     if (kind === "search") return { kind: "search", query: search.get("q") ?? "" };
-    if (kind === "command") return { kind: "command" };
     if (kind === "profile" && search.get("profile"))
         return { kind: "profile", userId: search.get("profile")! };
     if (kind === "file" && search.get("file")) return { kind: "file", fileId: search.get("file")! };
-    if (kind === "modal" && search.get("modal")) return { kind: "modal", id: search.get("modal")! };
     if (
         kind === "workspace-file" &&
         primary.kind === "conversation" &&

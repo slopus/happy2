@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { createFakeServer, jsonResponse } from "../../testing/index.js";
 import { message } from "../../../tests/fixtures.js";
-import { IdentityCatalog } from "../identity/identityCatalog.js";
-import { StateRuntime } from "../runtime/stateRuntime.js";
-import { threadsLoad } from "./threadsLoad.js";
-import { threadsOutputRoute } from "./threadsOutputRoute.js";
-import { threadsStoreCreateBinding } from "./threadsStore.js";
+import { IdentityCatalog } from "../identity/identityState.js";
+import { StateRuntime } from "../runtime/runtimeState.js";
+import { threadsLoad } from "./threadsState.js";
+import { threadsOutputRoute } from "./threadsState.js";
+import { threadsStoreCreate } from "./threadsState.js";
 
 describe("threads module", () => {
     it("projects roots, emits list actions, and stores mutation failures", async () => {
@@ -39,51 +39,46 @@ describe("threads module", () => {
         );
         const runtime = new StateRuntime({ transport: server.transport, retry: { attempts: 1 } });
         const identities = new IdentityCatalog();
-        let binding: ReturnType<typeof threadsStoreCreateBinding>;
+        let binding: ReturnType<typeof threadsStoreCreate>;
         const routed: Promise<void>[] = [];
-        binding = threadsStoreCreateBinding((event) =>
+        binding = threadsStoreCreate((event) =>
             routed.push(threadsOutputRoute({ runtime, identities, threads: binding }, event)),
         );
         await threadsLoad({ runtime, identities, threads: binding });
-        expect(binding.store.get().threads).toMatchObject({
+        expect(binding.getState().threads).toMatchObject({
             type: "ready",
             value: [{ root: { sender: { displayName: "Ada" } } }],
         });
-        binding.store.threadsMore();
-        binding.store.threadReadMark(root.id);
+        binding.getState().threadsMore();
+        binding.getState().threadReadMark(root.id);
         await Promise.all(routed);
-        expect(binding.store.get().actionError).toBeTruthy();
+        expect(binding.getState().actionError).toBeTruthy();
         runtime.stop();
-        binding.dispose();
     });
 
     it("emits subscription intent explicitly", () => {
         const output = vi.fn();
-        const binding = threadsStoreCreateBinding(output);
-        binding.store.threadSubscriptionSet("message-1", true, "mentions");
+        const binding = threadsStoreCreate(output);
+        binding.getState().threadSubscriptionSet("message-1", true, "mentions");
         expect(output).toHaveBeenCalledWith({
             type: "threadSubscriptionSubmitted",
             rootMessageId: "message-1",
             subscribed: true,
             notificationLevel: "mentions",
         });
-        binding.dispose();
-        binding.store.threadSubscriptionSet("ignored", false);
-        expect(output).toHaveBeenCalledTimes(1);
     });
 
     it("does not request pagination while a refresh owns the list", () => {
         const output = vi.fn();
-        const binding = threadsStoreCreateBinding(output);
-        binding.threadsInput({
+        const binding = threadsStoreCreate(output);
+        binding.getState().threadsInput({
             type: "threadsLoaded",
             threads: [],
             nextCursor: "cursor",
         });
-        binding.threadsInput({ type: "threadsLoading" });
-        binding.store.threadsMore();
+        binding.getState().threadsInput({ type: "threadsLoading" });
+        binding.getState().threadsMore();
         expect(output).not.toHaveBeenCalled();
-        binding.dispose();
     });
 
     it("surfaces internal load failures in the store without rejecting background work", async () => {
@@ -94,15 +89,14 @@ describe("threads module", () => {
             retry: { attempts: 1 },
         });
         const identities = new IdentityCatalog();
-        const binding = threadsStoreCreateBinding();
+        const binding = threadsStoreCreate();
         await expect(
             threadsLoad({ runtime, identities, threads: binding }),
         ).resolves.toBeUndefined();
-        expect(binding.store.get().threads).toMatchObject({
+        expect(binding.getState().threads).toMatchObject({
             type: "error",
             error: { message: "offline" },
         });
         runtime.stop();
-        binding.dispose();
     });
 });

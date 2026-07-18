@@ -1,28 +1,41 @@
+import { RouterProvider } from "@tanstack/react-router";
+import { useLayoutEffect, useReducer } from "react";
 import { happyStateCreate } from "happy2-state";
-import { onCleanup } from "solid-js";
 import { AuthGate, type AuthSession } from "./components/AuthGate";
 import { DesktopApp } from "./components/DesktopApp";
 import { OnboardingBoundary } from "./components/OnboardingBoundary";
 import { desktopNavigationCreate } from "./navigation/desktopNavigationCreate";
 import type { DesktopNavigation } from "./navigation/desktopRouteTypes";
-
 export interface AppProps {
     navigation?: DesktopNavigation;
     platform?: "desktop" | "web";
     serverUrl?: string;
 }
-
 /** Owns host authentication plus the process-local state and navigation boundaries. */
 export function App(props: AppProps) {
-    const staticState = props.serverUrl ? undefined : happyStateCreate();
-    const ownedNavigation = props.navigation ? undefined : desktopNavigationCreate();
-    const navigation = props.navigation ?? ownedNavigation!;
-    onCleanup(() => {
-        staticState?.[Symbol.dispose]();
-        ownedNavigation?.[Symbol.dispose]();
-    });
+    const [resources] = useReducer(
+        (value: {
+            state?: ReturnType<typeof happyStateCreate>;
+            navigation: DesktopNavigation;
+            ownsNavigation: boolean;
+        }) => value,
+        undefined,
+        () => ({
+            state: props.serverUrl ? undefined : happyStateCreate(),
+            navigation: props.navigation ?? desktopNavigationCreate(),
+            ownsNavigation: !props.navigation,
+        }),
+    );
+    const navigation = resources.navigation;
+    useLayoutEffect(() => {
+        const { state, navigation, ownsNavigation } = resources;
+        return () => {
+            state?.[Symbol.dispose]();
+            if (ownsNavigation) navigation[Symbol.dispose]();
+        };
+    }, [resources]);
     const desktop = props.platform === "desktop";
-    return props.serverUrl ? (
+    const content = props.serverUrl ? (
         <AuthGate
             navigation={navigation}
             serverUrl={props.serverUrl}
@@ -44,6 +57,7 @@ export function App(props: AppProps) {
             )}
         </AuthGate>
     ) : (
-        <DesktopApp navigation={navigation} platform={props.platform} state={staticState!} />
+        <DesktopApp navigation={navigation} platform={props.platform} state={resources.state!} />
     );
+    return <RouterProvider context={{ content }} router={navigation.router} />;
 }

@@ -1,18 +1,16 @@
-import { createSignal } from "solid-js";
+import { useState } from "react";
 import {
     ApprovalCard,
     type ApprovalRequest,
     type ApprovalResolution,
 } from "../../src/ApprovalCard";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const column: Record<string, string> = {
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     gap: "14px",
     width: "680px",
 };
-
 const request: ApprovalRequest = {
     action: "edit config/releases/onboarding.json",
     agent: "Codex",
@@ -24,7 +22,6 @@ const request: ApprovalRequest = {
     tone: "mint",
     typeLabel: "PERMISSION",
 };
-
 const deleteRequest: ApprovalRequest = {
     action: "rm -rf .cache/render && pnpm run rebuild",
     agent: "Claude",
@@ -36,13 +33,10 @@ const deleteRequest: ApprovalRequest = {
     tone: "ember",
     typeLabel: "DESTRUCTIVE",
 };
-
 const noop = () => {};
-
 export function ApprovalCardPage() {
-    const [expanded, setExpanded] = createSignal(false);
-    const [resolution, setResolution] = createSignal<ApprovalResolution>("pending");
-
+    const [expanded, setExpanded] = useState(false);
+    const [resolution, setResolution] = useState<ApprovalResolution>("pending");
     return (
         <ComponentPage
             number="C-014"
@@ -127,11 +121,11 @@ export function ApprovalCardPage() {
             >
                 <div style={column}>
                     <ApprovalCard
-                        expanded={expanded()}
+                        expanded={expanded}
                         onExpandedChange={setExpanded}
                         onResolutionChange={setResolution}
                         request={deleteRequest}
-                        resolution={resolution()}
+                        resolution={resolution}
                     />
                 </div>
             </Specimen>

@@ -1,12 +1,10 @@
-import { Show, splitProps } from "solid-js";
+import { splitProps } from "./reactProps";
 import { Badge, type BadgeVariant } from "./Badge";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
-
 export type BuildProgressStatus = "pending" | "building" | "ready" | "failed";
-
 export type BuildProgressPanelProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
     title: string;
     status: BuildProgressStatus;
@@ -19,16 +17,17 @@ export type BuildProgressPanelProps = {
     retrying?: boolean;
     onRetry?: () => void;
 };
-
-type StatusBadge = { variant: BadgeVariant; label: string; icon?: IconName };
-
+type StatusBadge = {
+    variant: BadgeVariant;
+    label: string;
+    icon?: IconName;
+};
 const statusBadges: Record<BuildProgressStatus, StatusBadge> = {
     pending: { variant: "neutral", label: "QUEUED" },
     building: { variant: "info", label: "BUILDING" },
     ready: { variant: "success", label: "READY", icon: "check-circle" },
     failed: { variant: "danger", label: "FAILED" },
 };
-
 /**
  * C-063 BuildProgressPanel — onboarding-sized live view of one durable agent
  * base-image build. Shows the phase badge, a deterministic progress bar, the
@@ -41,7 +40,7 @@ const statusBadges: Record<BuildProgressStatus, StatusBadge> = {
  */
 export function BuildProgressPanel(props: BuildProgressPanelProps) {
     const [local] = splitProps(props, [
-        "class",
+        "className",
         "data-testid",
         "title",
         "status",
@@ -54,115 +53,122 @@ export function BuildProgressPanel(props: BuildProgressPanelProps) {
         "retrying",
         "onRetry",
     ]);
-
     const clamped = () => Math.max(0, Math.min(100, local.progress));
     const pct = () => Math.round(clamped());
     const fillPct = () => (local.status === "ready" ? 100 : pct());
     const badge = () => statusBadges[local.status];
-
     return (
         <div
-            class={["happy2-build-progress", local.class].filter(Boolean).join(" ")}
+            className={["happy2-build-progress", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="build-progress"
             data-status={local.status}
             data-testid={local["data-testid"]}
         >
-            <div class="happy2-build-progress__header" data-happy2-ui="build-progress-header">
-                <span class="happy2-build-progress__title" data-happy2-ui="build-progress-title">
+            <div className="happy2-build-progress__header" data-happy2-ui="build-progress-header">
+                <span
+                    className="happy2-build-progress__title"
+                    data-happy2-ui="build-progress-title"
+                >
                     {local.title}
                 </span>
                 <Badge
-                    class="happy2-build-progress__badge"
+                    className="happy2-build-progress__badge"
                     icon={badge().icon}
                     label={badge().label}
                     variant={badge().variant}
                 />
             </div>
 
-            <div class="happy2-build-progress__track" data-happy2-ui="build-progress-track">
+            <div className="happy2-build-progress__track" data-happy2-ui="build-progress-track">
                 <div
-                    class="happy2-build-progress__fill"
+                    className="happy2-build-progress__fill"
                     data-happy2-ui="build-progress-fill"
                     style={{ width: `${fillPct()}%` }}
                 />
             </div>
 
             <div
-                class="happy2-build-progress__status-line"
+                className="happy2-build-progress__status-line"
                 data-happy2-ui="build-progress-status-line"
             >
                 <span
-                    class="happy2-build-progress__status-label"
+                    className="happy2-build-progress__status-label"
                     data-happy2-ui="build-progress-status-label"
                 >
                     {local.statusLabel}
                 </span>
                 <span
-                    class="happy2-build-progress__percent"
+                    className="happy2-build-progress__percent"
                     data-happy2-ui="build-progress-percent"
                 >
                     {pct()}%
                 </span>
             </div>
 
-            <Show when={local.currentLogLine && local.status !== "ready"}>
-                <div class="happy2-build-progress__current" data-happy2-ui="build-progress-current">
+            {local.currentLogLine && local.status !== "ready" ? (
+                <div
+                    className="happy2-build-progress__current"
+                    data-happy2-ui="build-progress-current"
+                >
                     <span
-                        class="happy2-build-progress__current-icon"
+                        className="happy2-build-progress__current-icon"
                         data-happy2-ui="build-progress-current-icon"
                     >
                         <Icon name="terminal" size={12} />
                     </span>
                     <span
-                        class="happy2-build-progress__current-text"
+                        className="happy2-build-progress__current-text"
                         data-happy2-ui="build-progress-current-text"
                     >
                         {local.currentLogLine}
                     </span>
                 </div>
-            </Show>
+            ) : null}
 
-            <Show when={local.log}>
-                {(log) => (
-                    <div
-                        class="happy2-build-progress__log-block"
-                        data-happy2-ui="build-progress-log-block"
-                    >
-                        <Show when={local.logTruncated}>
-                            <span
-                                class="happy2-build-progress__truncated"
-                                data-happy2-ui="build-progress-truncated"
-                            >
-                                Earlier log truncated
-                            </span>
-                        </Show>
-                        <pre class="happy2-build-progress__log" data-happy2-ui="build-progress-log">
-                            {log()}
-                        </pre>
-                    </div>
-                )}
-            </Show>
+            {local.log
+                ? ((log) => (
+                      <div
+                          className="happy2-build-progress__log-block"
+                          data-happy2-ui="build-progress-log-block"
+                      >
+                          {local.logTruncated ? (
+                              <span
+                                  className="happy2-build-progress__truncated"
+                                  data-happy2-ui="build-progress-truncated"
+                              >
+                                  Earlier log truncated
+                              </span>
+                          ) : null}
+                          <pre
+                              className="happy2-build-progress__log"
+                              data-happy2-ui="build-progress-log"
+                          >
+                              {log}
+                          </pre>
+                      </div>
+                  ))(local.log)
+                : null}
 
-            <Show when={local.status === "failed"}>
-                <div class="happy2-build-progress__error" data-happy2-ui="build-progress-error">
-                    <Show when={local.error}>
+            {local.status === "failed" ? (
+                <div className="happy2-build-progress__error" data-happy2-ui="build-progress-error">
+                    {local.error ? (
                         <span
-                            class="happy2-build-progress__error-text"
+                            className="happy2-build-progress__error-text"
                             data-happy2-ui="build-progress-error-text"
                         >
                             {local.error}
                         </span>
-                    </Show>
+                    ) : null}
                     <div
-                        class="happy2-build-progress__actions"
+                        className="happy2-build-progress__actions"
                         data-happy2-ui="build-progress-actions"
                     >
-                        <Show when={local.retrying}>
+                        {local.retrying ? (
                             <span
-                                class="happy2-build-progress__spinner"
+                                className="happy2-build-progress__spinner"
                                 data-happy2-ui="build-progress-spinner"
                             />
-                        </Show>
+                        ) : null}
                         <Button
                             disabled={local.retrying}
                             onClick={() => local.onRetry?.()}
@@ -173,7 +179,7 @@ export function BuildProgressPanel(props: BuildProgressPanelProps) {
                         </Button>
                     </div>
                 </div>
-            </Show>
+            ) : null}
         </div>
     );
 }

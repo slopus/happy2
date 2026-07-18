@@ -45,11 +45,9 @@ export type DesktopPanelRoute =
 
 export type DesktopOverlayRoute =
     | { readonly kind: "search"; readonly query: string }
-    | { readonly kind: "command" }
     | { readonly kind: "profile"; readonly userId: string }
     | { readonly kind: "file"; readonly fileId: string }
-    | { readonly kind: "workspace-file"; readonly chatId: string; readonly path: string }
-    | { readonly kind: "modal"; readonly id: string };
+    | { readonly kind: "workspace-file"; readonly chatId: string; readonly path: string };
 
 export interface DesktopRoute {
     readonly primary: DesktopPrimaryRoute;
@@ -65,15 +63,14 @@ export type DesktopRouteLayer = "panel" | "overlay";
 
 export interface DesktopNavigateOptions {
     readonly replace?: boolean;
-    readonly layer?: DesktopRouteLayer;
-    /** Updates in-memory navigation immediately while coalescing transient URL writes. */
-    readonly transient?: boolean;
 }
 
 export interface DesktopNavigation {
+    readonly router: DesktopRouter;
     get(): DesktopRoute;
     subscribe(listener: (route: DesktopRoute) => void): () => void;
     navigate(route: DesktopRoute, options?: DesktopNavigateOptions): void;
     close(layer: DesktopRouteLayer): void;
     [Symbol.dispose](): void;
 }
+import type { DesktopRouter } from "./desktopRouter";

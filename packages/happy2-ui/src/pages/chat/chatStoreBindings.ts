@@ -1,46 +1,33 @@
-import { createSignal, onCleanup, type Accessor } from "solid-js";
-import type { DeepReadonly, DirectoryStore, ReadonlyStore, SidebarStore } from "happy2-state";
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { DirectorySnapshot, SidebarSnapshot } from "happy2-state";
+import type { StoreApi } from "zustand/vanilla";
 
-export function createDynamicSnapshot<Snapshot>(): {
-    snapshot: Accessor<DeepReadonly<Snapshot> | undefined>;
-    follow: (store?: ReadonlyStore<Snapshot>) => void;
-} {
-    const [snapshot, setSnapshot] = createSignal<DeepReadonly<Snapshot>>();
-    let unsubscribe: (() => void) | undefined;
-    const clear = () => {
-        unsubscribe?.();
-        unsubscribe = undefined;
-        setSnapshot(undefined);
-    };
-    const follow = (store?: ReadonlyStore<Snapshot>) => {
-        clear();
-        if (!store) return;
-        setSnapshot(() => store.get());
-        unsubscribe = store.subscribe(() => setSnapshot(() => store.get()));
-    };
-    onCleanup(clear);
-    return { snapshot, follow };
+const emptySubscribe = () => () => undefined;
+const emptySnapshot = () => undefined;
+
+export function useOptionalStoreSnapshot<Snapshot extends object>(
+    store?: StoreApi<Snapshot>,
+): Snapshot | undefined {
+    return useSyncExternalStore(
+        store?.subscribe ?? emptySubscribe,
+        store ? store.getState : emptySnapshot,
+        store ? store.getInitialState : emptySnapshot,
+    );
 }
 
-export function createStoreSnapshot<Snapshot>(
-    store: ReadonlyStore<Snapshot>,
-): Accessor<DeepReadonly<Snapshot>> {
-    const [snapshot, setSnapshot] = createSignal(store.get(), { equals: false });
-    onCleanup(store.subscribe(() => setSnapshot(() => store.get())));
-    return snapshot;
+export function useStoreSnapshot<Snapshot extends object>(store: StoreApi<Snapshot>): Snapshot {
+    return useSyncExternalStore(store.subscribe, store.getState, store.getInitialState);
 }
 
-export function createAvatarImages(actions: {
-    fileDownload(fileId: string): Promise<ArrayBuffer>;
-}) {
-    const [urls, setUrls] = createSignal<Record<string, string>>({});
-    const requested = new Set<string>();
-    const owned = new Set<string>();
-    let disposed = false;
+export function useAvatarImages(actions: { fileDownload(fileId: string): Promise<ArrayBuffer> }) {
+    const [urls, setUrls] = useState<Record<string, string>>({});
+    const [requested] = useState(() => new Set<string>());
+    const [owned] = useState(() => new Set<string>());
+    const disposed = useRef(false);
     async function load(fileId: string) {
         try {
             const contents = await actions.fileDownload(fileId);
-            if (disposed) return;
+            if (disposed.current) return;
             const url = URL.createObjectURL(new Blob([contents]));
             owned.add(url);
             setUrls((current) => ({ ...current, [fileId]: url }));
@@ -48,10 +35,13 @@ export function createAvatarImages(actions: {
             // An avatar is optional; the initials remain visible on failure.
         }
     }
-    onCleanup(() => {
-        disposed = true;
-        for (const url of owned) URL.revokeObjectURL(url);
-    });
+    useLayoutEffect(() => {
+        disposed.current = false;
+        return () => {
+            disposed.current = true;
+            for (const url of owned) URL.revokeObjectURL(url);
+        };
+    }, [owned]);
     return {
         imageUrl(fileId?: string) {
             if (!fileId) return undefined;
@@ -59,15 +49,17 @@ export function createAvatarImages(actions: {
                 requested.add(fileId);
                 queueMicrotask(() => void load(fileId));
             }
-            return urls()[fileId];
+            return urls[fileId];
         },
     };
 }
-
 export function createAvatarProjection(options: {
-    user: Accessor<{ id: string; photoFileId?: string }>;
-    sidebarSnapshot: Accessor<ReturnType<SidebarStore["get"]>>;
-    directorySnapshot: Accessor<ReturnType<DirectoryStore["get"]>>;
+    user: () => {
+        id: string;
+        photoFileId?: string;
+    };
+    sidebarSnapshot: () => SidebarSnapshot;
+    directorySnapshot: () => DirectorySnapshot;
     imageUrl(fileId?: string): string | undefined;
 }) {
     const photoFiles = () => {

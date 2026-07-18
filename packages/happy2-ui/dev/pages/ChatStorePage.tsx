@@ -1,3 +1,4 @@
+import { useLayoutEffect, useState } from "react";
 import type { ChatSummary } from "happy2-state";
 import {
     chatStoreFixtureCreate,
@@ -5,7 +6,6 @@ import {
     directoryStoreFixtureCreate,
     sidebarStoreFixtureCreate,
 } from "happy2-state/testing";
-import { createSignal, onCleanup } from "solid-js";
 import { Avatar } from "../../src/Avatar";
 import {
     ChatPage,
@@ -15,7 +15,6 @@ import {
 import { Rail } from "../../src/Rail";
 import { TitleBar } from "../../src/TitleBar";
 import { ComponentPage, FullScreenSpecimen } from "../kit";
-
 const chat: ChatSummary = {
     id: "chat-blueprint",
     kind: "public_channel",
@@ -43,7 +42,6 @@ const chat: ChatSummary = {
     createdAt: "2026-07-17T12:00:00.000Z",
     updatedAt: "2026-07-17T12:00:00.000Z",
 };
-
 const passiveActions: ChatPageActions = {
     adminOpen: () => undefined,
     chatSelect: () => undefined,
@@ -80,14 +78,45 @@ const passiveActions: ChatPageActions = {
     agentCreate: async () => undefined,
     directMessageCreate: async () => undefined,
 };
-
 export function ChatStorePage() {
-    const sidebar = sidebarStoreFixtureCreate();
-    const directory = directoryStoreFixtureCreate();
-    const chatSurface = chatStoreFixtureCreate(chat.id);
-    const composer = composerStoreFixtureCreate(chat.id);
-    const [search, setSearch] = createSignal("");
-    const [navigation, setNavigation] = createSignal<ChatPageNavigation>({ chatId: chat.id });
+    const [{ sidebar, directory, chatSurface, composer }] = useState(() => {
+        const sidebar = sidebarStoreFixtureCreate();
+        const directory = directoryStoreFixtureCreate();
+        const chatSurface = chatStoreFixtureCreate(chat.id);
+        const composer = composerStoreFixtureCreate(chat.id);
+        directory.input({
+            type: "directoryLoaded",
+            users: [
+                {
+                    id: "user-blueprint",
+                    displayName: "Ada Lovelace",
+                    username: "ada",
+                    kind: "human",
+                    role: "admin",
+                    presence: "online",
+                    availability: "online",
+                    customStatusText: "Designing state surfaces",
+                },
+            ],
+            channels: [],
+        });
+        sidebar.input({
+            type: "sidebarLoaded",
+            chats: [
+                {
+                    chat,
+                    id: chat.id,
+                    displayName: chat.name ?? "State architecture",
+                    participants: [],
+                },
+            ],
+            sync: { protocolVersion: 1, generation: "blueprint", sequence: "0" },
+        });
+        chatSurface.input({ type: "chatLoaded", chat, messages: [], hasMoreMessages: false });
+        return { sidebar, directory, chatSurface, composer };
+    });
+    const [search, setSearch] = useState("");
+    const [navigation, setNavigation] = useState<ChatPageNavigation>({ chatId: chat.id });
     const actions: ChatPageActions = {
         ...passiveActions,
         chatSelect: (chatId) => setNavigation({ chatId }),
@@ -108,43 +137,15 @@ export function ChatStorePage() {
         workspaceFileClose: () =>
             setNavigation((value) => ({ ...value, workspaceFilePath: undefined })),
     };
-    onCleanup(() => {
-        sidebar[Symbol.dispose]();
-        directory[Symbol.dispose]();
-        chatSurface[Symbol.dispose]();
-        composer[Symbol.dispose]();
-    });
-
-    directory.input({
-        type: "directoryLoaded",
-        users: [
-            {
-                id: "user-blueprint",
-                displayName: "Ada Lovelace",
-                username: "ada",
-                kind: "human",
-                role: "admin",
-                presence: "online",
-                availability: "online",
-                customStatusText: "Designing state surfaces",
-            },
-        ],
-        channels: [],
-    });
-    sidebar.input({
-        type: "sidebarLoaded",
-        chats: [
-            {
-                chat,
-                id: chat.id,
-                displayName: chat.name ?? "State architecture",
-                participants: [],
-            },
-        ],
-        sync: { protocolVersion: 1, generation: "blueprint", sequence: "0" },
-    });
-    chatSurface.input({ type: "chatLoaded", chat, messages: [], hasMoreMessages: false });
-
+    useLayoutEffect(
+        () => () => {
+            sidebar[Symbol.dispose]();
+            directory[Symbol.dispose]();
+            chatSurface[Symbol.dispose]();
+            composer[Symbol.dispose]();
+        },
+        [sidebar, directory, chatSurface, composer],
+    );
     return (
         <ComponentPage
             contract="Surface store"
@@ -162,7 +163,7 @@ export function ChatStorePage() {
                     chat={chatSurface.store}
                     composer={composer}
                     directory={directory.store}
-                    navigation={navigation()}
+                    navigation={navigation}
                     rail={
                         <Rail
                             activeItemId="chat"
@@ -181,7 +182,7 @@ export function ChatStorePage() {
                         <TitleBar
                             onSearchChange={setSearch}
                             searchPlaceholder="Search Happy (2)"
-                            searchValue={search()}
+                            searchValue={search}
                             showWindowControls
                         />
                     }

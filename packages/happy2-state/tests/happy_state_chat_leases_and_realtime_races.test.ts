@@ -34,7 +34,7 @@ describe("HappyState chat leases and realtime races", () => {
         releaseState();
         await starting;
         await state.whenIdle();
-        expect(state.sidebar().get().sync?.sequence).toBe("1");
+        expect(state.sidebar().getState().sync?.sequence).toBe("1");
         expect(
             server.requests.filter(({ path }) => path === "/v0/sync/getDifference"),
         ).toHaveLength(1);
@@ -95,7 +95,7 @@ describe("HappyState chat leases and realtime races", () => {
         );
         using state = happyStateCreate({ transport: server.transport });
         await state.syncStart();
-        const first = state.sidebar().get().chats[0];
+        const first = state.sidebar().getState().chats[0];
         expect(first).toMatchObject({
             displayName: "Ada",
             avatarFileId: "avatar-2",
@@ -103,7 +103,7 @@ describe("HappyState chat leases and realtime races", () => {
         });
         server.events.sync({ sequence: "1" });
         await state.whenIdle();
-        const second = state.sidebar().get().chats[0];
+        const second = state.sidebar().getState().chats[0];
         expect(second?.chat.unreadCount).toBe(1);
         expect(second).toMatchObject({ displayName: "Augusta", avatarFileId: "avatar-3" });
         expect(second?.participants[0]).not.toBe(first?.participants[0]);
@@ -123,12 +123,12 @@ describe("HappyState chat leases and realtime races", () => {
         using state = happyStateCreate({ transport: server.transport });
         const handle = state.chatOpen("chat-1");
         await vi.waitFor(() => expect(release).toBeTypeOf("function"));
-        const beforeRelease = handle.get();
+        const beforeRelease = handle.getState();
         handle[Symbol.dispose]();
         release();
         await state.whenIdle();
-        expect(handle.get()).toBe(beforeRelease);
-        expect(handle.get().status.type).toBe("loading");
+        expect(handle.getState()).toBe(beforeRelease);
+        expect(handle.getState().status.type).toBe("loading");
         const reopened = state.chatOpen("chat-1");
         expect(reopened).not.toBe(handle);
         reopened[Symbol.dispose]();
@@ -168,14 +168,14 @@ describe("HappyState chat leases and realtime races", () => {
         using state = happyStateCreate({ transport: server.transport });
         using handle = state.chatOpen("chat-1");
         await state.whenIdle();
-        expect(handle.get().messages[0]?.message.sender).toBe(
-            handle.get().messages[1]?.message.sender,
+        expect(handle.getState().messages[0]?.message.sender).toBe(
+            handle.getState().messages[1]?.message.sender,
         );
-        expect(handle.get().reactionActors).toEqual({});
+        expect(handle.getState().reactionActors).toEqual({});
         expect(server.requests.some(({ path }) => path.endsWith("/members"))).toBe(false);
-        handle.reactionActorsRetain("message-1", "emoji:👍");
+        handle.getState().reactionActorsRetain("message-1", "emoji:👍");
         await state.whenIdle();
-        expect(handle.get().reactionActors["message-1\u0000emoji:👍"]).toMatchObject({
+        expect(handle.getState().reactionActors["message-1\u0000emoji:👍"]).toMatchObject({
             type: "ready",
             value: { actors: [{ id: "user-2", displayName: "Ada" }] },
         });
@@ -216,17 +216,17 @@ describe("HappyState chat leases and realtime races", () => {
         using state = happyStateCreate({ transport: server.transport });
         using handle = state.chatOpen("chat-1");
         await state.whenIdle();
-        expect(handle.get().pins).toEqual({ type: "unloaded" });
+        expect(handle.getState().pins).toEqual({ type: "unloaded" });
         expect(server.requests.some(({ path }) => path.endsWith("/pins"))).toBe(false);
-        handle.pinsRetain();
+        handle.getState().pinsRetain();
         await state.whenIdle();
-        expect(handle.get().pins).toMatchObject({
+        expect(handle.getState().pins).toMatchObject({
             type: "ready",
             value: [{ message: { sender: { id: "user-2", displayName: "Ada" } } }],
         });
-        const pins = handle.get().pins;
+        const pins = handle.getState().pins;
         expect(pins.type === "ready" ? pins.value[0]?.message.sender : undefined).toBe(
-            handle.get().messages[0]?.message.sender,
+            handle.getState().messages[0]?.message.sender,
         );
         await state.messagePin("chat-1", "message-1");
         await state.whenIdle();

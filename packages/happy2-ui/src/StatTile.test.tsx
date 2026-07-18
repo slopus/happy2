@@ -282,7 +282,7 @@ it("holds StatTile tones and content states", async () => {
         () => (
             <div style={{ display: "flex", gap: "16px" }}>
                 {tones.map(([id, tone, icon, label, value]) => (
-                    <div style={{ width: "180px" }}>
+                    <div key={id} style={{ width: "180px" }}>
                         <StatTile
                             data-testid={id}
                             icon={icon}
@@ -298,7 +298,7 @@ it("holds StatTile tones and content states", async () => {
     );
     view.render(
         () => (
-            <div style={{ display: "flex", "align-items": "flex-start", gap: "16px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
                 <div style={{ width: "180px" }}>
                     <StatTile data-testid="st-plain" label="Uptime" value="99.98%" />
                 </div>

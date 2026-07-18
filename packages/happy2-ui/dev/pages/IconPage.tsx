@@ -1,9 +1,6 @@
-import { For } from "solid-js";
 import { Icon, iconNames, type IconName } from "../../src/Icon";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const SIZES = [14, 16, 20] as const;
-
 const OPTICAL_ROW: IconName[] = [
     "home",
     "inbox",
@@ -18,37 +15,38 @@ const OPTICAL_ROW: IconName[] = [
     "send",
     "terminal",
 ];
-
 function GlyphCell(props: { name: IconName }) {
     return (
         <div
             style={{
                 display: "flex",
-                "flex-direction": "column",
-                "align-items": "center",
+                flexDirection: "column",
+                alignItems: "center",
                 gap: "8px",
                 padding: "12px 4px 10px",
                 border: "1px solid var(--happy2-border)",
-                "border-radius": "8px",
+                borderRadius: "8px",
                 background: "var(--happy2-bg-surface)",
             }}
         >
             <div
                 style={{
                     display: "flex",
-                    "align-items": "flex-end",
+                    alignItems: "flex-end",
                     gap: "10px",
                     color: "var(--happy2-text-secondary)",
                 }}
             >
-                <For each={SIZES}>{(size) => <Icon name={props.name} size={size} />}</For>
+                {SIZES.map((size) => (
+                    <Icon key={size} name={props.name} size={size} />
+                ))}
             </div>
             <span
                 style={{
-                    "font-family": "var(--happy2-font-mono)",
-                    "font-size": "9px",
-                    "line-height": "12px",
-                    "letter-spacing": "0.04em",
+                    fontFamily: "var(--happy2-font-mono)",
+                    fontSize: "9px",
+                    lineHeight: "12px",
+                    letterSpacing: "0.04em",
                     color: "var(--happy2-text-muted)",
                 }}
             >
@@ -57,7 +55,6 @@ function GlyphCell(props: { name: IconName }) {
         </div>
     );
 }
-
 export function IconPage() {
     return (
         <ComponentPage
@@ -75,17 +72,19 @@ export function IconPage() {
                     <div
                         style={{
                             display: "grid",
-                            "grid-template-columns": "repeat(6, 1fr)",
+                            gridTemplateColumns: "repeat(6, 1fr)",
                             gap: "8px",
                         }}
                     >
-                        <For each={iconNames}>{(name) => <GlyphCell name={name} />}</For>
+                        {iconNames.map((name) => (
+                            <GlyphCell key={name} name={name} />
+                        ))}
                     </div>
                     <div
                         style={{
                             display: "flex",
-                            "justify-content": "center",
-                            "margin-top": "12px",
+                            justifyContent: "center",
+                            marginTop: "12px",
                         }}
                     >
                         <DimensionRule label="cell sizes 14 / 16 / 20 px" />
@@ -99,38 +98,37 @@ export function IconPage() {
                 detail="12 / 14 / 16 (default) / 18 / 20 px — stroke scales with the box, mass stays even"
                 stage="surface"
             >
-                <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                     <div
                         style={{
                             display: "flex",
-                            "align-items": "center",
+                            alignItems: "center",
                             gap: "20px",
                             color: "var(--happy2-text)",
                         }}
                     >
-                        <For each={[12, 14, 16, 18, 20] as const}>
-                            {(size) => (
-                                <div
+                        {([12, 14, 16, 18, 20] as const).map((size) => (
+                            <div
+                                key={size}
+                                style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                }}
+                            >
+                                <Icon name="inbox" size={size} />
+                                <span
                                     style={{
-                                        display: "flex",
-                                        "flex-direction": "column",
-                                        "align-items": "center",
-                                        gap: "6px",
+                                        fontFamily: "var(--happy2-font-mono)",
+                                        fontSize: "9px",
+                                        color: "var(--happy2-text-faint)",
                                     }}
                                 >
-                                    <Icon name="inbox" size={size} />
-                                    <span
-                                        style={{
-                                            "font-family": "var(--happy2-font-mono)",
-                                            "font-size": "9px",
-                                            color: "var(--happy2-text-faint)",
-                                        }}
-                                    >
-                                        {size}
-                                    </span>
-                                </div>
-                            )}
-                        </For>
+                                    {size}
+                                </span>
+                            </div>
+                        ))}
                         <DimensionRule label="default 16" />
                     </div>
                 </div>
@@ -142,7 +140,7 @@ export function IconPage() {
                 detail="currentColor by default · explicit color prop for semantic tints"
                 stage="surface"
             >
-                <div style={{ display: "flex", "align-items": "center", gap: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
                     <span style={{ color: "var(--happy2-text)" }}>
                         <Icon name="check-circle" size={20} />
                     </span>
@@ -165,32 +163,36 @@ export function IconPage() {
                 detail="Same glyphs over chrome-dark and paper-light — centering and stroke mass must hold on both"
                 stage="chrome"
             >
-                <div style={{ display: "flex", "flex-direction": "column", gap: "8px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     <div
                         style={{
                             display: "flex",
                             gap: "12px",
                             padding: "12px 16px",
-                            "border-radius": "8px",
+                            borderRadius: "8px",
                             background: "var(--happy2-bg-chrome)",
                             border: "1px solid var(--happy2-border)",
                             color: "var(--happy2-text-secondary)",
                         }}
                     >
-                        <For each={OPTICAL_ROW}>{(name) => <Icon name={name} size={20} />}</For>
+                        {OPTICAL_ROW.map((name) => (
+                            <Icon key={name} name={name} size={20} />
+                        ))}
                     </div>
                     <div
                         style={{
                             display: "flex",
                             gap: "12px",
                             padding: "12px 16px",
-                            "border-radius": "8px",
+                            borderRadius: "8px",
                             background: "#f4f2ee",
                             border: "1px solid rgb(0 0 0 / 0.08)",
                             color: "#3c3844",
                         }}
                     >
-                        <For each={OPTICAL_ROW}>{(name) => <Icon name={name} size={20} />}</For>
+                        {OPTICAL_ROW.map((name) => (
+                            <Icon key={name} name={name} size={20} />
+                        ))}
                     </div>
                 </div>
             </Specimen>

@@ -1,8 +1,7 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { Button } from "../../src/Button";
 import { OnboardingScreen, type OnboardingStep } from "../../src/OnboardingScreen";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 /*
  * Deterministic, network-free background fill: a static inline-SVG data URI
  * stands in for the shared onboarding image so the has-image path renders
@@ -20,56 +19,52 @@ const backgroundDataUri =
             `<circle cx='26' cy='70' r='46' fill='url(%23g)' opacity='0.85'/>` +
             `<circle cx='78' cy='22' r='20' fill='%2338bdf8' opacity='0.45'/></svg>`,
     );
-
 const serverSteps: readonly OnboardingStep[] = [
     { label: "Account", state: "complete" },
     { label: "Server", state: "current" },
     { label: "Finish", state: "upcoming" },
 ];
-
-function Field(props: { hint: string; label: string; value: string }): JSX.Element {
+function Field(props: { hint: string; label: string; value: string }): ReactNode {
     return (
-        <label style={{ display: "flex", "flex-direction": "column", gap: "6px" }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             <span
                 style={{
                     color: "var(--happy2-text-secondary)",
-                    "font-size": "13px",
-                    "font-weight": 600,
+                    fontSize: "13px",
+                    fontWeight: 600,
                 }}
             >
                 {props.label}
             </span>
             <span
                 style={{
-                    "align-items": "center",
+                    alignItems: "center",
                     background: "var(--happy2-bg-inset)",
                     border: "1px solid var(--happy2-border-strong)",
-                    "border-radius": "var(--happy2-radius-md)",
+                    borderRadius: "var(--happy2-radius-md)",
                     color: "var(--happy2-text)",
                     display: "flex",
-                    "font-size": "14px",
+                    fontSize: "14px",
                     height: "40px",
                     padding: "0 12px",
                 }}
             >
                 {props.value}
             </span>
-            <span style={{ color: "var(--happy2-text-muted)", "font-size": "12px" }}>
+            <span style={{ color: "var(--happy2-text-muted)", fontSize: "12px" }}>
                 {props.hint}
             </span>
         </label>
     );
 }
-
-function window1024(children: JSX.Element) {
+function window1024(children: ReactNode) {
     return (
-        <div style={{ display: "flex", "flex-direction": "column", gap: "8px", width: "1024px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "1024px" }}>
             <div style={{ height: "704px", width: "1024px" }}>{children}</div>
             <DimensionRule label="1024px × 704px — minimum window contract" />
         </div>
     );
 }
-
 export function OnboardingScreenPage() {
     return (
         <ComponentPage
@@ -102,7 +97,7 @@ export function OnboardingScreenPage() {
                         steps={serverSteps}
                         title="Connect your server"
                     >
-                        <div style={{ display: "flex", "flex-direction": "column", gap: "16px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                             <Field
                                 hint="The base URL of your Relay server."
                                 label="Server URL"
@@ -148,7 +143,7 @@ export function OnboardingScreenPage() {
                         title="Set up your workspace"
                         width="large"
                     >
-                        <div style={{ display: "flex", "flex-direction": "column", gap: "16px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                             <Field
                                 hint="Shown to teammates you invite."
                                 label="Workspace name"
@@ -203,7 +198,7 @@ export function OnboardingScreenPage() {
             >
                 {window1024(
                     <OnboardingScreen title="Enter your invite code">
-                        <div style={{ display: "flex", "flex-direction": "column", gap: "16px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                             <Field
                                 hint="Sent to you by your workspace admin."
                                 label="Invite code"

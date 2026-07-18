@@ -268,7 +268,7 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
 
     const well = (width: number): Record<string, string> => ({
         background: "#131217",
-        "box-sizing": "border-box",
+        boxSizing: "border-box",
         height: "100%",
         padding: "12px",
         width: `${width}px`,
@@ -330,9 +330,9 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
         () => (
             <div
                 style={{
-                    "align-items": "flex-start",
+                    alignItems: "flex-start",
                     background: "#131217",
-                    "box-sizing": "border-box",
+                    boxSizing: "border-box",
                     display: "flex",
                     gap: "20px",
                     height: "100%",
@@ -555,7 +555,7 @@ it("holds SearchField focus treatment and long-content truncation", async () => 
 
     const well = (width: number): Record<string, string> => ({
         background: "#131217",
-        "box-sizing": "border-box",
+        boxSizing: "border-box",
         height: "100%",
         padding: "12px",
         width: `${width}px`,

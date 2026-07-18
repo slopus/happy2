@@ -55,8 +55,8 @@ it("holds Checkbox geometry, colors, glyph centering, and typography across stat
             <div
                 style={{
                     display: "flex",
-                    "flex-direction": "column",
-                    "align-items": "flex-start",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
                     gap: "16px",
                     padding: "20px",
                     background: STAGE,
@@ -82,7 +82,7 @@ it("holds Checkbox geometry, colors, glyph centering, and typography across stat
             <div
                 style={{
                     display: "flex",
-                    "align-items": "center",
+                    alignItems: "center",
                     gap: "16px",
                     padding: "20px",
                     background: STAGE,

@@ -97,7 +97,7 @@ it("holds SecretReveal card, header, mono token, and warning-banner contract", a
     // well's height and token colour change between them.
     view.render(
         () => (
-            <div style={{ display: "flex", "flex-direction": "column", gap: "16px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 <SecretReveal
                     data-testid="masked"
                     label={LABEL}

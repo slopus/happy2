@@ -49,7 +49,7 @@ export function MenuPage() {
             summary="Dropdown / context-menu popover — 220px raised card, 32px item rows, icon gutter, KeyCap shortcuts, mono section labels, danger items, and 1px separators."
             title="Menu"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="220px card · 32px rows · icon gutter · ⌘ shortcuts · danger"
                     label="Context menu"
@@ -76,7 +76,7 @@ export function MenuPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="no icons — labels sit on the 10px edge, no gutter reserved"
                     label="Text only"

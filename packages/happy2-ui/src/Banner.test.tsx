@@ -113,10 +113,11 @@ it("holds Banner tone tokens, geometry, typography, and leading-icon centering",
 
     view.render(
         () => (
-            <div style={{ display: "flex", "flex-direction": "column", gap: "16px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 {tones.map((tone) => (
                     <Banner
                         data-testid={`tone-${tone}`}
+                        key={tone}
                         icon={toneStyles[tone].iconName}
                         onDismiss={() => {}}
                         title={toneStyles[tone].title}

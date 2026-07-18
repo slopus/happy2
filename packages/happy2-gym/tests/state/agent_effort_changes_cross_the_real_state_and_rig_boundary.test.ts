@@ -25,10 +25,10 @@ describe("agent effort across happy2-state and Rig", () => {
         await state.syncStart();
         await transport.whenConnected();
         using chat = state.chatOpen(agentChatId);
-        chat.agentEffortRetain(agentUserId);
+        chat.getState().agentEffortRetain(agentUserId);
         await state.whenIdle();
 
-        expect(chat.get().agentEffort[agentUserId]).toEqual({
+        expect(chat.getState().agentEffort[agentUserId]).toEqual({
             type: "ready",
             value: {
                 agentUserId,
@@ -37,12 +37,12 @@ describe("agent effort across happy2-state and Rig", () => {
             },
         });
 
-        chat.agentEffortChange(agentUserId, "ultra");
+        chat.getState().agentEffortChange(agentUserId, "ultra");
         await state.whenIdle();
         expect(rig.sessionEffort("session-1")).toBe("high");
-        expect(chat.get().agentEffort[agentUserId]?.type).toBe("error");
+        expect(chat.getState().agentEffort[agentUserId]?.type).toBe("error");
 
-        chat.agentEffortChange(agentUserId, "low");
+        chat.getState().agentEffortChange(agentUserId, "low");
         await state.whenIdle();
         expect(rig.sessionEffort("session-1")).toBe("low");
 
@@ -53,7 +53,7 @@ describe("agent effort across happy2-state and Rig", () => {
 });
 
 function effortValue(chat: ChatStore, agentUserId: string): string | undefined {
-    const value = chat.get().agentEffort[agentUserId];
+    const value = chat.getState().agentEffort[agentUserId];
     return value?.type === "ready" ? value.value.effort : undefined;
 }
 

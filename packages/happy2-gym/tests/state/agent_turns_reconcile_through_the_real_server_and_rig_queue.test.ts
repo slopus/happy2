@@ -32,12 +32,14 @@ describe("agent turns through happy2-state and the real server", () => {
         await state.agentCreate({ name: "State Agent", username: "state_agent" });
         const agentChat = state
             .sidebar()
-            .get()
+            .getState()
             .chats.find(({ displayName }) => displayName === "State Agent")?.chat;
         expect(agentChat).toMatchObject({ kind: "dm", dmType: "direct" });
         const directory = state.directory();
         await state.whenIdle();
-        const agentUser = directory.get().users.find((user) => user.username === "state_agent");
+        const agentUser = directory
+            .getState()
+            .users.find((user) => user.username === "state_agent");
         expect(agentUser).toMatchObject({
             displayName: "State Agent",
             username: "state_agent",
@@ -54,14 +56,14 @@ describe("agent turns through happy2-state and the real server", () => {
         expect(backgroundErrors).toEqual([]);
         await expect.poll(() => rig.submittedRuns.length, { timeout: 4_000 }).toBe(1);
         await expect
-            .poll(() => chat.get().typing[0]?.userId, {
+            .poll(() => chat.getState().typing[0]?.userId, {
                 timeout: 4_000,
             })
             .toBe(agentUser!.id);
         await expect
-            .poll(() => chat.get().agentActivity[0]?.agentUserId, { timeout: 4_000 })
+            .poll(() => chat.getState().agentActivity[0]?.agentUserId, { timeout: 4_000 })
             .toBe(agentUser!.id);
-        const liveActivity = chat.get().agentActivity[0]!;
+        const liveActivity = chat.getState().agentActivity[0]!;
         expect(["thinking", "typing"]).toContain(liveActivity.phase);
         expect(liveActivity.startedAt).toBeGreaterThan(0);
         expect(liveActivity.expiresAt).toBeGreaterThan(liveActivity.startedAt);
@@ -72,7 +74,7 @@ describe("agent turns through happy2-state and the real server", () => {
         await expect
             .poll(
                 () =>
-                    chat.get().messages.map(({ delivery, message }) => ({
+                    chat.getState().messages.map(({ delivery, message }) => ({
                         delivery,
                         text: message.text,
                     })),
@@ -83,16 +85,16 @@ describe("agent turns through happy2-state and the real server", () => {
                 { delivery: "sent", text: "The durable reply arrived once." },
             ]);
         await expect
-            .poll(() => chat.get().typing.length > 0, {
+            .poll(() => chat.getState().typing.length > 0, {
                 timeout: 4_000,
             })
             .toBe(false);
         await expect
-            .poll(() => chat.get().agentActivity.length > 0, {
+            .poll(() => chat.getState().agentActivity.length > 0, {
                 timeout: 4_000,
             })
             .toBe(false);
-        const reply = chat.get().messages.at(-1)?.message;
+        const reply = chat.getState().messages.at(-1)?.message;
         expect(reply?.sender).toMatchObject({
             displayName: "State Agent",
             kind: "agent",
@@ -100,7 +102,7 @@ describe("agent turns through happy2-state and the real server", () => {
         expect(
             state
                 .sidebar()
-                .get()
+                .getState()
                 .chats.find(({ id }) => id === agentChat!.id)?.chat.unreadCount,
         ).toBe(1);
         expect(rig.globalEventReadCount).toBe(0);

@@ -136,7 +136,12 @@ it("holds Button dimensions, typography, and optical label centering for every s
             () => (
                 <div style={{ display: "flex", gap: "12px" }}>
                     {variants.map((variant) => (
-                        <Button data-testid={`${size}-${variant}`} size={size} variant={variant}>
+                        <Button
+                            data-testid={`${size}-${variant}`}
+                            key={variant}
+                            size={size}
+                            variant={variant}
+                        >
                             {variantLabels[variant]}
                         </Button>
                     ))}
@@ -147,7 +152,7 @@ it("holds Button dimensions, typography, and optical label centering for every s
     }
     view.render(
         () => (
-            <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 <Button data-testid="button-fixed" width={128}>
                     Button
                 </Button>
@@ -285,7 +290,7 @@ it("holds Button icon forms and disabled state with optically centered glyphs", 
 
     view.render(
         () => (
-            <div style={{ display: "flex", "align-items": "flex-start", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
                 <Button data-testid="lead-small" icon="plus" size="small" variant="secondary">
                     New task
                 </Button>
@@ -301,7 +306,7 @@ it("holds Button icon forms and disabled state with optically centered glyphs", 
     );
     view.render(
         () => (
-            <div style={{ display: "flex", "align-items": "flex-start", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
                 <Button data-testid="plain-small" size="small" variant="secondary">
                     New task
                 </Button>
@@ -317,7 +322,7 @@ it("holds Button icon forms and disabled state with optically centered glyphs", 
     );
     view.render(
         () => (
-            <div style={{ display: "flex", "align-items": "flex-start", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
                 <Button
                     aria-label="Add small"
                     data-testid="io-plus-small"

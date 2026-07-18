@@ -1,9 +1,13 @@
-import { For, Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties } from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { CountBadge } from "./Badge";
 import { Icon } from "./Icon";
-
-export type ThreadParticipant = { initials: string; tone?: ToneName; imageUrl?: string };
+export type ThreadParticipant = {
+    initials: string;
+    tone?: ToneName;
+    imageUrl?: string;
+};
 export type ThreadItem = {
     id: string;
     title: string;
@@ -14,20 +18,17 @@ export type ThreadItem = {
     lastActivity: string;
     subscribed?: boolean;
 };
-
 export type ThreadListProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     threads: ThreadItem[];
     onSelect?: (id: string) => void;
     emptyLabel?: string;
 };
-
 /* Show at most three stacked marks; beyond that the third slot becomes a
  * "+N" overflow chip so the lane width never grows past three positions. */
 const MAX_AVATARS = 3;
-
 function ThreadRow(props: { onSelect?: (id: string) => void; thread: ThreadItem }) {
     const thread = () => props.thread;
     const unread = () => (thread().unreadCount ?? 0) > 0;
@@ -37,10 +38,9 @@ function ThreadRow(props: { onSelect?: (id: string) => void; thread: ThreadItem 
     const shown = () =>
         overflow() > 0 ? participants().slice(0, MAX_AVATARS - 1) : participants();
     const stackCount = () => shown().length + (overflow() > 0 ? 1 : 0);
-
     return (
         <button
-            class="happy2-thread-list__item"
+            className="happy2-thread-list__item"
             data-happy2-ui="thread-list-item"
             data-subscribed={thread().subscribed === false ? "false" : undefined}
             data-thread-id={thread().id}
@@ -48,88 +48,91 @@ function ThreadRow(props: { onSelect?: (id: string) => void; thread: ThreadItem 
             onClick={() => props.onSelect?.(thread().id)}
             type="button"
         >
-            <span class="happy2-thread-list__avatars" data-happy2-ui="thread-list-avatars">
-                <For each={shown()}>
-                    {(participant, index) => (
-                        <Avatar
-                            class="happy2-thread-list__avatar"
-                            imageUrl={participant.imageUrl}
-                            initials={participant.initials}
-                            size="sm"
-                            style={{ "z-index": String(stackCount() - index()) }}
-                            tone={participant.tone}
-                        />
-                    )}
-                </For>
-                <Show when={overflow() > 0}>
-                    {/* Chip rides on top of the lane so the "+N" stays fully legible. */}
-                    <span
-                        class="happy2-thread-list__more"
-                        data-happy2-ui="thread-list-avatar-more"
-                        style={{ "z-index": String(stackCount() + 1) }}
-                    >
-                        +{overflow()}
-                    </span>
-                </Show>
+            <span className="happy2-thread-list__avatars" data-happy2-ui="thread-list-avatars">
+                {shown().map((participant, index) => (
+                    <Avatar
+                        className="happy2-thread-list__avatar"
+                        key={`${participant.initials}-${index}`}
+                        imageUrl={participant.imageUrl}
+                        initials={participant.initials}
+                        size="sm"
+                        style={{ zIndex: String(stackCount() - index) }}
+                        tone={participant.tone}
+                    />
+                ))}
+                {overflow() > 0 ? (
+                    <>
+                        {/* Chip rides on top of the lane so the "+N" stays fully legible. */}
+                        <span
+                            className="happy2-thread-list__more"
+                            data-happy2-ui="thread-list-avatar-more"
+                            style={{ zIndex: String(stackCount() + 1) }}
+                        >
+                            +{overflow()}
+                        </span>
+                    </>
+                ) : null}
             </span>
 
-            <span class="happy2-thread-list__main" data-happy2-ui="thread-list-main">
-                <span class="happy2-thread-list__title-row">
-                    <span class="happy2-thread-list__title" data-happy2-ui="thread-list-title">
+            <span className="happy2-thread-list__main" data-happy2-ui="thread-list-main">
+                <span className="happy2-thread-list__title-row">
+                    <span className="happy2-thread-list__title" data-happy2-ui="thread-list-title">
                         {thread().title}
                     </span>
-                    <Show when={thread().subscribed === false}>
+                    {thread().subscribed === false ? (
                         <span
                             aria-label="Muted"
-                            class="happy2-thread-list__follow"
+                            className="happy2-thread-list__follow"
                             data-happy2-ui="thread-list-follow"
                         >
                             <Icon name="bell" size={14} />
                         </span>
-                    </Show>
-                    <span class="happy2-thread-list__time" data-happy2-ui="thread-list-time">
+                    ) : null}
+                    <span className="happy2-thread-list__time" data-happy2-ui="thread-list-time">
                         {thread().lastActivity}
                     </span>
                 </span>
 
-                <span class="happy2-thread-list__meta-row">
-                    <span class="happy2-thread-list__snippet" data-happy2-ui="thread-list-snippet">
+                <span className="happy2-thread-list__meta-row">
+                    <span
+                        className="happy2-thread-list__snippet"
+                        data-happy2-ui="thread-list-snippet"
+                    >
                         {thread().snippet}
                     </span>
                     <span
-                        class="happy2-thread-list__trailing"
+                        className="happy2-thread-list__trailing"
                         data-happy2-ui="thread-list-trailing"
                     >
                         <span
-                            class="happy2-thread-list__replies"
+                            className="happy2-thread-list__replies"
                             data-happy2-ui="thread-list-replies"
                         >
                             <span
-                                class="happy2-thread-list__replies-icon"
+                                className="happy2-thread-list__replies-icon"
                                 data-happy2-ui="thread-list-replies-icon"
                             >
                                 <Icon name="reply" size={12} />
                             </span>
                             <span
-                                class="happy2-thread-list__replies-count"
+                                className="happy2-thread-list__replies-count"
                                 data-happy2-ui="thread-list-reply-count"
                             >
                                 {thread().replyCount}
                             </span>
                         </span>
-                        <Show when={unread()}>
+                        {unread() ? (
                             <CountBadge
-                                class="happy2-thread-list__unread"
+                                className="happy2-thread-list__unread"
                                 count={thread().unreadCount!}
                             />
-                        </Show>
+                        ) : null}
                     </span>
                 </span>
             </span>
         </button>
     );
 }
-
 /**
  * C-037 ThreadList — followed-thread rows. Each row shows the thread root and a
  * one-line snippet, a lane of stacked participant avatars (28px, 18px step,
@@ -138,33 +141,29 @@ function ThreadRow(props: { onSelect?: (id: string) => void; thread: ThreadItem 
  */
 export function ThreadList(props: ThreadListProps) {
     const [local, rest] = splitProps(props, [
-        "class",
+        "className",
         "emptyLabel",
         "onSelect",
         "style",
         "threads",
     ]);
-
     return (
         <div
             {...rest}
-            class={["happy2-thread-list", local.class].filter(Boolean).join(" ")}
+            className={["happy2-thread-list", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="thread-list"
             role="list"
             style={local.style}
         >
-            <Show
-                fallback={
-                    <div class="happy2-thread-list__empty" data-happy2-ui="thread-list-empty">
-                        {local.emptyLabel ?? "No followed threads"}
-                    </div>
-                }
-                when={local.threads.length > 0}
-            >
-                <For each={local.threads}>
-                    {(thread) => <ThreadRow onSelect={local.onSelect} thread={thread} />}
-                </For>
-            </Show>
+            {local.threads.length > 0 ? (
+                local.threads.map((thread) => (
+                    <ThreadRow key={thread.id} onSelect={local.onSelect} thread={thread} />
+                ))
+            ) : (
+                <div className="happy2-thread-list__empty" data-happy2-ui="thread-list-empty">
+                    {local.emptyLabel ?? "No followed threads"}
+                </div>
+            )}
         </div>
     );
 }

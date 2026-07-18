@@ -1,10 +1,10 @@
-import { createEffect, Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { Icon } from "./Icon";
-
 export type CheckboxProps = {
     "aria-label"?: string;
     checked: boolean;
-    class?: string;
+    className?: string;
     "data-testid"?: string;
     disabled?: boolean;
     id?: string;
@@ -12,9 +12,8 @@ export type CheckboxProps = {
     label?: string;
     name?: string;
     onChange?: (checked: boolean) => void;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
 };
-
 /**
  * C-021 Checkbox — an 18px control box with a reused Icon check glyph (checked)
  * or a symmetric bar (indeterminate). The real state lives on a visually hidden
@@ -26,7 +25,7 @@ export function Checkbox(props: CheckboxProps) {
     const [local] = splitProps(props, [
         "aria-label",
         "checked",
-        "class",
+        "className",
         "data-testid",
         "disabled",
         "id",
@@ -36,20 +35,17 @@ export function Checkbox(props: CheckboxProps) {
         "onChange",
         "style",
     ]);
-
-    let control: HTMLInputElement | undefined;
+    const control = useRef<HTMLInputElement>(null);
     // indeterminate is a DOM property, not an attribute — mirror the prop onto
     // the live input so assistive tech announces the mixed state.
-    createEffect(() => {
-        if (control) control.indeterminate = local.indeterminate ?? false;
-    });
-
+    useLayoutEffect(() => {
+        if (control.current) control.current.indeterminate = local.indeterminate ?? false;
+    }, [local.indeterminate]);
     const state = () =>
         local.indeterminate ? "indeterminate" : local.checked ? "checked" : "unchecked";
-
     return (
         <label
-            class={["happy2-checkbox", local.class].filter(Boolean).join(" ")}
+            className={["happy2-checkbox", local.className].filter(Boolean).join(" ")}
             data-checked={local.checked ? "" : undefined}
             data-disabled={local.disabled ? "" : undefined}
             data-indeterminate={local.indeterminate ? "" : undefined}
@@ -61,32 +57,27 @@ export function Checkbox(props: CheckboxProps) {
             <input
                 aria-label={local["aria-label"]}
                 checked={local.checked}
-                class="happy2-checkbox__control"
+                className="happy2-checkbox__control"
                 data-happy2-ui="checkbox-control"
                 disabled={local.disabled}
                 id={local.id}
                 name={local.name}
                 onChange={(event) => local.onChange?.(event.currentTarget.checked)}
-                ref={(element) => (control = element)}
+                ref={control}
                 type="checkbox"
             />
-            <span class="happy2-checkbox__box" data-happy2-ui="checkbox-box">
-                <Show
-                    fallback={
-                        <Show when={local.checked}>
-                            <Icon name="check" size={14} />
-                        </Show>
-                    }
-                    when={local.indeterminate}
-                >
-                    <span class="happy2-checkbox__dash" data-happy2-ui="checkbox-mark" />
-                </Show>
+            <span className="happy2-checkbox__box" data-happy2-ui="checkbox-box">
+                {local.indeterminate ? (
+                    <span className="happy2-checkbox__dash" data-happy2-ui="checkbox-mark" />
+                ) : local.checked ? (
+                    <Icon name="check" size={14} />
+                ) : null}
             </span>
-            <Show when={local.label !== undefined}>
-                <span class="happy2-checkbox__label" data-happy2-ui="checkbox-label">
+            {local.label !== undefined ? (
+                <span className="happy2-checkbox__label" data-happy2-ui="checkbox-label">
                     {local.label}
                 </span>
-            </Show>
+            ) : null}
         </label>
     );
 }

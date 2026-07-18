@@ -1,15 +1,13 @@
-import { Show, createSignal, type JSX } from "solid-js";
+import { useReducer, type ReactNode } from "react";
 import type { AuthSession } from "./AuthGate";
 import { ServerOnboarding } from "./ServerOnboarding";
 import type { DesktopNavigation } from "../navigation/desktopRouteTypes";
-
 export type OnboardingBoundaryProps = {
     navigation: DesktopNavigation;
     session: AuthSession;
     showWindowDragRegion?: boolean;
-    children: JSX.Element;
+    children: ReactNode;
 };
-
 /**
  * Blocks the main application until durable server setup is complete. It mounts
  * the centered server-onboarding surface first; only when that surface reports
@@ -18,20 +16,15 @@ export type OnboardingBoundaryProps = {
  * the app back down.
  */
 export function OnboardingBoundary(props: OnboardingBoundaryProps) {
-    const [complete, setComplete] = createSignal(false);
-    return (
-        <Show
-            when={complete()}
-            fallback={
-                <ServerOnboarding
-                    navigation={props.navigation}
-                    onComplete={() => setComplete(true)}
-                    showWindowDragRegion={props.showWindowDragRegion}
-                    state={props.session.state}
-                />
-            }
-        >
-            {props.children}
-        </Show>
+    const [complete, completeSet] = useReducer(() => true, false);
+    return complete ? (
+        props.children
+    ) : (
+        <ServerOnboarding
+            navigation={props.navigation}
+            onComplete={completeSet}
+            showWindowDragRegion={props.showWindowDragRegion}
+            state={props.session.state}
+        />
     );
 }

@@ -1,6 +1,6 @@
-import { AppShell, EmptyState, type AdminPageSection, type FilesPageFilter } from "happy2-ui";
+import { type ReactNode } from "react";
+import { AppShell, type AdminPageSection, type FilesPageFilter } from "happy2-ui";
 import type { HappyState } from "happy2-state";
-import { Match, Switch, type JSX } from "solid-js";
 import type { AuthSession } from "./AuthGate";
 import type { DesktopNavigation, DesktopRoute } from "../navigation/desktopRouteTypes";
 import { AdminView } from "../views/AdminView";
@@ -11,19 +11,21 @@ import { HomeView } from "../views/HomeView";
 import { InboxView } from "../views/InboxView";
 import { SettingsView } from "../views/SettingsView";
 import { ThreadsView } from "../views/ThreadsView";
-
+import { ServerOnboarding } from "./ServerOnboarding";
 export interface DesktopPrimarySurfaceProps {
-    createRequest: () => { kind: "agent" | "channel"; nonce: number };
+    createRequest: {
+        kind: "agent" | "channel";
+        nonce: number;
+    };
     navigation: DesktopNavigation;
     platform?: "desktop" | "web";
-    rail: JSX.Element;
+    rail: ReactNode;
     route: DesktopRoute;
-    search: () => string;
+    search: string;
     session?: AuthSession;
     state: HappyState;
-    titleBar: JSX.Element;
+    titleBar: ReactNode;
 }
-
 /** Selects one primary desktop surface; overlays are deliberately hosted by its parent. */
 export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
     const primary = () => props.route.primary;
@@ -35,93 +37,87 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
         const value = primary();
         return value.kind === "onboarding" ? value : undefined;
     };
-    const shell = (child: JSX.Element) => (
+    const shell = (child: ReactNode) => (
         <AppShell rail={props.rail} titleBar={props.titleBar}>
             {child}
         </AppShell>
     );
-    return (
-        <Switch fallback={null}>
-            <Match when={primary().kind === "conversation"}>
-                <ChatView
-                    createRequest={props.createRequest}
-                    navigation={props.navigation}
-                    platform={props.platform}
-                    rail={props.rail}
-                    route={props.route}
-                    search={props.search}
-                    session={props.session}
-                    state={props.state}
-                    titleBar={props.titleBar}
-                />
-            </Match>
-            <Match when={primary().kind === "files"}>
-                {shell(
-                    <FilesView
-                        filter={props.route.files.filter as FilesPageFilter}
-                        onFilterChange={(filter) =>
-                            props.navigation.navigate(
-                                { ...props.route, files: { ...props.route.files, filter } },
-                                { replace: true },
-                            )
-                        }
-                        onOpen={(fileId) =>
-                            props.navigation.navigate(
-                                { ...props.route, overlay: { kind: "file", fileId } },
-                                { layer: "overlay" },
-                            )
-                        }
-                        onQueryChange={(query) =>
-                            props.navigation.navigate(
-                                { ...props.route, files: { ...props.route.files, query } },
-                                { replace: true, transient: true },
-                            )
-                        }
-                        query={props.route.files.query}
-                        state={props.state}
-                    />,
-                )}
-            </Match>
-            <Match when={primary().kind === "home"}>
-                {shell(<HomeView state={props.state} />)}
-            </Match>
-            <Match when={primary().kind === "activity"}>
-                {shell(<InboxView state={props.state} />)}
-            </Match>
-            <Match when={primary().kind === "threads"}>
-                {shell(<ThreadsView state={props.state} />)}
-            </Match>
-            <Match when={primary().kind === "calls"}>
-                {shell(<CallsView state={props.state} />)}
-            </Match>
-            <Match when={adminPrimary()}>
-                {shell(
-                    <AdminView
-                        onSectionChange={(section: AdminPageSection) =>
-                            props.navigation.navigate({
-                                ...props.route,
-                                primary: { kind: "admin", section },
-                                panel: undefined,
-                                overlay: undefined,
-                            })
-                        }
-                        section={adminPrimary()?.section ?? "users"}
-                        state={props.state}
-                    />,
-                )}
-            </Match>
-            <Match when={primary().kind === "settings"}>
-                {shell(<SettingsView session={props.session} state={props.state} />)}
-            </Match>
-            <Match when={onboardingPrimary()}>
-                {shell(
-                    <EmptyState
-                        description="The route is reserved for the centered P0.4 server-driven onboarding flow."
-                        icon="spark"
-                        title={`Setup: ${onboardingPrimary()?.step ?? ""}`}
-                    />,
-                )}
-            </Match>
-        </Switch>
-    );
+    return primary().kind === "conversation" ? (
+        <ChatView
+            createRequest={props.createRequest}
+            navigation={props.navigation}
+            platform={props.platform}
+            rail={props.rail}
+            route={props.route}
+            search={props.search}
+            session={props.session}
+            state={props.state}
+            titleBar={props.titleBar}
+        />
+    ) : primary().kind === "files" ? (
+        shell(
+            <FilesView
+                filter={props.route.files.filter as FilesPageFilter}
+                onFilterChange={(filter) =>
+                    props.navigation.navigate(
+                        { ...props.route, files: { ...props.route.files, filter } },
+                        { replace: true },
+                    )
+                }
+                onOpen={(fileId) =>
+                    props.navigation.navigate({ ...props.route, overlay: { kind: "file", fileId } })
+                }
+                onQueryChange={(query) =>
+                    props.navigation.navigate(
+                        { ...props.route, files: { ...props.route.files, query } },
+                        { replace: true },
+                    )
+                }
+                query={props.route.files.query}
+                state={props.state}
+            />,
+        )
+    ) : primary().kind === "home" ? (
+        shell(<HomeView navigation={props.navigation} route={props.route} state={props.state} />)
+    ) : primary().kind === "activity" ? (
+        shell(<InboxView navigation={props.navigation} route={props.route} state={props.state} />)
+    ) : primary().kind === "threads" ? (
+        shell(<ThreadsView navigation={props.navigation} route={props.route} state={props.state} />)
+    ) : primary().kind === "calls" ? (
+        shell(<CallsView state={props.state} />)
+    ) : adminPrimary() ? (
+        shell(
+            <AdminView
+                onSectionChange={(section: AdminPageSection) =>
+                    props.navigation.navigate({
+                        ...props.route,
+                        primary: { kind: "admin", section },
+                        panel: undefined,
+                        overlay: undefined,
+                    })
+                }
+                section={adminPrimary()?.section ?? "users"}
+                state={props.state}
+            />,
+        )
+    ) : primary().kind === "settings" ? (
+        shell(<SettingsView session={props.session} state={props.state} />)
+    ) : onboardingPrimary() ? (
+        <ServerOnboarding
+            navigation={props.navigation}
+            onComplete={() =>
+                props.navigation.navigate(
+                    {
+                        ...props.route,
+                        primary: { kind: "home" },
+                        panel: undefined,
+                        overlay: undefined,
+                    },
+                    { replace: true },
+                )
+            }
+            showWindowDragRegion={props.platform === "desktop"}
+            state={props.state}
+        />
+    ) : null;
 }

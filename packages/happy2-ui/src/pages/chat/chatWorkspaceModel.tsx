@@ -1,40 +1,34 @@
-import { createEffect, createMemo, createSignal, type Accessor } from "solid-js";
+import { useState } from "react";
 import type { WorkspaceFileStore, WorkspaceStore } from "happy2-state";
 import { Banner } from "./ChatPageComponents.js";
 import type { ChatPageActions } from "./ChatPage.js";
-import { createDynamicSnapshot } from "./chatStoreBindings.js";
+import { useOptionalStoreSnapshot } from "./chatStoreBindings.js";
 import { workspaceNodes } from "./workspaceTree.js";
-
-export function chatWorkspaceModelCreate(options: {
+export function useChatWorkspaceModel(options: {
     activeChatId(): string;
     actions: ChatPageActions;
     workspace?: WorkspaceStore;
     workspaceFile?: WorkspaceFileStore;
-    openPath: Accessor<string | undefined>;
+    openPath: () => string | undefined;
 }) {
-    const workspaceReader = createDynamicSnapshot<ReturnType<WorkspaceStore["get"]>>();
-    const fileReader = createDynamicSnapshot<ReturnType<WorkspaceFileStore["get"]>>();
-    createEffect(() => workspaceReader.follow(options.workspace));
-    createEffect(() => fileReader.follow(options.workspaceFile));
-    const workspaceSnapshot = workspaceReader.snapshot;
-    const fileSnapshot = fileReader.snapshot;
-    const [selected, setSelected] = createSignal<string>();
-    const [loadingPaths, setLoadingPaths] = createSignal<string[]>([]);
+    const workspaceState = useOptionalStoreSnapshot(options.workspace);
+    const fileState = useOptionalStoreSnapshot(options.workspaceFile);
+    const workspaceSnapshot = () => workspaceState;
+    const fileSnapshot = () => fileState;
+    const [selected, setSelected] = useState<string>();
+    const [loadingPaths, setLoadingPaths] = useState<string[]>([]);
     const openPath = options.openPath;
-
     const workspace = () => {
         const status = workspaceSnapshot()?.status;
         return status?.type === "ready" ? status.value : undefined;
     };
-    const tree = createMemo(() =>
-        workspace()
-            ? workspaceNodes(
-                  workspace()!,
-                  new Set(workspaceSnapshot()?.requestedDirectories ?? []),
-                  new Set(loadingPaths()),
-              )
-            : [],
-    );
+    const tree = workspace()
+        ? workspaceNodes(
+              workspace()!,
+              new Set(workspaceSnapshot()?.requestedDirectories ?? []),
+              new Set(loadingPaths),
+          )
+        : [];
     function panelOpen() {
         const chatId = options.activeChatId();
         if (chatId) options.actions.workspaceOpen(chatId);
@@ -48,12 +42,12 @@ export function chatWorkspaceModelCreate(options: {
         if (next.has(path)) next.delete(path);
         else next.add(path);
         setLoadingPaths([path]);
-        options.workspace.directoriesUpdate([...next]);
+        options.workspace.getState().directoriesUpdate([...next]);
         queueMicrotask(() => setLoadingPaths([]));
     }
     function directoryMore(path: string) {
         setLoadingPaths([path]);
-        options.workspace?.directoryMore(path);
+        options.workspace?.getState().directoryMore(path);
         queueMicrotask(() => setLoadingPaths([]));
     }
     function entrySelect(path: string) {
@@ -96,7 +90,6 @@ export function chatWorkspaceModelCreate(options: {
                 This file changed on disk and your edits overlap. Reload to discard your changes.
             </Banner>
         ) : undefined;
-
     return {
         workspaceSnapshot,
         workspace,
@@ -117,7 +110,6 @@ export function chatWorkspaceModelCreate(options: {
         fileBanner,
     };
 }
-
 function formatBytes(size: number): string {
     if (size < 1024) return `${size} B`;
     if (size < 1024 * 1024) return `${Math.round(size / 102.4) / 10} KB`;

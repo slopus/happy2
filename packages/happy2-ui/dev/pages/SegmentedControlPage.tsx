@@ -32,7 +32,7 @@ export function SegmentedControlPage() {
             summary="Inline exclusive choice group (2–5 segments) with a sliding raised pill and one equal column width per segment."
             title="Segmented control"
         >
-            <div class="specimen-grid specimen-grid--sizes">
+            <div className="specimen-grid specimen-grid--sizes">
                 <Specimen detail="28px high · 12px label" label="Small" number="SC-01" stage="app">
                     <div style={{ display: "grid", gap: "8px" }}>
                         <DimensionRule label="height 28" />
@@ -53,7 +53,7 @@ export function SegmentedControlPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="2 · 3 · 4 segments, equal column widths"
                     label="Segment counts"
@@ -63,8 +63,8 @@ export function SegmentedControlPage() {
                     <div
                         style={{
                             display: "flex",
-                            "align-items": "center",
-                            "flex-wrap": "wrap",
+                            alignItems: "center",
+                            flexWrap: "wrap",
                             gap: "16px",
                             padding: "28px",
                         }}
@@ -76,7 +76,7 @@ export function SegmentedControlPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="leading icon 14/16/18 by size · 6px gap"
                     label="Icon + label"
@@ -86,7 +86,7 @@ export function SegmentedControlPage() {
                     <div
                         style={{
                             display: "flex",
-                            "align-items": "center",
+                            alignItems: "center",
                             gap: "16px",
                             padding: "28px",
                         }}
@@ -98,7 +98,7 @@ export function SegmentedControlPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="selected pill tracks the chosen segment"
                     label="Selection sweep"
@@ -110,7 +110,7 @@ export function SegmentedControlPage() {
                             display: "grid",
                             gap: "12px",
                             padding: "28px",
-                            "justify-items": "start",
+                            justifyItems: "start",
                         }}
                     >
                         <SegmentedControl segments={AVAILABILITY} value="auto" />
@@ -121,7 +121,7 @@ export function SegmentedControlPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="fullWidth fills the container · disabled 0.48"
                     label="Full width and disabled"

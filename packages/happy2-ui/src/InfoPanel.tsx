@@ -1,14 +1,13 @@
-import { Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 import { type ToneName } from "./Avatar";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
 import { MemberList, type MemberItem } from "./MemberList";
 import { ProfileCard, type ProfilePresence, type ProfileStatus } from "./ProfileCard";
 import { Toolbar } from "./Toolbar";
-
 /** Surface header row height shared with ChannelHeader and ThreadPanel. */
 export const SURFACE_HEADER_HEIGHT = 52;
-
 export type InfoPanelProfile = {
     /** Stable product identity used by hosts to deep-link this profile surface. */
     id?: string;
@@ -21,11 +20,10 @@ export type InfoPanelProfile = {
     presence?: ProfilePresence;
     status?: ProfileStatus;
 };
-
 export type InfoPanelProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     /** Header title — the channel name or the person's name. */
     title: string;
     subtitle?: string;
@@ -34,21 +32,20 @@ export type InfoPanelProps = {
     onClose?: () => void;
     closeLabel?: string;
     /** Extra header controls placed before the close button. */
-    actions?: JSX.Element;
+    actions?: ReactNode;
     /** Person identity block (DMs / user info). */
     profile?: InfoPanelProfile;
     /** Read-only channel about/topic text. */
     about?: string;
     aboutLabel?: string;
     /** Extra body content (e.g. an editable details form) below identity. */
-    children?: JSX.Element;
+    children?: ReactNode;
     members?: MemberItem[];
     membersLabel?: string;
     memberActionLabel?: string;
     onMemberAction?: (id: string) => void;
-    memberRowMenu?: (member: MemberItem) => JSX.Element;
+    memberRowMenu?: (member: MemberItem) => ReactNode;
 };
-
 /**
  * C-047 InfoPanel — the channel/user detail side panel. A 52px surface header
  * (shared height with ChannelHeader and ThreadPanel), then a scrolling body:
@@ -58,7 +55,7 @@ export type InfoPanelProps = {
  */
 export function InfoPanel(props: InfoPanelProps) {
     const [local] = splitProps(props, [
-        "class",
+        "className",
         "data-testid",
         "style",
         "title",
@@ -77,16 +74,15 @@ export function InfoPanel(props: InfoPanelProps) {
         "onMemberAction",
         "memberRowMenu",
     ]);
-
     return (
         <section
-            class={["happy2-info-panel", local.class].filter(Boolean).join(" ")}
+            className={["happy2-info-panel", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="info-panel"
             data-testid={local["data-testid"]}
             style={local.style}
         >
             <Toolbar
-                class="happy2-info-panel__header"
+                className="happy2-info-panel__header"
                 height={SURFACE_HEADER_HEIGHT}
                 leading={
                     local.leadingIcon ? <Icon name={local.leadingIcon} size={16} /> : undefined
@@ -96,7 +92,7 @@ export function InfoPanel(props: InfoPanelProps) {
                 trailing={
                     <>
                         {local.actions}
-                        <Show when={local.onClose}>
+                        {local.onClose ? (
                             <Button
                                 aria-label={local.closeLabel ?? "Close details"}
                                 icon="close"
@@ -105,49 +101,52 @@ export function InfoPanel(props: InfoPanelProps) {
                                 size="small"
                                 variant="ghost"
                             />
-                        </Show>
+                        ) : null}
                     </>
                 }
             />
-            <div class="happy2-info-panel__body" data-happy2-ui="info-panel-body">
-                <Show when={local.profile}>
-                    {(profile) => (
-                        <ProfileCard
-                            imageUrl={profile().imageUrl}
-                            initials={profile().initials}
-                            name={profile().name}
-                            presence={profile().presence}
-                            status={profile().status}
-                            title={profile().title}
-                            tone={profile().tone}
-                            username={profile().username}
-                        />
-                    )}
-                </Show>
-                <Show when={local.about !== undefined}>
-                    <div class="happy2-info-panel__about" data-happy2-ui="info-panel-about">
-                        <span class="happy2-info-panel__about-label">
+            <div className="happy2-info-panel__body" data-happy2-ui="info-panel-body">
+                {local.profile
+                    ? ((profile) => (
+                          <ProfileCard
+                              imageUrl={profile.imageUrl}
+                              initials={profile.initials}
+                              name={profile.name}
+                              presence={profile.presence}
+                              status={profile.status}
+                              title={profile.title}
+                              tone={profile.tone}
+                              username={profile.username}
+                          />
+                      ))(local.profile)
+                    : null}
+                {local.about !== undefined ? (
+                    <div className="happy2-info-panel__about" data-happy2-ui="info-panel-about">
+                        <span className="happy2-info-panel__about-label">
                             {local.aboutLabel ?? "About"}
                         </span>
-                        <span class="happy2-info-panel__about-text">{local.about}</span>
+                        <span className="happy2-info-panel__about-text">{local.about}</span>
                     </div>
-                </Show>
+                ) : null}
                 {local.children}
-                <Show when={local.members && local.members.length > 0}>
-                    {(_) => (
-                        <div class="happy2-info-panel__members" data-happy2-ui="info-panel-members">
-                            <span class="happy2-info-panel__section-label">
-                                {local.membersLabel ?? "Members"} · {local.members!.length}
-                            </span>
-                            <MemberList
-                                actionLabel={local.memberActionLabel}
-                                members={local.members!}
-                                onAction={local.onMemberAction}
-                                rowMenu={local.memberRowMenu}
-                            />
-                        </div>
-                    )}
-                </Show>
+                {local.members && local.members.length > 0
+                    ? ((_) => (
+                          <div
+                              className="happy2-info-panel__members"
+                              data-happy2-ui="info-panel-members"
+                          >
+                              <span className="happy2-info-panel__section-label">
+                                  {local.membersLabel ?? "Members"} · {local.members!.length}
+                              </span>
+                              <MemberList
+                                  actionLabel={local.memberActionLabel}
+                                  members={local.members!}
+                                  onAction={local.onMemberAction}
+                                  rowMenu={local.memberRowMenu}
+                              />
+                          </div>
+                      ))(local.members && local.members.length > 0)
+                    : null}
             </div>
         </section>
     );

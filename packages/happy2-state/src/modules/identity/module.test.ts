@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { createFakeServer, jsonResponse } from "../../testing/index.js";
-import { StateRuntime } from "../runtime/stateRuntime.js";
-import { identitiesReconcile } from "./identitiesReconcile.js";
-import { IdentityCatalog } from "./identityCatalog.js";
+import { StateRuntime } from "../runtime/runtimeState.js";
+import { identitiesReconcile } from "./identityState.js";
+import { IdentityCatalog } from "./identityState.js";
 
 describe("identity module", () => {
     it("canonicalizes equal presentations and fans authoritative changes into retained owners", async () => {
@@ -33,7 +33,7 @@ describe("identity module", () => {
         await identitiesReconcile({
             runtime,
             identities,
-            chatsGet: () => [["chat-1", { chatInput } as never]],
+            chatsGet: () => [["chat-1", { getState: () => ({ chatInput }) } as never]],
             sidebarIdentityReconcile,
             directoryReconcile,
             agentSecretsReconcile,

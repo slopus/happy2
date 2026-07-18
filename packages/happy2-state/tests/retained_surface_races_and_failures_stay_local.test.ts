@@ -5,15 +5,15 @@ import type {
     NotificationPreferences,
 } from "../src/resources.js";
 import type { CallSummary, NotificationSummary, PresenceSettingsSummary } from "../src/types.js";
-import { callsLoad } from "../src/modules/calls/callsRoute.js";
-import { callsStoreCreateBinding } from "../src/modules/calls/callsStore.js";
-import { agentImagesOutputRoute } from "../src/modules/agent-images/agentImagesRoute.js";
-import { agentImagesStoreCreateBinding } from "../src/modules/agent-images/agentImagesStore.js";
-import { notificationsLoad } from "../src/modules/notifications/notificationsRoute.js";
-import { notificationsStoreCreateBinding } from "../src/modules/notifications/notificationsStore.js";
-import { StateRuntime } from "../src/modules/runtime/stateRuntime.js";
-import { settingsStoreCreateBinding } from "../src/modules/settings/settingsStore.js";
-import { IdentityCatalog } from "../src/modules/identity/identityCatalog.js";
+import { callsLoad } from "../src/modules/calls/callsState.js";
+import { callsStoreCreate } from "../src/modules/calls/callsState.js";
+import { agentImagesOutputRoute } from "../src/modules/agent-images/agentImagesState.js";
+import { agentImagesStoreCreate } from "../src/modules/agent-images/agentImagesState.js";
+import { notificationsLoad } from "../src/modules/notifications/notificationsState.js";
+import { notificationsStoreCreate } from "../src/modules/notifications/notificationsState.js";
+import { StateRuntime } from "../src/modules/runtime/runtimeState.js";
+import { settingsStoreCreate } from "../src/modules/settings/settingsState.js";
+import { IdentityCatalog } from "../src/modules/identity/identityState.js";
 import { createFakeServer, jsonResponse } from "../src/testing/index.js";
 
 describe("retained surface races and failures", () => {
@@ -36,7 +36,7 @@ describe("retained surface races and failures", () => {
     });
 
     it("merges a loaded settings document field by field around a newer local edit", () => {
-        const binding = settingsStoreCreateBinding({
+        const binding = settingsStoreCreate({
             profile: {
                 id: "user-1",
                 firstName: "Ada",
@@ -44,8 +44,8 @@ describe("retained surface races and failures", () => {
                 photoFileId: "avatar-old",
             },
         });
-        binding.store.displayNameUpdate("Grace", "Hopper");
-        binding.settingsInput({
+        binding.getState().displayNameUpdate("Grace", "Hopper");
+        binding.getState().settingsInput({
             type: "settingsLoaded",
             profile: {
                 id: "user-1",
@@ -57,22 +57,22 @@ describe("retained surface races and failures", () => {
             notifications: notifications(),
             avatarRevision: 0,
         });
-        expect(binding.store.get().profile).toMatchObject({
+        expect(binding.getState().profile).toMatchObject({
             firstName: "Grace",
             lastName: "Hopper",
             username: "lovelace",
             photoFileId: "avatar-remote",
         });
-        expect(binding.store.get().fields.displayName).toMatchObject({
+        expect(binding.getState().fields.displayName).toMatchObject({
             saved: { firstName: "Augusta" },
             save: { type: "dirty" },
         });
-        expect(binding.store.get().fields.username).toEqual({
+        expect(binding.getState().fields.username).toEqual({
             saved: "lovelace",
             save: { type: "clean" },
         });
-        binding.settingsInput({ type: "avatarSaved", fileId: "avatar-local" });
-        binding.settingsInput({
+        binding.getState().settingsInput({ type: "avatarSaved", fileId: "avatar-local" });
+        binding.getState().settingsInput({
             type: "settingsLoaded",
             profile: {
                 id: "user-1",
@@ -84,8 +84,7 @@ describe("retained surface races and failures", () => {
             notifications: notifications(),
             avatarRevision: 0,
         });
-        expect(binding.store.get().profile.photoFileId).toBe("avatar-local");
-        binding.dispose();
+        expect(binding.getState().profile.photoFileId).toBe("avatar-local");
     });
 
     it("discards an older calls load after a newer load completes", async () => {
@@ -103,44 +102,42 @@ describe("retained surface races and failures", () => {
         });
         const runtime = new StateRuntime({ transport: server.transport });
         const identities = new IdentityCatalog();
-        const calls = callsStoreCreateBinding();
+        const calls = callsStoreCreate();
         const context = { runtime, identities, calls };
         const first = callsLoad(context);
         await started;
         await callsLoad(context);
         releaseFirst();
         await first;
-        expect(calls.store.get().calls).toMatchObject({
+        expect(calls.getState().calls).toMatchObject({
             type: "ready",
             value: [{ id: "new" }],
         });
         runtime.stop();
-        calls.dispose();
     });
 
     it("keeps concurrent agent-image pending operations independent", () => {
-        const images = agentImagesStoreCreateBinding();
-        images.store.imageBuild("image-1");
-        images.store.defaultImageSet("image-2");
-        images.store.imageCreate("Custom", "FROM scratch");
-        images.agentImagesInput({
+        const images = agentImagesStoreCreate();
+        images.getState().imageBuild("image-1");
+        images.getState().defaultImageSet("image-2");
+        images.getState().imageCreate("Custom", "FROM scratch");
+        images.getState().agentImagesInput({
             type: "imageUpserted",
             image: image("image-1"),
             completed: "build",
         });
-        expect(images.store.get().pending).toEqual({
+        expect(images.getState().pending).toEqual({
             buildImageIds: [],
             defaultImageId: "image-2",
             creating: true,
         });
-        images.agentImagesInput({
+        images.getState().agentImagesInput({
             type: "imageUpserted",
             image: image("image-2"),
             defaultImageId: "image-2",
             completed: "default",
         });
-        expect(images.store.get().pending).toEqual({ buildImageIds: [], creating: true });
-        images.dispose();
+        expect(images.getState().pending).toEqual({ buildImageIds: [], creating: true });
     });
 
     it("ignores details returned for an image that is no longer selected", async () => {
@@ -157,25 +154,24 @@ describe("retained surface races and failures", () => {
             },
         );
         const runtime = new StateRuntime({ transport: server.transport });
-        let binding: ReturnType<typeof agentImagesStoreCreateBinding>;
+        let binding: ReturnType<typeof agentImagesStoreCreate>;
         const tasks: Promise<void>[] = [];
-        binding = agentImagesStoreCreateBinding((event) =>
+        binding = agentImagesStoreCreate((event) =>
             tasks.push(agentImagesOutputRoute({ runtime, images: binding }, event)),
         );
-        binding.store.imageSelect("image-1");
+        binding.getState().imageSelect("image-1");
         await vi.waitFor(() => expect(releaseFirst).toBeTypeOf("function"));
-        binding.store.imageSelect("image-2");
+        binding.getState().imageSelect("image-2");
         await tasks[1];
         releaseFirst();
         await tasks[0];
-        expect(binding.store.get().selectedImageId).toBe("image-2");
-        expect(binding.store.get().details["image-2"]).toMatchObject({
+        expect(binding.getState().selectedImageId).toBe("image-2");
+        expect(binding.getState().details["image-2"]).toMatchObject({
             type: "ready",
             value: { id: "image-2" },
         });
-        expect(binding.store.get().details["image-1"]?.type).toBe("loading");
+        expect(binding.getState().details["image-1"]?.type).toBe("loading");
         runtime.stop();
-        binding.dispose();
     });
 
     it("keeps the newest notification page when append requests overlap", async () => {
@@ -202,8 +198,8 @@ describe("retained surface races and failures", () => {
         );
         const runtime = new StateRuntime({ transport: server.transport });
         const identities = new IdentityCatalog();
-        const center = notificationsStoreCreateBinding();
-        center.notificationsInput({
+        const center = notificationsStoreCreate();
+        center.getState().notificationsInput({
             type: "notificationsLoaded",
             notifications: [],
             nextCursor: "cursor",
@@ -213,12 +209,11 @@ describe("retained surface races and failures", () => {
         await notificationsLoad({ runtime, identities, notifications: center }, true);
         releaseFirst();
         await first;
-        expect(center.store.get()).toMatchObject({
+        expect(center.getState()).toMatchObject({
             nextCursor: "new-cursor",
             notifications: { type: "ready", value: [{ id: "new" }] },
         });
         runtime.stop();
-        center.dispose();
     });
 
     it("shares one canonical identity across notification and call projections", async () => {
@@ -257,12 +252,12 @@ describe("retained surface races and failures", () => {
         );
         const runtime = new StateRuntime({ transport: server.transport });
         const identities = new IdentityCatalog();
-        const center = notificationsStoreCreateBinding();
-        const calls = callsStoreCreateBinding();
+        const center = notificationsStoreCreate();
+        const calls = callsStoreCreate();
         await notificationsLoad({ runtime, identities, notifications: center });
         await callsLoad({ runtime, identities, calls });
-        const loadedNotifications = center.store.get().notifications;
-        const loadedCalls = calls.store.get().calls;
+        const loadedNotifications = center.getState().notifications;
+        const loadedCalls = calls.getState().calls;
         const notificationActor =
             loadedNotifications.type === "ready" ? loadedNotifications.value[0]?.actor : undefined;
         const callParticipant =
@@ -276,8 +271,6 @@ describe("retained surface races and failures", () => {
         });
         expect(callParticipant).toBe(notificationActor);
         runtime.stop();
-        calls.dispose();
-        center.dispose();
     });
 });
 

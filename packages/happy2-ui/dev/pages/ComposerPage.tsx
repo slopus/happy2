@@ -1,7 +1,7 @@
+import { useLayoutEffect, useState } from "react";
 import { UserError } from "happy2-state";
 import type { ComposerAttachment, ComposerOutput, ComposerSnapshot } from "happy2-state";
 import { composerStoreFixtureCreate } from "happy2-state/testing";
-import { createSignal, onCleanup } from "solid-js";
 import { Button } from "../../src/Button";
 import {
     Composer,
@@ -13,7 +13,6 @@ import {
 import type { EmojiItem } from "../../src/EmojiPicker";
 import { StoreSurface } from "../../src/StoreSurface";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const AGENTS: MentionableAgent[] = [
     {
         description: "Ships code end to end",
@@ -40,13 +39,11 @@ const AGENTS: MentionableAgent[] = [
         tone: "amber",
     },
 ];
-
 const CONTEXT_ITEMS: ContextItem[] = [
     { detail: "src/auth", id: "file-1", kind: "file", label: "refresh.ts" },
     { detail: "+86 −17", id: "run-1", kind: "run", label: "fix/auth-flake" },
     { id: "thread-1", kind: "thread", label: "#eng-core" },
 ];
-
 const EMOJI: EmojiItem[] = [
     { char: "👍", id: "thumbsup", name: "thumbs up" },
     { char: "🎉", id: "tada", name: "tada" },
@@ -57,16 +54,12 @@ const EMOJI: EmojiItem[] = [
     { char: "👀", id: "eyes", name: "eyes" },
     { char: "🙏", id: "pray", name: "folded hands" },
 ];
-
 const noop = () => {};
-
 const INITIAL_ATTACHMENTS: ComposerAttachment[] = [
     { id: "refresh.ts", name: "refresh.ts", size: 4096 },
-    { id: "handshake.md", name: "handshake.md", size: 12_800 },
+    { id: "handshake.md", name: "handshake.md", size: 12800 },
 ];
-
 const RECONCILED_TEXT = "Draft restored from the server after reconnect.";
-
 /*
  * Live composer driven entirely by a standalone happy2-state composer fixture —
  * no transport, authentication, server, or cross-store bridge. It exercises
@@ -86,17 +79,17 @@ const RECONCILED_TEXT = "Draft restored from the server after reconnect.";
  * The fixture is disposed on unmount, so no store outlives the specimen.
  */
 function Playground() {
-    let attachmentSeq = 0;
-    const [lastSubmitted, setLastSubmitted] = createSignal<string | null>(null);
-
-    const fixture = composerStoreFixtureCreate("blueprint-composer", {
-        attachments: INITIAL_ATTACHMENTS,
-        output: (event: ComposerOutput) => {
-            if (event.type === "textSubmitted") setLastSubmitted(event.text);
-        },
-    });
-    onCleanup(() => fixture[Symbol.dispose]());
-
+    const [attachmentSequence] = useState(() => ({ current: 0 }));
+    const [lastSubmitted, setLastSubmitted] = useState<string | null>(null);
+    const [fixture] = useState(() =>
+        composerStoreFixtureCreate("blueprint-composer", {
+            attachments: INITIAL_ATTACHMENTS,
+            output: (event: ComposerOutput) => {
+                if (event.type === "textSubmitted") setLastSubmitted(event.text);
+            },
+        }),
+    );
+    useLayoutEffect(() => () => fixture[Symbol.dispose](), [fixture]);
     const pendingRevision = (snapshot: ComposerSnapshot) => {
         const current = snapshot.submission;
         return current.status === "pending" ? current.revision : null;
@@ -109,12 +102,11 @@ function Playground() {
                 : current.status === "failed"
                   ? `failed · “${current.error.message}”`
                   : "idle";
-        const submitted = lastSubmitted();
+        const submitted = lastSubmitted;
         return submitted === null
             ? `submission ${detail}`
             : `submission ${detail} · last submit “${submitted}”`;
     };
-
     const contextItems = (snapshot: ComposerSnapshot): ContextItem[] =>
         snapshot.attachments.map((attachment) => ({
             detail: `${Math.max(1, Math.round(attachment.size / 1024))} KB`,
@@ -122,7 +114,6 @@ function Playground() {
             kind: "file",
             label: attachment.name,
         }));
-
     const confirmSubmission = (snapshot: ComposerSnapshot) => {
         const revision = pendingRevision(snapshot);
         if (revision !== null) fixture.input({ type: "submissionConfirmed", revision });
@@ -138,21 +129,20 @@ function Playground() {
         }
     };
     const reconcileText = () => fixture.input({ type: "textReconciled", text: RECONCILED_TEXT });
-
     return (
         <StoreSurface store={fixture}>
             {(snapshot, store) => (
-                <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     <Composer
                         agents={AGENTS}
                         attachmentMultiple
-                        contextItems={contextItems(snapshot())}
+                        contextItems={contextItems(snapshot)}
                         emoji={EMOJI}
                         hint="Enter to send · @ to hand off to an agent"
                         onAttachmentsSelect={(files) => {
                             for (const file of files) {
                                 store.attachmentAdd({
-                                    id: `file-${attachmentSeq++}-${file.name}`,
+                                    id: `file-${attachmentSequence.current++}-${file.name}`,
                                     name: file.name,
                                     size: file.size,
                                 });
@@ -161,32 +151,32 @@ function Playground() {
                         onContextRemove={(id) => store.attachmentRemove(id)}
                         onSend={() => store.textSubmit()}
                         onValueChange={(next) => store.textUpdate(next)}
-                        pending={snapshot().submission.status === "pending"}
+                        pending={snapshot.submission.status === "pending"}
                         placeholder="Message #launch-week — @ mention an agent to hand off…"
-                        value={snapshot().text}
+                        value={snapshot.text}
                     />
                     <div
                         style={{
                             display: "flex",
-                            "flex-direction": "row",
-                            "flex-wrap": "wrap",
-                            "align-items": "center",
+                            flexDirection: "row",
+                            flexWrap: "wrap",
+                            alignItems: "center",
                             gap: "8px",
                         }}
                     >
                         <Button
-                            disabled={pendingRevision(snapshot()) === null}
+                            disabled={pendingRevision(snapshot) === null}
                             icon="check"
-                            onClick={() => confirmSubmission(snapshot())}
+                            onClick={() => confirmSubmission(snapshot)}
                             size="small"
                             variant="success"
                         >
                             Confirm send
                         </Button>
                         <Button
-                            disabled={pendingRevision(snapshot()) === null}
+                            disabled={pendingRevision(snapshot) === null}
                             icon="close"
-                            onClick={() => failSubmission(snapshot())}
+                            onClick={() => failSubmission(snapshot)}
                             size="small"
                             variant="danger"
                         >
@@ -196,13 +186,12 @@ function Playground() {
                             Reconcile text
                         </Button>
                     </div>
-                    <DimensionRule label={statusLine(snapshot())} />
+                    <DimensionRule label={statusLine(snapshot)} />
                 </div>
             )}
         </StoreSurface>
     );
 }
-
 export function ComposerPage() {
     return (
         <ComponentPage
@@ -210,7 +199,7 @@ export function ComposerPage() {
             summary="Message composer with auto-growing text, capability-driven file/mention/emoji actions, stable sending feedback, and retained focus."
             title="Composer"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="80px single-line card · capability actions hidden · send disabled while empty"
                     label="Default"
@@ -237,7 +226,7 @@ export function ComposerPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="draft grows 22px per line, capped at 8 lines · send enabled"
                     label="Multiline draft"
@@ -274,7 +263,7 @@ export function ComposerPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="24px chips · kind icons doc/play/thread · 14px remove hit area"
                     label="ContextChips"
@@ -286,7 +275,7 @@ export function ComposerPage() {
                             display: "grid",
                             gap: "16px",
                             padding: "24px 20px",
-                            "justify-items": "start",
+                            justifyItems: "start",
                         }}
                     >
                         <ContextChips items={CONTEXT_ITEMS} label="Context" onRemove={noop} />
@@ -307,7 +296,7 @@ export function ComposerPage() {
                             display: "flex",
                             gap: "24px",
                             padding: "24px 20px",
-                            "align-items": "flex-start",
+                            alignItems: "flex-start",
                         }}
                     >
                         <div style={{ display: "grid", gap: "6px" }}>
@@ -324,7 +313,7 @@ export function ComposerPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="textarea and all controls disabled · muted draft"
                     label="Disabled"
@@ -352,7 +341,7 @@ export function ComposerPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="same 80px geometry · draft stays visible · actions become inert"
                     label="Sending"

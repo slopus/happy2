@@ -1,16 +1,21 @@
-import { createEffect, createSignal, For, onCleanup, Show, splitProps, type JSX } from "solid-js";
+import {
+    useLayoutEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+    type HTMLAttributes,
+    type ReactNode,
+} from "react";
 import { happyOtterLogoUrl } from "./assets";
 import { CountBadge } from "./Badge";
 import { Icon, type IconName } from "./Icon";
 import { Menu, type MenuItem } from "./Menu";
-
 export type RailItem = {
     badge?: number;
     icon: IconName;
     id: string;
     label: string;
 };
-
 export type RailPrimaryAction =
     | {
           icon?: IconName;
@@ -26,186 +31,180 @@ export type RailPrimaryAction =
           onMenuSelect: (id: string) => void;
           onSelect?: never;
       };
-
-export type RailProps = Omit<JSX.HTMLAttributes<HTMLElement>, "style"> & {
+export type RailProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
     activeItemId: string;
-    brand?: JSX.Element;
-    footer?: JSX.Element;
+    brand?: ReactNode;
+    footer?: ReactNode;
     footerLabel?: string;
     items: RailItem[];
     onFooterSelect?: () => void;
     onItemSelect: (id: string) => void;
     /** Prominent accent action (usually "+") pinned above the footer profile. */
     primaryAction?: RailPrimaryAction;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
 };
-
 /**
  * The 76px feature rail: happy otter brand mark (replaceable through the brand
  * slot), icon+label destinations, and a footer slot pinned to the bottom.
  * Navigation only — the app shell composes it next to the main content panel.
  */
 export function Rail(props: RailProps) {
-    const [local, rest] = splitProps(props, [
-        "activeItemId",
-        "brand",
-        "class",
-        "footer",
-        "footerLabel",
-        "items",
-        "onFooterSelect",
-        "onItemSelect",
-        "primaryAction",
-        "style",
-    ]);
-    const [primaryMenuOpen, setPrimaryMenuOpen] = createSignal(false);
-    let primaryRoot: HTMLDivElement | undefined;
-
-    createEffect(() => {
-        if (!primaryMenuOpen()) return;
+    const {
+        activeItemId,
+        brand,
+        className,
+        footer,
+        footerLabel,
+        items,
+        onFooterSelect,
+        onItemSelect,
+        primaryAction,
+        style,
+        ...rest
+    } = props;
+    const [primaryMenuOpen, setPrimaryMenuOpen] = useState(false);
+    const primaryRoot = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+        if (!primaryMenuOpen) return;
         const close = (event: PointerEvent) => {
-            if (!primaryRoot?.contains(event.target as Node)) setPrimaryMenuOpen(false);
+            if (!primaryRoot.current?.contains(event.target as Node)) setPrimaryMenuOpen(false);
         };
         const closeOnFocus = (event: FocusEvent) => {
-            if (!primaryRoot?.contains(event.target as Node)) setPrimaryMenuOpen(false);
+            if (!primaryRoot.current?.contains(event.target as Node)) setPrimaryMenuOpen(false);
+        };
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            setPrimaryMenuOpen(false);
+            primaryRoot.current
+                ?.querySelector<HTMLButtonElement>('[data-happy2-ui="rail-primary"]')
+                ?.focus();
         };
         const dismiss = () => setPrimaryMenuOpen(false);
         document.addEventListener("pointerdown", close);
         document.addEventListener("focusin", closeOnFocus);
+        document.addEventListener("keydown", closeOnEscape);
         window.addEventListener("resize", dismiss);
-        onCleanup(() => {
+        return () => {
             document.removeEventListener("pointerdown", close);
             document.removeEventListener("focusin", closeOnFocus);
+            document.removeEventListener("keydown", closeOnEscape);
             window.removeEventListener("resize", dismiss);
-        });
-    });
-
+        };
+    }, [primaryMenuOpen]);
     return (
         <nav
             {...rest}
-            class={["happy2-rail", local.class].filter(Boolean).join(" ")}
+            className={["happy2-rail", className].filter(Boolean).join(" ")}
             data-happy2-ui="rail"
-            style={local.style}
+            style={style}
         >
-            <div class="happy2-rail__brand" data-happy2-ui="rail-brand">
-                <Show
-                    fallback={
-                        <img
-                            alt=""
-                            aria-hidden="true"
-                            class="happy2-rail__brand-image"
-                            data-happy2-ui="rail-brand-image"
-                            draggable={false}
-                            src={happyOtterLogoUrl}
-                        />
-                    }
-                    when={local.brand}
-                >
-                    {local.brand}
-                </Show>
+            <div className="happy2-rail__brand" data-happy2-ui="rail-brand">
+                {brand ? (
+                    brand
+                ) : (
+                    <img
+                        alt=""
+                        aria-hidden="true"
+                        className="happy2-rail__brand-image"
+                        data-happy2-ui="rail-brand-image"
+                        draggable={false}
+                        src={happyOtterLogoUrl}
+                    />
+                )}
             </div>
-            <div class="happy2-rail__items" data-happy2-ui="rail-items">
-                <For each={local.items}>
-                    {(item) => (
-                        <button
-                            aria-current={item.id === local.activeItemId ? "page" : undefined}
-                            class="happy2-rail__item"
-                            data-active={item.id === local.activeItemId ? "" : undefined}
-                            data-item-id={item.id}
-                            data-happy2-ui="rail-item"
-                            onClick={() => local.onItemSelect(item.id)}
-                            type="button"
+            <div className="happy2-rail__items" data-happy2-ui="rail-items">
+                {items.map((item) => (
+                    <button
+                        aria-current={item.id === activeItemId ? "page" : undefined}
+                        className="happy2-rail__item"
+                        data-active={item.id === activeItemId ? "" : undefined}
+                        data-item-id={item.id}
+                        data-happy2-ui="rail-item"
+                        key={item.id}
+                        onClick={() => onItemSelect(item.id)}
+                        type="button"
+                    >
+                        <span className="happy2-rail__item-icon" data-happy2-ui="rail-item-icon">
+                            <Icon name={item.icon} size={20} />
+                            {item.badge
+                                ? ((count) => (
+                                      <span
+                                          className="happy2-rail__item-badge"
+                                          data-happy2-ui="rail-item-badge"
+                                      >
+                                          <CountBadge count={count} />
+                                      </span>
+                                  ))(item.badge)
+                                : null}
+                        </span>
+                        <span className="happy2-rail__item-label" data-happy2-ui="rail-item-label">
+                            {item.label}
+                        </span>
+                    </button>
+                ))}
+            </div>
+            {primaryAction || footer ? (
+                <div className="happy2-rail__footer" data-happy2-ui="rail-footer">
+                    {primaryAction ? (
+                        <div
+                            className="happy2-rail__primary-wrap"
+                            data-happy2-ui="rail-primary-wrap"
+                            ref={primaryRoot}
                         >
-                            <span class="happy2-rail__item-icon" data-happy2-ui="rail-item-icon">
-                                <Icon name={item.icon} size={20} />
-                                <Show when={item.badge}>
-                                    {(count) => (
-                                        <span
-                                            class="happy2-rail__item-badge"
-                                            data-happy2-ui="rail-item-badge"
-                                        >
-                                            <CountBadge count={count()} />
-                                        </span>
-                                    )}
-                                </Show>
-                            </span>
-                            <span class="happy2-rail__item-label" data-happy2-ui="rail-item-label">
-                                {item.label}
-                            </span>
-                        </button>
-                    )}
-                </For>
-            </div>
-            <Show when={local.primaryAction || local.footer}>
-                <div class="happy2-rail__footer" data-happy2-ui="rail-footer">
-                    <Show when={local.primaryAction}>
-                        {(action) => (
-                            <div
-                                class="happy2-rail__primary-wrap"
-                                data-happy2-ui="rail-primary-wrap"
-                                onKeyDown={(event) => {
-                                    if (event.key !== "Escape" || !primaryMenuOpen()) return;
-                                    event.preventDefault();
-                                    setPrimaryMenuOpen(false);
-                                    primaryRoot
-                                        ?.querySelector<HTMLButtonElement>(
-                                            '[data-happy2-ui="rail-primary"]',
-                                        )
-                                        ?.focus();
-                                }}
-                                ref={(element) => (primaryRoot = element)}
-                            >
-                                <button
-                                    aria-expanded={
-                                        action().menuItems ? primaryMenuOpen() : undefined
+                            <button
+                                aria-expanded={
+                                    primaryAction.menuItems ? primaryMenuOpen : undefined
+                                }
+                                aria-haspopup={primaryAction.menuItems ? "menu" : undefined}
+                                aria-label={primaryAction.label}
+                                className="happy2-rail__primary"
+                                data-happy2-ui="rail-primary"
+                                onClick={() => {
+                                    if (primaryAction.menuItems) {
+                                        setPrimaryMenuOpen((open) => !open);
+                                    } else {
+                                        primaryAction.onSelect?.();
                                     }
-                                    aria-haspopup={action().menuItems ? "menu" : undefined}
-                                    aria-label={action().label}
-                                    class="happy2-rail__primary"
-                                    data-happy2-ui="rail-primary"
-                                    onClick={() => {
-                                        if (action().menuItems) setPrimaryMenuOpen((open) => !open);
-                                        else action().onSelect?.();
-                                    }}
-                                    type="button"
+                                }}
+                                type="button"
+                            >
+                                <Icon name={primaryAction.icon ?? "plus"} size={20} />
+                            </button>
+                            {primaryMenuOpen && primaryAction.menuItems ? (
+                                <div
+                                    className="happy2-rail__primary-popover"
+                                    data-happy2-ui="rail-primary-popover"
                                 >
-                                    <Icon name={action().icon ?? "plus"} size={20} />
-                                </button>
-                                <Show when={primaryMenuOpen() && action().menuItems}>
-                                    <div
-                                        class="happy2-rail__primary-popover"
-                                        data-happy2-ui="rail-primary-popover"
-                                    >
-                                        <Menu
-                                            items={action().menuItems ?? []}
-                                            onSelect={(id) => {
-                                                setPrimaryMenuOpen(false);
-                                                action().onMenuSelect?.(id);
-                                            }}
-                                            width={184}
-                                        />
-                                    </div>
-                                </Show>
-                            </div>
-                        )}
-                    </Show>
-                    <Show when={local.footer}>
-                        <Show fallback={local.footer} when={local.onFooterSelect}>
-                            {(onSelect) => (
-                                <button
-                                    aria-label={local.footerLabel}
-                                    class="happy2-rail__footer-action"
-                                    data-happy2-ui="rail-footer-action"
-                                    onClick={onSelect()}
-                                    type="button"
-                                >
-                                    {local.footer}
-                                </button>
-                            )}
-                        </Show>
-                    </Show>
+                                    <Menu
+                                        items={primaryAction.menuItems}
+                                        onSelect={(id) => {
+                                            setPrimaryMenuOpen(false);
+                                            primaryAction.onMenuSelect(id);
+                                        }}
+                                        width={184}
+                                    />
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : null}
+                    {footer ? (
+                        onFooterSelect ? (
+                            <button
+                                aria-label={footerLabel}
+                                className="happy2-rail__footer-action"
+                                data-happy2-ui="rail-footer-action"
+                                onClick={onFooterSelect}
+                                type="button"
+                            >
+                                {footer}
+                            </button>
+                        ) : (
+                            footer
+                        )
+                    ) : null}
                 </div>
-            </Show>
+            ) : null}
         </nav>
     );
 }

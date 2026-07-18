@@ -8,7 +8,7 @@ export function CheckboxPage() {
             summary="18px control box on the 4px grid — reused Icon check glyph, symmetric indeterminate bar, accent fill, focus ring; the real state rides a hidden native checkbox."
             title="Checkbox"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="unchecked · checked · indeterminate · disabled"
                     label="States"
@@ -18,8 +18,8 @@ export function CheckboxPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-direction": "column",
-                            "align-items": "flex-start",
+                            flexDirection: "column",
+                            alignItems: "flex-start",
                             gap: "16px",
                             padding: "28px",
                         }}
@@ -42,12 +42,12 @@ export function CheckboxPage() {
                         style={{
                             display: "grid",
                             gap: "12px",
-                            "justify-items": "center",
+                            justifyItems: "center",
                             padding: "28px",
                         }}
                     >
                         <DimensionRule label="box 18 · gap 8" />
-                        <div style={{ display: "flex", "align-items": "center", gap: "20px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
                             <Checkbox aria-label="Unchecked" checked={false} />
                             <Checkbox aria-label="Checked" checked />
                             <Checkbox aria-label="Mixed" checked={false} indeterminate />
@@ -56,7 +56,7 @@ export function CheckboxPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="selection column — mirrors DataTable header + rows"
                     label="In context"
@@ -69,7 +69,7 @@ export function CheckboxPage() {
                             gap: "10px",
                             padding: "28px",
                             width: "320px",
-                            "justify-items": "start",
+                            justifyItems: "start",
                         }}
                     >
                         <Checkbox checked={false} indeterminate label="Select all (3 of 5)" />

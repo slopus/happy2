@@ -36,7 +36,7 @@ describe("streamed agent Markdown through happy2-state", () => {
         });
         const chatId = firstState
             .sidebar()
-            .get()
+            .getState()
             .chats.find(({ displayName }) => displayName === "Markdown Agent")?.id;
         if (!chatId) throw new Error("Markdown Agent chat was not materialized");
         using firstChat = firstState.chatOpen(chatId);
@@ -54,7 +54,7 @@ describe("streamed agent Markdown through happy2-state", () => {
         await expect
             .poll(
                 () =>
-                    firstChat.get().messages.map(({ delivery, message }) => ({
+                    firstChat.getState().messages.map(({ delivery, message }) => ({
                         delivery,
                         text: message.text,
                     })),
@@ -66,7 +66,7 @@ describe("streamed agent Markdown through happy2-state", () => {
         rig.emitTextDelta(run.runId, firstChunk);
 
         await expect
-            .poll(() => streamedReply(firstChat.get().messages), {
+            .poll(() => streamedReply(firstChat.getState().messages), {
                 timeout: 4_000,
             })
             .toMatchObject({
@@ -77,7 +77,7 @@ describe("streamed agent Markdown through happy2-state", () => {
                     text: firstChunk,
                 },
             });
-        const streamedMessage = streamedReply(firstChat.get().messages);
+        const streamedMessage = streamedReply(firstChat.getState().messages);
         expect(streamedMessage).toBeDefined();
         const streamedMessageId = streamedMessage!.message.id;
 
@@ -85,7 +85,7 @@ describe("streamed agent Markdown through happy2-state", () => {
         const incompleteMarkdown = firstChunk + secondChunk;
         rig.emitTextDelta(run.runId, secondChunk);
         await expect
-            .poll(() => streamedReply(firstChat.get().messages), {
+            .poll(() => streamedReply(firstChat.getState().messages), {
                 timeout: 4_000,
             })
             .toMatchObject({
@@ -105,7 +105,7 @@ describe("streamed agent Markdown through happy2-state", () => {
         await transport.whenConnected();
         using secondChat = secondState.chatOpen(chatId);
         await secondState.whenIdle();
-        expect(streamedReply(secondChat.get().messages)).toMatchObject({
+        expect(streamedReply(secondChat.getState().messages)).toMatchObject({
             delivery: "sent",
             message: {
                 generationStatus: "streaming",
@@ -119,7 +119,7 @@ describe("streamed agent Markdown through happy2-state", () => {
 
         for (const chat of [firstChat, secondChat]) {
             await expect
-                .poll(() => streamedReply(chat.get().messages), {
+                .poll(() => streamedReply(chat.getState().messages), {
                     timeout: 8_000,
                 })
                 .toMatchObject({
@@ -131,7 +131,7 @@ describe("streamed agent Markdown through happy2-state", () => {
                     },
                 });
             expect(
-                chat.get().messages.filter(({ message }) => message.kind === "automated"),
+                chat.getState().messages.filter(({ message }) => message.kind === "automated"),
             ).toHaveLength(1);
         }
         expect(firstBackgroundErrors).toEqual([]);

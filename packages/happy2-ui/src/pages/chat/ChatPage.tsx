@@ -1,13 +1,4 @@
-import {
-    For,
-    Show,
-    createEffect,
-    createMemo,
-    createSignal,
-    onCleanup,
-    type Accessor,
-    type JSX,
-} from "solid-js";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
     AppShell,
     Button,
@@ -32,7 +23,7 @@ import type {
 } from "happy2-state";
 import {
     composerHint,
-    entriesProjectorCreate,
+    entriesProject,
     formatBytes,
     identityInitials,
     messagesGrouped,
@@ -40,37 +31,37 @@ import {
     toneFor,
     type Conversation,
     type LiveThreadMessage,
-    type WorkspaceEntrySlot,
+    type WorkspaceEntry,
 } from "./chatPageModels.js";
 import { ChatMessageEntry } from "./ChatMessageEntry.js";
 import { ChatAgentCreateDialog } from "./ChatAgentCreateDialog.js";
 import { ChatChannelCreateDialog } from "./ChatChannelCreateDialog.js";
 import { ChatDirectoryDialog } from "./ChatDirectoryDialog.js";
+import { ChatDirectMessageDialog } from "./ChatDirectMessageDialog.js";
+import { ChatMessageEditDialog } from "./ChatMessageEditDialog.js";
 import { ChatInfoPanel } from "./ChatInfoPanel.js";
 import { ChatThreadPanel } from "./ChatThreadPanel.js";
 import { ChatWorkspaceEditor } from "./ChatWorkspaceEditor.js";
 import { ChatWorkspacePanel } from "./ChatWorkspacePanel.js";
-import { chatWorkspaceModelCreate } from "./chatWorkspaceModel.js";
-import { chatMessageMediaModelCreate } from "./chatMessageMediaModel.js";
+import { useChatWorkspaceModel } from "./chatWorkspaceModel.js";
+import { useChatMessageMediaModel } from "./chatMessageMediaModel.js";
 import { ChatConversation } from "./ChatConversation.js";
 import { chatSidebarModelCreate } from "./chatSidebarModel.js";
-import { chatInfoModelCreate } from "./chatInfoModel.js";
+import { useChatInfoModel } from "./chatInfoModel.js";
 import { chatMessageActionsModelCreate } from "./chatMessageActionsModel.js";
-import { chatCreationModelCreate, chatCreateRequestFollow } from "./chatCreationModel.js";
+import { chatCreationModelCreate, useChatCreateRequest } from "./chatCreationModel.js";
 import { chatChannelModelCreate } from "./chatChannelModel.js";
 import {
-    createAvatarImages,
+    useAvatarImages,
     createAvatarProjection,
-    createDynamicSnapshot,
-    createStoreSnapshot,
+    useOptionalStoreSnapshot,
+    useStoreSnapshot,
 } from "./chatStoreBindings.js";
-
 export interface ChatPageUser {
     readonly id: string;
     readonly firstName: string;
     readonly photoFileId?: string;
 }
-
 export type ChatPageProps = {
     user: ChatPageUser;
     sidebar: SidebarStore;
@@ -82,26 +73,35 @@ export type ChatPageProps = {
     workspaceFile?: WorkspaceFileStore;
     actions: ChatPageActions;
     navigation: ChatPageNavigation;
-    search: () => string;
-    createRequest?: () => { kind: "agent" | "channel"; nonce: number };
-    rail: JSX.Element;
-    titleBar: JSX.Element;
+    search: string;
+    createRequest?: {
+        kind: "agent" | "channel";
+        nonce: number;
+    };
+    rail: ReactNode;
+    titleBar: ReactNode;
 };
-
 export type ChatPageConversationKind = "chat" | "channel";
-
 export type ChatPagePanel =
-    | { readonly kind: "info" }
-    | { readonly kind: "profile"; readonly userId: string }
-    | { readonly kind: "thread"; readonly rootMessageId: string }
-    | { readonly kind: "workspace" };
-
+    | {
+          readonly kind: "info";
+      }
+    | {
+          readonly kind: "profile";
+          readonly userId: string;
+      }
+    | {
+          readonly kind: "thread";
+          readonly rootMessageId: string;
+      }
+    | {
+          readonly kind: "workspace";
+      };
 export interface ChatPageNavigation {
     readonly chatId?: string;
     readonly panel?: ChatPagePanel;
     readonly workspaceFilePath?: string;
 }
-
 export interface ChatPageActions {
     adminOpen(): void;
     chatSelect(chatId: string, kind: ChatPageConversationKind, replace?: boolean): void;
@@ -132,66 +132,85 @@ export interface ChatPageActions {
     agentCreate(input: import("happy2-state").CreateAgentInput): Promise<void>;
     directMessageCreate(userId: string): Promise<void>;
 }
-
 export function ChatPage(props: ChatPageProps) {
     const user = () => props.user;
-    const avatarImages = createAvatarImages(props.actions);
-    const sidebarSnapshot = createStoreSnapshot(props.sidebar);
-    const directorySnapshot = createStoreSnapshot(props.directory);
-
-    const chatReader = createDynamicSnapshot<ReturnType<ChatStore["get"]>>();
-    const composerReader = createDynamicSnapshot<ReturnType<ComposerStore["get"]>>();
-    const threadReader = createDynamicSnapshot<ReturnType<ThreadStore["get"]>>();
-    createEffect(() => chatReader.follow(props.chat));
-    createEffect(() => composerReader.follow(props.composer));
-    createEffect(() => threadReader.follow(props.thread));
-
-    const [threadDraft, setThreadDraft] = createSignal("");
-    const [statusHint, setStatusHint] = createSignal<string>();
-    const [busyCount, setBusyCount] = createSignal(0);
-    const [createOpen, setCreateOpen] = createSignal(false);
-    const [agentCreateOpen, setAgentCreateOpen] = createSignal(false);
-    const [directoryOpen, setDirectoryOpen] = createSignal(false);
-    const [activityNow, setActivityNow] = createSignal(Date.now());
-    const [pendingSelection, setPendingSelection] = createSignal<
-        | { kind: "channel"; name: string }
-        | { kind: "agent"; username: string }
-        | { kind: "dm"; userId: string }
-    >();
+    const avatarImages = useAvatarImages(props.actions);
+    const sidebarState = useStoreSnapshot(props.sidebar);
+    const directoryState = useStoreSnapshot(props.directory);
+    const chatState = useOptionalStoreSnapshot(props.chat);
+    const composerState = useOptionalStoreSnapshot(props.composer);
+    const threadState = useOptionalStoreSnapshot(props.thread);
+    const sidebarSnapshot = () => sidebarState;
+    const directorySnapshot = () => directoryState;
+    const chatSnapshot = () => chatState;
+    const composerSnapshot = () => composerState;
+    const threadSnapshot = () => threadState;
+    const [threadDraftState, setThreadDraftState] = useState<{
+        rootMessageId?: string;
+        text: string;
+    }>({ text: "" });
+    const [statusHint, setStatusHint] = useState<string>();
+    function showError(error: unknown) {
+        setStatusHint(error instanceof Error ? error.message : "Something went wrong.");
+    }
+    const [busyCount, setBusyCount] = useState(0);
+    const [createOpen, setCreateOpen] = useState(false);
+    const [agentCreateOpen, setAgentCreateOpen] = useState(false);
+    const [directoryOpen, setDirectoryOpen] = useState(false);
+    const [directMessageOpen, setDirectMessageOpen] = useState(false);
+    const [messageEdit, setMessageEdit] = useState<{
+        chatId: string;
+        error?: string;
+        initialText: string;
+        messageId: string;
+        revision: number;
+    }>();
+    const [activityNow, setActivityNow] = useState(() => Date.now());
+    const pendingSelection = useRef<
+        | undefined
+        | {
+              kind: "channel";
+              name: string;
+          }
+        | {
+              kind: "agent";
+              username: string;
+          }
+        | {
+              kind: "dm";
+              userId: string;
+          }
+    >(undefined);
     const activeConversationId = () => props.navigation.chatId ?? "";
     const activePanel = () => props.navigation.panel;
-    let threadDraftRootId: string | undefined;
-    createEffect(() => {
+    const activeThreadRootId = () => {
         const panel = activePanel();
-        const nextRootId = panel?.kind === "thread" ? panel.rootMessageId : undefined;
-        if (nextRootId === threadDraftRootId) return;
-        threadDraftRootId = nextRootId;
-        setThreadDraft("");
-    });
+        return panel?.kind === "thread" ? panel.rootMessageId : undefined;
+    };
+    const threadDraft =
+        threadDraftState.rootMessageId === activeThreadRootId() ? threadDraftState.text : "";
+    function setThreadDraft(value: string) {
+        setThreadDraftState({ rootMessageId: activeThreadRootId(), text: value });
+    }
     const panelMode = (): "info" | "thread" | "files" | undefined => {
         const panel = activePanel();
         if (panel?.kind === "thread") return "thread";
         if (panel?.kind === "info" || panel?.kind === "profile") return "info";
         return panel?.kind === "workspace" ? "files" : undefined;
     };
-    const workspaceModel = chatWorkspaceModelCreate({
+    const workspaceModel = useChatWorkspaceModel({
         activeChatId: activeConversationId,
         actions: props.actions,
         openPath: () => props.navigation.workspaceFilePath,
         workspace: props.workspace,
         workspaceFile: props.workspaceFile,
     });
-    const mediaModel = chatMessageMediaModelCreate(props.actions, showError);
-    let sentTyping = false;
-    let lastReadMessageId: string | undefined;
-
-    const busy = () => busyCount() > 0;
+    const mediaModel = useChatMessageMediaModel(props.actions, showError);
+    const sentTyping = useRef(false);
+    const lastReadMessageId = useRef<string | undefined>(undefined);
+    const busy = () => busyCount > 0;
     const startBusy = () => setBusyCount((value) => value + 1);
     const finishBusy = () => setBusyCount((value) => Math.max(0, value - 1));
-    const chatSnapshot = chatReader.snapshot;
-    const composerSnapshot = composerReader.snapshot;
-    const threadSnapshot = threadReader.snapshot;
-
     const sidebarChats = (): readonly DeepReadonly<SidebarChatProjection>[] =>
         sidebarSnapshot().chats;
     const directoryUsers = (): readonly DeepReadonly<DirectoryUserProjection>[] =>
@@ -206,38 +225,31 @@ export function ChatPage(props: ChatPageProps) {
         activeProjection()?.participants.find((participant) => participant.id !== user()?.id);
     const draft = () => composerSnapshot()?.text ?? "";
     const pendingAttachments = () => composerSnapshot()?.attachments ?? [];
-    const projectors = [entriesProjectorCreate(), entriesProjectorCreate()] as const;
-    const entries = createMemo<WorkspaceEntrySlot[]>(() =>
-        projectors[0].project(
-            (chatSnapshot()?.messages ?? []).filter((item) => !item.message.threadRootMessageId),
-        ),
+    const entries = entriesProject(
+        (chatSnapshot()?.messages ?? []).filter((item) => !item.message.threadRootMessageId),
     );
-    const threadEntries = createMemo<WorkspaceEntrySlot[]>(() => {
+    const threadEntries = (() => {
         const snapshot = threadSnapshot();
         const root = snapshot?.root;
-        return projectors[1].project([
+        return entriesProject([
             ...(root?.type === "ready"
                 ? [{ message: root.value, source: "server" as const, delivery: "sent" as const }]
                 : []),
             ...(snapshot?.replies ?? []),
         ]);
-    });
+    })();
     const threadRoot = () =>
-        threadEntries()
-            .map((slot) => slot.entry())
-            .find((entry): entry is LiveThreadMessage => entry.kind === "message");
-
+        threadEntries.find((entry): entry is LiveThreadMessage => entry.kind === "message");
     const avatarFor = createAvatarProjection({
         user,
         sidebarSnapshot,
         directorySnapshot,
         imageUrl: avatarImages.imageUrl,
     });
-
     const sidebarModel = chatSidebarModelCreate({
         user,
         activeConversationId,
-        search: props.search,
+        search: () => props.search,
         sidebarSnapshot,
         directorySnapshot,
         avatarFor,
@@ -246,7 +258,7 @@ export function ChatPage(props: ChatPageProps) {
     const sidebarPinnedItems = sidebarModel.pinnedItems;
     const directoryItems = sidebarModel.directoryItems;
     const isServerAdmin = sidebarModel.isServerAdmin;
-    const infoModel = chatInfoModelCreate({
+    const infoModel = useChatInfoModel({
         activeChat,
         activePeer,
         chatSnapshot,
@@ -273,27 +285,57 @@ export function ChatPage(props: ChatPageProps) {
         activeChatId: activeConversationId,
         actions: props.actions,
         onError: showError,
+        onEdit: (message) => {
+            const source = message.serverMessage;
+            if (!source) return;
+            setMessageEdit({
+                chatId: activeConversationId(),
+                initialText: source.text,
+                messageId: source.id,
+                revision: source.revision,
+            });
+        },
     });
     const creationModel = chatCreationModelCreate({
         actions: props.actions,
-        directoryUsers,
-        userId: () => user().id,
         isServerAdmin,
         onBusyStart: startBusy,
         onBusyFinish: finishBusy,
         onError: showError,
-        onStatus: setStatusHint,
-        onChannelCreated: (name) => {
-            setPendingSelection({ kind: "channel", name });
-            setCreateOpen(false);
-        },
-        onAgentCreated: (username) => {
-            setPendingSelection({ kind: "agent", username });
-            setAgentCreateOpen(false);
-        },
-        onDirectMessageStarted: (userId) => setPendingSelection({ kind: "dm", userId }),
     });
-    chatCreateRequestFollow({
+    async function channelCreate(input: Parameters<typeof creationModel.channelCreate>[0]) {
+        if (!(await creationModel.channelCreate(input))) return;
+        pendingSelection.current = { kind: "channel", name: input.name };
+        setCreateOpen(false);
+    }
+    async function agentCreate(name: string, username: string) {
+        if (!(await creationModel.agentCreate(name, username))) return;
+        pendingSelection.current = { kind: "agent", username };
+        setAgentCreateOpen(false);
+    }
+    async function directMessageStart(userId: string) {
+        if (!(await creationModel.directMessageStart(userId))) return;
+        pendingSelection.current = { kind: "dm", userId };
+        setDirectMessageOpen(false);
+    }
+    async function messageEditSave(text: string) {
+        const edit = messageEdit;
+        if (!edit) return;
+        startBusy();
+        try {
+            await props.actions.messageEdit(edit.chatId, edit.messageId, text, edit.revision);
+            setMessageEdit(undefined);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Could not edit this message.";
+            setMessageEdit((current) =>
+                current?.messageId === edit.messageId ? { ...current, error: message } : current,
+            );
+            showError(error);
+        } finally {
+            finishBusy();
+        }
+    }
+    useChatCreateRequest({
         request: props.createRequest,
         onAgent: () => setAgentCreateOpen(true),
         onChannel: () => setCreateOpen(true),
@@ -312,7 +354,7 @@ export function ChatPage(props: ChatPageProps) {
         onLeave: () => props.actions.chatSelect("", "chat"),
         onError: showError,
     });
-    const conversation = createMemo<Conversation>(() => {
+    const conversation: Conversation = (() => {
         const projection = activeProjection();
         const chat = activeChat();
         if (!projection || !chat)
@@ -358,9 +400,9 @@ export function ChatPage(props: ChatPageProps) {
                         : "This channel is ready for its first message."),
             },
         };
-    });
+    })();
     const conversationEntries = () =>
-        entries().filter((slot) => slot.entry().conversationId === activeConversationId());
+        entries.filter((entry) => entry.conversationId === activeConversationId());
     const mentionCandidates = () =>
         directoryUsers().map((person) => ({
             id: person.id,
@@ -368,32 +410,29 @@ export function ChatPage(props: ChatPageProps) {
             name: person.displayName,
             tone: toneFor(person.id),
         }));
-    const composerContext = createMemo<ContextItem[]>(() =>
-        pendingAttachments().map((file) => ({
-            id: `file:${file.id}`,
-            kind: "file",
-            label: file.name,
-            detail: formatBytes(file.size),
-        })),
-    );
+    const composerContext: ContextItem[] = pendingAttachments().map((file) => ({
+        id: `file:${file.id}`,
+        kind: "file",
+        label: file.name,
+        detail: formatBytes(file.size),
+    }));
     const typingActor = () => chatSnapshot()?.typing.find((typing) => typing.userId !== user()?.id);
     const liveComposerHint = () => {
         const actor = typingActor();
         const person = actor && directoryUsers().find((candidate) => candidate.id === actor.userId);
-        return person ? `${person.displayName} is typing…` : (statusHint() ?? composerHint);
+        return person ? `${person.displayName} is typing…` : (statusHint ?? composerHint);
     };
     const activeAgentActivity = (): readonly DeepReadonly<AgentActivityState>[] =>
         chatSnapshot()?.agentActivity ?? [];
-
     function selectConversation(id: string, replace = false) {
+        pendingSelection.current = undefined;
         const projection = sidebarChats().find((candidate) => candidate.id === id);
         if (!projection) return;
         props.actions.chatSelect(id, projection.chat.kind === "dm" ? "chat" : "channel", replace);
     }
-
-    createEffect(() => {
+    useLayoutEffect(() => {
         const chats = sidebarChats();
-        const pending = pendingSelection();
+        const pending = pendingSelection.current;
         if (pending) {
             const match = chats.find((projection) => {
                 if (pending.kind === "channel") return projection.chat.name === pending.name;
@@ -403,51 +442,46 @@ export function ChatPage(props: ChatPageProps) {
                     : peer?.id === pending.userId;
             });
             if (match) {
-                setPendingSelection(undefined);
-                selectConversation(match.id);
+                if (activeConversationId() !== match.id) selectConversation(match.id);
                 return;
             }
+            return;
         }
         if (!activeConversationId() && chats.length) selectConversation(chats[0]!.id, true);
     });
-
-    createEffect(() => {
+    useLayoutEffect(() => {
         const snapshot = chatSnapshot();
         const latest = [...(snapshot?.messages ?? [])]
             .reverse()
             .find((item) => item.source === "server" && !item.message.threadRootMessageId);
-        if (!latest || latest.message.id === lastReadMessageId) return;
-        lastReadMessageId = latest.message.id;
+        if (!latest || latest.message.id === lastReadMessageId.current) return;
+        lastReadMessageId.current = latest.message.id;
         void props.actions.chatReadMark(snapshot!.chatId, latest.message.id).catch(showError);
     });
-
-    createEffect(() => {
-        if (activeAgentActivity().length === 0) return;
-        setActivityNow(Date.now());
-        const timer = setInterval(() => setActivityNow(Date.now()), 1_000);
-        onCleanup(() => clearInterval(timer));
-    });
-
+    const activityCount = chatState?.agentActivity.length ?? 0;
+    useLayoutEffect(() => {
+        if (activityCount === 0) return;
+        const timer = setInterval(() => setActivityNow(Date.now()), 1000);
+        return () => clearInterval(timer);
+    }, [activityCount]);
     function updateDraft(value: string) {
-        props.composer?.textUpdate(value);
+        props.composer?.getState().textUpdate(value);
         const chatId = activeConversationId();
         const active = value.trim().length > 0;
-        if (!chatId || active === sentTyping) return;
-        sentTyping = active;
+        if (!chatId || active === sentTyping.current) return;
+        sentTyping.current = active;
         props.actions.typingSet(chatId, active);
     }
-
     function sendMessage() {
         if (!draft().trim() && pendingAttachments().length === 0) return;
         if (activeChat()?.kind === "public_channel" && !activeChat()?.membershipRole)
             void props.actions
                 .chatJoin(activeConversationId())
-                .then(() => props.composer?.textSubmit(), showError);
-        else props.composer?.textSubmit();
-        if (sentTyping) props.actions.typingSet(activeConversationId(), false);
-        sentTyping = false;
+                .then(() => props.composer?.getState().textSubmit(), showError);
+        else props.composer?.getState().textSubmit();
+        if (sentTyping.current) props.actions.typingSet(activeConversationId(), false);
+        sentTyping.current = false;
     }
-
     async function uploadFiles(files: FileList | null) {
         if (!files?.length || !props.composer) return;
         startBusy();
@@ -460,7 +494,7 @@ export function ChatPage(props: ChatPageProps) {
                 }),
             );
             for (const file of uploaded)
-                props.composer.attachmentAdd({
+                props.composer.getState().attachmentAdd({
                     id: file.id,
                     name: file.originalName ?? "Attachment",
                     size: file.size,
@@ -471,19 +505,16 @@ export function ChatPage(props: ChatPageProps) {
             finishBusy();
         }
     }
-
     function openThread(message: LiveThreadMessage) {
         setThreadDraft("");
         if (message.serverMessage) props.actions.threadOpen(message.id);
     }
-
     function sendThreadReply() {
-        const text = threadDraft().trim();
+        const text = threadDraft.trim();
         if (!text) return;
-        props.thread?.textSubmit({ text, clientMutationId: mutationId() });
+        props.thread?.getState().textSubmit({ text, clientMutationId: mutationId() });
         setThreadDraft("");
     }
-
     function openFilesPanel() {
         workspaceModel.panelOpen();
     }
@@ -492,20 +523,17 @@ export function ChatPage(props: ChatPageProps) {
             workspaceModel.panelClose();
         } else openFilesPanel();
     }
-
     function previewDirectoryChannel(id: string) {
         setDirectoryOpen(false);
         selectConversation(id);
     }
-
-    onCleanup(() => {
-        if (sentTyping && activeConversationId())
-            props.actions.typingSet(activeConversationId(), false);
-    });
-
-    function showError(error: unknown) {
-        setStatusHint(error instanceof Error ? error.message : "Something went wrong.");
-    }
+    const typingChatId = props.navigation.chatId;
+    useLayoutEffect(
+        () => () => {
+            if (sentTyping.current && typingChatId) props.actions.typingSet(typingChatId, false);
+        },
+        [props.actions, typingChatId],
+    );
     return (
         <>
             <AppShell
@@ -515,9 +543,9 @@ export function ChatPage(props: ChatPageProps) {
                     <Sidebar
                         activeItemId={activeConversationId()}
                         footer={
-                            <Show when={isServerAdmin()}>
+                            isServerAdmin() ? (
                                 <Button
-                                    class="happy2-chat-page__admin-link"
+                                    className="happy2-chat-page__admin-link"
                                     fullWidth
                                     icon="settings"
                                     onClick={props.actions.adminOpen}
@@ -526,24 +554,24 @@ export function ChatPage(props: ChatPageProps) {
                                 >
                                     Administration
                                 </Button>
-                            </Show>
+                            ) : null
                         }
-                        onCompose={() => void creationModel.directMessageStart()}
+                        onCompose={() => setDirectMessageOpen(true)}
                         onItemSelect={selectConversation}
                         onSectionAction={(sectionId) => {
                             if (sectionId === "agents") setAgentCreateOpen(true);
                             if (sectionId === "channels") setDirectoryOpen(true);
-                            if (sectionId === "dms") void creationModel.directMessageStart();
+                            if (sectionId === "dms") setDirectMessageOpen(true);
                         }}
-                        pinnedItems={sidebarPinnedItems()}
-                        sections={sidebarSections()}
+                        pinnedItems={sidebarPinnedItems}
+                        sections={sidebarSections}
                         title={user() ? `${user()!.firstName}’s Happy (2)` : "Happy (2)"}
                     />
                 }
                 panel={
                     panelMode() === "thread" ? (
                         <ChatThreadPanel
-                            draft={threadDraft()}
+                            draft={threadDraft}
                             mentions={mentionCandidates()}
                             onDraftChange={setThreadDraft}
                             onClose={() => {
@@ -553,17 +581,19 @@ export function ChatPage(props: ChatPageProps) {
                             pending={busy()}
                             rootAuthor={threadRoot()?.author}
                         >
-                            <For each={threadEntries()}>{renderEntry}</For>
+                            {threadEntries.map((entry, index) =>
+                                renderEntry(entry, index, threadEntries),
+                            )}
                         </ChatThreadPanel>
                     ) : panelMode() === "info" ? (
                         <ChatInfoPanel
-                            about={conversation().topic}
-                            autoJoin={infoModel.autoJoin()}
+                            about={conversation.topic}
+                            autoJoin={infoModel.autoJoin}
                             busy={busy()}
                             canChangeEffort={infoModel.canChangeEffort()}
                             canEdit={canEditChannel()}
-                            channelName={infoModel.channelName()}
-                            channelTopic={infoModel.channelTopic()}
+                            channelName={infoModel.channelName}
+                            channelTopic={infoModel.channelTopic}
                             effortBusy={infoModel.effortBusy()}
                             effortError={infoModel.effortError()}
                             effortOptions={infoModel.effortOptions()}
@@ -571,7 +601,7 @@ export function ChatPage(props: ChatPageProps) {
                             isAgent={Boolean(infoModel.agent())}
                             isMain={Boolean(activeChat()?.isMain)}
                             isServerAdmin={isServerAdmin()}
-                            members={infoModel.members()}
+                            members={infoModel.members}
                             onClose={props.actions.panelClose}
                             onAutoJoinChange={infoModel.setAutoJoin}
                             onChannelNameChange={infoModel.setChannelName}
@@ -581,12 +611,12 @@ export function ChatPage(props: ChatPageProps) {
                             peer={Boolean(infoModel.peer())}
                             profile={displayedProfile()}
                             profileOverride={routedProfile()}
-                            title={conversation().title}
+                            title={conversation.title}
                         />
                     ) : panelMode() === "files" ? (
                         <ChatWorkspacePanel
                             loading={workspaceModel.workspaceSnapshot()?.status.type === "loading"}
-                            nodes={workspaceModel.tree()}
+                            nodes={workspaceModel.tree}
                             note={
                                 workspaceModel.workspace()?.gitStatusPending
                                     ? "Checking git status…"
@@ -596,7 +626,7 @@ export function ChatPage(props: ChatPageProps) {
                             onLoadMore={workspaceModel.directoryMore}
                             onSelect={workspaceModel.entrySelect}
                             onToggle={workspaceModel.directoryToggle}
-                            selectedId={workspaceModel.selected()}
+                            selectedId={workspaceModel.selected}
                             subtitle={
                                 workspaceModel.workspace()
                                     ? `rev ${workspaceModel.workspace()!.revision}`
@@ -609,7 +639,7 @@ export function ChatPage(props: ChatPageProps) {
                 <ChatConversation
                     activeConversationId={activeConversationId()}
                     activities={activeAgentActivity()}
-                    activityNow={activityNow()}
+                    activityNow={activityNow}
                     busy={busy()}
                     composerDisabled={!activeConversationId()}
                     composerHint={liveComposerHint()}
@@ -619,8 +649,8 @@ export function ChatPage(props: ChatPageProps) {
                         draft().trim().length > 0 || pendingAttachments().length > 0
                     }
                     composerValue={draft()}
-                    contextItems={composerContext()}
-                    conversation={conversation()}
+                    contextItems={composerContext}
+                    conversation={conversation}
                     directoryUsers={directoryUsers()}
                     joinVisible={Boolean(
                         activeChat()?.kind !== "dm" &&
@@ -628,9 +658,11 @@ export function ChatPage(props: ChatPageProps) {
                         !activeChat()?.membershipRole,
                     )}
                     menuItems={activeConversationId() ? channelModel.menuItems() : undefined}
-                    messageEntries={<For each={conversationEntries()}>{renderEntry}</For>}
+                    messageEntries={conversationEntries().map((entry, index, list) =>
+                        renderEntry(entry, index, list),
+                    )}
                     onContextRemove={(id) =>
-                        props.composer?.attachmentRemove(id.replace(/^file:/u, ""))
+                        props.composer?.getState().attachmentRemove(id.replace(/^file:/u, ""))
                     }
                     onFilesSelected={(files) => void uploadFiles(files)}
                     onInfoOpen={() => infoModel.open()}
@@ -643,25 +675,29 @@ export function ChatPage(props: ChatPageProps) {
                     starred={channelModel.starred()}
                 />
             </AppShell>
-            <Show when={workspaceModel.openPath()}>
+            {workspaceModel.openPath() ? (
                 <ChatWorkspaceEditor
                     banner={workspaceModel.fileBanner()}
                     content={workspaceModel.fileContent()}
                     dirty={workspaceModel.fileDirty()}
                     onClose={workspaceModel.fileClose}
-                    onContentChange={(value) => props.workspaceFile?.contentUpdate(value)}
-                    onRevert={() =>
-                        props.workspaceFile?.contentUpdate(workspaceModel.fileBase()?.content ?? "")
+                    onContentChange={(value) =>
+                        props.workspaceFile?.getState().contentUpdate(value)
                     }
-                    onSave={() => props.workspaceFile?.contentSave()}
+                    onRevert={() =>
+                        props.workspaceFile
+                            ?.getState()
+                            .contentUpdate(workspaceModel.fileBase()?.content ?? "")
+                    }
+                    onSave={() => props.workspaceFile?.getState().contentSave()}
                     path={workspaceModel.openPath()!}
                     saving={workspaceModel.fileSaving()}
                     status={workspaceModel.fileStatus()}
                 />
-            </Show>
-            <Show when={directoryOpen()}>
+            ) : null}
+            {directoryOpen ? (
                 <ChatDirectoryDialog
-                    items={directoryItems()}
+                    items={directoryItems}
                     onChannelCreate={() => {
                         setDirectoryOpen(false);
                         setCreateOpen(true);
@@ -669,60 +705,73 @@ export function ChatPage(props: ChatPageProps) {
                     onClose={() => setDirectoryOpen(false)}
                     onSelect={previewDirectoryChannel}
                 />
-            </Show>
-            <Show when={agentCreateOpen()}>
+            ) : null}
+            {directMessageOpen ? (
+                <ChatDirectMessageDialog
+                    busy={busy()}
+                    onClose={() => setDirectMessageOpen(false)}
+                    onSelect={(userId) => void directMessageStart(userId)}
+                    users={directoryUsers().filter(
+                        (candidate) => candidate.id !== user().id && candidate.kind === "human",
+                    )}
+                />
+            ) : null}
+            {messageEdit ? (
+                <ChatMessageEditDialog
+                    busy={busy()}
+                    error={messageEdit.error}
+                    initialText={messageEdit.initialText}
+                    key={messageEdit.messageId}
+                    onClose={() => setMessageEdit(undefined)}
+                    onSave={(text) => void messageEditSave(text)}
+                />
+            ) : null}
+            {agentCreateOpen ? (
                 <ChatAgentCreateDialog
                     busy={busy()}
                     onClose={() => setAgentCreateOpen(false)}
-                    onCreate={(name, username) => void creationModel.agentCreate(name, username)}
+                    onCreate={(name, username) => void agentCreate(name, username)}
                 />
-            </Show>
-            <Show when={createOpen()}>
+            ) : null}
+            {createOpen ? (
                 <ChatChannelCreateDialog
                     busy={busy()}
                     isServerAdmin={isServerAdmin()}
                     onClose={() => setCreateOpen(false)}
-                    onCreate={(input) => void creationModel.channelCreate(input)}
+                    onCreate={(input) => void channelCreate(input)}
                 />
-            </Show>
-            <Show when={mediaModel.lightbox()}>
-                {(image) => (
-                    <ModalOverlay onDismiss={mediaModel.closeLightbox}>
-                        <Lightbox
-                            alt={image().caption}
-                            caption={image().caption}
-                            detail={image().detail}
-                            imageUrl={image().url}
-                            onClose={mediaModel.closeLightbox}
-                        />
-                    </ModalOverlay>
-                )}
-            </Show>
+            ) : null}
+            {mediaModel.lightbox
+                ? ((image) => (
+                      <ModalOverlay onDismiss={mediaModel.closeLightbox}>
+                          <Lightbox
+                              alt={image.caption}
+                              caption={image.caption}
+                              detail={image.detail}
+                              imageUrl={image.url}
+                              onClose={mediaModel.closeLightbox}
+                          />
+                      </ModalOverlay>
+                  ))(mediaModel.lightbox)
+                : null}
         </>
     );
-
-    function renderEntry(slot: WorkspaceEntrySlot, index: Accessor<number>): JSX.Element {
-        const message = () => {
-            const entry = slot.entry();
-            return entry.kind === "message" ? entry : undefined;
-        };
+    function renderEntry(
+        entry: WorkspaceEntry,
+        index: number,
+        list: readonly WorkspaceEntry[],
+    ): ReactNode {
+        const message = entry.kind === "message" ? entry : undefined;
         return (
             <ChatMessageEntry
-                entry={slot.entry}
-                avatarUrl={avatarFor(message()?.senderId, message()?.photoFileId)}
-                files={message() ? mediaModel.files(message()!) : []}
-                grouped={
-                    message()
-                        ? messagesGrouped(
-                              panelMode() === "thread" ? threadEntries() : conversationEntries(),
-                              index(),
-                              message()!,
-                          )
-                        : false
-                }
-                images={message() ? mediaModel.images(message()!) : []}
-                menuItems={message() ? messageActions.menuItems(message()!) : []}
-                profile={message() ? infoModel.messageProfile(message()!) : undefined}
+                key={entry.id}
+                entry={entry}
+                avatarUrl={avatarFor(message?.senderId, message?.photoFileId)}
+                files={message ? mediaModel.files(message) : []}
+                grouped={message ? messagesGrouped(list, index, message) : false}
+                images={message ? mediaModel.images(message) : []}
+                menuItems={message ? messageActions.menuItems(message) : []}
+                profile={message ? infoModel.messageProfile(message) : undefined}
                 onImageOpen={(message, id) => void mediaModel.imageOpen(message, id)}
                 onMenuSelect={(message, action) => void messageActions.menuSelect(message, action)}
                 onProfileOpen={infoModel.open}

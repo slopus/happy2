@@ -1,48 +1,49 @@
+import { useLayoutEffect, useState } from "react";
 import { settingsStoreFixtureCreate } from "happy2-state/testing";
-import { onCleanup } from "solid-js";
 import { SettingsPage } from "../../src/pages/settings/SettingsPage";
 import { ComponentPage, FullScreenSpecimen } from "../kit";
-
 export function SettingsStorePage() {
-    const fixture = settingsStoreFixtureCreate({
-        profile: {
-            id: "user-blueprint",
-            firstName: "Steve",
-            lastName: "Miller",
-            username: "steve",
-            email: "steve@example.com",
-        },
+    const [fixture] = useState(() => {
+        const value = settingsStoreFixtureCreate({
+            profile: {
+                id: "user-blueprint",
+                firstName: "Steve",
+                lastName: "Miller",
+                username: "steve",
+                email: "steve@example.com",
+            },
+        });
+        value.input({
+            type: "settingsLoaded",
+            profile: {
+                id: "user-blueprint",
+                firstName: "Steve",
+                lastName: "Miller",
+                username: "steve",
+                email: "steve@example.com",
+            },
+            title: "Workspace owner",
+            presence: {
+                userId: "user-blueprint",
+                availability: "online",
+                customStatusEmoji: "🚀",
+                customStatusText: "Building Happy (2)",
+                updatedAt: "2026-07-17T12:00:00.000Z",
+            },
+            notifications: {
+                directMessages: "all",
+                mentions: "all",
+                threadReplies: "mentions",
+                reactions: "all",
+                calls: "all",
+                desktopNotifications: true,
+                emailNotifications: false,
+            },
+            avatarRevision: 0,
+        });
+        return value;
     });
-    fixture.input({
-        type: "settingsLoaded",
-        profile: {
-            id: "user-blueprint",
-            firstName: "Steve",
-            lastName: "Miller",
-            username: "steve",
-            email: "steve@example.com",
-        },
-        title: "Workspace owner",
-        presence: {
-            userId: "user-blueprint",
-            availability: "online",
-            customStatusEmoji: "🚀",
-            customStatusText: "Building Happy (2)",
-            updatedAt: "2026-07-17T12:00:00.000Z",
-        },
-        notifications: {
-            directMessages: "all",
-            mentions: "all",
-            threadReplies: "mentions",
-            reactions: "all",
-            calls: "all",
-            desktopNotifications: true,
-            emailNotifications: false,
-        },
-        avatarRevision: 0,
-    });
-    onCleanup(() => fixture[Symbol.dispose]());
-
+    useLayoutEffect(() => () => fixture[Symbol.dispose](), [fixture]);
     return (
         <ComponentPage
             contract="Surface store"

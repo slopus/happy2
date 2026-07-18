@@ -1,9 +1,8 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { Composer, MessageList, ThreadPanel, type Mentionable } from "./ChatPageComponents.js";
 import { emojiItems } from "./chatPageModels.js";
-
 export interface ChatThreadPanelProps {
-    children: JSX.Element;
+    children: ReactNode;
     draft: string;
     mentions: Mentionable[];
     pending: boolean;
@@ -12,7 +11,6 @@ export interface ChatThreadPanelProps {
     onDraftChange(value: string): void;
     onSend(): void;
 }
-
 export function ChatThreadPanel(props: ChatThreadPanelProps) {
     return (
         <ThreadPanel
@@ -33,7 +31,7 @@ export function ChatThreadPanel(props: ChatThreadPanelProps) {
             onClose={props.onClose}
             subtitle={props.rootAuthor}
         >
-            <MessageList intro={{ title: "Thread", description: "No replies yet." }}>
+            <MessageList intro={{ title: "Thread", description: "No replies yet." }} virtualize>
                 {props.children}
             </MessageList>
         </ThreadPanel>

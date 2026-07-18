@@ -1,4 +1,4 @@
-import { Show, createSignal, type JSX } from "solid-js";
+import { useState, type CSSProperties } from "react";
 import {
     Box,
     Button,
@@ -10,14 +10,12 @@ import {
     TextField,
     type SelectOption,
 } from "./ChatPageComponents.js";
-
 const kinds: SelectOption[] = [
     { value: "public_channel", label: "Public channel" },
     { value: "private_channel", label: "Private channel" },
 ];
-const stackStyle: JSX.CSSProperties = { display: "flex", "flex-direction": "column", gap: "8px" };
-const actionsStyle: JSX.CSSProperties = { display: "flex", "align-items": "center", gap: "8px" };
-
+const stackStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: "8px" };
+const actionsStyle: CSSProperties = { display: "flex", alignItems: "center", gap: "8px" };
 export interface ChatChannelCreateDialogProps {
     busy: boolean;
     isServerAdmin: boolean;
@@ -29,13 +27,12 @@ export interface ChatChannelCreateDialogProps {
         autoJoin: boolean;
     }): void;
 }
-
 export function ChatChannelCreateDialog(props: ChatChannelCreateDialogProps) {
-    const [name, setName] = createSignal("");
-    const [slug, setSlug] = createSignal("");
-    const [slugEdited, setSlugEdited] = createSignal(false);
-    const [kind, setKind] = createSignal<"public_channel" | "private_channel">("public_channel");
-    const [autoJoin, setAutoJoin] = createSignal(false);
+    const [name, setName] = useState("");
+    const [slug, setSlug] = useState("");
+    const [slugEdited, setSlugEdited] = useState(false);
+    const [kind, setKind] = useState<"public_channel" | "private_channel">("public_channel");
+    const [autoJoin, setAutoJoin] = useState(false);
     return (
         <ModalOverlay onDismiss={props.onClose}>
             <Modal
@@ -45,14 +42,14 @@ export function ChatChannelCreateDialog(props: ChatChannelCreateDialogProps) {
                             Cancel
                         </Button>
                         <Button
-                            disabled={props.busy || !name().trim()}
+                            disabled={props.busy || !name.trim()}
                             icon="plus"
                             onClick={() =>
                                 props.onCreate({
-                                    name: name().trim(),
-                                    slug: channelSlug(slug() || name()),
-                                    kind: kind(),
-                                    autoJoin: autoJoin(),
+                                    name: name.trim(),
+                                    slug: channelSlug(slug || name),
+                                    kind: kind,
+                                    autoJoin: autoJoin,
                                 })
                             }
                         >
@@ -72,9 +69,9 @@ export function ChatChannelCreateDialog(props: ChatChannelCreateDialogProps) {
                                 fullWidth
                                 onValueChange={(value) => {
                                     setName(value);
-                                    if (!slugEdited()) setSlug(channelSlug(value));
+                                    if (!slugEdited) setSlug(channelSlug(value));
                                 }}
-                                value={name()}
+                                value={name}
                             />
                         }
                         label="Name"
@@ -88,7 +85,7 @@ export function ChatChannelCreateDialog(props: ChatChannelCreateDialogProps) {
                                     setSlugEdited(true);
                                     setSlug(channelSlug(value));
                                 }}
-                                value={slug()}
+                                value={slug}
                             />
                         }
                         label="Slug"
@@ -102,31 +99,30 @@ export function ChatChannelCreateDialog(props: ChatChannelCreateDialogProps) {
                                     setKind(value as "public_channel" | "private_channel")
                                 }
                                 options={kinds}
-                                value={kind()}
+                                value={kind}
                             />
                         }
                         label="Visibility"
                         layout="stacked"
                     />
-                    <Show when={props.isServerAdmin}>
+                    {props.isServerAdmin ? (
                         <FormRow
                             control={
                                 <Switch
                                     aria-label="Auto-join new members"
-                                    checked={autoJoin()}
+                                    checked={autoJoin}
                                     onChange={setAutoJoin}
                                 />
                             }
                             label="Auto-join new members"
                             layout="stacked"
                         />
-                    </Show>
+                    ) : null}
                 </Box>
             </Modal>
         </ModalOverlay>
     );
 }
-
 function channelSlug(value: string): string {
     return value
         .trim()

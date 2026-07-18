@@ -1,74 +1,69 @@
-import type { JSX } from "solid-js";
-
+import { type ReactNode } from "react";
 /*
  * Shared workbench fixtures. Blueprint pages compose these primitives;
  * page-specific arrangement uses inline styles so the shared workbench.css
  * stays page-agnostic.
  */
-
 export function DimensionRule(props: { label: string }) {
     return (
-        <span class="dimension-rule" aria-hidden="true">
+        <span className="dimension-rule" aria-hidden="true">
             <i />
             <b>{props.label}</b>
             <i />
         </span>
     );
 }
-
 export function Specimen(props: {
-    children: JSX.Element;
+    children: ReactNode;
     detail: string;
     label: string;
     number: string;
     stage?: "chrome" | "app" | "surface";
 }) {
     return (
-        <article class="specimen">
+        <article className="specimen">
             <header>
                 <span>{props.number}</span>
                 <strong>{props.label}</strong>
                 <small>{props.detail}</small>
             </header>
-            <div class="specimen-stage" data-stage={props.stage ?? "app"}>
+            <div className="specimen-stage" data-stage={props.stage ?? "app"}>
                 {props.children}
             </div>
         </article>
     );
 }
-
 /** Hosts one production desktop page at its exact minimum-window geometry and 100% scale. */
 export function FullScreenSpecimen(props: {
-    children: JSX.Element;
+    children: ReactNode;
     detail: string;
     label: string;
     number: string;
 }) {
     return (
-        <article class="specimen full-screen-specimen">
+        <article className="specimen full-screen-specimen">
             <header>
                 <span>{props.number}</span>
                 <strong>{props.label}</strong>
                 <small>{props.detail}</small>
             </header>
-            <div class="full-screen-stage">
-                <div class="full-screen-viewport">{props.children}</div>
+            <div className="full-screen-stage">
+                <div className="full-screen-viewport">{props.children}</div>
             </div>
         </article>
     );
 }
-
 export function ComponentPage(props: {
-    children: JSX.Element;
+    children: ReactNode;
     contract?: "Props only" | "Surface store";
     number: string;
     summary: string;
     title: string;
 }) {
     return (
-        <main class="component-page">
-            <header class="component-title">
-                <div class="component-number">{props.number}</div>
+        <main className="component-page">
+            <header className="component-title">
+                <div className="component-number">{props.number}</div>
                 <div>
                     <p>Component plan</p>
                     <h1>{props.title}</h1>

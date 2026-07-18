@@ -10,7 +10,7 @@ it("enforces parallel nested curves and symmetric insets for every rendered happ
                 style={{
                     height: "100px",
                     position: "relative",
-                    "border-radius": "14px",
+                    borderRadius: "14px",
                     width: "100px",
                 }}
             >
@@ -19,7 +19,7 @@ it("enforces parallel nested curves and symmetric insets for every rendered happ
                     style={{
                         position: "absolute",
                         inset: "4px",
-                        "border-radius": "10px",
+                        borderRadius: "10px",
                     }}
                 />
             </div>

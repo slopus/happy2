@@ -1,4 +1,4 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { expect, it } from "vitest";
 import { server } from "vitest/browser";
 import "./theme.css";
@@ -8,10 +8,8 @@ import "./styles/icon.css";
 import { Button } from "./Button";
 import { createRenderer } from "./testing";
 import { Toolbar } from "./Toolbar";
-
 type Engine = "chromium" | "firefox" | "webkit";
 const engine = () => server.browser as Engine;
-
 /*
  * Per-engine ink lifts declared in styles/toolbar.css (see the correction
  * comment there). All values are exact 0.5px-at-2x device-pixel multiples;
@@ -28,17 +26,16 @@ const subtitleOpticalY: Record<Engine, string> = {
     firefox: "-1.5px",
     webkit: "-0.5px",
 };
-
 /* Dark surface the toolbar is contracted against. Fills the padded render
    surface; visibleMetrics() overrides this ancestor to isolate ink, so it
    never colors a measurement. */
-function stage(testid: string, children: JSX.Element) {
+function stage(testid: string, children: ReactNode) {
     return (
         <div
             data-testid={testid}
             style={{
                 background: "var(--happy2-bg-surface)",
-                "box-sizing": "border-box",
+                boxSizing: "border-box",
                 height: "100%",
                 width: "100%",
             }}
@@ -47,7 +44,6 @@ function stage(testid: string, children: JSX.Element) {
         </div>
     );
 }
-
 function trailing() {
     return (
         <>
@@ -56,9 +52,7 @@ function trailing() {
         </>
     );
 }
-
 type Renderer = ReturnType<typeof createRenderer>;
-
 /*
  * Alpha-weighted ink centroid of a part, as a signed offset from its own
  * border-box center (positive dx = right, positive dy = low). visibleMetrics()
@@ -76,13 +70,11 @@ async function inkCentroid(view: Renderer, selector: string) {
         box,
     };
 }
-
 it(
     "holds Toolbar geometry, typography, colors, and optical alignment",
-    { timeout: 120_000 },
+    { timeout: 120000 },
     async () => {
         const view = createRenderer();
-
         view.render(
             () =>
                 stage(
@@ -147,20 +139,17 @@ it(
             { width: 420, height: 96, padding: 16 },
         );
         await view.ready();
-
         const root = (s: string) => view.$(`[data-testid="${s}"] [data-happy2-ui="toolbar"]`);
         const sel = (s: string, name: string) =>
             `[data-testid="${s}"] [data-happy2-ui="toolbar-${name}"]`;
         const part = (s: string, name: string) => view.$(sel(s, name));
-
         const fontFamily =
             server.browser === "webkit"
                 ? "happy2 Figtree, system-ui, sans-serif"
                 : '"happy2 Figtree", system-ui, sans-serif';
-
         /* Text ink: reject blank or clipped captures, then return centroid drift.
-       The line boxes are comfortably taller than the ink, so its top and
-       bottom must sit strictly inside the captured box. */
+   The line boxes are comfortably taller than the ink, so its top and
+   bottom must sit strictly inside the captured box. */
         async function textInk(s: string, name: string) {
             const c = await inkCentroid(view, sel(s, name));
             expect(c.visible.pixelCount, `${s} ${name} paints pixels`).toBeGreaterThan(0);
@@ -171,9 +160,7 @@ it(
             ).toBeLessThan(c.box.height);
             return c;
         }
-
         /* ---- Root contract (s-full, default 48px) --------------------------- */
-
         const rFull = root("s-full");
         expect(rFull.element.tagName).toBe("HEADER");
         expect(rFull.bounds()).toEqual({ x: 16, y: 16, width: 728, height: 48 });
@@ -213,9 +200,7 @@ it(
         expect(rFull.computedStyle("--happy2-toolbar-subtitle-optical-y")).toBe(
             subtitleOpticalY[engine()],
         );
-
         /* ---- Title typography + optical centering --------------------------- */
-
         const title = part("s-full", "title");
         expect(title.element.textContent).toBe("Members");
         /* Left-aligned against the 16px content edge (no leading slot). */
@@ -246,12 +231,10 @@ it(
         expect(titleMetrics.font.weight).toBe("700");
         expect(titleMetrics.font.lineHeight).toBe(20);
         /* "Members" is an asymmetric word run along x, so horizontal truth is the
-       16px left edge above; only the vertical centroid is held to tolerance. */
+   16px left edge above; only the vertical centroid is held to tolerance. */
         const titleInk = await textInk("s-full", "title");
         expect(Math.abs(titleInk.dy), "s-full title vertical centroid").toBeLessThanOrEqual(0.75);
-
         /* ---- Subtitle typography + optical centering ------------------------ */
-
         const subtitle = part("s-full", "subtitle");
         expect(subtitle.element.textContent).toBe("24 people · 3 admins");
         expect(subtitle.bounds().x - rFull.bounds().x, "s-full subtitle left edge").toBe(16);
@@ -269,9 +252,7 @@ it(
         expect(Math.abs(subtitleInk.dy), "s-full subtitle vertical centroid").toBeLessThanOrEqual(
             0.75,
         );
-
         /* ---- Search well: geometry, tokens, and glyph centroid -------------- */
-
         const searchWell = part("s-full", "search");
         expect(searchWell.bounds().width, "search well width").toBe(220);
         expect(searchWell.bounds().height, "search well height").toBe(28);
@@ -290,22 +271,20 @@ it(
             "border-top-width": "1px",
             "box-sizing": "border-box",
         });
-
         const searchIcon = part("s-full", "search-icon");
         expect(searchIcon.bounds().width, "search icon box").toBe(14);
         expect(searchIcon.bounds().height, "search icon box").toBe(14);
         expect(searchIcon.computedStyle("color")).toBe("rgb(117, 112, 133)");
         /* The search glyph is Icon-owned and must not be re-tuned here. Its true
-       drift is <=0.4px, proven differentially against a calibration square in
-       Icon.test.tsx; this absolute (un-calibrated) capture additionally carries
-       the tester's element-origin quantization (~0.15px, measures dy 0.57),
-       so — like the composed icons in ChannelHeader.test.tsx — it is held to
-       the 0.75px composed-glyph ceiling on both axes. */
+   drift is <=0.4px, proven differentially against a calibration square in
+   Icon.test.tsx; this absolute (un-calibrated) capture additionally carries
+   the tester's element-origin quantization (~0.15px, measures dy 0.57),
+   so — like the composed icons in ChannelHeader.test.tsx — it is held to
+   the 0.75px composed-glyph ceiling on both axes. */
         const iconInk = await inkCentroid(view, sel("s-full", "search-icon"));
         expect(iconInk.visible.pixelCount, "search icon paints pixels").toBeGreaterThan(0);
         expect(Math.abs(iconInk.dx), "search icon optical x").toBeLessThanOrEqual(0.75);
         expect(Math.abs(iconInk.dy), "search icon optical y").toBeLessThanOrEqual(0.75);
-
         const searchInput = view.$(sel("s-full", "search-input"));
         expect((searchInput.element as HTMLInputElement).placeholder).toBe("Filter members");
         expect(
@@ -316,9 +295,7 @@ it(
             "font-size": "13px",
             "font-weight": "500",
         });
-
         /* ---- Actions pinned right; trailing flush to the 16px content edge --- */
-
         const actions = part("s-full", "actions");
         const trailingSlot = part("s-full", "trailing");
         expect(
@@ -340,9 +317,7 @@ it(
         /* Actions cluster is vertically centered in the lane (28px control). */
         expect(actions.bounds().height).toBe(28);
         expect(actions.bounds().y - rFull.bounds().y).toBeCloseTo((47 - 28) / 2, 3);
-
         /* ---- Title only: title rides the exact lane center ------------------ */
-
         const rTitle = root("s-title");
         expect(rTitle.bounds()).toEqual({ x: 16, y: 16, width: 388, height: 48 });
         const soloTitle = part("s-title", "title");
@@ -362,9 +337,7 @@ it(
         expect(Math.abs(soloTitleInk.dy), "s-title title vertical centroid").toBeLessThanOrEqual(
             0.75,
         );
-
         /* ---- Trailing only: no search well, actions pin right --------------- */
-
         const rTrailing = root("s-trailing");
         const trailingOnly = part("s-trailing", "trailing");
         expect(
@@ -375,9 +348,7 @@ it(
             view.container.querySelectorAll(sel("s-trailing", "search")).length,
             "s-trailing has no search well",
         ).toBe(0);
-
         /* ---- Search only: no trailing, well pins right --------------------- */
-
         const rSearch = root("s-search");
         const searchOnlyWell = part("s-search", "search");
         expect(searchOnlyWell.bounds().width).toBe(220);
@@ -395,9 +366,7 @@ it(
         );
         expect(Math.abs(searchOnlyIconInk.dx), "s-search icon optical x").toBeLessThanOrEqual(0.75);
         expect(Math.abs(searchOnlyIconInk.dy), "s-search icon optical y").toBeLessThanOrEqual(0.75);
-
         /* ---- Leading slot: heading starts after the leading control -------- */
-
         const rLeading = root("s-leading");
         const leadingSlot = part("s-leading", "leading");
         expect(leadingSlot.bounds().x - rLeading.bounds().x, "s-leading left edge").toBe(16);
@@ -414,9 +383,7 @@ it(
             leadingTrailing.bounds().x + leadingTrailing.bounds().width,
             "s-leading trailing right edge",
         ).toBeCloseTo(rLeading.bounds().x + rLeading.bounds().width - 16, 3);
-
         /* ---- Custom height: the `height` prop drives the box + lane --------- */
-
         const rTall = root("s-tall");
         expect(rTall.bounds().height, "s-tall height").toBe(56);
         expect(rTall.computedStyle("height")).toBe("56px");
@@ -429,7 +396,6 @@ it(
         expect(Math.abs(tallTitleInk.dy), "s-tall title vertical centroid").toBeLessThanOrEqual(
             0.75,
         );
-
         window.scrollTo(0, 0);
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
         await view.screenshot("Toolbar.test");

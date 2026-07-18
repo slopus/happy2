@@ -24,26 +24,26 @@ describe("agent secrets across happy2-state and Rig", () => {
         await transport.whenConnected();
         const secrets = state.agentSecrets();
         await state.whenIdle();
-        expect(secrets.get().secrets).toEqual({ type: "ready", value: [] });
+        expect(secrets.getState().secrets).toEqual({ type: "ready", value: [] });
 
         const value = "real-rig-only-secret-value";
-        secrets.secretCreate("state-service", "State service credentials", {
+        secrets.getState().secretCreate("state-service", "State service credentials", {
             STATE_SERVICE_TOKEN: value,
         });
         await state.whenIdle();
-        expect(readySecrets(secrets.get().secrets)[0]).toEqual({
+        expect(readySecrets(secrets.getState().secrets)[0]).toEqual({
             id: "state-service",
             description: "State service credentials",
             environmentVariables: ["STATE_SERVICE_TOKEN"],
             agentUserIds: [],
             channelIds: [],
         });
-        expect(JSON.stringify(secrets.get())).not.toContain(value);
+        expect(JSON.stringify(secrets.getState())).not.toContain(value);
         expect(rig.secretEnvironment("state-service")).toEqual({ STATE_SERVICE_TOKEN: value });
 
-        secrets.secretAgentAttach("state-service", agentUserId);
+        secrets.getState().secretAgentAttach("state-service", agentUserId);
         await state.whenIdle();
-        expect(readySecrets(secrets.get().secrets)[0]).toMatchObject({
+        expect(readySecrets(secrets.getState().secrets)[0]).toMatchObject({
             id: "state-service",
             agentUserIds: [agentUserId],
         });
@@ -52,7 +52,7 @@ describe("agent secrets across happy2-state and Rig", () => {
         const deleted = await asAdmin.post("/v0/admin/agentSecrets/state-service/deleteSecret", {});
         expect(deleted.statusCode).toBe(200);
         await expect
-            .poll(() => readySecrets(secrets.get().secrets), { timeout: 3_000 })
+            .poll(() => readySecrets(secrets.getState().secrets), { timeout: 3_000 })
             .toEqual([]);
         expect(rig.secretEnvironment("state-service")).toBeUndefined();
         expect(rig.sessionSecretIds("session-1")).toEqual([]);

@@ -30,14 +30,14 @@ describe("live workspace trees through happy2-state", () => {
         });
         const chatId = state
             .sidebar()
-            .get()
+            .getState()
             .chats.find(({ displayName }) => displayName === "State Workspace")?.id;
         if (!chatId) throw new Error("State Workspace chat was not materialized");
         const directory = rig.createdCwds.at(-1);
         if (!directory) throw new Error("Rig workspace was not created");
 
         using workspace = state.workspaceOpen(chatId);
-        workspace.directoriesUpdate([]);
+        workspace.getState().directoriesUpdate([]);
         await state.whenIdle();
         expect(workspaceValue(workspace).paths).toEqual([]);
 
@@ -55,7 +55,7 @@ describe("live workspace trees through happy2-state", () => {
             .toEqual(["node_modules/", "src/", "src/live.ts"]);
         expect(workspaceValue(workspace).unloadedDirectories).toContain("node_modules/");
 
-        workspace.directoriesUpdate(["node_modules/", "node_modules/package/"]);
+        workspace.getState().directoriesUpdate(["node_modules/", "node_modules/package/"]);
         await state.whenIdle();
         expect(workspaceValue(workspace).paths).toEqual([
             "node_modules/",
@@ -70,7 +70,7 @@ describe("live workspace trees through happy2-state", () => {
             .poll(() => workspaceValue(workspace).paths, { timeout: 3_000 })
             .toContain("node_modules/package/new.js");
 
-        workspace.directoriesUpdate([]);
+        workspace.getState().directoriesUpdate([]);
         await state.whenIdle();
         expect(workspaceValue(workspace).paths).toEqual(["node_modules/", "src/", "src/live.ts"]);
         expect(workspaceValue(workspace).directories).toEqual([]);
@@ -81,8 +81,8 @@ describe("live workspace trees through happy2-state", () => {
         const opened = workspaceFileValue(editor);
         if (!opened) throw new Error("Workspace editor did not load");
         await writeFile(join(directory, "src", "live.ts"), `// external\n${opened.content}`);
-        editor.contentUpdate(opened.content.replace("true", "false"));
-        editor.contentSave();
+        editor.getState().contentUpdate(opened.content.replace("true", "false"));
+        editor.getState().contentSave();
         await state.whenIdle();
         const saved = workspaceFileValue(editor);
         expect(saved?.content).toBe("// external\nexport const live = false;\n");
@@ -93,7 +93,7 @@ describe("live workspace trees through happy2-state", () => {
         // Rewriting identical contents changes filesystem metadata. Deletion detects
         // that conflict, confirms contents are unchanged, and safely retries.
         await writeFile(join(directory, "src", "live.ts"), saved!.content);
-        editor.fileDelete();
+        editor.getState().fileDelete();
         await state.whenIdle();
         await expect(readFile(join(directory, "src", "live.ts"), "utf8")).rejects.toMatchObject({
             code: "ENOENT",
@@ -102,14 +102,14 @@ describe("live workspace trees through happy2-state", () => {
 });
 
 function workspaceValue(store: WorkspaceStore) {
-    const status = store.get().status;
+    const status = store.getState().status;
     if (status.type !== "ready")
         throw new Error(`Expected ready workspace, received ${status.type}`);
     return status.value;
 }
 
 function workspaceFileValue(store: WorkspaceFileStore) {
-    const file = store.get().file;
+    const file = store.getState().file;
     return file.type === "ready" ? file.value : undefined;
 }
 

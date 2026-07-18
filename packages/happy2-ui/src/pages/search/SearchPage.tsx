@@ -1,5 +1,5 @@
+import { useLayoutEffect } from "react";
 import type { FileSummary, SearchResultProjection, SearchStore } from "happy2-state";
-import { createEffect, createMemo, Show } from "solid-js";
 import type { ToneName } from "../../Avatar";
 import { Banner } from "../../Banner";
 import { EmptyState } from "../../EmptyState";
@@ -11,7 +11,6 @@ import {
     type SearchResultType,
 } from "../../SearchResults";
 import { StoreSurface } from "../../StoreSurface";
-
 export interface SearchPageProps {
     store: SearchStore;
     query: string;
@@ -20,86 +19,66 @@ export interface SearchPageProps {
     /** Forwarded to SearchResults; `flush` fills a host such as CommandPalette. */
     variant?: SearchResultsVariant;
 }
-
 const tones: ToneName[] = ["brand", "ocean", "rose", "amber", "mint", "violet"];
-
 /** Complete cross-workspace search surface with generation-safe results owned by SearchStore. */
 export function SearchPage(props: SearchPageProps) {
-    createEffect(() => {
+    useLayoutEffect(() => {
         const query = props.query.trim();
-        if (props.store.get().query !== query) props.store.queryUpdate(query);
+        if (props.store.getState().query !== query) props.store.getState().queryUpdate(query);
     });
-    const trimmed = createMemo(() => props.query.trim());
-    return (
-        <Show
-            when={trimmed()}
-            fallback={
-                <EmptyState
-                    description="Find channels, people, messages, and files across your workspace."
-                    icon="search"
-                    title="Search Happy (2)"
-                />
-            }
-        >
-            <StoreSurface store={props.store}>
-                {(snapshot) => {
-                    const error = createMemo(() => {
-                        const results = snapshot().results;
-                        return results.type === "error" ? results.error.message : undefined;
-                    });
-                    const groups = createMemo(() => {
-                        const current = snapshot();
-                        return current.results.type === "ready"
-                            ? resultGroups(current.results.value, current.files, props.imageUrl)
-                            : undefined;
-                    });
-                    return (
-                        <Show
-                            when={!error()}
-                            fallback={
-                                <Banner tone="danger" title="Search unavailable">
-                                    {error()}
-                                </Banner>
-                            }
-                        >
-                            <Show
-                                when={groups()}
-                                fallback={
-                                    <EmptyState
-                                        description={`Searching the workspace for “${trimmed()}”.`}
-                                        icon="search"
-                                        title="Searching…"
-                                    />
-                                }
-                            >
-                                {(results) => (
-                                    <Show
-                                        when={results().length > 0}
-                                        fallback={
-                                            <EmptyState
-                                                description={`No channels, people, messages, or files match “${trimmed()}”.`}
-                                                icon="search"
-                                                title="No results"
-                                            />
-                                        }
-                                    >
-                                        <SearchResults
-                                            groups={results()}
-                                            onSelect={props.onSelect}
-                                            query={props.query}
-                                            variant={props.variant}
-                                        />
-                                    </Show>
-                                )}
-                            </Show>
-                        </Show>
-                    );
-                }}
-            </StoreSurface>
-        </Show>
+    const trimmed = props.query.trim();
+    return trimmed ? (
+        <StoreSurface store={props.store}>
+            {(snapshot) => {
+                const error = (() => {
+                    const results = snapshot.results;
+                    return results.type === "error" ? results.error.message : undefined;
+                })();
+                const groups = (() => {
+                    const current = snapshot;
+                    return current.results.type === "ready"
+                        ? resultGroups(current.results.value, current.files, props.imageUrl)
+                        : undefined;
+                })();
+                return !error ? (
+                    groups ? (
+                        ((results) =>
+                            results.length > 0 ? (
+                                <SearchResults
+                                    groups={results}
+                                    onSelect={props.onSelect}
+                                    query={props.query}
+                                    variant={props.variant}
+                                />
+                            ) : (
+                                <EmptyState
+                                    description={`No channels, people, messages, or files match “${trimmed}”.`}
+                                    icon="search"
+                                    title="No results"
+                                />
+                            ))(groups)
+                    ) : (
+                        <EmptyState
+                            description={`Searching the workspace for “${trimmed}”.`}
+                            icon="search"
+                            title="Searching…"
+                        />
+                    )
+                ) : (
+                    <Banner tone="danger" title="Search unavailable">
+                        {error}
+                    </Banner>
+                );
+            }}
+        </StoreSurface>
+    ) : (
+        <EmptyState
+            description="Find channels, people, messages, and files across your workspace."
+            icon="search"
+            title="Search Happy (2)"
+        />
     );
 }
-
 function resultGroups(
     results: readonly SearchResultProjection[],
     files: readonly FileSummary[],
@@ -160,7 +139,6 @@ function resultGroups(
         .map((type) => ({ type, results: grouped[type] }))
         .filter((group) => group.results.length > 0);
 }
-
 function initials(value: string): string {
     return value
         .trim()

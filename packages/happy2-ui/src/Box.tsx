@@ -1,20 +1,18 @@
-import { splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type HTMLAttributes } from "react";
 import type { Dimension } from "./dimensions";
 import { toCssDimension } from "./dimensions";
-
-export type BoxProps = Omit<JSX.HTMLAttributes<HTMLDivElement>, "style"> & {
+export type BoxProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     height?: Dimension;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     width?: Dimension;
 };
-
 export function Box(props: BoxProps) {
-    const [local, rest] = splitProps(props, ["children", "class", "height", "style", "width"]);
-
+    const [local, rest] = splitProps(props, ["children", "className", "height", "style", "width"]);
     return (
         <div
             {...rest}
-            class={["happy2-box", local.class].filter(Boolean).join(" ")}
+            className={["happy2-box", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="box"
             style={{
                 ...local.style,

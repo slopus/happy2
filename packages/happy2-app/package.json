@@ -13,23 +13,37 @@
         "typecheck": "tsc --project tsconfig.json",
         "format": "oxfmt --write .",
         "format:check": "oxfmt --check .",
-        "lint": "oxlint .",
+        "lint": "eslint . && oxlint .",
+        "lint:fix": "eslint . --fix && oxlint . --fix",
         "clean": "rm -rf dist coverage"
     },
     "dependencies": {
+        "@tanstack/react-router": "^1.170.18",
         "happy2-state": "workspace:*",
         "happy2-ui": "workspace:*",
-        "solid-js": "^1.9.14",
+        "react": "19.2.7",
+        "react-dom": "19.2.7",
         "thumbhash": "^0.1.1"
     },
     "devDependencies": {
-        "@solidjs/testing-library": "^0.8.10",
+        "@babel/core": "^8.0.1",
+        "@babel/eslint-parser": "^8.0.1",
+        "@eslint/js": "^9.39.2",
         "@tailwindcss/vite": "^4.3.2",
+        "@tanstack/eslint-plugin-router": "^1.162.0",
+        "@testing-library/react": "^16.3.2",
+        "@types/react": "19.2.14",
+        "@types/react-dom": "19.2.3",
+        "@vitejs/plugin-react": "^6.0.3",
+        "eslint": "^9.39.2",
+        "eslint-plugin-jsx-a11y": "^6.10.2",
+        "eslint-plugin-react": "^7.37.5",
+        "eslint-plugin-react-hooks": "^7.1.1",
+        "globals": "^17.7.0",
         "jsdom": "^29.1.1",
         "tailwindcss": "^4.3.2",
         "typescript": "^7.0.2",
         "vite": "^8.1.4",
-        "vite-plugin-solid": "^2.11.12",
         "vitest": "^4.1.10"
     }
 }

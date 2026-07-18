@@ -65,7 +65,7 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
 
     view.render(
         () => (
-            <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 <SetupOptionCard
                     data-testid="selected"
                     icon="terminal"
@@ -331,7 +331,7 @@ it("invokes onSelect on click and never while disabled", async () => {
 
     view.render(
         () => (
-            <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 <SetupOptionCard
                     data-testid="clickable"
                     icon="users"

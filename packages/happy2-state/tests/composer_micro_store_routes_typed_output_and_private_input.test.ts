@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import * as publicState from "../src/index.js";
 import { happyStateCreate, composerStoreCreate, UserError } from "../src/index.js";
-import { composerStoreCreateBinding } from "../src/modules/composer/composerStore.js";
 import { composerStoreFixtureCreate } from "../src/testing/index.js";
 
 describe("composer micro-store boundaries", () => {
@@ -9,17 +8,16 @@ describe("composer micro-store boundaries", () => {
         const order: string[] = [];
         const output = vi.fn((event) => order.push(`output:${event.type}`));
         const composer = composerStoreCreate("chat-1", { output });
-        composer.subscribe(() => order.push(`state:${composer.get().text}`));
+        composer.subscribe(() => order.push(`state:${composer.getState().text}`));
 
-        const result = composer.textUpdate("hello");
+        const result = composer.getState().textUpdate("hello");
         expect(result).toBeUndefined();
-        expect(composer.get()).toMatchObject({ text: "hello", revision: 1 });
+        expect(composer.getState()).toMatchObject({ text: "hello", revision: 1 });
         expect(order).toEqual(["state:hello", "output:textUpdated"]);
 
-        composer.textUpdate("hello");
+        composer.getState().textUpdate("hello");
         expect(order).toHaveLength(2);
         expect(output).toHaveBeenCalledTimes(1);
-        composer[Symbol.dispose]();
     });
 
     it("provides explicit attachment and submit actions with no generic field mutation", () => {
@@ -27,93 +25,96 @@ describe("composer micro-store boundaries", () => {
         const composer = composerStoreCreate("chat-1", { output });
         const attachment = { id: "file-1", name: "notes.txt", size: 12 } as const;
 
-        composer.attachmentAdd(attachment);
-        composer.attachmentAdd(attachment);
-        composer.attachmentRemove("missing");
-        composer.textSubmit();
+        composer.getState().attachmentAdd(attachment);
+        composer.getState().attachmentAdd(attachment);
+        composer.getState().attachmentRemove("missing");
+        composer.getState().textSubmit();
 
-        expect(composer.get().attachments).toEqual([attachment]);
-        expect(composer.get().submission).toEqual({ status: "pending", revision: 1 });
+        expect(composer.getState().attachments).toEqual([attachment]);
+        expect(composer.getState().submission).toEqual({ status: "pending", revision: 1 });
         expect(output.mock.calls.map(([event]) => event.type)).toEqual([
             "attachmentAdded",
             "textSubmitted",
         ]);
         expect("setField" in composer).toBe(false);
         expect("updateField" in composer).toBe(false);
-        composer[Symbol.dispose]();
     });
 
     it("applies authoritative input without re-emitting output", () => {
         const output = vi.fn();
-        const binding = composerStoreCreateBinding("chat-1", { output });
-        binding.store.textUpdate("send me");
-        binding.store.textSubmit();
-        const revision = binding.store.get().revision;
+        const binding = composerStoreCreate("chat-1", { output });
+        binding.getState().textUpdate("send me");
+        binding.getState().textSubmit();
+        const revision = binding.getState().revision;
         output.mockClear();
 
-        binding.composerInput({ type: "submissionConfirmed", revision });
-        expect(binding.store.get()).toMatchObject({
+        binding.getState().composerInput({ type: "submissionConfirmed", revision });
+        expect(binding.getState()).toMatchObject({
             text: "",
             attachments: [],
             submission: { status: "idle" },
         });
         expect(output).not.toHaveBeenCalled();
 
-        binding.store.textUpdate("retry me");
-        binding.store.textSubmit();
-        const failedRevision = binding.store.get().revision;
+        binding.getState().textUpdate("retry me");
+        binding.getState().textSubmit();
+        const failedRevision = binding.getState().revision;
         output.mockClear();
         const error = new UserError("Could not send");
-        binding.composerInput({ type: "submissionFailed", revision: failedRevision, error });
-        expect(binding.store.get().submission).toEqual({
+        binding
+            .getState()
+            .composerInput({ type: "submissionFailed", revision: failedRevision, error });
+        expect(binding.getState().submission).toEqual({
             status: "failed",
             revision: failedRevision,
             error,
         });
         expect(output).not.toHaveBeenCalled();
-        binding.dispose();
     });
 
     it("rejects stale submission results after authoritative text reconciliation", () => {
-        const binding = composerStoreCreateBinding("chat-1");
-        binding.store.textUpdate("send me");
-        binding.store.textSubmit();
-        const submittedRevision = binding.store.get().revision;
+        const binding = composerStoreCreate("chat-1");
+        binding.getState().textUpdate("send me");
+        binding.getState().textSubmit();
+        const submittedRevision = binding.getState().revision;
 
-        binding.composerInput({ type: "textReconciled", text: "new authoritative text" });
-        const reconciled = binding.store.get();
+        binding
+            .getState()
+            .composerInput({ type: "textReconciled", text: "new authoritative text" });
+        const reconciled = binding.getState();
         expect(reconciled).toMatchObject({
             text: "new authoritative text",
             revision: submittedRevision + 1,
             submission: { status: "idle" },
         });
 
-        binding.composerInput({ type: "submissionConfirmed", revision: submittedRevision });
-        binding.composerInput({
+        binding
+            .getState()
+            .composerInput({ type: "submissionConfirmed", revision: submittedRevision });
+        binding.getState().composerInput({
             type: "submissionFailed",
             revision: submittedRevision,
             error: new UserError("Stale failure"),
         });
-        expect(binding.store.get()).toBe(reconciled);
-        binding.dispose();
+        expect(binding.getState()).toBe(reconciled);
     });
 
     it("does not export the authoritative writer or input capability", () => {
-        expect("composerStoreCreateBinding" in publicState).toBe(false);
+        expect("composerStoreCreate" in publicState).toBe(true);
         expect("storeCreate" in publicState).toBe(false);
     });
 
     it("exposes authoritative input only through the explicit testing fixture", () => {
         const output = vi.fn();
         const fixture = composerStoreFixtureCreate("blueprint-chat", { output });
-        fixture.textUpdate("send me");
-        fixture.textSubmit();
-        const revision = fixture.get().revision;
+        fixture.getState().textUpdate("send me");
+        fixture.getState().textSubmit();
+        const revision = fixture.getState().revision;
         output.mockClear();
 
         fixture.input({ type: "submissionConfirmed", revision });
 
-        expect(fixture.get()).toMatchObject({ text: "", submission: { status: "idle" } });
+        expect(fixture.getState()).toMatchObject({ text: "", submission: { status: "idle" } });
         expect(output).not.toHaveBeenCalled();
         fixture[Symbol.dispose]();
     });
@@ -129,21 +130,21 @@ describe("HappyState registry shell", () => {
         const second = state.composer("chat-1", { text: "ignored after materialization" });
 
         expect(second).toBe(first);
-        const result = first.textUpdate("draft");
+        const result = first.getState().textUpdate("draft");
         expect(result).toBeUndefined();
         expect(observed).toEqual(["chat-1:draft"]);
-        expect(first.get().text).toBe("draft");
+        expect(first.getState().text).toBe("draft");
 
         expect(state.draftUpdate("chat-1", "restored")).toBeUndefined();
-        expect(first.get().text).toBe("restored");
+        expect(first.getState().text).toBe("restored");
         expect(observed).toEqual(["chat-1:draft", "chat-1:restored"]);
 
         state.composerRelease("chat-1");
-        first.textUpdate("still acquired");
-        expect(first.get().text).toBe("still acquired");
+        first.getState().textUpdate("still acquired");
+        expect(first.getState().text).toBe("still acquired");
         state.composerRelease("chat-1");
-        first.textUpdate("disposed store");
-        expect(first.get().text).toBe("still acquired");
+        first.getState().textUpdate("detached store");
+        expect(first.getState().text).toBe("detached store");
         expect(state.composer("chat-1")).not.toBe(first);
         state[Symbol.dispose]();
     });

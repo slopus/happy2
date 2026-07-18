@@ -42,14 +42,14 @@ export function CommandPalettePage() {
             summary="Slack-style ⌘K palette — a 640px card with its own focused search input over a scrollable result body, split by a hairline. Renders the card only; a host composes it inside ModalOverlay for its dim and centering."
             title="Command palette"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="640 wide · 60px input row · flush results body"
                     label="With results"
                     number="CP-01"
                     stage="app"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <DimensionRule label="width 640" />
                         <CommandPalette
                             autoFocus={false}
@@ -64,7 +64,7 @@ export function CommandPalettePage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="empty query prompt before any input"
                     label="Empty"

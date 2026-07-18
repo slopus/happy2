@@ -1,8 +1,8 @@
-import { createMemo, For, Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { Badge, type BadgeVariant } from "./Badge";
 import { Button } from "./Button";
-
 export type MemberPresence = "online" | "offline";
 export type MemberRole = "owner" | "admin" | "member";
 export type MemberItem = {
@@ -21,29 +21,31 @@ export type MemberItem = {
      *  "Service" status pill instead of the org role and carries no presence. */
     systemRole?: "service";
 };
-
 export type MemberListProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     members: MemberItem[];
     onAction?: (id: string) => void;
     actionLabel?: string;
-    rowMenu?: (member: MemberItem) => JSX.Element;
+    rowMenu?: (member: MemberItem) => ReactNode;
 };
-
 /* Role → status pill. Each role maps to a distinct, already-tuned Badge
  * variant so the roster reads owner / admin / member at a glance. */
-const roleBadges: Record<MemberRole, { label: string; variant: BadgeVariant }> = {
+const roleBadges: Record<
+    MemberRole,
+    {
+        label: string;
+        variant: BadgeVariant;
+    }
+> = {
     owner: { label: "Owner", variant: "accent" },
     admin: { label: "Admin", variant: "info" },
     member: { label: "Member", variant: "neutral" },
 };
-
 /* A built-in service account outranks its org role in the roster: it always
  * reads "Service" regardless of the plain member/admin role it carries. */
 const serviceBadge = { label: "Service", variant: "accent" as BadgeVariant };
-
 /* Secondary line: the title takes priority (it is the descriptive roster
  * label); a bare @handle stands in when there is no title. */
 function subtitleOf(member: MemberItem): string | undefined {
@@ -51,12 +53,11 @@ function subtitleOf(member: MemberItem): string | undefined {
     if (member.username) return `@${member.username}`;
     return undefined;
 }
-
 function MemberRow(props: {
     actionLabel?: string;
     member: MemberItem;
     onAction?: (id: string) => void;
-    rowMenu?: (member: MemberItem) => JSX.Element;
+    rowMenu?: (member: MemberItem) => ReactNode;
 }) {
     const member = () => props.member;
     const service = () => member().systemRole === "service";
@@ -64,7 +65,7 @@ function MemberRow(props: {
     const subtitle = () => subtitleOf(member());
     /* One trailing control per row: a caller-supplied menu wins; otherwise an
      * action button appears whenever an action handler or label is declared. */
-    const trailing = createMemo(() => {
+    const trailing = (() => {
         if (props.rowMenu) return props.rowMenu(member());
         if (props.onAction || props.actionLabel) {
             return (
@@ -78,18 +79,17 @@ function MemberRow(props: {
             );
         }
         return null;
-    });
-
+    })();
     return (
         <li
-            class="happy2-member-list__row"
+            className="happy2-member-list__row"
             data-member-id={member().id}
             data-presence={service() ? undefined : (member().presence ?? "offline")}
             data-happy2-ui="member-row"
             data-role={service() ? "service" : member().role}
         >
             <Avatar
-                class="happy2-member-list__avatar"
+                className="happy2-member-list__avatar"
                 imageUrl={member().imageUrl}
                 initials={member().initials}
                 online={!service() && member().presence === "online"}
@@ -97,30 +97,29 @@ function MemberRow(props: {
                 tone={member().tone}
                 type={member().agent ? "agent" : "human"}
             />
-            <span class="happy2-member-list__identity" data-happy2-ui="member-identity">
-                <span class="happy2-member-list__name" data-happy2-ui="member-name">
+            <span className="happy2-member-list__identity" data-happy2-ui="member-identity">
+                <span className="happy2-member-list__name" data-happy2-ui="member-name">
                     {member().name}
                 </span>
-                <Show when={subtitle()}>
-                    <span class="happy2-member-list__subtitle" data-happy2-ui="member-subtitle">
+                {subtitle() ? (
+                    <span className="happy2-member-list__subtitle" data-happy2-ui="member-subtitle">
                         {subtitle()}
                     </span>
-                </Show>
+                ) : null}
             </span>
             <Badge
-                class="happy2-member-list__role"
+                className="happy2-member-list__role"
                 label={badge().label}
                 variant={badge().variant}
             />
-            <Show when={trailing()}>
-                <span class="happy2-member-list__trailing" data-happy2-ui="member-trailing">
-                    {trailing()}
+            {trailing ? (
+                <span className="happy2-member-list__trailing" data-happy2-ui="member-trailing">
+                    {trailing}
                 </span>
-            </Show>
+            ) : null}
         </li>
     );
 }
-
 /**
  * C-039 MemberList — chat roster on a 56px row grid. Each row pairs a 36px
  * presence-aware Avatar with a name/title identity block, a role status Badge,
@@ -131,30 +130,28 @@ function MemberRow(props: {
 export function MemberList(props: MemberListProps) {
     const [local, rest] = splitProps(props, [
         "actionLabel",
-        "class",
+        "className",
         "members",
         "onAction",
         "rowMenu",
         "style",
     ]);
-
     return (
         <ul
             {...rest}
-            class={["happy2-member-list", local.class].filter(Boolean).join(" ")}
+            className={["happy2-member-list", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="member-list"
             style={local.style}
         >
-            <For each={local.members}>
-                {(member) => (
-                    <MemberRow
-                        actionLabel={local.actionLabel}
-                        member={member}
-                        onAction={local.onAction}
-                        rowMenu={local.rowMenu}
-                    />
-                )}
-            </For>
+            {local.members.map((member) => (
+                <MemberRow
+                    actionLabel={local.actionLabel}
+                    key={member.id}
+                    member={member}
+                    onAction={local.onAction}
+                    rowMenu={local.rowMenu}
+                />
+            ))}
         </ul>
     );
 }

@@ -12,7 +12,7 @@ const roleVariant: Record<string, BadgeVariant> = {
 
 function nameCell(initials: string, tone: Parameters<typeof Avatar>[0]["tone"], name: string) {
     return (
-        <span style={{ display: "inline-flex", "align-items": "center", gap: "8px" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
             <Avatar initials={initials} size="xs" tone={tone} />
             <span>{name}</span>
         </span>
@@ -96,7 +96,7 @@ export function DataTablePage() {
             summary="Columns + rows admin table — alignment, selection, row actions, dense mode, and an empty slot."
             title="Data table"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="header 40 · rows 48 · numeric column right-aligned"
                     label="Basic"
@@ -110,7 +110,7 @@ export function DataTablePage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="checkbox column · select-all shows indeterminate"
                     label="Selectable"
@@ -123,7 +123,7 @@ export function DataTablePage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="trailing row-actions slot · right-aligned"
                     label="Row actions"
@@ -158,7 +158,7 @@ export function DataTablePage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen detail="dense — 36px rows" label="Dense" number="DT-04" stage="surface">
                     <div style={{ display: "grid", gap: "8px", width: "760px", padding: "24px" }}>
                         <DimensionRule label="header 36 · row 36" />
@@ -167,7 +167,7 @@ export function DataTablePage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="long text truncates with an ellipsis inside its column"
                     label="Truncation"
@@ -194,7 +194,7 @@ export function DataTablePage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="empty slot when there are no rows"
                     label="Empty"
@@ -211,7 +211,7 @@ export function DataTablePage() {
                                 <span
                                     style={{
                                         color: "var(--happy2-text-muted)",
-                                        "font-size": "13px",
+                                        fontSize: "13px",
                                     }}
                                 >
                                     No members match this filter.

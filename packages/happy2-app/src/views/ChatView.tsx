@@ -1,10 +1,10 @@
+import { useLayoutEffect, useReducer, useRef, type ReactNode } from "react";
 import {
     ChatPage,
     type ChatPageActions,
     type ChatPageNavigation,
     type ChatPagePanel,
 } from "happy2-ui";
-import { createEffect, createSignal, onCleanup, type JSX } from "solid-js";
 import type {
     ChatHandle,
     ComposerStore,
@@ -15,121 +15,134 @@ import type {
 } from "happy2-state";
 import type { AuthSession } from "../components/AuthGate";
 import type { DesktopNavigation, DesktopRoute } from "../navigation/desktopRouteTypes";
-
 export type ChatViewProps = {
     platform?: "desktop" | "web";
     session?: AuthSession;
     state: HappyState;
     route: DesktopRoute;
     navigation: DesktopNavigation;
-    createRequest?: () => { kind: "agent" | "channel"; nonce: number };
-    search: () => string;
-    rail: JSX.Element;
-    titleBar: JSX.Element;
+    createRequest?: {
+        kind: "agent" | "channel";
+        nonce: number;
+    };
+    search: string;
+    rail: ReactNode;
+    titleBar: ReactNode;
 };
-
+type ChatResources = {
+    chat?: ChatHandle;
+    composer?: ComposerStore;
+    thread?: ThreadHandle;
+    workspace?: WorkspaceHandle;
+    workspaceFile?: WorkspaceFileHandle;
+    chatId?: string;
+    threadId?: string;
+    workspaceChatId?: string;
+    workspaceFileKey?: string;
+};
 /** Owns route-keyed HappyState leases while the reusable ChatPage remains props-only. */
 export function ChatView(props: ChatViewProps) {
     const state = props.state;
-    const [chat, setChat] = createSignal<ChatHandle>();
-    const [composer, setComposer] = createSignal<ComposerStore>();
-    const [thread, setThread] = createSignal<ThreadHandle>();
-    const [workspace, setWorkspace] = createSignal<WorkspaceHandle>();
-    const [workspaceFile, setWorkspaceFile] = createSignal<WorkspaceFileHandle>();
-    let chatId: string | undefined;
-    let composerScopeId: string | undefined;
-    let threadId: string | undefined;
-    let workspaceChatId: string | undefined;
-    let workspaceFileKey: string | undefined;
-
-    function threadLeaseClose() {
-        thread()?.[Symbol.dispose]();
-        setThread(undefined);
-        threadId = undefined;
-    }
-    function workspaceFileLeaseClose() {
-        workspaceFile()?.[Symbol.dispose]();
-        setWorkspaceFile(undefined);
-        workspaceFileKey = undefined;
-    }
-    function workspaceLeaseClose() {
-        workspaceFileLeaseClose();
-        workspace()?.[Symbol.dispose]();
-        setWorkspace(undefined);
-        workspaceChatId = undefined;
-    }
-    function chatLeaseClose() {
-        threadLeaseClose();
-        workspaceLeaseClose();
-        chat()?.[Symbol.dispose]();
-        setChat(undefined);
-        setComposer(undefined);
-        chatId = undefined;
-        if (composerScopeId) state.composerRelease(composerScopeId);
-        composerScopeId = undefined;
-    }
-
-    function chatLeaseFollow(nextChatId?: string) {
-        if (nextChatId === chatId) return;
-        chatLeaseClose();
-        if (!nextChatId) return;
-        chatId = nextChatId;
-        composerScopeId = nextChatId;
-        setChat(state.chatOpen(nextChatId));
-        setComposer(state.composer(nextChatId));
-    }
-    function threadLeaseFollow(nextThreadId?: string) {
-        if (nextThreadId === threadId) return;
-        threadLeaseClose();
-        if (!nextThreadId) return;
-        threadId = nextThreadId;
-        setThread(state.threadOpen(nextThreadId));
-    }
-    function workspaceLeaseFollow(nextChatId?: string) {
-        if (nextChatId === workspaceChatId) return;
-        workspaceLeaseClose();
-        if (!nextChatId) return;
-        workspaceChatId = nextChatId;
-        setWorkspace(state.workspaceOpen(nextChatId));
-    }
-    function workspaceFileLeaseFollow(nextChatId?: string, path?: string) {
-        const nextKey = nextChatId && path ? `${nextChatId}\u0000${path}` : undefined;
-        if (nextKey === workspaceFileKey) return;
-        workspaceFileLeaseClose();
-        if (!nextChatId || !path) return;
-        workspaceFileKey = nextKey;
-        setWorkspaceFile(state.workspaceFileOpen(nextChatId, path));
-    }
-
-    const conversation = () =>
+    const [resources, resourcesReplace] = useReducer(
+        (_current: ChatResources, next: ChatResources) => next,
+        {},
+    );
+    const resourcesRef = useRef<ChatResources>({});
+    const conversation =
         props.route.primary.kind === "conversation" ? props.route.primary : undefined;
-    const workspaceFileRoute = () =>
+    const workspaceFileRoute =
         props.route.overlay?.kind === "workspace-file" ? props.route.overlay : undefined;
-
-    createEffect(() => chatLeaseFollow(conversation()?.chatId));
-    createEffect(() => {
-        const panel = props.route.panel;
-        threadLeaseFollow(panel?.kind === "thread" ? panel.rootMessageId : undefined);
-    });
-    createEffect(() => {
-        const selected = conversation()?.chatId;
-        const needsWorkspace =
-            props.route.panel?.kind === "workspace" ||
-            props.route.overlay?.kind === "workspace-file";
-        workspaceLeaseFollow(needsWorkspace ? selected : undefined);
-    });
-    createEffect(() => {
-        const file = workspaceFileRoute();
-        workspaceFileLeaseFollow(file?.chatId, file?.path);
-    });
-
+    const nextChatId = conversation?.chatId;
+    const nextThreadId =
+        props.route.panel?.kind === "thread" ? props.route.panel.rootMessageId : undefined;
+    const nextWorkspaceChatId =
+        props.route.panel?.kind === "workspace" || workspaceFileRoute ? nextChatId : undefined;
+    const nextWorkspaceFileKey =
+        workspaceFileRoute?.chatId && workspaceFileRoute.path
+            ? `${workspaceFileRoute.chatId}\u0000${workspaceFileRoute.path}`
+            : undefined;
+    const resourcesCommit = (next: ChatResources) => {
+        resourcesRef.current = next;
+        resourcesReplace(next);
+    };
+    useLayoutEffect(() => {
+        let next = resourcesRef.current;
+        let changed = false;
+        const replace = (patch: Partial<ChatResources>) => {
+            next = { ...next, ...patch };
+            changed = true;
+        };
+        if (next.chatId !== nextChatId) {
+            next.thread?.[Symbol.dispose]();
+            next.workspaceFile?.[Symbol.dispose]();
+            next.workspace?.[Symbol.dispose]();
+            next.chat?.[Symbol.dispose]();
+            if (next.chatId) state.composerRelease(next.chatId);
+            next = nextChatId
+                ? {
+                      chatId: nextChatId,
+                      chat: state.chatOpen(nextChatId),
+                      composer: state.composer(nextChatId),
+                  }
+                : {};
+            changed = true;
+        }
+        if (next.threadId !== nextThreadId) {
+            next.thread?.[Symbol.dispose]();
+            replace({
+                threadId: nextThreadId,
+                thread: nextThreadId ? state.threadOpen(nextThreadId) : undefined,
+            });
+        }
+        if (next.workspaceChatId !== nextWorkspaceChatId) {
+            next.workspaceFile?.[Symbol.dispose]();
+            next.workspace?.[Symbol.dispose]();
+            replace({
+                workspaceChatId: nextWorkspaceChatId,
+                workspace: nextWorkspaceChatId
+                    ? state.workspaceOpen(nextWorkspaceChatId)
+                    : undefined,
+                workspaceFileKey: undefined,
+                workspaceFile: undefined,
+            });
+        }
+        if (next.workspaceFileKey !== nextWorkspaceFileKey) {
+            next.workspaceFile?.[Symbol.dispose]();
+            replace({
+                workspaceFileKey: nextWorkspaceFileKey,
+                workspaceFile:
+                    workspaceFileRoute && nextWorkspaceFileKey
+                        ? state.workspaceFileOpen(
+                              workspaceFileRoute.chatId,
+                              workspaceFileRoute.path,
+                          )
+                        : undefined,
+            });
+        }
+        if (changed) resourcesCommit(next);
+    }, [
+        state,
+        nextChatId,
+        nextThreadId,
+        nextWorkspaceChatId,
+        nextWorkspaceFileKey,
+        workspaceFileRoute,
+    ]);
+    useLayoutEffect(
+        () => () => {
+            const current = resourcesRef.current;
+            current.thread?.[Symbol.dispose]();
+            current.workspaceFile?.[Symbol.dispose]();
+            current.workspace?.[Symbol.dispose]();
+            current.chat?.[Symbol.dispose]();
+            if (current.chatId) state.composerRelease(current.chatId);
+            resourcesRef.current = {};
+        },
+        [state],
+    );
     function panelOpen(panel: ChatPagePanel) {
-        props.navigation.navigate(
-            { ...props.route, panel, overlay: undefined },
-            { layer: "panel" },
-        );
+        props.navigation.navigate({ ...props.route, panel, overlay: undefined });
     }
-
     const actions: ChatPageActions = {
         adminOpen() {
             props.navigation.navigate({
@@ -162,19 +175,21 @@ export function ChatView(props: ChatViewProps) {
         workspaceOpen: () => panelOpen({ kind: "workspace" }),
         workspaceClose: () => props.navigation.close("panel"),
         workspaceFileOpen(nextChatId, path) {
-            const current = workspaceFileRoute();
+            const current = workspaceFileRoute;
             if (current?.chatId === nextChatId && current.path === path) return;
-            props.navigation.navigate(
-                {
-                    ...props.route,
-                    overlay: { kind: "workspace-file", chatId: nextChatId, path },
-                },
-                { layer: "overlay" },
-            );
+            props.navigation.navigate({
+                ...props.route,
+                overlay: { kind: "workspace-file", chatId: nextChatId, path },
+            });
         },
         workspaceFileReload(nextChatId, path) {
-            workspaceFileLeaseClose();
-            workspaceFileLeaseFollow(nextChatId, path);
+            const current = resourcesRef.current;
+            current.workspaceFile?.[Symbol.dispose]();
+            resourcesCommit({
+                ...current,
+                workspaceFileKey: `${nextChatId}\u0000${path}`,
+                workspaceFile: state.workspaceFileOpen(nextChatId, path),
+            });
         },
         workspaceFileClose: () => props.navigation.close("overlay"),
         fileUpload: (body) => state.fileUpload(body),
@@ -198,34 +213,31 @@ export function ChatView(props: ChatViewProps) {
         agentCreate: (input) => state.agentCreate(input),
         directMessageCreate: (userId) => state.directMessageCreate(userId),
     };
-
     const pageNavigation = (): ChatPageNavigation => {
-        const selected = conversation();
-        const file = workspaceFileRoute();
+        const selected = conversation;
+        const file = workspaceFileRoute;
         return {
             chatId: selected?.chatId,
             panel: props.route.panel,
             workspaceFilePath: file?.chatId === selected?.chatId ? file?.path : undefined,
         };
     };
-
-    onCleanup(chatLeaseClose);
     return (
         <ChatPage
             actions={actions}
-            chat={chat()}
-            composer={composer()}
+            chat={resources.chat}
+            composer={resources.composer}
             createRequest={props.createRequest}
             directory={state.directory()}
             navigation={pageNavigation()}
             rail={props.rail}
             search={props.search}
             sidebar={state.sidebar()}
-            thread={thread()}
+            thread={resources.thread}
             titleBar={props.titleBar}
             user={props.session?.user ?? { id: "local-user", firstName: "Happy" }}
-            workspace={workspace()}
-            workspaceFile={workspaceFile()}
+            workspace={resources.workspace}
+            workspaceFile={resources.workspaceFile}
         />
     );
 }

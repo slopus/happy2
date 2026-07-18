@@ -1,98 +1,97 @@
-import { createEffect, createSignal, For, onCleanup, Show, type JSX } from "solid-js";
+import {
+    useLayoutEffect,
+    useRef,
+    useState,
+    type ChangeEvent,
+    type CSSProperties,
+    type FormEvent,
+    type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { Badge } from "./Badge";
 import { Button } from "./Button";
 import { EmojiPicker, type EmojiItem } from "./EmojiPicker";
 import { Icon, type IconName } from "./Icon";
-
 /* ---- ContextChips ----------------------------------------------------- */
-
 export type ContextKind = "file" | "run" | "thread";
-
 export type ContextItem = {
     detail?: string;
     id: string;
     kind: ContextKind;
     label: string;
 };
-
 export type ContextChipsProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
     items: ContextItem[];
     label?: string;
     onRemove?: (id: string) => void;
     readOnly?: boolean;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
 };
-
 const kindIcons: Record<ContextKind, IconName> = {
     file: "doc",
     run: "play",
     thread: "thread",
 };
-
 /** Attached-context row for the composer: 24px chips with kind icons. */
 export function ContextChips(props: ContextChipsProps) {
     return (
         <div
-            class={["happy2-context-chips", props.class].filter(Boolean).join(" ")}
+            className={["happy2-context-chips", props.className].filter(Boolean).join(" ")}
             data-happy2-ui="context-chips"
             data-testid={props["data-testid"]}
             style={props.style}
         >
-            <Show when={props.label}>
-                <span class="happy2-context-chips__label" data-happy2-ui="context-chips-label">
+            {props.label ? (
+                <span className="happy2-context-chips__label" data-happy2-ui="context-chips-label">
                     {props.label}
                 </span>
-            </Show>
-            <For each={props.items}>
-                {(item) => (
+            ) : null}
+            {props.items.map((item) => (
+                <span
+                    className="happy2-context-chips__chip"
+                    key={item.id}
+                    data-kind={item.kind}
+                    data-happy2-ui="context-chips-chip"
+                >
                     <span
-                        class="happy2-context-chips__chip"
-                        data-kind={item.kind}
-                        data-happy2-ui="context-chips-chip"
+                        className="happy2-context-chips__icon"
+                        data-happy2-ui="context-chips-icon"
                     >
-                        <span
-                            class="happy2-context-chips__icon"
-                            data-happy2-ui="context-chips-icon"
-                        >
-                            <Icon name={kindIcons[item.kind]} size={12} />
-                        </span>
-                        <span
-                            class="happy2-context-chips__text"
-                            data-happy2-ui="context-chips-text"
-                        >
-                            {item.label}
-                        </span>
-                        <Show when={item.detail}>
-                            <span
-                                class="happy2-context-chips__detail"
-                                data-happy2-ui="context-chips-detail"
-                            >
-                                {item.detail}
-                            </span>
-                        </Show>
-                        <Show when={!props.readOnly && props.onRemove}>
-                            <button
-                                aria-label={`Remove ${item.label}`}
-                                class="happy2-context-chips__remove"
-                                data-happy2-ui="context-chips-remove"
-                                onClick={() => props.onRemove?.(item.id)}
-                                type="button"
-                            >
-                                <Icon name="close" size={12} />
-                            </button>
-                        </Show>
+                        <Icon name={kindIcons[item.kind]} size={12} />
                     </span>
-                )}
-            </For>
+                    <span
+                        className="happy2-context-chips__text"
+                        data-happy2-ui="context-chips-text"
+                    >
+                        {item.label}
+                    </span>
+                    {item.detail ? (
+                        <span
+                            className="happy2-context-chips__detail"
+                            data-happy2-ui="context-chips-detail"
+                        >
+                            {item.detail}
+                        </span>
+                    ) : null}
+                    {!props.readOnly && props.onRemove ? (
+                        <button
+                            aria-label={`Remove ${item.label}`}
+                            className="happy2-context-chips__remove"
+                            data-happy2-ui="context-chips-remove"
+                            onClick={() => props.onRemove?.(item.id)}
+                            type="button"
+                        >
+                            <Icon name="close" size={12} />
+                        </button>
+                    ) : null}
+                </span>
+            ))}
         </div>
     );
 }
-
 /* ---- MentionPicker ----------------------------------------------------- */
-
 export type Mentionable = {
     description?: string;
     id: string;
@@ -101,15 +100,13 @@ export type Mentionable = {
     status?: "ready" | "working";
     tone?: ToneName;
 };
-
 /** @deprecated Prefer the product-neutral `Mentionable` name. */
 export type MentionableAgent = Mentionable;
-
 export type MentionPickerProps = {
     /** Optional controlled highlight; defaults to the first filtered agent. */
     activeId?: string;
     agents?: Mentionable[];
-    class?: string;
+    className?: string;
     "data-testid"?: string;
     /** Visible heading for the picker (default "Mentions"). */
     label?: string;
@@ -117,104 +114,95 @@ export type MentionPickerProps = {
     mentions?: Mentionable[];
     onSelect: (mention: Mentionable) => void;
     query: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
 };
-
 function filterAgents(agents: Mentionable[], query: string) {
     const needle = query.trim().toLowerCase();
     if (!needle) return agents;
     return agents.filter((agent) => agent.name.toLowerCase().includes(needle));
 }
-
 /** 320px raised popover listing mention candidates, filtered by `query`. */
 export function MentionPicker(props: MentionPickerProps) {
     const candidates = () => props.mentions ?? props.agents ?? [];
     const filtered = () => filterAgents(candidates(), props.query);
     const activeId = () => props.activeId ?? filtered()[0]?.id;
-
     return (
         <div
             aria-label={props.label ?? "Mentions"}
-            class={["happy2-mention-picker", props.class].filter(Boolean).join(" ")}
+            className={["happy2-mention-picker", props.className].filter(Boolean).join(" ")}
             data-happy2-ui="mention-picker"
             data-testid={props["data-testid"]}
             role="listbox"
             style={props.style}
         >
-            <div class="happy2-mention-picker__header" data-happy2-ui="mention-picker-header">
+            <div className="happy2-mention-picker__header" data-happy2-ui="mention-picker-header">
                 {props.label ?? "Mentions"}
             </div>
-            <Show
-                when={filtered().length > 0}
-                fallback={
-                    <div class="happy2-mention-picker__empty" data-happy2-ui="mention-picker-empty">
-                        No mentions match “{props.query}”
-                    </div>
-                }
-            >
-                <For each={filtered()}>
-                    {(agent) => (
-                        <button
-                            aria-selected={agent.id === activeId() ? "true" : "false"}
-                            class="happy2-mention-picker__row"
-                            data-active={agent.id === activeId() ? "" : undefined}
-                            data-agent-id={agent.id}
-                            data-happy2-ui="mention-picker-row"
-                            onClick={() => props.onSelect(agent)}
-                            role="option"
-                            type="button"
+            {filtered().length > 0 ? (
+                filtered().map((agent) => (
+                    <button
+                        aria-selected={agent.id === activeId() ? "true" : "false"}
+                        key={agent.id}
+                        className="happy2-mention-picker__row"
+                        data-active={agent.id === activeId() ? "" : undefined}
+                        data-agent-id={agent.id}
+                        data-happy2-ui="mention-picker-row"
+                        onClick={() => props.onSelect(agent)}
+                        role="option"
+                        type="button"
+                    >
+                        <Avatar
+                            initials={agent.initials}
+                            size="sm"
+                            tone={agent.tone}
+                            type="agent"
+                        />
+                        <span
+                            className="happy2-mention-picker__meta"
+                            data-happy2-ui="mention-picker-meta"
                         >
-                            <Avatar
-                                initials={agent.initials}
-                                size="sm"
-                                tone={agent.tone}
-                                type="agent"
-                            />
                             <span
-                                class="happy2-mention-picker__meta"
-                                data-happy2-ui="mention-picker-meta"
+                                className="happy2-mention-picker__name"
+                                data-happy2-ui="mention-picker-name"
                             >
-                                <span
-                                    class="happy2-mention-picker__name"
-                                    data-happy2-ui="mention-picker-name"
-                                >
-                                    {agent.name}
-                                </span>
-                                <Show when={agent.description}>
-                                    <span
-                                        class="happy2-mention-picker__description"
-                                        data-happy2-ui="mention-picker-description"
-                                    >
-                                        {agent.description}
-                                    </span>
-                                </Show>
+                                {agent.name}
                             </span>
-                            <Show when={agent.status}>
-                                {(status) => (
-                                    <Badge
-                                        class="happy2-mention-picker__status"
-                                        label={status()}
-                                        variant={status() === "ready" ? "success" : "warning"}
-                                    />
-                                )}
-                            </Show>
-                        </button>
-                    )}
-                </For>
-            </Show>
+                            {agent.description ? (
+                                <span
+                                    className="happy2-mention-picker__description"
+                                    data-happy2-ui="mention-picker-description"
+                                >
+                                    {agent.description}
+                                </span>
+                            ) : null}
+                        </span>
+                        {agent.status
+                            ? ((status) => (
+                                  <Badge
+                                      className="happy2-mention-picker__status"
+                                      label={status}
+                                      variant={status === "ready" ? "success" : "warning"}
+                                  />
+                              ))(agent.status)
+                            : null}
+                    </button>
+                ))
+            ) : (
+                <div className="happy2-mention-picker__empty" data-happy2-ui="mention-picker-empty">
+                    No mentions match “{props.query}”
+                </div>
+            )}
         </div>
     );
 }
-
 /* ---- Composer ----------------------------------------------------------- */
-
 export type ComposerProps = {
     agents?: MentionableAgent[];
     /** Native file-picker accept filter, used with `onAttachmentsSelect`. */
     attachmentAccept?: string;
     /** Allows more than one file in the native picker. */
     attachmentMultiple?: boolean;
-    class?: string;
+    className?: string;
     contextItems?: ContextItem[];
     "data-testid"?: string;
     disabled?: boolean;
@@ -244,43 +232,41 @@ export type ComposerProps = {
     recentEmoji?: string[];
     /** Overrides the text-only send check when attached context is sendable. */
     sendEnabled?: boolean;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     value: string;
 };
-
 const LINE_HEIGHT = 22;
 const MAX_LINES = 8;
-
 /**
  * Message composer: focus-within surface card with an auto-growing textarea
  * (1–8 lines), context chips, capability-driven file/mention/emoji actions,
  * a primary send control, and keyboard-accessible picker popovers.
  */
 export function Composer(props: ComposerProps) {
-    let composerEl: HTMLDivElement | undefined;
-    let fileInputEl: HTMLInputElement | undefined;
-    let textareaEl: HTMLTextAreaElement | undefined;
-    const [mentionStart, setMentionStart] = createSignal<number | null>(null);
-    const [mentionQuery, setMentionQuery] = createSignal("");
-    const [activeIndex, setActiveIndex] = createSignal(0);
-    const [emojiOpen, setEmojiOpen] = createSignal(false);
-    const [emojiQuery, setEmojiQuery] = createSignal("");
-    const [restoreFocusAfterSend, setRestoreFocusAfterSend] = createSignal(false);
-    const [selection, setSelection] = createSignal({ start: 0, end: 0 });
-
+    const composerEl = useRef<HTMLDivElement>(null);
+    const fileInputEl = useRef<HTMLInputElement>(null);
+    const textareaEl = useRef<HTMLTextAreaElement>(null);
+    const wasBusy = useRef(Boolean(props.disabled || props.pending));
+    const [mentionStart, setMentionStart] = useState<number | null>(null);
+    const [mentionQuery, setMentionQuery] = useState("");
+    const [activeIndex, setActiveIndex] = useState(0);
+    const [emojiOpen, setEmojiOpen] = useState(false);
+    const [emojiQuery, setEmojiQuery] = useState("");
+    const restoreFocusAfterSend = useRef(false);
+    const [selection, setSelection] = useState({ start: 0, end: 0 });
+    const busy = Boolean(props.disabled || props.pending);
     const agents = () => props.mentions ?? props.agents ?? [];
-    const filtered = () => filterAgents(agents(), mentionQuery());
-    const mentionOpen = () => mentionStart() !== null && agents().length > 0;
+    const filtered = () => filterAgents(agents(), mentionQuery);
+    const mentionOpen = () => !busy && mentionStart !== null && agents().length > 0;
     const activeAgent = () => {
         const list = filtered();
         if (list.length === 0) return undefined;
-        return list[Math.min(activeIndex(), list.length - 1)];
+        return list[Math.min(activeIndex, list.length - 1)];
     };
-    const busy = () => Boolean(props.disabled || props.pending);
-    const canSend = () => !busy() && (props.sendEnabled ?? props.value.trim().length > 0);
+    const canSend = () => !busy && (props.sendEnabled ?? props.value.trim().length > 0);
     const emoji = () => props.emoji ?? [];
     const filteredEmoji = () => {
-        const needle = emojiQuery().trim().toLowerCase();
+        const needle = emojiQuery.trim().toLowerCase();
         if (!needle) return emoji();
         return emoji().filter(
             (item) =>
@@ -288,66 +274,51 @@ export function Composer(props: ComposerProps) {
         );
     };
     const hasAttachmentAction = () => Boolean(props.onAttachFile || props.onAttachmentsSelect);
-
     /* Auto-grow: collapse to one line, then track content up to 8 lines. */
-    createEffect(() => {
+    useLayoutEffect(() => {
         void props.value;
-        const el = textareaEl;
+        const el = textareaEl.current;
         if (!el) return;
         el.style.height = `${LINE_HEIGHT}px`;
         el.style.height = `${Math.min(el.scrollHeight, LINE_HEIGHT * MAX_LINES)}px`;
-    });
-
+    }, [props.value]);
     const closeMention = () => {
         setMentionStart(null);
         setMentionQuery("");
         setActiveIndex(0);
     };
-
     const closeEmoji = () => {
         setEmojiOpen(false);
         setEmojiQuery("");
     };
-
     const closePopovers = () => {
         closeMention();
         closeEmoji();
     };
-
-    createEffect(() => {
-        if (!props.disabled && !props.pending) return;
-        closePopovers();
-    });
-
-    let wasBusy = busy();
-    createEffect(() => {
-        const isBusy = busy();
-        if (wasBusy && !isBusy && restoreFocusAfterSend()) {
-            textareaEl?.focus();
-            setRestoreFocusAfterSend(false);
+    useLayoutEffect(() => {
+        if (wasBusy.current && !busy && restoreFocusAfterSend.current) {
+            textareaEl.current?.focus();
+            restoreFocusAfterSend.current = false;
         }
-        wasBusy = isBusy;
-    });
-
-    createEffect(() => {
+        wasBusy.current = busy;
+    }, [busy]);
+    useLayoutEffect(() => {
         const onPointerDown = (event: PointerEvent) => {
-            if (!composerEl?.contains(event.target as Node)) closePopovers();
+            if (!composerEl.current?.contains(event.target as Node)) closePopovers();
         };
         document.addEventListener("pointerdown", onPointerDown);
-        onCleanup(() => document.removeEventListener("pointerdown", onPointerDown));
+        return () => document.removeEventListener("pointerdown", onPointerDown);
     });
-
     const rememberSelection = () => {
-        const el = textareaEl;
+        const el = textareaEl.current;
         if (!el) return;
         setSelection({
             start: el.selectionStart ?? props.value.length,
             end: el.selectionEnd ?? props.value.length,
         });
     };
-
     const focusAt = (position: number) => {
-        const el = textareaEl;
+        const el = textareaEl.current;
         if (!el) return;
         queueMicrotask(() => {
             el.focus();
@@ -355,15 +326,13 @@ export function Composer(props: ComposerProps) {
             setSelection({ start: position, end: position });
         });
     };
-
     const replaceSelection = (text: string) => {
-        const current = selection();
+        const current = selection;
         const next = props.value.slice(0, current.start) + text + props.value.slice(current.end);
         const nextCaret = current.start + text.length;
         props.onValueChange(next);
         focusAt(nextCaret);
     };
-
     const detectMention = (el: HTMLTextAreaElement) => {
         if (agents().length === 0) return;
         const caret = el.selectionStart ?? el.value.length;
@@ -375,14 +344,13 @@ export function Composer(props: ComposerProps) {
         }
         const query = match[2] ?? "";
         const start = caret - query.length - 1;
-        if (mentionStart() !== start || mentionQuery() !== query) setActiveIndex(0);
+        if (mentionStart !== start || mentionQuery !== query) setActiveIndex(0);
         setMentionStart(start);
         setMentionQuery(query);
     };
-
     const selectMention = (agent: MentionableAgent) => {
-        const el = textareaEl;
-        const start = mentionStart();
+        const el = textareaEl.current;
+        const start = mentionStart;
         if (!el || start === null) return;
         const caret = el.selectionStart ?? el.value.length;
         const insertion = `@${agent.name} `;
@@ -393,10 +361,9 @@ export function Composer(props: ComposerProps) {
         const nextCaret = start + insertion.length;
         focusAt(nextCaret);
     };
-
     const triggerMention = () => {
-        const el = textareaEl;
-        if (!el || busy() || agents().length === 0) return;
+        const el = textareaEl.current;
+        if (!el || busy || agents().length === 0) return;
         closeEmoji();
         el.focus();
         const caret = el.selectionStart ?? props.value.length;
@@ -411,57 +378,53 @@ export function Composer(props: ComposerProps) {
         const nextCaret = caret + insertion.length;
         focusAt(nextCaret);
     };
-
     const triggerEmoji = () => {
-        if (busy() || emoji().length === 0) return;
+        if (busy || emoji().length === 0) return;
         closeMention();
         rememberSelection();
-        setEmojiOpen((open) => !open);
+        const open = !emojiOpen;
+        setEmojiOpen(open);
         setEmojiQuery("");
         queueMicrotask(() => {
-            if (!emojiOpen()) return;
-            composerEl
+            if (!open) return;
+            composerEl.current
                 ?.querySelector<HTMLInputElement>('[data-happy2-ui="emoji-picker"] input')
                 ?.focus();
         });
     };
-
     const selectEmoji = (id: string) => {
         const item = emoji().find((candidate) => candidate.id === id);
         if (!item) return;
         closeEmoji();
         if (item.char) replaceSelection(item.char);
-        else textareaEl?.focus();
+        else textareaEl.current?.focus();
         props.onEmojiSelect?.(item);
     };
-
     const triggerAttachment = () => {
-        if (busy()) return;
+        if (busy) return;
         closePopovers();
         if (props.onAttachFile) props.onAttachFile();
-        else fileInputEl?.click();
+        else fileInputEl.current?.click();
     };
-
-    const selectAttachments = (event: Event & { currentTarget: HTMLInputElement }) => {
+    const selectAttachments = (event: ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(event.currentTarget.files ?? []);
         if (files.length > 0) props.onAttachmentsSelect?.(files);
         event.currentTarget.value = "";
-        textareaEl?.focus();
+        textareaEl.current?.focus();
     };
-
     const send = () => {
         if (!canSend()) return;
         closePopovers();
-        setRestoreFocusAfterSend(true);
+        restoreFocusAfterSend.current = true;
         void props.onSend();
         queueMicrotask(() => {
-            if (busy()) return;
-            textareaEl?.focus();
-            setRestoreFocusAfterSend(false);
+            const textarea = textareaEl.current;
+            if (!textarea || textarea.disabled || textarea.readOnly) return;
+            textarea.focus();
+            restoreFocusAfterSend.current = false;
         });
     };
-
-    const onKeyDown = (event: KeyboardEvent) => {
+    const onKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
         if (mentionOpen()) {
             const list = filtered();
             if (event.key === "ArrowDown" && list.length > 0) {
@@ -486,10 +449,10 @@ export function Composer(props: ComposerProps) {
                 return;
             }
         }
-        if (emojiOpen() && event.key === "Escape") {
+        if (emojiOpen && event.key === "Escape") {
             event.preventDefault();
             closeEmoji();
-            textareaEl?.focus();
+            textareaEl.current?.focus();
             return;
         }
         if (event.key === "Enter" && !event.shiftKey) {
@@ -497,42 +460,38 @@ export function Composer(props: ComposerProps) {
             send();
         }
     };
-
-    const onInput = (event: InputEvent & { currentTarget: HTMLTextAreaElement }) => {
+    const onInput = (event: FormEvent<HTMLTextAreaElement>) => {
         props.onValueChange(event.currentTarget.value);
         rememberSelection();
         detectMention(event.currentTarget);
     };
-
     return (
         <div
-            class={["happy2-composer", props.class].filter(Boolean).join(" ")}
+            className={["happy2-composer", props.className].filter(Boolean).join(" ")}
             aria-busy={props.pending ? "true" : undefined}
             data-disabled={props.disabled ? "" : undefined}
             data-pending={props.pending ? "" : undefined}
             data-happy2-ui="composer"
             data-testid={props["data-testid"]}
-            onFocusOut={(event) => {
+            onBlur={(event) => {
                 const next = event.relatedTarget;
                 if (next && !event.currentTarget.contains(next as Node)) closePopovers();
             }}
             style={props.style}
-            ref={(element) => {
-                composerEl = element;
-            }}
+            ref={composerEl}
         >
-            <Show when={(props.contextItems?.length ?? 0) > 0}>
-                <div class="happy2-composer__context" data-happy2-ui="composer-context">
+            {(props.contextItems?.length ?? 0) > 0 ? (
+                <div className="happy2-composer__context" data-happy2-ui="composer-context">
                     <ContextChips
                         items={props.contextItems ?? []}
                         onRemove={props.onContextRemove}
                         readOnly={!props.onContextRemove}
                     />
                 </div>
-            </Show>
-            <div class="happy2-composer__input" data-happy2-ui="composer-input">
+            ) : null}
+            <div className="happy2-composer__input" data-happy2-ui="composer-input">
                 <textarea
-                    class="happy2-composer__textarea"
+                    className="happy2-composer__textarea"
                     data-happy2-ui="composer-textarea"
                     disabled={props.disabled}
                     readOnly={props.pending}
@@ -542,60 +501,58 @@ export function Composer(props: ComposerProps) {
                     onKeyDown={onKeyDown}
                     onSelect={rememberSelection}
                     placeholder={props.placeholder}
-                    ref={(element) => {
-                        textareaEl = element;
-                    }}
+                    ref={textareaEl}
                     rows={1}
                     value={props.value}
                 />
             </div>
-            <div class="happy2-composer__toolbar" data-happy2-ui="composer-toolbar">
-                <div class="happy2-composer__actions" data-happy2-ui="composer-actions">
-                    <Show when={hasAttachmentAction()}>
+            <div className="happy2-composer__toolbar" data-happy2-ui="composer-toolbar">
+                <div className="happy2-composer__actions" data-happy2-ui="composer-actions">
+                    {hasAttachmentAction() ? (
                         <Button
                             aria-label="Attach file"
-                            disabled={busy()}
+                            disabled={busy}
                             icon="paperclip"
                             iconOnly
                             onClick={triggerAttachment}
                             size="small"
                             variant="ghost"
                         />
-                    </Show>
-                    <Show when={agents().length > 0}>
+                    ) : null}
+                    {agents().length > 0 ? (
                         <Button
                             aria-label="Mention someone"
-                            disabled={busy()}
+                            disabled={busy}
                             icon="at"
                             iconOnly
                             onClick={triggerMention}
                             size="small"
                             variant="ghost"
                         />
-                    </Show>
-                    <Show when={emoji().length > 0}>
+                    ) : null}
+                    {emoji().length > 0 ? (
                         <Button
-                            aria-expanded={emojiOpen() ? "true" : "false"}
+                            aria-expanded={emojiOpen ? "true" : "false"}
                             aria-haspopup="dialog"
                             aria-label="Add emoji"
-                            disabled={busy()}
+                            disabled={busy}
                             icon="smile"
                             iconOnly
                             onClick={triggerEmoji}
                             size="small"
                             variant="ghost"
                         />
-                    </Show>
+                    ) : null}
                 </div>
-                <div class="happy2-composer__trailing" data-happy2-ui="composer-trailing">
-                    <Show when={props.hint}>
-                        <span class="happy2-composer__hint" data-happy2-ui="composer-hint">
+                <div className="happy2-composer__trailing" data-happy2-ui="composer-trailing">
+                    {props.hint ? (
+                        <span className="happy2-composer__hint" data-happy2-ui="composer-hint">
                             {props.hint}
                         </span>
-                    </Show>
+                    ) : null}
                     <Button
                         aria-label="Send message"
-                        class="happy2-composer__send"
+                        className="happy2-composer__send"
                         disabled={!canSend()}
                         icon="send"
                         iconOnly
@@ -605,9 +562,9 @@ export function Composer(props: ComposerProps) {
                     />
                 </div>
             </div>
-            <Show when={mentionOpen()}>
+            {mentionOpen() ? (
                 <div
-                    class="happy2-composer__popover"
+                    className="happy2-composer__popover"
                     data-happy2-ui="composer-popover"
                     onMouseDown={(event) => event.preventDefault()}
                 >
@@ -616,20 +573,20 @@ export function Composer(props: ComposerProps) {
                         label={props.mentionPickerLabel}
                         mentions={agents()}
                         onSelect={selectMention}
-                        query={mentionQuery()}
+                        query={mentionQuery}
                     />
                 </div>
-            </Show>
-            <Show when={emojiOpen()}>
+            ) : null}
+            {emojiOpen && !busy ? (
                 <div
                     aria-label="Choose emoji"
-                    class="happy2-composer__popover happy2-composer__popover--emoji"
+                    className="happy2-composer__popover happy2-composer__popover--emoji"
                     data-happy2-ui="composer-emoji-popover"
                     onKeyDown={(event) => {
                         if (event.key !== "Escape") return;
                         event.preventDefault();
                         closeEmoji();
-                        textareaEl?.focus();
+                        textareaEl.current?.focus();
                     }}
                     role="dialog"
                 >
@@ -637,25 +594,23 @@ export function Composer(props: ComposerProps) {
                         emoji={filteredEmoji()}
                         onQueryChange={setEmojiQuery}
                         onSelect={selectEmoji}
-                        query={emojiQuery()}
+                        query={emojiQuery}
                         recent={props.recentEmoji}
                     />
                 </div>
-            </Show>
-            <Show when={props.onAttachmentsSelect && !props.onAttachFile}>
+            ) : null}
+            {props.onAttachmentsSelect && !props.onAttachFile ? (
                 <input
                     accept={props.attachmentAccept}
                     aria-hidden="true"
-                    class="happy2-composer__file-input"
+                    className="happy2-composer__file-input"
                     multiple={props.attachmentMultiple}
                     onChange={selectAttachments}
-                    ref={(element) => {
-                        fileInputEl = element;
-                    }}
+                    ref={fileInputEl}
                     tabIndex={-1}
                     type="file"
                 />
-            </Show>
+            ) : null}
         </div>
     );
 }

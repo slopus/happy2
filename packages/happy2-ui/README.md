@@ -1,6 +1,6 @@
 # happy2-ui
 
-SolidJS visuals and product-surface composition for Happy (2), implementing the "Relay" dark
+React visuals and product-surface composition for Happy (2), implementing the "Relay" dark
 theme. Leaf components remain props-only. A complete product surface may use `StoreSurface` to
 consume one concrete framework-independent `happy2-state` store directly, without callback shims or
 framework-specific selectors. All colors and typography come from the `--happy2-*` design tokens in
@@ -25,28 +25,23 @@ import { Box, Button } from "happy2-ui";
 
 ## Product state surfaces
 
-`StoreSurface` is the only Solid reactivity adapter needed by a product-sized UI composition. It
-reads the store's immutable snapshot, owns exactly one subscription, and passes a reactive snapshot
-accessor plus the same concrete store with its safe public local actions intact. The render child is
-mounted once per store identity, so notifications update Solid expressions without replacing input
-nodes or losing focus, selection, scroll, or component-local state. Repeated rows such as messages,
-identities, avatars, and reactions receive stable props from that one snapshot and create no
-subscriptions of their own.
+`StoreSurface` is the React adapter for product-sized UI composition. It reads the vanilla Zustand
+store with `useSyncExternalStore`, owns exactly one subscription, and passes the immutable snapshot
+to a render child. Repeated rows such as messages, identities, avatars, and reactions receive props
+from that one snapshot and create no product-store subscriptions of their own. Message histories
+crossing the long-list threshold are windowed with TanStack Virtual.
 
 ```tsx
 import type { ChatStore } from "happy2-state";
 import { Message, MessageList, StoreSurface } from "happy2-ui";
-import { For } from "solid-js";
-
 export function ChatTimeline(props: { store: ChatStore }) {
     return (
         <StoreSurface store={props.store}>
             {(snapshot) => (
                 <MessageList>
-                    {/* A surface-level mapper translates the product projection once. */}
-                    <For each={snapshot().messages}>
-                        {(item) => <Message {...messagePropsFromProjection(item)} />}
-                    </For>
+                    {snapshot.messages.map((item) => (
+                        <Message key={item.message.id} {...messagePropsFromProjection(item)} />
+                    ))}
                 </MessageList>
             )}
         </StoreSurface>
@@ -112,7 +107,7 @@ both the alpha-weighted optical center and visible-pixel bounding box; `opticalC
 `visibleBounds()` expose those values individually.
 
 The Playwright measurement implementation lives in `gym/playwright`; this package's testing entry
-point only supplies the SolidJS mount adapter.
+point supplies the React mount adapter.
 
 `computedStyle(name)` reads one raw browser-computed CSS value. `computedStyles(names)` returns a
 property/value object for comparison; omit `names` to capture every computed property.

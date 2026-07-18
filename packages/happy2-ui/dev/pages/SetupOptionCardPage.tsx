@@ -1,15 +1,13 @@
-import type { JSX } from "solid-js";
+import { type CSSProperties } from "react";
 import { SetupOptionCard } from "../../src/SetupOptionCard";
 import { ComponentPage, Specimen } from "../kit";
-
-const column: JSX.CSSProperties = {
+const column: CSSProperties = {
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     gap: "12px",
     width: "420px",
-    "max-width": "100%",
+    maxWidth: "100%",
 };
-
 export function SetupOptionCardPage() {
     return (
         <ComponentPage

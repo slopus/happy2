@@ -1,4 +1,5 @@
-import { createMemo, Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 import { Badge, type BadgeVariant } from "./Badge";
 import { Banner } from "./Banner";
 import { Box } from "./Box";
@@ -8,9 +9,7 @@ import { EmptyState } from "./EmptyState";
 import { FormRow } from "./FormRow";
 import { Modal } from "./Modal";
 import { TextField } from "./TextField";
-
 export type AgentImageStatus = "pending" | "building" | "ready" | "failed";
-
 export type AgentImageItem = {
     id: string;
     name: string;
@@ -28,11 +27,10 @@ export type AgentImageItem = {
     /** Latest build failure message, shown under the name for failed images. */
     error?: string;
 };
-
 export type AgentImagePanelProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     title?: string;
     subtitle?: string;
     images: AgentImageItem[];
@@ -49,7 +47,6 @@ export type AgentImagePanelProps = {
     onSelectImage?: (id: string) => void;
     onBuildImage?: (id: string) => void;
     onSetDefaultImage?: (id: string) => void;
-
     /* Create dialog — controlled, like TextField/Select. */
     createOpen?: boolean;
     draftName?: string;
@@ -62,34 +59,28 @@ export type AgentImagePanelProps = {
     onDraftDockerfileChange?: (value: string) => void;
     onSubmitCreate?: () => void;
 };
-
 const columns: DataTableColumn[] = [
     { id: "name", header: "Image" },
     { id: "status", header: "Status", width: 150 },
     { id: "default", header: "Default", width: 120 },
     { id: "updated", header: "Updated", align: "end", width: 180 },
 ];
-
 const statusVariant: Record<AgentImageStatus, BadgeVariant> = {
     pending: "info",
     building: "warning",
     ready: "success",
     failed: "danger",
 };
-
 const statusLabel: Record<AgentImageStatus, string> = {
     pending: "Pending",
     building: "Building",
     ready: "Ready",
     failed: "Failed",
 };
-
 const dockerfilePlaceholder = "FROM happy2/agent-base:latest\n# Add the tools your agents need…";
-
 function progressValue(value: number | undefined): number {
     return Math.max(0, Math.min(100, Math.round(value ?? 0)));
 }
-
 /**
  * C-050 AgentImagePanel — the administrator surface for the immutable container
  * images every server-owned agent runs inside. It lists each image with its
@@ -102,7 +93,7 @@ function progressValue(value: number | undefined): number {
  */
 export function AgentImagePanel(props: AgentImagePanelProps) {
     const [local, rest] = splitProps(props, [
-        "class",
+        "className",
         "style",
         "title",
         "subtitle",
@@ -126,93 +117,86 @@ export function AgentImagePanel(props: AgentImagePanelProps) {
         "onDraftDockerfileChange",
         "onSubmitCreate",
     ]);
-
     const title = () => local.title ?? "Agent images";
     const busy = (id: string) => local.busyImageIds?.includes(id) ?? false;
     const canSubmit = () =>
         !local.creating &&
         Boolean(local.draftName?.trim()) &&
         Boolean(local.draftDockerfile?.trim());
-
-    const rows = createMemo<DataTableRow[]>(() =>
-        local.images.map((image) => {
-            const subline = image.status === "failed" ? image.error : image.lastLogLine;
-            return {
-                id: image.id,
-                onClick: local.onSelectImage ? () => local.onSelectImage?.(image.id) : undefined,
-                cells: {
-                    name: (
-                        <Box class="happy2-agent-image-panel__name">
-                            <Box class="happy2-agent-image-panel__name-head">
-                                <span class="happy2-agent-image-panel__name-text">
-                                    {image.name}
-                                </span>
-                                <Show when={image.builtin}>
-                                    <Badge label="Built-in" variant="outline" />
-                                </Show>
-                            </Box>
-                            <Show when={subline}>
-                                {(line) => (
+    const rows = local.images.map((image) => {
+        const subline = image.status === "failed" ? image.error : image.lastLogLine;
+        return {
+            id: image.id,
+            onClick: local.onSelectImage ? () => local.onSelectImage?.(image.id) : undefined,
+            cells: {
+                name: (
+                    <Box className="happy2-agent-image-panel__name">
+                        <Box className="happy2-agent-image-panel__name-head">
+                            <span className="happy2-agent-image-panel__name-text">
+                                {image.name}
+                            </span>
+                            {image.builtin ? <Badge label="Built-in" variant="outline" /> : null}
+                        </Box>
+                        {subline
+                            ? ((line) => (
+                                  <span
+                                      className="happy2-agent-image-panel__subline"
+                                      data-tone={image.status === "failed" ? "danger" : "muted"}
+                                      title={line}
+                                  >
+                                      {line}
+                                  </span>
+                              ))(subline)
+                            : null}
+                    </Box>
+                ),
+                status: (
+                    <Box className="happy2-agent-image-panel__status">
+                        <Badge
+                            label={statusLabel[image.status]}
+                            variant={statusVariant[image.status]}
+                        />
+                        {image.status === "building" ? (
+                            <Box
+                                aria-valuemax={100}
+                                aria-valuemin={0}
+                                aria-valuenow={progressValue(image.progress)}
+                                className="happy2-agent-image-panel__progress"
+                                role="progressbar"
+                            >
+                                <span className="happy2-agent-image-panel__progress-track">
                                     <span
-                                        class="happy2-agent-image-panel__subline"
-                                        data-tone={image.status === "failed" ? "danger" : "muted"}
-                                        title={line()}
-                                    >
-                                        {line()}
-                                    </span>
-                                )}
-                            </Show>
-                        </Box>
-                    ),
-                    status: (
-                        <Box class="happy2-agent-image-panel__status">
-                            <Badge
-                                label={statusLabel[image.status]}
-                                variant={statusVariant[image.status]}
-                            />
-                            <Show when={image.status === "building"}>
-                                <Box
-                                    aria-valuemax={100}
-                                    aria-valuemin={0}
-                                    aria-valuenow={progressValue(image.progress)}
-                                    class="happy2-agent-image-panel__progress"
-                                    role="progressbar"
-                                >
-                                    <span class="happy2-agent-image-panel__progress-track">
-                                        <span
-                                            class="happy2-agent-image-panel__progress-fill"
-                                            style={{ width: `${progressValue(image.progress)}%` }}
-                                        />
-                                    </span>
-                                    <span class="happy2-agent-image-panel__progress-value">
-                                        {progressValue(image.progress)}%
-                                    </span>
-                                </Box>
-                            </Show>
-                        </Box>
-                    ),
-                    default: image.isDefault ? (
-                        <Badge icon="check" label="Default" variant="accent" />
-                    ) : (
-                        "—"
-                    ),
-                    updated: image.updatedLabel ?? "—",
-                },
-            };
-        }),
-    );
-
-    const rowActions = (row: DataTableRow): JSX.Element => {
+                                        className="happy2-agent-image-panel__progress-fill"
+                                        style={{ width: `${progressValue(image.progress)}%` }}
+                                    />
+                                </span>
+                                <span className="happy2-agent-image-panel__progress-value">
+                                    {progressValue(image.progress)}%
+                                </span>
+                            </Box>
+                        ) : null}
+                    </Box>
+                ),
+                default: image.isDefault ? (
+                    <Badge icon="check" label="Default" variant="accent" />
+                ) : (
+                    "—"
+                ),
+                updated: image.updatedLabel ?? "—",
+            },
+        };
+    });
+    const rowActions = (row: DataTableRow): ReactNode => {
         const image = local.images.find((item) => item.id === row.id);
         if (!image) return null;
         const buildable = image.status === "pending" || image.status === "failed";
         const promotable = image.status === "ready" && !image.isDefault;
         return (
             <Box
-                class="happy2-agent-image-panel__row-actions"
+                className="happy2-agent-image-panel__row-actions"
                 onClick={(event) => event.stopPropagation()}
             >
-                <Show when={buildable && local.onBuildImage}>
+                {buildable && local.onBuildImage ? (
                     <Button
                         disabled={busy(image.id)}
                         icon="play"
@@ -222,8 +206,8 @@ export function AgentImagePanel(props: AgentImagePanelProps) {
                     >
                         {image.status === "failed" ? "Retry build" : "Build"}
                     </Button>
-                </Show>
-                <Show when={promotable && local.onSetDefaultImage}>
+                ) : null}
+                {promotable && local.onSetDefaultImage ? (
                     <Button
                         disabled={busy(image.id)}
                         icon="check"
@@ -233,64 +217,47 @@ export function AgentImagePanel(props: AgentImagePanelProps) {
                     >
                         Make default
                     </Button>
-                </Show>
+                ) : null}
             </Box>
         );
     };
-
     return (
         <Box
             {...rest}
-            class={["happy2-agent-image-panel", local.class].filter(Boolean).join(" ")}
+            className={["happy2-agent-image-panel", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="agent-image-panel"
             style={local.style}
         >
-            <Box class="happy2-agent-image-panel__header">
-                <Box class="happy2-agent-image-panel__heading">
-                    <span class="happy2-agent-image-panel__title">{title()}</span>
-                    <Show when={local.subtitle}>
-                        <span class="happy2-agent-image-panel__subtitle">{local.subtitle}</span>
-                    </Show>
+            <Box className="happy2-agent-image-panel__header">
+                <Box className="happy2-agent-image-panel__heading">
+                    <span className="happy2-agent-image-panel__title">{title()}</span>
+                    {local.subtitle ? (
+                        <span className="happy2-agent-image-panel__subtitle">{local.subtitle}</span>
+                    ) : null}
                 </Box>
-                <Box class="happy2-agent-image-panel__actions">
-                    <Show when={local.onOpenCreate}>
+                <Box className="happy2-agent-image-panel__actions">
+                    {local.onOpenCreate ? (
                         <Button icon="plus" onClick={() => local.onOpenCreate?.()} size="small">
                             New image
                         </Button>
-                    </Show>
+                    ) : null}
                 </Box>
             </Box>
 
-            <Show when={local.actionError}>
-                {(reason) => (
-                    <Banner
-                        onDismiss={local.onDismissActionError}
-                        tone="danger"
-                        title="Action failed"
-                    >
-                        {reason()}
-                    </Banner>
-                )}
-            </Show>
+            {local.actionError
+                ? ((reason) => (
+                      <Banner
+                          onDismiss={local.onDismissActionError}
+                          tone="danger"
+                          title="Action failed"
+                      >
+                          {reason}
+                      </Banner>
+                  ))(local.actionError)
+                : null}
 
-            <Show
-                when={!local.error}
-                fallback={
-                    <Banner tone="danger" title="Agent images unavailable">
-                        {local.error!}
-                    </Banner>
-                }
-            >
-                <Show
-                    when={!local.loading}
-                    fallback={
-                        <EmptyState
-                            description="Loading agent images and their build status."
-                            icon="spark"
-                            title="Loading agent images…"
-                        />
-                    }
-                >
+            {!local.error ? (
+                !local.loading ? (
                     <DataTable
                         actionsWidth={220}
                         columns={columns}
@@ -312,21 +279,31 @@ export function AgentImagePanel(props: AgentImagePanelProps) {
                             />
                         }
                         rowActions={rowActions}
-                        rows={rows()}
+                        rows={rows}
                     />
-                </Show>
-            </Show>
+                ) : (
+                    <EmptyState
+                        description="Loading agent images and their build status."
+                        icon="spark"
+                        title="Loading agent images…"
+                    />
+                )
+            ) : (
+                <Banner tone="danger" title="Agent images unavailable">
+                    {local.error!}
+                </Banner>
+            )}
 
-            <Show when={local.createOpen}>
+            {local.createOpen ? (
                 <Box
-                    class="happy2-agent-image-panel__overlay"
+                    className="happy2-agent-image-panel__overlay"
                     data-happy2-ui="agent-image-panel-overlay"
                     onClick={() => local.onCloseCreate?.()}
                 >
                     <Box onClick={(event) => event.stopPropagation()}>
                         <Modal
                             footer={
-                                <Box class="happy2-agent-image-panel__modal-actions">
+                                <Box className="happy2-agent-image-panel__modal-actions">
                                     <Button onClick={() => local.onCloseCreate?.()} variant="ghost">
                                         Cancel
                                     </Button>
@@ -344,7 +321,7 @@ export function AgentImagePanel(props: AgentImagePanelProps) {
                             size="medium"
                             title="New agent image"
                         >
-                            <Box class="happy2-agent-image-panel__form">
+                            <Box className="happy2-agent-image-panel__form">
                                 <FormRow
                                     control={
                                         <TextField
@@ -377,18 +354,18 @@ export function AgentImagePanel(props: AgentImagePanelProps) {
                                     label="Dockerfile"
                                     layout="stacked"
                                 />
-                                <Show when={local.createError}>
-                                    {(reason) => (
-                                        <Banner tone="danger" title="Could not create image">
-                                            {reason()}
-                                        </Banner>
-                                    )}
-                                </Show>
+                                {local.createError
+                                    ? ((reason) => (
+                                          <Banner tone="danger" title="Could not create image">
+                                              {reason}
+                                          </Banner>
+                                      ))(local.createError)
+                                    : null}
                             </Box>
                         </Modal>
                     </Box>
                 </Box>
-            </Show>
+            ) : null}
         </Box>
     );
 }

@@ -42,14 +42,14 @@ export function EmojiPickerPage() {
             summary="Reaction picker: a search field over an emoji grid of fixed, equal 36px slots — unicode chars and custom images share one slot geometry."
             title="Emoji picker"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="306px card · 8 columns · 36px slots · 24 emoji"
                     label="Default"
                     number="EP-01"
                     stage="surface"
                 >
-                    <div style={{ display: "grid", gap: "8px", "justify-items": "start" }}>
+                    <div style={{ display: "grid", gap: "8px", justifyItems: "start" }}>
                         <div style={{ width: "306px" }}>
                             <DimensionRule label="width 306" />
                         </div>
@@ -71,7 +71,7 @@ export function EmojiPickerPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="active query — recent hidden while searching"
                     label="Searching"

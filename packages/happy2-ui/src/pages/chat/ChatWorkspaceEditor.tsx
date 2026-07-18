@@ -1,17 +1,15 @@
-import type { JSX } from "solid-js";
+import { type CSSProperties, type ReactNode } from "react";
 import { Box, FileEditor, ModalOverlay } from "./ChatPageComponents.js";
-
-const editorStyle: JSX.CSSProperties = {
+const editorStyle: CSSProperties = {
     width: "min(1040px, 94vw)",
     height: "min(760px, 88vh)",
-    "border-radius": "14px",
+    borderRadius: "14px",
     overflow: "hidden",
     border: "1px solid var(--happy2-border)",
-    "box-shadow": "0 24px 60px rgba(0, 0, 0, 0.5)",
+    boxShadow: "0 24px 60px rgba(0, 0, 0, 0.5)",
 };
-
 export interface ChatWorkspaceEditorProps {
-    banner?: JSX.Element;
+    banner?: ReactNode;
     content: string;
     dirty: boolean;
     path: string;
@@ -22,7 +20,6 @@ export interface ChatWorkspaceEditorProps {
     onSave(): void;
     onContentChange(value: string): void;
 }
-
 export function ChatWorkspaceEditor(props: ChatWorkspaceEditorProps) {
     return (
         <ModalOverlay>

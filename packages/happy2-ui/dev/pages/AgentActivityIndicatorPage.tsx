@@ -1,25 +1,22 @@
-import type { JSX } from "solid-js";
+import { type CSSProperties } from "react";
 import { AgentActivityIndicator } from "../../src/AgentActivityIndicator";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
-const column: JSX.CSSProperties = {
+const column: CSSProperties = {
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     gap: "14px",
-    "align-items": "flex-start",
+    alignItems: "flex-start",
 };
-
-const composerFrame: JSX.CSSProperties = {
+const composerFrame: CSSProperties = {
     background: "var(--happy2-bg-app)",
     border: "1px solid var(--happy2-border)",
-    "border-radius": "12px",
+    borderRadius: "12px",
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     gap: "10px",
     padding: "12px",
     width: "520px",
 };
-
 export function AgentActivityIndicatorPage() {
     return (
         <ComponentPage
@@ -47,7 +44,7 @@ export function AgentActivityIndicatorPage() {
                         initials="CX"
                         name="Codex"
                         phase="typing"
-                        tokenCount={1_284}
+                        tokenCount={1284}
                         tone="mint"
                     />
                     <DimensionRule label="28 px high · content width" />
@@ -74,15 +71,15 @@ export function AgentActivityIndicatorPage() {
                         initials="RE"
                         name="Relay"
                         phase="thinking"
-                        tokenCount={48_300}
+                        tokenCount={48300}
                         tone="ocean"
                     />
                     <AgentActivityIndicator
-                        elapsedSeconds={3_723}
+                        elapsedSeconds={3723}
                         initials="OT"
                         name="Otter"
                         phase="typing"
-                        tokenCount={1_240_000}
+                        tokenCount={1240000}
                         tone="amber"
                     />
                 </div>
@@ -100,14 +97,14 @@ export function AgentActivityIndicatorPage() {
                         initials="CX"
                         name="Codex"
                         phase="typing"
-                        tokenCount={2_048}
+                        tokenCount={2048}
                         tone="mint"
                     />
                     <div
                         style={{
                             background: "var(--happy2-bg-surface)",
                             border: "1px solid var(--happy2-border)",
-                            "border-radius": "8px",
+                            borderRadius: "8px",
                             color: "var(--happy2-text-muted)",
                             font: "500 13px var(--happy2-font-ui)",
                             padding: "10px 12px",

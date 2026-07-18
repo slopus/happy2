@@ -1,4 +1,3 @@
-import { createRoot, createSignal } from "solid-js";
 import type {
     ChatSummary,
     DirectorySnapshot,
@@ -8,7 +7,6 @@ import type {
 } from "happy2-state";
 import { expect, it } from "vitest";
 import { chatSidebarModelCreate } from "./chatSidebarModel";
-
 const human: IdentityProjection = {
     id: "human-2",
     displayName: "Grace Hopper",
@@ -28,7 +26,6 @@ const happy: IdentityProjection = {
     kind: "agent",
     agentRole: "default",
 };
-
 function chat(
     id: string,
     kind: ChatSummary["kind"],
@@ -60,7 +57,6 @@ function chat(
         ...values,
     };
 }
-
 function projection(summary: ChatSummary, displayName: string, peer?: IdentityProjection) {
     return {
         id: summary.id,
@@ -79,95 +75,69 @@ function projection(summary: ChatSummary, displayName: string, peer?: IdentityPr
             : [],
     } satisfies SidebarChatProjection;
 }
-
 it("pins Happy and projects channels, people, then agents with distinct unread signals", () => {
-    createRoot((dispose) => {
-        const pinned = projection(
-            chat("happy-chat", "dm", { isPinnedHappy: true, unreadCount: 3, mentionCount: 1 }),
-            "Happy",
-            happy,
-        );
-        const agentChat = projection(
-            chat("agent-chat", "dm", { unreadCount: 5, mentionCount: 2 }),
-            "Build agent",
-            agent,
-        );
-        const humanChat = projection(
-            chat("human-chat", "dm", { unreadCount: 4 }),
-            "Grace Hopper",
-            human,
-        );
-        const channel = projection(
-            chat("channel", "public_channel", { name: "Engineering", starred: true }),
-            "Engineering",
-        );
-        const [activeId, setActiveId] = createSignal("");
-        const [sidebar, setSidebar] = createSignal<SidebarSnapshot>({
-            status: { type: "ready" },
-            chats: [agentChat, pinned, humanChat, channel],
-        });
-        const directory: DirectorySnapshot = {
-            status: { type: "ready", value: true },
-            users: [],
-            channels: [],
-        };
-        const model = chatSidebarModelCreate({
+    const pinned = projection(
+        chat("happy-chat", "dm", { isPinnedHappy: true, unreadCount: 3, mentionCount: 1 }),
+        "Happy",
+        happy,
+    );
+    const agentChat = projection(
+        chat("agent-chat", "dm", { unreadCount: 5, mentionCount: 2 }),
+        "Build agent",
+        agent,
+    );
+    const humanChat = projection(
+        chat("human-chat", "dm", { unreadCount: 4 }),
+        "Grace Hopper",
+        human,
+    );
+    const channel = projection(
+        chat("channel", "public_channel", { name: "Engineering", starred: true }),
+        "Engineering",
+    );
+    let activeId = "";
+    let sidebar: SidebarSnapshot = {
+        status: { type: "ready" },
+        chats: [agentChat, pinned, humanChat, channel],
+    };
+    const directory: DirectorySnapshot = {
+        status: { type: "ready", value: true },
+        users: [],
+        channels: [],
+    };
+    const createModel = () =>
+        chatSidebarModelCreate({
             user: () => ({ id: "human-1", firstName: "Ada" }),
-            activeConversationId: activeId,
+            activeConversationId: () => activeId,
             search: () => "",
-            sidebarSnapshot: sidebar,
+            sidebarSnapshot: () => sidebar,
             directorySnapshot: () => directory,
             avatarFor: () => undefined,
         });
-
-        expect(model.pinnedItems().map((item) => item.label)).toEqual(["Happy"]);
-        expect(model.sections().map((section) => section.id)).toEqual([
-            "channels",
-            "dms",
-            "agents",
-        ]);
-        expect(model.sections().map((section) => section.items.map((item) => item.label))).toEqual([
-            ["Engineering"],
-            ["Grace Hopper"],
-            ["Build agent"],
-        ]);
-        const humanItem = model.sections()[1]!.items[0]!;
-        const agentItem = model.sections()[2]!.items[0]!;
-        expect({ unread: humanItem.unread, badge: humanItem.badge }).toEqual({
-            unread: true,
-            badge: undefined,
-        });
-        expect({ unread: agentItem.unread, badge: agentItem.badge }).toEqual({
-            unread: true,
-            badge: 2,
-        });
-
-        setActiveId("agent-chat");
-        expect({ unread: agentItem.unread, badge: agentItem.badge }).toEqual({
-            unread: false,
-            badge: undefined,
-        });
-        const changedAgent = projection(
-            { ...agentChat.chat, unreadCount: 8, mentionCount: 3 },
-            "Release agent",
-            agent,
-        );
-        setActiveId("");
-        setSidebar({
-            status: { type: "ready" },
-            chats: [changedAgent, pinned, humanChat, channel],
-        });
-        const updatedAgentItem = model.sections()[2]!.items[0]!;
-        expect(updatedAgentItem).toBe(agentItem);
-        expect({
-            label: updatedAgentItem.label,
-            unread: updatedAgentItem.unread,
-            badge: updatedAgentItem.badge,
-        }).toEqual({
-            label: "Release agent",
-            unread: true,
-            badge: 3,
-        });
-        dispose();
+    let model = createModel();
+    expect(model.pinnedItems.map((item) => item.label)).toEqual(["Happy"]);
+    expect(model.sections.map((section) => section.id)).toEqual(["channels", "dms", "agents"]);
+    expect(model.sections.map((section) => section.items.map((item) => item.label))).toEqual([
+        ["Engineering"],
+        ["Grace Hopper"],
+        ["Build agent"],
+    ]);
+    expect(model.sections[1]!.items[0]).toMatchObject({ unread: true, badge: undefined });
+    expect(model.sections[2]!.items[0]).toMatchObject({ unread: true, badge: 2 });
+    activeId = "agent-chat";
+    model = createModel();
+    expect(model.sections[2]!.items[0]).toMatchObject({ unread: false, badge: undefined });
+    const changedAgent = projection(
+        { ...agentChat.chat, unreadCount: 8, mentionCount: 3 },
+        "Release agent",
+        agent,
+    );
+    activeId = "";
+    sidebar = { status: { type: "ready" }, chats: [changedAgent, pinned, humanChat, channel] };
+    model = createModel();
+    expect(model.sections[2]!.items[0]).toMatchObject({
+        label: "Release agent",
+        unread: true,
+        badge: 3,
     });
 });

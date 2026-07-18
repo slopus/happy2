@@ -1,7 +1,6 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { BuildProgressPanel } from "../../src/BuildProgressPanel";
 import { ComponentPage, Specimen } from "../kit";
-
 /*
  * Deterministic, network-free build logs: static multi-line strings (no
  * timestamps that vary between renders) so the retained-log block and its
@@ -13,7 +12,6 @@ const buildingLog = [
     "pulling layer sha256:1ab7… (48.9 MB)",
     "extracting rootfs → /var/lib/daycare/base",
 ].join("\n");
-
 const failedLog = [
     "resolved base image node:20-bookworm-slim",
     "pulling layer sha256:9f3e… (12.4 MB)",
@@ -23,15 +21,13 @@ const failedLog = [
     "provisioning step 3/6 exited with code 100",
     "build aborted after 42s",
 ].join("\n");
-
-function column(children: JSX.Element) {
+function column(children: ReactNode) {
     return (
-        <div style={{ display: "flex", "flex-direction": "column", gap: "16px", width: "560px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px", width: "560px" }}>
             {children}
         </div>
     );
 }
-
 export function BuildProgressPanelPage() {
     return (
         <ComponentPage

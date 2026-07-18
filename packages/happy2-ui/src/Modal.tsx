@@ -1,24 +1,22 @@
-import { Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
-
 export type ModalSize = "small" | "medium" | "large";
 export type ModalTone = "default" | "danger";
-
 export type ModalProps = {
-    class?: string;
+    className?: string;
     closeLabel?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     title: string;
-    children: JSX.Element;
-    footer?: JSX.Element;
+    children: ReactNode;
+    footer?: ReactNode;
     onClose?: () => void;
     size?: ModalSize;
     tone?: ModalTone;
     icon?: IconName;
 };
-
 /**
  * C-028 Modal — dialog card with header / body / footer on a raised surface.
  *
@@ -31,7 +29,7 @@ export type ModalProps = {
  */
 export function Modal(props: ModalProps) {
     const [local, rest] = splitProps(props, [
-        "class",
+        "className",
         "closeLabel",
         "style",
         "title",
@@ -44,54 +42,53 @@ export function Modal(props: ModalProps) {
     ]);
     const size = () => local.size ?? "medium";
     const tone = () => local.tone ?? "default";
-
     return (
         <div
             {...rest}
-            class={["happy2-modal", local.class].filter(Boolean).join(" ")}
+            className={["happy2-modal", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="modal"
             style={local.style}
         >
             <div
                 aria-label={local.title}
                 aria-modal="true"
-                class="happy2-modal__dialog"
+                className="happy2-modal__dialog"
                 data-happy2-ui="modal-dialog"
                 data-size={size()}
                 data-tone={tone()}
                 role="dialog"
             >
-                <header class="happy2-modal__header" data-happy2-ui="modal-header">
-                    <Show when={local.icon}>
-                        {(name) => (
-                            <span class="happy2-modal__icon" data-happy2-ui="modal-icon">
-                                <Icon name={name()} size={16} />
-                            </span>
-                        )}
-                    </Show>
-                    <h2 class="happy2-modal__title" data-happy2-ui="modal-title">
+                <header className="happy2-modal__header" data-happy2-ui="modal-header">
+                    {local.icon
+                        ? ((name) => (
+                              <span className="happy2-modal__icon" data-happy2-ui="modal-icon">
+                                  <Icon name={name} size={16} />
+                              </span>
+                          ))(local.icon)
+                        : null}
+                    <h2 className="happy2-modal__title" data-happy2-ui="modal-title">
                         {local.title}
                     </h2>
-                    <Show when={local.onClose}>
+                    {local.onClose ? (
                         <Button
                             aria-label={local.closeLabel ?? "Close"}
-                            class="happy2-modal__close"
+                            className="happy2-modal__close"
                             icon="close"
                             iconOnly
                             onClick={() => local.onClose?.()}
                             size="small"
                             variant="ghost"
                         />
-                    </Show>
+                    ) : null}
                 </header>
-                <div class="happy2-modal__body" data-happy2-ui="modal-body">
+                <div className="happy2-modal__body" data-happy2-ui="modal-body">
                     {local.children}
                 </div>
-                <Show when={local.footer}>
-                    <footer class="happy2-modal__footer" data-happy2-ui="modal-footer">
+                {local.footer ? (
+                    <footer className="happy2-modal__footer" data-happy2-ui="modal-footer">
                         {local.footer}
                     </footer>
-                </Show>
+                ) : null}
             </div>
         </div>
     );

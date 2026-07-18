@@ -43,15 +43,15 @@ describe("HappyState workspace tree and editor leases", () => {
         using tree = state.workspaceOpen("chat-1");
         using file = state.workspaceFileOpen("chat-1", "src/index.ts");
         await state.whenIdle();
-        tree.directoriesUpdate(["src/"]);
+        tree.getState().directoriesUpdate(["src/"]);
         await state.whenIdle();
-        expect(tree.get().status).toMatchObject({
+        expect(tree.getState().status).toMatchObject({
             type: "ready",
             value: { paths: ["src/", "src/index.ts"] },
         });
         file[Symbol.dispose]();
-        expect(tree.get().status.type).toBe("ready");
-        expect(file.get().content).toBe("one");
+        expect(tree.getState().status.type).toBe("ready");
+        expect(file.getState().content).toBe("one");
     });
 
     it("rebases a non-overlapping editor conflict under a new logical mutation key", async () => {
@@ -83,10 +83,13 @@ describe("HappyState workspace tree and editor leases", () => {
         });
         using file = state.workspaceFileOpen("chat-1", "notes.txt");
         await state.whenIdle();
-        file.contentUpdate("alpha beta!");
-        file.contentSave();
+        file.getState().contentUpdate("alpha beta!");
+        file.getState().contentSave();
         await state.whenIdle();
-        expect(file.get()).toMatchObject({ content: "ALPHA beta!", saveState: { type: "clean" } });
+        expect(file.getState()).toMatchObject({
+            content: "ALPHA beta!",
+            saveState: { type: "clean" },
+        });
         const writes = server.requests.filter(({ path }) => path.endsWith("/writeFile"));
         expect(writes).toHaveLength(2);
         expect(writes[0]?.headers?.["idempotency-key"]).toBeTruthy();

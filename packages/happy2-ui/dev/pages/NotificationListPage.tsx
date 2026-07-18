@@ -1,7 +1,6 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { NotificationList, type NotificationItem } from "../../src/NotificationList";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const inbox: NotificationItem[] = [
     {
         id: "n1",
@@ -61,11 +60,9 @@ const inbox: NotificationItem[] = [
         time: "5h",
     },
 ];
-
-function Frame(props: { children: JSX.Element; width: number }) {
+function Frame(props: { children: ReactNode; width: number }) {
     return <div style={{ width: `${props.width}px` }}>{props.children}</div>;
 }
-
 export function NotificationListPage() {
     return (
         <ComponentPage
@@ -79,7 +76,7 @@ export function NotificationListPage() {
                 number="01"
                 stage="app"
             >
-                <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                     <Frame width={440}>
                         <NotificationList notifications={inbox} onSelect={() => {}} />
                     </Frame>
@@ -93,7 +90,7 @@ export function NotificationListPage() {
                 number="02"
                 stage="app"
             >
-                <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                     <Frame width={440}>
                         <NotificationList
                             notifications={[
@@ -163,8 +160,8 @@ export function NotificationListPage() {
                 number="03"
                 stage="app"
             >
-                <div style={{ display: "flex", gap: "18px", "flex-wrap": "wrap" }}>
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                <div style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <Frame width={360}>
                             <NotificationList
                                 notifications={[
@@ -196,7 +193,7 @@ export function NotificationListPage() {
                         </Frame>
                         <DimensionRule label="tile 36 · icon 16 · unread = accent-soft row" />
                     </div>
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "10px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <Frame width={360}>
                             <NotificationList
                                 emptyLabel="You're all caught up"

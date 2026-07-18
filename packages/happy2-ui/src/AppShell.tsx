@@ -1,15 +1,14 @@
-import { Show, splitProps, type JSX } from "solid-js";
-
-export type AppShellProps = Omit<JSX.HTMLAttributes<HTMLDivElement>, "style"> & {
-    children: JSX.Element;
-    panel?: JSX.Element;
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
+export type AppShellProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
+    children: ReactNode;
+    panel?: ReactNode;
     panelWidth?: number;
-    rail: JSX.Element;
-    sidebar?: JSX.Element;
-    style?: JSX.CSSProperties;
-    titleBar: JSX.Element;
+    rail: ReactNode;
+    sidebar?: ReactNode;
+    style?: CSSProperties;
+    titleBar: ReactNode;
 };
-
 /*
  * Window composition for the Relay desktop app. Chrome base, title bar row,
  * then rail | the main card (no top/left inset, 8px right/bottom inset and
@@ -20,7 +19,7 @@ export type AppShellProps = Omit<JSX.HTMLAttributes<HTMLDivElement>, "style"> & 
 export function AppShell(props: AppShellProps) {
     const [local, rest] = splitProps(props, [
         "children",
-        "class",
+        "className",
         "panel",
         "panelWidth",
         "rail",
@@ -28,47 +27,46 @@ export function AppShell(props: AppShellProps) {
         "style",
         "titleBar",
     ]);
-
     return (
         <div
             {...rest}
-            class={["happy2-app-shell", local.class].filter(Boolean).join(" ")}
+            className={["happy2-app-shell", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="app-shell"
             style={local.style}
         >
-            <div class="happy2-app-shell__title-bar" data-happy2-ui="app-shell-title-bar">
+            <div className="happy2-app-shell__title-bar" data-happy2-ui="app-shell-title-bar">
                 {local.titleBar}
             </div>
-            <div class="happy2-app-shell__body" data-happy2-ui="app-shell-body">
-                <div class="happy2-app-shell__rail" data-happy2-ui="app-shell-rail">
+            <div className="happy2-app-shell__body" data-happy2-ui="app-shell-body">
+                <div className="happy2-app-shell__rail" data-happy2-ui="app-shell-rail">
                     {local.rail}
                 </div>
-                <div class="happy2-app-shell__content" data-happy2-ui="app-shell-content">
-                    <main class="happy2-app-shell__main" data-happy2-ui="app-shell-main">
-                        <Show when={local.sidebar}>
+                <div className="happy2-app-shell__content" data-happy2-ui="app-shell-content">
+                    <main className="happy2-app-shell__main" data-happy2-ui="app-shell-main">
+                        {local.sidebar ? (
                             <div
-                                class="happy2-app-shell__sidebar"
+                                className="happy2-app-shell__sidebar"
                                 data-happy2-ui="app-shell-sidebar"
                             >
                                 {local.sidebar}
                             </div>
-                        </Show>
+                        ) : null}
                         <div
-                            class="happy2-app-shell__workspace"
+                            className="happy2-app-shell__workspace"
                             data-happy2-ui="app-shell-workspace"
                         >
                             {local.children}
                         </div>
                     </main>
-                    <Show when={local.panel}>
+                    {local.panel ? (
                         <aside
-                            class="happy2-app-shell__panel"
+                            className="happy2-app-shell__panel"
                             data-happy2-ui="app-shell-panel"
                             style={{ width: `${local.panelWidth ?? 340}px` }}
                         >
                             {local.panel}
                         </aside>
-                    </Show>
+                    ) : null}
                 </div>
             </div>
         </div>

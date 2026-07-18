@@ -68,7 +68,7 @@ function frame(children: ReturnType<typeof FileTree>, width = 320) {
             style={{
                 background: "var(--happy2-bg-surface)",
                 border: "1px solid var(--happy2-border)",
-                "border-radius": "10px",
+                borderRadius: "10px",
                 padding: "6px",
                 width: `${width}px`,
             }}
@@ -91,7 +91,7 @@ export function FileTreePage() {
                 number="01"
                 stage="surface"
             >
-                <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     {frame(
                         <FileTree
                             nodes={sampleNodes}

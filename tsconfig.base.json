@@ -8,8 +8,7 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js",
+    "jsx": "react-jsx",
     "noEmit": true
   }
 }

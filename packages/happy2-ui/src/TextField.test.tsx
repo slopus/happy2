@@ -62,8 +62,8 @@ it("holds TextField sizes, typography, label, hint, and leading-icon geometry", 
             <div
                 style={{
                     display: "flex",
-                    "flex-direction": "column",
-                    "align-items": "flex-start",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
                     gap: "20px",
                 }}
             >
@@ -98,8 +98,8 @@ it("holds TextField sizes, typography, label, hint, and leading-icon geometry", 
             <div
                 style={{
                     display: "flex",
-                    "flex-direction": "column",
-                    "align-items": "flex-start",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
                     gap: "20px",
                 }}
             >
@@ -333,7 +333,7 @@ it("holds TextField focus, error, disabled, textarea, width, and placeholder par
 
     view.render(
         () => (
-            <div style={{ display: "flex", "align-items": "flex-start" }}>
+            <div style={{ display: "flex", alignItems: "flex-start" }}>
                 <TextField
                     data-testid="focus-field"
                     label="Search"
@@ -346,7 +346,7 @@ it("holds TextField focus, error, disabled, textarea, width, and placeholder par
     );
     view.render(
         () => (
-            <div style={{ display: "flex", "align-items": "flex-start" }}>
+            <div style={{ display: "flex", alignItems: "flex-start" }}>
                 <TextField
                     data-testid="error-field"
                     error="Enter a valid email address"
@@ -360,7 +360,7 @@ it("holds TextField focus, error, disabled, textarea, width, and placeholder par
     );
     view.render(
         () => (
-            <div style={{ display: "flex", "align-items": "flex-start" }}>
+            <div style={{ display: "flex", alignItems: "flex-start" }}>
                 <TextField
                     data-testid="disabled-field"
                     disabled
@@ -374,7 +374,7 @@ it("holds TextField focus, error, disabled, textarea, width, and placeholder par
     );
     view.render(
         () => (
-            <div style={{ display: "flex", "align-items": "flex-start" }}>
+            <div style={{ display: "flex", alignItems: "flex-start" }}>
                 <TextField
                     data-testid="ta-field"
                     label="Topic"
@@ -392,7 +392,7 @@ it("holds TextField focus, error, disabled, textarea, width, and placeholder par
             <div
                 style={{
                     background: "#1c1b22",
-                    "box-sizing": "border-box",
+                    boxSizing: "border-box",
                     padding: "20px",
                     width: "360px",
                 }}

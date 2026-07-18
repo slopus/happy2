@@ -1,17 +1,24 @@
-import { Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { Badge, type BadgeVariant } from "./Badge";
 import { Icon, type IconName } from "./Icon";
-
 export type ModerationTargetKind = "user" | "chat" | "message" | "file";
 export type ModerationStatus = "open" | "reviewing" | "resolved" | "dismissed";
-export type ModerationTarget = { kind: ModerationTargetKind; label: string; sub?: string };
-export type ModerationParty = { name: string; initials: string; tone?: ToneName };
-
+export type ModerationTarget = {
+    kind: ModerationTargetKind;
+    label: string;
+    sub?: string;
+};
+export type ModerationParty = {
+    name: string;
+    initials: string;
+    tone?: ToneName;
+};
 export type ModerationReportCardProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     target: ModerationTarget;
     reason: string;
     details?: string;
@@ -19,9 +26,8 @@ export type ModerationReportCardProps = {
     reporter?: ModerationParty;
     assignee?: ModerationParty;
     time: string;
-    actions?: JSX.Element;
+    actions?: ReactNode;
 };
-
 /* The kind chip glyph reflects what was reported. All are shared, pre-tuned
  * Icon paths (none directional), so the box just centers them at 16px. */
 const kindIcons: Record<ModerationTargetKind, IconName> = {
@@ -30,7 +36,6 @@ const kindIcons: Record<ModerationTargetKind, IconName> = {
     message: "chat",
     file: "files",
 };
-
 /* Status → Badge variant. Colours come entirely from the Badge tokens: open
  * needs attention (amber), reviewing is in-flight (blue), resolved is done
  * (mint), dismissed is closed-neutral (muted). */
@@ -40,14 +45,12 @@ const statusVariants: Record<ModerationStatus, BadgeVariant> = {
     resolved: "success",
     dismissed: "neutral",
 };
-
 const statusLabels: Record<ModerationStatus, string> = {
     open: "Open",
     reviewing: "Reviewing",
     resolved: "Resolved",
     dismissed: "Dismissed",
 };
-
 /**
  * C-045 ModerationReportCard — one moderation-queue item. A header pairs a kind
  * chip and target descriptor (label + optional sub) with a status badge, an
@@ -57,7 +60,7 @@ const statusLabels: Record<ModerationStatus, string> = {
  */
 export function ModerationReportCard(props: ModerationReportCardProps) {
     const [local] = splitProps(props, [
-        "class",
+        "className",
         "data-testid",
         "style",
         "target",
@@ -70,10 +73,9 @@ export function ModerationReportCard(props: ModerationReportCardProps) {
         "actions",
     ]);
     const kind = () => local.target.kind;
-
     return (
         <article
-            class={["happy2-moderation-report-card", local.class].filter(Boolean).join(" ")}
+            className={["happy2-moderation-report-card", local.className].filter(Boolean).join(" ")}
             data-kind={kind()}
             data-happy2-ui="moderation-report-card"
             data-status={local.status}
@@ -81,38 +83,38 @@ export function ModerationReportCard(props: ModerationReportCardProps) {
             style={local.style}
         >
             <div
-                class="happy2-moderation-report-card__header"
+                className="happy2-moderation-report-card__header"
                 data-happy2-ui="moderation-report-card-header"
             >
                 <span
-                    class="happy2-moderation-report-card__kind"
+                    className="happy2-moderation-report-card__kind"
                     data-happy2-ui="moderation-report-card-kind"
                 >
                     <Icon name={kindIcons[kind()]} size={16} />
                 </span>
                 <div
-                    class="happy2-moderation-report-card__target"
+                    className="happy2-moderation-report-card__target"
                     data-happy2-ui="moderation-report-card-target"
                 >
                     <span
-                        class="happy2-moderation-report-card__target-label"
+                        className="happy2-moderation-report-card__target-label"
                         data-happy2-ui="moderation-report-card-target-label"
                     >
                         {local.target.label}
                     </span>
-                    <Show when={local.target.sub}>
-                        {(sub) => (
-                            <span
-                                class="happy2-moderation-report-card__target-sub"
-                                data-happy2-ui="moderation-report-card-target-sub"
-                            >
-                                {sub()}
-                            </span>
-                        )}
-                    </Show>
+                    {local.target.sub
+                        ? ((sub) => (
+                              <span
+                                  className="happy2-moderation-report-card__target-sub"
+                                  data-happy2-ui="moderation-report-card-target-sub"
+                              >
+                                  {sub}
+                              </span>
+                          ))(local.target.sub)
+                        : null}
                 </div>
                 <span
-                    class="happy2-moderation-report-card__status"
+                    className="happy2-moderation-report-card__status"
                     data-happy2-ui="moderation-report-card-status"
                 >
                     <Badge
@@ -123,94 +125,94 @@ export function ModerationReportCard(props: ModerationReportCardProps) {
             </div>
 
             <div
-                class="happy2-moderation-report-card__reason"
+                className="happy2-moderation-report-card__reason"
                 data-happy2-ui="moderation-report-card-reason"
             >
-                <Icon class="happy2-moderation-report-card__reason-icon" name="shield" size={14} />
+                <Icon
+                    className="happy2-moderation-report-card__reason-icon"
+                    name="shield"
+                    size={14}
+                />
                 <span
-                    class="happy2-moderation-report-card__reason-text"
+                    className="happy2-moderation-report-card__reason-text"
                     data-happy2-ui="moderation-report-card-reason-text"
                 >
                     {local.reason}
                 </span>
             </div>
 
-            <Show when={local.details}>
-                {(details) => (
-                    <p
-                        class="happy2-moderation-report-card__details"
-                        data-happy2-ui="moderation-report-card-details"
-                    >
-                        {details()}
-                    </p>
-                )}
-            </Show>
+            {local.details
+                ? ((details) => (
+                      <p
+                          className="happy2-moderation-report-card__details"
+                          data-happy2-ui="moderation-report-card-details"
+                      >
+                          {details}
+                      </p>
+                  ))(local.details)
+                : null}
 
             <div
-                class="happy2-moderation-report-card__meta"
+                className="happy2-moderation-report-card__meta"
                 data-happy2-ui="moderation-report-card-meta"
             >
-                <Show when={local.reporter}>
-                    {(reporter) => (
-                        <span
-                            class="happy2-moderation-report-card__party"
-                            data-happy2-ui="moderation-report-card-party"
-                            data-role="reporter"
-                        >
-                            <span
-                                class="happy2-moderation-report-card__party-caption"
-                                data-happy2-ui="moderation-report-card-party-caption"
-                            >
-                                Reported by
-                            </span>
-                            <Avatar
-                                initials={reporter().initials}
-                                size="xs"
-                                tone={reporter().tone}
-                            />
-                            <span
-                                class="happy2-moderation-report-card__party-name"
-                                data-happy2-ui="moderation-report-card-party-name"
-                            >
-                                {reporter().name}
-                            </span>
-                        </span>
-                    )}
-                </Show>
-                <Show when={local.assignee}>
-                    {(assignee) => (
-                        <span
-                            class="happy2-moderation-report-card__party"
-                            data-happy2-ui="moderation-report-card-party"
-                            data-role="assignee"
-                        >
-                            <span
-                                class="happy2-moderation-report-card__party-caption"
-                                data-happy2-ui="moderation-report-card-party-caption"
-                            >
-                                Assigned to
-                            </span>
-                            <Avatar
-                                initials={assignee().initials}
-                                size="xs"
-                                tone={assignee().tone}
-                            />
-                            <span
-                                class="happy2-moderation-report-card__party-name"
-                                data-happy2-ui="moderation-report-card-party-name"
-                            >
-                                {assignee().name}
-                            </span>
-                        </span>
-                    )}
-                </Show>
+                {local.reporter
+                    ? ((reporter) => (
+                          <span
+                              className="happy2-moderation-report-card__party"
+                              data-happy2-ui="moderation-report-card-party"
+                              data-role="reporter"
+                          >
+                              <span
+                                  className="happy2-moderation-report-card__party-caption"
+                                  data-happy2-ui="moderation-report-card-party-caption"
+                              >
+                                  Reported by
+                              </span>
+                              <Avatar initials={reporter.initials} size="xs" tone={reporter.tone} />
+                              <span
+                                  className="happy2-moderation-report-card__party-name"
+                                  data-happy2-ui="moderation-report-card-party-name"
+                              >
+                                  {reporter.name}
+                              </span>
+                          </span>
+                      ))(local.reporter)
+                    : null}
+                {local.assignee
+                    ? ((assignee) => (
+                          <span
+                              className="happy2-moderation-report-card__party"
+                              data-happy2-ui="moderation-report-card-party"
+                              data-role="assignee"
+                          >
+                              <span
+                                  className="happy2-moderation-report-card__party-caption"
+                                  data-happy2-ui="moderation-report-card-party-caption"
+                              >
+                                  Assigned to
+                              </span>
+                              <Avatar initials={assignee.initials} size="xs" tone={assignee.tone} />
+                              <span
+                                  className="happy2-moderation-report-card__party-name"
+                                  data-happy2-ui="moderation-report-card-party-name"
+                              >
+                                  {assignee.name}
+                              </span>
+                          </span>
+                      ))(local.assignee)
+                    : null}
                 <span
-                    class="happy2-moderation-report-card__time"
+                    className="happy2-moderation-report-card__time"
                     data-happy2-ui="moderation-report-card-time"
                 >
-                    <Icon class="happy2-moderation-report-card__time-icon" name="clock" size={12} />
+                    <Icon
+                        className="happy2-moderation-report-card__time-icon"
+                        name="clock"
+                        size={12}
+                    />
                     <span
-                        class="happy2-moderation-report-card__time-label"
+                        className="happy2-moderation-report-card__time-label"
                         data-happy2-ui="moderation-report-card-time-label"
                     >
                         {local.time}
@@ -218,16 +220,16 @@ export function ModerationReportCard(props: ModerationReportCardProps) {
                 </span>
             </div>
 
-            <Show when={local.actions}>
-                {(actions) => (
-                    <footer
-                        class="happy2-moderation-report-card__actions"
-                        data-happy2-ui="moderation-report-card-actions"
-                    >
-                        {actions()}
-                    </footer>
-                )}
-            </Show>
+            {local.actions
+                ? ((actions) => (
+                      <footer
+                          className="happy2-moderation-report-card__actions"
+                          data-happy2-ui="moderation-report-card-actions"
+                      >
+                          {actions}
+                      </footer>
+                  ))(local.actions)
+                : null}
         </article>
     );
 }

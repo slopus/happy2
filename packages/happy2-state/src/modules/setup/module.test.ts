@@ -5,14 +5,14 @@ import type {
     SandboxProviderDiscovery,
     SetupBaseImagesView,
 } from "../../resources.js";
-import { StateRuntime } from "../runtime/stateRuntime.js";
-import { setupStoreCreateBinding, type SetupStoreBinding } from "./setupStore.js";
+import { StateRuntime } from "../runtime/runtimeState.js";
+import { setupStoreCreate, type SetupStore } from "./setupState.js";
 import {
     setupOutputRoute,
     setupReconcile,
     setupSandboxProvidersLoad,
     setupStatusLoad,
-} from "./setupRoute.js";
+} from "./setupState.js";
 
 function statusAt(step: CombinedOnboardingStatus["route"]): CombinedOnboardingStatus {
     return {
@@ -81,15 +81,14 @@ describe("setup module", () => {
             jsonResponse(200, statusAt({ scope: "server", step: "sandbox_provider_selected" })),
         );
         const runtime = runtimeFor(server);
-        const setup = setupStoreCreateBinding();
+        const setup = setupStoreCreate();
         await setupStatusLoad({ runtime, setup });
-        const snapshot = setup.store.get();
+        const snapshot = setup.getState();
         expect(snapshot.status).toMatchObject({
             type: "ready",
             value: { route: { scope: "server", step: "sandbox_provider_selected" } },
         });
         runtime.stop();
-        setup.dispose();
     });
 
     it("selecting a provider commits its status and marks the selection on the discovery", async () => {
@@ -105,22 +104,21 @@ describe("setup module", () => {
         );
         const runtime = runtimeFor(server);
         const outputs: unknown[] = [];
-        const setup: SetupStoreBinding = setupStoreCreateBinding((event) => {
+        const setup: SetupStore = setupStoreCreate((event) => {
             outputs.push(event);
             void setupOutputRoute({ runtime, setup }, event);
         });
         await setupSandboxProvidersLoad({ runtime, setup });
-        setup.store.sandboxProviderSelect("docker");
-        expect(setup.store.get().pending.selectingProviderId).toBe("docker");
+        setup.getState().sandboxProviderSelect("docker");
+        expect(setup.getState().pending.selectingProviderId).toBe("docker");
         for (let i = 0; i < 8; i++) await Promise.resolve();
-        const snapshot = setup.store.get();
+        const snapshot = setup.getState();
         expect(snapshot.pending.selectingProviderId).toBeUndefined();
         expect(snapshot.status).toMatchObject({
             value: { route: { scope: "server", step: "base_image_selected" } },
         });
         expect(snapshot.providers).toMatchObject({ value: { selectedProviderId: "docker" } });
         runtime.stop();
-        setup.dispose();
     });
 
     it("keeps the provider list fresh and surfaces the error when selection conflicts", async () => {
@@ -136,19 +134,18 @@ describe("setup module", () => {
             }),
         );
         const runtime = runtimeFor(server);
-        const setup: SetupStoreBinding = setupStoreCreateBinding((event) => {
+        const setup: SetupStore = setupStoreCreate((event) => {
             void setupOutputRoute({ runtime, setup }, event);
         });
         await setupSandboxProvidersLoad({ runtime, setup });
-        setup.store.sandboxProviderSelect("podman");
+        setup.getState().sandboxProviderSelect("podman");
         for (let i = 0; i < 6; i++) await Promise.resolve();
-        const snapshot = setup.store.get();
+        const snapshot = setup.getState();
         expect(snapshot.pending.selectingProviderId).toBeUndefined();
         expect(snapshot.actionErrorFor).toBe("sandboxProvider");
         expect(snapshot.actionError?.message).toContain("not ready");
         expect(snapshot.providers.type).toBe("ready");
         runtime.stop();
-        setup.dispose();
     });
 
     it("reconcile reloads status always and materialized sub-resources", async () => {
@@ -161,13 +158,12 @@ describe("setup module", () => {
         );
         server.respond("GET", "/v0/setup/baseImages", jsonResponse(200, baseImages));
         const runtime = runtimeFor(server);
-        const setup = setupStoreCreateBinding();
+        const setup = setupStoreCreate();
         await setupStatusLoad({ runtime, setup });
         // baseImages is unloaded, so the first reconcile must not fetch it.
         await setupReconcile({ runtime, setup });
-        expect(setup.store.get().baseImages.type).toBe("unloaded");
-        expect(setup.store.get().status).toMatchObject({ value: { route: { scope: "complete" } } });
+        expect(setup.getState().baseImages.type).toBe("unloaded");
+        expect(setup.getState().status).toMatchObject({ value: { route: { scope: "complete" } } });
         runtime.stop();
-        setup.dispose();
     });
 });

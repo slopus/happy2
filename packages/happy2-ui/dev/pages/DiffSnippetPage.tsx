@@ -77,7 +77,7 @@ export function DiffSnippetPage() {
                 <div
                     style={{
                         display: "flex",
-                        "flex-direction": "column",
+                        flexDirection: "column",
                         gap: "8px",
                         width: "640px",
                     }}
@@ -100,7 +100,7 @@ export function DiffSnippetPage() {
                 <div
                     style={{
                         display: "flex",
-                        "flex-direction": "column",
+                        flexDirection: "column",
                         gap: "8px",
                         width: "420px",
                     }}
@@ -134,7 +134,7 @@ export function DiffSnippetPage() {
                 <div
                     style={{
                         display: "flex",
-                        "flex-direction": "column",
+                        flexDirection: "column",
                         gap: "8px",
                         width: "360px",
                     }}

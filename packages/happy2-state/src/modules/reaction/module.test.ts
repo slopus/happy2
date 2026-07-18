@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import type { StateRuntime } from "../runtime/stateRuntime.js";
-import { chatStoreCreateBinding } from "../chat/chatStore.js";
-import { IdentityCatalog } from "../identity/identityCatalog.js";
+import type { StateRuntime } from "../runtime/runtimeState.js";
+import { chatStoreCreate } from "../chat/chatState.js";
+import { IdentityCatalog } from "../identity/identityState.js";
 import { message } from "../../../tests/fixtures.js";
-import type { MessageActionContext } from "../message/messageActionContext.js";
-import { reactionAdd } from "./reactionAdd.js";
-import { reactionRemove } from "./reactionRemove.js";
+import type { MessageActionContext } from "../message/messageState.js";
+import { reactionAdd } from "./reactionState.js";
+import { reactionRemove } from "./reactionState.js";
 
 describe("reaction module", () => {
     it("routes emoji and custom-emoji selectors and keeps actor IDs out of message projections", async () => {
-        const chat = chatStoreCreateBinding("chat-1");
+        const chat = chatStoreCreate("chat-1");
         const reacted = message({
             reactions: [
                 { key: "emoji:👍", emoji: "👍", count: 1, reacted: true, userIds: ["user-2"] },
@@ -29,12 +29,11 @@ describe("reaction module", () => {
             { messageId: "message-1", emoji: "👍" },
             { messageId: "message-1", customEmojiId: "emoji-1" },
         ]);
-        expect(chat.store.get().messages[0]?.message.reactions[0]).toEqual({
+        expect(chat.getState().messages[0]?.message.reactions[0]).toEqual({
             key: "emoji:👍",
             emoji: "👍",
             count: 1,
             reacted: true,
         });
-        chat.dispose();
     });
 });

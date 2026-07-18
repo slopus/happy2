@@ -1,20 +1,18 @@
-import { Show, splitProps, type JSX } from "solid-js";
-
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 export type FormRowLayout = "inline" | "stacked";
 export type FormRowAlign = "start" | "center";
-
 export type FormRowProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     label: string;
     description?: string;
     htmlFor?: string;
-    control: JSX.Element;
+    control: ReactNode;
     layout?: FormRowLayout;
     align?: FormRowAlign;
 };
-
 /**
  * C-029 FormRow — a settings row. A left-aligned label + optional muted
  * description on the leading side and a trailing control slot (a TextField,
@@ -25,7 +23,7 @@ export type FormRowProps = {
 export function FormRow(props: FormRowProps) {
     const [local, rest] = splitProps(props, [
         "align",
-        "class",
+        "className",
         "control",
         "description",
         "htmlFor",
@@ -35,34 +33,33 @@ export function FormRow(props: FormRowProps) {
     ]);
     const layout = () => local.layout ?? "inline";
     const align = () => local.align ?? "center";
-
     return (
         <div
             {...rest}
-            class={["happy2-form-row", local.class].filter(Boolean).join(" ")}
+            className={["happy2-form-row", local.className].filter(Boolean).join(" ")}
             data-align={align()}
             data-layout={layout()}
             data-happy2-ui="form-row"
             style={local.style}
         >
-            <div class="happy2-form-row__text" data-happy2-ui="form-row-text">
+            <div className="happy2-form-row__text" data-happy2-ui="form-row-text">
                 <label
-                    class="happy2-form-row__label"
+                    className="happy2-form-row__label"
                     data-happy2-ui="form-row-label"
-                    for={local.htmlFor}
+                    htmlFor={local.htmlFor}
                 >
                     {local.label}
                 </label>
-                <Show when={local.description}>
+                {local.description ? (
                     <span
-                        class="happy2-form-row__description"
+                        className="happy2-form-row__description"
                         data-happy2-ui="form-row-description"
                     >
                         {local.description}
                     </span>
-                </Show>
+                ) : null}
             </div>
-            <div class="happy2-form-row__control" data-happy2-ui="form-row-control">
+            <div className="happy2-form-row__control" data-happy2-ui="form-row-control">
                 {local.control}
             </div>
         </div>

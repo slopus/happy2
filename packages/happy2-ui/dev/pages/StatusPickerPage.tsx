@@ -8,7 +8,7 @@ export function StatusPickerPage() {
             summary="Availability segmented control (automatic/online/away/dnd, each with a status-dot color) plus a custom status editor: emoji slot, text field, and expiry."
             title="Status picker"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="380px card · 16px section rhythm · availability + custom status"
                     label="Default"
@@ -30,14 +30,14 @@ export function StatusPickerPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="dot colors — auto muted · online mint · away amber · dnd danger"
                     label="Availability states"
                     number="SP-02"
                     stage="surface"
                 >
-                    <div style={{ display: "flex", "flex-wrap": "wrap", gap: "20px" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "20px" }}>
                         <StatusPicker availability="automatic" />
                         <StatusPicker availability="online" statusEmoji="💬" statusText="Around" />
                         <StatusPicker
@@ -57,7 +57,7 @@ export function StatusPickerPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="no emoji → smile placeholder · empty input · no clear · no expiry"
                     label="Empty status"

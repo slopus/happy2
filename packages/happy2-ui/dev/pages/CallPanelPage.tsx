@@ -30,7 +30,7 @@ export function CallPanelPage() {
             summary="Call surface + incoming variant: participant tiles, status pill, control buttons."
             title="Call panel"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="320px shell · status pill · 2-col tile grid · control row"
                     label="Active — video"
@@ -40,7 +40,7 @@ export function CallPanelPage() {
                     <div
                         style={{
                             display: "grid",
-                            "justify-items": "center",
+                            justifyItems: "center",
                             gap: "8px",
                             padding: "28px",
                         }}
@@ -81,7 +81,7 @@ export function CallPanelPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="audio call · info pill · mute + leave (no camera)"
                     label="Ringing — audio"
@@ -131,7 +131,7 @@ export function CallPanelPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="360×74 raised card · caller row · decline / join"
                     label="Incoming"
@@ -141,7 +141,7 @@ export function CallPanelPage() {
                     <div
                         style={{
                             display: "grid",
-                            "justify-items": "center",
+                            justifyItems: "center",
                             gap: "8px",
                             padding: "28px",
                         }}

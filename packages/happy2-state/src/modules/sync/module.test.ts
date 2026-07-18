@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { areaReconcile, type AreaReconcileContext } from "./areaReconcile.js";
+import { areaReconcile, type AreaReconcileContext } from "./syncState.js";
 import { happyStateCreate } from "../../happyState.js";
 import { createFakeServer, jsonResponse } from "../../testing/index.js";
 import { chat } from "../../../tests/fixtures.js";
@@ -82,11 +82,11 @@ describe("sync module", () => {
             startedAt: 0,
             expiresAt: 100,
         });
-        expect(surface.get()).toMatchObject({
+        expect(surface.getState()).toMatchObject({
             typing: [{ userId: "user-1" }],
             agentActivity: [{ agentUserId: "agent-1" }],
         });
         state.syncStop();
-        expect(surface.get()).toMatchObject({ typing: [], agentActivity: [] });
+        expect(surface.getState()).toMatchObject({ typing: [], agentActivity: [] });
     });
 });

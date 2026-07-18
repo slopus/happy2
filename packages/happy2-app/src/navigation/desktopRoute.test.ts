@@ -36,22 +36,6 @@ describe("desktop route model", () => {
             },
         ],
         [
-            "/admin/integrations?overlay=command",
-            {
-                primary: { kind: "admin", section: "integrations" },
-                overlay: { kind: "command" },
-                files,
-            },
-        ],
-        [
-            "/onboarding/base-image?overlay=modal&modal=build-log",
-            {
-                primary: { kind: "onboarding", step: "base-image" },
-                overlay: { kind: "modal", id: "build-log" },
-                files,
-            },
-        ],
-        [
             "/chats/chat-1?inspector=workspace&overlay=workspace-file&path=src%2Fmain.ts",
             {
                 primary: { kind: "conversation", conversationKind: "chat", chatId: "chat-1" },

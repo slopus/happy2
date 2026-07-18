@@ -1,14 +1,10 @@
-export interface RegistryValue {
-    dispose(): void;
-}
-
 interface RegistryEntry<Value> {
     readonly value: Value;
     acquisitions: number;
 }
 
 /** Deduplicates keyed on-demand store bindings without knowing their product semantics. */
-export class StoreRegistry<Key, Value extends RegistryValue> {
+export class StoreRegistry<Key, Value> {
     private readonly entries = new Map<Key, RegistryEntry<Value>>();
 
     getOrCreate(key: Key, create: () => Value): Value {
@@ -37,24 +33,9 @@ export class StoreRegistry<Key, Value extends RegistryValue> {
         entry.acquisitions -= 1;
         if (entry.acquisitions > 0) return;
         this.entries.delete(key);
-        entry.value.dispose();
     }
 
     dispose(): void {
-        const entries = [...this.entries.values()];
         this.entries.clear();
-
-        let firstError: unknown;
-        let failed = false;
-        for (const entry of entries) {
-            try {
-                entry.value.dispose();
-            } catch (error) {
-                if (failed) continue;
-                firstError = error;
-                failed = true;
-            }
-        }
-        if (failed) throw firstError;
     }
 }

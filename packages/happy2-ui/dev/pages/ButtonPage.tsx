@@ -8,28 +8,28 @@ export function ButtonPage() {
             summary="Relay action control — five variants, three contract heights, leading-icon and icon-only forms."
             title="Button"
         >
-            <div class="specimen-grid specimen-grid--sizes">
+            <div className="specimen-grid specimen-grid--sizes">
                 <Specimen detail="28px high · 12px label" label="Small" number="B-01" stage="app">
-                    <div class="dimensioned-button">
+                    <div className="dimensioned-button">
                         <DimensionRule label="height 28" />
                         <Button size="small">Request changes</Button>
                     </div>
                 </Specimen>
                 <Specimen detail="36px high · 13px label" label="Medium" number="B-02" stage="app">
-                    <div class="dimensioned-button">
+                    <div className="dimensioned-button">
                         <DimensionRule label="height 36" />
                         <Button size="medium">Request changes</Button>
                     </div>
                 </Specimen>
                 <Specimen detail="44px high · 14px label" label="Large" number="B-03" stage="app">
-                    <div class="dimensioned-button">
+                    <div className="dimensioned-button">
                         <DimensionRule label="height 44" />
                         <Button size="large">Request changes</Button>
                     </div>
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="primary · secondary · ghost · danger · success"
                     label="Variants"
@@ -39,7 +39,7 @@ export function ButtonPage() {
                     <div
                         style={{
                             display: "flex",
-                            "align-items": "center",
+                            alignItems: "center",
                             gap: "12px",
                             padding: "28px",
                         }}
@@ -53,7 +53,7 @@ export function ButtonPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="leading icon 14/16/18 by size · 6px gap"
                     label="Leading icon"
@@ -63,7 +63,7 @@ export function ButtonPage() {
                     <div
                         style={{
                             display: "flex",
-                            "align-items": "center",
+                            alignItems: "center",
                             gap: "12px",
                             padding: "28px",
                         }}
@@ -88,7 +88,7 @@ export function ButtonPage() {
                     <div
                         style={{
                             display: "flex",
-                            "align-items": "flex-end",
+                            alignItems: "flex-end",
                             gap: "12px",
                             padding: "28px",
                         }}
@@ -118,7 +118,7 @@ export function ButtonPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="fullWidth · width prop · disabled"
                     label="Widths and states"
@@ -131,7 +131,7 @@ export function ButtonPage() {
                             width: "360px",
                             gap: "12px",
                             padding: "28px",
-                            "justify-items": "stretch",
+                            justifyItems: "stretch",
                         }}
                     >
                         <div style={{ display: "grid", gap: "6px" }}>
@@ -140,7 +140,7 @@ export function ButtonPage() {
                                 Approve &amp; merge
                             </Button>
                         </div>
-                        <div style={{ display: "grid", gap: "6px", "justify-items": "start" }}>
+                        <div style={{ display: "grid", gap: "6px", justifyItems: "start" }}>
                             <div style={{ width: "200px" }}>
                                 <DimensionRule label="width = 200" />
                             </div>
@@ -148,7 +148,7 @@ export function ButtonPage() {
                                 Open in #eng-core
                             </Button>
                         </div>
-                        <div style={{ "justify-self": "start" }}>
+                        <div style={{ justifySelf: "start" }}>
                             <Button disabled variant="primary">
                                 Disabled
                             </Button>

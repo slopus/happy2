@@ -65,14 +65,14 @@ it("holds Switch track/thumb geometry, on/off colors, and thumb optical centerin
             <div
                 style={{
                     display: "flex",
-                    "align-items": "center",
+                    alignItems: "center",
                     gap: "40px",
                     padding: "24px 32px",
                     // Relay is a dark theme: the off-well, hairline ring, and
                     // white thumb only read against the app surface. Repainted
                     // away during visibleMetrics, so it never skews measurement.
                     background: "#17161c",
-                    "border-radius": "10px",
+                    borderRadius: "10px",
                 }}
             >
                 {cases.map((c) => (
@@ -80,6 +80,7 @@ it("holds Switch track/thumb geometry, on/off colors, and thumb optical centerin
                         aria-label={c.id}
                         checked={c.checked}
                         data-testid={c.id}
+                        key={c.id}
                         size={c.size}
                     />
                 ))}
@@ -90,7 +91,7 @@ it("holds Switch track/thumb geometry, on/off colors, and thumb optical centerin
     // A standalone switch (no flex/grid parent) keeps its natural inline-flex.
     view.render(
         () => (
-            <div style={{ padding: "18px 22px", background: "#17161c", "border-radius": "10px" }}>
+            <div style={{ padding: "18px 22px", background: "#17161c", borderRadius: "10px" }}>
                 <Switch aria-label="solo" checked data-testid="solo" />
             </div>
         ),
@@ -237,11 +238,11 @@ it("holds Switch label typography, layout, and disabled state", async () => {
             <div
                 style={{
                     display: "flex",
-                    "flex-direction": "column",
+                    flexDirection: "column",
                     gap: "20px",
                     padding: "24px 28px",
                     background: "#17161c",
-                    "border-radius": "10px",
+                    borderRadius: "10px",
                 }}
             >
                 <Switch

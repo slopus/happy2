@@ -1,15 +1,13 @@
-import { createSignal } from "solid-js";
+import { useState } from "react";
 import { Button } from "../../src/Button";
 import { ChannelHeader } from "../../src/ChannelHeader";
 import type { MenuItem } from "../../src/Menu";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const column: Record<string, string> = {
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     gap: "14px",
 };
-
 const menuItems: MenuItem[] = [
     { kind: "item", id: "details", icon: "eye", label: "Channel details" },
     { kind: "item", id: "copy", icon: "link", label: "Copy link" },
@@ -19,7 +17,6 @@ const menuItems: MenuItem[] = [
     { kind: "separator" },
     { kind: "item", id: "leave", icon: "close", label: "Leave channel", danger: true },
 ];
-
 function actions() {
     return (
         <>
@@ -28,10 +25,8 @@ function actions() {
         </>
     );
 }
-
 export function ChannelHeaderPage() {
-    const [starred, setStarred] = createSignal(true);
-
+    const [starred, setStarred] = useState(true);
     return (
         <ComponentPage
             number="C-011"
@@ -55,7 +50,7 @@ export function ChannelHeaderPage() {
                             onMenuSelect={() => {}}
                             onStarToggle={() => setStarred((value) => !value)}
                             onTitleClick={() => {}}
-                            starred={starred()}
+                            starred={starred}
                             title="launch-week"
                             topic="Ship mobile v2 by Fri"
                         />

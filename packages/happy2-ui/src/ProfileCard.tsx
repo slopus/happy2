@@ -1,14 +1,16 @@
-import { Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 import { Avatar, type AvatarSize, type ToneName } from "./Avatar";
-
 export type ProfileCardSize = "compact" | "full";
 export type ProfilePresence = "online" | "offline";
-export type ProfileStatus = { emoji?: string; text?: string };
-
+export type ProfileStatus = {
+    emoji?: string;
+    text?: string;
+};
 export type ProfileCardProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     name: string;
     username: string;
     title?: string;
@@ -17,15 +19,13 @@ export type ProfileCardProps = {
     initials: string;
     presence?: ProfilePresence;
     status?: ProfileStatus;
-    actions?: JSX.Element;
+    actions?: ReactNode;
     size?: ProfileCardSize;
 };
-
 const avatarSizes: Record<ProfileCardSize, AvatarSize> = {
     compact: "md",
     full: "lg",
 };
-
 /**
  * C-033 ProfileCard — profile header. An identity mark (Avatar + presence dot),
  * the person's name with their @username on a shared baseline, an optional
@@ -36,7 +36,7 @@ const avatarSizes: Record<ProfileCardSize, AvatarSize> = {
  */
 export function ProfileCard(props: ProfileCardProps) {
     const [local] = splitProps(props, [
-        "class",
+        "className",
         "data-testid",
         "style",
         "name",
@@ -52,17 +52,16 @@ export function ProfileCard(props: ProfileCardProps) {
     ]);
     const size = () => local.size ?? "full";
     const hasStatus = () => Boolean(local.status && (local.status.emoji || local.status.text));
-
     return (
         <div
-            class={["happy2-profile-card", local.class].filter(Boolean).join(" ")}
+            className={["happy2-profile-card", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="profile-card"
             data-size={size()}
             data-testid={local["data-testid"]}
             style={local.style}
         >
             <Avatar
-                class="happy2-profile-card__avatar"
+                className="happy2-profile-card__avatar"
                 imageUrl={local.imageUrl}
                 initials={local.initials}
                 online={local.presence === "online" ? true : undefined}
@@ -70,59 +69,68 @@ export function ProfileCard(props: ProfileCardProps) {
                 tone={local.tone}
             />
 
-            <div class="happy2-profile-card__body" data-happy2-ui="profile-card-body">
-                <div class="happy2-profile-card__identity" data-happy2-ui="profile-card-identity">
-                    <span class="happy2-profile-card__name" data-happy2-ui="profile-card-name">
+            <div className="happy2-profile-card__body" data-happy2-ui="profile-card-body">
+                <div
+                    className="happy2-profile-card__identity"
+                    data-happy2-ui="profile-card-identity"
+                >
+                    <span className="happy2-profile-card__name" data-happy2-ui="profile-card-name">
                         {local.name}
                     </span>
                     <span
-                        class="happy2-profile-card__username"
+                        className="happy2-profile-card__username"
                         data-happy2-ui="profile-card-username"
                     >
                         @{local.username}
                     </span>
                 </div>
 
-                <Show when={local.title}>
-                    <span class="happy2-profile-card__title" data-happy2-ui="profile-card-title">
+                {local.title ? (
+                    <span
+                        className="happy2-profile-card__title"
+                        data-happy2-ui="profile-card-title"
+                    >
                         {local.title}
                     </span>
-                </Show>
+                ) : null}
 
-                <Show when={hasStatus()}>
-                    <span class="happy2-profile-card__status" data-happy2-ui="profile-card-status">
-                        <Show when={local.status?.emoji}>
-                            {(emoji) => (
-                                <span
-                                    class="happy2-profile-card__status-emoji"
-                                    data-happy2-ui="profile-card-status-emoji"
-                                >
-                                    <span
-                                        class="happy2-profile-card__status-emoji-glyph"
-                                        data-happy2-ui="profile-card-status-emoji-glyph"
-                                    >
-                                        {emoji()}
-                                    </span>
-                                </span>
-                            )}
-                        </Show>
-                        <Show when={local.status?.text}>
+                {hasStatus() ? (
+                    <span
+                        className="happy2-profile-card__status"
+                        data-happy2-ui="profile-card-status"
+                    >
+                        {local.status?.emoji
+                            ? ((emoji) => (
+                                  <span
+                                      className="happy2-profile-card__status-emoji"
+                                      data-happy2-ui="profile-card-status-emoji"
+                                  >
+                                      <span
+                                          className="happy2-profile-card__status-emoji-glyph"
+                                          data-happy2-ui="profile-card-status-emoji-glyph"
+                                      >
+                                          {emoji}
+                                      </span>
+                                  </span>
+                              ))(local.status?.emoji)
+                            : null}
+                        {local.status?.text ? (
                             <span
-                                class="happy2-profile-card__status-text"
+                                className="happy2-profile-card__status-text"
                                 data-happy2-ui="profile-card-status-text"
                             >
                                 {local.status?.text}
                             </span>
-                        </Show>
+                        ) : null}
                     </span>
-                </Show>
+                ) : null}
             </div>
 
-            <Show when={local.actions}>
-                <div class="happy2-profile-card__actions" data-happy2-ui="profile-card-actions">
+            {local.actions ? (
+                <div className="happy2-profile-card__actions" data-happy2-ui="profile-card-actions">
                     {local.actions}
                 </div>
-            </Show>
+            ) : null}
         </div>
     );
 }

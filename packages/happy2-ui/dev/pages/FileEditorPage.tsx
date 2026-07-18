@@ -1,12 +1,11 @@
-import type { JSX } from "solid-js";
+import { type ReactNode } from "react";
 import { Banner } from "../../src/Banner";
 import { FileEditor } from "../../src/FileEditor";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
-const sample = `import { createSignal } from "solid-js";
+const sample = `import { useState } from "react";
 
 export function Counter() {
-    const [count, setCount] = createSignal(0);
+    const [count, setCount] = useState(0);
     return (
         <button onClick={() => setCount(count() + 1)}>
             Count: {count()}
@@ -14,14 +13,13 @@ export function Counter() {
     );
 }
 `;
-
-function frame(children: JSX.Element, height = 420) {
+function frame(children: ReactNode, height = 420) {
     return (
         <div
             style={{
                 background: "var(--happy2-bg-surface)",
                 border: "1px solid var(--happy2-border)",
-                "border-radius": "10px",
+                borderRadius: "10px",
                 height: `${height}px`,
                 overflow: "hidden",
                 width: "640px",
@@ -31,7 +29,6 @@ function frame(children: JSX.Element, height = 420) {
         </div>
     );
 }
-
 export function FileEditorPage() {
     return (
         <ComponentPage
@@ -45,7 +42,7 @@ export function FileEditorPage() {
                 number="01"
                 stage="surface"
             >
-                <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     {frame(
                         <FileEditor
                             onClose={() => {}}

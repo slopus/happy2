@@ -34,8 +34,9 @@ difference reuses that projection; only a newly seen DM or actual membership cha
 
 Every public snapshot is deeply readonly. A semantic no-op retains the snapshot reference. A real
 change replaces only its changed leaf and ancestors inside that one store; unrelated stores neither
-evaluate nor notify. Zustand vanilla is an internal synchronous setter only—no Zustand hook, selector,
-shallow wrapper, transaction API, or engine type appears in the public contract.
+evaluate nor notify. Each domain has exactly one `*State.ts` module and each surface is one direct
+`createStore<State>()((set, get) => ({ ...state, ...mutations }))` Zustand object. There is no store
+base class, transaction facade, selector wrapper, or split action/type/store file graph.
 
 ## Local actions, output, and authoritative input
 
@@ -55,8 +56,13 @@ Settings retain saved values plus `clean/dirty/saving/error` state for every exp
 coarse settings subscription therefore renders the whole screen without one store per control, while
 an in-flight response can confirm submitted fields without overwriting newer edits.
 
-The owner routes output through product actions. Server confirmations, failures, reconciliation, and
-test-fixture input enter through separate package-private closed unions. Application code cannot
+Every store output belongs to the exported `HappyStateEvent` discriminated union. `HappyState` owns
+the single event switch: it routes each event to the required action or already-materialized store,
+then may forward the same event to the optional upstream listener. A store never imports another
+store, opens transport, or performs cross-surface synchronization itself.
+
+Server confirmations, failures, reconciliation, and test-fixture input enter through separate
+package-private closed unions. Application code cannot
 manufacture a saved message, successful secret mutation, confirmed file write, or other authoritative
 state. There is no generic `getField`, `setField`, string path, or catch-all operation-result cache in
 the new model.
@@ -82,24 +88,12 @@ Realtime events are delivery hints. Durable data advances through global/per-cha
 area refetch. Typing, agent activity, presence, and call signalling are explicitly ephemeral and own
 ordering/expiry/lifetime rules.
 
-## UI adapters
+## React adapter
 
-The core contract is `ReadonlyStore<T>`, so adapters stay trivial and live in the consuming UI:
+The public surface is a vanilla Zustand `StoreApi<State>`, so React consumes it directly:
 
 ```ts
-// React
-const snapshot = useSyncExternalStore(store.subscribe, store.get, store.get);
-
-// Solid
-const [snapshot, setSnapshot] = createSignal(store.get());
-onCleanup(store.subscribe(() => setSnapshot(store.get())));
-
-// Svelte 5
-const snapshot = createSubscriber((update) => store.subscribe(update));
-const value = $derived.by(() => {
-    snapshot();
-    return store.get();
-});
+const snapshot = useSyncExternalStore(store.subscribe, store.getState, store.getInitialState);
 ```
 
 Blueprint fixtures can construct unconnected stores and use the exact same commands without auth,

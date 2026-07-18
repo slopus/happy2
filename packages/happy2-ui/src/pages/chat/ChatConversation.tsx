@@ -1,4 +1,4 @@
-import { For, Show, type JSX } from "solid-js";
+import { useRef, type ReactNode } from "react";
 import type { AgentActivityState, DeepReadonly, DirectoryUserProjection } from "happy2-state";
 import {
     AgentActivityIndicator,
@@ -12,7 +12,6 @@ import {
     type MenuItem,
 } from "./ChatPageComponents.js";
 import { emojiItems, identityInitials, toneFor, type Conversation } from "./chatPageModels.js";
-
 export interface ChatConversationProps {
     conversation: Conversation;
     activeConversationId: string;
@@ -20,7 +19,7 @@ export interface ChatConversationProps {
     joinVisible: boolean;
     starred: boolean;
     menuItems?: MenuItem[];
-    messageEntries: JSX.Element;
+    messageEntries: ReactNode;
     activities: readonly DeepReadonly<AgentActivityState>[];
     activityNow: number;
     directoryUsers: readonly DeepReadonly<DirectoryUserProjection>[];
@@ -41,15 +40,14 @@ export interface ChatConversationProps {
     onValueChange(value: string): void;
     onWorkspaceToggle(): void;
 }
-
 export function ChatConversation(props: ChatConversationProps) {
-    let fileInput: HTMLInputElement | undefined;
+    const fileInput = useRef<HTMLInputElement>(null);
     return (
         <>
             <ChannelHeader
                 actions={
                     <>
-                        <Show when={props.activeConversationId}>
+                        {props.activeConversationId ? (
                             <Button
                                 aria-label="Workspace files"
                                 icon="files"
@@ -58,8 +56,8 @@ export function ChatConversation(props: ChatConversationProps) {
                                 size="small"
                                 variant="ghost"
                             />
-                        </Show>
-                        <Show when={props.joinVisible}>
+                        ) : null}
+                        {props.joinVisible ? (
                             <Button
                                 disabled={props.busy}
                                 onClick={props.onJoin}
@@ -68,7 +66,7 @@ export function ChatConversation(props: ChatConversationProps) {
                             >
                                 Join
                             </Button>
-                        </Show>
+                        ) : null}
                     </>
                 }
                 icon={props.conversation.icon}
@@ -83,46 +81,45 @@ export function ChatConversation(props: ChatConversationProps) {
                 title={props.conversation.title}
                 topic={props.conversation.topic}
             />
-            <MessageList intro={props.conversation.intro}>{props.messageEntries}</MessageList>
-            <Show when={props.activities.length > 0}>
+            <MessageList intro={props.conversation.intro} virtualize>
+                {props.messageEntries}
+            </MessageList>
+            {props.activities.length > 0 ? (
                 <Box
                     style={{
                         display: "flex",
-                        "flex-wrap": "wrap",
+                        flexWrap: "wrap",
                         gap: "8px",
                         margin: "0 20px 8px",
                     }}
                 >
-                    <For each={props.activities}>
-                        {(activity) => {
-                            const actor = () =>
-                                props.directoryUsers.find(
-                                    (person) => person.id === activity.agentUserId,
-                                );
-                            return (
-                                <AgentActivityIndicator
-                                    elapsedSeconds={Math.max(
-                                        0,
-                                        Math.floor(
-                                            (props.activityNow - activity.startedAt) / 1_000,
-                                        ),
-                                    )}
-                                    initials={actor() ? identityInitials(actor()!) : "AI"}
-                                    name={actor()?.displayName ?? "Agent"}
-                                    phase={activity.phase}
-                                    tokenCount={activity.tokenCount}
-                                    tone={toneFor(activity.agentUserId)}
-                                />
+                    {props.activities.map((activity) => {
+                        const actor = () =>
+                            props.directoryUsers.find(
+                                (person) => person.id === activity.agentUserId,
                             );
-                        }}
-                    </For>
+                        return (
+                            <AgentActivityIndicator
+                                elapsedSeconds={Math.max(
+                                    0,
+                                    Math.floor((props.activityNow - activity.startedAt) / 1000),
+                                )}
+                                initials={actor() ? identityInitials(actor()!) : "AI"}
+                                key={`${activity.agentUserId}-${activity.startedAt}`}
+                                name={actor()?.displayName ?? "Agent"}
+                                phase={activity.phase}
+                                tokenCount={activity.tokenCount}
+                                tone={toneFor(activity.agentUserId)}
+                            />
+                        );
+                    })}
                 </Box>
-            </Show>
+            ) : null}
             <input
                 hidden
                 multiple
                 onChange={(event) => props.onFilesSelected(event.currentTarget.files)}
-                ref={(element) => (fileInput = element)}
+                ref={fileInput}
                 type="file"
             />
             <Composer
@@ -131,7 +128,7 @@ export function ChatConversation(props: ChatConversationProps) {
                 emoji={emojiItems}
                 hint={props.composerHint}
                 mentions={props.composerMentions}
-                onAttachFile={() => fileInput?.click()}
+                onAttachFile={() => fileInput.current?.click()}
                 onContextRemove={props.onContextRemove}
                 onSend={props.onSend}
                 onValueChange={props.onValueChange}

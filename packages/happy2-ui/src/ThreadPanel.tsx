@@ -1,22 +1,21 @@
-import { Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type ReactNode } from "react";
 import { Button } from "./Button";
 import { SURFACE_HEADER_HEIGHT } from "./InfoPanel";
 import { Toolbar } from "./Toolbar";
-
 export type ThreadPanelProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     title?: string;
     subtitle?: string;
     onClose?: () => void;
     closeLabel?: string;
     /** The thread transcript — typically a MessageList. Fills and scrolls. */
-    children: JSX.Element;
+    children: ReactNode;
     /** Reply composer pinned to the bottom of the panel. */
-    composer?: JSX.Element;
+    composer?: ReactNode;
 };
-
 /**
  * C-048 ThreadPanel — the thread side panel. A 52px surface header (shared
  * height with ChannelHeader and InfoPanel), a flexible transcript body that
@@ -25,7 +24,7 @@ export type ThreadPanelProps = {
  */
 export function ThreadPanel(props: ThreadPanelProps) {
     const [local] = splitProps(props, [
-        "class",
+        "className",
         "data-testid",
         "style",
         "title",
@@ -35,21 +34,20 @@ export function ThreadPanel(props: ThreadPanelProps) {
         "children",
         "composer",
     ]);
-
     return (
         <section
-            class={["happy2-thread-panel", local.class].filter(Boolean).join(" ")}
+            className={["happy2-thread-panel", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="thread-panel"
             data-testid={local["data-testid"]}
             style={local.style}
         >
             <Toolbar
-                class="happy2-thread-panel__header"
+                className="happy2-thread-panel__header"
                 height={SURFACE_HEADER_HEIGHT}
                 subtitle={local.subtitle}
                 title={local.title ?? "Thread"}
                 trailing={
-                    <Show when={local.onClose}>
+                    local.onClose ? (
                         <Button
                             aria-label={local.closeLabel ?? "Close thread"}
                             icon="close"
@@ -58,17 +56,20 @@ export function ThreadPanel(props: ThreadPanelProps) {
                             size="small"
                             variant="ghost"
                         />
-                    </Show>
+                    ) : null
                 }
             />
-            <div class="happy2-thread-panel__body" data-happy2-ui="thread-panel-body">
+            <div className="happy2-thread-panel__body" data-happy2-ui="thread-panel-body">
                 {local.children}
             </div>
-            <Show when={local.composer}>
-                <div class="happy2-thread-panel__composer" data-happy2-ui="thread-panel-composer">
+            {local.composer ? (
+                <div
+                    className="happy2-thread-panel__composer"
+                    data-happy2-ui="thread-panel-composer"
+                >
                     {local.composer}
                 </div>
-            </Show>
+            ) : null}
         </section>
     );
 }

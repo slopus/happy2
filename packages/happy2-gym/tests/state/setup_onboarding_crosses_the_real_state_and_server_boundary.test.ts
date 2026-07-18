@@ -35,13 +35,13 @@ describe("setup onboarding across happy2-state and the real server", () => {
 
             const setup = state.setup();
             await state.whenIdle();
-            expect(readyStatus(setup.get())).toMatchObject({
+            expect(readyStatus(setup.getState())).toMatchObject({
                 route: { scope: "server", step: "sandbox_provider_selected" },
             });
 
             state.setupProvidersReload();
             await state.whenIdle();
-            expect(setup.get().providers).toMatchObject({
+            expect(setup.getState().providers).toMatchObject({
                 type: "ready",
                 value: {
                     recommendedProviderId: "docker",
@@ -55,15 +55,15 @@ describe("setup onboarding across happy2-state and the real server", () => {
                 },
             });
 
-            setup.sandboxProviderSelect("docker");
+            setup.getState().sandboxProviderSelect("docker");
             await state.whenIdle();
-            expect(readyStatus(setup.get())).toMatchObject({
+            expect(readyStatus(setup.getState())).toMatchObject({
                 route: { scope: "server", step: "base_image_selected" },
             });
 
             state.setupBaseImagesReload();
             await state.whenIdle();
-            expect(readyBaseImages(setup.get()).images).toEqual(
+            expect(readyBaseImages(setup.getState()).images).toEqual(
                 expect.arrayContaining([
                     expect.objectContaining({ builtinKey: "daycare-minimal" }),
                     expect.objectContaining({ builtinKey: "daycare-full" }),
@@ -71,10 +71,10 @@ describe("setup onboarding across happy2-state and the real server", () => {
             );
 
             const dockerfile = "FROM ubuntu:24.04\nRUN echo state-onboarding\n";
-            setup.baseImageSelect({ custom: { name: "State onboarding", dockerfile } });
+            setup.getState().baseImageSelect({ custom: { name: "State onboarding", dockerfile } });
             await state.whenIdle();
             expect(provider.buildRequests).toEqual([expect.objectContaining({ dockerfile })]);
-            expect(readyBaseImages(setup.get()).selectedImage).toMatchObject({
+            expect(readyBaseImages(setup.getState()).selectedImage).toMatchObject({
                 name: "State onboarding",
                 source: "custom",
                 status: "building",
@@ -82,7 +82,7 @@ describe("setup onboarding across happy2-state and the real server", () => {
 
             provider.emitBuildUpdate({ logChunk: "#2 installing tools\n", progress: 54 });
             await expect
-                .poll(() => readyBaseImages(setup.get()).selectedImage, { timeout: 3_000 })
+                .poll(() => readyBaseImages(setup.getState()).selectedImage, { timeout: 3_000 })
                 .toMatchObject({
                     status: "building",
                     buildProgress: 54,
@@ -91,15 +91,15 @@ describe("setup onboarding across happy2-state and the real server", () => {
 
             provider.resumeBuilds();
             await expect
-                .poll(() => readyBaseImages(setup.get()).selectedImage, { timeout: 3_000 })
+                .poll(() => readyBaseImages(setup.getState()).selectedImage, { timeout: 3_000 })
                 .toMatchObject({ status: "ready", buildProgress: 100 });
             await expect
-                .poll(() => readyStatus(setup.get()).route, { timeout: 3_000 })
+                .poll(() => readyStatus(setup.getState()).route, { timeout: 3_000 })
                 .toEqual({ scope: "server", step: "registration_policy_selected" });
 
-            setup.registrationPolicyChoose(false);
+            setup.getState().registrationPolicyChoose(false);
             await state.whenIdle();
-            expect(readyStatus(setup.get())).toMatchObject({
+            expect(readyStatus(setup.getState())).toMatchObject({
                 server: { complete: true, registration: "closed" },
                 route: { scope: "user", step: "avatar" },
             });

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createFakeServer, jsonResponse } from "../../testing/index.js";
-import { IdentityCatalog } from "../identity/identityCatalog.js";
-import { StateRuntime } from "../runtime/stateRuntime.js";
-import { directoryLoad } from "./directoryLoad.js";
-import { directoryStoreCreateBinding } from "./directoryStore.js";
+import { IdentityCatalog } from "../identity/identityState.js";
+import { StateRuntime } from "../runtime/runtimeState.js";
+import { directoryLoad } from "./directoryState.js";
+import { directoryStoreCreate } from "./directoryState.js";
 
 describe("directory module", () => {
     it("loads canonical people with presence/status and keeps failures surface-local", async () => {
@@ -38,23 +38,22 @@ describe("directory module", () => {
         );
         server.respond("GET", "/v0/directory/channels", jsonResponse(200, { channels: [] }));
         const runtime = new StateRuntime({ transport: server.transport });
-        const directory = directoryStoreCreateBinding();
+        const directory = directoryStoreCreate();
         await directoryLoad({ runtime, identities: new IdentityCatalog(), directory });
-        expect(directory.store.get().users[0]).toMatchObject({
+        expect(directory.getState().users[0]).toMatchObject({
             displayName: "Ada",
             title: "Engineer",
             presence: "online",
             availability: "away",
             customStatusText: "Lunch",
         });
-        const snapshot = directory.store.get();
-        directory.directoryInput({
+        const snapshot = directory.getState();
+        directory.getState().directoryInput({
             type: "presenceReconciled",
             userId: "missing",
             presence: "offline",
         });
-        expect(directory.store.get()).toBe(snapshot);
+        expect(directory.getState()).toBe(snapshot);
         runtime.stop();
-        directory.dispose();
     });
 });

@@ -1,20 +1,22 @@
-import { Show, splitProps, type JSX } from "solid-js";
+import { splitProps } from "./reactProps";
+import { type CSSProperties, type HTMLAttributes } from "react";
 import { Badge, type BadgeVariant } from "./Badge";
 import { Icon, type IconName } from "./Icon";
-
 /* `ref` is omitted because the root is a <div> or a <button> depending on `onSelect`. */
-export type EventCardProps = Omit<JSX.HTMLAttributes<HTMLElement>, "onSelect" | "ref" | "style"> & {
-    badge?: { label: string; variant: BadgeVariant };
+export type EventCardProps = Omit<HTMLAttributes<HTMLElement>, "onSelect" | "ref" | "style"> & {
+    badge?: {
+        label: string;
+        variant: BadgeVariant;
+    };
     from?: string;
     icon?: IconName;
     meta?: string;
     onSelect?: () => void;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     time?: string;
     title: string;
     to?: string;
 };
-
 /**
  * Compact 44px status-transition row: icon chip, title (+ inline meta), then a
  * right-aligned `from → to` transition or a status Badge, and a mono time.
@@ -23,7 +25,7 @@ export type EventCardProps = Omit<JSX.HTMLAttributes<HTMLElement>, "onSelect" | 
 export function EventCard(props: EventCardProps) {
     const [local, rest] = splitProps(props, [
         "badge",
-        "class",
+        "className",
         "from",
         "icon",
         "meta",
@@ -33,83 +35,74 @@ export function EventCard(props: EventCardProps) {
         "title",
         "to",
     ]);
-    const rootClass = () => ["happy2-event-card", local.class].filter(Boolean).join(" ");
+    const rootClass = () => ["happy2-event-card", local.className].filter(Boolean).join(" ");
     const hasSide = () => Boolean((local.from && local.to) || local.badge || local.time);
-
     const content = () => (
         <>
-            <Show when={local.icon}>
-                {(name) => (
-                    <span class="happy2-event-card__chip" data-happy2-ui="event-card-chip">
-                        <Icon name={name()} size={16} />
-                    </span>
-                )}
-            </Show>
-            <span class="happy2-event-card__text" data-happy2-ui="event-card-text">
-                <span class="happy2-event-card__title" data-happy2-ui="event-card-title">
+            {local.icon
+                ? ((name) => (
+                      <span className="happy2-event-card__chip" data-happy2-ui="event-card-chip">
+                          <Icon name={name} size={16} />
+                      </span>
+                  ))(local.icon)
+                : null}
+            <span className="happy2-event-card__text" data-happy2-ui="event-card-text">
+                <span className="happy2-event-card__title" data-happy2-ui="event-card-title">
                     {local.title}
                 </span>
-                <Show when={local.meta}>
-                    <span class="happy2-event-card__meta" data-happy2-ui="event-card-meta">
+                {local.meta ? (
+                    <span className="happy2-event-card__meta" data-happy2-ui="event-card-meta">
                         {local.meta}
                     </span>
-                </Show>
+                ) : null}
             </span>
-            <Show when={hasSide()}>
-                <span class="happy2-event-card__side" data-happy2-ui="event-card-side">
-                    <Show
-                        when={local.from && local.to}
-                        fallback={
-                            <Show when={local.badge}>
-                                {(badge) => (
-                                    <Badge label={badge().label} variant={badge().variant} />
-                                )}
-                            </Show>
-                        }
-                    >
+            {hasSide() ? (
+                <span className="happy2-event-card__side" data-happy2-ui="event-card-side">
+                    {local.from && local.to ? (
                         <span
-                            class="happy2-event-card__transition"
+                            className="happy2-event-card__transition"
                             data-happy2-ui="event-card-transition"
                         >
-                            <span class="happy2-event-card__from" data-happy2-ui="event-card-from">
+                            <span
+                                className="happy2-event-card__from"
+                                data-happy2-ui="event-card-from"
+                            >
                                 {local.from}
                             </span>
                             <Icon name="arrow-right" size={12} />
-                            <span class="happy2-event-card__to" data-happy2-ui="event-card-to">
+                            <span className="happy2-event-card__to" data-happy2-ui="event-card-to">
                                 {local.to}
                             </span>
                         </span>
-                    </Show>
-                    <Show when={local.time}>
-                        <span class="happy2-event-card__time" data-happy2-ui="event-card-time">
+                    ) : local.badge ? (
+                        ((badge) => <Badge label={badge.label} variant={badge.variant} />)(
+                            local.badge,
+                        )
+                    ) : null}
+                    {local.time ? (
+                        <span className="happy2-event-card__time" data-happy2-ui="event-card-time">
                             {local.time}
                         </span>
-                    </Show>
+                    ) : null}
                 </span>
-            </Show>
+            ) : null}
         </>
     );
-
-    return (
-        <Show
-            when={local.onSelect}
-            fallback={
-                <div {...rest} class={rootClass()} data-happy2-ui="event-card" style={local.style}>
-                    {content()}
-                </div>
-            }
+    return local.onSelect ? (
+        <button
+            {...rest}
+            className={rootClass()}
+            data-clickable=""
+            data-happy2-ui="event-card"
+            onClick={() => local.onSelect?.()}
+            style={local.style}
+            type="button"
         >
-            <button
-                {...rest}
-                class={rootClass()}
-                data-clickable=""
-                data-happy2-ui="event-card"
-                onClick={() => local.onSelect?.()}
-                style={local.style}
-                type="button"
-            >
-                {content()}
-            </button>
-        </Show>
+            {content()}
+        </button>
+    ) : (
+        <div {...rest} className={rootClass()} data-happy2-ui="event-card" style={local.style}>
+            {content()}
+        </div>
     );
 }

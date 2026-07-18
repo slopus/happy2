@@ -379,7 +379,7 @@ it("holds DataTable dense rows, truncation, and the empty slot", async () => {
                     { id: "role", header: "Role", width: 120 },
                 ]}
                 empty={
-                    <span style={{ color: "var(--happy2-text-muted)", "font-size": "13px" }}>
+                    <span style={{ color: "var(--happy2-text-muted)", fontSize: "13px" }}>
                         No members match this filter.
                     </span>
                 }

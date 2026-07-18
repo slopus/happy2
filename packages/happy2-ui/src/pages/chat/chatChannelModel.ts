@@ -1,19 +1,16 @@
-import type { Accessor } from "solid-js";
 import type { ChatSummary, DeepReadonly, SidebarChatProjection } from "happy2-state";
 import type { MenuItem } from "./ChatPageComponents.js";
 import type { ChatPageActions } from "./ChatPage.js";
-
 export interface ChatChannelModelOptions {
-    activeChatId: Accessor<string>;
-    activeChat: Accessor<DeepReadonly<ChatSummary> | undefined>;
-    sidebarChats: Accessor<readonly DeepReadonly<SidebarChatProjection>[]>;
-    canEdit: Accessor<boolean>;
+    activeChatId: () => string;
+    activeChat: () => DeepReadonly<ChatSummary> | undefined;
+    sidebarChats: () => readonly DeepReadonly<SidebarChatProjection>[];
+    canEdit: () => boolean;
     actions: ChatPageActions;
     onInfoOpen(): void;
     onLeave(): void;
     onError(error: unknown): void;
 }
-
 export function chatChannelModelCreate(options: ChatChannelModelOptions) {
     const starred = () =>
         options.sidebarChats().find((projection) => projection.id === options.activeChatId())?.chat

@@ -1,21 +1,20 @@
-import { For } from "solid-js";
 import { Badge, CountBadge, KeyCap, ReactionChip, type BadgeVariant } from "../../src/Badge";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const row: Record<string, string> = {
-    "align-items": "center",
+    alignItems: "center",
     display: "flex",
     gap: "10px",
-    "flex-wrap": "wrap",
+    flexWrap: "wrap",
 };
-
 const column: Record<string, string> = {
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     gap: "14px",
 };
-
-const variants: Array<{ label: string; variant: BadgeVariant }> = [
+const variants: Array<{
+    label: string;
+    variant: BadgeVariant;
+}> = [
     { label: "QUEUED", variant: "neutral" },
     { label: "AGENT", variant: "accent" },
     { label: "NEEDS REVIEW", variant: "success" },
@@ -24,7 +23,6 @@ const variants: Array<{ label: string; variant: BadgeVariant }> = [
     { label: "SYNCED", variant: "info" },
     { label: "CONFIG", variant: "outline" },
 ];
-
 export function BadgePage() {
     return (
         <ComponentPage
@@ -40,9 +38,13 @@ export function BadgePage() {
             >
                 <div style={column}>
                     <div style={row}>
-                        <For each={variants}>
-                            {(entry) => <Badge label={entry.label} variant={entry.variant} />}
-                        </For>
+                        {variants.map((entry) => (
+                            <Badge
+                                key={entry.variant}
+                                label={entry.label}
+                                variant={entry.variant}
+                            />
+                        ))}
                     </div>
                     <DimensionRule label="18 px high · 6 px x-pad" />
                 </div>
@@ -71,9 +73,9 @@ export function BadgePage() {
             >
                 <div style={column}>
                     <div style={row}>
-                        <For each={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}>
-                            {(count) => <CountBadge count={count} />}
-                        </For>
+                        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((count) => (
+                            <CountBadge key={count} count={count} />
+                        ))}
                         <CountBadge count={12} />
                         <CountBadge count={128} />
                         <CountBadge count={1234} />

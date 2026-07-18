@@ -1,3 +1,4 @@
+import { useLayoutEffect, useReducer, type ReactNode } from "react";
 import {
     Banner,
     BuildProgressPanel,
@@ -17,20 +18,9 @@ import type {
     SetupSnapshot,
     SetupStore,
 } from "happy2-state";
-import {
-    For,
-    Show,
-    createEffect,
-    createMemo,
-    createSignal,
-    onCleanup,
-    type Accessor,
-    type JSX,
-} from "solid-js";
 import type { DesktopNavigation, DesktopOnboardingStep } from "../navigation/desktopRouteTypes";
-import { desktopNavigationSignal } from "../navigation/desktopNavigationSignal";
+import { useDesktopNavigation } from "../navigation/useDesktopNavigation";
 import { onboardingStepForStatus } from "../onboarding/onboardingRoute";
-
 export type ServerOnboardingProps = {
     state: HappyState;
     navigation: DesktopNavigation;
@@ -38,20 +28,19 @@ export type ServerOnboardingProps = {
     /** Invoked once server setup is complete and the main application may take over. */
     onComplete: () => void;
 };
-
 /** Poll cadence for the live build surface as a stopgap alongside SSE reconciliation. */
 const BUILD_POLL_MS = 2500;
-
 /** Re-probe cadence for sandbox provider health while the sandbox screen is open. */
 const PROVIDER_POLL_MS = 4000;
-
-const SERVER_STAGES: { step: DesktopOnboardingStep; label: string }[] = [
+const SERVER_STAGES: {
+    step: DesktopOnboardingStep;
+    label: string;
+}[] = [
     { step: "sandbox-provider", label: "Sandbox" },
     { step: "base-image", label: "Base image" },
     { step: "build-progress", label: "Build" },
     { step: "completion", label: "Registration" },
 ];
-
 /**
  * The centered, server-driven onboarding surface shown after the bootstrap
  * profile exists and before the main application. It owns one subscription to the
@@ -63,9 +52,7 @@ export function ServerOnboarding(props: ServerOnboardingProps) {
     const setup = props.state.setup();
     return (
         <>
-            <Show when={props.showWindowDragRegion}>
-                <WindowDragRegion />
-            </Show>
+            {props.showWindowDragRegion ? <WindowDragRegion /> : null}
             <StoreSurface store={setup}>
                 {(snapshot) => (
                     <ServerOnboardingBody
@@ -80,115 +67,100 @@ export function ServerOnboarding(props: ServerOnboardingProps) {
         </>
     );
 }
-
 function ServerOnboardingBody(props: {
     navigation: DesktopNavigation;
     onComplete: () => void;
-    snapshot: Accessor<SetupSnapshot>;
+    snapshot: SetupSnapshot;
     state: HappyState;
     store: SetupStore;
 }) {
-    const route = desktopNavigationSignal(props.navigation);
-    const status = () => props.snapshot().status;
-    const resolution = createMemo(() => {
-        const current = status();
-        return current.type === "ready" ? onboardingStepForStatus(current.value) : undefined;
-    });
-    const canonicalStep = (): DesktopOnboardingStep | undefined => {
-        const value = resolution();
-        return value?.kind === "step" ? value.step : undefined;
-    };
-    const urlStep = (): DesktopOnboardingStep | undefined => {
-        const primary = route().primary;
-        return primary.kind === "onboarding" ? primary.step : undefined;
-    };
-
+    const { navigation, onComplete, snapshot, state } = props;
+    const route = useDesktopNavigation(navigation);
+    const status = snapshot.status;
+    const resolution = status.type === "ready" ? onboardingStepForStatus(status.value) : undefined;
+    const canonicalStep: DesktopOnboardingStep | undefined =
+        resolution?.kind === "step" ? resolution.step : undefined;
+    const urlStep: DesktopOnboardingStep | undefined =
+        route.primary.kind === "onboarding" ? route.primary.step : undefined;
     // Hand off to the main application the moment server setup is durably
     // complete, moving the URL off the onboarding path so the workspace opens on
     // a real destination instead of a stale setup route.
-    createEffect(() => {
-        if (resolution()?.kind !== "app") return;
-        if (urlStep() !== undefined)
-            props.navigation.navigate(
-                { ...route(), primary: { kind: "home" }, panel: undefined, overlay: undefined },
+    useLayoutEffect(() => {
+        if (resolution?.kind !== "app") return;
+        if (urlStep !== undefined)
+            navigation.navigate(
+                { ...route, primary: { kind: "home" }, panel: undefined, overlay: undefined },
                 { replace: true },
             );
-        props.onComplete();
-    });
-
+        onComplete();
+    }, [resolution?.kind, urlStep, route, navigation, onComplete]);
     // Reflect the durable step into the URL. A manually entered later route or a
     // stale reload URL is replaced with the first incomplete prerequisite.
-    createEffect(() => {
-        const canonical = canonicalStep();
-        if (!canonical || urlStep() === canonical) return;
-        props.navigation.navigate(
+    useLayoutEffect(() => {
+        if (!canonicalStep || urlStep === canonicalStep) return;
+        navigation.navigate(
             {
-                ...route(),
-                primary: { kind: "onboarding", step: canonical },
+                ...route,
+                primary: { kind: "onboarding", step: canonicalStep },
                 panel: undefined,
                 overlay: undefined,
             },
             { replace: true },
         );
-    });
-
+    }, [canonicalStep, urlStep, route, navigation]);
     // Load the data each step needs on entry, once, without a manual refresh.
-    createEffect(() => {
-        const step = canonicalStep();
-        const snapshot = props.snapshot();
-        if (step === "sandbox-provider" && snapshot.providers.type === "unloaded")
-            props.state.setupProvidersReload();
+    useLayoutEffect(() => {
+        if (canonicalStep === "sandbox-provider" && snapshot.providers.type === "unloaded")
+            state.setupProvidersReload();
         if (
-            (step === "base-image" || step === "build-progress") &&
+            (canonicalStep === "base-image" || canonicalStep === "build-progress") &&
             snapshot.baseImages.type === "unloaded"
         )
-            props.state.setupBaseImagesReload();
-    });
-
+            state.setupBaseImagesReload();
+    }, [canonicalStep, snapshot.providers.type, snapshot.baseImages.type, state]);
     // Live build progress: SSE reconciles the surface, and a bounded poll while a
     // build is actually running covers long, quiet layers. It stops the moment the
     // build leaves the running state or the surface unmounts.
-    createEffect(() => {
+    useLayoutEffect(() => {
         const building =
-            canonicalStep() === "build-progress" &&
-            selectedImageStatus(props.snapshot()) === "building";
+            canonicalStep === "build-progress" &&
+            selectedImageStatus(props.snapshot) === "building";
         if (!building) return;
         const timer = setInterval(() => {
             props.state.setupBaseImagesReload();
             props.state.setupStatusReload();
         }, BUILD_POLL_MS);
-        onCleanup(() => clearInterval(timer));
-    });
-
+        return () => clearInterval(timer);
+    }, [canonicalStep, props.snapshot, props.state]);
     // Provider health is a fresh probe, so re-probe on a bounded poll while the
     // sandbox screen is visible. A user who follows the remediation and starts the
     // engine then sees the card clear without a manual refresh. The poll stops the
     // moment the step changes or the surface unmounts; SSE remains the durable
     // reconciliation path for every other setup change.
-    createEffect(() => {
-        if (canonicalStep() !== "sandbox-provider") return;
+    useLayoutEffect(() => {
+        if (canonicalStep !== "sandbox-provider") return;
         const timer = setInterval(() => props.state.setupProvidersReload(), PROVIDER_POLL_MS);
-        onCleanup(() => clearInterval(timer));
-    });
-
+        return () => clearInterval(timer);
+    }, [canonicalStep, props.state]);
     // The selected sandbox, explained on every later administrator step so the
     // choice stays visible after selection and across reload-resume. It is read
     // from the authoritative validated-step metadata (surviving reload with no
     // discovery loaded) and falls back to already-loaded discovery.
-    const providerNote = createMemo(() => {
-        const step = canonicalStep();
-        if (step !== "base-image" && step !== "build-progress" && step !== "completion")
+    const providerNote = (() => {
+        if (
+            canonicalStep !== "base-image" &&
+            canonicalStep !== "build-progress" &&
+            canonicalStep !== "completion"
+        )
             return undefined;
-        const provider = selectedProvider(props.snapshot());
+        const provider = selectedProvider(props.snapshot);
         if (!provider) return undefined;
         return provider.version
             ? `Agent code runs inside the ${provider.name} sandbox (version ${provider.version}).`
             : `Agent code runs inside the ${provider.name} sandbox.`;
-    });
-
-    const steps = createMemo<OnboardingStep[]>(() => {
-        const current = canonicalStep();
-        const currentIndex = SERVER_STAGES.findIndex((stage) => stage.step === current);
+    })();
+    const steps: OnboardingStep[] = (() => {
+        const currentIndex = SERVER_STAGES.findIndex((stage) => stage.step === canonicalStep);
         return SERVER_STAGES.map((stage, index) => ({
             label: stage.label,
             state:
@@ -200,10 +172,13 @@ function ServerOnboardingBody(props: {
                         ? "current"
                         : "upcoming",
         }));
-    });
-
-    const headline = (): { kicker: string; title: string; copy?: string } => {
-        switch (canonicalStep()) {
+    })();
+    const headline = (): {
+        kicker: string;
+        title: string;
+        copy?: string;
+    } => {
+        switch (canonicalStep) {
             case "sandbox-provider":
                 return {
                     kicker: "Server setup",
@@ -238,9 +213,7 @@ function ServerOnboardingBody(props: {
                 return { kicker: "Server setup", title: "Preparing setup" };
         }
     };
-
-    const loadingState = () => status().type !== "ready" || canonicalStep() === undefined;
-
+    const loadingState = status.type !== "ready" || canonicalStep === undefined;
     return (
         <OnboardingScreen
             backgroundUrl={onboardingBackgroundUrl}
@@ -249,14 +222,14 @@ function ServerOnboardingBody(props: {
             data-testid="server-onboarding"
             kicker={headline().kicker}
             loadingLabel="Loading server setup…"
-            state={loadingState() ? "loading" : "form"}
-            steps={canonicalStep() === "waiting" ? undefined : steps()}
+            state={loadingState ? "loading" : "form"}
+            steps={canonicalStep === "waiting" ? undefined : steps}
             title={headline().title}
-            width={canonicalStep() === "build-progress" ? "large" : "medium"}
+            width={canonicalStep === "build-progress" ? "large" : "medium"}
         >
-            <Show when={status().type === "error"}>
+            {status.type === "error" ? (
                 <Banner tone="danger" title="Could not load setup">
-                    {errorMessage(props.snapshot(), "status")}
+                    {errorMessage(props.snapshot, "status")}
                     <Button
                         onClick={() => props.state.setupStatusReload()}
                         size="small"
@@ -265,174 +238,168 @@ function ServerOnboardingBody(props: {
                         Try again
                     </Button>
                 </Banner>
-            </Show>
-            <Show when={providerNote()}>
-                {(note) => (
-                    <Banner data-testid="provider-note" icon="shield" tone="info">
-                        {note()}
-                    </Banner>
-                )}
-            </Show>
+            ) : null}
+            {providerNote
+                ? ((note) => (
+                      <Banner data-testid="provider-note" icon="shield" tone="info">
+                          {note}
+                      </Banner>
+                  ))(providerNote)
+                : null}
             <Switchboard
                 snapshot={props.snapshot}
                 state={props.state}
-                step={canonicalStep()}
+                step={canonicalStep}
                 store={props.store}
             />
         </OnboardingScreen>
     );
 }
-
 function Switchboard(props: {
-    snapshot: Accessor<SetupSnapshot>;
+    snapshot: SetupSnapshot;
     state: HappyState;
     step: DesktopOnboardingStep | undefined;
     store: SetupStore;
-}): JSX.Element {
+}): ReactNode {
     return (
-        <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
-            <Show when={props.step === "sandbox-provider"}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {props.step === "sandbox-provider" ? (
                 <SandboxProviderStep snapshot={props.snapshot} store={props.store} />
-            </Show>
-            <Show when={props.step === "base-image"}>
+            ) : null}
+            {props.step === "base-image" ? (
                 <BaseImageStep snapshot={props.snapshot} store={props.store} />
-            </Show>
-            <Show when={props.step === "build-progress"}>
+            ) : null}
+            {props.step === "build-progress" ? (
                 <BuildStep snapshot={props.snapshot} store={props.store} />
-            </Show>
-            <Show when={props.step === "completion"}>
+            ) : null}
+            {props.step === "completion" ? (
                 <RegistrationStep snapshot={props.snapshot} store={props.store} />
-            </Show>
-            <Show when={props.step === "waiting"}>
+            ) : null}
+            {props.step === "waiting" ? (
                 <Banner tone="info" title="Waiting for the administrator">
                     You will enter the workspace automatically once server setup is complete.
                 </Banner>
-            </Show>
+            ) : null}
         </div>
     );
 }
-
-function SandboxProviderStep(props: { snapshot: Accessor<SetupSnapshot>; store: SetupStore }) {
-    const providers = () => props.snapshot().providers;
+function SandboxProviderStep(props: { snapshot: SetupSnapshot; store: SetupStore }) {
+    const providers = props.snapshot.providers;
+    const discovery = providers.type === "ready" ? providers.value : undefined;
     return (
         <>
-            <Show when={actionErrorFor(props.snapshot(), "sandboxProvider")}>
-                {(message) => (
-                    <Banner tone="danger" title="Provider unavailable">
-                        {message()}
-                    </Banner>
-                )}
-            </Show>
-            <Show when={providers().type === "ready" && providers()} keyed>
-                {(loaded) => {
-                    const discovery = loaded.type === "ready" ? loaded.value : undefined;
-                    return (
-                        <For each={discovery?.providers ?? []}>
-                            {(provider: SandboxProviderStatus) => (
-                                <SetupOptionCard
-                                    description={provider.detail}
-                                    disabled={provider.health !== "healthy"}
-                                    hint={provider.remediation}
-                                    hintTone="warning"
-                                    icon="terminal"
-                                    meta={
-                                        provider.version ? `Version ${provider.version}` : undefined
-                                    }
-                                    onSelect={() => props.store.sandboxProviderSelect(provider.id)}
-                                    pending={
-                                        props.snapshot().pending.selectingProviderId === provider.id
-                                    }
-                                    recommended={discovery?.recommendedProviderId === provider.id}
-                                    selected={discovery?.selectedProviderId === provider.id}
-                                    status={healthStatus(provider.health)}
-                                    title={provider.displayName}
-                                />
-                            )}
-                        </For>
-                    );
-                }}
-            </Show>
+            {actionErrorFor(props.snapshot, "sandboxProvider")
+                ? ((message) => (
+                      <Banner tone="danger" title="Provider unavailable">
+                          {message}
+                      </Banner>
+                  ))(actionErrorFor(props.snapshot, "sandboxProvider"))
+                : null}
+            {discovery
+                ? discovery.providers.map((provider: SandboxProviderStatus) => (
+                      <SetupOptionCard
+                          key={provider.id}
+                          description={provider.detail}
+                          disabled={provider.health !== "healthy"}
+                          hint={provider.remediation}
+                          hintTone="warning"
+                          icon="terminal"
+                          meta={provider.version ? `Version ${provider.version}` : undefined}
+                          onSelect={() => props.store.getState().sandboxProviderSelect(provider.id)}
+                          pending={props.snapshot.pending.selectingProviderId === provider.id}
+                          recommended={discovery?.recommendedProviderId === provider.id}
+                          selected={discovery?.selectedProviderId === provider.id}
+                          status={healthStatus(provider.health)}
+                          title={provider.displayName}
+                      />
+                  ))
+                : null}
         </>
     );
 }
-
-function BaseImageStep(props: { snapshot: Accessor<SetupSnapshot>; store: SetupStore }) {
-    const baseImages = () => props.snapshot().baseImages;
+function BaseImageStep(props: { snapshot: SetupSnapshot; store: SetupStore }) {
+    const baseImages = props.snapshot.baseImages;
+    const imageView = baseImages.type === "ready" ? baseImages.value : undefined;
     // The custom-image draft lives in stable local signals owned by this step, so
     // it survives every background base-image reload (which replaces the loadable
     // reference and remounts the keyed built-in list) and every transient submit
     // failure. It is never derived from the changing snapshot.
-    const [showCustom, setShowCustom] = createSignal(false);
-    const [customName, setCustomName] = createSignal("");
-    const [customDockerfile, setCustomDockerfile] = createSignal("");
-    const [attempted, setAttempted] = createSignal(false);
-    const pending = () => props.snapshot().pending.selectingImage;
-    const nameError = () =>
-        attempted() && !customName().trim() ? "Enter an image name." : undefined;
+    const [draft, draftUpdate] = useReducer(
+        (
+            current: {
+                showCustom: boolean;
+                customName: string;
+                customDockerfile: string;
+                attempted: boolean;
+            },
+            patch: Partial<{
+                showCustom: boolean;
+                customName: string;
+                customDockerfile: string;
+                attempted: boolean;
+            }>,
+        ) => ({ ...current, ...patch }),
+        { showCustom: false, customName: "", customDockerfile: "", attempted: false },
+    );
+    const { showCustom, customName, customDockerfile, attempted } = draft;
+    const pending = () => props.snapshot.pending.selectingImage;
+    const nameError = () => (attempted && !customName.trim() ? "Enter an image name." : undefined);
     const dockerfileError = () =>
-        attempted() && !customDockerfile().trim() ? "Enter the Dockerfile contents." : undefined;
+        attempted && !customDockerfile.trim() ? "Enter the Dockerfile contents." : undefined;
     const submitCustom = () => {
-        setAttempted(true);
-        if (!customName().trim() || !customDockerfile().trim()) return;
-        props.store.baseImageSelect({
-            custom: { name: customName().trim(), dockerfile: customDockerfile() },
+        draftUpdate({ attempted: true });
+        if (!customName.trim() || !customDockerfile.trim()) return;
+        props.store.getState().baseImageSelect({
+            custom: { name: customName.trim(), dockerfile: customDockerfile },
         });
     };
     return (
         <>
-            <Show when={actionErrorFor(props.snapshot(), "baseImageSelect")}>
-                {(message) => (
-                    <Banner tone="danger" title="Could not start the build">
-                        {message()}
-                    </Banner>
-                )}
-            </Show>
-            <Show when={baseImages().type === "ready" && baseImages()} keyed>
-                {(loaded) => {
-                    const view = loaded.type === "ready" ? loaded.value : undefined;
-                    return (
-                        <For each={view?.images ?? []}>
-                            {(image: SetupBaseImageSummary) => (
-                                <SetupOptionCard
-                                    description={
-                                        image.builtinKey
-                                            ? builtinDescription(image.builtinKey)
-                                            : undefined
-                                    }
-                                    icon="image"
-                                    meta={image.buildLabel}
-                                    onSelect={() =>
-                                        image.builtinKey
-                                            ? props.store.baseImageSelect({
-                                                  builtinKey: image.builtinKey,
-                                              })
-                                            : undefined
-                                    }
-                                    pending={pending()}
-                                    selected={view?.selectedImageId === image.id}
-                                    title={image.name}
-                                />
-                            )}
-                        </For>
-                    );
-                }}
-            </Show>
+            {actionErrorFor(props.snapshot, "baseImageSelect")
+                ? ((message) => (
+                      <Banner tone="danger" title="Could not start the build">
+                          {message}
+                      </Banner>
+                  ))(actionErrorFor(props.snapshot, "baseImageSelect"))
+                : null}
+            {imageView
+                ? imageView.images.map((image: SetupBaseImageSummary) => (
+                      <SetupOptionCard
+                          key={image.id}
+                          description={
+                              image.builtinKey ? builtinDescription(image.builtinKey) : undefined
+                          }
+                          icon="image"
+                          meta={image.buildLabel}
+                          onSelect={() =>
+                              image.builtinKey
+                                  ? props.store.getState().baseImageSelect({
+                                        builtinKey: image.builtinKey,
+                                    })
+                                  : undefined
+                          }
+                          pending={pending()}
+                          selected={imageView.selectedImageId === image.id}
+                          title={image.name}
+                      />
+                  ))
+                : null}
             <SetupOptionCard
                 data-testid="custom-image-option"
                 description="Build a sandbox from your own Dockerfile."
                 icon="code"
                 meta="Build"
-                onSelect={() => setShowCustom((open) => !open)}
-                selected={showCustom()}
+                onSelect={() => draftUpdate({ showCustom: !showCustom })}
+                selected={showCustom}
                 title="Custom Dockerfile"
             />
-            <Show when={showCustom()}>
+            {showCustom ? (
                 <form
                     onSubmit={(event) => {
                         event.preventDefault();
                         submitCustom();
                     }}
-                    style={{ display: "flex", "flex-direction": "column", gap: "12px" }}
+                    style={{ display: "flex", flexDirection: "column", gap: "12px" }}
                 >
                     <TextField
                         disabled={pending()}
@@ -440,9 +407,9 @@ function BaseImageStep(props: { snapshot: Accessor<SetupSnapshot>; store: SetupS
                         fullWidth
                         label="Image name"
                         name="custom-image-name"
-                        onValueChange={setCustomName}
+                        onValueChange={(value) => draftUpdate({ customName: value })}
                         required
-                        value={customName()}
+                        value={customName}
                     />
                     <TextField
                         disabled={pending()}
@@ -451,105 +418,98 @@ function BaseImageStep(props: { snapshot: Accessor<SetupSnapshot>; store: SetupS
                         label="Dockerfile"
                         multiline
                         name="custom-image-dockerfile"
-                        onValueChange={setCustomDockerfile}
+                        onValueChange={(value) => draftUpdate({ customDockerfile: value })}
                         required
                         rows={6}
-                        value={customDockerfile()}
+                        value={customDockerfile}
                     />
                     <Button disabled={pending()} fullWidth type="submit">
                         {pending() ? "Starting build…" : "Build custom image"}
                     </Button>
                 </form>
-            </Show>
+            ) : null}
         </>
     );
 }
-
-function BuildStep(props: { snapshot: Accessor<SetupSnapshot>; store: SetupStore }) {
+function BuildStep(props: { snapshot: SetupSnapshot; store: SetupStore }) {
     const image = () => {
-        const view = props.snapshot().baseImages;
+        const view = props.snapshot.baseImages;
         return view.type === "ready" ? view.value.selectedImage : undefined;
     };
-    return (
-        <Show
-            when={image()}
-            fallback={
-                <Banner tone="info" title="Preparing the build">
-                    Fetching the selected image status.
-                </Banner>
-            }
-        >
-            {(selected) => (
-                <>
-                    <Show when={actionErrorFor(props.snapshot(), "baseImageRetry")}>
-                        {(message) => (
-                            <Banner tone="danger" title="Retry failed">
-                                {message()}
-                            </Banner>
-                        )}
-                    </Show>
-                    <BuildProgressPanel
-                        currentLogLine={selected().lastBuildLogLine}
-                        error={selected().lastError}
-                        log={selected().buildLog}
-                        logTruncated={selected().buildLogTruncated}
-                        onRetry={() => props.store.baseImageBuildRetry()}
-                        progress={selected().buildProgress}
-                        retrying={props.snapshot().pending.retryingBuild}
-                        status={selected().status}
-                        statusLabel={buildStatusLabel(
-                            selected().status,
-                            selected().lastBuildLogLine,
-                        )}
-                        title={selected().name}
-                    />
-                </>
-            )}
-        </Show>
+    return image() ? (
+        ((selected) => (
+            <>
+                {actionErrorFor(props.snapshot, "baseImageRetry")
+                    ? ((message) => (
+                          <Banner tone="danger" title="Retry failed">
+                              {message}
+                          </Banner>
+                      ))(actionErrorFor(props.snapshot, "baseImageRetry"))
+                    : null}
+                <BuildProgressPanel
+                    currentLogLine={selected.lastBuildLogLine}
+                    error={selected.lastError}
+                    log={selected.buildLog}
+                    logTruncated={selected.buildLogTruncated}
+                    onRetry={() => props.store.getState().baseImageBuildRetry()}
+                    progress={selected.buildProgress}
+                    retrying={props.snapshot.pending.retryingBuild}
+                    status={selected.status}
+                    statusLabel={buildStatusLabel(selected.status, selected.lastBuildLogLine)}
+                    title={selected.name}
+                />
+            </>
+        ))(image()!)
+    ) : (
+        <Banner tone="info" title="Preparing the build">
+            Fetching the selected image status.
+        </Banner>
     );
 }
-
-function RegistrationStep(props: { snapshot: Accessor<SetupSnapshot>; store: SetupStore }) {
-    const choosing = () => props.snapshot().pending.choosingPolicy;
+function RegistrationStep(props: { snapshot: SetupSnapshot; store: SetupStore }) {
+    const choosing = () => props.snapshot.pending.choosingPolicy;
     return (
         <>
-            <Show when={actionErrorFor(props.snapshot(), "policy")}>
-                {(message) => (
-                    <Banner tone="danger" title="Could not finish setup">
-                        {message()}
-                    </Banner>
-                )}
-            </Show>
+            {actionErrorFor(props.snapshot, "policy")
+                ? ((message) => (
+                      <Banner tone="danger" title="Could not finish setup">
+                          {message}
+                      </Banner>
+                  ))(actionErrorFor(props.snapshot, "policy"))
+                : null}
             <SetupOptionCard
                 description="Anyone who reaches the server can create an account."
                 icon="users"
-                onSelect={() => props.store.registrationPolicyChoose(true)}
+                onSelect={() => props.store.getState().registrationPolicyChoose(true)}
                 pending={choosing() === true}
                 title="Open registration"
             />
             <SetupOptionCard
                 description="Only you can sign in until you open registration later."
                 icon="shield"
-                onSelect={() => props.store.registrationPolicyChoose(false)}
+                onSelect={() => props.store.getState().registrationPolicyChoose(false)}
                 pending={choosing() === false}
                 title="Keep registration closed"
             />
         </>
     );
 }
-
 function selectedImageStatus(snapshot: SetupSnapshot): string | undefined {
     const view = snapshot.baseImages;
     return view.type === "ready" ? view.value.selectedImage?.status : undefined;
 }
-
 /**
  * The durably selected sandbox provider. The validated step's metadata is the
  * authoritative source (`providerId`/`version`, surviving reload with no
  * discovery loaded); an already-loaded discovery supplies the friendlier display
  * name and fills in when only the earlier selected step is recorded.
  */
-function selectedProvider(snapshot: SetupSnapshot): { name: string; version?: string } | undefined {
+function selectedProvider(snapshot: SetupSnapshot):
+    | {
+          name: string;
+          version?: string;
+      }
+    | undefined {
     let providerId: string | undefined;
     let version: string | undefined;
     if (snapshot.status.type === "ready") {
@@ -568,11 +528,9 @@ function selectedProvider(snapshot: SetupSnapshot): { name: string; version?: st
         version: version ?? known?.version,
     };
 }
-
 function capitalize(value: string): string {
     return value.length > 0 ? value[0]!.toUpperCase() + value.slice(1) : value;
 }
-
 function healthStatus(health: SandboxProviderStatus["health"]) {
     switch (health) {
         case "healthy":
@@ -585,13 +543,11 @@ function healthStatus(health: SandboxProviderStatus["health"]) {
             return { label: "TIMED OUT", variant: "danger" as const };
     }
 }
-
 function builtinDescription(key: "daycare-full" | "daycare-minimal"): string {
     return key === "daycare-minimal"
         ? "A lean sandbox with the core agent toolchain."
         : "A complete sandbox with the full Daycare toolchain.";
 }
-
 function buildStatusLabel(status: string, logLine?: string): string {
     switch (status) {
         case "pending":
@@ -606,14 +562,12 @@ function buildStatusLabel(status: string, logLine?: string): string {
             return "Building the image";
     }
 }
-
 function actionErrorFor(
     snapshot: SetupSnapshot,
     action: SetupSnapshot["actionErrorFor"],
 ): string | undefined {
     return snapshot.actionErrorFor === action ? snapshot.actionError?.message : undefined;
 }
-
 function errorMessage(snapshot: SetupSnapshot, resource: "status"): string {
     const loadable = snapshot[resource];
     return loadable.type === "error" ? loadable.error.message : "Something went wrong.";

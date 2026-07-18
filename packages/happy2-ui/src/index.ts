@@ -276,6 +276,7 @@ export { AgentImagesPage, type AgentImagesPageProps } from "./pages/admin/AgentI
 export { AgentSecretsPage, type AgentSecretsPageProps } from "./pages/admin/AgentSecretsPage";
 export { AdminPage, type AdminPageProps, type AdminPageSection } from "./pages/admin/AdminPage";
 export { ActivityPage, type ActivityPageProps } from "./pages/activity/ActivityPage";
+export { ProfilePage, type ProfilePageProps } from "./pages/profile/ProfilePage";
 export { CallsPage, type CallsPageProps } from "./pages/calls/CallsPage";
 export { HomePage, type HomePageProps } from "./pages/home/HomePage";
 export { ThreadsPage, type ThreadsPageProps } from "./pages/threads/ThreadsPage";

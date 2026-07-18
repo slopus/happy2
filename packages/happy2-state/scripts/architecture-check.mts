@@ -5,6 +5,18 @@ const root = new URL("../src/", import.meta.url).pathname;
 const files = walk(root).filter((path) => path.endsWith(".ts"));
 const failures: string[] = [];
 
+for (const directory of readdirSync(join(root, "modules"))) {
+    const moduleDirectory = join(root, "modules", directory);
+    if (!statSync(moduleDirectory).isDirectory()) continue;
+    const implementationFiles = readdirSync(moduleDirectory).filter(
+        (entry) => entry.endsWith(".ts") && entry !== "module.test.ts",
+    );
+    if (implementationFiles.length !== 1 || !implementationFiles[0]!.endsWith("State.ts"))
+        failures.push(
+            `modules/${directory}: domain implementation must be one *State.ts file (found ${implementationFiles.join(", ") || "none"})`,
+        );
+}
+
 for (const file of files) {
     const source = readFileSync(file, "utf8");
     const name = relative(root, file);

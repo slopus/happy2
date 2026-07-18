@@ -22,7 +22,7 @@ export function SelectPage() {
             summary="Styled native single-select — three contract heights, placeholder / selected / error / disabled states, and truncating long options with a tuned chevron."
             title="Select"
         >
-            <div class="specimen-grid specimen-grid--sizes">
+            <div className="specimen-grid specimen-grid--sizes">
                 <Specimen
                     detail="28px high · 12px value"
                     label="Small"
@@ -58,7 +58,7 @@ export function SelectPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="label · placeholder · selected · hint"
                     label="Labeled states"
@@ -68,7 +68,7 @@ export function SelectPage() {
                     <div
                         style={{
                             display: "flex",
-                            "align-items": "flex-start",
+                            alignItems: "flex-start",
                             gap: "28px",
                             padding: "28px",
                         }}
@@ -91,7 +91,7 @@ export function SelectPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="error message · disabled"
                     label="Validation and disabled"
@@ -101,7 +101,7 @@ export function SelectPage() {
                     <div
                         style={{
                             display: "flex",
-                            "align-items": "flex-start",
+                            alignItems: "flex-start",
                             gap: "28px",
                             padding: "28px",
                         }}
@@ -124,7 +124,7 @@ export function SelectPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="fullWidth · long option truncates with an ellipsis"
                     label="Full width and truncation"

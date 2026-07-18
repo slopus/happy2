@@ -1,25 +1,23 @@
-import { createSignal, type JSX } from "solid-js";
+import { useState, type CSSProperties } from "react";
 import { Button } from "../../src/Button";
 import { Icon } from "../../src/Icon";
 import { SearchField, TitleBar, WindowDragRegion } from "../../src/TitleBar";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-
 const column: Record<string, string> = {
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     gap: "14px",
 };
-
 function Crumb() {
     return (
         <span
             style={{
-                "align-items": "center",
+                alignItems: "center",
                 color: "var(--happy2-text-secondary)",
                 display: "inline-flex",
                 font: "700 13px var(--happy2-font-ui)",
                 gap: "6px",
-                "white-space": "nowrap",
+                whiteSpace: "nowrap",
             }}
         >
             Acme Studio
@@ -27,7 +25,6 @@ function Crumb() {
         </span>
     );
 }
-
 function TrailingActions() {
     return (
         <>
@@ -36,12 +33,11 @@ function TrailingActions() {
         </>
     );
 }
-
 /** Fixture-only stand-in for the native macOS traffic lights. */
 function TrafficLights() {
-    const dot = (background: string): JSX.CSSProperties => ({
+    const dot = (background: string): CSSProperties => ({
         background,
-        "border-radius": "50%",
+        borderRadius: "50%",
         height: "14px",
         width: "14px",
     });
@@ -62,10 +58,8 @@ function TrafficLights() {
         </span>
     );
 }
-
 export function TitleBarPage() {
-    const [value, setValue] = createSignal("");
-
+    const [value, setValue] = useState("");
     return (
         <ComponentPage
             number="C-007"
@@ -84,7 +78,7 @@ export function TitleBarPage() {
                             leading={<Crumb />}
                             onSearchChange={setValue}
                             searchPlaceholder="Search messages, issues, runs…"
-                            searchValue={value()}
+                            searchValue={value}
                             trailing={<TrailingActions />}
                         />
                     </div>
@@ -109,7 +103,7 @@ export function TitleBarPage() {
                         <TitleBar
                             onSearchChange={setValue}
                             searchPlaceholder="Search Acme Studio"
-                            searchValue={value()}
+                            searchValue={value}
                             showWindowControls
                             trailing={<TrailingActions />}
                         />
@@ -148,7 +142,7 @@ export function TitleBarPage() {
                     <TitleBar
                         leading={<Crumb />}
                         onSearchChange={setValue}
-                        searchValue={value()}
+                        searchValue={value}
                         trailing={
                             <Button
                                 aria-label="Settings"
@@ -172,7 +166,7 @@ export function TitleBarPage() {
                     <SearchField
                         onChange={setValue}
                         placeholder="Search messages, issues, runs…"
-                        value={value()}
+                        value={value}
                         width={420}
                     />
                     <SearchField
@@ -195,7 +189,7 @@ export function TitleBarPage() {
                         onChange={setValue}
                         placeholder="Jump to…"
                         shortcutHint="⇧⌘P"
-                        value={value()}
+                        value={value}
                     />
                     <DimensionRule label="280 px container → 280 px field" />
                 </div>
@@ -210,7 +204,7 @@ export function TitleBarPage() {
                 <SearchField
                     onChange={setValue}
                     placeholder="Click to focus"
-                    value={value()}
+                    value={value}
                     width={420}
                 />
             </Specimen>
@@ -230,7 +224,7 @@ export function TitleBarPage() {
                     <SearchField
                         onChange={setValue}
                         placeholder="Search every message, issue, agent run, and document…"
-                        value={value()}
+                        value={value}
                         width={200}
                     />
                     <DimensionRule label="200 × 26 px" />

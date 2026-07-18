@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { FileSummary } from "../../types.js";
 import { createFakeServer, jsonResponse } from "../../testing/index.js";
 import type { ClientTransport, HttpRequest, HttpResponse } from "../../transport.js";
-import { StateRuntime } from "../runtime/stateRuntime.js";
-import { filesLoad } from "./filesLoad.js";
-import { fileUpload } from "./fileUpload.js";
-import { filesStoreCreateBinding } from "./filesStore.js";
+import { StateRuntime } from "../runtime/runtimeState.js";
+import { filesLoad } from "./filesState.js";
+import { fileUpload } from "./filesState.js";
+import { filesStoreCreate } from "./filesState.js";
 
 describe("files module", () => {
     it("uploads an attachment through the typed file action", async () => {
@@ -37,16 +37,16 @@ describe("files module", () => {
 
     it("pages only with a cursor, deduplicates replacements, and preserves rows on page failure", async () => {
         const output = vi.fn();
-        const files = filesStoreCreateBinding(output);
-        files.store.filesMore();
+        const files = filesStoreCreate(output);
+        files.getState().filesMore();
         expect(output).not.toHaveBeenCalled();
-        files.filesInput({
+        files.getState().filesInput({
             type: "filesLoaded",
             files: [file("file-1", "old")],
             nextCursor: "cursor",
             append: false,
         });
-        files.store.filesMore();
+        files.getState().filesMore();
         expect(output).toHaveBeenCalledWith({ type: "filesMoreRequested" });
 
         const server = createFakeServer();
@@ -57,21 +57,22 @@ describe("files module", () => {
         );
         const runtime = new StateRuntime({ transport: server.transport });
         await filesLoad({ runtime, files }, true);
-        expect(files.store.get().files.map(({ originalName }) => originalName)).toEqual([
+        expect(files.getState().files.map(({ originalName }) => originalName)).toEqual([
             "new",
             "two",
         ]);
-        files.filesInput({ type: "filesLoaded", files: [], nextCursor: "next", append: false });
+        files
+            .getState()
+            .filesInput({ type: "filesLoaded", files: [], nextCursor: "next", append: false });
         server.respond(
             "GET",
             "/v0/files?before=next&limit=60",
             jsonResponse(500, { error: "bad" }),
         );
         await filesLoad({ runtime, files }, true);
-        expect(files.store.get()).toMatchObject({ status: { type: "ready" }, files: [] });
-        expect(files.store.get().pageError?.message).toBeTruthy();
+        expect(files.getState()).toMatchObject({ status: { type: "ready" }, files: [] });
+        expect(files.getState().pageError?.message).toBeTruthy();
         runtime.stop();
-        files.dispose();
     });
 });
 

@@ -1,9 +1,8 @@
-import { For, Show, type JSX } from "solid-js";
+import { type CSSProperties } from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { Badge, type BadgeVariant } from "./Badge";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
-
 export type CallStatus = "ringing" | "active" | "ended";
 export type CallKind = "audio" | "video";
 export type CallVariant = "panel" | "incoming";
@@ -24,11 +23,10 @@ export type CallParticipant = {
     muted?: boolean;
     speaking?: boolean;
 };
-
 export type CallPanelProps = {
-    class?: string;
+    className?: string;
     "data-testid"?: string;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     status: CallStatus;
     kind: CallKind;
     participants: CallParticipant[];
@@ -42,15 +40,19 @@ export type CallPanelProps = {
     onDecline?: () => void;
     variant?: CallVariant;
 };
-
 /* Each call status wears a distinct, already-tuned Badge variant so the pill
  * reads the connection state at a glance. */
-const statusMeta: Record<CallStatus, { label: string; variant: BadgeVariant }> = {
+const statusMeta: Record<
+    CallStatus,
+    {
+        label: string;
+        variant: BadgeVariant;
+    }
+> = {
     ringing: { label: "Ringing", variant: "info" },
     active: { label: "In call", variant: "success" },
     ended: { label: "Ended", variant: "neutral" },
 };
-
 const participantStateLabel: Record<CallParticipantState, string> = {
     invited: "Invited",
     ringing: "Ringing",
@@ -59,39 +61,37 @@ const participantStateLabel: Record<CallParticipantState, string> = {
     left: "Left",
     missed: "Missed",
 };
-
 /** Avatar with the optional speaking ring and muted chip, shared by the tile
  * grid and the incoming caller row. */
 function CallAvatar(props: { participant: CallParticipant; dataId: string }) {
     const participant = () => props.participant;
     return (
-        <span class="happy2-call-panel__avatar" data-happy2-ui={props.dataId}>
+        <span className="happy2-call-panel__avatar" data-happy2-ui={props.dataId}>
             <Avatar
                 initials={participant().initials}
                 imageUrl={participant().imageUrl}
                 size="lg"
                 tone={participant().tone}
             />
-            <Show when={participant().speaking}>
+            {participant().speaking ? (
                 <span
                     aria-hidden="true"
-                    class="happy2-call-panel__ring"
+                    className="happy2-call-panel__ring"
                     data-happy2-ui="call-panel-ring"
                 />
-            </Show>
-            <Show when={participant().muted}>
+            ) : null}
+            {participant().muted ? (
                 <span
                     aria-hidden="true"
-                    class="happy2-call-panel__mute"
+                    className="happy2-call-panel__mute"
                     data-happy2-ui="call-panel-mute"
                 >
                     <Icon name="mic" size={12} />
                 </span>
-            </Show>
+            ) : null}
         </span>
     );
 }
-
 /**
  * C-040 CallPanel — the in-call surface and its compact incoming variant.
  *
@@ -105,10 +105,9 @@ export function CallPanel(props: CallPanelProps) {
     const status = () => statusMeta[props.status];
     const showControls = () => variant() === "incoming" || props.status !== "ended";
     const caller = () => props.participants[0];
-
     return (
         <section
-            class={["happy2-call-panel", props.class].filter(Boolean).join(" ")}
+            className={["happy2-call-panel", props.className].filter(Boolean).join(" ")}
             data-kind={props.kind}
             data-happy2-ui="call-panel"
             data-status={props.status}
@@ -116,114 +115,23 @@ export function CallPanel(props: CallPanelProps) {
             data-variant={variant()}
             style={props.style}
         >
-            <Show
-                when={variant() === "incoming"}
-                fallback={
-                    <>
-                        <header
-                            class="happy2-call-panel__status"
-                            data-happy2-ui="call-panel-status"
-                        >
-                            <Badge label={status().label} variant={status().variant} />
-                            <Show when={props.durationLabel}>
-                                <span
-                                    class="happy2-call-panel__duration"
-                                    data-happy2-ui="call-panel-duration"
-                                >
-                                    {props.durationLabel}
-                                </span>
-                            </Show>
-                        </header>
-                        <div
-                            class="happy2-call-panel__tiles"
-                            data-count={props.participants.length}
-                            data-happy2-ui="call-panel-tiles"
-                        >
-                            <For each={props.participants}>
-                                {(participant) => (
-                                    <div
-                                        class="happy2-call-panel__tile"
-                                        data-participant-id={participant.id}
-                                        data-happy2-ui="call-panel-tile"
-                                        data-speaking={participant.speaking ? "" : undefined}
-                                        data-state={participant.state}
-                                    >
-                                        <CallAvatar
-                                            dataId="call-panel-tile-avatar"
-                                            participant={participant}
-                                        />
-                                        <span
-                                            class="happy2-call-panel__tile-name"
-                                            data-happy2-ui="call-panel-tile-name"
-                                        >
-                                            {participant.name}
-                                        </span>
-                                        <span
-                                            class="happy2-call-panel__tile-state"
-                                            data-happy2-ui="call-panel-tile-state"
-                                        >
-                                            {participantStateLabel[participant.state]}
-                                        </span>
-                                    </div>
-                                )}
-                            </For>
-                        </div>
-                        <Show when={showControls()}>
-                            <footer
-                                class="happy2-call-panel__controls"
-                                data-happy2-ui="call-panel-controls"
-                            >
-                                <Button
-                                    aria-label={props.muted ? "Unmute" : "Mute"}
-                                    data-action="mute"
-                                    icon="mic"
-                                    iconOnly
-                                    onClick={() => props.onToggleMute?.()}
-                                    size="medium"
-                                    variant={props.muted ? "danger" : "secondary"}
-                                />
-                                <Show when={props.kind === "video"}>
-                                    <Button
-                                        aria-label={
-                                            props.videoOn ? "Turn camera off" : "Turn camera on"
-                                        }
-                                        data-action="video"
-                                        icon="eye"
-                                        iconOnly
-                                        onClick={() => props.onToggleVideo?.()}
-                                        size="medium"
-                                        variant={props.videoOn ? "secondary" : "danger"}
-                                    />
-                                </Show>
-                                <Button
-                                    data-action="leave"
-                                    onClick={() => props.onLeave?.()}
-                                    size="medium"
-                                    variant="danger"
-                                >
-                                    Leave
-                                </Button>
-                            </footer>
-                        </Show>
-                    </>
-                }
-            >
-                <Show when={caller()}>
-                    {(person) => (
+            {variant() === "incoming" ? (
+                caller() ? (
+                    ((person) => (
                         <>
-                            <CallAvatar dataId="call-panel-caller-avatar" participant={person()} />
+                            <CallAvatar dataId="call-panel-caller-avatar" participant={person} />
                             <div
-                                class="happy2-call-panel__caller"
+                                className="happy2-call-panel__caller"
                                 data-happy2-ui="call-panel-caller"
                             >
                                 <span
-                                    class="happy2-call-panel__caller-name"
+                                    className="happy2-call-panel__caller-name"
                                     data-happy2-ui="call-panel-caller-name"
                                 >
-                                    {person().name}
+                                    {person.name}
                                 </span>
                                 <span
-                                    class="happy2-call-panel__caller-sub"
+                                    className="happy2-call-panel__caller-sub"
                                     data-happy2-ui="call-panel-caller-sub"
                                 >
                                     {props.kind === "video"
@@ -232,7 +140,7 @@ export function CallPanel(props: CallPanelProps) {
                                 </span>
                             </div>
                             <footer
-                                class="happy2-call-panel__controls"
+                                className="happy2-call-panel__controls"
                                 data-happy2-ui="call-panel-controls"
                             >
                                 <Button
@@ -255,9 +163,96 @@ export function CallPanel(props: CallPanelProps) {
                                 />
                             </footer>
                         </>
-                    )}
-                </Show>
-            </Show>
+                    ))(caller())
+                ) : null
+            ) : (
+                <>
+                    <header
+                        className="happy2-call-panel__status"
+                        data-happy2-ui="call-panel-status"
+                    >
+                        <Badge label={status().label} variant={status().variant} />
+                        {props.durationLabel ? (
+                            <span
+                                className="happy2-call-panel__duration"
+                                data-happy2-ui="call-panel-duration"
+                            >
+                                {props.durationLabel}
+                            </span>
+                        ) : null}
+                    </header>
+                    <div
+                        className="happy2-call-panel__tiles"
+                        data-count={props.participants.length}
+                        data-happy2-ui="call-panel-tiles"
+                    >
+                        {props.participants.map((participant) => (
+                            <div
+                                className="happy2-call-panel__tile"
+                                key={participant.id}
+                                data-participant-id={participant.id}
+                                data-happy2-ui="call-panel-tile"
+                                data-speaking={participant.speaking ? "" : undefined}
+                                data-state={participant.state}
+                            >
+                                <CallAvatar
+                                    dataId="call-panel-tile-avatar"
+                                    participant={participant}
+                                />
+                                <span
+                                    className="happy2-call-panel__tile-name"
+                                    data-happy2-ui="call-panel-tile-name"
+                                >
+                                    {participant.name}
+                                </span>
+                                <span
+                                    className="happy2-call-panel__tile-state"
+                                    data-happy2-ui="call-panel-tile-state"
+                                >
+                                    {participantStateLabel[participant.state]}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                    {showControls() ? (
+                        <footer
+                            className="happy2-call-panel__controls"
+                            data-happy2-ui="call-panel-controls"
+                        >
+                            <Button
+                                aria-label={props.muted ? "Unmute" : "Mute"}
+                                data-action="mute"
+                                icon="mic"
+                                iconOnly
+                                onClick={() => props.onToggleMute?.()}
+                                size="medium"
+                                variant={props.muted ? "danger" : "secondary"}
+                            />
+                            {props.kind === "video" ? (
+                                <Button
+                                    aria-label={
+                                        props.videoOn ? "Turn camera off" : "Turn camera on"
+                                    }
+                                    data-action="video"
+                                    icon="eye"
+                                    iconOnly
+                                    onClick={() => props.onToggleVideo?.()}
+                                    size="medium"
+                                    variant={props.videoOn ? "secondary" : "danger"}
+                                />
+                            ) : null}
+                            <Button
+                                data-action="leave"
+                                onClick={() => props.onLeave?.()}
+                                size="medium"
+                                variant="danger"
+                            >
+                                Leave
+                            </Button>
+                        </footer>
+                    ) : null}
+                </>
+            )}
         </section>
     );
 }

@@ -3,12 +3,15 @@ import {
     agentImagesStoreFixtureCreate,
     agentSecretsStoreFixtureCreate,
     callsStoreFixtureCreate,
+    directoryStoreFixtureCreate,
     filesStoreFixtureCreate,
     notificationsStoreFixtureCreate,
     searchStoreFixtureCreate,
     threadsStoreFixtureCreate,
 } from "happy2-state/testing";
-import { expect, it, onTestFinished } from "vitest";
+import { UserError, type NotificationProjection } from "happy2-state";
+import { expect, it, onTestFinished, vi } from "vitest";
+import "../styles.css";
 import { createRenderer } from "../testing";
 import { ActivityPage } from "./activity/ActivityPage";
 import { AdminPage } from "./admin/AdminPage";
@@ -17,6 +20,7 @@ import { AgentSecretsPage } from "./admin/AgentSecretsPage";
 import { CallsPage } from "./calls/CallsPage";
 import { FilesPage } from "./files/FilesPage";
 import { HomePage } from "./home/HomePage";
+import { ProfilePage } from "./profile/ProfilePage";
 import { SearchPage } from "./search/SearchPage";
 import { ThreadsPage } from "./threads/ThreadsPage";
 
@@ -116,6 +120,97 @@ it("renders ActivityPage from NotificationsStore input", async () => {
     expect(view.container.textContent).toContain("Loading activity");
 });
 
+it("keeps ActivityPage row identity and focus while reconciling authoritative activity", async () => {
+    const outputs: string[] = [];
+    const selected: string[] = [];
+    const fixture = owned(notificationsStoreFixtureCreate((event) => outputs.push(event.type)));
+    const notifications = Array.from({ length: 120 }, (_, index) => notification(index));
+    fixture.input({
+        type: "notificationsLoaded",
+        notifications,
+        nextCursor: "next-page",
+    });
+    const view = createRenderer();
+    view.render(
+        () => (
+            <div style={{ display: "flex", height: "100%" }}>
+                <ActivityPage
+                    contextLabel={() => "Launch room"}
+                    onSelect={(item) => selected.push(item.id)}
+                    store={fixture.store}
+                />
+            </div>
+        ),
+        { width: 1024, height: 704 },
+    );
+    await view.ready();
+    const before = view.container.querySelector<HTMLButtonElement>('[data-item-id="notice-0"]')!;
+    before.focus();
+    expect(document.activeElement).toBe(before);
+
+    fixture.input({
+        type: "notificationsLoaded",
+        notifications: [{ ...notifications[0]!, kind: "reaction" }, ...notifications.slice(1)],
+        nextCursor: "next-page",
+    });
+    await vi.waitFor(() =>
+        expect(before.getAttribute("aria-label")).toContain("reacted to your message"),
+    );
+    expect(view.container.querySelector('[data-item-id="notice-0"]')).toBe(before);
+    expect(document.activeElement).toBe(before);
+    expect(before.getAttribute("aria-label")).toContain("Launch room");
+
+    before.click();
+    expect(outputs).toContain("notificationsReadSubmitted");
+    expect(selected).toEqual(["notice-0"]);
+});
+
+it("paginates ActivityPage once at the virtual-list end and surfaces terminal errors", async () => {
+    const outputs: string[] = [];
+    const fixture = owned(notificationsStoreFixtureCreate((event) => outputs.push(event.type)));
+    fixture.input({
+        type: "notificationsLoaded",
+        notifications: Array.from({ length: 120 }, (_, index) => notification(index)),
+        nextCursor: "next-page",
+    });
+    const view = createRenderer();
+    view.render(
+        () => (
+            <div style={{ display: "flex", height: "100%" }}>
+                <ActivityPage store={fixture.store} />
+            </div>
+        ),
+        { width: 1024, height: 704 },
+    );
+    await view.ready();
+    const list = view.container.querySelector<HTMLDivElement>(
+        '[data-happy2-ui="notification-list"]',
+    )!;
+    expect(list.hasAttribute("data-virtualized")).toBe(true);
+    expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
+    for (let index = 0; index < 3; index += 1) {
+        list.scrollTop = 1_000_000;
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    expect(list.scrollHeight - list.scrollTop - list.clientHeight).toBeLessThanOrEqual(128);
+    await vi.waitFor(() => expect(outputs).toEqual(["notificationsMoreRequested"]));
+    expect(fixture.store.getState().pageLoading).toBe(true);
+    expect(view.container.textContent).toContain("Loading more activity");
+
+    fixture.input({
+        type: "notificationsPageFailed",
+        error: new UserError("The next activity page failed."),
+    });
+    await vi.waitFor(() =>
+        expect(view.container.textContent).toContain("The next activity page failed."),
+    );
+    fixture.input({
+        type: "notificationsReadFailed",
+        error: new UserError("Read state failed."),
+    });
+    await vi.waitFor(() => expect(view.container.textContent).toContain("Read state failed."));
+});
+
 it("renders ThreadsPage from ThreadsStore input", async () => {
     const fixture = owned(threadsStoreFixtureCreate());
     fixture.input({ type: "threadsLoading" });
@@ -145,3 +240,45 @@ it("renders HomePage from the shared NotificationsStore", async () => {
     await view.ready();
     expect(view.container.textContent).toContain("Your day at a glance");
 });
+
+it("renders the route-addressable public profile from the live directory", async () => {
+    const fixture = owned(directoryStoreFixtureCreate());
+    fixture.input({
+        type: "directoryLoaded",
+        users: [
+            {
+                id: "user-2",
+                displayName: "Grace Hopper",
+                username: "grace",
+                kind: "human",
+                role: "admin",
+                presence: "online",
+                availability: "dnd",
+                customStatusEmoji: "🚢",
+                customStatusText: "Shipping compilers",
+            },
+        ],
+        channels: [],
+    });
+    const view = createRenderer();
+    view.render(() => <ProfilePage store={fixture.store} userId="user-2" />, {
+        width: 720,
+        height: 420,
+        padding: 24,
+    });
+    await view.ready();
+    expect(view.container.textContent).toContain("Grace Hopper");
+    expect(view.container.textContent).toContain("Shipping compilers");
+    expect(view.container.textContent).toContain("Administrator");
+    expect(view.container.textContent).toContain("Do not disturb");
+});
+
+function notification(index: number): NotificationProjection {
+    return {
+        id: `notice-${index}`,
+        kind: "mention",
+        chatId: "chat-1",
+        messageId: `message-${index}`,
+        createdAt: "2026-07-17T12:00:00.000Z",
+    };
+}

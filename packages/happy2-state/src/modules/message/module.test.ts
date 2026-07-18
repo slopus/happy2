@@ -1,23 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
-import type { StateRuntime } from "../runtime/stateRuntime.js";
-import { chatStoreCreateBinding } from "../chat/chatStore.js";
-import { composerStoreCreateBinding } from "../composer/composerStore.js";
-import { IdentityCatalog } from "../identity/identityCatalog.js";
+import type { StateRuntime } from "../runtime/runtimeState.js";
+import { chatStoreCreate } from "../chat/chatState.js";
+import { composerStoreCreate } from "../composer/composerState.js";
+import { IdentityCatalog } from "../identity/identityState.js";
 import { message } from "../../../tests/fixtures.js";
-import type { MessageActionContext } from "./messageActionContext.js";
-import { messageDelete } from "./messageDelete.js";
-import { messageEdit } from "./messageEdit.js";
-import { messagePin } from "./messagePin.js";
-import { messageSend } from "./messageSend.js";
-import { messageUnpin } from "./messageUnpin.js";
+import type { MessageActionContext } from "./messageState.js";
+import { messageDelete } from "./messageState.js";
+import { messageEdit } from "./messageState.js";
+import { messagePin } from "./messageState.js";
+import { messageSend } from "./messageState.js";
+import { messageUnpin } from "./messageState.js";
 
 describe("message module", () => {
     it("optimistically sends then confirms into already materialized chat/composer stores", async () => {
-        const chat = chatStoreCreateBinding("chat-1");
-        const composer = composerStoreCreateBinding("chat-1");
-        composer.store.textUpdate("hello");
-        composer.store.textSubmit();
-        const revision = composer.store.get().revision;
+        const chat = chatStoreCreate("chat-1");
+        const composer = composerStoreCreate("chat-1");
+        composer.getState().textUpdate("hello");
+        composer.getState().textSubmit();
+        const revision = composer.getState().revision;
         const pending: Promise<void>[] = [];
         const operation = vi.fn().mockResolvedValue({ message: message() });
         const runtime = {
@@ -35,13 +35,13 @@ describe("message module", () => {
             chatPinsReconcile: pins,
         };
         expect(messageSend(context, "chat-1", { text: "hello" }, revision)).toBeUndefined();
-        expect(chat.store.get().messages[0]).toMatchObject({
+        expect(chat.getState().messages[0]).toMatchObject({
             source: "local",
             delivery: "sending",
         });
         await Promise.all(pending);
-        expect(chat.store.get().messages[0]).toMatchObject({ source: "server", delivery: "sent" });
-        expect(composer.store.get().text).toBe("");
+        expect(chat.getState().messages[0]).toMatchObject({ source: "server", delivery: "sent" });
+        expect(composer.getState().text).toBe("");
         await messageEdit(context, "chat-1", "message-1", "edited", 1);
         await messageDelete(context, "chat-1", "message-1");
         await messagePin(context, "chat-1", "message-1");
@@ -54,12 +54,10 @@ describe("message module", () => {
             "pinMessage",
             "unpinMessage",
         ]);
-        chat.dispose();
-        composer.dispose();
     });
 
     it("keeps failed optimistic content and reports the displayable error", async () => {
-        const chat = chatStoreCreateBinding("chat-1");
+        const chat = chatStoreCreate("chat-1");
         const pending: Promise<void>[] = [];
         const context = {
             runtime: {
@@ -75,10 +73,9 @@ describe("message module", () => {
         } satisfies MessageActionContext;
         messageSend(context, "chat-1", { text: "retry me" });
         await Promise.all(pending);
-        expect(chat.store.get().messages[0]).toMatchObject({
+        expect(chat.getState().messages[0]).toMatchObject({
             delivery: "failed",
             error: { message: "offline" },
         });
-        chat.dispose();
     });
 });

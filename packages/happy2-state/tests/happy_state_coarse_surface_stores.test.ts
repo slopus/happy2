@@ -13,15 +13,18 @@ describe("HappyState coarse product surface stores", () => {
         let fileUpdates = 0;
         settings.subscribe(() => (settingsUpdates += 1));
         files.subscribe(() => (fileUpdates += 1));
-        expect(settings.displayNameUpdate("Grace", "Hopper")).toBeUndefined();
-        expect(settings.get().profile).toMatchObject({ firstName: "Grace", lastName: "Hopper" });
-        expect(settings.get().profileSave.type).toBe("dirty");
-        expect(settings.get().fields.displayName).toMatchObject({
+        expect(settings.getState().displayNameUpdate("Grace", "Hopper")).toBeUndefined();
+        expect(settings.getState().profile).toMatchObject({
+            firstName: "Grace",
+            lastName: "Hopper",
+        });
+        expect(settings.getState().profileSave.type).toBe("dirty");
+        expect(settings.getState().fields.displayName).toMatchObject({
             saved: { firstName: "Ada" },
             save: { type: "dirty" },
         });
-        settings.displayNameUpdate("Ada");
-        expect(settings.get().fields.displayName.save.type).toBe("clean");
+        settings.getState().displayNameUpdate("Ada");
+        expect(settings.getState().fields.displayName.save.type).toBe("clean");
         expect(settingsUpdates).toBe(2);
         expect(fileUpdates).toBe(0);
     });
@@ -35,10 +38,10 @@ describe("HappyState coarse product surface stores", () => {
         using state = happyStateCreate({ transport: server.transport });
         const admin = state.admin();
         await state.whenIdle();
-        expect(admin.get().users.type).toBe("error");
-        expect(admin.get().reports).toEqual({ type: "ready", value: [] });
-        expect(admin.get().automations).toEqual({ type: "ready", value: [] });
-        expect(admin.get().integrations).toEqual({ type: "ready", value: [] });
+        expect(admin.getState().users.type).toBe("error");
+        expect(admin.getState().reports).toEqual({ type: "ready", value: [] });
+        expect(admin.getState().automations).toEqual({ type: "ready", value: [] });
+        expect(admin.getState().integrations).toEqual({ type: "ready", value: [] });
     });
 
     it("flushes debounced settings work through whenIdle and confirms each submitted field", async () => {
@@ -74,9 +77,9 @@ describe("HappyState coarse product surface stores", () => {
         );
         using state = happyStateCreate({ transport: server.transport });
         const settings = state.settings({ profile: user });
-        settings.displayNameUpdate("Grace");
+        settings.getState().displayNameUpdate("Grace");
         await state.whenIdle();
-        expect(settings.get().fields.displayName).toEqual({
+        expect(settings.getState().fields.displayName).toEqual({
             saved: { firstName: "Grace" },
             save: { type: "clean" },
         });
@@ -108,12 +111,12 @@ describe("HappyState coarse product surface stores", () => {
         server.respond("GET", "/v0/files?limit=100", jsonResponse(200, { files: [] }));
         using state = happyStateCreate({ transport: server.transport });
         const search = state.search();
-        search.queryUpdate("first");
+        search.getState().queryUpdate("first");
         await firstRequestStarted;
-        search.queryUpdate("second");
+        search.getState().queryUpdate("second");
         releaseFirst();
         await state.whenIdle();
-        expect(search.get().query).toBe("second");
-        expect(search.get().nextCursor).toContain("q=second");
+        expect(search.getState().query).toBe("second");
+        expect(search.getState().nextCursor).toContain("q=second");
     });
 });

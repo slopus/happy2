@@ -1,3 +1,4 @@
+import { useLayoutEffect, useState, type ReactNode } from "react";
 import {
     adminStoreFixtureCreate,
     agentImagesStoreFixtureCreate,
@@ -8,7 +9,6 @@ import {
     searchStoreFixtureCreate,
     threadsStoreFixtureCreate,
 } from "happy2-state/testing";
-import { createSignal, onCleanup, type JSX } from "solid-js";
 import { ActivityPage } from "../../src/pages/activity/ActivityPage";
 import { AdminPage, type AdminPageSection } from "../../src/pages/admin/AdminPage";
 import { AgentImagesPage } from "../../src/pages/admin/AgentImagesPage";
@@ -19,7 +19,6 @@ import { HomePage } from "../../src/pages/home/HomePage";
 import { SearchPage } from "../../src/pages/search/SearchPage";
 import { ThreadsPage } from "../../src/pages/threads/ThreadsPage";
 import { ComponentPage, FullScreenSpecimen } from "../kit";
-
 export type ProductStorePageKind =
     | "home"
     | "activity"
@@ -30,36 +29,42 @@ export type ProductStorePageKind =
     | "admin"
     | "agent-images"
     | "agent-secrets";
-
 /** Routes one Full screens catalog entry to its isolated deterministic surface-store fixture. */
 export function ProductStorePage(props: { kind: ProductStorePageKind }) {
     switch (props.kind) {
         case "home":
-            return notificationsPage("P-003", "Home", (store) => (
-                <HomePage notificationsStore={store} />
-            ));
+            return (
+                <NotificationsPage
+                    number="P-003"
+                    title="Home"
+                    render={(store) => <HomePage notificationsStore={store} />}
+                />
+            );
         case "activity":
-            return notificationsPage("P-004", "Activity", (store) => (
-                <ActivityPage store={store} />
-            ));
+            return (
+                <NotificationsPage
+                    number="P-004"
+                    title="Activity"
+                    render={(store) => <ActivityPage store={store} />}
+                />
+            );
         case "threads":
-            return threadsPage();
+            return <ThreadsPageSpecimen />;
         case "calls":
-            return callsPage();
+            return <CallsPageSpecimen />;
         case "files":
-            return filesPage();
+            return <FilesPageSpecimen />;
         case "search":
-            return searchPage();
+            return <SearchPageSpecimen />;
         case "admin":
-            return adminPage();
+            return <AdminPageSpecimen />;
         case "agent-images":
-            return agentImagesPage();
+            return <AgentImagesPageSpecimen />;
         case "agent-secrets":
-            return agentSecretsPage();
+            return <AgentSecretsPageSpecimen />;
     }
 }
-
-function frame(number: string, title: string, detail: string, child: JSX.Element) {
+function frame(number: string, title: string, detail: string, child: ReactNode) {
     return (
         <ComponentPage
             contract="Surface store"
@@ -77,22 +82,31 @@ function frame(number: string, title: string, detail: string, child: JSX.Element
         </ComponentPage>
     );
 }
-
-function notificationsPage(
-    number: string,
-    title: string,
-    render: (store: ReturnType<typeof notificationsStoreFixtureCreate>["store"]) => JSX.Element,
-) {
-    const fixture = notificationsStoreFixtureCreate();
-    fixture.input({ type: "notificationsLoaded", notifications: [] });
-    onCleanup(() => fixture[Symbol.dispose]());
-    return frame(number, title, "ready empty activity projection", render(fixture.store));
+function NotificationsPage(props: {
+    number: string;
+    title: string;
+    render: (store: ReturnType<typeof notificationsStoreFixtureCreate>["store"]) => ReactNode;
+}) {
+    const [fixture] = useState(() => {
+        const value = notificationsStoreFixtureCreate();
+        value.input({ type: "notificationsLoaded", notifications: [] });
+        return value;
+    });
+    useLayoutEffect(() => () => fixture[Symbol.dispose](), [fixture]);
+    return frame(
+        props.number,
+        props.title,
+        "ready empty activity projection",
+        props.render(fixture.store),
+    );
 }
-
-function threadsPage() {
-    const fixture = threadsStoreFixtureCreate();
-    fixture.input({ type: "threadsLoaded", threads: [] });
-    onCleanup(() => fixture[Symbol.dispose]());
+function ThreadsPageSpecimen() {
+    const [fixture] = useState(() => {
+        const value = threadsStoreFixtureCreate();
+        value.input({ type: "threadsLoaded", threads: [] });
+        return value;
+    });
+    useLayoutEffect(() => () => fixture[Symbol.dispose](), [fixture]);
     return frame(
         "P-005",
         "Threads",
@@ -100,11 +114,13 @@ function threadsPage() {
         <ThreadsPage store={fixture.store} />,
     );
 }
-
-function callsPage() {
-    const fixture = callsStoreFixtureCreate();
-    fixture.input({ type: "callsLoaded", calls: [] });
-    onCleanup(() => fixture[Symbol.dispose]());
+function CallsPageSpecimen() {
+    const [fixture] = useState(() => {
+        const value = callsStoreFixtureCreate();
+        value.input({ type: "callsLoaded", calls: [] });
+        return value;
+    });
+    useLayoutEffect(() => () => fixture[Symbol.dispose](), [fixture]);
     return frame(
         "P-006",
         "Calls",
@@ -112,37 +128,41 @@ function callsPage() {
         <CallsPage store={fixture.store} />,
     );
 }
-
-function filesPage() {
-    const fixture = filesStoreFixtureCreate();
-    const [filter, setFilter] = createSignal<FilesPageFilter>("all");
-    const [query, setQuery] = createSignal("");
-    fixture.input({ type: "filesLoaded", files: [], append: false });
-    onCleanup(() => fixture[Symbol.dispose]());
+function FilesPageSpecimen() {
+    const [fixture] = useState(() => {
+        const value = filesStoreFixtureCreate();
+        value.input({ type: "filesLoaded", files: [], append: false });
+        return value;
+    });
+    const [filter, setFilter] = useState<FilesPageFilter>("all");
+    const [query, setQuery] = useState("");
+    useLayoutEffect(() => () => fixture[Symbol.dispose](), [fixture]);
     return frame(
         "P-007",
         "Files",
         "ready empty file catalog projection",
         <FilesPage
-            filter={filter()}
+            filter={filter}
             onFilterChange={setFilter}
             onQueryChange={setQuery}
-            query={query()}
+            query={query}
             store={fixture.store}
         />,
     );
 }
-
-function searchPage() {
-    const fixture = searchStoreFixtureCreate();
-    fixture.store.queryUpdate("state architecture");
-    fixture.input({
-        type: "searchLoaded",
-        query: "state architecture",
-        results: [],
-        files: [],
+function SearchPageSpecimen() {
+    const [fixture] = useState(() => {
+        const value = searchStoreFixtureCreate();
+        value.store.getState().queryUpdate("state architecture");
+        value.input({
+            type: "searchLoaded",
+            query: "state architecture",
+            results: [],
+            files: [],
+        });
+        return value;
     });
-    onCleanup(() => fixture[Symbol.dispose]());
+    useLayoutEffect(() => () => fixture[Symbol.dispose](), [fixture]);
     return frame(
         "P-008",
         "Search",
@@ -150,26 +170,31 @@ function searchPage() {
         <SearchPage query="state architecture" store={fixture.store} />,
     );
 }
-
-function adminPage() {
-    const fixture = adminStoreFixtureCreate();
-    const images = agentImagesStoreFixtureCreate();
-    const secrets = agentSecretsStoreFixtureCreate();
-    const [section, setSection] = createSignal<AdminPageSection>("users");
-    fixture.input({ type: "usersLoaded", users: [] });
-    images.input({ type: "imagesLoaded", images: [] });
-    secrets.input({ type: "secretsLoaded", secrets: [], agents: [], channels: [] });
-    onCleanup(() => {
-        fixture[Symbol.dispose]();
-        images[Symbol.dispose]();
-        secrets[Symbol.dispose]();
+function AdminPageSpecimen() {
+    const [{ fixture, images, secrets }] = useState(() => {
+        const fixture = adminStoreFixtureCreate();
+        const images = agentImagesStoreFixtureCreate();
+        const secrets = agentSecretsStoreFixtureCreate();
+        fixture.input({ type: "usersLoaded", users: [] });
+        images.input({ type: "imagesLoaded", images: [] });
+        secrets.input({ type: "secretsLoaded", secrets: [], agents: [], channels: [] });
+        return { fixture, images, secrets };
     });
+    const [section, setSection] = useState<AdminPageSection>("users");
+    useLayoutEffect(
+        () => () => {
+            fixture[Symbol.dispose]();
+            images[Symbol.dispose]();
+            secrets[Symbol.dispose]();
+        },
+        [fixture, images, secrets],
+    );
     return frame(
         "P-009",
         "Admin",
         "ready user catalog with lazy image and secret stores",
         <AdminPage
-            activeSection={section()}
+            activeSection={section}
             agentImagesStore={() => images.store}
             agentSecretsStore={() => secrets.store}
             onSectionChange={setSection}
@@ -177,11 +202,13 @@ function adminPage() {
         />,
     );
 }
-
-function agentImagesPage() {
-    const fixture = agentImagesStoreFixtureCreate();
-    fixture.input({ type: "imagesLoaded", images: [] });
-    onCleanup(() => fixture[Symbol.dispose]());
+function AgentImagesPageSpecimen() {
+    const [fixture] = useState(() => {
+        const value = agentImagesStoreFixtureCreate();
+        value.input({ type: "imagesLoaded", images: [] });
+        return value;
+    });
+    useLayoutEffect(() => () => fixture[Symbol.dispose](), [fixture]);
     return frame(
         "P-010",
         "Agent images",
@@ -189,11 +216,13 @@ function agentImagesPage() {
         <AgentImagesPage store={fixture.store} />,
     );
 }
-
-function agentSecretsPage() {
-    const fixture = agentSecretsStoreFixtureCreate();
-    fixture.input({ type: "secretsLoaded", secrets: [], agents: [], channels: [] });
-    onCleanup(() => fixture[Symbol.dispose]());
+function AgentSecretsPageSpecimen() {
+    const [fixture] = useState(() => {
+        const value = agentSecretsStoreFixtureCreate();
+        value.input({ type: "secretsLoaded", secrets: [], agents: [], channels: [] });
+        return value;
+    });
+    useLayoutEffect(() => () => fixture[Symbol.dispose](), [fixture]);
     return frame(
         "P-011",
         "Agent secrets",

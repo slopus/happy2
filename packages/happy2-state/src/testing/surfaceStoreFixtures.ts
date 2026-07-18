@@ -1,59 +1,59 @@
-import { adminStoreCreateBinding } from "../modules/admin/adminStore.js";
-import type { AdminInput, AdminStore } from "../modules/admin/adminTypes.js";
-import { agentImagesStoreCreateBinding } from "../modules/agent-images/agentImagesStore.js";
+import { adminStoreCreate } from "../modules/admin/adminState.js";
+import type { AdminInput, AdminStore } from "../modules/admin/adminState.js";
+import { agentImagesStoreCreate } from "../modules/agent-images/agentImagesState.js";
 import type {
     AgentImagesInput,
     AgentImagesOutput,
     AgentImagesStore,
-} from "../modules/agent-images/agentImagesTypes.js";
-import { setupStoreCreateBinding } from "../modules/setup/setupStore.js";
-import type { SetupInput, SetupOutput, SetupStore } from "../modules/setup/setupTypes.js";
-import { agentSecretsStoreCreateBinding } from "../modules/agent-secrets/agentSecretsStore.js";
+} from "../modules/agent-images/agentImagesState.js";
+import { setupStoreCreate } from "../modules/setup/setupState.js";
+import type { SetupInput, SetupOutput, SetupStore } from "../modules/setup/setupState.js";
+import { agentSecretsStoreCreate } from "../modules/agent-secrets/agentSecretsState.js";
 import type {
     AgentSecretsInput,
     AgentSecretsOutput,
     AgentSecretsStore,
-} from "../modules/agent-secrets/agentSecretsTypes.js";
-import { callsStoreCreateBinding } from "../modules/calls/callsStore.js";
-import type { CallsInput, CallsOutput, CallsStore } from "../modules/calls/callsTypes.js";
-import { chatStoreCreateBinding } from "../modules/chat/chatStore.js";
-import type { ChatInput, ChatOutput, ChatStore } from "../modules/chat/chatTypes.js";
-import { directoryStoreCreateBinding } from "../modules/directory/directoryStore.js";
-import type { DirectoryInput, DirectoryStore } from "../modules/directory/directoryTypes.js";
-import { filesStoreCreateBinding } from "../modules/files/filesStore.js";
-import type { FilesInput, FilesOutput, FilesStore } from "../modules/files/filesTypes.js";
-import { notificationsStoreCreateBinding } from "../modules/notifications/notificationsStore.js";
+} from "../modules/agent-secrets/agentSecretsState.js";
+import { callsStoreCreate } from "../modules/calls/callsState.js";
+import type { CallsInput, CallsOutput, CallsStore } from "../modules/calls/callsState.js";
+import { chatStoreCreate } from "../modules/chat/chatState.js";
+import type { ChatInput, ChatOutput, ChatStore } from "../modules/chat/chatState.js";
+import { directoryStoreCreate } from "../modules/directory/directoryState.js";
+import type { DirectoryInput, DirectoryStore } from "../modules/directory/directoryState.js";
+import { filesStoreCreate } from "../modules/files/filesState.js";
+import type { FilesInput, FilesOutput, FilesStore } from "../modules/files/filesState.js";
+import { notificationsStoreCreate } from "../modules/notifications/notificationsState.js";
 import type {
     NotificationsInput,
     NotificationsOutput,
     NotificationsStore,
-} from "../modules/notifications/notificationsTypes.js";
-import { searchStoreCreateBinding } from "../modules/search/searchStore.js";
-import type { SearchInput, SearchOutput, SearchStore } from "../modules/search/searchTypes.js";
-import { settingsStoreCreateBinding } from "../modules/settings/settingsStore.js";
+} from "../modules/notifications/notificationsState.js";
+import { searchStoreCreate } from "../modules/search/searchState.js";
+import type { SearchInput, SearchOutput, SearchStore } from "../modules/search/searchState.js";
+import { settingsStoreCreate } from "../modules/settings/settingsState.js";
 import type {
     SettingsInput,
     SettingsOutput,
     SettingsStore,
     SettingsStoreOptions,
-} from "../modules/settings/settingsTypes.js";
-import { sidebarStoreCreateBinding } from "../modules/sidebar/sidebarStore.js";
-import type { SidebarInput, SidebarStore } from "../modules/sidebar/sidebarTypes.js";
-import { threadStoreCreateBinding } from "../modules/thread/threadStore.js";
-import type { ThreadInput, ThreadOutput, ThreadStore } from "../modules/thread/threadTypes.js";
-import { threadsStoreCreateBinding } from "../modules/threads/threadsStore.js";
-import type { ThreadsInput, ThreadsOutput, ThreadsStore } from "../modules/threads/threadsTypes.js";
-import { workspaceFileStoreCreateBinding } from "../modules/workspace-file/workspaceFileStore.js";
+} from "../modules/settings/settingsState.js";
+import { sidebarStoreCreate } from "../modules/sidebar/sidebarState.js";
+import type { SidebarInput, SidebarStore } from "../modules/sidebar/sidebarState.js";
+import { threadStoreCreate } from "../modules/thread/threadState.js";
+import type { ThreadInput, ThreadOutput, ThreadStore } from "../modules/thread/threadState.js";
+import { threadsStoreCreate } from "../modules/threads/threadsState.js";
+import type { ThreadsInput, ThreadsOutput, ThreadsStore } from "../modules/threads/threadsState.js";
+import { workspaceFileStoreCreate } from "../modules/workspace-file/workspaceFileState.js";
 import type {
     WorkspaceFileInput,
     WorkspaceFileStore,
-} from "../modules/workspace-file/workspaceFileTypes.js";
-import { workspaceStoreCreateBinding } from "../modules/workspace/workspaceStore.js";
+} from "../modules/workspace-file/workspaceFileState.js";
+import { workspaceStoreCreate } from "../modules/workspace/workspaceState.js";
 import type {
     WorkspaceInput,
     WorkspaceOutput,
     WorkspaceStore,
-} from "../modules/workspace/workspaceTypes.js";
+} from "../modules/workspace/workspaceState.js";
 
 /** Test-only owner capability for driving one concrete surface through its closed input union. */
 export interface SurfaceStoreFixture<Store, Event> extends Disposable {
@@ -61,129 +61,124 @@ export interface SurfaceStoreFixture<Store, Event> extends Disposable {
     input(event: Event): void;
 }
 
-type Binding<Store> = {
-    readonly store: Store;
-    dispose(): void;
-};
-
 function fixtureCreate<Store, Event>(
-    binding: Binding<Store>,
+    store: Store,
     input: (event: Event) => void,
 ): SurfaceStoreFixture<Store, Event> {
     return {
-        store: binding.store,
+        store,
         input,
-        [Symbol.dispose]: () => binding.dispose(),
+        [Symbol.dispose]: () => undefined,
     };
 }
 
 export function sidebarStoreFixtureCreate(): SurfaceStoreFixture<SidebarStore, SidebarInput> {
-    const binding = sidebarStoreCreateBinding();
-    return fixtureCreate(binding, binding.sidebarInput);
+    const store = sidebarStoreCreate();
+    return fixtureCreate(store, (event) => store.getState().sidebarInput(event));
 }
 
 export function chatStoreFixtureCreate(
     chatId: string,
     output: (event: ChatOutput) => void = () => undefined,
 ): SurfaceStoreFixture<ChatStore, ChatInput> {
-    const binding = chatStoreCreateBinding(chatId, output);
-    return fixtureCreate(binding, binding.chatInput);
+    const store = chatStoreCreate(chatId, output);
+    return fixtureCreate(store, (event) => store.getState().chatInput(event));
 }
 
 export function searchStoreFixtureCreate(
     output: (event: SearchOutput) => void = () => undefined,
 ): SurfaceStoreFixture<SearchStore, SearchInput> {
-    const binding = searchStoreCreateBinding(output);
-    return fixtureCreate(binding, binding.searchInput);
+    const store = searchStoreCreate(output);
+    return fixtureCreate(store, (event) => store.getState().searchInput(event));
 }
 
 export function filesStoreFixtureCreate(
     output: (event: FilesOutput) => void = () => undefined,
 ): SurfaceStoreFixture<FilesStore, FilesInput> {
-    const binding = filesStoreCreateBinding(output);
-    return fixtureCreate(binding, binding.filesInput);
+    const store = filesStoreCreate(output);
+    return fixtureCreate(store, (event) => store.getState().filesInput(event));
 }
 
 export function directoryStoreFixtureCreate(): SurfaceStoreFixture<DirectoryStore, DirectoryInput> {
-    const binding = directoryStoreCreateBinding();
-    return fixtureCreate(binding, binding.directoryInput);
+    const store = directoryStoreCreate();
+    return fixtureCreate(store, (event) => store.getState().directoryInput(event));
 }
 
 export function adminStoreFixtureCreate(): SurfaceStoreFixture<AdminStore, AdminInput> {
-    const binding = adminStoreCreateBinding();
-    return fixtureCreate(binding, binding.adminInput);
+    const store = adminStoreCreate();
+    return fixtureCreate(store, (event) => store.getState().adminInput(event));
 }
 
 export function setupStoreFixtureCreate(
     output: (event: SetupOutput) => void = () => undefined,
 ): SurfaceStoreFixture<SetupStore, SetupInput> {
-    const binding = setupStoreCreateBinding(output);
-    return fixtureCreate(binding, binding.setupInput);
+    const store = setupStoreCreate(output);
+    return fixtureCreate(store, (event) => store.getState().setupInput(event));
 }
 
 export function agentImagesStoreFixtureCreate(
     output: (event: AgentImagesOutput) => void = () => undefined,
 ): SurfaceStoreFixture<AgentImagesStore, AgentImagesInput> {
-    const binding = agentImagesStoreCreateBinding(output);
-    return fixtureCreate(binding, binding.agentImagesInput);
+    const store = agentImagesStoreCreate(output);
+    return fixtureCreate(store, (event) => store.getState().agentImagesInput(event));
 }
 
 export function agentSecretsStoreFixtureCreate(
     output: (event: AgentSecretsOutput) => void = () => undefined,
 ): SurfaceStoreFixture<AgentSecretsStore, AgentSecretsInput> {
-    const binding = agentSecretsStoreCreateBinding(output);
-    return fixtureCreate(binding, binding.agentSecretsInput);
+    const store = agentSecretsStoreCreate(output);
+    return fixtureCreate(store, (event) => store.getState().agentSecretsInput(event));
 }
 
 export function notificationsStoreFixtureCreate(
     output: (event: NotificationsOutput) => void = () => undefined,
 ): SurfaceStoreFixture<NotificationsStore, NotificationsInput> {
-    const binding = notificationsStoreCreateBinding(output);
-    return fixtureCreate(binding, binding.notificationsInput);
+    const store = notificationsStoreCreate(output);
+    return fixtureCreate(store, (event) => store.getState().notificationsInput(event));
 }
 
 export function threadsStoreFixtureCreate(
     output: (event: ThreadsOutput) => void = () => undefined,
 ): SurfaceStoreFixture<ThreadsStore, ThreadsInput> {
-    const binding = threadsStoreCreateBinding(output);
-    return fixtureCreate(binding, binding.threadsInput);
+    const store = threadsStoreCreate(output);
+    return fixtureCreate(store, (event) => store.getState().threadsInput(event));
 }
 
 export function threadStoreFixtureCreate(
     rootMessageId: string,
     output: (event: ThreadOutput) => void = () => undefined,
 ): SurfaceStoreFixture<ThreadStore, ThreadInput> {
-    const binding = threadStoreCreateBinding(rootMessageId, output);
-    return fixtureCreate(binding, binding.threadInput);
+    const store = threadStoreCreate(rootMessageId, output);
+    return fixtureCreate(store, (event) => store.getState().threadInput(event));
 }
 
 export function callsStoreFixtureCreate(
     output: (event: CallsOutput) => void = () => undefined,
 ): SurfaceStoreFixture<CallsStore, CallsInput> {
-    const binding = callsStoreCreateBinding(output);
-    return fixtureCreate(binding, binding.callsInput);
+    const store = callsStoreCreate(output);
+    return fixtureCreate(store, (event) => store.getState().callsInput(event));
 }
 
 export function settingsStoreFixtureCreate(
     options: SettingsStoreOptions = {},
     output: (event: SettingsOutput) => void = () => undefined,
 ): SurfaceStoreFixture<SettingsStore, SettingsInput> {
-    const binding = settingsStoreCreateBinding(options, output);
-    return fixtureCreate(binding, binding.settingsInput);
+    const store = settingsStoreCreate(options, output);
+    return fixtureCreate(store, (event) => store.getState().settingsInput(event));
 }
 
 export function workspaceStoreFixtureCreate(
     chatId: string,
     output: (event: WorkspaceOutput) => void = () => undefined,
 ): SurfaceStoreFixture<WorkspaceStore, WorkspaceInput> {
-    const binding = workspaceStoreCreateBinding(chatId, output);
-    return fixtureCreate(binding, binding.workspaceInput);
+    const store = workspaceStoreCreate(chatId, output);
+    return fixtureCreate(store, (event) => store.getState().workspaceInput(event));
 }
 
 export function workspaceFileStoreFixtureCreate(
     chatId: string,
     path: string,
 ): SurfaceStoreFixture<WorkspaceFileStore, WorkspaceFileInput> {
-    const binding = workspaceFileStoreCreateBinding(chatId, path);
-    return fixtureCreate(binding, binding.workspaceFileInput);
+    const store = workspaceFileStoreCreate(chatId, path);
+    return fixtureCreate(store, (event) => store.getState().workspaceFileInput(event));
 }

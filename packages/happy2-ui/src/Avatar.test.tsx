@@ -68,6 +68,7 @@ it(
                         {CONTENT_CASES.map((content) => (
                             <Avatar
                                 data-testid={`${size}-${content.type}-${content.initials}`}
+                                key={`${content.type}-${content.initials}`}
                                 initials={content.initials}
                                 size={size}
                                 tone={content.tone}
@@ -316,6 +317,7 @@ it("renders the image variant, tones, defaults, and keeps size in tight flex row
                 {(Object.keys(TONE_GRADIENTS) as ToneName[]).map((tone) => (
                     <Avatar
                         data-testid={`tone-${tone}`}
+                        key={tone}
                         initials={tone.slice(0, 2).toUpperCase()}
                         size="xs"
                         tone={tone}

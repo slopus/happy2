@@ -1,15 +1,16 @@
+import { splitProps } from "./reactProps";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
-    children,
-    createEffect,
-    createMemo,
-    createSignal,
-    For,
-    onCleanup,
-    onMount,
-    Show,
-    splitProps,
-    type JSX,
-} from "solid-js";
+    Children,
+    isValidElement,
+    useCallback,
+    useLayoutEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+    type HTMLAttributes,
+    type ReactNode,
+} from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { Badge, ReactionChip } from "./Badge";
 import { Button } from "./Button";
@@ -17,19 +18,28 @@ import { EmojiPicker, type EmojiItem } from "./EmojiPicker";
 import { Icon, type IconName } from "./Icon";
 import { renderMessageMarkdown, type MessageGenerationStatus } from "./MessageMarkdown";
 import { Menu, type MenuItem } from "./Menu";
-
 export type MessageSegment =
-    | { kind: "text"; text: string }
-    | { kind: "mention"; text: string }
-    | { kind: "code"; text: string }
-    | { kind: "link"; text: string };
-
+    | {
+          kind: "text";
+          text: string;
+      }
+    | {
+          kind: "mention";
+          text: string;
+      }
+    | {
+          kind: "code";
+          text: string;
+      }
+    | {
+          kind: "link";
+          text: string;
+      };
 export type MessageReaction = {
     active?: boolean;
     count: number;
     emoji: string;
 };
-
 export type MessageImage = {
     id: string;
     url: string;
@@ -38,25 +48,21 @@ export type MessageImage = {
     width?: number;
     height?: number;
 };
-
 const MEDIA_SINGLE_MAX_W = 380;
 const MEDIA_SINGLE_MAX_H = 320;
-
 /**
  * Inline box for a lone photo with known dimensions: an aspect-ratio plus a
  * capped width reserves the exact layout up front so nothing reflows when the
  * image finishes loading. Multi-image tiles are square via CSS and need none.
  */
-function mediaItemStyle(image: MessageImage, count: number): JSX.CSSProperties | undefined {
+function mediaItemStyle(image: MessageImage, count: number): CSSProperties | undefined {
     if (count !== 1 || !image.width || !image.height) return undefined;
     const ratio = image.width / image.height;
     const width = Math.round(Math.min(image.width, MEDIA_SINGLE_MAX_W, MEDIA_SINGLE_MAX_H * ratio));
-    return { width: `${width}px`, "aspect-ratio": `${image.width} / ${image.height}` };
+    return { width: `${width}px`, aspectRatio: `${image.width} / ${image.height}` };
 }
-
 export type MessageDeliveryState = "failed" | "sending" | "sent";
-
-export type MessageProps = Omit<JSX.HTMLAttributes<HTMLDivElement>, "style"> & {
+export type MessageProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     /** Keeps a backed toolbar visible without hover (controlled/blueprint state). */
     actionsVisible?: boolean;
     /** Author is an agent → accent AGENT badge next to the name. */
@@ -64,7 +70,7 @@ export type MessageProps = Omit<JSX.HTMLAttributes<HTMLDivElement>, "style"> & {
     author: string;
     body: string | MessageSegment[];
     /** Attachment cards (runs, approvals, events) rendered below the body. */
-    children?: JSX.Element;
+    children?: ReactNode;
     /** Follow-up message: no avatar/author row, time sits in the gutter. */
     compact?: boolean;
     /** Delivery styling that never inserts or removes layout. */
@@ -99,11 +105,10 @@ export type MessageProps = Omit<JSX.HTMLAttributes<HTMLDivElement>, "style"> & {
     /** Emoji available in the hover reaction picker. IDs are passed to `onReactionSelect`. */
     reactionOptions?: EmojiItem[];
     replyCount?: number;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     time: string;
     tone?: ToneName;
 };
-
 function deriveInitials(author: string) {
     return author
         .trim()
@@ -113,39 +118,36 @@ function deriveInitials(author: string) {
         .join("")
         .toUpperCase();
 }
-
-function renderSegment(segment: MessageSegment): JSX.Element {
+function renderSegment(segment: MessageSegment): ReactNode {
     switch (segment.kind) {
         case "mention":
             return (
-                <span class="happy2-message__mention" data-happy2-ui="message-mention">
+                <span className="happy2-message__mention" data-happy2-ui="message-mention">
                     @{segment.text}
                 </span>
             );
         case "code":
             return (
-                <code class="happy2-message__code" data-happy2-ui="message-code">
+                <code className="happy2-message__code" data-happy2-ui="message-code">
                     {segment.text}
                 </code>
             );
         case "link":
             return (
-                <a class="happy2-message__link" data-happy2-ui="message-link">
+                <span className="happy2-message__link" data-happy2-ui="message-link">
                     {segment.text}
-                </a>
+                </span>
             );
         default:
             return segment.text;
     }
 }
-
-function hasRenderableChild(value: JSX.Element): boolean {
+function hasRenderableChild(value: ReactNode): boolean {
     if (Array.isArray(value)) return value.some(hasRenderableChild);
     return (
         value !== undefined && value !== null && value !== false && value !== true && value !== ""
     );
 }
-
 /**
  * One chat message on the app surface: 36px avatar gutter, author/time row,
  * rich body segments, attachment slot, reactions, and reply affordance.
@@ -157,7 +159,7 @@ export function Message(props: MessageProps) {
         "author",
         "body",
         "children",
-        "class",
+        "className",
         "compact",
         "deliveryState",
         "generationStatus",
@@ -180,12 +182,12 @@ export function Message(props: MessageProps) {
         "time",
         "tone",
     ]);
-    const attachments = children(() => local.children);
-    const [menuOpen, setMenuOpen] = createSignal(false);
-    const [reactionOpen, setReactionOpen] = createSignal(false);
-    const [reactionQuery, setReactionQuery] = createSignal("");
-    const [popoverStyle, setPopoverStyle] = createSignal<JSX.CSSProperties>({});
-    let root: HTMLDivElement | undefined;
+    const attachments = local.children;
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [reactionOpen, setReactionOpen] = useState(false);
+    const [reactionQuery, setReactionQuery] = useState("");
+    const [popoverStyle, setPopoverStyle] = useState<CSSProperties>({});
+    const root = useRef<HTMLDivElement>(null);
     const segments = (): MessageSegment[] =>
         typeof local.body === "string" ? [{ kind: "text", text: local.body }] : local.body;
     const isMarkdownBody = () => typeof local.body === "string";
@@ -193,10 +195,8 @@ export function Message(props: MessageProps) {
        changes, so an in-place stream tick reuses the surrounding row and swaps
        just the body nodes. Generation status drives the caret/marker below, not
        the Markdown output. */
-    const markdownBody = createMemo(() =>
-        typeof local.body === "string" ? renderMessageMarkdown(local.body) : null,
-    );
-    const hasAttachments = () => hasRenderableChild(attachments());
+    const markdownBody = typeof local.body === "string" ? renderMessageMarkdown(local.body) : null;
+    const hasAttachments = () => hasRenderableChild(attachments);
     const grouped = () => local.grouped || local.compact;
     const authorActionLabel = () => `View ${local.author}’s profile`;
     const renderAvatar = () => (
@@ -219,18 +219,22 @@ export function Message(props: MessageProps) {
         deliveryState() !== "sending" &&
         (hasReactionAction() || Boolean(local.onReplySelect) || hasMenuAction());
     const filteredReactionOptions = () => {
-        const query = reactionQuery().trim().toLocaleLowerCase();
+        const query = reactionQuery.trim().toLocaleLowerCase();
         if (!query) return local.reactionOptions ?? [];
         return (local.reactionOptions ?? []).filter((emoji) =>
             emoji.name.toLocaleLowerCase().includes(query),
         );
     };
-
-    const closePopovers = () => {
-        setMenuOpen(false);
-        setReactionOpen(false);
+    const menuOpenSet = (open: boolean) => {
+        setMenuOpen(open);
     };
-
+    const reactionOpenSet = (open: boolean) => {
+        setReactionOpen(open);
+    };
+    const closePopovers = useCallback(() => {
+        menuOpenSet(false);
+        reactionOpenSet(false);
+    }, []);
     const menuHeight = () =>
         12 +
         (local.menuItems ?? []).reduce((height, item) => {
@@ -238,9 +242,8 @@ export function Message(props: MessageProps) {
             if (item.kind === "label") return height + 24;
             return height + 11;
         }, 0);
-
     const placePopover = (width: number, height: number) => {
-        const bounds = root?.getBoundingClientRect();
+        const bounds = root.current?.getBoundingClientRect();
         if (!bounds) return;
         const edge = 8;
         const left = Math.max(edge, Math.min(bounds.right - 20 - width, innerWidth - width - edge));
@@ -254,9 +257,8 @@ export function Message(props: MessageProps) {
                   : Math.max(edge, innerHeight - height - edge);
         setPopoverStyle({ left: `${Math.round(left)}px`, top: `${Math.round(top)}px` });
     };
-
     const toggleReactionPicker = () => {
-        setMenuOpen(false);
+        menuOpenSet(false);
         if (local.reactionOptions?.length) {
             placePopover(234, 62 + Math.ceil(local.reactionOptions.length / 6) * 36);
             setReactionOpen((open) => !open);
@@ -264,29 +266,29 @@ export function Message(props: MessageProps) {
         }
         local.onReactionAdd?.();
     };
-
-    createEffect(() => {
-        if (!menuOpen() && !reactionOpen()) return;
+    useLayoutEffect(() => {
+        if (!menuOpen && !reactionOpen) return;
         const onPointerDown = (event: PointerEvent) => {
-            if (!root?.contains(event.target as Node)) {
+            if (!root.current?.contains(event.target as Node)) {
                 closePopovers();
             }
         };
-        const onViewportChange = () => closePopovers();
+        const onViewportChange = () => {
+            closePopovers();
+        };
         document.addEventListener("pointerdown", onPointerDown);
         document.addEventListener("scroll", onViewportChange, true);
         window.addEventListener("resize", onViewportChange);
-        onCleanup(() => {
+        return () => {
             document.removeEventListener("pointerdown", onPointerDown);
             document.removeEventListener("scroll", onViewportChange, true);
             window.removeEventListener("resize", onViewportChange);
-        });
-    });
-
+        };
+    }, [closePopovers, menuOpen, reactionOpen]);
     return (
         <div
             {...rest}
-            class={["happy2-message", local.class].filter(Boolean).join(" ")}
+            className={["happy2-message", local.className].filter(Boolean).join(" ")}
             data-agent={local.agent ? "" : undefined}
             data-actions-visible={local.actionsVisible ? "" : undefined}
             data-compact={grouped() ? "" : undefined}
@@ -304,272 +306,276 @@ export function Message(props: MessageProps) {
             onKeyDown={(event) => {
                 if (event.key === "Escape") closePopovers();
             }}
-            ref={(element) => (root = element)}
+            ref={root}
             style={local.style}
         >
-            <div class="happy2-message__gutter" data-happy2-ui="message-gutter">
-                <Show
-                    when={!grouped()}
-                    fallback={
-                        <span
-                            class="happy2-message__gutter-time"
-                            data-happy2-ui="message-gutter-time"
-                        >
-                            {local.gutterTime ?? local.time}
-                        </span>
-                    }
-                >
-                    <Show when={local.onAuthorSelect} fallback={renderAvatar()}>
+            <div className="happy2-message__gutter" data-happy2-ui="message-gutter">
+                {!grouped() ? (
+                    local.onAuthorSelect ? (
                         <button
                             aria-label={authorActionLabel()}
-                            class="happy2-message__identity"
+                            className="happy2-message__identity"
                             data-happy2-ui="message-identity"
                             onClick={() => local.onAuthorSelect?.()}
                             type="button"
                         >
                             {renderAvatar()}
                         </button>
-                    </Show>
-                </Show>
+                    ) : (
+                        renderAvatar()
+                    )
+                ) : (
+                    <span
+                        className="happy2-message__gutter-time"
+                        data-happy2-ui="message-gutter-time"
+                    >
+                        {local.gutterTime ?? local.time}
+                    </span>
+                )}
             </div>
-            <div class="happy2-message__content" data-happy2-ui="message-content">
-                <Show when={!grouped()}>
-                    <div class="happy2-message__meta" data-happy2-ui="message-meta">
-                        <Show
-                            when={local.onAuthorSelect}
-                            fallback={
-                                <span
-                                    class="happy2-message__author"
-                                    data-happy2-ui="message-author"
-                                >
-                                    {local.author}
-                                </span>
-                            }
-                        >
+            <div className="happy2-message__content" data-happy2-ui="message-content">
+                {!grouped() ? (
+                    <div className="happy2-message__meta" data-happy2-ui="message-meta">
+                        {local.onAuthorSelect ? (
                             <button
                                 aria-label={authorActionLabel()}
-                                class="happy2-message__author happy2-message__author--button"
+                                className="happy2-message__author happy2-message__author--button"
                                 data-happy2-ui="message-author"
                                 onClick={() => local.onAuthorSelect?.()}
                                 type="button"
                             >
                                 {local.author}
                             </button>
-                        </Show>
-                        <Show when={local.agent}>
-                            <Badge label="AGENT" variant="accent" />
-                        </Show>
-                        <span class="happy2-message__time" data-happy2-ui="message-time">
+                        ) : (
+                            <span
+                                className="happy2-message__author"
+                                data-happy2-ui="message-author"
+                            >
+                                {local.author}
+                            </span>
+                        )}
+                        {local.agent ? <Badge label="AGENT" variant="accent" /> : null}
+                        <span className="happy2-message__time" data-happy2-ui="message-time">
                             {local.time}
                         </span>
                     </div>
-                </Show>
-                <Show when={local.body}>
-                    <Show
-                        when={isMarkdownBody()}
-                        fallback={
-                            <div class="happy2-message__body" data-happy2-ui="message-body">
-                                <For each={segments()}>{(segment) => renderSegment(segment)}</For>
-                            </div>
-                        }
-                    >
+                ) : null}
+                {local.body ? (
+                    isMarkdownBody() ? (
                         <div
-                            class="happy2-message__body happy2-message__body--markdown"
+                            className="happy2-message__body happy2-message__body--markdown"
                             data-markdown=""
                             data-happy2-ui="message-body"
                         >
-                            {markdownBody()}
-                            <Show when={local.generationStatus === "streaming"}>
+                            {markdownBody}
+                            {local.generationStatus === "streaming" ? (
                                 <span
                                     aria-hidden="true"
-                                    class="happy2-message__caret"
+                                    className="happy2-message__caret"
                                     data-happy2-ui="message-stream-caret"
                                 />
-                            </Show>
-                            <Show when={local.generationStatus === "failed"}>
+                            ) : null}
+                            {local.generationStatus === "failed" ? (
                                 <span
                                     aria-label="Generation failed"
-                                    class="happy2-message__gen-failed"
+                                    className="happy2-message__gen-failed"
                                     data-happy2-ui="message-generation-failed"
                                     role="img"
                                 />
-                            </Show>
+                            ) : null}
                         </div>
-                    </Show>
-                </Show>
-                <Show when={local.images && local.images.length > 0}>
+                    ) : (
+                        <div className="happy2-message__body" data-happy2-ui="message-body">
+                            {segments().map((segment, index) => (
+                                <span key={`${segment.kind}-${index}`}>
+                                    {renderSegment(segment)}
+                                </span>
+                            ))}
+                        </div>
+                    )
+                ) : null}
+                {local.images && local.images.length > 0 ? (
                     <div
-                        class="happy2-message__media"
+                        className="happy2-message__media"
                         data-count={Math.min(local.images!.length, 4)}
                         data-happy2-ui="message-media"
                     >
-                        <For each={local.images!.slice(0, 4)}>
-                            {(image) => (
-                                <button
-                                    aria-label={image.alt ? `Open ${image.alt}` : "Open image"}
-                                    class="happy2-message__media-item"
-                                    data-fixed={image.width && image.height ? "" : undefined}
-                                    data-media-id={image.id}
-                                    data-happy2-ui="message-media-item"
-                                    onClick={() => local.onImageOpen?.(image.id)}
-                                    style={mediaItemStyle(image, Math.min(local.images!.length, 4))}
-                                    type="button"
-                                >
-                                    <img
-                                        alt={image.alt ?? ""}
-                                        class="happy2-message__media-image"
-                                        data-happy2-ui="message-media-image"
-                                        draggable={false}
-                                        height={image.height}
-                                        loading="lazy"
-                                        src={image.url}
-                                        width={image.width}
-                                    />
-                                </button>
-                            )}
-                        </For>
-                    </div>
-                </Show>
-                <Show when={hasAttachments()}>
-                    <div class="happy2-message__attachments" data-happy2-ui="message-attachments">
-                        {attachments()}
-                    </div>
-                </Show>
-                <Show when={local.reactions && local.reactions.length > 0}>
-                    <div class="happy2-message__reactions" data-happy2-ui="message-reactions">
-                        <For each={local.reactions}>
-                            {(reaction) => (
-                                <ReactionChip
-                                    active={reaction.active}
-                                    count={reaction.count}
-                                    emoji={reaction.emoji}
-                                    onSelect={() => local.onReactionSelect?.(reaction.emoji)}
-                                />
-                            )}
-                        </For>
-                        <Show when={hasReactionAction()}>
+                        {local.images!.slice(0, 4).map((image) => (
                             <button
-                                aria-expanded={reactionOpen()}
+                                aria-label={image.alt ? `Open ${image.alt}` : "Open image"}
+                                className="happy2-message__media-item"
+                                data-fixed={image.width && image.height ? "" : undefined}
+                                data-media-id={image.id}
+                                data-happy2-ui="message-media-item"
+                                onClick={() => local.onImageOpen?.(image.id)}
+                                style={mediaItemStyle(image, Math.min(local.images!.length, 4))}
+                                type="button"
+                                key={image.id}
+                            >
+                                <img
+                                    alt={image.alt ?? ""}
+                                    className="happy2-message__media-image"
+                                    data-happy2-ui="message-media-image"
+                                    draggable={false}
+                                    height={image.height}
+                                    loading="lazy"
+                                    src={image.url}
+                                    width={image.width}
+                                />
+                            </button>
+                        ))}
+                    </div>
+                ) : null}
+                {hasAttachments() ? (
+                    <div
+                        className="happy2-message__attachments"
+                        data-happy2-ui="message-attachments"
+                    >
+                        {attachments}
+                    </div>
+                ) : null}
+                {local.reactions && local.reactions.length > 0 ? (
+                    <div className="happy2-message__reactions" data-happy2-ui="message-reactions">
+                        {local.reactions.map((reaction, index) => (
+                            <ReactionChip
+                                active={reaction.active}
+                                count={reaction.count}
+                                emoji={reaction.emoji}
+                                onSelect={() => local.onReactionSelect?.(reaction.emoji)}
+                                key={`${reaction.emoji}-${index}`}
+                            />
+                        ))}
+                        {hasReactionAction() ? (
+                            <button
+                                aria-expanded={reactionOpen}
                                 aria-haspopup={local.reactionOptions?.length ? "dialog" : undefined}
                                 aria-label="Add reaction"
-                                class="happy2-message__react-add"
+                                className="happy2-message__react-add"
                                 data-happy2-ui="message-react-add"
                                 onClick={toggleReactionPicker}
                                 type="button"
                             >
                                 <Icon name="smile" size={14} />
                             </button>
-                        </Show>
+                        ) : null}
                     </div>
-                </Show>
-                <Show when={local.replyCount}>
-                    {(count) => (
-                        <button
-                            class="happy2-message__replies"
-                            data-happy2-ui="message-replies"
-                            onClick={() => local.onReplySelect?.()}
-                            type="button"
-                        >
-                            {count()} {count() === 1 ? "reply" : "replies"}
-                        </button>
-                    )}
-                </Show>
+                ) : null}
+                {local.replyCount
+                    ? ((count) => (
+                          <button
+                              className="happy2-message__replies"
+                              data-happy2-ui="message-replies"
+                              onClick={() => local.onReplySelect?.()}
+                              type="button"
+                          >
+                              {count} {count === 1 ? "reply" : "replies"}
+                          </button>
+                      ))(local.replyCount)
+                    : null}
             </div>
-            <Show when={hasActions()}>
-                <div class="happy2-message__actions" data-happy2-ui="message-actions">
-                    <Show when={hasReactionAction()}>
-                        <Button
-                            aria-expanded={reactionOpen()}
-                            aria-haspopup={local.reactionOptions?.length ? "dialog" : undefined}
-                            aria-label="Add reaction"
-                            class="happy2-message__action"
-                            icon="smile"
-                            iconOnly
-                            onClick={toggleReactionPicker}
-                            size="small"
-                            variant="ghost"
-                        />
-                    </Show>
-                    <Show when={local.onReplySelect}>
-                        <Button
-                            aria-label={local.replyCount ? "Open thread" : "Start thread"}
-                            class="happy2-message__action"
-                            icon="thread"
-                            iconOnly
-                            onClick={() => local.onReplySelect?.()}
-                            size="small"
-                            variant="ghost"
-                        />
-                    </Show>
-                    <Show when={hasMenuAction()}>
-                        <Button
-                            aria-expanded={menuOpen()}
-                            aria-haspopup="menu"
-                            aria-label="More message actions"
-                            class="happy2-message__action"
-                            icon="more"
-                            iconOnly
-                            onClick={() => {
-                                setReactionOpen(false);
-                                placePopover(196, menuHeight());
-                                setMenuOpen((open) => !open);
-                            }}
-                            size="small"
-                            variant="ghost"
-                        />
-                    </Show>
-                </div>
-                <Show when={reactionOpen() && local.reactionOptions?.length}>
-                    <div
-                        class="happy2-message__popover happy2-message__popover--reaction"
-                        data-happy2-ui="message-reaction-popover"
-                        style={popoverStyle()}
-                    >
-                        <EmojiPicker
-                            columns={6}
-                            emoji={filteredReactionOptions()}
-                            onQueryChange={setReactionQuery}
-                            onSelect={(id) => {
-                                local.onReactionSelect?.(id);
-                                closePopovers();
-                            }}
-                            query={reactionQuery()}
-                        />
+            {hasActions() ? (
+                <>
+                    <div className="happy2-message__actions" data-happy2-ui="message-actions">
+                        {hasReactionAction() ? (
+                            <Button
+                                aria-expanded={reactionOpen}
+                                aria-haspopup={local.reactionOptions?.length ? "dialog" : undefined}
+                                aria-label="Add reaction"
+                                className="happy2-message__action"
+                                icon="smile"
+                                iconOnly
+                                onClick={toggleReactionPicker}
+                                size="small"
+                                variant="ghost"
+                            />
+                        ) : null}
+                        {local.onReplySelect ? (
+                            <Button
+                                aria-label={local.replyCount ? "Open thread" : "Start thread"}
+                                className="happy2-message__action"
+                                icon="thread"
+                                iconOnly
+                                onClick={() => local.onReplySelect?.()}
+                                size="small"
+                                variant="ghost"
+                            />
+                        ) : null}
+                        {hasMenuAction() ? (
+                            <Button
+                                aria-expanded={menuOpen}
+                                aria-haspopup="menu"
+                                aria-label="More message actions"
+                                className="happy2-message__action"
+                                icon="more"
+                                iconOnly
+                                onClick={() => {
+                                    reactionOpenSet(false);
+                                    placePopover(196, menuHeight());
+                                    menuOpenSet(!menuOpen);
+                                }}
+                                size="small"
+                                variant="ghost"
+                            />
+                        ) : null}
                     </div>
-                </Show>
-                <Show when={menuOpen() && local.menuItems}>
-                    {(items) => (
+                    {reactionOpen && local.reactionOptions?.length ? (
                         <div
-                            class="happy2-message__popover happy2-message__popover--menu"
-                            data-happy2-ui="message-menu-popover"
-                            style={popoverStyle()}
+                            className="happy2-message__popover happy2-message__popover--reaction"
+                            data-happy2-ui="message-reaction-popover"
+                            style={popoverStyle}
                         >
-                            <Menu
-                                items={items()}
+                            <EmojiPicker
+                                columns={6}
+                                emoji={filteredReactionOptions()}
+                                onQueryChange={setReactionQuery}
                                 onSelect={(id) => {
-                                    local.onMenuSelect?.(id);
+                                    local.onReactionSelect?.(id);
                                     closePopovers();
                                 }}
-                                width={196}
+                                query={reactionQuery}
                             />
                         </div>
-                    )}
-                </Show>
-            </Show>
+                    ) : null}
+                    {menuOpen && local.menuItems
+                        ? ((items) => (
+                              <div
+                                  className="happy2-message__popover happy2-message__popover--menu"
+                                  data-happy2-ui="message-menu-popover"
+                                  style={popoverStyle}
+                              >
+                                  <Menu
+                                      items={items}
+                                      onSelect={(id) => {
+                                          local.onMenuSelect?.(id);
+                                          closePopovers();
+                                      }}
+                                      width={196}
+                                  />
+                              </div>
+                          ))(menuOpen && local.menuItems)
+                        : null}
+                </>
+            ) : null}
         </div>
     );
 }
-
 export type MessageListProps = {
-    children: JSX.Element;
-    class?: string;
-    intro?: { description: string; title: string };
-    style?: JSX.CSSProperties;
+    children: ReactNode;
+    className?: string;
+    intro?: {
+        description: string;
+        title: string;
+    };
+    style?: CSSProperties;
+    /**
+     * Enables TanStack Virtual for this list's entire mounted lifetime. Callers
+     * that can grow into long histories must opt in from the first render so
+     * crossing an arbitrary row-count threshold never reparents live rows.
+     */
+    virtualize?: boolean;
 };
-
 /** A reader this close to the bottom (px) still follows appended content. */
 const FOLLOW_BOTTOM_THRESHOLD = 8;
-
 /**
  * Scrolling message column. A `margin-top: auto` spacer bottom-anchors sparse
  * histories while long histories scroll chronologically from the top.
@@ -581,101 +587,149 @@ const FOLLOW_BOTTOM_THRESHOLD = 8;
  * reflects the position prior to the DOM change.
  */
 export function MessageList(props: MessageListProps) {
-    let list: HTMLDivElement | undefined;
-    let following = true;
-
+    const list = useRef<HTMLDivElement>(null);
+    const following = useRef(true);
+    const items = Children.toArray(props.children);
+    const virtualized = props.virtualize === true;
+    // TanStack Virtual deliberately owns mutable measurement functions; this leaf
+    // remains outside compiler memoization while every rendered row stays eligible.
+    // eslint-disable-next-line react-hooks/incompatible-library
+    const virtualizer = useVirtualizer({
+        count: virtualized ? items.length : 0,
+        estimateSize: () => 72,
+        getItemKey: (index) => {
+            const item = items[index];
+            return isValidElement(item) && item.key !== null ? item.key : index;
+        },
+        getScrollElement: () => list.current,
+        initialOffset: virtualized ? items.length * 72 : 0,
+        overscan: 12,
+        useFlushSync: false,
+    });
     const scrollToBottom = () => {
-        if (list) list.scrollTop = list.scrollHeight - list.clientHeight;
+        const element = list.current;
+        if (element) element.scrollTop = element.scrollHeight - element.clientHeight;
     };
-
-    onMount(() => {
-        const element = list;
+    useLayoutEffect(() => {
+        const element = list.current;
         if (!element) return;
         scrollToBottom();
         const onScroll = () => {
-            following =
+            following.current =
                 element.scrollHeight - element.scrollTop - element.clientHeight <=
                 FOLLOW_BOTTOM_THRESHOLD;
         };
         element.addEventListener("scroll", onScroll, { passive: true });
         const observer = new MutationObserver(() => {
-            if (following) scrollToBottom();
+            if (following.current) scrollToBottom();
         });
         observer.observe(element, { characterData: true, childList: true, subtree: true });
-        onCleanup(() => {
+        return () => {
             observer.disconnect();
             element.removeEventListener("scroll", onScroll);
-        });
-    });
-
+        };
+    }, []);
+    useLayoutEffect(() => {
+        if (!following.current) return;
+        if (virtualized && items.length > 0)
+            virtualizer.scrollToIndex(items.length - 1, { align: "end" });
+        else scrollToBottom();
+    }, [items.length, virtualized, virtualizer]);
     return (
         <div
-            class={["happy2-message-list", props.class].filter(Boolean).join(" ")}
+            className={["happy2-message-list", props.className].filter(Boolean).join(" ")}
             data-happy2-ui="message-list"
-            ref={(element) => (list = element)}
+            ref={list}
             style={props.style}
         >
             <div
                 aria-hidden="true"
-                class="happy2-message-list__spacer"
+                className="happy2-message-list__spacer"
                 data-happy2-ui="message-list-spacer"
             />
-            <Show when={props.intro}>
-                {(intro) => (
-                    <header class="happy2-message-list__intro" data-happy2-ui="message-list-intro">
-                        <h2
-                            class="happy2-message-list__intro-title"
-                            data-happy2-ui="message-list-intro-title"
+            {props.intro
+                ? ((intro) => (
+                      <header
+                          className="happy2-message-list__intro"
+                          data-happy2-ui="message-list-intro"
+                      >
+                          <h2
+                              className="happy2-message-list__intro-title"
+                              data-happy2-ui="message-list-intro-title"
+                          >
+                              {intro.title}
+                          </h2>
+                          <p
+                              className="happy2-message-list__intro-description"
+                              data-happy2-ui="message-list-intro-description"
+                          >
+                              {intro.description}
+                          </p>
+                      </header>
+                  ))(props.intro)
+                : null}
+            {virtualized ? (
+                <div
+                    className="happy2-message-list__virtual"
+                    data-happy2-ui="message-list-virtual"
+                    style={{ height: `${virtualizer.getTotalSize()}px` }}
+                >
+                    {virtualizer.getVirtualItems().map((virtualItem) => (
+                        <div
+                            className="happy2-message-list__virtual-row"
+                            data-index={virtualItem.index}
+                            key={virtualItem.key}
+                            ref={virtualizer.measureElement}
+                            style={{ transform: `translateY(${virtualItem.start}px)` }}
                         >
-                            {intro().title}
-                        </h2>
-                        <p
-                            class="happy2-message-list__intro-description"
-                            data-happy2-ui="message-list-intro-description"
-                        >
-                            {intro().description}
-                        </p>
-                    </header>
-                )}
-            </Show>
-            {props.children}
+                            {items[virtualItem.index]}
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                props.children
+            )}
         </div>
     );
 }
-
 /** Centered mono date pill over a hairline, separating message days. */
-export function DayDivider(props: { class?: string; label: string }) {
+export function DayDivider(props: { className?: string; label: string }) {
     return (
         <div
             aria-label={props.label}
-            class={["happy2-day-divider", props.class].filter(Boolean).join(" ")}
+            className={["happy2-day-divider", props.className].filter(Boolean).join(" ")}
             data-happy2-ui="day-divider"
             role="separator"
         >
             <span
                 aria-hidden="true"
-                class="happy2-day-divider__line"
+                className="happy2-day-divider__line"
                 data-happy2-ui="day-divider-line"
             />
-            <span class="happy2-day-divider__label" data-happy2-ui="day-divider-label">
+            <span className="happy2-day-divider__label" data-happy2-ui="day-divider-label">
                 {props.label}
             </span>
             <span
                 aria-hidden="true"
-                class="happy2-day-divider__line"
+                className="happy2-day-divider__line"
                 data-happy2-ui="day-divider-line"
             />
         </div>
     );
 }
-
-export type SystemNoticeSegment = { kind: "text"; text: string } | { kind: "ref"; text: string };
-
+export type SystemNoticeSegment =
+    | {
+          kind: "text";
+          text: string;
+      }
+    | {
+          kind: "ref";
+          text: string;
+      };
 /* Split a service line into plain runs and highlighted @user / #channel refs.
    The regex keeps the delimiters so spacing and punctuation survive verbatim;
    a ref token is the sigil plus an unbroken run of word characters. */
 const SYSTEM_NOTICE_REF = /([@#][\p{L}\p{N}_.-]+)/u;
-
 function systemNoticeSegments(text: string): SystemNoticeSegment[] {
     return text
         .split(SYSTEM_NOTICE_REF)
@@ -686,7 +740,6 @@ function systemNoticeSegments(text: string): SystemNoticeSegment[] {
                 : { kind: "text", text: part },
         );
 }
-
 /**
  * Centered, low-emphasis service line for the message stream — the service
  * agent's membership announcements ("@ada joined #welcome"). It is not a chat
@@ -694,42 +747,41 @@ function systemNoticeSegments(text: string): SystemNoticeSegment[] {
  * #channel references color-lifted so the actors read at a glance.
  */
 export function SystemNotice(props: {
-    class?: string;
+    className?: string;
     icon?: IconName;
-    style?: JSX.CSSProperties;
+    style?: CSSProperties;
     text: string;
 }) {
-    const segments = createMemo(() => systemNoticeSegments(props.text));
+    const segments = systemNoticeSegments(props.text);
     return (
         <div
             aria-label={props.text}
-            class={["happy2-system-notice", props.class].filter(Boolean).join(" ")}
+            className={["happy2-system-notice", props.className].filter(Boolean).join(" ")}
             data-happy2-ui="system-notice"
             role="note"
             style={props.style}
         >
             <span
                 aria-hidden="true"
-                class="happy2-system-notice__icon"
+                className="happy2-system-notice__icon"
                 data-happy2-ui="system-notice-icon"
             >
                 <Icon name={props.icon ?? "users"} size={14} />
             </span>
-            <span class="happy2-system-notice__text" data-happy2-ui="system-notice-text">
-                <For each={segments()}>
-                    {(segment) =>
-                        segment.kind === "ref" ? (
-                            <span
-                                class="happy2-system-notice__ref"
-                                data-happy2-ui="system-notice-ref"
-                            >
-                                {segment.text}
-                            </span>
-                        ) : (
-                            segment.text
-                        )
-                    }
-                </For>
+            <span className="happy2-system-notice__text" data-happy2-ui="system-notice-text">
+                {segments.map((segment, index) =>
+                    segment.kind === "ref" ? (
+                        <span
+                            className="happy2-system-notice__ref"
+                            data-happy2-ui="system-notice-ref"
+                            key={`${segment.text}-${index}`}
+                        >
+                            {segment.text}
+                        </span>
+                    ) : (
+                        <span key={index}>{segment.text}</span>
+                    ),
+                )}
             </span>
         </div>
     );

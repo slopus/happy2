@@ -8,7 +8,7 @@ export function SwitchPage() {
             summary="Relay toggle — two sizes, on/off with accent vs inset track, optional label and secondary description, disabled state."
             title="Switch"
         >
-            <div class="specimen-grid specimen-grid--sizes">
+            <div className="specimen-grid specimen-grid--sizes">
                 <Specimen
                     detail="track 36×20 · thumb 16 · travel 16"
                     label="Medium"
@@ -18,8 +18,8 @@ export function SwitchPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-direction": "column",
-                            "align-items": "center",
+                            flexDirection: "column",
+                            alignItems: "center",
                             gap: "14px",
                             padding: "28px",
                         }}
@@ -27,7 +27,7 @@ export function SwitchPage() {
                         <div style={{ width: "120px" }}>
                             <DimensionRule label="track 36 × 20" />
                         </div>
-                        <div style={{ display: "flex", "align-items": "center", gap: "24px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
                             <Switch aria-label="Off" checked={false} size="medium" />
                             <Switch aria-label="On" checked size="medium" />
                         </div>
@@ -42,8 +42,8 @@ export function SwitchPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-direction": "column",
-                            "align-items": "center",
+                            flexDirection: "column",
+                            alignItems: "center",
                             gap: "14px",
                             padding: "28px",
                         }}
@@ -51,7 +51,7 @@ export function SwitchPage() {
                         <div style={{ width: "120px" }}>
                             <DimensionRule label="track 28 × 16" />
                         </div>
-                        <div style={{ display: "flex", "align-items": "center", gap: "24px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
                             <Switch aria-label="Off" checked={false} size="small" />
                             <Switch aria-label="On" checked size="small" />
                         </div>
@@ -66,13 +66,13 @@ export function SwitchPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-direction": "column",
-                            "align-items": "center",
+                            flexDirection: "column",
+                            alignItems: "center",
                             gap: "18px",
                             padding: "28px",
                         }}
                     >
-                        <div style={{ display: "flex", "align-items": "center", gap: "24px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
                             <Switch aria-label="Off disabled" checked={false} disabled />
                             <Switch aria-label="On disabled" checked disabled />
                         </div>
@@ -80,7 +80,7 @@ export function SwitchPage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="label 13/20 · track center on label line · 10px gap"
                     label="With label"
@@ -90,7 +90,7 @@ export function SwitchPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-direction": "column",
+                            flexDirection: "column",
                             gap: "16px",
                             padding: "28px",
                         }}
@@ -109,7 +109,7 @@ export function SwitchPage() {
                     <div
                         style={{
                             display: "flex",
-                            "flex-direction": "column",
+                            flexDirection: "column",
                             gap: "18px",
                             padding: "28px",
                         }}

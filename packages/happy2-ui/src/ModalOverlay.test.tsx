@@ -1,5 +1,5 @@
+import { type ReactNode } from "react";
 import { expect, it } from "vitest";
-import type { JSX } from "solid-js";
 import "./theme.css";
 import "./styles/modal-overlay.css";
 import "./styles/modal.css";
@@ -8,14 +8,13 @@ import "./styles/icon.css";
 import { Modal } from "./Modal";
 import { ModalOverlay } from "./ModalOverlay";
 import { createRenderer } from "./testing";
-
 /*
  * The overlay is `position: fixed`; a transformed wrapper establishes a
  * containing block so it fills a bounded, measurable window frame in the test
  * surface instead of escaping to the viewport. No border/padding on the frame,
  * so `inset: 0` resolves to exact edge offsets.
  */
-function WindowFrame(props: { children: JSX.Element }): JSX.Element {
+function WindowFrame(props: { children: ReactNode }): ReactNode {
     return (
         <div
             data-testid="frame"
@@ -31,11 +30,9 @@ function WindowFrame(props: { children: JSX.Element }): JSX.Element {
         </div>
     );
 }
-
 it("holds ModalOverlay backdrop geometry, centering, and backdrop-only dismiss", async () => {
     const dismissed: string[] = [];
     const view = createRenderer();
-
     view.render(
         () => (
             <WindowFrame>
@@ -49,9 +46,7 @@ it("holds ModalOverlay backdrop geometry, centering, and backdrop-only dismiss",
         { width: 800, height: 540, padding: 40 },
     );
     await view.ready();
-
     /* ---- Backdrop layer: one dim, one stacking level, fixed to the window --- */
-
     const overlay = view.$('[data-testid="ov"]');
     expect(overlay.element.getAttribute("data-happy2-ui")).toBe("modal-overlay");
     expect(
@@ -81,7 +76,6 @@ it("holds ModalOverlay backdrop geometry, centering, and backdrop-only dismiss",
         "padding-bottom": "24px",
         "padding-left": "24px",
     });
-
     /* Fixed inset:0 fills the containing frame exactly. */
     const inset = overlay.offsets();
     expect(inset.top).toBe(0);
@@ -90,9 +84,7 @@ it("holds ModalOverlay backdrop geometry, centering, and backdrop-only dismiss",
     expect(inset.left).toBe(0);
     expect(overlay.bounds().width).toBe(720);
     expect(overlay.bounds().height).toBe(460);
-
     /* ---- Hosted card is centered inside the 24px safe-area gutter --------- */
-
     const dialog = view.$('[data-testid="ov"] [data-happy2-ui="modal-dialog"]');
     const overlayBounds = overlay.bounds();
     const dialogBounds = dialog.bounds();
@@ -105,27 +97,24 @@ it("holds ModalOverlay backdrop geometry, centering, and backdrop-only dismiss",
     expect(Math.abs(topGap - bottomGap)).toBeLessThanOrEqual(0.5);
     expect(leftGap).toBeGreaterThanOrEqual(24);
     expect(topGap).toBeGreaterThanOrEqual(24);
-
     /* ---- Dismiss is backdrop-only -------------------------------------- */
-
     /* A click inside the card must not dismiss (target !== the backdrop). */
     (dialog.element as HTMLElement).click();
     expect(dismissed).toEqual([]);
-
     /* A click on the dim outside the card dismisses. */
     (overlay.element as HTMLElement).click();
     expect(dismissed).toEqual(["ov"]);
-
     await view.screenshot("ModalOverlay.test");
-}, 120_000);
-
+}, 120000);
 it("caps a taller-than-window card inside the gutter so its body scrolls, not the window", async () => {
     const view = createRenderer();
-
     /* A card whose content far exceeds the 460px window: without a height cap it
      * would grow past the overlay and clip its header/footer at the window edge. */
-    const tall = Array.from({ length: 40 }, (_, i) => <p data-line={i}>Preference row {i + 1}</p>);
-
+    const tall = Array.from({ length: 40 }, (_, i) => (
+        <p data-line={i} key={i}>
+            Preference row {i + 1}
+        </p>
+    ));
     view.render(
         () => (
             <WindowFrame>
@@ -144,14 +133,11 @@ it("caps a taller-than-window card inside the gutter so its body scrolls, not th
         { width: 800, height: 540, padding: 40 },
     );
     await view.ready();
-
     const overlay = view.$('[data-testid="ov"]');
     const dialog = view.$('[data-testid="ov"] [data-happy2-ui="modal-dialog"]');
     const header = view.$('[data-testid="ov"] [data-happy2-ui="modal-header"]');
     const body = view.$('[data-testid="ov"] [data-happy2-ui="modal-body"]');
-
     /* ---- Card keeps a clear margin; it never fills the window height ------ */
-
     const overlayBounds = overlay.bounds();
     const dialogBounds = dialog.bounds();
     const topGap = dialogBounds.y - overlayBounds.y;
@@ -165,9 +151,7 @@ it("caps a taller-than-window card inside the gutter so its body scrolls, not th
     const safeBox = overlayBounds.height - 48;
     expect(dialogBounds.height).toBeLessThanOrEqual(safeBox * 0.88 + 1);
     expect(dialogBounds.height).toBeGreaterThan(safeBox * 0.88 - 2);
-
     /* ---- The body scrolls; the header/footer stay pinned and unclipped ---- */
-
     const bodyEl = body.element as HTMLElement;
     /* Overflowing content lives in the body's scroll region, not off-window. */
     expect(bodyEl.scrollHeight).toBeGreaterThan(bodyEl.clientHeight);
@@ -177,13 +161,10 @@ it("caps a taller-than-window card inside the gutter so its body scrolls, not th
     expect(header.bounds().y + header.bounds().height).toBeLessThanOrEqual(
         dialogBounds.y + dialogBounds.height + 0.5,
     );
-
     await view.screenshot("ModalOverlay.tall.test");
-}, 120_000);
-
+}, 120000);
 it("does not dismiss when no onDismiss is wired (a click-away-safe surface)", async () => {
     const view = createRenderer();
-
     view.render(
         () => (
             <WindowFrame>
@@ -197,9 +178,8 @@ it("does not dismiss when no onDismiss is wired (a click-away-safe surface)", as
         { width: 800, height: 540, padding: 40 },
     );
     await view.ready();
-
     const overlay = view.$('[data-testid="fixed"]');
     /* No throw, no handler: clicking the backdrop is inert. */
     (overlay.element as HTMLElement).click();
     expect(overlay.element.getAttribute("data-happy2-ui")).toBe("modal-overlay");
-}, 120_000);
+}, 120000);

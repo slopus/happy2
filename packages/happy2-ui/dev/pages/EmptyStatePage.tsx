@@ -5,7 +5,7 @@ const noop = () => {};
 
 const panelStage: Record<string, string> = {
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     gap: "12px",
     width: "440px",
 };
@@ -17,7 +17,7 @@ export function EmptyStatePage() {
             summary="Centered icon medallion + title + description + action. Panel fills and vertically centers its host region; inline is a compact content-sized block. Replaces the app's raw .feature-empty."
             title="Empty state"
         >
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="panel · 48px medallion · title 15/20 · description 13/18 · medium action"
                     label="Panel — full"
@@ -57,14 +57,14 @@ export function EmptyStatePage() {
                 </Specimen>
             </div>
 
-            <div class="specimen-grid">
+            <div className="specimen-grid">
                 <Specimen
                     detail="inline · 40px medallion · title 14/18 · small action"
                     label="Inline — full"
                     number="E-03"
                     stage="surface"
                 >
-                    <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                         <EmptyState
                             action={{ icon: "plus", label: "New thread", onClick: noop }}
                             description="Follow a thread to keep it here for quick access."

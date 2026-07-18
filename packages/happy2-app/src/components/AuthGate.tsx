@@ -1,13 +1,11 @@
 import {
-    Match,
-    Show,
-    Switch,
-    createEffect,
-    createSignal,
-    onCleanup,
-    onMount,
-    type JSX,
-} from "solid-js";
+    useLayoutEffect,
+    useReducer,
+    useRef,
+    type CSSProperties,
+    type FormEvent,
+    type ReactNode,
+} from "react";
 import { happyStateCreate, type HappyState } from "happy2-state";
 import {
     Banner,
@@ -30,7 +28,6 @@ import {
 import { createAuthenticatedTransport } from "../stateTransport";
 import type { DesktopNavigation, DesktopOnboardingStep } from "../navigation/desktopRouteTypes";
 import { preAuthOnboardingStep } from "../onboarding/onboardingRoute";
-
 export type AuthSession = {
     state: HappyState;
     user: User;
@@ -44,46 +41,81 @@ export type AuthSession = {
 };
 type AuthGateProps = {
     serverUrl: string;
-    children: (session: AuthSession) => JSX.Element;
+    children: (session: AuthSession) => ReactNode;
     showWindowDragRegion?: boolean;
     /** When provided, the pre-application onboarding step is reflected into the URL. */
     navigation?: DesktopNavigation;
 };
 type Mode = "loading" | "sign-in" | "onboarding" | "ready" | "unavailable";
+type AuthModel = {
+    mode: Mode;
+    methods?: AuthMethods;
+    phase?: PublicSetupPhase;
+    registration?: PublicSetupRegistration;
+    user?: User;
+    state?: HappyState;
+    isRegistering: boolean;
+    email: string;
+    password: string;
+    firstName: string;
+    username: string;
+    error?: string;
+    pending: boolean;
+    loadingMessage: string;
+};
+const initialAuthModel: AuthModel = {
+    mode: "loading",
+    isRegistering: false,
+    email: "",
+    password: "",
+    firstName: "",
+    username: "",
+    pending: false,
+    loadingMessage: "Checking the server and your saved session.",
+};
 const tokenKey = "happy2.session-token";
 /* The <form> is a single child of the OnboardingScreen form slot, so the slot's gap
    can't reach its fields — space them here so the last field never butts up
    against the submit button. */
-const formStyle: JSX.CSSProperties = {
+const formStyle: CSSProperties = {
     display: "flex",
-    "flex-direction": "column",
+    flexDirection: "column",
     gap: "14px",
 };
-
 export function AuthGate(props: AuthGateProps) {
-    const client = createServerClient(props.serverUrl);
-    const [mode, setMode] = createSignal<Mode>("loading");
-    const [methods, setMethods] = createSignal<AuthMethods>();
-    const [phase, setPhase] = createSignal<PublicSetupPhase>();
-    const [registration, setRegistration] = createSignal<PublicSetupRegistration>();
-    const [user, setUser] = createSignal<User>();
-    const [state, setState] = createSignal<HappyState>();
-    const [isRegistering, setIsRegistering] = createSignal(false);
-    const [email, setEmail] = createSignal("");
-    const [password, setPassword] = createSignal("");
-    const [firstName, setFirstName] = createSignal("");
-    const [username, setUsername] = createSignal("");
-    const [error, setError] = createSignal<string>();
-    const [pending, setPending] = createSignal(false);
-    const [loadingMessage, setLoadingMessage] = createSignal(
-        "Checking the server and your saved session.",
+    const clientRef = useRef<ReturnType<typeof createServerClient> | undefined>(undefined);
+    clientRef.current ??= createServerClient(props.serverUrl);
+    const client = clientRef.current;
+    const [model, update] = useReducer(
+        (current: AuthModel, patch: Partial<AuthModel>) => ({ ...current, ...patch }),
+        initialAuthModel,
     );
-    let avatarUrl: string | undefined;
+    const {
+        mode,
+        methods,
+        phase,
+        registration,
+        user,
+        state,
+        isRegistering,
+        email,
+        password,
+        firstName,
+        username,
+        error,
+        pending,
+        loadingMessage,
+    } = model;
+    const stateRef = useRef<HappyState | undefined>(undefined);
+    const methodsRef = useRef<AuthMethods | undefined>(undefined);
+    const avatarUrlRef = useRef<string | undefined>(undefined);
     const token = () => localStorage.getItem(tokenKey) ?? undefined;
-
     async function resolveSession(
         value?: string,
-        options: { profileRequired?: boolean; allowRefresh?: boolean } = {},
+        options: {
+            profileRequired?: boolean;
+            allowRefresh?: boolean;
+        } = {},
     ) {
         const { profileRequired = false, allowRefresh = true } = options;
         if (value) localStorage.setItem(tokenKey, value);
@@ -93,11 +125,10 @@ export function AuthGate(props: AuthGateProps) {
          * protected /v0/me route, which intentionally answers 401 until a
          * profile exists. */
         if (profileRequired) {
-            setMode("onboarding");
+            update({ mode: "onboarding" });
             return;
         }
-        setLoadingMessage("Loading your profile.");
-        setMode("loading");
+        update({ loadingMessage: "Loading your profile.", mode: "loading" });
         const nextState = happyStateCreate({
             transport: createAuthenticatedTransport(props.serverUrl, value),
         });
@@ -105,10 +136,9 @@ export function AuthGate(props: AuthGateProps) {
             const response = await client.me(value);
             await nextState.syncStart();
             const profile = await loadAvatar(response.user, nextState);
-            state()?.[Symbol.dispose]();
-            setState(nextState);
-            setUser(profile);
-            setMode("ready");
+            stateRef.current?.[Symbol.dispose]();
+            stateRef.current = nextState;
+            update({ state: nextState, user: profile, mode: "ready" });
         } catch (reason) {
             nextState[Symbol.dispose]();
             if (!(reason instanceof ServerError) || reason.status !== 401) throw reason;
@@ -123,58 +153,61 @@ export function AuthGate(props: AuthGateProps) {
                     if (!(refreshReason instanceof ServerError) || refreshReason.status !== 401)
                         throw refreshReason;
                     localStorage.removeItem(tokenKey);
-                    if (methods()?.method === "cloudflare_access")
+                    if (methodsRef.current?.method === "cloudflare_access")
                         return resolveSession(undefined, { allowRefresh: false });
-                    setMode("sign-in");
+                    update({ mode: "sign-in" });
                     return;
                 }
             }
-            setMode(methods()?.method === "cloudflare_access" ? "onboarding" : "sign-in");
+            update({
+                mode: methodsRef.current?.method === "cloudflare_access" ? "onboarding" : "sign-in",
+            });
         }
     }
     async function loadAvatar(profile: User, model: HappyState): Promise<User> {
         if (!profile.photoFileId) return profile;
         try {
-            if (avatarUrl) URL.revokeObjectURL(avatarUrl);
+            if (avatarUrlRef.current) URL.revokeObjectURL(avatarUrlRef.current);
             const contents = await model.fileDownload(profile.photoFileId);
-            avatarUrl = URL.createObjectURL(new Blob([contents]));
-            return { ...profile, avatarUrl };
+            avatarUrlRef.current = URL.createObjectURL(new Blob([contents]));
+            return { ...profile, avatarUrl: avatarUrlRef.current };
         } catch {
             return profile;
         }
     }
     async function setAvatar(photoFileId: string): Promise<void> {
-        const current = user();
-        const model = state();
+        const current = user;
+        const model = state;
         if (!current || !model) return;
         const contents = await model.fileDownload(photoFileId);
-        if (avatarUrl) URL.revokeObjectURL(avatarUrl);
-        avatarUrl = URL.createObjectURL(new Blob([contents]));
-        setUser({ ...current, photoFileId, avatarUrl });
+        if (avatarUrlRef.current) URL.revokeObjectURL(avatarUrlRef.current);
+        avatarUrlRef.current = URL.createObjectURL(new Blob([contents]));
+        update({ user: { ...current, photoFileId, avatarUrl: avatarUrlRef.current } });
     }
-    onCleanup(() => {
-        state()?.[Symbol.dispose]();
-        if (avatarUrl) URL.revokeObjectURL(avatarUrl);
-    });
+    useLayoutEffect(
+        () => () => {
+            stateRef.current?.[Symbol.dispose]();
+            if (avatarUrlRef.current) URL.revokeObjectURL(avatarUrlRef.current);
+        },
+        [],
+    );
     /* The current pre-application onboarding step, or undefined once the app can
      * take over. Bootstrap vs. sign-in is chosen from the public setup phase and
      * registration availability together, so a fresh server routes to first-account
      * creation while a provisional-account-before-profile reload (phase still
      * bootstrap_required but registration closed) routes to sign-in to resume. */
-    const preAppStep = (): DesktopOnboardingStep | undefined => {
-        if (mode() === "sign-in")
-            return phase()
-                ? preAuthOnboardingStep(phase()!, registration() ?? "closed")
-                : "sign-in";
-        if (mode() === "onboarding") return "profile";
+    const preAppStep: DesktopOnboardingStep | undefined = (() => {
+        if (mode === "sign-in")
+            return phase ? preAuthOnboardingStep(phase!, registration ?? "closed") : "sign-in";
+        if (mode === "onboarding") return "profile";
         return undefined;
-    };
+    })();
     /* Reflect the durable pre-application step into the URL so a reload resumes
      * the same centered screen. The server-configuration steps take over URL
      * ownership once the workspace state exists (see ServerOnboarding). */
-    createEffect(() => {
+    useLayoutEffect(() => {
         const navigation = props.navigation;
-        const step = preAppStep();
+        const step = preAppStep;
         if (!navigation || !step) return;
         const current = navigation.get();
         if (current.primary.kind === "onboarding" && current.primary.step === step) return;
@@ -187,7 +220,7 @@ export function AuthGate(props: AuthGateProps) {
             },
             { replace: true },
         );
-    });
+    }, [preAppStep, props.navigation]);
     /* Probes the server for its authentication method and public setup phase, then
      * routes to the first pre-application step. It is the single entry the mount
      * and the unavailable-screen retry both call, so recovery happens in place —
@@ -196,18 +229,23 @@ export function AuthGate(props: AuthGateProps) {
      * required for canonical fresh-install routing, so a failure surfaces the
      * unavailable screen instead of silently guessing sign-in. */
     async function probeServer(): Promise<void> {
-        setError(undefined);
-        setPending(true);
-        setLoadingMessage("Checking the server and your saved session.");
-        setMode("loading");
+        update({
+            error: undefined,
+            pending: true,
+            loadingMessage: "Checking the server and your saved session.",
+            mode: "loading",
+        });
         try {
             const [supported, setupStatus] = await Promise.all([
                 client.methods(),
                 client.setupStatus(),
             ]);
-            setMethods(supported);
-            setPhase(setupStatus.phase);
-            setRegistration(setupStatus.registration);
+            methodsRef.current = supported;
+            update({
+                methods: supported,
+                phase: setupStatus.phase,
+                registration: setupStatus.registration,
+            });
             /* Open the password screen on first-account creation only while
              * registration actually permits bootstrap creation. A provisional
              * bootstrap account whose registration has closed must default to
@@ -217,56 +255,64 @@ export function AuthGate(props: AuthGateProps) {
                 preAuthOnboardingStep(setupStatus.phase, setupStatus.registration) ===
                     "bootstrap-account"
             )
-                setIsRegistering(true);
+                update({ isRegistering: true });
             const saved = token();
             if (saved) await resolveSession(saved);
             else if (supported.method === "cloudflare_access") {
-                setLoadingMessage("Checking your Cloudflare Access session.");
+                update({ loadingMessage: "Checking your Cloudflare Access session." });
                 await resolveSession(undefined, { allowRefresh: false });
-            } else setMode("sign-in");
+            } else update({ mode: "sign-in" });
         } catch (reason) {
-            setError(message(reason));
-            setMode("unavailable");
+            update({ error: message(reason), mode: "unavailable" });
         } finally {
-            setPending(false);
+            update({ pending: false });
         }
     }
-    onMount(() => void probeServer());
-    async function submitCredentials(event: SubmitEvent) {
+    const initialProbeStarted = useRef(false);
+    useLayoutEffect(() => {
+        if (initialProbeStarted.current) return;
+        initialProbeStarted.current = true;
+        void probeServer();
+    });
+    async function submitCredentials(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        setPending(true);
-        setError(undefined);
+        update({ pending: true, error: undefined });
         try {
-            const response = isRegistering()
-                ? await client.register(email(), password())
-                : await client.login(email(), password());
+            const response = isRegistering
+                ? await client.register(email, password)
+                : await client.login(email, password);
             await resolveSession(response.token, { profileRequired: response.profileRequired });
         } catch (reason) {
-            setError(message(reason));
-            setMode("sign-in");
+            update({ error: message(reason), mode: "sign-in" });
         } finally {
-            setPending(false);
+            update({ pending: false });
         }
     }
-    async function submitProfile(event: SubmitEvent) {
+    async function submitProfile(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const saved = token();
-        if (!saved && methods()?.method !== "cloudflare_access") return setMode("sign-in");
-        setPending(true);
-        setError(undefined);
+        if (!saved && methods?.method !== "cloudflare_access") {
+            update({ mode: "sign-in" });
+            return;
+        }
+        update({ pending: true, error: undefined });
         try {
-            await client.createProfile({ firstName: firstName(), username: username() }, saved);
+            await client.createProfile({ firstName: firstName, username: username }, saved);
             await resolveSession(saved, { allowRefresh: false });
         } catch (reason) {
-            setError(message(reason));
+            update({ error: message(reason) });
         } finally {
-            setPending(false);
+            update({ pending: false });
         }
     }
-    const isPasswordSignIn = () => mode() === "sign-in" && methods()?.method === "password";
+    const isPasswordSignIn = () => mode === "sign-in" && methods?.method === "password";
     const loadingHeadline = { kicker: "Connecting to your workspace", title: "One moment." };
-    const headline = (): { kicker?: string; title: string; copy?: string } => {
-        switch (mode()) {
+    const headline = (): {
+        kicker?: string;
+        title: string;
+        copy?: string;
+    } => {
+        switch (mode) {
             case "loading":
                 return loadingHeadline;
             case "unavailable":
@@ -282,144 +328,131 @@ export function AuthGate(props: AuthGateProps) {
                     copy: "A profile activates your account and unlocks the workspace.",
                 };
             case "sign-in":
-                if (methods()?.method === "password")
+                if (methods?.method === "password")
                     return {
-                        kicker: isRegistering() ? "Create your account" : "Welcome back",
-                        title: isRegistering() ? "Set up Happy (2)." : "Sign in to Happy (2).",
-                        copy: isRegistering()
+                        kicker: isRegistering ? "Create your account" : "Welcome back",
+                        title: isRegistering ? "Set up Happy (2)." : "Sign in to Happy (2).",
+                        copy: isRegistering
                             ? "Your profile comes next."
                             : "Use the account you already created.",
                     };
                 return {
                     kicker: "Authentication configured",
                     title:
-                        methods()?.method === "magic_link"
+                        methods?.method === "magic_link"
                             ? "Check your email."
                             : "Continue in your browser.",
-                    copy: `This workspace currently uses ${
-                        methods()?.method?.replace("_", " ") ?? "no"
-                    } authentication. Password sign-in is unavailable.`,
+                    copy: `This workspace currently uses ${methods?.method?.replace("_", " ") ?? "no"} authentication. Password sign-in is unavailable.`,
                 };
             default:
                 return { title: "One moment." };
         }
     };
-    const submitLabel = () =>
-        pending() ? "Working…" : isRegistering() ? "Create account" : "Sign in";
-
+    const submitLabel = () => (pending ? "Working…" : isRegistering ? "Create account" : "Sign in");
     /* The OnboardingScreen for one crossfade layer. `state` is fixed by the layer's
      * screen key (not read live) so an outgoing loading layer keeps its spinner
      * while the incoming form fades in over it — a real crossfade, not a morph. */
     const renderGate = (state: OnboardingScreenState) => (
         <>
-            <Show when={props.showWindowDragRegion}>
-                <WindowDragRegion />
-            </Show>
+            {props.showWindowDragRegion ? <WindowDragRegion /> : null}
             <OnboardingScreen
                 backgroundUrl={onboardingBackgroundUrl}
                 brand={{ name: "Happy (2)" }}
                 copy={state === "loading" ? undefined : headline().copy}
                 data-testid="auth-onboarding-screen"
                 kicker={state === "loading" ? loadingHeadline.kicker : headline().kicker}
-                loadingLabel={loadingMessage()}
+                loadingLabel={loadingMessage}
                 state={state}
                 title={state === "loading" ? loadingHeadline.title : headline().title}
                 footer={
-                    <Show when={isPasswordSignIn() && methods()?.signupEnabled}>
+                    isPasswordSignIn() && methods?.signupEnabled ? (
                         <Button
                             onClick={() => {
-                                setIsRegistering(!isRegistering());
-                                setError(undefined);
+                                update({ isRegistering: !isRegistering, error: undefined });
                             }}
                             size="small"
                             type="button"
                             variant="ghost"
                         >
-                            {isRegistering() ? "I already have an account" : "Create a new account"}
+                            {isRegistering ? "I already have an account" : "Create a new account"}
                         </Button>
-                    </Show>
+                    ) : null
                 }
             >
-                <Switch>
-                    <Match when={mode() === "unavailable"}>
-                        <Show when={error()}>
-                            {(reason) => (
-                                <Banner tone="danger" title="Connection failed">
-                                    {reason()}
-                                </Banner>
-                            )}
-                        </Show>
-                        <Button
-                            disabled={pending()}
-                            onClick={() => void probeServer()}
-                            type="button"
-                        >
+                {mode === "unavailable" ? (
+                    <>
+                        {error
+                            ? ((reason) => (
+                                  <Banner tone="danger" title="Connection failed">
+                                      {reason}
+                                  </Banner>
+                              ))(error)
+                            : null}
+                        <Button disabled={pending} onClick={() => void probeServer()} type="button">
                             Try again
                         </Button>
-                    </Match>
-                    <Match when={isPasswordSignIn()}>
-                        <form onSubmit={submitCredentials} style={formStyle}>
-                            <TextField
-                                autocomplete="email"
-                                fullWidth
-                                label="Email"
-                                onValueChange={setEmail}
-                                required
-                                type="email"
-                                value={email()}
-                            />
-                            <TextField
-                                autocomplete="current-password"
-                                fullWidth
-                                label="Password"
-                                onValueChange={setPassword}
-                                required
-                                type="password"
-                                value={password()}
-                            />
-                            <Show when={error()}>
-                                {(reason) => (
-                                    <Banner tone="danger" title="Sign-in failed">
-                                        {reason()}
-                                    </Banner>
-                                )}
-                            </Show>
-                            <Button disabled={pending()} fullWidth type="submit">
-                                {submitLabel()}
-                            </Button>
-                        </form>
-                    </Match>
-                    <Match when={mode() === "onboarding"}>
-                        <form onSubmit={submitProfile} style={formStyle}>
-                            <TextField
-                                autocomplete="given-name"
-                                fullWidth
-                                label="First name"
-                                onValueChange={setFirstName}
-                                required
-                                value={firstName()}
-                            />
-                            <TextField
-                                autocomplete="username"
-                                fullWidth
-                                label="Username"
-                                onValueChange={setUsername}
-                                required
-                                value={username()}
-                            />
-                            <Show when={error()}>
-                                {(reason) => (
-                                    <Banner tone="danger" title="Could not activate">
-                                        {reason()}
-                                    </Banner>
-                                )}
-                            </Show>
-                            <Button disabled={pending()} fullWidth type="submit">
-                                {pending() ? "Activating…" : "Activate workspace"}
-                            </Button>
-                        </form>
-                    </Match>
-                </Switch>
+                    </>
+                ) : isPasswordSignIn() ? (
+                    <form onSubmit={submitCredentials} style={formStyle}>
+                        <TextField
+                            autoComplete="email"
+                            fullWidth
+                            label="Email"
+                            onValueChange={(value) => update({ email: value })}
+                            required
+                            type="email"
+                            value={email}
+                        />
+                        <TextField
+                            autoComplete="current-password"
+                            fullWidth
+                            label="Password"
+                            onValueChange={(value) => update({ password: value })}
+                            required
+                            type="password"
+                            value={password}
+                        />
+                        {error
+                            ? ((reason) => (
+                                  <Banner tone="danger" title="Sign-in failed">
+                                      {reason}
+                                  </Banner>
+                              ))(error)
+                            : null}
+                        <Button disabled={pending} fullWidth type="submit">
+                            {submitLabel()}
+                        </Button>
+                    </form>
+                ) : mode === "onboarding" ? (
+                    <form onSubmit={submitProfile} style={formStyle}>
+                        <TextField
+                            autoComplete="given-name"
+                            fullWidth
+                            label="First name"
+                            onValueChange={(value) => update({ firstName: value })}
+                            required
+                            value={firstName}
+                        />
+                        <TextField
+                            autoComplete="username"
+                            fullWidth
+                            label="Username"
+                            onValueChange={(value) => update({ username: value })}
+                            required
+                            value={username}
+                        />
+                        {error
+                            ? ((reason) => (
+                                  <Banner tone="danger" title="Could not activate">
+                                      {reason}
+                                  </Banner>
+                              ))(error)
+                            : null}
+                        <Button disabled={pending} fullWidth type="submit">
+                            {pending ? "Activating…" : "Activate workspace"}
+                        </Button>
+                    </form>
+                ) : null}
             </OnboardingScreen>
         </>
     );
@@ -428,36 +461,32 @@ export function AuthGate(props: AuthGateProps) {
        the snapshot captured when the gate first opened. */
     const session: AuthSession = {
         get state() {
-            return state()!;
+            return state!;
         },
         get user() {
-            return user()!;
+            return user!;
         },
-        updateUser: setUser,
+        updateUser: (nextUser) => update({ user: nextUser }),
         setAvatar,
     };
-
     /* True once the session is fully resolved and the workspace can take over. */
     const sessionReady = () =>
-        mode() === "ready" &&
-        !!user() &&
-        (!!token() || methods()?.method === "cloudflare_access") &&
-        !!state();
-
+        mode === "ready" &&
+        !!user &&
+        (!!token() || methods?.method === "cloudflare_access") &&
+        !!state;
     /* Coarse screen identity that drives the crossfade. Finer changes (loading
      * message, sign-in vs. onboarding, error banners) stay within one key and
      * update in place; only crossing these boundaries dissolves. */
     const screenKey = (): "loading" | "auth" | "app" => {
         if (sessionReady()) return "app";
-        if (mode() === "loading") return "loading";
+        if (mode === "loading") return "loading";
         return "auth";
     };
-
     const renderScreen = (key: string | number) => {
         if (key === "app") return props.children(session);
         return renderGate(key === "loading" ? "loading" : "form");
     };
-
     return <Fade active={screenKey()} data-testid="auth-gate" render={renderScreen} />;
 }
 function message(reason: unknown): string {

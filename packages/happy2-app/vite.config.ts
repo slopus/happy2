@@ -1,10 +1,11 @@
 import { resolve } from "node:path";
+import babel from "@rolldown/plugin-babel";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
-import solid from "vite-plugin-solid";
 
 export default defineConfig({
-    plugins: [tailwindcss(), solid()],
+    plugins: [tailwindcss(), react(), babel({ presets: [reactCompilerPreset()] })],
     build: {
         lib: {
             entry: resolve(import.meta.dirname, "src/index.ts"),
@@ -12,10 +13,11 @@ export default defineConfig({
             fileName: "index",
         },
         rollupOptions: {
-            external: ["solid-js", "solid-js/web"],
+            external: ["react", "react-dom", "react/jsx-runtime"],
         },
     },
     test: {
         environment: "jsdom",
+        setupFiles: [resolve(import.meta.dirname, "src/testing/setup.ts")],
     },
 });

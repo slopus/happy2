@@ -24,7 +24,7 @@ describe("avatar changes reconcile through the real in-memory server", () => {
         const directory = state.directory();
         await state.whenIdle();
         expect(
-            directory.get().users.find((item) => item.id === owner.id)?.photoFileId,
+            directory.getState().users.find((item) => item.id === owner.id)?.photoFileId,
         ).toBeUndefined();
 
         // The owner uploads and adopts a public avatar through the real server.
@@ -46,9 +46,12 @@ describe("avatar changes reconcile through the real in-memory server", () => {
         // The owner's `user.updated` sync event refreshes the viewer's cached
         // contacts, so the new photoFileId reconciles without a manual reload.
         await expect
-            .poll(() => directory.get().users.find((item) => item.id === owner.id)?.photoFileId, {
-                timeout: 3_000,
-            })
+            .poll(
+                () => directory.getState().users.find((item) => item.id === owner.id)?.photoFileId,
+                {
+                    timeout: 3_000,
+                },
+            )
             .toBe(fileId);
     });
 });

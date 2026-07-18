@@ -124,8 +124,8 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
                         data-testid="footer-user"
                         style={{
                             color: "var(--happy2-text-secondary)",
-                            "font-size": "13px",
-                            "line-height": "16px",
+                            fontSize: "13px",
+                            lineHeight: "16px",
                         }}
                     >
                         Sasha K.
