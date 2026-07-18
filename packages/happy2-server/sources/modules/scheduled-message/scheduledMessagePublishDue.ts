@@ -79,7 +79,6 @@ export async function scheduledMessagePublishDue(
             const [detail] = await executor
                 .select({
                     quotedMessageId: scheduledMessages.quotedMessageId,
-                    threadRootMessageId: scheduledMessages.threadRootMessageId,
                 })
                 .from(scheduledMessages)
                 .where(eq(scheduledMessages.id, row.id));
@@ -89,7 +88,6 @@ export async function scheduledMessagePublishDue(
                 text: scheduled.text,
                 attachmentFileIds: scheduled.attachmentFileIds,
                 quotedMessageId: detail?.quotedMessageId ?? undefined,
-                threadRootMessageId: detail?.threadRootMessageId ?? undefined,
                 clientMutationId: `scheduled:${row.id}`,
             });
         } catch (error) {

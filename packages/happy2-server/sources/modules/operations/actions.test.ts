@@ -444,69 +444,55 @@ describe("operations actions", () => {
             ).rows[0]?.count,
         ).toBe(0);
     });
-    it("recomputes thread projections when moderation removes a reply", async () => {
-        const chatId = await createChat(raw, admin.user.id, member.user.id, admin.user.id);
+    it("moderates a message in a child chat without mutating the parent timeline", async () => {
+        const parentChatId = await createChat(raw, admin.user.id, member.user.id, admin.user.id);
         const rootMessageId = createId();
-        const survivingReplyId = createId();
+        const childChatId = createId();
         const removedReplyId = createId();
         await raw.batch([
             {
                 sql: `INSERT INTO messages
                         (id, chat_id, sequence, change_pts, sender_user_id, text)
                       VALUES (?, ?, 1, 1, ?, 'thread root')`,
-                args: [rootMessageId, chatId, admin.user.id],
+                args: [rootMessageId, parentChatId, admin.user.id],
+            },
+            {
+                sql: `INSERT INTO chats
+                        (id, kind, name, parent_message_id, created_by_user_id, owner_user_id,
+                         pts, last_message_sequence, last_change_sequence, is_listed)
+                      VALUES (?, 'private_channel', 'Moderated child', ?, ?, ?, 1, 1, 1, 0)`,
+                args: [childChatId, rootMessageId, admin.user.id, admin.user.id],
+            },
+            {
+                sql: `INSERT INTO chat_members
+                        (chat_id, user_id, role, membership_epoch)
+                      VALUES (?, ?, 'owner', ?), (?, ?, 'member', ?)`,
+                args: [
+                    childChatId,
+                    admin.user.id,
+                    createId(),
+                    childChatId,
+                    member.user.id,
+                    createId(),
+                ],
             },
             {
                 sql: `INSERT INTO messages
-                        (id, chat_id, sequence, change_pts, sender_user_id, text,
-                         thread_root_message_id)
-                      VALUES (?, ?, 2, 2, ?, 'surviving reply', ?)`,
-                args: [survivingReplyId, chatId, admin.user.id, rootMessageId],
+                        (id, chat_id, sequence, change_pts, sender_user_id, text)
+                      VALUES (?, ?, 1, 1, ?, 'removed child reply')`,
+                args: [removedReplyId, childChatId, member.user.id],
             },
             {
-                sql: `INSERT INTO messages
-                        (id, chat_id, sequence, change_pts, sender_user_id, text,
-                         thread_root_message_id)
-                      VALUES (?, ?, 3, 3, ?, 'removed reply', ?)`,
-                args: [removedReplyId, chatId, member.user.id, rootMessageId],
-            },
-            {
-                sql: `INSERT INTO threads
-                        (root_message_id, chat_id, created_by_user_id, reply_count, last_pts,
-                         last_reply_message_id, last_reply_sequence, participant_count)
-                      VALUES (?, ?, ?, 2, 3, ?, 3, 2)`,
-                args: [rootMessageId, chatId, admin.user.id, removedReplyId],
-            },
-            {
-                sql: `INSERT INTO thread_participants
-                        (thread_root_message_id, user_id, reply_count)
-                      VALUES (?, ?, 1), (?, ?, 1)`,
-                args: [rootMessageId, admin.user.id, rootMessageId, member.user.id],
-            },
-            {
-                sql: `INSERT INTO thread_user_states
-                        (thread_root_message_id, user_id, last_read_sequence, unread_count,
-                         mention_count)
-                      VALUES (?, ?, 0, 1, 1), (?, ?, 0, 1, 0)`,
-                args: [rootMessageId, admin.user.id, rootMessageId, member.user.id],
-            },
-            {
-                sql: `INSERT INTO message_mentions
-                        (id, message_id, kind, mentioned_user_id, start_offset, length, raw_text)
-                      VALUES (?, ?, 'user', ?, 0, 6, '@admin')`,
-                args: [createId(), removedReplyId, admin.user.id],
-            },
-            {
-                sql: `UPDATE chats SET pts = 3, last_message_sequence = 3,
-                             last_change_sequence = 3 WHERE id = ?`,
-                args: [chatId],
+                sql: `UPDATE chats SET pts = 1, last_message_sequence = 1,
+                             last_change_sequence = 1 WHERE id = ?`,
+                args: [parentChatId],
             },
         ]);
         const report = await moderationReportCreate(executor, {
             actorUserId: admin.user.id,
-            chatId,
+            chatId: childChatId,
             messageId: removedReplyId,
-            reason: "Thread reply violates policy",
+            reason: "Child-chat reply violates policy",
         });
         const removed = await moderationActionTake(executor, {
             actorUserId: admin.user.id,
@@ -515,51 +501,20 @@ describe("operations actions", () => {
         });
         expect(removed.sync?.chats).toEqual([
             {
-                chatId,
-                pts: "4",
+                chatId: childChatId,
+                pts: "2",
             },
         ]);
         expect(
             (
                 await raw.execute({
-                    sql: `SELECT reply_count, participant_count, last_reply_message_id,
-                                 last_reply_sequence, last_pts
-                            FROM threads WHERE root_message_id = ?`,
-                    args: [rootMessageId],
+                    sql: `SELECT deleted_at, change_pts FROM messages WHERE id = ?`,
+                    args: [removedReplyId],
                 })
             ).rows[0],
         ).toMatchObject({
-            reply_count: 1,
-            participant_count: 1,
-            last_reply_message_id: survivingReplyId,
-            last_reply_sequence: 2,
-            last_pts: 4,
-        });
-        expect(
-            (
-                await raw.execute({
-                    sql: `SELECT user_id, reply_count FROM thread_participants
-                           WHERE thread_root_message_id = ?`,
-                    args: [rootMessageId],
-                })
-            ).rows,
-        ).toEqual([
-            {
-                user_id: admin.user.id,
-                reply_count: 1,
-            },
-        ]);
-        expect(
-            (
-                await raw.execute({
-                    sql: `SELECT unread_count, mention_count FROM thread_user_states
-                           WHERE thread_root_message_id = ? AND user_id = ?`,
-                    args: [rootMessageId, admin.user.id],
-                })
-            ).rows[0],
-        ).toMatchObject({
-            unread_count: 0,
-            mention_count: 0,
+            deleted_at: expect.any(String),
+            change_pts: 2,
         });
         expect(
             (
@@ -568,7 +523,7 @@ describe("operations actions", () => {
                     args: [rootMessageId],
                 })
             ).rows[0]?.change_pts,
-        ).toBe(4);
+        ).toBe(1);
     });
     it("deletes users by revoking sessions, anonymizing identity, and transferring ownership", async () => {
         const chatId = await createChat(raw, admin.user.id, member.user.id, member.user.id);

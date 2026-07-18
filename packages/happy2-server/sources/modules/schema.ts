@@ -374,6 +374,9 @@ export const chats = sqliteTable("chats", {
     name: text("name"),
     slug: text("slug"),
     topic: text("topic"),
+    parentMessageId: text("parent_message_id").references(() => messages.id, {
+        onDelete: "restrict",
+    }),
     createdByUserId: text("created_by_user_id"),
     dmKey: text("dm_key"),
     pts: integer("pts").notNull().default(0),
@@ -719,7 +722,6 @@ export const messages = sqliteTable("messages", {
     kind: text("kind").notNull().default("user"),
     text: text("text").notNull().default(""),
     quotedMessageId: text("quoted_message_id"),
-    threadRootMessageId: text("thread_root_message_id"),
     forwardedFromMessageId: text("forwarded_from_message_id"),
     expiresAt: text("expires_at"),
     editedAt: text("edited_at"),
@@ -781,7 +783,6 @@ export const notifications = sqliteTable("notifications", {
     kind: text("kind").notNull(),
     chatId: text("chat_id"),
     messageId: text("message_id"),
-    threadRootMessageId: text("thread_root_message_id"),
     actorUserId: text("actor_user_id"),
     actorBotId: text("actor_bot_id"),
     payloadJson: text("payload_json"),
@@ -846,7 +847,6 @@ export const scheduledMessages = sqliteTable("scheduled_messages", {
     text: text("text").notNull().default(""),
     contentJson: text("content_json"),
     quotedMessageId: text("quoted_message_id"),
-    threadRootMessageId: text("thread_root_message_id"),
     forwardedFromMessageId: text("forwarded_from_message_id"),
     scheduledFor: text("scheduled_for").notNull(),
     timezone: text("timezone"),
@@ -970,45 +970,6 @@ export const syncEvents = sqliteTable("sync_events", {
     createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
 });
 
-export const threadParticipants = sqliteTable("thread_participants", {
-    threadRootMessageId: text("thread_root_message_id").notNull(),
-    userId: text("user_id").notNull(),
-    replyCount: integer("reply_count").notNull().default(0),
-    firstParticipatedAt: text("first_participated_at")
-        .notNull()
-        .default(sql.raw("CURRENT_TIMESTAMP")),
-    lastParticipatedAt: text("last_participated_at")
-        .notNull()
-        .default(sql.raw("CURRENT_TIMESTAMP")),
-});
-
-export const threadUserStates = sqliteTable("thread_user_states", {
-    threadRootMessageId: text("thread_root_message_id").notNull(),
-    userId: text("user_id").notNull(),
-    subscribed: integer("subscribed").notNull().default(1),
-    notificationLevel: text("notification_level").notNull().default("all"),
-    lastReadMessageId: text("last_read_message_id"),
-    lastReadSequence: integer("last_read_sequence").notNull().default(0),
-    unreadCount: integer("unread_count").notNull().default(0),
-    mentionCount: integer("mention_count").notNull().default(0),
-    lastParticipatedAt: text("last_participated_at"),
-    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
-    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
-});
-
-export const threads = sqliteTable("threads", {
-    rootMessageId: text("root_message_id").primaryKey().notNull(),
-    chatId: text("chat_id").notNull(),
-    createdByUserId: text("created_by_user_id"),
-    replyCount: integer("reply_count").notNull().default(0),
-    lastPts: integer("last_pts").notNull().default(0),
-    createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
-    updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
-    lastReplyMessageId: text("last_reply_message_id"),
-    lastReplySequence: integer("last_reply_sequence").notNull().default(0),
-    participantCount: integer("participant_count").notNull().default(0),
-});
-
 export const userBookmarks = sqliteTable("user_bookmarks", {
     id: text("id").primaryKey().notNull(),
     userId: text("user_id").notNull(),
@@ -1035,6 +996,7 @@ export const userChatPreferences = sqliteTable("user_chat_preferences", {
     mutedUntil: text("muted_until"),
     notifyThreadReplies: integer("notify_thread_replies").notNull().default(1),
     showMessagePreviews: integer("show_message_previews").notNull().default(1),
+    followed: integer("followed").notNull().default(0),
 });
 
 export const userNotificationPreferences = sqliteTable("user_notification_preferences", {
@@ -1213,9 +1175,6 @@ export const schema = {
     syncCompactions,
     syncConsumers,
     syncEvents,
-    threadParticipants,
-    threadUserStates,
-    threads,
     userBookmarks,
     userChatPreferences,
     userNotificationPreferences,

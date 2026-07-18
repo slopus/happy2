@@ -29,6 +29,7 @@ export async function chatList(executor: DrizzleExecutor, userId: string): Promi
         .where(
             and(
                 isNull(chats.deletedAt),
+                isNull(chats.parentMessageId),
                 or(
                     and(eq(chats.kind, "public_channel"), eq(chats.isListed, 1)),
                     sql`${chatMembers.userId} IS NOT NULL`,

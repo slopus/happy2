@@ -93,7 +93,6 @@ export async function dataExportBuildArtifact(
                 senderBotId: messages.senderBotId,
                 kind: messages.kind,
                 text: messages.text,
-                threadRootMessageId: messages.threadRootMessageId,
                 createdAt: messages.createdAt,
                 editedAt: messages.editedAt,
                 deletedAt: messages.deletedAt,

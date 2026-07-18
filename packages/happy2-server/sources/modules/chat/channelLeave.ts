@@ -8,6 +8,7 @@ import { chatMembers, chats } from "../schema.js";
 import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
 import { chatGetAccess } from "./chatGetAccess.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
+import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
 
 /**
  * Marks the actor's chatMembers membership left and transfers chats ownership when the departing user owns the channel.
@@ -23,10 +24,13 @@ export async function channelLeave(
     return withTransaction(executor, async (tx) => {
         const access = await chatGetAccess(tx, actorUserId, chatId, true);
         if (!access) throw new CollaborationError("not_found", "Chat was not found");
+        if (access.parentMessageId)
+            throw new CollaborationError("invalid", "Thread membership is inherited");
         if (access.kind === "dm")
             throw new CollaborationError("invalid", "This chat's membership is fixed");
         if (access.isMain)
             throw new CollaborationError("invalid", "Members cannot leave the main channel");
+        let replacementOwnerUserId: string | undefined;
         if (access.membershipRole === "owner") {
             const [otherOwner] = await tx
                 .select({
@@ -54,6 +58,7 @@ export async function channelLeave(
                     ownerUserId: otherOwner.userId,
                 })
                 .where(and(eq(chats.id, chatId), eq(chats.ownerUserId, actorUserId)));
+            replacementOwnerUserId = otherOwner.userId;
         }
         const sequence = await syncSequenceNext(tx);
         const mutation = await chatAdvanceWithSequence(
@@ -78,6 +83,14 @@ export async function channelLeave(
                     isNull(chatMembers.leftAt),
                 ),
             );
+        await chatDescendantMembershipSync(tx, {
+            ancestorChatId: chatId,
+            userId: actorUserId,
+            actorUserId,
+            sequence,
+            kind: "left",
+            replacementOwnerUserId,
+        });
         return {
             hint: chatHint(sequence, chatId, mutation.pts),
         };

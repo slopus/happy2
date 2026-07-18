@@ -1,13 +1,13 @@
 import { CollaborationError, type MessageSummary } from "../chat/types.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 
-import { and, asc, desc, eq, gt, isNull, lt, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, type SQL } from "drizzle-orm";
 
 import { messages } from "../schema.js";
 import { chatGetAccess } from "../chat/chatGetAccess.js";
 import { messageGetProjection } from "./messageGetProjection.js";
 /**
- * Pages root or thread messages in an accessible chat before or after a sequence, returning chronological projections and the current chat point.
+ * Pages messages in an accessible chat before or after a sequence, returning chronological projections and the current chat point.
  * Loading one extra identifier detects continuation while projecting each message through current deletion, expiry, and viewer-access rules.
  */
 export async function messageList(
@@ -17,7 +17,6 @@ export async function messageList(
         chatId: string;
         beforeSequence?: number;
         afterSequence?: number;
-        threadRootMessageId?: string;
         limit: number;
     },
 ): Promise<{
@@ -28,9 +27,6 @@ export async function messageList(
     const chat = await chatGetAccess(executor, input.userId, input.chatId, false);
     if (!chat) throw new CollaborationError("not_found", "Chat was not found");
     const conditions: SQL[] = [eq(messages.chatId, input.chatId)];
-    if (input.threadRootMessageId) {
-        conditions.push(eq(messages.threadRootMessageId, input.threadRootMessageId));
-    } else conditions.push(isNull(messages.threadRootMessageId));
     if (input.beforeSequence !== undefined) {
         conditions.push(lt(messages.sequence, input.beforeSequence));
     }

@@ -10,6 +10,7 @@ import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
 import { chatGetAccess } from "./chatGetAccess.js";
 import { createUserAddedServiceMessageDb } from "./impl/createUserAddedServiceMessageDb.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
+import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
 
 /**
  * Inserts or reactivates the actor's chatMembers row for a public, joinable channel and assigns a fresh membership epoch.
@@ -27,6 +28,11 @@ export async function channelJoinPublic(
         const access = await chatGetAccess(tx, actorUserId, chatId, false);
         if (!access || access.kind !== "public_channel")
             throw new CollaborationError("not_found", "Public channel was not found");
+        if (access.parentMessageId)
+            throw new CollaborationError(
+                "invalid",
+                "Join the parent channel to access its threads",
+            );
         if (access.membershipRole)
             throw new CollaborationError("conflict", "Already joined this channel");
         const sequence = await syncSequenceNext(tx);
@@ -58,6 +64,14 @@ export async function channelJoinPublic(
                     leftAt: null,
                 },
             });
+        await chatDescendantMembershipSync(tx, {
+            ancestorChatId: chatId,
+            userId: actorUserId,
+            actorUserId,
+            sequence,
+            kind: "joined",
+            role: "member",
+        });
         const service = await createUserAddedServiceMessageDb(tx, {
             sequence,
             chatId,

@@ -15,6 +15,7 @@ export interface SyncState {
 export interface ChatSummary {
     id: string;
     kind: ChatKind;
+    parentMessageId?: string;
     name?: string;
     slug?: string;
     topic?: string;
@@ -39,6 +40,7 @@ export interface ChatSummary {
     membershipEpoch: string;
     membershipRole?: ChatRole;
     starred: boolean;
+    followed: boolean;
     starOrder?: number;
     lastReadSequence: string;
     unreadCount: number;
@@ -147,7 +149,7 @@ export interface MessageSummary {
         text: string;
         deleted: boolean;
     };
-    threadRootMessageId?: string;
+    threadChatId?: string;
     threadReplyCount: number;
     revision: number;
     mentions: Array<{
@@ -174,18 +176,6 @@ export interface MessageSummary {
     createdAt: string;
 }
 
-export interface ThreadSummary {
-    root: MessageSummary;
-    replyCount: number;
-    participantCount: number;
-    lastReplyMessageId?: string;
-    lastReplySequence?: string;
-    subscribed: boolean;
-    unreadCount: number;
-    mentionCount: number;
-    updatedAt: string;
-}
-
 export interface NotificationSummary {
     id: string;
     kind:
@@ -199,7 +189,6 @@ export interface NotificationSummary {
         | "automation";
     chatId?: string;
     messageId?: string;
-    threadRootMessageId?: string;
     actorUserId?: string;
     readAt?: string;
     createdAt: string;

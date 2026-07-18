@@ -7,11 +7,10 @@ import { messageRevisions, messages, messageSearchDocuments, notifications } fro
 
 import { chatAdvanceWithSequence } from "../chat/chatAdvanceWithSequence.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
-import { recomputeThreadProjectionDb } from "./impl/recomputeThreadProjectionDb.js";
 
 /**
  * Tombstones due ephemeral messages and clears their messageSearchDocuments, messageRevisions, and notifications in bounded batches.
- * Expiration advances channel and thread projections with the cleanup so no client retains searchable or unread traces of removed content.
+ * Expiration advances ordinary chat projections with the cleanup so no client retains searchable or unread traces of removed content.
  */
 export async function messageExpireDue(
     executor: DrizzleExecutor,
@@ -52,16 +51,6 @@ export async function messageExpireDue(
                     .where(eq(messageSearchDocuments.messageId, messageId));
                 await tx.delete(messageRevisions).where(eq(messageRevisions.messageId, messageId));
                 await tx.delete(notifications).where(eq(notifications.messageId, messageId));
-                const threadRootMessageId = row.threadRootMessageId ?? undefined;
-                if (threadRootMessageId) {
-                    await recomputeThreadProjectionDb(tx, threadRootMessageId, mutation.pts);
-                    await tx
-                        .update(messages)
-                        .set({
-                            changePts: mutation.pts,
-                        })
-                        .where(eq(messages.id, threadRootMessageId));
-                }
                 changedChats.set(chatId, mutation.pts);
             }
         }

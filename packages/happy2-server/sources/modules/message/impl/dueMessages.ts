@@ -7,7 +7,6 @@ export function dueMessages(executor: DrizzleExecutor, limit: number) {
         .select({
             id: messages.id,
             chatId: messages.chatId,
-            threadRootMessageId: messages.threadRootMessageId,
         })
         .from(messages)
         .innerJoin(chats, eq(chats.id, messages.chatId))

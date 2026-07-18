@@ -9,6 +9,7 @@ export function asChat(row: Record<string, unknown>): ChatSummary {
     return {
         id: text(row.id),
         kind,
+        parentMessageId: optionalText(row.parent_message_id),
         name: optionalText(row.name),
         slug: optionalText(row.slug),
         topic: optionalText(row.topic),
@@ -40,6 +41,7 @@ export function asChat(row: Record<string, unknown>): ChatSummary {
             optionalText(row.membership_epoch) ?? (kind === "public_channel" ? "public" : ""),
         membershipRole: optionalText(row.membership_role) as ChatRole | undefined,
         starred,
+        followed: number(row.followed, 0) === 1,
         starOrder:
             !starred || row.sort_order === null || row.sort_order === undefined
                 ? undefined

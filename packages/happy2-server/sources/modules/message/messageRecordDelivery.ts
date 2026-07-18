@@ -5,9 +5,7 @@ import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import {
     chatMembers,
     messageReceipts,
-    messages,
     notifications,
-    threadUserStates,
     userChatPreferences,
     userNotificationPreferences,
     users,
@@ -18,7 +16,7 @@ import { messageIsPast } from "./messageIsPast.js";
 
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 /**
- * Updates recipient threadUserStates, chatMembers unread counters, messageReceipts, and notifications for a newly published message.
+ * Updates recipient chatMembers unread counters, messageReceipts, and notifications for a newly published message.
  * Sharing the publish transaction prevents recipients from receiving a badge or receipt for content that failed to become durable.
  */
 export async function messageRecordDelivery(
@@ -28,7 +26,6 @@ export async function messageRecordDelivery(
         chat: ChatSummary;
         messageId: string;
         messageSequence: number;
-        threadRootMessageId?: string;
         mentionedUserIds: string[];
         mentionAll?: boolean;
         respectCurrentReadState?: boolean;
@@ -43,6 +40,7 @@ export async function messageRecordDelivery(
             notificationLevel: sql<string>`coalesce(${userChatPreferences.notificationLevel}, 'all')`,
             mutedUntil: userChatPreferences.mutedUntil,
             notifyThreadReplies: sql<number>`coalesce(${userChatPreferences.notifyThreadReplies}, 1)`,
+            followed: sql<number>`coalesce(${userChatPreferences.followed}, 0)`,
             directMessages: sql<string>`coalesce(${userNotificationPreferences.directMessages}, 'all')`,
             mentionNotifications: sql<string>`coalesce(${userNotificationPreferences.mentions}, 'all')`,
             threadReplies: sql<string>`coalesce(${userNotificationPreferences.threadReplies}, 'all')`,
@@ -69,55 +67,18 @@ export async function messageRecordDelivery(
                 ne(chatMembers.userId, input.senderUserId ?? input.actorUserId),
             ),
         );
-    let rootSenderUserId: string | undefined;
-    if (input.threadRootMessageId) {
-        const [root] = await tx
-            .select({
-                senderUserId: messages.senderUserId,
-            })
-            .from(messages)
-            .where(eq(messages.id, input.threadRootMessageId));
-        rootSenderUserId = root?.senderUserId ?? undefined;
-        for (const userId of new Set(
-            [input.actorUserId, rootSenderUserId].filter(Boolean) as string[],
-        )) {
-            const actor = userId === input.actorUserId;
-            await tx
-                .insert(threadUserStates)
-                .values({
-                    threadRootMessageId: input.threadRootMessageId,
-                    userId,
-                    subscribed: 1,
-                    lastReadMessageId: input.messageId,
-                    lastReadSequence: input.messageSequence,
-                    lastParticipatedAt: sql`CURRENT_TIMESTAMP`,
-                })
-                .onConflictDoUpdate({
-                    target: [threadUserStates.threadRootMessageId, threadUserStates.userId],
-                    set: {
-                        subscribed: 1,
-                        ...(actor
-                            ? {
-                                  lastReadMessageId: input.messageId,
-                                  lastReadSequence: input.messageSequence,
-                                  lastParticipatedAt: sql`CURRENT_TIMESTAMP`,
-                              }
-                            : {}),
-                        updatedAt: sql`CURRENT_TIMESTAMP`,
-                    },
-                });
-        }
-    }
     for (const recipient of recipients) {
         const userId = recipient.userId;
         const isMentioned = input.mentionAll === true || mentioned.has(userId);
         const alreadyRead =
             input.respectCurrentReadState === true &&
             recipient.lastReadSequence >= input.messageSequence;
+        const countsAsUnread =
+            !input.chat.parentMessageId || recipient.followed === 1 || isMentioned;
         await tx
             .update(chatMembers)
             .set({
-                unreadCount: sql`${chatMembers.unreadCount} + ${alreadyRead ? 0 : 1}`,
+                unreadCount: sql`${chatMembers.unreadCount} + ${alreadyRead || !countsAsUnread ? 0 : 1}`,
                 mentionCount: sql`${chatMembers.mentionCount} + ${isMentioned && !alreadyRead ? 1 : 0}`,
                 updatedAt: sql`CURRENT_TIMESTAMP`,
             })
@@ -152,48 +113,13 @@ export async function messageRecordDelivery(
                     updatedAt: sql`CURRENT_TIMESTAMP`,
                 },
             });
-        let threadSubscribed = false;
-        let threadNotificationLevel: NotificationLevel = "all";
-        if (input.threadRootMessageId) {
-            const [state] = await tx
-                .select({
-                    subscribed: threadUserStates.subscribed,
-                    notificationLevel: threadUserStates.notificationLevel,
-                })
-                .from(threadUserStates)
-                .where(
-                    and(
-                        eq(threadUserStates.threadRootMessageId, input.threadRootMessageId),
-                        eq(threadUserStates.userId, userId),
-                    ),
-                )
-                .limit(1);
-            threadSubscribed = state?.subscribed === 1 || userId === rootSenderUserId;
-            threadNotificationLevel = (state?.notificationLevel ?? "all") as NotificationLevel;
-            if (threadSubscribed || isMentioned)
-                await tx
-                    .insert(threadUserStates)
-                    .values({
-                        threadRootMessageId: input.threadRootMessageId,
-                        userId,
-                        subscribed: threadSubscribed || isMentioned ? 1 : 0,
-                        unreadCount: 1,
-                        mentionCount: isMentioned ? 1 : 0,
-                    })
-                    .onConflictDoUpdate({
-                        target: [threadUserStates.threadRootMessageId, threadUserStates.userId],
-                        set: {
-                            unreadCount: sql`${threadUserStates.unreadCount} + 1`,
-                            mentionCount: sql`${threadUserStates.mentionCount} + ${isMentioned ? 1 : 0}`,
-                            updatedAt: sql`CURRENT_TIMESTAMP`,
-                        },
-                    });
-        }
+        const threadSubscribed = recipient.followed === 1;
+        const threadNotificationLevel = recipient.notificationLevel as NotificationLevel;
         const muted =
             recipient.mutedUntil !== null && !messageIsPast(recipient.mutedUntil ?? undefined);
         const kind = isMentioned
             ? "mention"
-            : input.threadRootMessageId && threadSubscribed
+            : input.chat.parentMessageId && threadSubscribed
               ? "thread_reply"
               : input.chat.kind === "dm"
                 ? "direct_message"
@@ -226,7 +152,6 @@ export async function messageRecordDelivery(
             kind,
             chatId: input.chat.id,
             messageId: input.messageId,
-            threadRootMessageId: input.threadRootMessageId,
             actorUserId: input.actorUserId,
             syncSequence: input.syncSequence,
         });

@@ -4,7 +4,6 @@ export interface MessageSendInput {
     text: string;
     attachmentFileIds?: string[];
     quotedMessageId?: string;
-    threadRootMessageId?: string;
     expiresAt?: string;
     expiryMode?: "none" | "after_send" | "after_read";
     selfDestructSeconds?: number;

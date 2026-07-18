@@ -407,7 +407,24 @@ and agents look online without the server fabricating presence.
 ### P2.9 — Followed threads
 
 - [ ] Route Threads from live thread data, add follow/unfollow/notification-level controls, and
-      navigate to the root plus exact unread reply without losing the source surface.
+      navigate to the exact unread reply without losing the source surface. Model every thread as a
+      normal chat whose `parentMessageId` links it to the message in its parent chat; because a
+      thread message can itself own a child chat, this forms an arbitrary-depth tree without a
+      separate thread-only message model.
+    - [x] Server: replace the special root/reply thread persistence and endpoints with normal chat
+          behavior plus the parent-message relation. Prove creation at multiple depths, membership
+          and visibility, message send/list/sync behavior, and parent linkage in Gym.
+        - Implemented migration `0018_threads_are_chats.sql`, ordinary child-chat creation/get/follow
+          actions, recursive ancestor access, descendant membership/ownership/delete propagation,
+          follower-gated unread/notifications, exact live reply counts, and delete/recreate semantics.
+        - Evidence: repository `pnpm format` + `pnpm format:check`; server typecheck, lint,
+          `architecture:check`, and 92/92 tests; full server Gym 119/119 tests, including four
+          arbitrary-depth/concurrency/ownership/delete-recreate thread workflows. Claude Opus review
+          session `82334149-ae29-4961-968a-f25cb35efacd` ended with no actionable or task-blocking
+          issue in the exact backend diff.
+    - [ ] After explicit backend approval, UI: open a thread as the central conversation surface,
+          expose its parent context, and allow any message in that thread to open another child
+          thread while preserving navigation history.
 
 ### P2.10 — Calls
 

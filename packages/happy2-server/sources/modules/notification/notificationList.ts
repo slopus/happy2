@@ -56,7 +56,6 @@ export async function notificationList(
             kind: notifications.kind,
             chat_id: notifications.chatId,
             message_id: notifications.messageId,
-            thread_root_message_id: notifications.threadRootMessageId,
             actor_user_id: notifications.actorUserId,
             read_at: notifications.readAt,
             created_at: notifications.createdAt,

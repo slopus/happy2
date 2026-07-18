@@ -10,8 +10,7 @@ import {
     messageAttachments,
     messages,
     serverSettings,
-    threadParticipants,
-    threads,
+    userChatPreferences,
     users,
 } from "../schema.js";
 
@@ -42,7 +41,7 @@ import { messageRequireInChat } from "../chat/messageRequireInChat.js";
 import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
 import { storeClientMutationDb } from "./impl/storeClientMutationDb.js";
 /**
- * Publishes messages with authorized messageAttachments, thread state, search and mention projections, delivery records, and any requested agentTurns work.
+ * Publishes messages with authorized messageAttachments, search and mention projections, delivery records, and any requested agentTurns work.
  * The caller's transaction makes the channel point the boundary for every consequence of sending, including files, notifications, audit evidence, and agent execution.
  */
 export async function messageSendInTransaction(
@@ -104,7 +103,7 @@ export async function messageSendInTransaction(
         if (input.agentTurn) {
             if (
                 input.kind === "automated" ||
-                input.threadRootMessageId ||
+                access.parentMessageId ||
                 access.kind !== "dm" ||
                 access.dmType !== "direct"
             )
@@ -208,11 +207,6 @@ export async function messageSendInTransaction(
             if (!source || source.deletedAt)
                 throw new CollaborationError("not_found", "Source message was not found");
         }
-        if (input.threadRootMessageId) {
-            const root = await messageRequireInChat(tx, input.threadRootMessageId, input.chatId);
-            if (root.threadRootMessageId)
-                throw new CollaborationError("invalid", "Threads cannot be nested");
-        }
         const fileIds = [...new Set(input.attachmentFileIds ?? [])];
         for (const fileId of fileIds)
             if (!(await fileCanAccessWith(tx, input.actorUserId, fileId)))
@@ -224,7 +218,7 @@ export async function messageSendInTransaction(
             sequence,
             input.actorUserId,
             input.chatId,
-            input.threadRootMessageId ? "thread.messageCreated" : "message.created",
+            "message.created",
             id,
             undefined,
             true,
@@ -240,7 +234,6 @@ export async function messageSendInTransaction(
             kind: input.kind ?? "user",
             text: input.text,
             quotedMessageId: input.quotedMessageId,
-            threadRootMessageId: input.threadRootMessageId,
             forwardedFromMessageId: input.forwardedFromMessageId,
             expiresAt,
             expiryMode,
@@ -272,55 +265,23 @@ export async function messageSendInTransaction(
                     position,
                 })),
             );
-        if (input.threadRootMessageId) {
+        if (access.parentMessageId) {
             await tx
-                .insert(threads)
+                .insert(userChatPreferences)
                 .values({
-                    rootMessageId: input.threadRootMessageId,
                     chatId: input.chatId,
-                    createdByUserId: input.actorUserId,
-                    replyCount: 1,
-                    lastPts: mutation.pts,
-                    lastReplyMessageId: id,
-                    lastReplySequence: mutation.messageSequence,
-                    participantCount: 1,
+                    userId: input.actorUserId,
+                    followed: 1,
+                    syncSequence: sequence,
                 })
                 .onConflictDoUpdate({
-                    target: threads.rootMessageId,
+                    target: [userChatPreferences.userId, userChatPreferences.chatId],
                     set: {
-                        replyCount: sql`${threads.replyCount} + 1`,
-                        lastPts: mutation.pts,
-                        lastReplyMessageId: id,
-                        lastReplySequence: mutation.messageSequence,
+                        followed: 1,
+                        syncSequence: sequence,
                         updatedAt: sql`CURRENT_TIMESTAMP`,
                     },
                 });
-            await tx
-                .insert(threadParticipants)
-                .values({
-                    threadRootMessageId: input.threadRootMessageId,
-                    userId: input.actorUserId,
-                    replyCount: 1,
-                })
-                .onConflictDoUpdate({
-                    target: [threadParticipants.threadRootMessageId, threadParticipants.userId],
-                    set: {
-                        replyCount: sql`${threadParticipants.replyCount} + 1`,
-                        lastParticipatedAt: sql`CURRENT_TIMESTAMP`,
-                    },
-                });
-            await tx
-                .update(threads)
-                .set({
-                    participantCount: sql`(select count(*) from thread_participants where thread_root_message_id = ${input.threadRootMessageId})`,
-                })
-                .where(eq(threads.rootMessageId, input.threadRootMessageId));
-            await tx
-                .update(messages)
-                .set({
-                    changePts: mutation.pts,
-                })
-                .where(eq(messages.id, input.threadRootMessageId));
         }
         if (!input.deferPublication)
             await messageRecordDelivery(tx, {
@@ -328,7 +289,6 @@ export async function messageSendInTransaction(
                 chat: access,
                 messageId: id,
                 messageSequence: mutation.messageSequence,
-                threadRootMessageId: input.threadRootMessageId,
                 mentionedUserIds: mentions.userIds,
                 mentionAll: mentions.notifyAll,
                 syncSequence: sequence,

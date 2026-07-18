@@ -12,6 +12,7 @@ import { createUserAddedServiceMessageDb } from "./impl/createUserAddedServiceMe
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { requireActiveIdentityDb } from "./impl/requireActiveIdentityDb.js";
 import { chatRequireManager } from "./chatRequireManager.js";
+import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
 
 /**
  * Adds or restores an active identity in chatMembers after checking the actor's management rights and the target's eligibility.
@@ -30,6 +31,8 @@ export async function channelMemberAdd(
 }> {
     return withTransaction(executor, async (tx) => {
         const access = await chatRequireManager(tx, input.actorUserId, input.chatId);
+        if (access.parentMessageId)
+            throw new CollaborationError("invalid", "Thread membership is inherited");
         if (access.kind === "dm")
             throw new CollaborationError("invalid", "Direct-message membership is fixed");
         if (input.role === "owner" && !access.isServerAdmin && access.membershipRole !== "owner")
@@ -77,6 +80,14 @@ export async function channelMemberAdd(
                     leftAt: null,
                 },
             });
+        await chatDescendantMembershipSync(tx, {
+            ancestorChatId: input.chatId,
+            userId: input.userId,
+            actorUserId: input.actorUserId,
+            sequence,
+            kind: "joined",
+            role: input.role ?? "member",
+        });
         const service = await createUserAddedServiceMessageDb(tx, {
             sequence,
             chatId: input.chatId,

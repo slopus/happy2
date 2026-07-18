@@ -7,10 +7,9 @@ import { messageRevisions, messages, messageSearchDocuments, notifications } fro
 
 import { advanceChatMutation } from "./advanceChatMutation.js";
 import { syncSequenceNextWithTimestamp } from "../../sync/syncSequenceNextWithTimestamp.js";
-import { recomputeThreadProjection } from "./recomputeThreadProjection.js";
 /**
- * Tombstones moderated messages, clears messageSearchDocuments, messageRevisions, and notifications, and repairs their thread projection.
- * Reusing the report action transaction keeps visible history, search, badges, channel points, and moderation evidence on one outcome.
+ * Tombstones moderated messages and clears messageSearchDocuments, messageRevisions, and notifications.
+ * Reusing the report action transaction keeps visible history, search, badges, chat points, and moderation evidence on one outcome.
  */
 export async function removeMessageInTransaction(
     tx: DrizzleTransaction,
@@ -25,7 +24,6 @@ export async function removeMessageInTransaction(
         .select({
             chatId: messages.chatId,
             deletedAt: messages.deletedAt,
-            threadRootMessageId: messages.threadRootMessageId,
         })
         .from(messages)
         .where(eq(messages.id, messageId))
@@ -57,16 +55,6 @@ export async function removeMessageInTransaction(
     await tx.delete(messageSearchDocuments).where(eq(messageSearchDocuments.messageId, messageId));
     await tx.delete(messageRevisions).where(eq(messageRevisions.messageId, messageId));
     await tx.delete(notifications).where(eq(notifications.messageId, messageId));
-    if (message.threadRootMessageId) {
-        const threadRootMessageId = message.threadRootMessageId;
-        await recomputeThreadProjection(tx, threadRootMessageId, pts);
-        await tx
-            .update(messages)
-            .set({
-                changePts: pts,
-            })
-            .where(eq(messages.id, threadRootMessageId));
-    }
     return {
         chatId,
         sync: {

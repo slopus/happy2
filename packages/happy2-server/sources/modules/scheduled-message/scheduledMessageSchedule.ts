@@ -28,7 +28,6 @@ export async function scheduledMessageSchedule(
         scheduledFor: string;
         timezone?: string;
         quotedMessageId?: string;
-        threadRootMessageId?: string;
         clientMutationId?: string;
     },
 ): Promise<{
@@ -49,7 +48,6 @@ export async function scheduledMessageSchedule(
                 createdByUserId: input.actorUserId,
                 text: input.text,
                 quotedMessageId: input.quotedMessageId ?? null,
-                threadRootMessageId: input.threadRootMessageId ?? null,
                 scheduledFor: input.scheduledFor,
                 timezone: input.timezone ?? null,
                 clientMutationId: input.clientMutationId ?? null,

@@ -16,11 +16,10 @@ import { chatAdvanceWithSequence } from "../chat/chatAdvanceWithSequence.js";
 import { chatGetAccess } from "../chat/chatGetAccess.js";
 import { messageGetProjection } from "./messageGetProjection.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
-import { recomputeThreadProjectionDb } from "./impl/recomputeThreadProjectionDb.js";
 
 /**
- * Tombstones messages, removes their messageSearchDocuments, messageRevisions, and notifications, then repairs any affected thread projection.
- * One channel mutation keeps visible history, search results, badges, and thread counts aligned on the same deletion point.
+ * Tombstones messages and removes their messageSearchDocuments, messageRevisions, and notifications.
+ * One chat mutation keeps visible history, search results, and badges aligned on the same deletion point.
  */
 export async function messageDelete(
     executor: DrizzleExecutor,
@@ -36,7 +35,6 @@ export async function messageDelete(
                 chatId: messages.chatId,
                 senderUserId: messages.senderUserId,
                 deletedAt: messages.deletedAt,
-                threadRootMessageId: messages.threadRootMessageId,
                 actorRole: users.role,
             })
             .from(messages)
@@ -75,9 +73,6 @@ export async function messageDelete(
             .where(eq(messageSearchDocuments.messageId, messageId));
         await tx.delete(messageRevisions).where(eq(messageRevisions.messageId, messageId));
         await tx.delete(notifications).where(eq(notifications.messageId, messageId));
-        if (row.threadRootMessageId) {
-            await recomputeThreadProjectionDb(tx, row.threadRootMessageId, mutation.pts);
-        }
         const message = await messageGetProjection(tx, actorUserId, messageId);
         if (!message) throw new Error("Deleted message tombstone is not readable");
         return {

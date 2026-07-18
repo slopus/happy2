@@ -19,6 +19,7 @@ import { messageForward } from "../message/messageForward.js";
 import { messageExpireDue } from "../message/messageExpireDue.js";
 import { messageEdit } from "../message/messageEdit.js";
 import { messageDelete } from "../message/messageDelete.js";
+import { threadCreate } from "../thread/threadCreate.js";
 import { fileList } from "../file/fileList.js";
 import { fileCanAccess } from "../file/fileCanAccess.js";
 import { directMessageCreate } from "./directMessageCreate.js";
@@ -301,7 +302,7 @@ describe("functional product actions", () => {
             code: "future_state",
         });
     });
-    it("keeps quoted replies in chat and thread replies on a separate timeline", async () => {
+    it("keeps quoted replies in their chat and gives a thread its own chat timeline", async () => {
         const channel = await channelCreate(executor, {
             actorUserId: ada.id,
             kind: "public_channel",
@@ -320,11 +321,14 @@ describe("functional product actions", () => {
             text: "Yes, after the tests pass.",
             quotedMessageId: root.message.id,
         });
-        const thread = await messageSend(executor, {
+        const thread = await threadCreate(executor, {
             actorUserId: grace.id,
-            chatId: channel.chat.id,
+            parentMessageId: root.message.id,
+        });
+        const threadMessage = await messageSend(executor, {
+            actorUserId: grace.id,
+            chatId: thread.chat.id,
             text: "Detailed rollout notes",
-            threadRootMessageId: root.message.id,
         });
         const main = await messageList(executor, {
             userId: ada.id,
@@ -337,11 +341,13 @@ describe("functional product actions", () => {
         expect(quote.message.quotedMessage?.id).toBe(root.message.id);
         const replies = await messageList(executor, {
             userId: ada.id,
-            chatId: channel.chat.id,
-            threadRootMessageId: root.message.id,
+            chatId: thread.chat.id,
             limit: 100,
         });
-        expect(replies.messages.map((message) => message.id)).toEqual([thread.message.id]);
+        expect(replies.messages.map((message) => message.id)).toEqual([threadMessage.message.id]);
+        expect((await messageGet(executor, ada.id, root.message.id)).threadChatId).toBe(
+            thread.chat.id,
+        );
         const reacted = await messageReactionSet(executor, {
             actorUserId: ada.id,
             messageId: quote.message.id,

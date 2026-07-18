@@ -41,7 +41,6 @@ export function registerAutomationRoutes(
                 "scheduledFor",
                 "timezone",
                 "quotedMessageId",
-                "threadRootMessageId",
                 "clientMutationId",
             ]);
             const text = optionalString(body.text, "text", MAX_MESSAGE) ?? "";
@@ -59,7 +58,6 @@ export function registerAutomationRoutes(
                 scheduledFor,
                 timezone: optionalString(body.timezone, "timezone", 100),
                 quotedMessageId: optionalId(body.quotedMessageId, "quotedMessageId"),
-                threadRootMessageId: optionalId(body.threadRootMessageId, "threadRootMessageId"),
                 clientMutationId: optionalId(body.clientMutationId, "clientMutationId"),
             });
             if (result.hint) await publish(pubsub, result.hint);

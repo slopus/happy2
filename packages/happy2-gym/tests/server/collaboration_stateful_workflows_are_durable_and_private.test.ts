@@ -83,15 +83,18 @@ describe("stateful collaboration workflows", () => {
             revisions.json().revisions.map((item: { revision: number }) => item.revision),
         ).toEqual([2, 1]);
 
-        const reply = await asMember.post(`/v0/messages/${messageId}/sendThreadMessage`, {
+        const createdThread = await asMember.post(`/v0/messages/${messageId}/createThread`, {});
+        expect(createdThread.statusCode).toBe(201);
+        const threadChatId = createdThread.json().chat.id as string;
+        const reply = await asMember.post(`/v0/chats/${threadChatId}/sendMessage`, {
             text: "Reviewed in the separate thread timeline",
         });
         expect(reply.statusCode).toBe(201);
         const threads = await asAdmin.get("/v0/threads");
         expect(threads.json().threads[0]).toMatchObject({
-            root: { id: messageId },
-            replyCount: 1,
-            participantCount: 1,
+            id: threadChatId,
+            parentMessageId: messageId,
+            lastMessageSequence: "1",
             unreadCount: 1,
         });
 

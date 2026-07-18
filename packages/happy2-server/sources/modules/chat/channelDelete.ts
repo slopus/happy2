@@ -1,17 +1,17 @@
 import { CollaborationError, type MutationHint } from "./types.js";
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 
-import { and, eq, isNull, sql } from "drizzle-orm";
-import { chatHint } from "./chatHint.js";
-import { chatMembers, chats } from "../schema.js";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { chatMembers, chats, messages } from "../schema.js";
 
 import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { chatRequireManager } from "./chatRequireManager.js";
+import { chatDescendantIds } from "./impl/chatDescendantIds.js";
 
 /**
- * Soft-deletes a non-main, non-DM chats channel after confirming the actor is its owner or server administrator.
- * Advancing channel and global sync state with the deletion gives every current member the same terminal channel version.
+ * Soft-deletes a non-main, non-DM chats channel and every parent-message descendant after confirming owner or server-administrator authority.
+ * Advancing each chats and chatUpdates row at one global sequence gives every current member terminal sync evidence for the complete tree.
  */
 export async function channelDelete(
     executor: DrizzleExecutor,
@@ -32,21 +32,45 @@ export async function channelDelete(
             throw new CollaborationError("invalid", "The main channel cannot be deleted");
         if (!access.isServerAdmin && access.membershipRole !== "owner")
             throw new CollaborationError("forbidden", "Only an owner can delete a channel");
+        const descendantIds = await chatDescendantIds(tx, input.chatId);
+        const deletedChatIds = [input.chatId, ...descendantIds];
         const members = await tx
             .select({
                 userId: chatMembers.userId,
             })
             .from(chatMembers)
-            .where(and(eq(chatMembers.chatId, input.chatId), isNull(chatMembers.leftAt)));
+            .where(and(inArray(chatMembers.chatId, deletedChatIds), isNull(chatMembers.leftAt)));
         const sequence = await syncSequenceNext(tx);
-        const mutation = await chatAdvanceWithSequence(
-            tx,
-            sequence,
-            input.actorUserId,
-            input.chatId,
-            "chat.deleted",
-            input.chatId,
-        );
+        const mutations = [];
+        if (access.parentMessageId) {
+            const [parent] = await tx
+                .select({ chatId: messages.chatId })
+                .from(messages)
+                .where(eq(messages.id, access.parentMessageId))
+                .limit(1);
+            if (!parent) throw new Error("Thread chat has no durable parent message");
+            mutations.push(
+                await chatAdvanceWithSequence(
+                    tx,
+                    sequence,
+                    input.actorUserId,
+                    parent.chatId,
+                    "message.threadDeleted",
+                    access.parentMessageId,
+                ),
+            );
+        }
+        for (const chatId of deletedChatIds)
+            mutations.push(
+                await chatAdvanceWithSequence(
+                    tx,
+                    sequence,
+                    input.actorUserId,
+                    chatId,
+                    "chat.deleted",
+                    chatId,
+                ),
+            );
         await tx
             .update(chats)
             .set({
@@ -56,10 +80,17 @@ export async function channelDelete(
                 lifecycleVersion: sql`${chats.lifecycleVersion} + 1`,
                 updatedAt: sql`CURRENT_TIMESTAMP`,
             })
-            .where(eq(chats.id, input.chatId));
+            .where(inArray(chats.id, deletedChatIds));
         return {
-            hint: chatHint(sequence, input.chatId, mutation.pts),
-            memberUserIds: members.map((row) => row.userId),
+            hint: {
+                sequence: String(sequence),
+                chats: mutations.map((mutation) => ({
+                    chatId: mutation.chatId,
+                    pts: String(mutation.pts),
+                })),
+                areas: [],
+            },
+            memberUserIds: [...new Set(members.map((row) => row.userId))],
         };
     });
 }

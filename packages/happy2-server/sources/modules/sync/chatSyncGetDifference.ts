@@ -120,23 +120,10 @@ export async function chatSyncGetDifference(
             .map((update) => update.entityId!),
     );
     const messages: MessageSummary[] = [];
-    const projectedMessageIds = new Set<string>();
     for (const messageId of messageIds) {
         const message = await messageGetProjection(executor, input.userId, messageId);
         if (!message) continue;
         messages.push(message);
-        projectedMessageIds.add(message.id);
-        if (message.threadRootMessageId && !projectedMessageIds.has(message.threadRootMessageId)) {
-            const root = await messageGetProjection(
-                executor,
-                input.userId,
-                message.threadRootMessageId,
-            );
-            if (root) {
-                messages.push(root);
-                projectedMessageIds.add(root.id);
-            }
-        }
     }
     const state = {
         membershipEpoch: currentEpoch,

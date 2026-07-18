@@ -148,7 +148,7 @@ describe("collaboration membership, messages, personal organization, and calls",
         expect((await asOutsider.post(`/v0/chats/${publicChannelId}/join`)).statusCode).toBe(409);
     });
 
-    it("keeps quoted replies and threads distinct while preserving edits, forwards, reactions, pins, and bookmarks", async () => {
+    it("keeps quoted replies and child-chat threads distinct while preserving edits, forwards, reactions, pins, and bookmarks", async () => {
         await using server = await createGymServer();
         const author = await server.createUser({ username: "message_author", firstName: "Author" });
         const replier = await server.createUser({
@@ -215,17 +215,18 @@ describe("collaboration membership, messages, personal organization, and calls",
                 text: "Root message for quote, thread, edit, and forward",
             },
         });
-        expect(quote.json().message.threadRootMessageId).toBeUndefined();
+        expect(quote.json().message.threadChatId).toBeUndefined();
 
-        const threadReply = await asReplier.post(`/v0/messages/${rootId}/sendThreadMessage`, {
+        const createdThread = await asReplier.post(`/v0/messages/${rootId}/createThread`, {});
+        expect(createdThread.statusCode).toBe(201);
+        const threadChatId = createdThread.json().chat.id as string;
+        const threadReply = await asReplier.post(`/v0/chats/${threadChatId}/sendMessage`, {
             text: "This is a separate thread timeline.",
-            quotedMessageId: quoteId,
         });
         expect(threadReply.statusCode).toBe(201);
         const threadReplyId = threadReply.json().message.id as string;
         expect(threadReply.json().message).toMatchObject({
-            threadRootMessageId: rootId,
-            quotedMessage: { id: quoteId },
+            chatId: threadChatId,
         });
         const mainTimeline = await asAuthor.get(`/v0/chats/${sourceChatId}/messages`);
         expect(mainTimeline.statusCode).toBe(200);
@@ -235,32 +236,31 @@ describe("collaboration membership, messages, personal organization, and calls",
         expect(
             mainTimeline.json().messages.map((message: { id: string }) => message.id),
         ).not.toContain(threadReplyId);
-        const threadTimeline = await asAuthor.get(`/v0/messages/${rootId}/thread`);
+        const threadTimeline = await asAuthor.get(`/v0/chats/${threadChatId}/messages`);
         expect(threadTimeline.statusCode).toBe(200);
-        expect(threadTimeline.json().root.id).toBe(rootId);
         expect(threadTimeline.json().messages.map((message: { id: string }) => message.id)).toEqual(
             [threadReplyId],
         );
         expect((await asAuthor.get("/v0/threads?unreadOnly=false")).json().threads).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
-                    root: expect.objectContaining({ id: rootId }),
-                    replyCount: 1,
+                    id: threadChatId,
+                    parentMessageId: rootId,
+                    lastMessageSequence: "1",
                 }),
             ]),
         );
         expect(
             (
-                await asReplier.post(`/v0/messages/${rootId}/updateThreadSubscription`, {
-                    subscribed: true,
+                await asReplier.post(`/v0/chats/${threadChatId}/updateNotificationPreferences`, {
                     notificationLevel: "mentions",
                 })
             ).statusCode,
         ).toBe(200);
         expect(
             (
-                await asReplier.post(`/v0/messages/${rootId}/markThreadRead`, {
-                    throughMessageId: threadReplyId,
+                await asReplier.post(`/v0/chats/${threadChatId}/markRead`, {
+                    messageId: threadReplyId,
                 })
             ).statusCode,
         ).toBe(200);

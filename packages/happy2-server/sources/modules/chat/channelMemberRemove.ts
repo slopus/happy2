@@ -8,6 +8,7 @@ import { chatHint } from "./chatHint.js";
 import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { chatRequireManager } from "./chatRequireManager.js";
+import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
 
 /**
  * Removes a managed chatMembers identity, repairs chats ownership when necessary, and detaches agentRigBindings that depended on the membership.
@@ -25,6 +26,8 @@ export async function channelMemberRemove(
 }> {
     return withTransaction(executor, async (tx) => {
         const access = await chatRequireManager(tx, input.actorUserId, input.chatId);
+        if (access.parentMessageId)
+            throw new CollaborationError("invalid", "Thread membership is inherited");
         if (access.kind === "dm")
             throw new CollaborationError("invalid", "Direct-message membership is fixed");
         if (access.isMain)
@@ -71,6 +74,7 @@ export async function channelMemberRemove(
         if (!member) throw new CollaborationError("not_found", "Member was not found");
         if (member.role === "owner" && !access.isServerAdmin)
             throw new CollaborationError("forbidden", "Only a server admin can remove an owner");
+        let replacementOwnerUserId: string | undefined;
         if (member.role === "owner") {
             const [otherOwner] = await tx
                 .select({
@@ -132,6 +136,7 @@ export async function channelMemberRemove(
                     ownerUserId: replacementOwnerId,
                 })
                 .where(and(eq(chats.id, input.chatId), eq(chats.ownerUserId, input.userId)));
+            replacementOwnerUserId = replacementOwnerId;
         }
         const sequence = await syncSequenceNext(tx);
         const mutation = await chatAdvanceWithSequence(
@@ -156,6 +161,14 @@ export async function channelMemberRemove(
                     isNull(chatMembers.leftAt),
                 ),
             );
+        await chatDescendantMembershipSync(tx, {
+            ancestorChatId: input.chatId,
+            userId: input.userId,
+            actorUserId: input.actorUserId,
+            sequence,
+            kind: "removed",
+            replacementOwnerUserId,
+        });
         await tx
             .delete(agentRigBindings)
             .where(

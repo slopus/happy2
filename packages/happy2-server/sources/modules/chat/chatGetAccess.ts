@@ -1,14 +1,14 @@
 import { type ChatAccess } from "./chatAccess.js";
 import { type DrizzleExecutor } from "../drizzle.js";
-import { accounts, chatMembers, chats, userChatPreferences, users } from "../schema.js";
+import { accounts, chatMembers, chats, messages, userChatPreferences, users } from "../schema.js";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { asChat } from "./impl/asChat.js";
 
 import { chatSelection } from "./impl/chatSelection.js";
 
 /**
- * Builds a chat projection for an active account-backed user when membership is present or, if allowed, the chat is a live public channel.
- * Including membership preferences and server-admin status in this shared predicate keeps authorization and the UI-visible chat state aligned.
+ * Builds a chat projection for an active account-backed user when membership is present or, if allowed, the chat and every parent are live public channels.
+ * Recursively requiring access through parent-message ancestry prevents a deleted or revoked ancestor from leaving a deeper thread reachable.
  */
 export async function chatGetAccess(
     executor: DrizzleExecutor,
@@ -48,6 +48,24 @@ export async function chatGetAccess(
         )
         .limit(1);
     if (!row) return undefined;
+    const chat = asChat(row);
+    let inheritedArchivedAt: string | undefined;
+    if (chat.parentMessageId) {
+        const [parent] = await executor
+            .select({ chatId: messages.chatId })
+            .from(messages)
+            .where(eq(messages.id, chat.parentMessageId))
+            .limit(1);
+        if (!parent) return undefined;
+        const parentAccess = await chatGetAccess(
+            executor,
+            userId,
+            parent.chatId,
+            requireMembership,
+        );
+        if (!parentAccess) return undefined;
+        inheritedArchivedAt = parentAccess.archivedAt;
+    }
     const [actor] = await executor
         .select({
             role: users.role,
@@ -56,7 +74,8 @@ export async function chatGetAccess(
         .where(and(eq(users.id, userId), isNull(users.deletedAt)))
         .limit(1);
     return {
-        ...asChat(row),
+        ...chat,
+        archivedAt: chat.archivedAt ?? inheritedArchivedAt,
         isServerAdmin: actor?.role === "admin",
     };
 }

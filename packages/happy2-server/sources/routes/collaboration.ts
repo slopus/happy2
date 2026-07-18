@@ -2,8 +2,9 @@ import { userSetBanned } from "../modules/user/userSetBanned.js";
 import { userDelete } from "../modules/user/userDelete.js";
 import { userAdministrationUpdate } from "../modules/user/userAdministrationUpdate.js";
 import { userAdministrationList } from "../modules/user/userAdministrationList.js";
-import { threadSubscriptionSet } from "../modules/thread/threadSubscriptionSet.js";
-import { threadMarkRead } from "../modules/thread/threadMarkRead.js";
+import { threadFollowSet } from "../modules/thread/threadFollowSet.js";
+import { threadGet } from "../modules/thread/threadGet.js";
+import { threadCreate } from "../modules/thread/threadCreate.js";
 import { threadListMine } from "../modules/thread/threadListMine.js";
 import { serverProfileUpdate } from "../modules/server-profile/serverProfileUpdate.js";
 import { serverProfileGet } from "../modules/server-profile/serverProfileGet.js";
@@ -150,21 +151,25 @@ export function registerCollaborationRoutes(
     app.get(
         "/v0/messages/:messageId/thread",
         authenticated(auth, async (request, _reply, userId) => {
-            const selected = await messageGet(executor, userId, pathId(request, "messageId"));
-            const root = selected.threadRootMessageId
-                ? await messageGet(executor, userId, selected.threadRootMessageId)
-                : selected;
-            const page = messagePage(request, ["beforeSequence", "afterSequence", "limit"]);
-            const result = await messageList(executor, {
-                userId,
-                chatId: root.chatId,
-                threadRootMessageId: root.id,
-                ...page,
-            });
+            emptyQuery(request);
             return {
-                root,
-                ...result,
+                chat: await threadGet(executor, userId, pathId(request, "messageId")),
             };
+        }),
+    );
+    app.post(
+        "/v0/messages/:messageId/createThread",
+        authenticated(auth, async (request, reply, userId) => {
+            emptyBody(request);
+            const result = await threadCreate(executor, {
+                actorUserId: userId,
+                parentMessageId: pathId(request, "messageId"),
+            });
+            await publishHints(request, pubsub, result.hints);
+            return reply.code(result.created ? 201 : 200).send({
+                chat: result.chat,
+                sync: result.hints.at(-1),
+            });
         }),
     );
     app.get(
@@ -664,7 +669,6 @@ export function registerCollaborationRoutes(
                 "text",
                 "attachmentFileIds",
                 "quotedMessageId",
-                "threadRootMessageId",
                 "expiryMode",
                 "selfDestructSeconds",
                 "afterReadScope",
@@ -694,7 +698,6 @@ export function registerCollaborationRoutes(
                 text,
                 attachmentFileIds,
                 quotedMessageId: optionalIdField(body, "quotedMessageId"),
-                threadRootMessageId: optionalIdField(body, "threadRootMessageId"),
                 expiryMode:
                     optionalEnumField(body, "expiryMode", [
                         "none",
@@ -718,90 +721,13 @@ export function registerCollaborationRoutes(
         }),
     );
     app.post(
-        "/v0/messages/:messageId/sendThreadMessage",
-        authenticated(auth, async (request, reply, userId) => {
-            const selected = await messageGet(executor, userId, pathId(request, "messageId"));
-            const rootMessageId = selected.threadRootMessageId ?? selected.id;
-            const body = requestBody(request, [
-                "text",
-                "attachmentFileIds",
-                "quotedMessageId",
-                "expiryMode",
-                "selfDestructSeconds",
-                "afterReadScope",
-                "clientMutationId",
-            ]);
-            const attachmentFileIds = optionalIdArrayField(
-                body,
-                "attachmentFileIds",
-                MAX_ATTACHMENTS,
-            );
-            const selfDestructSeconds = optionalPositiveIntegerField(
-                body,
-                "selfDestructSeconds",
-                MAX_SELF_DESTRUCT_SECONDS,
-            );
-            const result = await messageSend(executor, {
-                actorUserId: userId,
-                chatId: selected.chatId,
-                text: messageText(body, attachmentFileIds?.length ?? 0),
-                attachmentFileIds,
-                quotedMessageId: optionalIdField(body, "quotedMessageId"),
-                threadRootMessageId: rootMessageId,
-                expiryMode:
-                    optionalEnumField(body, "expiryMode", [
-                        "none",
-                        "after_send",
-                        "after_read",
-                    ] as const) ?? (selfDestructSeconds ? "after_send" : undefined),
-                selfDestructSeconds,
-                afterReadScope: optionalEnumField(body, "afterReadScope", [
-                    "any_reader",
-                    "all_readers",
-                ] as const),
-                clientMutationId: optionalTokenField(body, "clientMutationId"),
-            });
-            await publishHints(request, pubsub, [result.hint]);
-            return reply.code(201).send({
-                message: result.message,
-                sync: result.hint,
-            });
-        }),
-    );
-    app.post(
-        "/v0/messages/:messageId/updateThreadSubscription",
+        "/v0/chats/:chatId/updateThreadFollow",
         authenticated(auth, async (request, _reply, userId) => {
-            const body = requestBody(request, ["subscribed", "notificationLevel"]);
-            const selected = await messageGet(executor, userId, pathId(request, "messageId"));
-            const rootMessageId = selected.threadRootMessageId ?? selected.id;
-            const result = await threadSubscriptionSet(executor, {
+            const body = requestBody(request, ["followed"]);
+            const result = await threadFollowSet(executor, {
                 actorUserId: userId,
-                threadRootMessageId: rootMessageId,
-                subscribed: booleanField(body, "subscribed"),
-                notificationLevel: optionalEnumField(body, "notificationLevel", [
-                    "all",
-                    "mentions",
-                    "none",
-                ] as const),
-            });
-            await publishHints(request, pubsub, [result.hint], {
-                userIds: [userId],
-            });
-            return {
-                sync: result.hint,
-            };
-        }),
-    );
-    app.post(
-        "/v0/messages/:messageId/markThreadRead",
-        authenticated(auth, async (request, _reply, userId) => {
-            const body = requestBody(request, ["throughMessageId"]);
-            const selected = await messageGet(executor, userId, pathId(request, "messageId"));
-            const rootMessageId = selected.threadRootMessageId ?? selected.id;
-            const result = await threadMarkRead(executor, {
-                actorUserId: userId,
-                threadRootMessageId: rootMessageId,
-                messageId: optionalIdField(body, "throughMessageId"),
+                chatId: pathId(request, "chatId"),
+                followed: booleanField(body, "followed"),
             });
             await publishHints(request, pubsub, [result.hint], {
                 userIds: [userId],

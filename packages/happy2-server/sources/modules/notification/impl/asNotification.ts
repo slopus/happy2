@@ -7,7 +7,6 @@ export function asNotification(row: Record<string, unknown>): NotificationSummar
         kind: text(row.kind) as NotificationSummary["kind"],
         chatId: optionalText(row.chat_id),
         messageId: optionalText(row.message_id),
-        threadRootMessageId: optionalText(row.thread_root_message_id),
         actorUserId: optionalText(row.actor_user_id),
         readAt: optionalText(row.read_at),
         createdAt: text(row.created_at),
