@@ -21,7 +21,8 @@ export interface ChatInfoModelOptions {
     isServerAdmin: Accessor<boolean>;
     actions: ChatPageActions;
     avatarFor(userId?: string, fallback?: string): string | undefined;
-    onOpen(): void;
+    onInfoOpen(): void;
+    onProfileOpen(userId: string): void;
     onBusyStart(): void;
     onBusyFinish(): void;
     onError(error: unknown): void;
@@ -29,7 +30,6 @@ export interface ChatInfoModelOptions {
 }
 
 export function chatInfoModelCreate(options: ChatInfoModelOptions) {
-    const [profileOverride, setProfileOverride] = createSignal<InfoPanelProfile>();
     const [channelName, setChannelName] = createSignal("");
     const [channelTopic, setChannelTopic] = createSignal("");
     const [autoJoin, setAutoJoin] = createSignal(false);
@@ -39,16 +39,11 @@ export function chatInfoModelCreate(options: ChatInfoModelOptions) {
         options.directoryUsers().find((person) => person.id === id)?.presence ?? "offline";
     const profile = (): InfoPanelProfile | undefined => {
         const value = peer();
-        return value
-            ? {
-                  imageUrl: options.avatarFor(value.id, value.photoFileId),
-                  initials: identityInitials(value),
-                  name: value.displayName,
-                  presence: presenceFor(value.id),
-                  tone: toneFor(value.id),
-                  username: value.username,
-              }
-            : undefined;
+        return value ? profileProject(value) : undefined;
+    };
+    const profileFor = (userId: string): InfoPanelProfile | undefined => {
+        const value = options.directoryUsers().find((person) => person.id === userId);
+        return value ? profileProject(value) : undefined;
     };
     const members = createMemo<MemberItem[]>(() => {
         const value = options.chatSnapshot()?.members;
@@ -71,6 +66,7 @@ export function chatInfoModelCreate(options: ChatInfoModelOptions) {
         const sender = message.serverMessage?.sender;
         if (!sender) return undefined;
         return {
+            id: sender.id,
             imageUrl: options.avatarFor(sender.id, sender.photoFileId),
             initials: identityInitials(sender),
             name: sender.displayName,
@@ -100,8 +96,8 @@ export function chatInfoModelCreate(options: ChatInfoModelOptions) {
         if (target) options.chatStore()?.agentEffortChange(target.id, value);
     }
     function open(override?: InfoPanelProfile) {
-        setProfileOverride(override);
-        options.onOpen();
+        if (override?.id) options.onProfileOpen(override.id);
+        else options.onInfoOpen();
         const chat = options.activeChat();
         if (chat) {
             setChannelName(chat.name ?? "");
@@ -147,11 +143,22 @@ export function chatInfoModelCreate(options: ChatInfoModelOptions) {
         open,
         peer,
         profile,
-        profileOverride,
-        profileOverrideClear: () => setProfileOverride(undefined),
+        profileFor,
         save,
         setAutoJoin,
         setChannelName,
         setChannelTopic,
     };
+
+    function profileProject(value: Participant | DeepReadonly<DirectoryUserProjection>) {
+        return {
+            id: value.id,
+            imageUrl: options.avatarFor(value.id, value.photoFileId),
+            initials: identityInitials(value),
+            name: value.displayName,
+            presence: presenceFor(value.id),
+            tone: toneFor(value.id),
+            username: value.username,
+        } satisfies InfoPanelProfile;
+    }
 }

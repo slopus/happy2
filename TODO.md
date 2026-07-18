@@ -1182,12 +1182,28 @@ Acceptance: the user chooses the exact crop, sees a circular preview, and every 
 
 ### P0.8 — Persistent routes without surface remounts
 
-- [ ] Introduce a desktop route model for chat/channel, thread, profile, files/file, settings, admin subsection, onboarding, and modal overlays.
-- [ ] Preserve the mounted primary surface when opening search, profile, file viewer, thread, or command palette.
-- [ ] Restore route, selected chat, thread, inspector, and safe local UI state on refresh; do not persist secrets or unsent uploads.
-- [ ] Support browser/Electron back/forward semantics and deep links.
-- [ ] Move route ownership out of ad-hoc `activeFeatureId` signals while keeping `happy2-state` framework-independent.
-- [ ] Add regression tests for search, avatar change, panel open/close, back/forward, refresh, and concurrent SSE updates without remount.
+Implementation boundary (completed): keep the typed URL/history model and its Solid binding in
+`happy2-app`, keep `happy2-state` framework-independent, and expose only controlled selection/panel
+props plus callbacks from `happy2-ui`. The URL and same-entry history state may retain safe route,
+filter, query, and inspector choices; composer drafts, pending uploads, credentials, and secrets
+must remain memory-only. Reuse the existing Blueprint-covered shell, modal, panel, and page
+components instead of adding application-owned visual wrappers.
+
+- [x] Introduce a desktop route model for chat/channel, thread, profile, files/file, settings, admin subsection, onboarding, and modal overlays.
+- [x] Preserve the mounted primary surface when opening search, profile, file viewer, thread, or command palette.
+- [x] Restore route, selected chat, thread, inspector, and safe local UI state on refresh; do not persist secrets or unsent uploads.
+- [x] Support browser/Electron back/forward semantics and deep links.
+- [x] Move route ownership out of ad-hoc `activeFeatureId` signals while keeping `happy2-state` framework-independent.
+- [x] Add regression tests for search, avatar change, panel open/close, back/forward, refresh, and concurrent SSE updates without remount.
+
+Completion evidence (2026-07-17): `pnpm --dir packages/happy2-app format`, `typecheck`, and
+`lint` pass; the scoped navigation/App suite passes (3 files, 26 tests). The complete
+`happy2-ui` typecheck, lint, and 486-test suite passed before the final route hardening, and a
+real browser pass covered registration, profile creation, channel navigation, search, native
+back/forward, reload, and a direct inspector link. Claude Fable session
+`411ef51a-2d2c-4b40-b4d4-f7fa34dcf7cf` re-reviewed the complete staged diff after the
+asynchronous-history and WebKit URL-write fixes and returned `READY`. `happy2-state` was not
+changed.
 
 ### P0.9 — Global search and `⌘K`
 

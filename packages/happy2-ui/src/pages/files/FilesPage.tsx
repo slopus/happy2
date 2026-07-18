@@ -11,13 +11,19 @@ import { Toolbar } from "../../Toolbar";
 
 export interface FilesPageProps {
     store: FilesStore;
+    filter: FilesPageFilter;
+    query: string;
+    onFilterChange: (filter: FilesPageFilter) => void;
+    onQueryChange: (query: string) => void;
     fileDownload?: (fileId: string) => Promise<ArrayBuffer>;
     filePreviewDownload?: (fileId: string) => Promise<ArrayBuffer>;
     fileThumbnailDownload?: (fileId: string) => Promise<ArrayBuffer>;
     onOpen?: (fileId: string) => void;
 }
 
-const kindFilters: { id: string; kind?: MediaKind; label: string }[] = [
+export type FilesPageFilter = "all" | "photo" | "video" | "gif" | "file";
+
+const kindFilters: { id: FilesPageFilter; kind?: MediaKind; label: string }[] = [
     { id: "all", label: "All" },
     { id: "photo", kind: "photo", label: "Photos" },
     { id: "video", kind: "video", label: "Videos" },
@@ -27,8 +33,6 @@ const kindFilters: { id: string; kind?: MediaKind; label: string }[] = [
 
 /** Complete file browser driven by one coarse FilesStore subscription. */
 export function FilesPage(props: FilesPageProps) {
-    const [filter, setFilter] = createSignal("all");
-    const [query, setQuery] = createSignal("");
     const [previewUrls, setPreviewUrls] = createSignal<Record<string, string>>({});
     const [downloadState, setDownloadState] = createSignal<{ id?: string; error?: string }>({});
     const requested = new Set<string>();
@@ -96,9 +100,9 @@ export function FilesPage(props: FilesPageProps) {
                     snapshot().files.map((file) => toMediaItem(file, previewUrls()[file.id])),
                 );
                 const activeKind = createMemo(
-                    () => kindFilters.find((entry) => entry.id === filter())?.kind,
+                    () => kindFilters.find((entry) => entry.id === props.filter)?.kind,
                 );
-                const needle = createMemo(() => query().trim().toLowerCase());
+                const needle = createMemo(() => props.query.trim().toLowerCase());
                 const filtered = createMemo(() =>
                     source().filter(
                         (item) =>
@@ -162,14 +166,18 @@ export function FilesPage(props: FilesPageProps) {
                         </Show>
                         <Toolbar
                             search={{
-                                onChange: setQuery,
+                                onChange: props.onQueryChange,
                                 placeholder: "Search files",
-                                value: query(),
+                                value: props.query,
                             }}
                             subtitle={`${filtered().length} of ${source().length} files`}
                             title="Files"
                         />
-                        <Tabs activeId={filter()} onSelect={setFilter} tabs={tabs()} />
+                        <Tabs
+                            activeId={props.filter}
+                            onSelect={(id) => props.onFilterChange(id as FilesPageFilter)}
+                            tabs={tabs()}
+                        />
                         <Box
                             style={{
                                 flex: "1 1 0%",

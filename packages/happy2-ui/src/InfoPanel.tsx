@@ -10,6 +10,8 @@ import { Toolbar } from "./Toolbar";
 export const SURFACE_HEADER_HEIGHT = 52;
 
 export type InfoPanelProfile = {
+    /** Stable product identity used by hosts to deep-link this profile surface. */
+    id?: string;
     name: string;
     username: string;
     title?: string;

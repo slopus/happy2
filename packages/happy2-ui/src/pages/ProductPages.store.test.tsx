@@ -29,7 +29,18 @@ it("renders FilesPage from FilesStore input", async () => {
     const fixture = owned(filesStoreFixtureCreate());
     fixture.input({ type: "filesLoading" });
     const view = createRenderer();
-    view.render(() => <FilesPage store={fixture.store} />, { width: 1024, height: 704 });
+    view.render(
+        () => (
+            <FilesPage
+                filter="all"
+                onFilterChange={() => undefined}
+                onQueryChange={() => undefined}
+                query=""
+                store={fixture.store}
+            />
+        ),
+        { width: 1024, height: 704 },
+    );
     await view.ready();
     expect(view.container.textContent).toContain("Loading files");
 });
@@ -58,6 +69,7 @@ it("renders AdminPage without materializing optional admin subpages", async () =
     view.render(
         () => (
             <AdminPage
+                activeSection="users"
                 agentImagesStore={() => {
                     imageAccesses += 1;
                     return images.store;
@@ -66,6 +78,7 @@ it("renders AdminPage without materializing optional admin subpages", async () =
                     secretAccesses += 1;
                     return secrets.store;
                 }}
+                onSectionChange={() => undefined}
                 store={admin.store}
             />
         ),

@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal } from "solid-js";
+import { createEffect, createMemo, createSignal, type Accessor } from "solid-js";
 import type { WorkspaceFileStore, WorkspaceStore } from "happy2-state";
 import { Banner } from "./ChatPageComponents.js";
 import type { ChatPageActions } from "./ChatPage.js";
@@ -10,6 +10,7 @@ export function chatWorkspaceModelCreate(options: {
     actions: ChatPageActions;
     workspace?: WorkspaceStore;
     workspaceFile?: WorkspaceFileStore;
+    openPath: Accessor<string | undefined>;
 }) {
     const workspaceReader = createDynamicSnapshot<ReturnType<WorkspaceStore["get"]>>();
     const fileReader = createDynamicSnapshot<ReturnType<WorkspaceFileStore["get"]>>();
@@ -19,7 +20,7 @@ export function chatWorkspaceModelCreate(options: {
     const fileSnapshot = fileReader.snapshot;
     const [selected, setSelected] = createSignal<string>();
     const [loadingPaths, setLoadingPaths] = createSignal<string[]>([]);
-    const [openPath, setOpenPath] = createSignal<string>();
+    const openPath = options.openPath;
 
     const workspace = () => {
         const status = workspaceSnapshot()?.status;
@@ -61,13 +62,10 @@ export function chatWorkspaceModelCreate(options: {
         else fileOpen(path);
     }
     function fileOpen(path: string) {
-        fileClose();
-        setOpenPath(path);
         options.actions.workspaceFileOpen(options.activeChatId(), path);
     }
     function fileClose() {
         options.actions.workspaceFileClose();
-        setOpenPath(undefined);
     }
     const fileBase = () => {
         const file = fileSnapshot()?.file;
@@ -88,7 +86,11 @@ export function chatWorkspaceModelCreate(options: {
     const fileBanner = () =>
         fileConflict() ? (
             <Banner
-                action={{ label: "Reload", onClick: () => fileOpen(openPath()!) }}
+                action={{
+                    label: "Reload",
+                    onClick: () =>
+                        options.actions.workspaceFileReload(options.activeChatId(), openPath()!),
+                }}
                 tone="danger"
             >
                 This file changed on disk and your edits overlap. Reload to discard your changes.

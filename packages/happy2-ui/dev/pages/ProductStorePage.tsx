@@ -8,13 +8,13 @@ import {
     searchStoreFixtureCreate,
     threadsStoreFixtureCreate,
 } from "happy2-state/testing";
-import { onCleanup, type JSX } from "solid-js";
+import { createSignal, onCleanup, type JSX } from "solid-js";
 import { ActivityPage } from "../../src/pages/activity/ActivityPage";
-import { AdminPage } from "../../src/pages/admin/AdminPage";
+import { AdminPage, type AdminPageSection } from "../../src/pages/admin/AdminPage";
 import { AgentImagesPage } from "../../src/pages/admin/AgentImagesPage";
 import { AgentSecretsPage } from "../../src/pages/admin/AgentSecretsPage";
 import { CallsPage } from "../../src/pages/calls/CallsPage";
-import { FilesPage } from "../../src/pages/files/FilesPage";
+import { FilesPage, type FilesPageFilter } from "../../src/pages/files/FilesPage";
 import { HomePage } from "../../src/pages/home/HomePage";
 import { SearchPage } from "../../src/pages/search/SearchPage";
 import { ThreadsPage } from "../../src/pages/threads/ThreadsPage";
@@ -115,13 +115,21 @@ function callsPage() {
 
 function filesPage() {
     const fixture = filesStoreFixtureCreate();
+    const [filter, setFilter] = createSignal<FilesPageFilter>("all");
+    const [query, setQuery] = createSignal("");
     fixture.input({ type: "filesLoaded", files: [], append: false });
     onCleanup(() => fixture[Symbol.dispose]());
     return frame(
         "P-007",
         "Files",
         "ready empty file catalog projection",
-        <FilesPage store={fixture.store} />,
+        <FilesPage
+            filter={filter()}
+            onFilterChange={setFilter}
+            onQueryChange={setQuery}
+            query={query()}
+            store={fixture.store}
+        />,
     );
 }
 
@@ -147,6 +155,7 @@ function adminPage() {
     const fixture = adminStoreFixtureCreate();
     const images = agentImagesStoreFixtureCreate();
     const secrets = agentSecretsStoreFixtureCreate();
+    const [section, setSection] = createSignal<AdminPageSection>("users");
     fixture.input({ type: "usersLoaded", users: [] });
     images.input({ type: "imagesLoaded", images: [] });
     secrets.input({ type: "secretsLoaded", secrets: [], agents: [], channels: [] });
@@ -160,8 +169,10 @@ function adminPage() {
         "Admin",
         "ready user catalog with lazy image and secret stores",
         <AdminPage
+            activeSection={section()}
             agentImagesStore={() => images.store}
             agentSecretsStore={() => secrets.store}
+            onSectionChange={setSection}
             store={fixture.store}
         />,
     );

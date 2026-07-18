@@ -167,11 +167,15 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
 
     const actions = {
         chatSelect: () => undefined,
+        infoOpen: () => undefined,
+        profileOpen: () => undefined,
+        panelClose: () => undefined,
         threadOpen: () => undefined,
         threadClose: () => undefined,
         workspaceOpen: () => undefined,
         workspaceClose: () => undefined,
         workspaceFileOpen: () => undefined,
+        workspaceFileReload: () => undefined,
         workspaceFileClose: () => undefined,
         fileUpload: async () => ({
             id: "file-1",
@@ -206,6 +210,7 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
                 chat={chatSurface.store}
                 composer={composer}
                 directory={directory.store}
+                navigation={{ chatId: chat.id }}
                 sidebar={sidebar.store}
                 titleBar={<div>Title</div>}
                 user={{ id: "user-1", firstName: "Ada" }}

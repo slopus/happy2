@@ -7,7 +7,11 @@ import {
 } from "happy2-state/testing";
 import { createSignal, onCleanup } from "solid-js";
 import { Avatar } from "../../src/Avatar";
-import { ChatPage, type ChatPageActions } from "../../src/pages/chat/ChatPage";
+import {
+    ChatPage,
+    type ChatPageActions,
+    type ChatPageNavigation,
+} from "../../src/pages/chat/ChatPage";
 import { Rail } from "../../src/Rail";
 import { TitleBar } from "../../src/TitleBar";
 import { ComponentPage, FullScreenSpecimen } from "../kit";
@@ -39,13 +43,17 @@ const chat: ChatSummary = {
     updatedAt: "2026-07-17T12:00:00.000Z",
 };
 
-const actions: ChatPageActions = {
+const passiveActions: ChatPageActions = {
     chatSelect: () => undefined,
+    infoOpen: () => undefined,
+    profileOpen: () => undefined,
+    panelClose: () => undefined,
     threadOpen: () => undefined,
     threadClose: () => undefined,
     workspaceOpen: () => undefined,
     workspaceClose: () => undefined,
     workspaceFileOpen: () => undefined,
+    workspaceFileReload: () => undefined,
     workspaceFileClose: () => undefined,
     fileUpload: async () => ({
         id: "file-blueprint",
@@ -77,6 +85,27 @@ export function ChatStorePage() {
     const chatSurface = chatStoreFixtureCreate(chat.id);
     const composer = composerStoreFixtureCreate(chat.id);
     const [search, setSearch] = createSignal("");
+    const [navigation, setNavigation] = createSignal<ChatPageNavigation>({ chatId: chat.id });
+    const actions: ChatPageActions = {
+        ...passiveActions,
+        chatSelect: (chatId) => setNavigation({ chatId }),
+        infoOpen: () => setNavigation((value) => ({ ...value, panel: { kind: "info" } })),
+        profileOpen: (userId) =>
+            setNavigation((value) => ({ ...value, panel: { kind: "profile", userId } })),
+        panelClose: () => setNavigation((value) => ({ ...value, panel: undefined })),
+        threadOpen: (rootMessageId) =>
+            setNavigation((value) => ({
+                ...value,
+                panel: { kind: "thread", rootMessageId },
+            })),
+        threadClose: () => setNavigation((value) => ({ ...value, panel: undefined })),
+        workspaceOpen: () => setNavigation((value) => ({ ...value, panel: { kind: "workspace" } })),
+        workspaceClose: () => setNavigation((value) => ({ ...value, panel: undefined })),
+        workspaceFileOpen: (_chatId, path) =>
+            setNavigation((value) => ({ ...value, workspaceFilePath: path })),
+        workspaceFileClose: () =>
+            setNavigation((value) => ({ ...value, workspaceFilePath: undefined })),
+    };
     onCleanup(() => {
         sidebar[Symbol.dispose]();
         directory[Symbol.dispose]();
@@ -131,6 +160,7 @@ export function ChatStorePage() {
                     chat={chatSurface.store}
                     composer={composer}
                     directory={directory.store}
+                    navigation={navigation()}
                     rail={
                         <Rail
                             activeItemId="chat"

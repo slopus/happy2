@@ -80,19 +80,38 @@ export type ChatPageProps = {
     workspace?: WorkspaceStore;
     workspaceFile?: WorkspaceFileStore;
     actions: ChatPageActions;
+    navigation: ChatPageNavigation;
     search: () => string;
     createRequest?: () => { kind: "agent" | "channel"; nonce: number };
     rail: JSX.Element;
     titleBar: JSX.Element;
 };
 
+export type ChatPageConversationKind = "chat" | "channel";
+
+export type ChatPagePanel =
+    | { readonly kind: "info" }
+    | { readonly kind: "profile"; readonly userId: string }
+    | { readonly kind: "thread"; readonly rootMessageId: string }
+    | { readonly kind: "workspace" };
+
+export interface ChatPageNavigation {
+    readonly chatId?: string;
+    readonly panel?: ChatPagePanel;
+    readonly workspaceFilePath?: string;
+}
+
 export interface ChatPageActions {
-    chatSelect(chatId: string): void;
+    chatSelect(chatId: string, kind: ChatPageConversationKind, replace?: boolean): void;
+    infoOpen(): void;
+    profileOpen(userId: string): void;
+    panelClose(): void;
     threadOpen(rootMessageId: string): void;
     threadClose(): void;
     workspaceOpen(chatId: string): void;
     workspaceClose(): void;
     workspaceFileOpen(chatId: string, path: string): void;
+    workspaceFileReload(chatId: string, path: string): void;
     workspaceFileClose(): void;
     fileUpload(body: FormData): Promise<import("happy2-state").UploadedFile>;
     fileDownload(fileId: string): Promise<ArrayBuffer>;
@@ -125,9 +144,7 @@ export function ChatPage(props: ChatPageProps) {
     createEffect(() => composerReader.follow(props.composer));
     createEffect(() => threadReader.follow(props.thread));
 
-    const [activeConversationId, setActiveConversationId] = createSignal("");
     const [threadDraft, setThreadDraft] = createSignal("");
-    const [panelMode, setPanelMode] = createSignal<"info" | "thread" | "files">();
     const [statusHint, setStatusHint] = createSignal<string>();
     const [busyCount, setBusyCount] = createSignal(0);
     const [createOpen, setCreateOpen] = createSignal(false);
@@ -139,9 +156,26 @@ export function ChatPage(props: ChatPageProps) {
         | { kind: "agent"; username: string }
         | { kind: "dm"; userId: string }
     >();
+    const activeConversationId = () => props.navigation.chatId ?? "";
+    const activePanel = () => props.navigation.panel;
+    let threadDraftRootId: string | undefined;
+    createEffect(() => {
+        const panel = activePanel();
+        const nextRootId = panel?.kind === "thread" ? panel.rootMessageId : undefined;
+        if (nextRootId === threadDraftRootId) return;
+        threadDraftRootId = nextRootId;
+        setThreadDraft("");
+    });
+    const panelMode = (): "info" | "thread" | "files" | undefined => {
+        const panel = activePanel();
+        if (panel?.kind === "thread") return "thread";
+        if (panel?.kind === "info" || panel?.kind === "profile") return "info";
+        return panel?.kind === "workspace" ? "files" : undefined;
+    };
     const workspaceModel = chatWorkspaceModelCreate({
         activeChatId: activeConversationId,
         actions: props.actions,
+        openPath: () => props.navigation.workspaceFilePath,
         workspace: props.workspace,
         workspaceFile: props.workspaceFile,
     });
@@ -218,12 +252,19 @@ export function ChatPage(props: ChatPageProps) {
         isServerAdmin,
         actions: props.actions,
         avatarFor,
-        onOpen: () => setPanelMode("info"),
+        onInfoOpen: props.actions.infoOpen,
+        onProfileOpen: props.actions.profileOpen,
         onBusyStart: startBusy,
         onBusyFinish: finishBusy,
         onError: showError,
         onSaved: () => setStatusHint("Channel details saved."),
     });
+    const routedProfile = () => {
+        const panel = activePanel();
+        return panel?.kind === "profile" ? infoModel.profileFor(panel.userId) : undefined;
+    };
+    const displayedProfile = () =>
+        activePanel()?.kind === "profile" ? routedProfile() : infoModel.profile();
     const messageActions = chatMessageActionsModelCreate({
         userId: () => user().id,
         activeChatId: activeConversationId,
@@ -265,10 +306,7 @@ export function ChatPage(props: ChatPageProps) {
         canEdit: canEditChannel,
         actions: props.actions,
         onInfoOpen: () => infoModel.open(),
-        onLeave: () => {
-            closeAuxiliarySurfaces();
-            setActiveConversationId("");
-        },
+        onLeave: () => props.actions.chatSelect("", "chat"),
         onError: showError,
     });
     const conversation = createMemo<Conversation>(() => {
@@ -344,18 +382,10 @@ export function ChatPage(props: ChatPageProps) {
     const activeAgentActivity = (): readonly DeepReadonly<AgentActivityState>[] =>
         chatSnapshot()?.agentActivity ?? [];
 
-    function selectConversation(id: string) {
-        closeAuxiliarySurfaces();
-        setActiveConversationId(id);
-        if (id) props.actions.chatSelect(id);
-    }
-
-    function closeAuxiliarySurfaces() {
-        setPanelMode(undefined);
-        infoModel.profileOverrideClear();
-        props.actions.threadClose();
-        props.actions.workspaceClose();
-        workspaceModel.fileClose();
+    function selectConversation(id: string, replace = false) {
+        const projection = sidebarChats().find((candidate) => candidate.id === id);
+        if (!projection) return;
+        props.actions.chatSelect(id, projection.chat.kind === "dm" ? "chat" : "channel", replace);
     }
 
     createEffect(() => {
@@ -375,7 +405,7 @@ export function ChatPage(props: ChatPageProps) {
                 return;
             }
         }
-        if (!activeConversationId() && chats.length) selectConversation(chats[0]!.id);
+        if (!activeConversationId() && chats.length) selectConversation(chats[0]!.id, true);
     });
 
     createEffect(() => {
@@ -440,7 +470,6 @@ export function ChatPage(props: ChatPageProps) {
     }
 
     function openThread(message: LiveThreadMessage) {
-        setPanelMode("thread");
         setThreadDraft("");
         if (message.serverMessage) props.actions.threadOpen(message.id);
     }
@@ -453,12 +482,10 @@ export function ChatPage(props: ChatPageProps) {
     }
 
     function openFilesPanel() {
-        setPanelMode("files");
         workspaceModel.panelOpen();
     }
     function toggleFilesPanel() {
         if (panelMode() === "files") {
-            setPanelMode(undefined);
             workspaceModel.panelClose();
         } else openFilesPanel();
     }
@@ -502,7 +529,6 @@ export function ChatPage(props: ChatPageProps) {
                             mentions={mentionCandidates()}
                             onDraftChange={setThreadDraft}
                             onClose={() => {
-                                setPanelMode(undefined);
                                 props.actions.threadClose();
                             }}
                             onSend={sendThreadReply}
@@ -528,18 +554,15 @@ export function ChatPage(props: ChatPageProps) {
                             isMain={Boolean(activeChat()?.isMain)}
                             isServerAdmin={isServerAdmin()}
                             members={infoModel.members()}
-                            onClose={() => {
-                                setPanelMode(undefined);
-                                infoModel.profileOverrideClear();
-                            }}
+                            onClose={props.actions.panelClose}
                             onAutoJoinChange={infoModel.setAutoJoin}
                             onChannelNameChange={infoModel.setChannelName}
                             onChannelTopicChange={infoModel.setChannelTopic}
                             onEffortChange={infoModel.effortChange}
                             onSave={() => void infoModel.save()}
                             peer={Boolean(infoModel.peer())}
-                            profile={infoModel.profileOverride() ?? infoModel.profile()}
-                            profileOverride={infoModel.profileOverride()}
+                            profile={displayedProfile()}
+                            profileOverride={routedProfile()}
                             title={conversation().title}
                         />
                     ) : panelMode() === "files" ? (

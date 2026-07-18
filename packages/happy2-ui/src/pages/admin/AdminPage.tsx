@@ -23,7 +23,17 @@ export interface AdminPageProps {
     store: AdminStore;
     agentImagesStore: () => AgentImagesStore;
     agentSecretsStore: () => AgentSecretsStore;
+    activeSection: AdminPageSection;
+    onSectionChange: (section: AdminPageSection) => void;
 }
+
+export type AdminPageSection =
+    | "users"
+    | "reports"
+    | "automations"
+    | "integrations"
+    | "images"
+    | "secrets";
 
 const tabs: TabItem[] = [
     { id: "users", label: "Users", icon: "users" },
@@ -62,12 +72,11 @@ const columns: Record<string, DataTableColumn[]> = {
 
 /** Complete admin page with independently materialized catalog, image, and secret stores. */
 export function AdminPage(props: AdminPageProps) {
-    const [activeTab, setActiveTab] = createSignal("users");
     const [query, setQuery] = createSignal("");
     return (
         <StoreSurface store={props.store}>
             {(snapshot) => {
-                const tab = activeTab;
+                const tab = () => props.activeSection;
                 const loadable = createMemo(() =>
                     tab() === "users"
                         ? snapshot().users
@@ -124,7 +133,7 @@ export function AdminPage(props: AdminPageProps) {
                         <Tabs
                             activeId={tab()}
                             onSelect={(id) => {
-                                setActiveTab(id);
+                                props.onSectionChange(id as AdminPageSection);
                                 setQuery("");
                             }}
                             tabs={tabs}
