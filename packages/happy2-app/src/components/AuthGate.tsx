@@ -265,8 +265,11 @@ export function AuthGate(props: AuthGateProps) {
                 update({ loadingMessage: "Checking your Cloudflare Access session." });
                 await resolveSession(undefined, { allowRefresh: false });
             } else update({ mode: "sign-in" });
-        } catch (reason) {
-            update({ error: message(reason), mode: "unavailable" });
+        } catch {
+            /* The probe reason is deliberately dropped: it carries raw upstream
+               and network detail (hosts, ports, exception text) that must never
+               reach the product-safe unavailable screen. */
+            update({ error: undefined, mode: "unavailable" });
         } finally {
             update({ pending: false });
         }
@@ -321,8 +324,8 @@ export function AuthGate(props: AuthGateProps) {
             case "unavailable":
                 return {
                     kicker: "Connection needed",
-                    title: "Server not found.",
-                    copy: "Start it with pnpm dev:server, or set VITE_HAPPY2_SERVER_URL.",
+                    title: "Can't reach your workspace.",
+                    copy: "We couldn't connect to your workspace. Check your connection and try again.",
                 };
             case "onboarding":
                 return {
@@ -383,18 +386,13 @@ export function AuthGate(props: AuthGateProps) {
                 }
             >
                 {mode === "unavailable" ? (
-                    <>
-                        {error
-                            ? ((reason) => (
-                                  <Banner tone="danger" title="Connection failed">
-                                      {reason}
-                                  </Banner>
-                              ))(error)
-                            : null}
-                        <Button disabled={pending} onClick={() => void probeServer()} type="button">
-                            Try again
-                        </Button>
-                    </>
+                    /* The fixed headline/copy plus this retry are the complete
+                       unavailable state. No error Banner: the probe failure carries
+                       raw upstream/network detail (hosts, ports, exception text) that
+                       must never render, and it is dropped in probeServer's catch. */
+                    <Button disabled={pending} onClick={() => void probeServer()} type="button">
+                        Try again
+                    </Button>
                 ) : isPasswordSignIn() ? (
                     <form onSubmit={submitCredentials} style={formStyle}>
                         <TextField

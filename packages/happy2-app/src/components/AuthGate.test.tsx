@@ -332,6 +332,51 @@ describe("AuthGate password onboarding", () => {
         expect(callsTo(fetchMock, "POST", "/v0/auth/password/register")).toHaveLength(0);
     });
 
+    it("hides raw upstream and network failure detail behind product-safe unavailable copy", async () => {
+        // A realistic proxy response body whose message carries upstream detail,
+        // a host, a port, an exception code, developer setup text, and an env-var
+        // name. Returning it as a non-OK JSON response (not a rejected fetch, which
+        // server.ts already sanitizes) makes createServerClient build a ServerError
+        // straight from the raw body — the actual leak boundary under test.
+        const rawTechnicalFailure =
+            "connect ECONNREFUSED 10.84.0.46:3000 — start it with pnpm dev:server or set VITE_HAPPY2_SERVER_URL";
+        const badGateway: Handler = () =>
+            json({ error: "bad_gateway", message: rawTechnicalFailure }, 502);
+        const fetchMock = routedFetch({
+            "GET /v0/auth/methods": badGateway,
+            "GET /v0/setup/status": badGateway,
+        });
+        vi.stubGlobal("fetch", fetchMock);
+        stubLocalStorage();
+
+        const screen = render(<App serverUrl="http://server" />);
+
+        // The safe unavailable state, its fixed copy, and the in-place retry are present.
+        expect(await screen.findByRole("button", { name: "Try again" })).toBeTruthy();
+        expect(screen.getByText("Can't reach your workspace.")).toBeTruthy();
+        expect(
+            screen.getByText(
+                "We couldn't connect to your workspace. Check your connection and try again.",
+            ),
+        ).toBeTruthy();
+
+        // No developer commands, env-var names, IPs, ports, exception codes,
+        // proxy status text, or raw response body leak into the rendered screen.
+        const rendered = screen.container.textContent ?? "";
+        for (const leak of [
+            "pnpm dev:server",
+            "VITE_HAPPY2_SERVER_URL",
+            "ECONNREFUSED",
+            "10.84.0.46",
+            "3000",
+            "Bad Gateway",
+            "bad_gateway",
+            rawTechnicalFailure,
+        ]) {
+            expect(rendered).not.toContain(leak);
+        }
+    });
+
     it("retries the server probe in place without location.reload and preserves form state", async () => {
         let methodsCalls = 0;
         const fetchMock = vi.fn((input: string) => {
