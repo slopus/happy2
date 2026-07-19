@@ -17,6 +17,12 @@
     border-top: 1px solid var(--happy2-border-strong);
 }
 
+/* A collapsed (dead, frameless) panel is exactly its header row. */
+.happy2-terminal-panel[data-collapsed] {
+    min-height: 0;
+    height: auto;
+}
+
 .happy2-terminal-panel__resize {
     flex: none;
     height: 5px;
