@@ -12,6 +12,45 @@ import {
     type RemoteTerminalReconnectState,
 } from "@slopus/ghostty-web";
 
+it("starts one exact chat agent session when terminals open before any turn", async () => {
+    await using rig = await createMockRigDaemon();
+    const sandbox = new MockAgentSandboxRuntime();
+    await using server = await createGymServer({
+        agentSandbox: sandbox,
+        configure(config) {
+            config.agents.enabled = true;
+            config.agents.socketPath = rig.socketPath;
+            config.agents.tokenPath = rig.tokenPath;
+            config.agents.defaultCwd = rig.workspaceRoot;
+        },
+    });
+    const owner = await server.createUser({ username: "terminal_lazy_owner", firstName: "Owner" });
+    const agent = await createAgent(server.as(owner), "terminal_lazy_agent");
+    const conversation = await server.as(owner).post("/v0/chats/createAgentConversation", {
+        agentUserId: agent.agentUserId,
+    });
+    expect(conversation.statusCode).toBe(201);
+    const chatId = conversation.json().chat.id as string;
+    const sessionsBefore = rig.createdSessions.length;
+    const containersBefore = sandbox.createdContainers.length;
+    const createPath = `${terminalCollection(chatId, agent.agentUserId)}/createTerminal`;
+
+    const [first, second] = await Promise.all([
+        server.as(owner).post(createPath, { cols: 80, rows: 24 }),
+        server.as(owner).post(createPath, { cols: 132, rows: 41 }),
+    ]);
+
+    expect([first.statusCode, second.statusCode]).toEqual([201, 201]);
+    expect(rig.createdSessions).toHaveLength(sessionsBefore + 1);
+    expect(sandbox.createdContainers).toHaveLength(containersBefore + 1);
+    expect([first.json().terminal, second.json().terminal]).toEqual(
+        expect.arrayContaining([
+            expect.objectContaining({ cols: 80, rows: 24, status: "running" }),
+            expect.objectContaining({ cols: 132, rows: 41, status: "running" }),
+        ]),
+    );
+});
+
 it("authorizes exact chat Rig terminals and carries protocol input resize reconnect exit and cleanup", async () => {
     await using rig = await createMockRigDaemon();
     await using server = await createGymServer({

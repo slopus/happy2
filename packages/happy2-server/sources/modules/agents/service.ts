@@ -394,10 +394,21 @@ export class AgentService {
         cols: number;
         rows: number;
     }): Promise<{ terminal: RemoteTerminalSummary }> {
-        const sessionId = await this.authorizedTerminalSession(input);
+        const context = await agentChatGetContext(
+            this.executor,
+            input.actorUserId,
+            input.chatId,
+            input.agentUserId,
+        );
+        if (!context)
+            throw new CollaborationError("not_found", "Agent terminal session was not found");
+        const binding =
+            context.binding ??
+            (await this.ensureAgentBinding(input.actorUserId, input.chatId, input.agentUserId));
+        if (!binding) throw new CollaborationError("conflict", "Agent conversation is not ready");
         return {
             terminal: await this.daemon.createRemoteTerminal(
-                sessionId,
+                binding.sessionId,
                 { cols: input.cols, rows: input.rows },
                 this.shutdown.signal,
             ),
