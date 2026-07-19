@@ -12,7 +12,6 @@ import {
     Button,
     Fade,
     OnboardingScreen,
-    type OnboardingScreenState,
     TextField,
     WindowDragRegion,
     onboardingBackgroundUrl,
@@ -353,21 +352,21 @@ export function AuthGate(props: AuthGateProps) {
         }
     };
     const submitLabel = () => (pending ? "Working…" : isRegistering ? "Create account" : "Sign in");
-    /* The OnboardingScreen for one crossfade layer. `state` is fixed by the layer's
-     * screen key (not read live) so an outgoing loading layer keeps its spinner
-     * while the incoming form fades in over it — a real crossfade, not a morph. */
-    const renderGate = (state: OnboardingScreenState) => (
+    // Loading, sign-in, and profile activation update inside one stable gate
+    // layer. Only the body scrollport remounts when the mode lifetime changes.
+    const renderGate = () => (
         <>
             {props.showWindowDragRegion ? <WindowDragRegion /> : null}
             <OnboardingScreen
                 backgroundUrl={onboardingBackgroundUrl}
+                bodyKey={mode}
                 brand={{ name: "Happy (2)" }}
-                copy={state === "loading" ? undefined : headline().copy}
+                copy={mode === "loading" ? undefined : headline().copy}
                 data-testid="auth-onboarding-screen"
-                kicker={state === "loading" ? loadingHeadline.kicker : headline().kicker}
+                kicker={mode === "loading" ? loadingHeadline.kicker : headline().kicker}
                 loadingLabel={loadingMessage}
-                state={state}
-                title={state === "loading" ? loadingHeadline.title : headline().title}
+                state={mode === "loading" ? "loading" : "form"}
+                title={mode === "loading" ? loadingHeadline.title : headline().title}
                 footer={
                     isPasswordSignIn() && methods?.signupEnabled ? (
                         <Button
@@ -482,17 +481,12 @@ export function AuthGate(props: AuthGateProps) {
         !!user &&
         (!!token() || methods?.method === "cloudflare_access") &&
         !!state;
-    /* Coarse screen identity that drives the crossfade. Finer changes (loading
-     * message, sign-in vs. onboarding, error banners) stay within one key and
-     * update in place; only crossing these boundaries dissolves. */
-    const screenKey = (): "loading" | "auth" | "app" => {
-        if (sessionReady()) return "app";
-        if (mode === "loading") return "loading";
-        return "auth";
-    };
+    // Fade is reserved for the pre-app gate → app dissolve. Probe resolution
+    // and every form-mode transition retain the same card DOM node.
+    const screenKey = (): "gate" | "app" => (sessionReady() ? "app" : "gate");
     const renderScreen = (key: string | number) => {
         if (key === "app") return props.children(session);
-        return renderGate(key === "loading" ? "loading" : "form");
+        return renderGate();
     };
     return <Fade active={screenKey()} data-testid="auth-gate" render={renderScreen} />;
 }

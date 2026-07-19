@@ -1,9 +1,9 @@
-import { useLayoutEffect, useReducer, type ReactNode } from "react";
+import { useId, useLayoutEffect, useReducer, type ReactNode } from "react";
 import {
     Banner,
     BuildProgressPanel,
     Button,
-    DefaultAgentModal,
+    DefaultAgentForm,
     OnboardingScreen,
     SetupOptionCard,
     StoreSurface,
@@ -85,6 +85,20 @@ function ServerOnboardingBody(props: {
     const { navigation, onComplete, snapshot, state } = props;
     const route = useDesktopNavigation(navigation);
     const status = snapshot.status;
+    const defaultAgentFormId = `${useId()}-default-agent`;
+    // The agent draft belongs to this stable screen owner so the body form and
+    // pinned footer action share validation, submission, and request state.
+    const [agentDraft, agentDraftUpdate] = useReducer(
+        (
+            current: { name: string; username: string; attempted: boolean },
+            patch: Partial<{ name: string; username: string; attempted: boolean }>,
+        ) => ({ ...current, ...patch }),
+        {
+            name: DEFAULT_AGENT_PROPOSED.name,
+            username: DEFAULT_AGENT_PROPOSED.username,
+            attempted: false,
+        },
+    );
     const resolution = status.type === "ready" ? onboardingStepForStatus(status.value) : undefined;
     const canonicalStep: DesktopOnboardingStep | undefined =
         resolution?.kind === "step" ? resolution.step : undefined;
@@ -150,9 +164,7 @@ function ServerOnboardingBody(props: {
         const timer = setInterval(() => props.state.setupProvidersReload(), PROVIDER_POLL_MS);
         return () => clearInterval(timer);
     }, [canonicalStep, props.state]);
-    // The selected sandbox is explained on later non-modal administrator steps.
-    // The modal-hosted default-agent step receives the same durable context in
-    // its own description below, so the scrim cannot hide it on reload-resume.
+    // The selected sandbox is explained on every later administrator step.
     const providerNote = (() => {
         if (
             canonicalStep !== "base-image" &&
@@ -163,9 +175,34 @@ function ServerOnboardingBody(props: {
         const provider = selectedProvider(props.snapshot);
         if (!provider) return undefined;
         return provider.version
-            ? `Agent code runs inside the ${provider.name} sandbox (version ${provider.version}).`
+            ? `Agent code runs inside the ${provider.name} sandbox (${provider.version}).`
             : `Agent code runs inside the ${provider.name} sandbox.`;
     })();
+    const agentSubmitting = () => snapshot.pending.creatingDefaultAgent === true;
+    const agentNameError = () =>
+        agentDraft.attempted ? defaultAgentNameError(agentDraft.name) : undefined;
+    const agentUsernameError = () =>
+        agentDraft.attempted ? defaultAgentUsernameError(agentDraft.username) : undefined;
+    const agentInvalid = () =>
+        defaultAgentNameError(agentDraft.name) !== undefined ||
+        defaultAgentUsernameError(agentDraft.username) !== undefined;
+    // The step headline already introduces the built-in agent, and the exact
+    // provider version was shown when the sandbox was selected — this in-form
+    // line stays a single line so the whole form (including the preset button)
+    // is visible without scrolling at the reference window size.
+    const agentDescription = () => {
+        const provider = selectedProvider(snapshot);
+        const sandbox = provider ? `It runs inside the ${provider.name} sandbox. ` : "";
+        return `${sandbox}Pick a name and handle you’ll recognize.`;
+    };
+    const agentSubmit = () => {
+        agentDraftUpdate({ attempted: true });
+        if (agentInvalid()) return;
+        props.store.getState().defaultAgentCreate({
+            name: agentDraft.name.trim(),
+            username: agentDraft.username,
+        });
+    };
     const steps: OnboardingStep[] = (() => {
         const currentIndex = SERVER_STAGES.findIndex((stage) => stage.step === canonicalStep);
         return SERVER_STAGES.map((stage, index) => ({
@@ -226,10 +263,11 @@ function ServerOnboardingBody(props: {
                 return { kicker: "Server setup", title: "Preparing setup" };
         }
     };
-    const loadingState = status.type !== "ready" || canonicalStep === undefined;
+    const loadingState = status.type === "unloaded" || status.type === "loading";
     return (
         <OnboardingScreen
             backgroundUrl={onboardingBackgroundUrl}
+            bodyKey={canonicalStep}
             brand={{ name: "Happy (2)" }}
             copy={headline().copy}
             data-testid="server-onboarding"
@@ -238,7 +276,20 @@ function ServerOnboardingBody(props: {
             state={loadingState ? "loading" : "form"}
             steps={canonicalStep === "waiting" ? undefined : steps}
             title={headline().title}
-            width={canonicalStep === "build-progress" ? "large" : "medium"}
+            width="large"
+            footer={
+                canonicalStep === "default-agent" ? (
+                    <Button
+                        data-testid="default-agent-submit"
+                        disabled={agentSubmitting() || (agentDraft.attempted && agentInvalid())}
+                        form={defaultAgentFormId}
+                        fullWidth
+                        type="submit"
+                    >
+                        {agentSubmitting() ? "Creating agent…" : "Create agent"}
+                    </Button>
+                ) : undefined
+            }
         >
             {status.type === "error" ? (
                 <Banner tone="danger" title="Could not load setup">
@@ -260,6 +311,14 @@ function ServerOnboardingBody(props: {
                   ))(providerNote)
                 : null}
             <Switchboard
+                defaultAgentDraft={agentDraft}
+                defaultAgentFormId={defaultAgentFormId}
+                defaultAgentNameError={agentNameError()}
+                defaultAgentSubmit={agentSubmit}
+                defaultAgentSubmitting={agentSubmitting()}
+                defaultAgentUsernameError={agentUsernameError()}
+                defaultAgentDescription={agentDescription()}
+                onDefaultAgentDraftUpdate={agentDraftUpdate}
                 snapshot={props.snapshot}
                 state={props.state}
                 step={canonicalStep}
@@ -274,6 +333,16 @@ function ServerOnboardingBody(props: {
 // same declared 12px grid gap the option cards use between themselves — whether
 // or not the optional banners are present.
 function Switchboard(props: {
+    defaultAgentDraft: { name: string; username: string; attempted: boolean };
+    defaultAgentFormId: string;
+    defaultAgentNameError?: string;
+    defaultAgentSubmit: () => void;
+    defaultAgentSubmitting: boolean;
+    defaultAgentUsernameError?: string;
+    defaultAgentDescription: string;
+    onDefaultAgentDraftUpdate: (
+        patch: Partial<{ name: string; username: string; attempted: boolean }>,
+    ) => void;
     snapshot: SetupSnapshot;
     state: HappyState;
     step: DesktopOnboardingStep | undefined;
@@ -291,7 +360,22 @@ function Switchboard(props: {
                 <BuildStep snapshot={props.snapshot} store={props.store} />
             ) : null}
             {props.step === "default-agent" ? (
-                <DefaultAgentStep snapshot={props.snapshot} store={props.store} />
+                <DefaultAgentStep
+                    description={props.defaultAgentDescription}
+                    draft={props.defaultAgentDraft}
+                    formId={props.defaultAgentFormId}
+                    nameError={props.defaultAgentNameError}
+                    onDraftUpdate={props.onDefaultAgentDraftUpdate}
+                    onSubmit={props.defaultAgentSubmit}
+                    snapshot={props.snapshot}
+                    submitDisabled={
+                        props.defaultAgentDraft.attempted &&
+                        (props.defaultAgentNameError !== undefined ||
+                            props.defaultAgentUsernameError !== undefined)
+                    }
+                    submitting={props.defaultAgentSubmitting}
+                    usernameError={props.defaultAgentUsernameError}
+                />
             ) : null}
             {props.step === "completion" ? (
                 <RegistrationStep snapshot={props.snapshot} store={props.store} />
@@ -325,7 +409,7 @@ function SandboxProviderStep(props: { snapshot: SetupSnapshot; store: SetupStore
                           hint={provider.remediation}
                           hintTone="warning"
                           icon="terminal"
-                          meta={provider.version ? `Version ${provider.version}` : undefined}
+                          meta={provider.version}
                           onSelect={() => props.store.getState().sandboxProviderSelect(provider.id)}
                           pending={props.snapshot.pending.selectingProviderId === provider.id}
                           recommended={discovery?.recommendedProviderId === provider.id}
@@ -487,61 +571,36 @@ function BuildStep(props: { snapshot: SetupSnapshot; store: SetupStore }) {
         </Banner>
     );
 }
-function DefaultAgentStep(props: { snapshot: SetupSnapshot; store: SetupStore }) {
-    // The typed identity draft lives in a local reducer owned by this step so it
-    // survives every background status reload and transient submit failure; it is
-    // never derived from the changing snapshot. It opens on the proposed default.
-    const [draft, draftUpdate] = useReducer(
-        (
-            current: { name: string; username: string; attempted: boolean },
-            patch: Partial<{ name: string; username: string; attempted: boolean }>,
-        ) => ({ ...current, ...patch }),
-        {
-            name: DEFAULT_AGENT_PROPOSED.name,
-            username: DEFAULT_AGENT_PROPOSED.username,
-            attempted: false,
-        },
-    );
-    const submitting = () => props.snapshot.pending.creatingDefaultAgent === true;
-    const nameError = () => (draft.attempted ? defaultAgentNameError(draft.name) : undefined);
-    const usernameError = () =>
-        draft.attempted ? defaultAgentUsernameError(draft.username) : undefined;
-    const invalid = () =>
-        defaultAgentNameError(draft.name) !== undefined ||
-        defaultAgentUsernameError(draft.username) !== undefined;
-    const description = () => {
-        const provider = selectedProvider(props.snapshot);
-        const sandbox = provider
-            ? provider.version
-                ? ` It will run inside the ${provider.name} sandbox (version ${provider.version}).`
-                : ` It will run inside the ${provider.name} sandbox.`
-            : "";
-        return `This agent is the built-in identity that runs your workspace and posts every automated update.${sandbox} Pick a name and handle you’ll recognize.`;
-    };
-    const submit = () => {
-        draftUpdate({ attempted: true });
-        if (invalid()) return;
-        props.store
-            .getState()
-            .defaultAgentCreate({ name: draft.name.trim(), username: draft.username });
-    };
+function DefaultAgentStep(props: {
+    description: string;
+    draft: { name: string; username: string; attempted: boolean };
+    formId: string;
+    nameError?: string;
+    onDraftUpdate: (patch: Partial<{ name: string; username: string; attempted: boolean }>) => void;
+    onSubmit: () => void;
+    snapshot: SetupSnapshot;
+    submitDisabled: boolean;
+    submitting: boolean;
+    usernameError?: string;
+}) {
     return (
-        <DefaultAgentModal
-            description={description()}
+        <DefaultAgentForm
+            description={props.description}
+            formId={props.formId}
             formError={actionErrorFor(props.snapshot, "defaultAgent")}
-            name={draft.name}
-            nameError={nameError()}
+            name={props.draft.name}
+            nameError={props.nameError}
             onLucky={() => {
-                const pick = pickDefaultAgentIdentity(Math.random, draft);
-                draftUpdate({ name: pick.name, username: pick.username });
+                const pick = pickDefaultAgentIdentity(Math.random, props.draft);
+                props.onDraftUpdate({ name: pick.name, username: pick.username });
             }}
-            onNameChange={(value) => draftUpdate({ name: value })}
-            onSubmit={submit}
-            onUsernameChange={(value) => draftUpdate({ username: value.toLowerCase() })}
-            submitDisabled={draft.attempted && invalid()}
-            submitting={submitting()}
-            username={draft.username}
-            usernameError={usernameError()}
+            onNameChange={(value) => props.onDraftUpdate({ name: value })}
+            onSubmit={props.onSubmit}
+            onUsernameChange={(value) => props.onDraftUpdate({ username: value.toLowerCase() })}
+            submitDisabled={props.submitDisabled}
+            submitting={props.submitting}
+            username={props.draft.username}
+            usernameError={props.usernameError}
         />
     );
 }

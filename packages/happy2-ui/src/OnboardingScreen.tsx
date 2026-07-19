@@ -1,5 +1,5 @@
 import { partitionComponentProps } from "./componentProps";
-import { type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type Key, type ReactNode } from "react";
 import { Icon } from "./Icon";
 export type OnboardingStepState = "complete" | "current" | "upcoming";
 export type OnboardingStep = {
@@ -22,6 +22,11 @@ export type OnboardingScreenProps = {
     title: string;
     copy?: string;
     width?: "medium" | "large";
+    /**
+     * Lifetime of the scrolling body. A changed key remounts only this
+     * scrollport, resetting its scroll position without replacing the card.
+     */
+    bodyKey?: Key;
     children: ReactNode;
     footer?: ReactNode;
     state?: OnboardingScreenState;
@@ -58,6 +63,7 @@ export function OnboardingScreen(props: OnboardingScreenProps) {
         "title",
         "copy",
         "width",
+        "bodyKey",
         "children",
         "footer",
         "state",
@@ -182,7 +188,11 @@ export function OnboardingScreen(props: OnboardingScreenProps) {
                     ) : null}
                 </div>
 
-                <div className="happy2-onboarding-screen__body" data-happy2-ui="onboarding-body">
+                <div
+                    key={local.bodyKey}
+                    className="happy2-onboarding-screen__body"
+                    data-happy2-ui="onboarding-body"
+                >
                     <div
                         className="happy2-onboarding-screen__body-content"
                         data-happy2-ui="onboarding-body-content"

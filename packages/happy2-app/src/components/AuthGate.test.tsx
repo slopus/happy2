@@ -104,6 +104,38 @@ async function fillAndSubmitCredentials(screen: ReturnType<typeof render>, submi
 afterEach(() => vi.unstubAllGlobals());
 
 describe("AuthGate password onboarding", () => {
+    it("preserves the onboarding card DOM node when the server probe resolves", async () => {
+        let resolveMethods!: (response: Response) => void;
+        const methodsResponse = new Promise<Response>((resolve) => {
+            resolveMethods = resolve;
+        });
+        const fetchMock = routedFetch({
+            "GET /v0/auth/methods": () => methodsResponse,
+            "GET /v0/setup/status": () =>
+                json({
+                    schemaVersion: 1,
+                    phase: "configuration_required",
+                    registration: "closed",
+                }),
+        });
+        vi.stubGlobal("fetch", fetchMock);
+        stubLocalStorage();
+
+        const screen = render(<App serverUrl="http://server" />);
+        expect(await screen.findByText("One moment.")).toBeTruthy();
+        const card = screen.container.querySelector('[data-happy2-ui="onboarding-card"]');
+        const layer = screen.container.querySelector('[data-happy2-ui="fade-layer"]');
+        expect(card).toBeTruthy();
+
+        resolveMethods(
+            json({ role: "all", method: "password", signupEnabled: true, devTokensEnabled: false }),
+        );
+        expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
+
+        expect(screen.container.querySelector('[data-happy2-ui="onboarding-card"]')).toBe(card);
+        expect(screen.container.querySelector('[data-happy2-ui="fade-layer"]')).toBe(layer);
+    });
+
     it("carries the advertised development-token capability into authenticated settings", async () => {
         const developmentToken = "happy2_dev_from_settings";
         const fetchMock = routedFetch({

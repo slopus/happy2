@@ -57,6 +57,8 @@ function statusWithProvider(step: string, providerId: string, version: string) {
     };
 }
 
+const DOCKER_VERSION = "Docker version 27.0.3, build gym";
+
 const discovery = {
     executionNotice: "Agent code runs inside the selected sandbox provider.",
     providers: [
@@ -64,8 +66,8 @@ const discovery = {
             id: "docker",
             displayName: "Docker",
             health: "healthy",
-            detail: "Docker 25 is ready",
-            version: "25.0.3",
+            detail: "Docker Engine is ready",
+            version: DOCKER_VERSION,
         },
         {
             id: "podman",
@@ -164,7 +166,16 @@ describe("ServerOnboarding", () => {
 
         expect(await screen.findByText("Choose a sandbox")).toBeTruthy();
         expect(await screen.findByText("Docker")).toBeTruthy();
+        expect(screen.getByText(DOCKER_VERSION)).toBeTruthy();
+        expect(screen.queryByText(`Version ${DOCKER_VERSION}`)).toBeNull();
         expect(screen.getByText("Podman")).toBeTruthy();
+        expect(
+            screen.container
+                .querySelector(
+                    '[data-testid="server-onboarding"] [data-happy2-ui="onboarding-card"]',
+                )
+                ?.getAttribute("data-width"),
+        ).toBe("large");
         // The remediation for the unhealthy provider is surfaced.
         expect(screen.getByText("Install Podman, then reload.")).toBeTruthy();
         // The durable step is reflected into the URL for resume.
@@ -228,7 +239,7 @@ describe("ServerOnboarding", () => {
             "fetch",
             routedFetch({
                 "GET /v0/setup": () =>
-                    json(statusWithProvider("base_image_selected", "docker", "25.0.3")),
+                    json(statusWithProvider("base_image_selected", "docker", DOCKER_VERSION)),
                 "GET /v0/setup/baseImages": () => json({ images: [minimalImage] }),
             }),
         );
@@ -239,7 +250,9 @@ describe("ServerOnboarding", () => {
 
         expect(await screen.findByText("Pick a base image")).toBeTruthy();
         expect(
-            await screen.findByText("Agent code runs inside the Docker sandbox (version 25.0.3)."),
+            await screen.findByText(
+                `Agent code runs inside the Docker sandbox (${DOCKER_VERSION}).`,
+            ),
         ).toBeTruthy();
         state[Symbol.dispose]();
     });
@@ -324,12 +337,12 @@ describe("ServerOnboarding", () => {
         state[Symbol.dispose]();
     });
 
-    it("resumes the required default-agent step with the proposed identity in a non-dismissible modal", async () => {
+    it("resumes the default-agent form inside the stable five-step wizard", async () => {
         vi.stubGlobal(
             "fetch",
             routedFetch({
                 "GET /v0/setup": () =>
-                    json(statusWithProvider("default_agent_created", "docker", "25.0.3")),
+                    json(statusWithProvider("default_agent_created", "docker", DOCKER_VERSION)),
             }),
         );
         const state = happyStateCreate({
@@ -340,13 +353,14 @@ describe("ServerOnboarding", () => {
         await waitFor(() => expect(nameInput(screen).value).toBe("Happy"));
         expect(usernameInput(screen).value).toBe("happy");
         expect(screen.getByText(DEFAULT_AGENT_LUCKY_LABEL)).toBeTruthy();
-        expect(screen.getByText(/Docker sandbox \(version 25\.0\.3\)/)).toBeTruthy();
-        // Non-dismissible: no close affordance, and Escape does not tear it down.
-        expect(screen.container.querySelector(".happy2-modal__close")).toBeNull();
-        fireEvent.keyDown(screen.container.querySelector('[data-happy2-ui="modal-overlay"]')!, {
-            key: "Escape",
-        });
-        expect(nameInput(screen).value).toBe("Happy");
+        // The step description names the sandbox once; the exact provider
+        // version already appeared when the sandbox was selected.
+        expect(screen.getByText(/It runs inside the Docker sandbox\./)).toBeTruthy();
+        expect(screen.container.querySelector('[data-happy2-ui="modal-overlay"]')).toBeNull();
+        expect(screen.getByText("Registration")).toBeTruthy();
+        expect(screen.getByText("Happy (2)")).toBeTruthy();
+        const submit = screen.getByTestId("default-agent-submit") as HTMLButtonElement;
+        expect(submit.form).toBe(agentForm(screen));
         await waitFor(() =>
             expect(navigation.get().primary).toMatchObject({
                 kind: "onboarding",
@@ -408,7 +422,7 @@ describe("ServerOnboarding", () => {
         state[Symbol.dispose]();
     });
 
-    it("creates the chosen default agent and advances to the registration step", async () => {
+    it("creates the chosen default agent from the pinned footer and advances", async () => {
         let createBody: { name: string; username: string } | undefined;
         vi.stubGlobal(
             "fetch",
@@ -431,11 +445,73 @@ describe("ServerOnboarding", () => {
         await waitFor(() => expect(nameInput(screen).value).toBe("Happy"));
         fireEvent.input(nameInput(screen), { target: { value: "Mochi" } });
         fireEvent.input(usernameInput(screen), { target: { value: "Mochi_Main" } });
-        fireEvent.submit(agentForm(screen));
+        const submit = screen.getByTestId("default-agent-submit") as HTMLButtonElement;
+        expect(submit.form).toBe(agentForm(screen));
+        fireEvent.click(submit);
 
         expect(await screen.findByText("Open registration")).toBeTruthy();
         // The username is normalized to lowercase before it is submitted.
         expect(createBody).toEqual({ name: "Mochi", username: "mochi_main" });
+        state[Symbol.dispose]();
+    });
+
+    it("creates the chosen default agent when Enter submits from a field", async () => {
+        let createBody: { name: string; username: string } | undefined;
+        vi.stubGlobal(
+            "fetch",
+            routedFetch({
+                "GET /v0/setup": () => json(serverStatus("default_agent_created")),
+                "POST /v0/setup/createDefaultAgent": (init) => {
+                    createBody = JSON.parse(String(init.body));
+                    return json({
+                        agent: { id: "a1", name: "Mochi", username: "mochi_main", imageId: "img" },
+                        onboarding: serverStatus("registration_policy_selected"),
+                    });
+                },
+            }),
+        );
+        const state = happyStateCreate({
+            transport: createAuthenticatedTransport("http://server", "t"),
+        });
+        const { screen } = mount(state);
+
+        await waitFor(() => expect(nameInput(screen).value).toBe("Happy"));
+        fireEvent.input(nameInput(screen), { target: { value: "Mochi" } });
+        const username = usernameInput(screen);
+        fireEvent.input(username, { target: { value: "Mochi_Main" } });
+        fireEvent.keyDown(username, { key: "Enter", code: "Enter" });
+        fireEvent.submit(username.form!);
+
+        expect(await screen.findByText("Open registration")).toBeTruthy();
+        expect(createBody).toEqual({ name: "Mochi", username: "mochi_main" });
+        state[Symbol.dispose]();
+    });
+
+    it("shows setup-load errors and the retry action instead of hiding them behind loading", async () => {
+        let statusCalls = 0;
+        vi.stubGlobal(
+            "fetch",
+            routedFetch({
+                "GET /v0/setup": () => {
+                    statusCalls += 1;
+                    return json(
+                        { error: "unavailable", message: "Setup storage is unavailable" },
+                        503,
+                    );
+                },
+            }),
+        );
+        const state = happyStateCreate({
+            transport: createAuthenticatedTransport("http://server", "t"),
+        });
+        const { screen } = mount(state);
+
+        expect(await screen.findByText("Could not load setup")).toBeTruthy();
+        expect(screen.getByText("Setup storage is unavailable")).toBeTruthy();
+        const retry = screen.getByRole("button", { name: "Try again" });
+        expect(screen.container.querySelector('[data-happy2-ui="onboarding-loader"]')).toBeNull();
+        fireEvent.click(retry);
+        await waitFor(() => expect(statusCalls).toBeGreaterThanOrEqual(2));
         state[Symbol.dispose]();
     });
 

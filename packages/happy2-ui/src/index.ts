@@ -192,10 +192,10 @@ export { Menu, type MenuItem, type MenuProps } from "./Menu";
 export { Modal, type ModalProps, type ModalSize, type ModalTone } from "./Modal";
 export { ModalOverlay, type ModalOverlayProps } from "./ModalOverlay";
 export {
-    DefaultAgentModal,
-    type DefaultAgentModalProps,
+    DefaultAgentForm,
+    type DefaultAgentFormProps,
     DEFAULT_AGENT_LUCKY_LABEL,
-} from "./DefaultAgentModal";
+} from "./DefaultAgentForm";
 export { CommandPalette, type CommandPaletteProps } from "./CommandPalette";
 export {
     InfoPanel,

@@ -1,5 +1,7 @@
 import { expect, it } from "vitest";
 import { server } from "vitest/browser";
+import { useState } from "react";
+import { flushSync } from "react-dom";
 import "./theme.css";
 import "./styles/onboarding-screen.css";
 import "./styles/icon.css";
@@ -185,11 +187,12 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
     expect(scrim.offsets()).toMatchObject({ left: 0, right: 0, top: 0, bottom: 0 });
     expect(scrim.computedStyle("background-color")).toBe("rgba(0, 0, 0, 0.6)");
 
-    /* ---- Card: centered on both axes, 480 wide ------------------------- */
+    /* ---- Card: centered on both axes, 480×600 -------------------------- */
 
     const card = view.$('[data-happy2-ui="onboarding-card"]');
     const cb = card.bounds();
     expect(cb.width).toBe(480);
+    expect(cb.height).toBe(600);
     expect(card.element.getAttribute("data-width")).toBe("medium");
     expect(Math.abs(cb.x + cb.width / 2 - 512), "card horizontal center").toBeLessThanOrEqual(0.6);
     expect(Math.abs(cb.y + cb.height / 2 - 352), "card vertical center").toBeLessThanOrEqual(0.6);
@@ -216,9 +219,9 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
         "padding-right": "40px",
         "padding-top": "40px",
     });
-    /* Card honors the 24px gutter cap and never exceeds it in the window. */
-    expect(card.computedStyle("max-height")).toBe("calc(100% - 48px)");
-    expect(cb.height, "card within gutter cap").toBeLessThanOrEqual(656);
+    /* At every supported height >=648px the frame is exactly 600px tall. */
+    expect(card.computedStyle("height")).toBe("600px");
+    expect(card.computedStyle("max-height")).toBe("none");
 
     /* ---- Brand mast ---------------------------------------------------- */
 
@@ -423,18 +426,36 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
     /* ---- Footer -------------------------------------------------------- */
 
     const footer = view.$('[data-happy2-ui="onboarding-footer"]');
-    expect(footer.computedStyles(["color", "font-size", "line-height", "margin-top"])).toEqual({
+    expect(
+        footer.computedStyles([
+            "color",
+            "font-size",
+            "line-height",
+            "margin-top",
+            "margin-right",
+            "margin-bottom",
+            "margin-left",
+        ]),
+    ).toEqual({
         color: "rgb(117, 112, 133)",
         "font-size": "13px",
         "line-height": "18px",
-        "margin-top": "28px",
+        "margin-top": "20px",
+        "margin-right": "8px",
+        "margin-bottom": "0px",
+        "margin-left": "8px",
     });
+    /* The footer is pinned to the card content-box bottom and its horizontal
+     * edges align with body children inside the shared 8px gutter. */
+    expect(footer.offsets().bottom).toBe(41);
+    expect(footer.bounds().x).toBe(bodyChild.bounds().x);
+    expect(footer.bounds().width).toBe(bodyChild.bounds().width);
     await paints(footer, "footer");
 
     await view.screenshot("OnboardingScreen.test");
 }, 120_000);
 
-it("holds OnboardingScreen loading, large width, and minimal variants", async () => {
+it("keeps loading and form card rects identical while holding width variants", async () => {
     const view = createRenderer();
 
     view.render(
@@ -452,7 +473,24 @@ it("holds OnboardingScreen loading, large width, and minimal variants", async ()
                 <div data-testid="loading-body-child">body</div>
             </OnboardingScreen>
         ),
-        { width: 1024, height: 400 },
+        { width: 1024, height: 704 },
+    );
+    view.render(
+        () => (
+            <OnboardingScreen
+                brand={{ name: "Relay" }}
+                copy="We are provisioning the base image and starting your first agent."
+                data-testid="resolved"
+                kicker="Almost there"
+                steps={steps}
+                title="Building your workspace"
+            >
+                <div data-testid="resolved-body-child" style={{ height: "44px" }}>
+                    body
+                </div>
+            </OnboardingScreen>
+        ),
+        { width: 1024, height: 704 },
     );
     view.render(
         () => (
@@ -474,7 +512,7 @@ it("holds OnboardingScreen loading, large width, and minimal variants", async ()
                 </div>
             </OnboardingScreen>
         ),
-        { width: 1024, height: 400 },
+        { width: 1024, height: 704 },
     );
     view.render(
         () => (
@@ -484,7 +522,7 @@ it("holds OnboardingScreen loading, large width, and minimal variants", async ()
                 </div>
             </OnboardingScreen>
         ),
-        { width: 1024, height: 400 },
+        { width: 1024, height: 704 },
     );
     await view.ready();
 
@@ -553,10 +591,17 @@ it("holds OnboardingScreen loading, large width, and minimal variants", async ()
     expect(loadingLabel.textMetrics().text).toBe("Provisioning workspace…");
     await paints(loadingLabel, "loading label");
 
+    /* Probe resolution changes body content without moving or resizing the card. */
+    const loadingCard = view.$('[data-testid="loading"] [data-happy2-ui="onboarding-card"]');
+    const resolvedCard = view.$('[data-testid="resolved"] [data-happy2-ui="onboarding-card"]');
+    expect(loadingCard.bounds()).toMatchObject({ width: 480, height: 600 });
+    expect(resolvedCard.bounds()).toMatchObject({ width: 480, height: 600 });
+    expect(loadingCard.offsets()).toEqual(resolvedCard.offsets());
+
     /* ---- Large width variant: 640px card, custom mark, image bg --------- */
 
     const largeCard = view.$('[data-testid="large"] [data-happy2-ui="onboarding-card"]');
-    expect(largeCard.bounds().width).toBe(640);
+    expect(largeCard.bounds()).toMatchObject({ width: 640, height: 600 });
     expect(largeCard.element.getAttribute("data-width")).toBe("large");
 
     const largeBg = view.$('[data-testid="large"] [data-happy2-ui="onboarding-bg"]');
@@ -602,7 +647,7 @@ it("holds OnboardingScreen loading, large width, and minimal variants", async ()
     await view.screenshot("OnboardingScreen.variants.test");
 }, 120_000);
 
-it("holds a full-bleed body scrollport that never clips a child's focus ring", async () => {
+it("keeps short-window overflow reachable without clipping a focused trailing field", async () => {
     const view = createRenderer();
 
     view.render(
@@ -612,6 +657,7 @@ it("holds a full-bleed body scrollport that never clips a child's focus ring", a
                 data-testid="scroll"
                 kicker="Server setup"
                 title="Choose a sandbox"
+                width="large"
             >
                 <SetupOptionCard
                     data-testid="opt-first"
@@ -637,7 +683,7 @@ it("holds a full-bleed body scrollport that never clips a child's focus ring", a
                 />
             </OnboardingScreen>
         ),
-        { width: 1024, height: 380 },
+        { width: 720, height: 480 },
     );
     await view.ready();
 
@@ -646,11 +692,14 @@ it("holds a full-bleed body scrollport that never clips a child's focus ring", a
     const card = view.$('[data-testid="scroll"] [data-happy2-ui="onboarding-card"]');
     const body = view.$('[data-testid="scroll"] [data-happy2-ui="onboarding-body"]');
     const bodyEl = body.element as HTMLElement;
-    /* Full bleed: the scrollport spans the card's whole content box (the medium
-     * card is 480 − 2×1 border − 2×40 padding = 398) and, as the last card
+    /* The card uses the 24px top/bottom safe gutter at the minimum 480px
+     * window height: 480 − 48 = 432. */
+    expect(card.bounds()).toMatchObject({ x: 40, y: 24, width: 640, height: 432 });
+    expect(card.computedStyle("height")).toBe("432px");
+    /* Full bleed: the scrollport spans the card's whole content box (the large
+     * card is 640 − 2×1 border − 2×40 padding = 558) and, as the last card
      * child here, runs to the content-box edge on the sides and the bottom. */
-    expect(card.bounds().width).toBe(480);
-    expect(body.bounds().width, "scrollport width == card content width").toBe(398);
+    expect(body.bounds().width, "scrollport width == card content width").toBe(558);
     expect(body.offsets()).toMatchObject({ left: 41, right: 41, bottom: 41 });
     expect(
         body.computedStyles([
@@ -767,7 +816,7 @@ it("keeps the declared body gap whether an optional leading banner is present or
                 <SetupOptionCard data-testid="wb-second" icon="image" title="Daycare Full" />
             </OnboardingScreen>
         ),
-        { width: 1024, height: 640 },
+        { width: 1024, height: 704 },
     );
     /* Without the banner: the same two option cards, nothing else. */
     view.render(
@@ -781,7 +830,7 @@ it("keeps the declared body gap whether an optional leading banner is present or
                 <SetupOptionCard data-testid="nb-second" icon="image" title="Daycare Full" />
             </OnboardingScreen>
         ),
-        { width: 1024, height: 640 },
+        { width: 1024, height: 704 },
     );
     await view.ready();
 
@@ -807,4 +856,51 @@ it("keeps the declared body gap whether an optional leading banner is present or
     expect(gapBetween(nbFirst, nbSecond), "card → card gap (no banner)").toBe(12);
 
     await view.screenshot("OnboardingScreen.gaps.test");
+}, 120_000);
+
+it("preserves the body DOM for one lifetime and remounts only it when bodyKey changes", async () => {
+    const view = createRenderer();
+    let setFixture!: (next: { bodyKey: string; revision: number }) => void;
+    function Fixture() {
+        const [fixture, updateFixture] = useState({ bodyKey: "sandbox", revision: 0 });
+        setFixture = updateFixture;
+        return (
+            <OnboardingScreen
+                bodyKey={fixture.bodyKey}
+                data-testid="keyed"
+                title={`Choose a sandbox ${fixture.revision}`}
+            >
+                {Array.from({ length: 12 }, (_, index) => (
+                    <button key={index} type="button">
+                        Provider {index + 1}
+                    </button>
+                ))}
+            </OnboardingScreen>
+        );
+    }
+
+    view.render(Fixture, { width: 720, height: 480, padding: 0 });
+    await view.ready();
+    const card = view.container.querySelector('[data-happy2-ui="onboarding-card"]')!;
+    const firstBody = view.container.querySelector<HTMLElement>(
+        '[data-happy2-ui="onboarding-body"]',
+    )!;
+    firstBody.scrollTop = firstBody.scrollHeight;
+    expect(firstBody.scrollTop).toBeGreaterThan(0);
+
+    flushSync(() => setFixture({ bodyKey: "sandbox", revision: 1 }));
+    const sameBody = view.container.querySelector<HTMLElement>(
+        '[data-happy2-ui="onboarding-body"]',
+    )!;
+    expect(sameBody).toBe(firstBody);
+    expect(sameBody.scrollTop).toBeGreaterThan(0);
+    expect(view.container.querySelector('[data-happy2-ui="onboarding-card"]')).toBe(card);
+
+    flushSync(() => setFixture({ bodyKey: "base-image", revision: 2 }));
+    const nextBody = view.container.querySelector<HTMLElement>(
+        '[data-happy2-ui="onboarding-body"]',
+    )!;
+    expect(nextBody).not.toBe(firstBody);
+    expect(nextBody.scrollTop).toBe(0);
+    expect(view.container.querySelector('[data-happy2-ui="onboarding-card"]')).toBe(card);
 }, 120_000);

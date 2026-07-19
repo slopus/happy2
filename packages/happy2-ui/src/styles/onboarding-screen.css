@@ -68,7 +68,7 @@
     flex: none;
     flex-direction: column;
     width: 480px;
-    max-height: calc(100% - 48px);
+    height: min(600px, calc(100% - 48px));
     padding: 40px;
     border: 1px solid var(--happy2-border-strong);
     border-radius: var(--happy2-radius-shell);
@@ -280,7 +280,7 @@
 
 .happy2-onboarding-screen__footer {
     flex: none;
-    margin-top: 28px;
+    margin: 20px 8px 0;
     color: var(--happy2-text-muted);
     font-size: 13px;
     font-weight: 400;

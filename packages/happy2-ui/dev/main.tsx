@@ -56,7 +56,7 @@ import { MenuPage } from "./pages/MenuPage";
 import { MessagePage } from "./pages/MessagePage";
 import { ModalPage } from "./pages/ModalPage";
 import { ModalOverlayPage } from "./pages/ModalOverlayPage";
-import { DefaultAgentModalPage } from "./pages/DefaultAgentModalPage";
+import { DefaultAgentFormPage } from "./pages/DefaultAgentFormPage";
 import { DevelopmentTokenModalPage } from "./pages/DevelopmentTokenModalPage";
 import { ModerationReportCardPage } from "./pages/ModerationReportCardPage";
 import { NotificationListPage } from "./pages/NotificationListPage";
@@ -210,10 +210,10 @@ const components: BlueprintPage[] = [
         page: BuildProgressPanelPage,
     },
     {
-        id: "default-agent-modal",
-        label: "Default agent modal",
+        id: "default-agent-form",
+        label: "Default agent form",
         number: "C-064",
-        page: DefaultAgentModalPage,
+        page: DefaultAgentFormPage,
     },
     {
         id: "audience-toggle",

@@ -1,16 +1,13 @@
 import { type ReactNode } from "react";
 import { Banner } from "../../src/Banner";
 import { Button } from "../../src/Button";
+import { DefaultAgentForm } from "../../src/DefaultAgentForm";
 import { OnboardingScreen, type OnboardingStep } from "../../src/OnboardingScreen";
 import { SetupOptionCard } from "../../src/SetupOptionCard";
 import { TextField } from "../../src/TextField";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
-/*
- * Deterministic, network-free background fill: a static inline-SVG data URI
- * stands in for the shared onboarding image so the has-image path renders
- * without a network asset. The minimal specimen omits `backgroundUrl` to show
- * the window-backdrop fallback.
- */
+
+/* Deterministic, network-free background fill for the blueprint image path. */
 const backgroundDataUri =
     "data:image/svg+xml;utf8," +
     encodeURIComponent(
@@ -22,233 +19,235 @@ const backgroundDataUri =
             `<circle cx='26' cy='70' r='46' fill='url(%23g)' opacity='0.85'/>` +
             `<circle cx='78' cy='22' r='20' fill='%2338bdf8' opacity='0.45'/></svg>`,
     );
-const serverSteps: readonly OnboardingStep[] = [
-    { label: "Account", state: "complete" },
-    { label: "Server", state: "current" },
-    { label: "Finish", state: "upcoming" },
-];
-function Field(props: { hint: string; label: string; value: string }): ReactNode {
-    return (
-        <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <span
-                style={{
-                    color: "var(--happy2-text-secondary)",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                }}
-            >
-                {props.label}
-            </span>
-            <span
-                style={{
-                    alignItems: "center",
-                    background: "var(--happy2-bg-inset)",
-                    border: "1px solid var(--happy2-border-strong)",
-                    borderRadius: "var(--happy2-radius-md)",
-                    color: "var(--happy2-text)",
-                    display: "flex",
-                    fontSize: "14px",
-                    height: "40px",
-                    padding: "0 12px",
-                }}
-            >
-                {props.value}
-            </span>
-            <span style={{ color: "var(--happy2-text-muted)", fontSize: "12px" }}>
-                {props.hint}
-            </span>
-        </label>
-    );
+
+const stepLabels = ["Sandbox", "Base image", "Build", "Agent", "Registration"] as const;
+function wizardSteps(current: number): readonly OnboardingStep[] {
+    return stepLabels.map((label, index) => ({
+        label,
+        state: index < current ? "complete" : index === current ? "current" : "upcoming",
+    }));
 }
-function window1024(children: ReactNode) {
+
+function WindowFrame(props: { children: ReactNode; height?: number; width?: number }) {
+    const width = props.width ?? 1024;
+    const height = props.height ?? 704;
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "1024px" }}>
-            <div style={{ height: "704px", width: "1024px" }}>{children}</div>
-            <DimensionRule label="1024px × 704px — minimum window contract" />
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: `${width}px` }}>
+            <div style={{ height: `${height}px`, width: `${width}px` }}>{props.children}</div>
+            <DimensionRule label={`${width}px × ${height}px desktop window`} />
         </div>
     );
 }
+
+const noop = () => {};
+
 export function OnboardingScreenPage() {
+    const agentFormId = "blueprint-onboarding-default-agent";
     return (
         <ComponentPage
             number="C-061"
-            summary="Centered desktop onboarding card — a single card floats over the shared onboarding background and legibility scrim. Brand mast, horizontal step rail, content block, a full-bleed scrolling body slot whose inner wrapper owns a 12px gap and a focus-safe gutter, and footer. Relay dark theme."
+            summary="Calm desktop onboarding frame — fixed 600px card above the 648px height threshold, 48px total vertical safe gutter below it, one full-bleed scrolling body, and an optional pinned footer aligned to the body’s 8px focus gutter."
             title="Onboarding screen"
         >
             <Specimen
-                detail="steps rail · brand · kicker/title/copy · body rows · footer actions · background image"
-                label="Configure server step"
+                detail="five-step server wizard · width=large · footer and body share the same horizontal gutter"
+                label="Five-step 640 wizard"
                 number="01"
                 stage="chrome"
             >
-                {window1024(
+                <WindowFrame>
                     <OnboardingScreen
                         backgroundUrl={backgroundDataUri}
-                        brand={{ name: "Relay" }}
-                        copy="Point Relay at the workspace server that will run your agents and store threads."
+                        bodyKey="sandbox-provider"
+                        brand={{ name: "Happy (2)" }}
+                        copy="Agent code runs inside the selected sandbox provider, isolated from the Happy server process."
                         footer={
-                            <div style={{ display: "flex", gap: "12px" }}>
-                                <Button size="large" variant="secondary">
-                                    Back
-                                </Button>
-                                <Button size="large" variant="primary">
-                                    Continue
-                                </Button>
-                            </div>
+                            <Button fullWidth type="button">
+                                Continue with Docker
+                            </Button>
                         }
-                        kicker="Step 2 of 3"
-                        steps={serverSteps}
-                        title="Connect your server"
+                        kicker="Server setup"
+                        steps={wizardSteps(0)}
+                        title="Choose a sandbox"
+                        width="large"
                     >
-                        <Field
-                            hint="The base URL of your Relay server."
-                            label="Server URL"
-                            value="https://relay.acme.studio"
+                        <SetupOptionCard
+                            description="Docker Engine is available and ready to run agents."
+                            icon="terminal"
+                            meta="Docker version 27.0.3, build gym"
+                            recommended
+                            selected
+                            status={{ label: "HEALTHY", variant: "success", icon: "check-circle" }}
+                            title="Docker"
                         />
-                        <Field
-                            hint="Used to authenticate this device."
-                            label="Access token"
-                            value="rl_live_9f3c…a21b"
+                        <SetupOptionCard
+                            description="Podman is not installed on this server."
+                            disabled
+                            icon="terminal"
+                            title="Podman"
                         />
-                    </OnboardingScreen>,
-                )}
+                    </OnboardingScreen>
+                </WindowFrame>
             </Specimen>
 
             <Specimen
-                detail='width="large" — 640px card with more body content'
-                label="Large width variant"
+                detail="same 640×600 card rect for a short loading row and the resolved form body"
+                label="Loading / form parity"
                 number="02"
                 stage="chrome"
             >
-                {window1024(
-                    <OnboardingScreen
-                        backgroundUrl={backgroundDataUri}
-                        brand={{ name: "Relay" }}
-                        copy="Choose the base image and defaults new agents inherit when they join this workspace."
-                        footer={
-                            <div style={{ display: "flex", gap: "12px" }}>
-                                <Button size="large" variant="secondary">
-                                    Back
-                                </Button>
-                                <Button size="large" variant="primary">
-                                    Create workspace
-                                </Button>
-                            </div>
-                        }
-                        kicker="Step 3 of 3"
-                        steps={[
-                            { label: "Account", state: "complete" },
-                            { label: "Server", state: "complete" },
-                            { label: "Workspace", state: "current" },
-                        ]}
-                        title="Set up your workspace"
-                        width="large"
-                    >
-                        <Field
-                            hint="Shown to teammates you invite."
-                            label="Workspace name"
-                            value="Acme Studio"
-                        />
-                        <Field
-                            hint="Agents boot from this image."
-                            label="Base image"
-                            value="relay/base:2026.07"
-                        />
-                        <Field
-                            hint="Applied to every new agent run."
-                            label="Default model"
-                            value="claude-opus-4-8"
-                        />
-                    </OnboardingScreen>,
-                )}
+                <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                    <WindowFrame>
+                        <OnboardingScreen
+                            backgroundUrl={backgroundDataUri}
+                            bodyKey="loading"
+                            brand={{ name: "Happy (2)" }}
+                            kicker="Server setup"
+                            loadingLabel="Loading server setup…"
+                            state="loading"
+                            steps={wizardSteps(1)}
+                            title="Preparing setup"
+                            width="large"
+                        >
+                            <div>Hidden while loading</div>
+                        </OnboardingScreen>
+                    </WindowFrame>
+                    <WindowFrame>
+                        <OnboardingScreen
+                            backgroundUrl={backgroundDataUri}
+                            bodyKey="base-image"
+                            brand={{ name: "Happy (2)" }}
+                            copy="The base image is downloaded and built once, then becomes the default sandbox for every agent."
+                            kicker="Server setup"
+                            steps={wizardSteps(1)}
+                            title="Pick a base image"
+                            width="large"
+                        >
+                            <Banner icon="shield" tone="info">
+                                Agent code runs inside the Docker sandbox (Docker version 27.0.3,
+                                build gym).
+                            </Banner>
+                            <SetupOptionCard icon="image" title="Daycare Minimal" />
+                        </OnboardingScreen>
+                    </WindowFrame>
+                </div>
             </Specimen>
 
             <Specimen
-                detail='state="loading" — deterministic static ring + label replaces the body slot'
-                label="Loading state"
+                detail="body content deliberately exceeds the fixed frame; the footer stays pinned while the body scrolls"
+                label="Overflowing build choices"
                 number="03"
                 stage="chrome"
             >
-                {window1024(
+                <WindowFrame>
                     <OnboardingScreen
                         backgroundUrl={backgroundDataUri}
-                        brand={{ name: "Relay" }}
-                        copy="We are provisioning the base image and starting your first agent."
-                        kicker="Almost there"
-                        loadingLabel="Provisioning workspace…"
-                        state="loading"
-                        steps={[
-                            { label: "Account", state: "complete" },
-                            { label: "Server", state: "complete" },
-                            { label: "Workspace", state: "current" },
-                        ]}
-                        title="Building your workspace"
+                        bodyKey="base-image-overflow"
+                        brand={{ name: "Happy (2)" }}
+                        copy="Choose one image or provide a Dockerfile. Every option remains reachable inside the body scrollport."
+                        footer={
+                            <Button fullWidth type="button">
+                                Build selected image
+                            </Button>
+                        }
+                        kicker="Server setup"
+                        steps={wizardSteps(1)}
+                        title="Pick a base image"
+                        width="large"
                     >
-                        <div>hidden while loading</div>
-                    </OnboardingScreen>,
-                )}
+                        {[
+                            "Daycare Minimal",
+                            "Daycare Full",
+                            "Node + browser tools",
+                            "Rust workshop",
+                            "Data science",
+                        ].map((title) => (
+                            <SetupOptionCard
+                                key={title}
+                                description="A prepared sandbox image with the Happy agent toolchain."
+                                icon="image"
+                                meta="Download and build"
+                                title={title}
+                            />
+                        ))}
+                        <TextField label="Custom image name" value="acme/workbench" />
+                    </OnboardingScreen>
+                </WindowFrame>
             </Specimen>
 
             <Specimen
-                detail="minimal — no brand / steps / kicker / copy / footer; title + body only, background fallback"
-                label="Minimal card"
+                detail="agent form stays inside step 4; its full-width linked submit lives in the pinned screen footer"
+                label="Default-agent form step"
                 number="04"
                 stage="chrome"
             >
-                {window1024(
-                    <OnboardingScreen title="Enter your invite code">
-                        <Field
-                            hint="Sent to you by your workspace admin."
-                            label="Invite code"
-                            value="ACME-4821-QK"
+                <WindowFrame>
+                    <OnboardingScreen
+                        backgroundUrl={backgroundDataUri}
+                        bodyKey="default-agent"
+                        brand={{ name: "Happy (2)" }}
+                        copy="Create the built-in agent that runs your workspace before you finish setup."
+                        footer={
+                            <Button form={agentFormId} fullWidth type="submit">
+                                Create agent
+                            </Button>
+                        }
+                        kicker="Server setup"
+                        steps={wizardSteps(3)}
+                        title="Name your agent"
+                        width="large"
+                    >
+                        <DefaultAgentForm
+                            description="This agent is the built-in identity that runs your workspace. It will run inside the Docker sandbox (Docker version 27.0.3, build gym). Pick a name and handle you’ll recognize."
+                            formId={agentFormId}
+                            name="Happy"
+                            onLucky={noop}
+                            onNameChange={noop}
+                            onSubmit={noop}
+                            onUsernameChange={noop}
+                            username="happy"
                         />
-                        <Button fullWidth size="large" variant="primary">
-                            Continue
-                        </Button>
-                    </OnboardingScreen>,
-                )}
+                    </OnboardingScreen>
+                </WindowFrame>
             </Specimen>
 
             <Specimen
-                detail="server flow — an optional provider Banner and the SetupOptionCards share the body's one 12px flex-gap flow; a focus-safe gutter keeps every ring unclipped at a scroll edge"
-                label="Server setup flow"
+                detail="Electron minimum-height case · card resolves to 432px (100% − 48px) and the body remains scrollable"
+                label="720 × 480 short window"
                 number="05"
                 stage="chrome"
             >
-                {window1024(
+                <WindowFrame height={480} width={720}>
                     <OnboardingScreen
                         backgroundUrl={backgroundDataUri}
+                        bodyKey="short-registration"
                         brand={{ name: "Happy (2)" }}
-                        copy="The base image is downloaded and built once, then becomes the default sandbox for every agent."
-                        kicker="Server setup"
-                        steps={serverSteps}
-                        title="Pick a base image"
+                        copy="Decide whether other people can create an account now."
+                        footer={
+                            <Button fullWidth type="button">
+                                Keep registration closed
+                            </Button>
+                        }
+                        kicker="Final step"
+                        steps={wizardSteps(4)}
+                        title="Open registration?"
+                        width="large"
                     >
-                        <Banner icon="shield" tone="info">
-                            Agent code runs inside the Docker sandbox (version 25.0.3).
+                        <Banner tone="info">
+                            All five steps remain visible at the minimum window.
                         </Banner>
                         <SetupOptionCard
-                            description="A lean sandbox with the core agent toolchain."
-                            icon="image"
-                            meta="Download and build"
-                            selected
-                            title="Daycare Minimal"
+                            description="Anyone who reaches the server can create an account."
+                            icon="users"
+                            title="Open registration"
                         />
                         <SetupOptionCard
-                            description="A complete sandbox with the full Daycare toolchain."
-                            icon="image"
-                            meta="Download and build"
-                            title="Daycare Full"
+                            description="Only you can sign in until you change this in Admin."
+                            icon="shield"
+                            title="Keep registration closed"
                         />
-                        <SetupOptionCard
-                            description="Build a sandbox from your own Dockerfile."
-                            icon="code"
-                            meta="Build"
-                            title="Custom Dockerfile"
-                        />
-                        <TextField label="Image name" value="acme/base" />
-                    </OnboardingScreen>,
-                )}
+                    </OnboardingScreen>
+                </WindowFrame>
             </Specimen>
         </ComponentPage>
     );
