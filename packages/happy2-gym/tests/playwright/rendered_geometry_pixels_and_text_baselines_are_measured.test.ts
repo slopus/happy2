@@ -1,7 +1,7 @@
 import "@fontsource-variable/jetbrains-mono/index.css";
 import { expect, it } from "vitest";
 import { createRenderer } from "happy2-gym/playwright";
-import { server } from "vitest/browser";
+import { server, userEvent } from "vitest/browser";
 
 function renderer() {
     return createRenderer<HTMLElement>((component, surface) => {
@@ -10,6 +10,31 @@ function renderer() {
         return () => element.remove();
     });
 }
+
+it("clears inherited pointer hover once without erasing intentional hover", async () => {
+    const view = renderer().render(
+        () => {
+            const element = document.createElement("button");
+            element.dataset.testid = "hover-target";
+            Object.assign(element.style, {
+                height: "32px",
+                width: "80px",
+            });
+            return element;
+        },
+        { height: 80, width: 140 },
+    );
+    const target = view.$('[data-testid="hover-target"]').element;
+    await userEvent.hover(target);
+    expect(target.matches(":hover")).toBe(true);
+
+    await view.ready();
+    expect(target.matches(":hover")).toBe(false);
+
+    await userEvent.hover(target);
+    await view.ready();
+    expect(target.matches(":hover")).toBe(true);
+});
 
 it("measures rendered coordinates and computed CSS", () => {
     const view = renderer().render(

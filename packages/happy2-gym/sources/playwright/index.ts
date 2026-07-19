@@ -1,5 +1,5 @@
 import { onTestFinished } from "vitest";
-import { page, server } from "vitest/browser";
+import { page, server, userEvent } from "vitest/browser";
 
 export type Bounds = {
     height: number;
@@ -683,6 +683,26 @@ export function createRenderer<Component>(
     });
     document.body.append(container);
 
+    // Test files that drive userEvent leave the real pointer wherever their
+    // last interaction landed, and later files reusing the same page then read
+    // :hover styles from whatever fixture happens to render under that stale
+    // coordinate. When the new fixture actually lands under that pointer,
+    // parking it on this fixed top-right probe during the renderer's FIRST
+    // ready() gives the test a hover-clean start. Later ready() calls
+    // (screenshot()) leave intentional in-test hover states untouched.
+    const pointerPark = document.createElement("div");
+    pointerPark.dataset.gymPointerPark = "";
+    Object.assign(pointerPark.style, {
+        height: "2px",
+        position: "fixed",
+        right: "0",
+        top: "0",
+        width: "2px",
+        zIndex: "2147483647",
+    });
+    document.body.append(pointerPark);
+    let pointerParked = false;
+
     const surfaces: RenderedSurface[] = [];
     const renderer = {
         $(selector: string) {
@@ -695,11 +715,19 @@ export function createRenderer<Component>(
         destroy() {
             for (const surface of surfaces.splice(0).reverse()) surface.dispose();
             container.remove();
+            pointerPark.remove();
         },
         async ready() {
             assertRetina();
             await document.fonts.ready;
             await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+            if (!pointerParked) {
+                if (container.matches(":hover")) {
+                    await userEvent.hover(pointerPark);
+                    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+                }
+                pointerParked = true;
+            }
         },
         async screenshot(name: string) {
             await renderer.ready();
