@@ -46,7 +46,7 @@ spec:
               readOnly: true
       containers:
         - name: happy2-server
-          image: slopus/happy2:{version}
+          image: docker.korshakov.com/happy2:{version}
           args:
             - backend
             - --config
