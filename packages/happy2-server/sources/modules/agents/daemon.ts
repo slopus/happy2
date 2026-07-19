@@ -136,6 +136,9 @@ export type RigTurnInspection =
 
 export class RigDaemonClient {
     private readonly sessionSecretReconciliations = new Map<string, Promise<void>>();
+    private daemonReload?: Promise<void>;
+    private daemonReloadAttempted = false;
+    private daemonVersion?: string;
     private token?: string;
     private ready?: Promise<void>;
 
@@ -252,6 +255,9 @@ export class RigDaemonClient {
         dimensions: CreateRemoteTerminalRequest,
         signal?: AbortSignal,
     ): Promise<RemoteTerminalFrame> {
+        await this.ensureReady();
+        if (this.daemonVersion && rigVersionBefore(this.daemonVersion, "0.0.25"))
+            await this.reloadDaemon(signal);
         const response = await this.connectedRequest<RemoteTerminalResponse>(
             "POST",
             `/sessions/${encodeURIComponent(sessionId)}/terminals`,
@@ -564,6 +570,7 @@ export class RigDaemonClient {
     }
 
     private ensureReady(): Promise<void> {
+        if (this.daemonReload) return this.daemonReload;
         if (!this.ready) {
             this.ready = this.connect().catch((error) => {
                 this.ready = undefined;
@@ -571,6 +578,26 @@ export class RigDaemonClient {
             });
         }
         return this.ready;
+    }
+
+    private async reloadDaemon(signal?: AbortSignal): Promise<void> {
+        if (signal?.aborted) throw shutdownError();
+        if (this.daemonReloadAttempted) return this.ensureReady();
+        this.daemonReloadAttempted = true;
+        if (!this.daemonReload) {
+            this.ready = undefined;
+            this.token = undefined;
+            const reload = execute(this.config.command, ["daemon", "reload"], {
+                RIG_HOME: this.config.directory,
+                RIG_SERVER_DIRECTORY: "",
+                RIG_SERVER_SOCKET_PATH: this.config.socketPath,
+                RIG_SERVER_TOKEN_PATH: this.config.tokenPath,
+            }).then(() => this.connect());
+            this.daemonReload = reload.finally(() => {
+                this.daemonReload = undefined;
+            });
+        }
+        await this.daemonReload;
     }
 
     private async connect(): Promise<void> {
@@ -596,6 +623,7 @@ export class RigDaemonClient {
     private async healthy(): Promise<boolean> {
         try {
             const health = await this.request<HealthResponse>("GET", "/health");
+            this.daemonVersion = health.identity.version;
             return health.status === "ready";
         } catch {
             return false;
@@ -875,6 +903,16 @@ export class RigDaemonClient {
             request.end();
         });
     }
+}
+
+function rigVersionBefore(version: string, minimum: string): boolean {
+    const actual = version.split(".").map(Number);
+    const required = minimum.split(".").map(Number);
+    for (let index = 0; index < Math.max(actual.length, required.length); index += 1) {
+        const difference = (actual[index] ?? 0) - (required[index] ?? 0);
+        if (difference !== 0) return difference < 0;
+    }
+    return false;
 }
 
 function remoteTerminalPath(sessionId: string, terminalId: string): string {
