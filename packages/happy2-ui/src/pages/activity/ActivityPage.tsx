@@ -137,7 +137,7 @@ export function ActivityPage(props: ActivityPageProps) {
                         title={
                             snapshot.notifications.type === "loading"
                                 ? "Loading activity…"
-                                : "Activity"
+                                : "No activity yet"
                         }
                     />
                 );

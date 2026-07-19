@@ -67,7 +67,11 @@ export function ThreadsPage(props: ThreadsPageProps) {
                     <EmptyState
                         description="Follow-up conversations and thread replies collect here."
                         icon="thread"
-                        title={snapshot.threads.type === "loading" ? "Loading threads…" : "Threads"}
+                        title={
+                            snapshot.threads.type === "loading"
+                                ? "Loading threads…"
+                                : "No threads yet"
+                        }
                     />
                 );
             }}

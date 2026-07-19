@@ -113,9 +113,9 @@ export function HomePage(props: HomePageProps) {
                                 />
                             ) : (
                                 <EmptyState
-                                    description="Your day at a glance — nothing needs you right now."
+                                    description="Nothing needs your attention right now."
                                     icon="home"
-                                    title="Home"
+                                    title="You’re all caught up"
                                 />
                             )}
                         </Box>

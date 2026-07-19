@@ -114,11 +114,11 @@ describe("persistent desktop routing", () => {
             ),
         );
         for (const [id, path, label] of [
-            ["home", "/home", "Your day at a glance"],
-            ["activity", "/activity", "Activity"],
-            ["threads", "/threads", "Threads"],
+            ["home", "/home", "You’re all caught up"],
+            ["activity", "/activity", "No activity yet"],
+            ["threads", "/threads", "No threads yet"],
             ["files", "/files", "No shared files"],
-            ["calls", "/calls", "Calls"],
+            ["calls", "/calls", "No calls yet"],
         ] as const) {
             fireEvent.click(railItem(screen.container, id));
             await waitFor(() => {

@@ -106,7 +106,9 @@ export function CallsPage(props: CallsPageProps) {
                     <EmptyState
                         description="Calls you place or receive will show up here."
                         icon="mic"
-                        title={snapshot.calls.type === "loading" ? "Loading calls…" : "Calls"}
+                        title={
+                            snapshot.calls.type === "loading" ? "Loading calls…" : "No calls yet"
+                        }
                     />
                 );
             }}

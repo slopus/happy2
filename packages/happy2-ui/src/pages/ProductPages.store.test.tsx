@@ -898,7 +898,7 @@ it("renders HomePage from the shared NotificationsStore", async () => {
         height: 704,
     });
     await view.ready();
-    expect(view.container.textContent).toContain("Your day at a glance");
+    expect(view.container.textContent).toContain("Nothing needs your attention right now.");
 });
 
 it("renders the route-addressable public profile from the live directory", async () => {
