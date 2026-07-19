@@ -11,7 +11,11 @@ export interface PluginsActionContext {
 
 const generations = new WeakMap<PluginsStore, number>();
 
-/** Loads the administrator plugin catalog with per-package installations; reads never contain configured variable values. */
+/**
+ * Loads the administrator plugin catalog with per-package installations; reads never contain
+ * configured variable values. Reconciling an already-ready catalog keeps the current list on
+ * screen until the fresh read lands, so realtime install-lifecycle hints never blank the surface.
+ */
 export async function pluginsLoad(context: PluginsActionContext): Promise<void> {
     const generation = (generations.get(context.plugins) ?? 0) + 1;
     generations.set(context.plugins, generation);
@@ -79,7 +83,9 @@ export function pluginsStoreCreate(
         pluginsInput(event): void {
             set((snapshot) => {
                 if (event.type === "pluginsLoading")
-                    return { ...snapshot, catalog: { type: "loading" } };
+                    return snapshot.catalog.type === "ready"
+                        ? snapshot
+                        : { ...snapshot, catalog: { type: "loading" } };
                 if (event.type === "pluginsFailed")
                     return { ...snapshot, catalog: { type: "error", error: event.error } };
                 if (event.type === "pluginsLoaded")

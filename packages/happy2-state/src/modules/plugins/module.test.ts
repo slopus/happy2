@@ -77,6 +77,10 @@ describe("plugins module", () => {
             type: "ready",
             value: [{ shortName: "hello" }],
         });
+        // A realtime-hinted reconcile re-runs the load; the ready catalog must
+        // stay on screen instead of flashing back to a loading state.
+        binding.getState().pluginsInput({ type: "pluginsLoading" });
+        expect(binding.getState().catalog.type).toBe("ready");
         binding.getState().pluginInstall("hello", { API_TOKEN: "secret value" });
         expect(binding.getState().installing).toEqual(["hello"]);
         await Promise.all(routed);
@@ -142,13 +146,11 @@ describe("plugins module", () => {
     it("clears a previous action error before the next typed intent", () => {
         const output = vi.fn();
         const binding = pluginsStoreCreate(output);
-        binding
-            .getState()
-            .pluginsInput({
-                type: "pluginInstallFailed",
-                shortName: "hello",
-                error: new Error("bad") as never,
-            });
+        binding.getState().pluginsInput({
+            type: "pluginInstallFailed",
+            shortName: "hello",
+            error: new Error("bad") as never,
+        });
         binding.getState().pluginInstall("hello", {});
         expect(binding.getState().actionError).toBeUndefined();
         expect(output).toHaveBeenCalledWith({

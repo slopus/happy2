@@ -167,7 +167,15 @@ it("renders PluginsPage from its independent store and routes the typed install 
     const cardBefore = view.container.querySelector('[data-plugin-short-name="project-search"]')!;
 
     // Authoritative reconciliation must retain the card's DOM identity, and a
-    // remote-MCP catalog never materializes the agent images store.
+    // remote-MCP catalog never materializes the agent images store. The real
+    // reconcile emits pluginsLoading before the fresh read lands; the ready
+    // list (and its DOM) must stay put through it.
+    fixture.input({ type: "pluginsLoading" });
+    await view.ready();
+    expect(
+        view.container.querySelector('[data-plugin-short-name="project-search"]'),
+        "ready catalog survives an in-flight reconcile",
+    ).toBe(cardBefore);
     fixture.input({
         type: "pluginsLoaded",
         plugins: [
