@@ -61,7 +61,7 @@ describe("Streamed agent replies", () => {
         expect(streamed.difference.updates).toContainEqual(
             expect.objectContaining({
                 entityId: streamed.reply.id,
-                kind: "message.created",
+                kind: "message.streaming",
             }),
         );
         expect(streamed.reply).toMatchObject({

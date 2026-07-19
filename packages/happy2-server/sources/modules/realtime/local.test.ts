@@ -130,6 +130,8 @@ describe("LocalPubSub contract", () => {
             startedAt: 900,
             occurredAt: 1_000,
             expiresAt: 6_000,
+            subagents: [],
+            backgroundTerminals: [],
         };
         const offer: CallSignalEvent = {
             type: "call.signal",

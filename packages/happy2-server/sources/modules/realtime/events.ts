@@ -3,6 +3,10 @@
  * durable database state; agent activity, typing, presence, and call signaling
  * are ephemeral.
  */
+import type {
+    AgentTurnBackgroundTerminalSummary,
+    AgentTurnSubagentSummary,
+} from "../agent/types.js";
 
 export interface RealtimeLimits {
     maxEventBytes: number;
@@ -77,6 +81,8 @@ export interface AgentActivityEvent {
     readonly tokenCount: number;
     readonly startedAt: number;
     readonly occurredAt: number;
+    readonly subagents: readonly AgentTurnSubagentSummary[];
+    readonly backgroundTerminals: readonly AgentTurnBackgroundTerminalSummary[];
     /** Required for active activity and intentionally short-lived. */
     readonly expiresAt?: number;
 }
@@ -243,6 +249,47 @@ export function assertRealtimeEvent(
             assertTimestamp(event.occurredAt, "agent activity occurredAt");
             if (event.startedAt > event.occurredAt)
                 throw new Error("Agent activity cannot occur before the turn started");
+            if (!Array.isArray(event.subagents) || event.subagents.length > 32)
+                throw new Error("Agent activity may include at most 32 subagents");
+            if (!Array.isArray(event.backgroundTerminals) || event.backgroundTerminals.length > 32)
+                throw new Error("Agent activity may include at most 32 background terminals");
+            assertUnique(
+                event.subagents.map((subagent) => subagent.id),
+                "agent activity subagent ids",
+            );
+            for (const subagent of event.subagents) {
+                assertRealtimeId(subagent.id, "subagent id", limits);
+                if (!Number.isSafeInteger(subagent.depth) || subagent.depth < 1)
+                    throw new Error("Subagent depth must be a positive integer");
+                assertActivityText(subagent.description, "subagent description");
+                if (subagent.latestText !== undefined)
+                    assertActivityText(subagent.latestText, "subagent latest text");
+                if (
+                    ![
+                        "idle",
+                        "queued",
+                        "running",
+                        "completed",
+                        "aborted",
+                        "suspended",
+                        "error",
+                    ].includes(subagent.status)
+                )
+                    throw new Error("Invalid subagent status");
+                assertTimestamp(subagent.startedAt, "subagent startedAt");
+                if (!Number.isSafeInteger(subagent.totalTokens) || subagent.totalTokens < 0)
+                    throw new Error("Subagent token count must be a non-negative integer");
+            }
+            assertUnique(
+                event.backgroundTerminals.map((terminal) => terminal.id),
+                "agent activity background terminal ids",
+            );
+            for (const terminal of event.backgroundTerminals) {
+                assertRealtimeId(terminal.id, "background terminal id", limits);
+                assertActivityText(terminal.command, "background terminal command", 1_000);
+                assertActivityText(terminal.cwd, "background terminal cwd", 1_000);
+                assertTimestamp(terminal.startedAt, "background terminal startedAt");
+            }
             if (event.active && event.expiresAt === undefined)
                 throw new Error("Active agent activity requires expiresAt");
             if (event.expiresAt !== undefined) {
@@ -278,6 +325,15 @@ export function assertRealtimeEvent(
         default:
             throw new Error("Invalid realtime event type");
     }
+}
+
+function assertActivityText(
+    value: unknown,
+    name: string,
+    maxLength = 500,
+): asserts value is string {
+    if (typeof value !== "string" || value.length === 0 || value.length > maxLength)
+        throw new Error(`Invalid ${name}`);
 }
 
 export function assertRealtimeId(

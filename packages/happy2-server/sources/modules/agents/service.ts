@@ -11,6 +11,7 @@ import { agentTurnGetRunning } from "../agent/agentTurnGetRunning.js";
 import { agentTurnFail } from "../agent/agentTurnFail.js";
 import { agentTurnComplete } from "../agent/agentTurnComplete.js";
 import { agentTurnCheckpoint } from "../agent/agentTurnCheckpoint.js";
+import { agentTurnTraceStart } from "../agent/agentTurnTraceStart.js";
 import { agentSecretRecordRegistration } from "../agent/agentSecretRecordRegistration.js";
 import { agentSecretDetachFromChannel } from "../agent/agentSecretDetachFromChannel.js";
 import { agentSecretDetachFromAgent } from "../agent/agentSecretDetachFromAgent.js";
@@ -51,7 +52,12 @@ import { createId } from "@paralleldrive/cuid2";
 import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { RigEventCheckpoint } from "../agent/types.js";
+import type {
+    AgentTurnBackgroundTerminalSummary,
+    AgentTurnSubagentSummary,
+    AgentTurnTraceUpdate,
+    RigEventCheckpoint,
+} from "../agent/types.js";
 import {
     CollaborationError,
     type AgentSecretSummary,
@@ -63,7 +69,9 @@ import {
     isRetryableRigError,
     RigDaemonClient,
     type RigEvent,
+    type RigBackgroundProcess,
     type RigGlobalEvent,
+    type RigSubagentSummary,
     type RigTurnInspection,
 } from "./daemon.js";
 import { BUILTIN_AGENT_IMAGES } from "./builtin-images.js";
@@ -100,6 +108,13 @@ const MAX_BUILD_LOG_LINE_CHARACTERS = 1_000;
 const MAX_CONCURRENT_IMAGE_BUILDS = 1;
 const AGENT_REPLY_FLUSH_INTERVAL_MS = 50;
 const AGENT_REPLY_FLUSH_CHARACTERS = 1_024;
+const MAX_TRACE_DETAIL_CHARACTERS = 64 * 1_024;
+const MAX_TRACE_SUMMARY_CHARACTERS = 500;
+const MAX_TRACE_COLLECTION_ITEMS = 32;
+const MAX_TRACE_ID_CHARACTERS = 128;
+const MAX_ACTIVITY_TEXT_CHARACTERS = 240;
+const MAX_PENDING_TRACE_UPDATES = 512;
+const MAX_TRACKED_TOOL_NAMES = 512;
 const AGENT_CONTAINER_SECURITY = {
     init: true,
     readonlyRootFilesystem: true,
@@ -155,11 +170,14 @@ interface ActiveTypingRenewal {
     userMessageId: string;
 }
 interface ActiveAgentActivity {
+    backgroundTerminals: Map<string, AgentTurnBackgroundTerminalSummary>;
     lastOccurredAt: number;
     phase: AgentActivityPhase;
     startedAt: number;
+    subagents: Map<string, AgentTurnSubagentSummary>;
     timer: ReturnType<typeof setInterval>;
     tokenCounts: Map<string, number>;
+    toolNames: Map<string, string>;
     userMessageId: string;
 }
 interface AgentPluginCapabilities {
@@ -1452,6 +1470,8 @@ export class AgentService {
             );
             if (!input) return;
             try {
+                const traced = await agentTurnTraceStart(this.executor, input);
+                if (traced) await this.publishAgentReplyHint(input.chatId, traced.hint);
                 await this.startAgentActivity(input);
                 await this.startTyping(input);
                 const submission = await this.ensureTurnSubmitted(input);
@@ -1627,6 +1647,9 @@ export class AgentService {
                     sessionId: input.sessionId,
                     streamCommittedText: update.streamCommittedText,
                     text: update.text,
+                    traceUpdates: update.traceUpdates,
+                    subagents: update.subagents,
+                    backgroundTerminals: update.backgroundTerminals,
                     userMessageId: input.userMessageId,
                     workerId: input.workerId,
                 });
@@ -1702,8 +1725,12 @@ export class AgentService {
                                 shouldPersist = true;
                             }
                         }
-                        if (runId && event.data.runId === runId) {
-                            await this.updateAgentActivity(input, event);
+                        if (
+                            runId &&
+                            (event.data.runId === runId || event.type === "subagent_changed")
+                        ) {
+                            const traceUpdates = await this.updateAgentActivity(input, event);
+                            if (traceUpdates.length > 0) shouldPersist = true;
                             if (event.type === "agent_event") {
                                 const nextPartial = agentLoopText(event);
                                 if (nextPartial !== undefined) {
@@ -1718,12 +1745,30 @@ export class AgentService {
                                     shouldPersist = true;
                                 }
                             }
+                            if (shouldPersist) {
+                                const activity = this.agentActivities.get(input.userMessageId);
+                                output.add({
+                                    eventId: event.id,
+                                    streamCommittedText: committedText,
+                                    text: appendAgentText(committedText, partialText),
+                                    traceUpdates,
+                                    ...(activity
+                                        ? {
+                                              subagents: activitySubagents(activity),
+                                              backgroundTerminals:
+                                                  activityBackgroundTerminals(activity),
+                                          }
+                                        : {}),
+                                });
+                                shouldPersist = false;
+                            }
                         }
                         if (shouldPersist)
                             output.add({
                                 eventId: event.id,
                                 streamCommittedText: committedText,
                                 text: appendAgentText(committedText, partialText),
+                                traceUpdates: [],
                             });
                     },
                     signal,
@@ -1820,6 +1865,17 @@ export class AgentService {
     }
     private async startAgentActivity(input: AgentTurnWork): Promise<void> {
         if (this.agentActivities.has(input.userMessageId)) return;
+        let snapshot:
+            | {
+                  backgroundProcesses: readonly RigBackgroundProcess[];
+                  subagents: readonly RigSubagentSummary[];
+              }
+            | undefined;
+        try {
+            snapshot = await this.daemon.turnActivity(input.sessionId, this.shutdown.signal);
+        } catch (error) {
+            this.onError(error);
+        }
         let activity!: ActiveAgentActivity;
         const timer = setInterval(() => {
             if (this.agentActivities.get(input.userMessageId) !== activity) return;
@@ -1827,11 +1883,29 @@ export class AgentService {
         }, AGENT_ACTIVITY_RENEW_INTERVAL_MS);
         timer.unref();
         activity = {
+            backgroundTerminals: new Map(
+                (snapshot?.backgroundProcesses ?? [])
+                    .slice(0, MAX_TRACE_COLLECTION_ITEMS)
+                    .map((process) => {
+                        const terminal = backgroundTerminalSummary(process, Date.now());
+                        return [terminal.id, terminal];
+                    }),
+            ),
             lastOccurredAt: 0,
             phase: "thinking",
             startedAt: sqliteTimestamp(input.startedAt),
+            subagents: new Map(
+                (snapshot?.subagents ?? [])
+                    .filter(subagentIsActive)
+                    .slice(0, MAX_TRACE_COLLECTION_ITEMS)
+                    .map((subagent) => {
+                        const summary = subagentSummary(subagent);
+                        return [summary.id, summary];
+                    }),
+            ),
             timer,
             tokenCounts: new Map(),
+            toolNames: new Map(),
             userMessageId: input.userMessageId,
         };
         this.agentActivities.set(input.userMessageId, activity);
@@ -1841,9 +1915,13 @@ export class AgentService {
             this.onError(error);
         }
     }
-    private async updateAgentActivity(input: AgentTurnWork, event: RigEvent): Promise<void> {
+    private async updateAgentActivity(
+        input: AgentTurnWork,
+        event: RigEvent,
+    ): Promise<AgentTurnTraceUpdate[]> {
         const activity = this.agentActivities.get(input.userMessageId);
-        if (!activity) return;
+        if (!activity) return [];
+        const traceUpdates = agentTurnTraceUpdates(event, activity);
         if (
             event.type === "run_started" &&
             Number.isSafeInteger(event.createdAt) &&
@@ -1853,14 +1931,16 @@ export class AgentService {
         const phase = agentActivityPhase(event);
         const phaseChanged = phase !== undefined && phase !== activity.phase;
         if (phase !== undefined) activity.phase = phase;
+        const workChanged = agentActivityWorkApply(activity, event);
         const usage = agentEventTokenCount(event);
         if (usage) activity.tokenCounts.set(usage.messageId, usage.tokenCount);
-        if (!phaseChanged) return;
+        if (!phaseChanged && !workChanged) return traceUpdates;
         try {
             await this.publishAgentActivity(input, activity, true);
         } catch (error) {
             this.onError(error);
         }
+        return traceUpdates;
     }
     private async stopAgentActivity(input: AgentTurnWork): Promise<void> {
         const activity = this.agentActivities.get(input.userMessageId);
@@ -1884,8 +1964,11 @@ export class AgentService {
     ): Promise<void> {
         const occurredAt = Math.max(Date.now(), activity.lastOccurredAt + 1);
         activity.lastOccurredAt = occurredAt;
-        const tokenCount = [...activity.tokenCounts.values()].reduce(
-            (total, count) => total + count,
+        const tokenCount = boundedInteger(
+            [...activity.tokenCounts.values()].reduce(
+                (total, count) => Math.min(Number.MAX_SAFE_INTEGER, total + count),
+                0,
+            ),
             0,
         );
         return this.pubsub.publish(realtimeTopics.chat(input.chatId), {
@@ -1896,8 +1979,10 @@ export class AgentService {
             active,
             phase: activity.phase,
             tokenCount,
-            startedAt: activity.startedAt,
+            startedAt: Math.min(boundedTimestamp(activity.startedAt), occurredAt),
             occurredAt,
+            subagents: activitySubagents(activity),
+            backgroundTerminals: activityBackgroundTerminals(activity),
             ...(active
                 ? {
                       expiresAt: occurredAt + AGENT_ACTIVITY_TTL_MS,
@@ -1982,6 +2067,9 @@ class AgentReplyStreamOutput {
         eventId: string;
         streamCommittedText: string;
         text: string;
+        traceUpdates: AgentTurnTraceUpdate[];
+        subagents?: readonly AgentTurnSubagentSummary[];
+        backgroundTerminals?: readonly AgentTurnBackgroundTerminalSummary[];
     };
     private persistedTextLength = 0;
     constructor(
@@ -1991,15 +2079,38 @@ class AgentReplyStreamOutput {
             expectedEventId?: string;
             streamCommittedText: string;
             text: string;
+            traceUpdates: readonly AgentTurnTraceUpdate[];
+            subagents?: readonly AgentTurnSubagentSummary[];
+            backgroundTerminals?: readonly AgentTurnBackgroundTerminalSummary[];
         }) => Promise<void>,
         private readonly onError: (error: unknown) => void,
     ) {}
     get lastEventId(): string | undefined {
         return this.persistedEventId;
     }
-    add(update: { eventId: string; streamCommittedText: string; text: string }): void {
+    add(update: {
+        eventId: string;
+        streamCommittedText: string;
+        text: string;
+        traceUpdates: readonly AgentTurnTraceUpdate[];
+        subagents?: readonly AgentTurnSubagentSummary[];
+        backgroundTerminals?: readonly AgentTurnBackgroundTerminalSummary[];
+    }): void {
         if (this.failure) return;
-        this.pending = update;
+        const traces = new Map(
+            (this.pending?.traceUpdates ?? []).map((trace) => [trace.traceKey, trace]),
+        );
+        for (const trace of update.traceUpdates) {
+            if (!traces.has(trace.traceKey) && traces.size >= MAX_PENDING_TRACE_UPDATES) continue;
+            traces.delete(trace.traceKey);
+            traces.set(trace.traceKey, trace);
+        }
+        this.pending = {
+            ...update,
+            traceUpdates: [...traces.values()],
+            subagents: update.subagents ?? this.pending?.subagents,
+            backgroundTerminals: update.backgroundTerminals ?? this.pending?.backgroundTerminals,
+        };
         if (
             Math.abs(update.text.length - this.persistedTextLength) >= AGENT_REPLY_FLUSH_CHARACTERS
         ) {
@@ -2201,6 +2312,365 @@ function agentLoopText(event: RigEvent): string | undefined {
     );
     if (textBlocks.length === 0) return undefined;
     return textBlocks.map((block) => block.text ?? "").join("");
+}
+function agentActivityWorkApply(activity: ActiveAgentActivity, event: RigEvent): boolean {
+    if (event.type === "subagent_changed" && event.data.subagent) {
+        const summary = subagentSummary(event.data.subagent);
+        if (
+            subagentIsActive(event.data.subagent) &&
+            (activity.subagents.has(summary.id) ||
+                activity.subagents.size < MAX_TRACE_COLLECTION_ITEMS)
+        )
+            activity.subagents.set(summary.id, summary);
+        else activity.subagents.delete(summary.id);
+        return true;
+    }
+    const loop = event.type === "agent_event" ? event.data.event : undefined;
+    if (loop?.type !== "background_processes_changed") return false;
+    const processes = loop.processes ?? (loop.running === 0 ? [] : undefined);
+    if (!processes) return false;
+    const observedAt = boundedTimestamp(event.createdAt);
+    const next = new Map<string, AgentTurnBackgroundTerminalSummary>();
+    for (const process of processes.slice(0, MAX_TRACE_COLLECTION_ITEMS)) {
+        const id = boundedIdentifier(String(process.sessionId), "terminal");
+        next.set(
+            id,
+            activity.backgroundTerminals.get(id) ?? backgroundTerminalSummary(process, observedAt),
+        );
+    }
+    activity.backgroundTerminals = next;
+    return true;
+}
+function agentTurnTraceUpdates(
+    event: RigEvent,
+    activity: ActiveAgentActivity,
+): AgentTurnTraceUpdate[] {
+    const occurredAt = boundedTimestamp(event.createdAt);
+    if (event.type === "subagent_changed" && event.data.subagent) {
+        const subagent = subagentSummary(event.data.subagent);
+        const status = traceStatusForSubagent(subagent.status);
+        return [
+            {
+                traceKey: `subagent:${subagent.id}`,
+                sessionEventId: event.id,
+                kind: "subagent",
+                title: subagent.description,
+                ...(subagent.latestText ? { detail: traceDetail(subagent.latestText) } : {}),
+                status,
+                occurredAt,
+                ...(status === "running" ? {} : { completedAt: occurredAt }),
+            },
+        ];
+    }
+    if (event.type === "run_started")
+        return [
+            {
+                traceKey: `run:${event.data.runId ?? "active"}`,
+                sessionEventId: event.id,
+                kind: "status",
+                title: "Thinking",
+                status: "running",
+                occurredAt,
+            },
+        ];
+    if (event.type === "agent_message") {
+        const detail = messageText(event.data.message);
+        return detail
+            ? [
+                  {
+                      traceKey: `response:${event.data.message?.id ?? "active"}`,
+                      sessionEventId: event.id,
+                      kind: "response",
+                      title: "Response completed",
+                      detail: traceDetail(detail),
+                      status: "complete",
+                      occurredAt,
+                      completedAt: occurredAt,
+                  },
+              ]
+            : [];
+    }
+    const loop = event.type === "agent_event" ? event.data.event : undefined;
+    const type = loop?.type;
+    if (!loop || !type) return [];
+    if (type.startsWith("thinking_")) {
+        const detail = agentLoopContent(loop, "thinking");
+        return [
+            {
+                traceKey: `reasoning:${loop.partial?.id ?? "active"}:${loop.contentIndex ?? 0}`,
+                sessionEventId: event.id,
+                kind: "reasoning",
+                title: "Reasoning",
+                ...(detail ? { detail: traceDetail(detail) } : {}),
+                status: type === "thinking_end" ? "complete" : "running",
+                occurredAt,
+                ...(type === "thinking_end" ? { completedAt: occurredAt } : {}),
+            },
+        ];
+    }
+    if (type.startsWith("text_")) {
+        const detail = agentLoopContent(loop, "text");
+        return [
+            {
+                traceKey: `response:${loop.partial?.id ?? "active"}:${loop.contentIndex ?? 0}`,
+                sessionEventId: event.id,
+                kind: "response",
+                title: type === "text_end" ? "Response drafted" : "Writing response",
+                ...(detail ? { detail: traceDetail(detail) } : {}),
+                status: type === "text_end" ? "complete" : "running",
+                occurredAt,
+                ...(type === "text_end" ? { completedAt: occurredAt } : {}),
+            },
+        ];
+    }
+    if (type === "toolcall_end" && loop.toolCall?.id) {
+        const toolCallId = boundedIdentifier(loop.toolCall.id, "tool");
+        const name = traceSummary(loop.toolCall.name ?? "tool") || "tool";
+        if (activity.toolNames.has(toolCallId) || activity.toolNames.size < MAX_TRACKED_TOOL_NAMES)
+            activity.toolNames.set(toolCallId, name);
+        return [
+            {
+                traceKey: `tool:${toolCallId}`,
+                sessionEventId: event.id,
+                kind: "tool",
+                title: traceTitle(`Calling ${humanizeTraceToolName(name)}`),
+                detail: traceDetail(JSON.stringify(loop.toolCall.arguments ?? {})),
+                status: "running",
+                occurredAt,
+            },
+        ];
+    }
+    if (type === "tool_execution_start" && loop.toolCall?.id) {
+        const toolCallId = boundedIdentifier(loop.toolCall.id, "tool");
+        const name = traceSummary(loop.toolCall.name ?? "tool") || "tool";
+        if (activity.toolNames.has(toolCallId) || activity.toolNames.size < MAX_TRACKED_TOOL_NAMES)
+            activity.toolNames.set(toolCallId, name);
+        return [
+            {
+                traceKey: `tool:${toolCallId}`,
+                sessionEventId: event.id,
+                kind: "tool",
+                title: traceTitle(`Running ${humanizeTraceToolName(name)}`),
+                detail: traceDetail(JSON.stringify(loop.toolCall.arguments ?? {})),
+                status: "running",
+                occurredAt,
+            },
+        ];
+    }
+    if (
+        (type === "tool_execution_progress" || type === "tool_execution_status") &&
+        loop.toolCallId
+    ) {
+        const toolCallId = boundedIdentifier(loop.toolCallId, "tool");
+        const name = activity.toolNames.get(toolCallId) ?? "tool";
+        const detail = type === "tool_execution_progress" ? loop.display : loop.status;
+        return [
+            {
+                traceKey: `tool:${toolCallId}`,
+                sessionEventId: event.id,
+                kind: "tool",
+                title: traceTitle(`Running ${humanizeTraceToolName(name)}`),
+                ...(detail ? { detail: traceDetail(detail) } : {}),
+                status: "running",
+                occurredAt,
+            },
+        ];
+    }
+    if (type === "tool_execution_end" && loop.result?.toolCallId) {
+        const toolCallId = boundedIdentifier(loop.result.toolCallId, "tool");
+        const name =
+            traceSummary(loop.result.toolName ?? activity.toolNames.get(toolCallId) ?? "tool") ||
+            "tool";
+        activity.toolNames.delete(toolCallId);
+        return [
+            {
+                traceKey: `tool:${toolCallId}`,
+                sessionEventId: event.id,
+                kind: "tool",
+                title: traceTitle(
+                    `${humanizeTraceToolName(name)} ${loop.result.isError ? "failed" : "completed"}`,
+                ),
+                ...(loop.result.display ? { detail: traceDetail(loop.result.display) } : {}),
+                status: loop.result.isError ? "failed" : "complete",
+                occurredAt,
+                completedAt: occurredAt,
+            },
+        ];
+    }
+    if (type === "background_processes_changed") {
+        const processes = loop.processes ?? (loop.running === 0 ? [] : undefined);
+        if (!processes) return [];
+        const boundedProcesses = processes.slice(0, MAX_TRACE_COLLECTION_ITEMS);
+        const nextIds = new Set(
+            boundedProcesses.map((process) =>
+                boundedIdentifier(String(process.sessionId), "terminal"),
+            ),
+        );
+        const completed = [...activity.backgroundTerminals.values()]
+            .filter((terminal) => !nextIds.has(terminal.id))
+            .map((terminal) => ({
+                traceKey: `terminal:${terminal.id}`,
+                sessionEventId: event.id,
+                kind: "terminal" as const,
+                title: "Background terminal completed",
+                detail: traceDetail(terminal.command),
+                status: "complete" as const,
+                occurredAt: terminal.startedAt,
+                completedAt: occurredAt,
+            }));
+        const running = boundedProcesses.map((process) => {
+            const id = boundedIdentifier(String(process.sessionId), "terminal");
+            const existing = activity.backgroundTerminals.get(id);
+            return {
+                traceKey: `terminal:${id}`,
+                sessionEventId: event.id,
+                kind: "terminal" as const,
+                title: "Background terminal running",
+                detail: traceDetail(process.command),
+                status: "running" as const,
+                occurredAt: existing?.startedAt ?? occurredAt,
+            };
+        });
+        return [...completed, ...running];
+    }
+    if (type === "inference_iteration_start")
+        return [
+            {
+                traceKey: `inference:${loop.iteration ?? event.id}`,
+                sessionEventId: event.id,
+                kind: "status",
+                title: traceTitle(`Inference ${loop.iteration ?? "started"}`),
+                status: "complete",
+                occurredAt,
+                completedAt: occurredAt,
+            },
+        ];
+    if (type === "context_compacted")
+        return [
+            {
+                traceKey: `context:${event.id}`,
+                sessionEventId: event.id,
+                kind: "status",
+                title: "Context compacted",
+                status: "complete",
+                occurredAt,
+                completedAt: occurredAt,
+            },
+        ];
+    return [];
+}
+function subagentSummary(subagent: RigSubagentSummary): AgentTurnSubagentSummary {
+    const latestText = subagent.latestText ? activityText(subagent.latestText) : "";
+    return {
+        id: boundedIdentifier(subagent.id, "subagent"),
+        depth: boundedInteger(subagent.depth, 1),
+        description: activityText(subagent.description) || "Subagent",
+        status: subagentStatus(subagent.status),
+        ...(latestText ? { latestText } : {}),
+        startedAt: boundedTimestamp(subagent.activeSince ?? subagent.createdAt),
+        totalTokens: boundedInteger(subagent.totalTokens ?? 0, 0),
+    };
+}
+function subagentIsActive(subagent: RigSubagentSummary): boolean {
+    return (
+        (subagent.status === "queued" || subagent.status === "running") &&
+        !subagent.taskName?.startsWith("workflow_")
+    );
+}
+function traceStatusForSubagent(
+    status: AgentTurnSubagentSummary["status"],
+): AgentTurnTraceUpdate["status"] {
+    if (status === "queued" || status === "running") return "running";
+    return status === "error" || status === "aborted" ? "failed" : "complete";
+}
+function backgroundTerminalSummary(
+    process: RigBackgroundProcess,
+    startedAt: number,
+): AgentTurnBackgroundTerminalSummary {
+    return {
+        id: boundedIdentifier(String(process.sessionId), "terminal"),
+        command: activityText(process.command) || "Background command",
+        cwd: activityText(process.cwd) || ".",
+        startedAt: boundedTimestamp(startedAt),
+    };
+}
+function activitySubagents(activity: ActiveAgentActivity): AgentTurnSubagentSummary[] {
+    return [...activity.subagents.values()].slice(0, MAX_TRACE_COLLECTION_ITEMS);
+}
+function activityBackgroundTerminals(
+    activity: ActiveAgentActivity,
+): AgentTurnBackgroundTerminalSummary[] {
+    return [...activity.backgroundTerminals.values()].slice(0, MAX_TRACE_COLLECTION_ITEMS);
+}
+function agentLoopContent(
+    loop: NonNullable<RigEvent["data"]["event"]>,
+    kind: "text" | "thinking",
+): string | undefined {
+    const blocks = loop.partial?.content ?? loop.message?.content ?? loop.error?.content ?? [];
+    const content = blocks
+        .filter((block) => block.type === kind)
+        .map((block) => (kind === "text" ? block.text : block.thinking) ?? "")
+        .join("");
+    return content || (typeof loop.content === "string" ? loop.content : undefined);
+}
+function humanizeTraceToolName(name: string): string {
+    const spaced = name
+        .replaceAll(/[_-]+/gu, " ")
+        .replaceAll(/([a-z\d])([A-Z])/gu, "$1 $2")
+        .trim();
+    return spaced ? `${spaced[0]!.toUpperCase()}${spaced.slice(1)}` : "Tool";
+}
+function traceDetail(value: unknown): string {
+    return textValue(value).trim().slice(-MAX_TRACE_DETAIL_CHARACTERS);
+}
+function traceSummary(value: unknown): string {
+    return textValue(value).trim().slice(-MAX_TRACE_SUMMARY_CHARACTERS);
+}
+function activityText(value: unknown): string {
+    return textValue(value).trim().slice(-MAX_ACTIVITY_TEXT_CHARACTERS);
+}
+function traceTitle(value: string): string {
+    return traceSummary(value) || "Agent activity";
+}
+function boundedIdentifier(value: unknown, prefix: string): string {
+    const text = textValue(value);
+    const clean = [...text]
+        .filter((character) => {
+            const code = character.charCodeAt(0);
+            return code > 31 && code !== 127;
+        })
+        .join("");
+    if (clean.length > 0 && clean.length <= MAX_TRACE_ID_CHARACTERS) return clean;
+    return `${prefix}-${createHash("sha256").update(text).digest("hex").slice(0, 32)}`;
+}
+function boundedTimestamp(value: unknown): number {
+    const now = Date.now();
+    return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+        ? Math.min(value, now)
+        : now;
+}
+function boundedInteger(value: unknown, minimum: number): number {
+    return typeof value === "number" && Number.isSafeInteger(value)
+        ? Math.max(minimum, Math.min(value, Number.MAX_SAFE_INTEGER))
+        : minimum;
+}
+function textValue(value: unknown): string {
+    return typeof value === "string"
+        ? value
+        : value === undefined || value === null
+          ? ""
+          : String(value);
+}
+function subagentStatus(value: unknown): AgentTurnSubagentSummary["status"] {
+    return value === "idle" ||
+        value === "queued" ||
+        value === "running" ||
+        value === "completed" ||
+        value === "aborted" ||
+        value === "suspended" ||
+        value === "error"
+        ? value
+        : "error";
 }
 function agentActivityPhase(event: RigEvent): AgentActivityPhase | undefined {
     if (event.type === "run_started") return "thinking";

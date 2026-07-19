@@ -12,7 +12,9 @@ import type {
     GetDaemonConfigResponse,
     HealthResponse,
     ListSecretsResponse,
+    ListSubagentsResponse,
     ProtocolSession,
+    SubagentSummary,
     RegisterSecretRequest,
     RegisterSecretResponse,
     ResolveExternalToolCallRequest,
@@ -40,6 +42,7 @@ export interface RigDaemonConfig {
 interface RigBlock {
     type: string;
     text?: string;
+    thinking?: string;
 }
 
 interface RigMessage {
@@ -68,17 +71,36 @@ export interface RigSessionSecretPlan {
 }
 
 interface RigPartialMessage {
-    content?: Array<{ type: string; text?: string }>;
+    content?: Array<{ type: string; text?: string; thinking?: string }>;
     id?: string;
     usage?: RigUsage;
 }
 
 interface RigAgentLoopEvent {
+    content?: string;
+    contentIndex?: number;
+    delta?: string;
+    display?: string;
     error?: RigPartialMessage;
+    iteration?: number;
     message?: RigPartialMessage;
+    processes?: readonly RigBackgroundProcess[];
+    result?: {
+        display?: string;
+        isError?: boolean;
+        toolCallId?: string;
+        toolName?: string;
+    };
+    running?: number;
+    status?: string;
+    toolCall?: { id?: string; name?: string; arguments?: unknown };
+    toolCallId?: string;
     type?: string;
     partial?: RigPartialMessage;
 }
+
+export type RigBackgroundProcess = NonNullable<ProtocolSession["backgroundProcesses"]>[number];
+export type RigSubagentSummary = SubagentSummary;
 
 export interface RigEvent {
     createdAt: number;
@@ -91,6 +113,7 @@ export interface RigEvent {
         call?: ExternalToolCall;
         message?: RigMessage;
         runId?: string;
+        subagent?: RigSubagentSummary;
     };
 }
 
@@ -330,6 +353,28 @@ export class RigDaemonClient {
         return {
             messageCount: session.snapshot.messages.length,
             ...(session.lastEventId === undefined ? {} : { lastEventId: session.lastEventId }),
+        };
+    }
+
+    async turnActivity(
+        sessionId: string,
+        signal?: AbortSignal,
+    ): Promise<{
+        backgroundProcesses: readonly RigBackgroundProcess[];
+        subagents: readonly RigSubagentSummary[];
+    }> {
+        const [session, subagents] = await Promise.all([
+            this.session(sessionId, signal),
+            this.connectedRequest<ListSubagentsResponse>(
+                "GET",
+                `/sessions/${encodeURIComponent(sessionId)}/subagents`,
+                undefined,
+                signal,
+            ),
+        ]);
+        return {
+            backgroundProcesses: session.backgroundProcesses ?? [],
+            subagents: subagents.subagents,
         };
     }
 

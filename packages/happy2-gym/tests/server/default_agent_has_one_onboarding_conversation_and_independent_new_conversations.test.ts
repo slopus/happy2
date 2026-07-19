@@ -259,7 +259,14 @@ async function waitForMessages(
 ): Promise<void> {
     await waitFor(async () => {
         const response = await client.get(`/v0/chats/${chatId}/messages`);
-        return (response.json().messages as unknown[]).length >= count;
+        const messages = response.json().messages as Array<Record<string, unknown>>;
+        return (
+            messages.length >= count &&
+            messages.every(
+                (message) =>
+                    message.kind !== "automated" || message.generationStatus !== "streaming",
+            )
+        );
     }, `${count} messages in ${chatId}`);
 }
 

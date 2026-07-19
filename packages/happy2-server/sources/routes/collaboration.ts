@@ -62,6 +62,7 @@ import { callGet } from "../modules/call/callGet.js";
 import { callEnd } from "../modules/call/callEnd.js";
 import { callCreate } from "../modules/call/callCreate.js";
 import { agentChatGetContext } from "../modules/agent/agentChatGetContext.js";
+import { agentTurnTraceGet } from "../modules/agent/agentTurnTraceGet.js";
 import { type DrizzleExecutor } from "../modules/drizzle.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AuthService } from "../modules/auth/service.js";
@@ -145,6 +146,15 @@ export function registerCollaborationRoutes(
             emptyQuery(request);
             return {
                 message: await messageGet(executor, userId, pathId(request, "messageId")),
+            };
+        }),
+    );
+    app.get(
+        "/v0/messages/:messageId/agentTrace",
+        authenticated(auth, async (request, _reply, userId) => {
+            emptyQuery(request);
+            return {
+                trace: await agentTurnTraceGet(executor, userId, pathId(request, "messageId")),
             };
         }),
     );

@@ -60,7 +60,10 @@ describe("streamed agent Markdown through happy2-state", () => {
                     })),
                 { timeout: 4_000 },
             )
-            .toEqual([{ delivery: "sent", text: "Stream a Markdown answer" }]);
+            .toEqual([
+                { delivery: "sent", text: "Stream a Markdown answer" },
+                { delivery: "sent", text: "" },
+            ]);
         const run = rig.submittedRuns[0]!;
         const firstChunk = "## Result\n\n- **par";
         rig.emitTextDelta(run.runId, firstChunk);

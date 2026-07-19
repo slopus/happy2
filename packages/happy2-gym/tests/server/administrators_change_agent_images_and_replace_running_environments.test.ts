@@ -312,11 +312,17 @@ async function waitForMessages(
     chatId: string,
     count: number,
 ): Promise<Array<{ text: string }>> {
-    let messages: Array<{ text: string }> = [];
+    let messages: Array<{ text: string; kind: string; generationStatus?: string }> = [];
     await waitFor(async () => {
         const response = await client.get(`/v0/chats/${chatId}/messages`);
-        messages = response.json().messages as Array<{ text: string }>;
-        return messages.length === count;
+        messages = response.json().messages as typeof messages;
+        return (
+            messages.length === count &&
+            messages.every(
+                (message) =>
+                    message.kind !== "automated" || message.generationStatus !== "streaming",
+            )
+        );
     }, `${count} messages in ${chatId}`);
     return messages;
 }

@@ -1,4 +1,5 @@
 import type { FileKind } from "../file/types.js";
+import type { AgentTurnTraceSummary } from "../agent/types.js";
 
 export type ChatKind = "dm" | "public_channel" | "private_channel";
 export type ChatRole = "owner" | "admin" | "member";
@@ -144,6 +145,7 @@ export interface MessageSummary {
     text: string;
     service?: { type: "user_added" | "user_joined"; userId: string };
     generationStatus?: "streaming" | "complete" | "failed";
+    agentTrace?: AgentTurnTraceSummary;
     quotedMessage?: {
         id: string;
         senderUserId?: string;

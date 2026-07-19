@@ -361,8 +361,8 @@ describe("AI agent chats", () => {
         const messages = await waitForMessages(asOwner, chatId, 4);
         expect(messages.map((message) => message.text)).toEqual([
             "This run will fail",
-            "This run must follow",
             "I couldn't complete this request.",
+            "This run must follow",
             "The queue continued safely.",
         ]);
         expect(rig.submittedTexts).toEqual(["This run will fail", "This run must follow"]);
@@ -475,7 +475,14 @@ async function waitForMessages(
     do {
         const response = await client.get(`/v0/chats/${chatId}/messages`);
         const messages = response.json().messages as Array<Record<string, unknown>>;
-        if (messages.length >= count) return messages;
+        if (
+            messages.length >= count &&
+            messages.every(
+                (message) =>
+                    message.kind !== "automated" || message.generationStatus !== "streaming",
+            )
+        )
+            return messages;
         await new Promise((resolve) => setTimeout(resolve, 10));
     } while (Date.now() < deadline);
     throw new Error(`Timed out waiting for ${count} messages`);

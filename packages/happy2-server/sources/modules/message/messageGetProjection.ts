@@ -25,6 +25,7 @@ import { fileSelection } from "../chat/fileSelection.js";
 import { messageIsPast } from "./messageIsPast.js";
 
 import { chatGetAccess } from "../chat/chatGetAccess.js";
+import { asAgentTurnTrace } from "../chat/asAgentTurnTrace.js";
 /**
  * Builds a message only for a viewer with chat access, collapsing deleted or expired content while expanding visible sender, files, reactions, mentions, receipts, quotes, and thread state.
  * Rechecking forwarded-chat visibility and suppressing related content on tombstones prevents indirect projections from bypassing chat, expiry, or file rules.
@@ -74,6 +75,17 @@ export async function messageGetProjection(
             sender_bot_username: bot.username,
             sender_bot_photo_file_id: bot.photoFileId,
             generation_status: agentTurns.status,
+            agent_turn_user_message_id: agentTurns.userMessageId,
+            agent_turn_agent_user_id: agentTurns.agentUserId,
+            agent_turn_started_at: agentTurns.startedAt,
+            agent_turn_completed_at: agentTurns.completedAt,
+            agent_turn_trace_latest_kind: agentTurns.traceLatestKind,
+            agent_turn_trace_latest_title: agentTurns.traceLatestTitle,
+            agent_turn_trace_latest_detail: agentTurns.traceLatestDetail,
+            agent_turn_trace_latest_at: agentTurns.traceLatestAt,
+            agent_turn_trace_entry_count: agentTurns.traceEntryCount,
+            agent_turn_trace_subagents_json: agentTurns.traceSubagentsJson,
+            agent_turn_trace_background_terminals_json: agentTurns.traceBackgroundTerminalsJson,
             quoted_sender_user_id: quoted.senderUserId,
             quoted_text: quoted.text,
             quoted_deleted_at: quoted.deletedAt,
@@ -224,6 +236,24 @@ export async function messageGetProjection(
                 : row.generation_status === "complete" || row.generation_status === "failed"
                   ? row.generation_status
                   : undefined,
+        agentTrace:
+            !deleted && row.agent_turn_user_message_id && row.agent_turn_agent_user_id
+                ? asAgentTurnTrace({
+                      userMessageId: row.agent_turn_user_message_id,
+                      agentUserId: row.agent_turn_agent_user_id,
+                      status: row.generation_status ?? "pending",
+                      startedAt: row.agent_turn_started_at,
+                      completedAt: row.agent_turn_completed_at,
+                      traceLatestKind: row.agent_turn_trace_latest_kind,
+                      traceLatestTitle: row.agent_turn_trace_latest_title,
+                      traceLatestDetail: row.agent_turn_trace_latest_detail,
+                      traceLatestAt: row.agent_turn_trace_latest_at,
+                      traceEntryCount: row.agent_turn_trace_entry_count ?? 0,
+                      traceSubagentsJson: row.agent_turn_trace_subagents_json ?? "[]",
+                      traceBackgroundTerminalsJson:
+                          row.agent_turn_trace_background_terminals_json ?? "[]",
+                  })
+                : undefined,
         quotedMessage: row.quoted_message_id
             ? {
                   id: row.quoted_message_id,

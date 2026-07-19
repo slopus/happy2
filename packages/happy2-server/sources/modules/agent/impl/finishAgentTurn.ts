@@ -1,8 +1,9 @@
 import { type DrizzleExecutor, withTransaction } from "../../drizzle.js";
 import { type MessageSummary, type MutationHint } from "../../chat/types.js";
+import { createId } from "@paralleldrive/cuid2";
 
 import { agentReplyMutationId } from "./agentReplyMutationId.js";
-import { agentTurns, messages } from "../../schema.js";
+import { agentTurnTraceEntries, agentTurns, messages } from "../../schema.js";
 import { and, eq, sql } from "drizzle-orm";
 import { chatHint } from "../../chat/chatHint.js";
 
@@ -14,6 +15,9 @@ import { syncSequenceNext } from "../../sync/syncSequenceNext.js";
 import { messageRecordDelivery } from "../../message/messageRecordDelivery.js";
 import { messageReplaceMentions } from "../../message/messageReplaceMentions.js";
 import { messageSendInTransaction } from "../../message/messageSendInTransaction.js";
+
+const MAX_TRACE_DETAIL_CHARACTERS = 64 * 1_024;
+const MAX_TRACE_SUMMARY_CHARACTERS = 500;
 
 /**
  * Finalizes agentTurns and their messages output, including the terminal chat and search projections produced by the run.
@@ -40,14 +44,37 @@ export async function finishAgentTurn(
     | undefined
 > {
     return withTransaction(executor, async (tx) => {
+        const [lastTrace] = await tx
+            .select({
+                occurredAt: sql<number>`coalesce(max(${agentTurnTraceEntries.occurredAt}), 0)`,
+            })
+            .from(agentTurnTraceEntries)
+            .where(
+                and(
+                    eq(agentTurnTraceEntries.userMessageId, input.userMessageId),
+                    eq(agentTurnTraceEntries.agentUserId, input.agentUserId),
+                ),
+            );
+        const occurredAt = Math.min(
+            Number.MAX_SAFE_INTEGER,
+            Math.max(Date.now(), Number(lastTrace?.occurredAt ?? 0) + 1),
+        );
+        const traceTitle = input.status === "complete" ? "Turn completed" : "Turn failed";
+        const errorDetail = boundedTraceDetail(input.lastError);
         const [turn] = await tx
             .update(agentTurns)
             .set({
                 status: input.status,
-                lastError: input.lastError ?? null,
+                lastError: errorDetail ?? null,
                 workerId: null,
                 leaseExpiresAt: null,
                 completedAt: sql`CURRENT_TIMESTAMP`,
+                traceLatestKind: "status",
+                traceLatestTitle: traceTitle,
+                traceLatestDetail: latestTraceLine(errorDetail) ?? null,
+                traceLatestAt: occurredAt,
+                traceSubagentsJson: "[]",
+                traceBackgroundTerminalsJson: "[]",
                 updatedAt: sql`CURRENT_TIMESTAMP`,
             })
             .where(
@@ -64,6 +91,52 @@ export async function finishAgentTurn(
                 chatId: agentTurns.chatId,
             });
         if (!turn) return undefined;
+        await tx
+            .update(agentTurnTraceEntries)
+            .set({
+                status: input.status === "complete" ? "complete" : "failed",
+                completedAt: occurredAt,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(
+                and(
+                    eq(agentTurnTraceEntries.userMessageId, input.userMessageId),
+                    eq(agentTurnTraceEntries.agentUserId, input.agentUserId),
+                    eq(agentTurnTraceEntries.status, "running"),
+                ),
+            );
+        await tx.insert(agentTurnTraceEntries).values({
+            id: createId(),
+            userMessageId: input.userMessageId,
+            agentUserId: input.agentUserId,
+            traceKey: "turn-result",
+            sessionEventId: `turn-result:${occurredAt}`,
+            kind: "status",
+            title: traceTitle,
+            detail: errorDetail,
+            status: input.status === "complete" ? "complete" : "failed",
+            occurredAt,
+            completedAt: occurredAt,
+        });
+        const [traceCount] = await tx
+            .select({ value: sql<number>`count(*)` })
+            .from(agentTurnTraceEntries)
+            .where(
+                and(
+                    eq(agentTurnTraceEntries.userMessageId, input.userMessageId),
+                    eq(agentTurnTraceEntries.agentUserId, input.agentUserId),
+                ),
+            );
+        await tx
+            .update(agentTurns)
+            .set({ traceEntryCount: Number(traceCount?.value ?? 0) })
+            .where(
+                and(
+                    eq(agentTurns.userMessageId, input.userMessageId),
+                    eq(agentTurns.agentUserId, input.agentUserId),
+                    eq(agentTurns.status, input.status),
+                ),
+            );
         let created:
             | {
                   message: MessageSummary;
@@ -167,4 +240,19 @@ export async function finishAgentTurn(
             hint: chatHint(sequence, turn.chatId, mutation.pts),
         };
     });
+}
+
+function boundedTraceDetail(value: string | undefined): string | undefined {
+    const detail = value?.trim().slice(-MAX_TRACE_DETAIL_CHARACTERS);
+    return detail || undefined;
+}
+
+function latestTraceLine(value: string | undefined): string | undefined {
+    if (!value) return undefined;
+    const line = value
+        .split(/\r?\n/u)
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .at(-1);
+    return line?.slice(-MAX_TRACE_SUMMARY_CHARACTERS);
 }

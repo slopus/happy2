@@ -183,6 +183,13 @@
             "when": 1784425000000,
             "tag": "0025_plugin_skills",
             "breakpoints": true
+        },
+        {
+            "idx": 26,
+            "version": "6",
+            "when": 1784426000000,
+            "tag": "0026_agent_turn_traces",
+            "breakpoints": true
         }
     ]
 }

@@ -450,6 +450,15 @@ export const agentTurns = sqliteTable(
         baselineMessageCount: integer("baseline_message_count"),
         lastSessionEventId: text("last_session_event_id"),
         streamCommittedText: text("stream_committed_text").notNull().default(""),
+        traceLatestKind: text("trace_latest_kind"),
+        traceLatestTitle: text("trace_latest_title"),
+        traceLatestDetail: text("trace_latest_detail"),
+        traceLatestAt: integer("trace_latest_at"),
+        traceEntryCount: integer("trace_entry_count").notNull().default(0),
+        traceSubagentsJson: text("trace_subagents_json").notNull().default("[]"),
+        traceBackgroundTerminalsJson: text("trace_background_terminals_json")
+            .notNull()
+            .default("[]"),
         status: text("status").notNull().default("pending"),
         assistantMessageId: text("assistant_message_id").references(() => messages.id, {
             onDelete: "set null",
@@ -463,6 +472,41 @@ export const agentTurns = sqliteTable(
         completedAt: text("completed_at"),
     },
     (table) => [primaryKey({ columns: [table.userMessageId, table.agentUserId] })],
+);
+
+export const agentTurnTraceEntries = sqliteTable(
+    "agent_turn_trace_entries",
+    {
+        id: text("id").primaryKey().notNull(),
+        userMessageId: text("user_message_id")
+            .notNull()
+            .references(() => messages.id, { onDelete: "cascade" }),
+        agentUserId: text("agent_user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        traceKey: text("trace_key").notNull(),
+        sessionEventId: text("session_event_id").notNull(),
+        kind: text("kind").notNull(),
+        title: text("title").notNull(),
+        detail: text("detail"),
+        status: text("status").notNull(),
+        occurredAt: integer("occurred_at").notNull(),
+        completedAt: integer("completed_at"),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [
+        uniqueIndex("agent_turn_trace_entries_turn_key_unique").on(
+            table.userMessageId,
+            table.agentUserId,
+            table.traceKey,
+        ),
+        index("agent_turn_trace_entries_turn_time_index").on(
+            table.userMessageId,
+            table.agentUserId,
+            table.occurredAt,
+        ),
+    ],
 );
 
 export const rigEventSyncState = sqliteTable("rig_event_sync_state", {

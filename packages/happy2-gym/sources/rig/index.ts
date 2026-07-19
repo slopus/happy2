@@ -64,6 +64,12 @@ interface MockRunStream {
 }
 
 interface MockSession {
+    backgroundProcesses: Array<{
+        command: string;
+        cwd: string;
+        sessionId: number;
+        status: "running";
+    }>;
     effort: string;
     events: RigEvent[];
     id: string;
@@ -73,6 +79,24 @@ interface MockSession {
     projectSecretIds: Set<string>;
     sessionSecretIds: Set<string>;
     status: string;
+    subagents: Map<string, MockRigSubagent>;
+}
+
+export interface MockRigSubagent {
+    activeSince?: number;
+    agentId: string;
+    createdAt: number;
+    depth: number;
+    description: string;
+    elapsedMs?: number;
+    id: string;
+    latestText?: string;
+    modelId: string;
+    parentSessionId: string;
+    status: "idle" | "queued" | "running" | "completed" | "aborted" | "suspended" | "error";
+    taskName?: string;
+    totalTokens?: number;
+    updatedAt: number;
 }
 
 interface MockSecretRegistration {
@@ -391,6 +415,92 @@ export class MockRigDaemon implements AsyncDisposable {
         });
     }
 
+    emitToolExecutionStart(
+        runId: string,
+        toolCall: { id: string; name: string; arguments?: Record<string, unknown> },
+    ): void {
+        const { session } = this.requireRun(runId);
+        this.append(session, "agent_event", {
+            event: {
+                type: "tool_execution_start",
+                toolCall: { ...toolCall, arguments: toolCall.arguments ?? {} },
+            },
+            runId,
+        });
+    }
+
+    emitToolExecutionProgress(runId: string, toolCallId: string, display: string): void {
+        const { session } = this.requireRun(runId);
+        this.append(session, "agent_event", {
+            event: { type: "tool_execution_progress", toolCallId, display },
+            runId,
+        });
+    }
+
+    emitToolExecutionEnd(
+        runId: string,
+        input: { toolCallId: string; toolName: string; display: string; isError?: boolean },
+    ): void {
+        const { session } = this.requireRun(runId);
+        this.append(session, "agent_event", {
+            event: { type: "tool_execution_end", result: { type: "tool_result", ...input } },
+            runId,
+        });
+    }
+
+    emitSubagentChanged(runId: string, input: Partial<MockRigSubagent> & { id: string }): void {
+        const { session } = this.requireRun(runId);
+        const now = Date.now();
+        const previous = session.subagents.get(input.id);
+        const subagent: MockRigSubagent = {
+            agentId: input.agentId ?? previous?.agentId ?? `agent-${input.id}`,
+            createdAt: input.createdAt ?? previous?.createdAt ?? now,
+            depth: input.depth ?? previous?.depth ?? 1,
+            description: input.description ?? previous?.description ?? input.id,
+            id: input.id,
+            modelId: input.modelId ?? previous?.modelId ?? MOCK_MODEL_ID,
+            parentSessionId: input.parentSessionId ?? previous?.parentSessionId ?? session.id,
+            status: input.status ?? previous?.status ?? "running",
+            updatedAt: now,
+            ...((input.activeSince ?? previous?.activeSince)
+                ? { activeSince: input.activeSince ?? previous?.activeSince }
+                : {}),
+            ...((input.elapsedMs ?? previous?.elapsedMs)
+                ? { elapsedMs: input.elapsedMs ?? previous?.elapsedMs }
+                : {}),
+            ...((input.latestText ?? previous?.latestText)
+                ? { latestText: input.latestText ?? previous?.latestText }
+                : {}),
+            ...((input.taskName ?? previous?.taskName)
+                ? { taskName: input.taskName ?? previous?.taskName }
+                : {}),
+            ...((input.totalTokens ?? previous?.totalTokens)
+                ? { totalTokens: input.totalTokens ?? previous?.totalTokens }
+                : {}),
+        };
+        session.subagents.set(subagent.id, subagent);
+        this.append(session, "subagent_changed", { subagent });
+    }
+
+    emitBackgroundProcesses(
+        runId: string,
+        processes: Array<{ command: string; cwd: string; sessionId: number }>,
+    ): void {
+        const { session } = this.requireRun(runId);
+        session.backgroundProcesses = processes.map((process) => ({
+            ...process,
+            status: "running" as const,
+        }));
+        this.append(session, "agent_event", {
+            event: {
+                type: "background_processes_changed",
+                processes: session.backgroundProcesses,
+                running: session.backgroundProcesses.length,
+            },
+            runId,
+        });
+    }
+
     emitAgentMessage(runId: string, text: string): void {
         const { session } = this.requireRun(runId);
         const stream = this.runStreams.get(runId);
@@ -598,6 +708,7 @@ export class MockRigDaemon implements AsyncDisposable {
                 return sendJson(response, 400, { error: "Unsupported effort" });
             const id = `session-${this.sessions.size + 1}`;
             const session: MockSession = {
+                backgroundProcesses: [],
                 effort,
                 events: [],
                 id,
@@ -615,6 +726,7 @@ export class MockRigDaemon implements AsyncDisposable {
                         : [],
                 ),
                 status: "idle",
+                subagents: new Map(),
             };
             this.sessions.set(id, session);
             this.createdCwds.push(String(body.cwd));
@@ -688,6 +800,12 @@ export class MockRigDaemon implements AsyncDisposable {
                 call: structuredClone(call),
             });
             return sendJson(response, 200, { accepted: true, call: structuredClone(call) });
+        }
+        const subagentsMatch = url.pathname.match(/^\/sessions\/([^/]+)\/subagents$/u);
+        if (request.method === "GET" && subagentsMatch) {
+            const session = this.sessions.get(decodeURIComponent(subagentsMatch[1]!));
+            if (!session) return sendJson(response, 404, { error: "Session not found" });
+            return sendJson(response, 200, { subagents: [...session.subagents.values()] });
         }
         const match = url.pathname.match(
             /^\/sessions\/([^/]+)(?:\/(messages|events|stream|effort|permissions))?$/u,
@@ -1177,6 +1295,8 @@ function snapshot(session: MockSession) {
         projectSecretIds,
         secretIds: [...new Set([...projectSecretIds, ...sessionSecretIds])].sort(),
         sessionSecretIds,
+        tasks: [],
+        backgroundProcesses: session.backgroundProcesses,
         snapshot: { messages: session.messages },
         status: session.status,
     };
