@@ -11,6 +11,7 @@ import { agentTurnGetRunning } from "../agent/agentTurnGetRunning.js";
 import { agentTurnFail } from "../agent/agentTurnFail.js";
 import { agentTurnComplete } from "../agent/agentTurnComplete.js";
 import { agentTurnCheckpoint } from "../agent/agentTurnCheckpoint.js";
+import { agentTurnListAbortTargets } from "../agent/agentTurnListAbortTargets.js";
 import { agentTurnTraceStart } from "../agent/agentTurnTraceStart.js";
 import { agentSecretRecordRegistration } from "../agent/agentSecretRecordRegistration.js";
 import { agentSecretDetachFromChannel } from "../agent/agentSecretDetachFromChannel.js";
@@ -233,12 +234,16 @@ export class AgentService {
     ) {}
 
     /**
-     * Best-effort, idempotent stop boundary for every locally owned turn in a chat.
-     * Callers await the stream tasks so no local tool output can race a subsequent
-     * chat lifecycle mutation. Durable turn terminalization remains transactional
-     * at that lifecycle boundary and also covers work leased by another process.
+     * Idempotently aborts Rig-owned inference, descendants, external tools, and
+     * processes, then awaits every locally owned stream before archival proceeds.
      */
     async abortChat(chatId: string): Promise<void> {
+        const targets = await agentTurnListAbortTargets(this.executor, chatId);
+        await Promise.all(
+            targets.map((target) =>
+                this.daemon.abortRun(target.sessionId, target.runId, this.shutdown.signal),
+            ),
+        );
         const streams = [...this.turnStreams.values()].filter((stream) => stream.chatId === chatId);
         for (const stream of streams) {
             stream.controller.abort();

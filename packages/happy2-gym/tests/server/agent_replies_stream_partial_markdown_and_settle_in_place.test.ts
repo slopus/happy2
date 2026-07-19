@@ -25,6 +25,48 @@ interface ChatDifference {
 }
 
 describe("Streamed agent replies", () => {
+    it("awaits Rig abort before archiving an active agent chat", async () => {
+        await using rig = await createMockRigDaemon();
+        rig.setAutomaticReply(undefined);
+        await using server = await agentServer(rig);
+        const owner = await server.createUser({
+            username: "archive_running_owner",
+            firstName: "Owner",
+        });
+        const asOwner = server.as(owner);
+        const chatId = await createAgent(asOwner, "archive_running_agent");
+
+        expect(
+            (
+                await asOwner.post(`/v0/chats/${chatId}/sendMessage`, {
+                    text: "Keep working until archived",
+                    clientMutationId: "archive-running-turn",
+                })
+            ).statusCode,
+        ).toBe(201);
+        const run = await waitForRun(rig, 1);
+
+        const archived = await asOwner.post(`/v0/chats/${chatId}/archiveChannel`, {});
+        expect(archived.statusCode).toBe(200);
+        expect(rig.abortRequests).toEqual([{ sessionId: run.sessionId, expectedRunId: run.runId }]);
+        expect(archived.json().chat.archivedAt).toEqual(expect.any(String));
+        expect(
+            (
+                await asOwner.post(`/v0/chats/${chatId}/sendMessage`, {
+                    text: "This must remain blocked",
+                    clientMutationId: "archived-message",
+                })
+            ).statusCode,
+        ).toBe(403);
+
+        const repeated = await asOwner.post(`/v0/chats/${chatId}/archiveChannel`, {});
+        expect(repeated.statusCode).toBe(200);
+        expect(rig.abortRequests).toHaveLength(1);
+        const restored = await asOwner.post(`/v0/chats/${chatId}/unarchiveChannel`, {});
+        expect(restored.statusCode).toBe(200);
+        expect(restored.json().chat.archivedAt).toBeUndefined();
+    });
+
     it("publishes incomplete Markdown and completes the same reply with exact whitespace", async () => {
         await using rig = await createMockRigDaemon();
         rig.setAutomaticReply(undefined);

@@ -169,6 +169,7 @@ const MOCK_MODEL_ID = "gym/mock-agent";
  * Sessions and the opt-in durable global event queue survive `restart()`.
  */
 export class MockRigDaemon implements AsyncDisposable {
+    readonly abortRequests: Array<{ sessionId: string; expectedRunId?: string }> = [];
     readonly createdCwds: string[] = [];
     readonly createdSessions: MockRigSessionRequest[] = [];
     readonly effortChanges: Array<{ effort: string; sessionId: string }> = [];
@@ -806,6 +807,26 @@ export class MockRigDaemon implements AsyncDisposable {
                 else session.sessionSecretIds.delete(pathSecretId);
                 return sendJson(response, 200, { session: snapshot(session) });
             }
+        }
+        const abortMatch = url.pathname.match(/^\/sessions\/([^/]+)\/abort$/u);
+        if (request.method === "POST" && abortMatch) {
+            const sessionId = decodeURIComponent(abortMatch[1]!);
+            const session = this.sessions.get(sessionId);
+            if (!session) return sendJson(response, 404, { error: "Session not found" });
+            const expectedRunId = url.searchParams.get("expectedRunId") ?? undefined;
+            this.abortRequests.push({ sessionId, ...(expectedRunId ? { expectedRunId } : {}) });
+            const active = this.submittedRuns.find(
+                (run) =>
+                    run.sessionId === sessionId &&
+                    (expectedRunId === undefined || run.runId === expectedRunId),
+            );
+            if (!active) return sendJson(response, 200, { aborted: false });
+            session.status = "aborted";
+            for (const subagent of session.subagents.values())
+                if (subagent.status === "queued" || subagent.status === "running")
+                    subagent.status = "aborted";
+            this.append(session, "abort_requested", { runId: active.runId });
+            return sendJson(response, 200, { aborted: true });
         }
         const externalToolCallMatch = url.pathname.match(
             /^\/sessions\/([^/]+)\/external-tool-calls\/([^/]+)$/u,

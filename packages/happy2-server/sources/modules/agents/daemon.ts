@@ -3,6 +3,7 @@ import { chmod, mkdir, readFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 
 import type {
+    AbortRunResponse,
     AttachSecretRequest,
     ChangeEffortRequest,
     ChangePermissionModeRequest,
@@ -135,6 +136,20 @@ export type RigTurnInspection =
     | { error: string; kind: "failed" };
 
 export class RigDaemonClient {
+    async abortRun(
+        sessionId: string,
+        expectedRunId?: string,
+        signal?: AbortSignal,
+    ): Promise<AbortRunResponse> {
+        const query = expectedRunId ? `?expectedRunId=${encodeURIComponent(expectedRunId)}` : "";
+        return this.connectedRequest<AbortRunResponse>(
+            "POST",
+            `/sessions/${encodeURIComponent(sessionId)}/abort${query}`,
+            undefined,
+            signal,
+        );
+    }
+
     private readonly sessionSecretReconciliations = new Map<string, Promise<void>>();
     private daemonReload?: Promise<void>;
     private daemonReloadAttempted = false;
