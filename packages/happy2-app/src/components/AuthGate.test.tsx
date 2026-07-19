@@ -428,3 +428,74 @@ describe("AuthGate password onboarding", () => {
         expect(email.value).toBe("ada@example.com");
     });
 });
+
+/* In cookie mode (the web gateway) AuthGate authenticates through the same-origin
+ * HttpOnly `happy2_auth_token` cookie: it persists no bearer, bootstraps the cookie
+ * only through the gateway's `/v0/auth/web/session` endpoint, and resumes an
+ * existing cookie with a plain bearer-free `/v0/me`. These tests pin both the
+ * establishment endpoint and the direct-/v0/me semantics. */
+const adaProfile = {
+    user: { id: "u_ada", firstName: "Ada", username: "ada", kind: "human" },
+    permissions: { allowed: [], owner: false },
+};
+
+describe("AuthGate cookie authentication", () => {
+    it("resumes an existing cookie session with a bearer-free /v0/me and no web-session call", async () => {
+        const fetchMock = routedFetch({
+            ...workspaceRoutes,
+            "GET /v0/auth/methods": passwordMethods,
+            "GET /v0/me": () => json(adaProfile),
+        });
+        vi.stubGlobal("fetch", fetchMock);
+        const store = stubLocalStorage();
+
+        const screen = render(<App cookieAuth serverUrl="http://server" />);
+
+        // The already-set cookie authenticates /v0/me directly into the workspace.
+        expect(await screen.findByLabelText("Ada — online")).toBeTruthy();
+
+        // Every /v0/me on the resume path is bearer-free — the cookie is the credential.
+        const meCalls = callsTo(fetchMock, "GET", "/v0/me");
+        expect(meCalls.length).toBeGreaterThanOrEqual(1);
+        for (const [, init] of meCalls) expect(authHeader(init ?? {})).toBeUndefined();
+        // The cookie-establishment endpoint is never touched on resume.
+        expect(callsTo(fetchMock, "GET", "/v0/auth/web/session")).toHaveLength(0);
+        // Cookie mode persists no bearer in localStorage.
+        expect(store.get(tokenKey)).toBeUndefined();
+    });
+
+    it("bootstraps the cookie through /v0/auth/web/session on password sign-in without persisting a bearer", async () => {
+        let meCount = 0;
+        const fetchMock = routedFetch({
+            ...workspaceRoutes,
+            "GET /v0/auth/methods": passwordMethods,
+            "POST /v0/auth/password/login": () =>
+                json({ token: "active-token", expiresAt, profileRequired: false }),
+            // No cookie exists on the mount resume (401); the post-bootstrap refetch
+            // then succeeds through the cookie the gateway set.
+            "GET /v0/me": () => {
+                meCount += 1;
+                return meCount === 1 ? json({ error: "unauthorized" }, 401) : json(adaProfile);
+            },
+            "GET /v0/auth/web/session": () => json(adaProfile),
+        });
+        vi.stubGlobal("fetch", fetchMock);
+        const store = stubLocalStorage();
+
+        const screen = render(<App cookieAuth serverUrl="http://server" />);
+        // The bearer-free resume 401s, so the password sign-in form is shown.
+        await fillAndSubmitCredentials(screen, "Sign in");
+
+        expect(await screen.findByLabelText("Ada — online")).toBeTruthy();
+
+        // The cookie is minted through the dedicated endpoint, carrying the bearer once.
+        const sessionCalls = callsTo(fetchMock, "GET", "/v0/auth/web/session");
+        expect(sessionCalls).toHaveLength(1);
+        expect(authHeader(sessionCalls[0]![1] ?? {})).toBe("Bearer active-token");
+        // Every /v0/me (mount resume + post-bootstrap refetch) stays bearer-free.
+        for (const [, init] of callsTo(fetchMock, "GET", "/v0/me"))
+            expect(authHeader(init ?? {})).toBeUndefined();
+        // Cookie mode never persists the bearer in localStorage.
+        expect(store.get(tokenKey)).toBeUndefined();
+    });
+});

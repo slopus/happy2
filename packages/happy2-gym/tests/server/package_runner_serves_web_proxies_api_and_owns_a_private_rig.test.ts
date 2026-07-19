@@ -127,6 +127,76 @@ describe.sequential("the package runner", () => {
         });
     });
 
+    it("verifies a development token at the web proxy before issuing its HttpOnly cookie", async () => {
+        await withSigningEnvironment(async () => {
+            const fixture = await createFixture(false);
+            let backend: RunningHappy2 | undefined;
+            let web: RunningHappy2 | undefined;
+            try {
+                fixture.config.auth.devTokens.enabled = true;
+                fixture.config.server.trustedProxyHops = 1;
+                backend = await startBackendHappy2(fixture.config, { logger: false });
+                web = await startWebHappy2({
+                    backendUrl: backend.url,
+                    host: "127.0.0.1",
+                    logger: false,
+                    port: 0,
+                    webRoot: fixture.webRoot,
+                });
+                const sessionToken = await registerUser(web.url);
+                const directSessionLookup = await fetch(`${web.url}/v0/me`, {
+                    headers: { authorization: `Bearer ${sessionToken}` },
+                });
+                expect(directSessionLookup.status).toBe(200);
+                expect(directSessionLookup.headers.get("set-cookie")).toBeNull();
+                const sessionVerified = await fetch(`${web.url}/v0/auth/web/session`, {
+                    headers: { authorization: `Bearer ${sessionToken}` },
+                });
+                expect(sessionVerified.status).toBe(200);
+                const sessionCookie = sessionVerified.headers.get("set-cookie");
+                expect(sessionCookie).toBe(
+                    `happy2_auth_token=${sessionToken}; HttpOnly; Path=/; SameSite=Strict; Max-Age=34560000`,
+                );
+                expect(
+                    (
+                        await fetch(`${web.url}/v0/me`, {
+                            headers: { cookie: sessionCookie! },
+                        })
+                    ).status,
+                ).toBe(200);
+                const created = await fetch(`${web.url}/v0/me/createDevToken`, {
+                    method: "POST",
+                    headers: { authorization: `Bearer ${sessionToken}` },
+                });
+                expect(created.status).toBe(201);
+                const developmentToken = ((await created.json()) as { token: string }).token;
+
+                const directDevelopmentLookup = await fetch(`${web.url}/v0/me`, {
+                    headers: { authorization: `Bearer ${developmentToken}` },
+                });
+                expect(directDevelopmentLookup.status).toBe(200);
+                expect(directDevelopmentLookup.headers.get("set-cookie")).toBeNull();
+                const verified = await fetch(`${web.url}/v0/auth/web/session`, {
+                    headers: { authorization: `Bearer ${developmentToken}` },
+                });
+                expect(verified.status).toBe(200);
+                const cookie = verified.headers.get("set-cookie");
+                expect(cookie).toBe(
+                    `happy2_auth_token=${developmentToken}; HttpOnly; Path=/; SameSite=Strict; Max-Age=34560000`,
+                );
+
+                const cookieAuthenticated = await fetch(`${web.url}/v0/me`, {
+                    headers: { cookie: cookie! },
+                });
+                expect(cookieAuthenticated.status).toBe(200);
+            } finally {
+                await web?.close();
+                await backend?.close();
+                await rm(fixture.directory, { force: true, recursive: true });
+            }
+        });
+    });
+
     it("starts the bundled Rig daemon with package-private socket, token, and session state", async () => {
         await withSigningEnvironment(async () => {
             const fixture = await createFixture(true);

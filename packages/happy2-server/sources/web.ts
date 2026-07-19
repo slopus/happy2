@@ -4,6 +4,7 @@ import Fastify from "fastify";
 import proxy from "@fastify/http-proxy";
 import staticFiles from "@fastify/static";
 import type { RunningHappy2 } from "./backend.js";
+import { authenticationCookieName } from "./modules/auth/metadata.js";
 
 export interface WebOptions {
     backendUrl: string;
@@ -25,6 +26,20 @@ export async function startWebHappy2(options: WebOptions): Promise<RunningHappy2
         trustProxy: options.trustedProxyHops ?? 0,
     });
     try {
+        gateway.get("/v0/auth/web/session", async (request, reply) => {
+            const response = await fetch(`${backendUrl}/v0/me`, {
+                headers: backendRequestHeaders(request),
+            });
+            const token = webAuthorizationToken(request.headers.authorization);
+            if (response.ok && token)
+                reply.header(
+                    "set-cookie",
+                    authenticationCookie(token, request.protocol === "https"),
+                );
+            const contentType = response.headers.get("content-type");
+            if (contentType) reply.type(contentType);
+            return reply.code(response.status).send(Buffer.from(await response.arrayBuffer()));
+        });
         await gateway.register(proxy, {
             upstream: backendUrl,
             prefix: "/v0",
@@ -79,6 +94,41 @@ export async function startWebHappy2(options: WebOptions): Promise<RunningHappy2
         await gateway.close().catch(() => undefined);
         throw error;
     }
+}
+
+function backendRequestHeaders(request: {
+    headers: Record<string, string | string[] | undefined>;
+    host?: string;
+    ip: string;
+    protocol: string;
+}): Headers {
+    const headers = new Headers();
+    for (const [name, value] of Object.entries(request.headers)) {
+        if (value === undefined) continue;
+        headers.set(name, Array.isArray(value) ? value.join(", ") : value);
+    }
+    headers.delete("host");
+    headers.delete("x-forwarded-host");
+    headers.set("x-forwarded-for", request.ip);
+    headers.set("x-forwarded-proto", request.protocol);
+    if (request.host) headers.set("x-forwarded-host", request.host);
+    return headers;
+}
+
+function webAuthorizationToken(value: string | undefined): string | undefined {
+    const token = value?.match(/^Bearer +(.+)$/i)?.[1];
+    return token?.match(/^[A-Za-z0-9._-]{1,4096}$/) ? token : undefined;
+}
+
+function authenticationCookie(token: string, secure: boolean): string {
+    return [
+        `${authenticationCookieName}=${token}`,
+        "HttpOnly",
+        "Path=/",
+        "SameSite=Strict",
+        "Max-Age=34560000",
+        ...(secure ? ["Secure"] : []),
+    ].join("; ");
 }
 
 function normalizedBackendUrl(value: string): string {

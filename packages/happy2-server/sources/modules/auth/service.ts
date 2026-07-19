@@ -23,7 +23,7 @@ import type { ActiveSession } from "./types.js";
 import type { CreateProfile, User } from "../user/types.js";
 import { hashPassword, randomToken, verifyPassword } from "./crypto.js";
 import { smtpTransport } from "./email.js";
-import { bearerToken, requestMetadata } from "./metadata.js";
+import { authenticationCookie, bearerToken, requestMetadata } from "./metadata.js";
 import { cloudflareAccessIdentity, type CloudflareAccessIdentity } from "./cloudflare-access.js";
 import { authorizationUrl, exchangeCode } from "./oidc.js";
 import { TokenService } from "./tokens.js";
@@ -63,7 +63,7 @@ export class AuthService {
 
     /** Account authentication is reserved for account-management paths such as creating a profile. */
     async authenticateAccount(request: FastifyRequest): Promise<AuthenticatedAccount | undefined> {
-        const token = bearerToken(request);
+        const token = bearerToken(request) ?? authenticationCookie(request);
         if (token) {
             if (this.config.auth.devTokens.enabled && token.startsWith("happy2_dev_")) {
                 const session = await developmentTokenFindActive(this.executor, token);

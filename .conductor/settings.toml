@@ -17,6 +17,11 @@ icon = "monitor"
 command = "pnpm --filter happy2-ui dev --port $CONDUCTOR_PORT"
 icon = "palette"
 
+[scripts.run.web]
+command = "pnpm web"
+icon = "globe"
+available_in = "local"
+
 [scripts.run.test]
 command = "pnpm test"
 icon = "test-tube"

@@ -41,6 +41,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "dev:web": "pnpm --filter happy2-web dev",
+    "web": "node scripts/web.mjs",
     "dev:desktop": "node scripts/dev-desktop.mjs",
     "dev:server": "pnpm --dir packages/happy2-server dev",
     "start": "node packages/happy2-server/dist/runner.js",

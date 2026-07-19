@@ -45,11 +45,16 @@ describe("configured dev tokens export session auth and follow its revocation", 
         const token = created.json().token as string;
         const asDevelopment = bearer(server, token);
         expect((await asDevelopment.get("/v0/me")).json().user).toMatchObject({ id: user.id });
+        expect((await cookie(server, token).get("/v0/me")).json().user).toMatchObject({
+            id: user.id,
+        });
+        expect((await cookie(server, user.token).get("/v0/me")).statusCode).toBe(200);
         expect((await asDevelopment.get("/v0/auth/session")).json()).toMatchObject({
             sessionId: session.json().sessionId,
             expiresAt: session.json().expiresAt,
         });
         expect((await bearer(server, `${token.slice(0, -1)}x`).get("/v0/me")).statusCode).toBe(401);
+        expect((await cookie(server, `${token.slice(0, -1)}x`).get("/v0/me")).statusCode).toBe(401);
 
         await server.restart();
         expect((await asDevelopment.get("/v0/me")).statusCode).toBe(200);
@@ -60,6 +65,7 @@ describe("configured dev tokens export session auth and follow its revocation", 
             devTokensEnabled: false,
         });
         expect((await asDevelopment.get("/v0/me")).statusCode).toBe(401);
+        expect((await cookie(server, token).get("/v0/me")).statusCode).toBe(401);
         expect((await asUser.post("/v0/me/createDevToken")).statusCode).toBe(404);
 
         server.config.auth.devTokens.enabled = true;
@@ -104,6 +110,19 @@ function bearer(server: GymRequestClient, token: string): GymRequestClient {
         server.request({
             ...options,
             headers: { ...options.headers, authorization: `Bearer ${token}` },
+        });
+    return {
+        request,
+        get: (url, options = {}) => request({ ...options, method: "GET", url }),
+        post: (url, payload, options = {}) => request({ ...options, method: "POST", url, payload }),
+    };
+}
+
+function cookie(server: GymRequestClient, token: string): GymRequestClient {
+    const request = (options: InjectOptions) =>
+        server.request({
+            ...options,
+            headers: { ...options.headers, cookie: `happy2_auth_token=${token}` },
         });
     return {
         request,

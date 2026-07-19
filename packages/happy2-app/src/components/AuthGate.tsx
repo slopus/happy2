@@ -46,6 +46,15 @@ type AuthGateProps = {
     showWindowDragRegion?: boolean;
     /** When provided, the pre-application onboarding step is reflected into the URL. */
     navigation?: DesktopNavigation;
+    /**
+     * Cookie deployments (the web gateway) authenticate every request through a
+     * same-origin HttpOnly cookie the gateway issues on the first successful bearer
+     * request. When true the gate persists no bearer in `localStorage`, keeps the
+     * establishing bearer only in memory, and builds a bearer-free workspace
+     * transport so subsequent state requests ride the cookie. Header deployments
+     * (native) leave it unset and behave exactly as before.
+     */
+    cookieAuth?: boolean;
 };
 type Mode = "loading" | "sign-in" | "onboarding" | "ready" | "unavailable";
 type AuthModel = {
@@ -110,7 +119,21 @@ export function AuthGate(props: AuthGateProps) {
     const stateRef = useRef<HappyState | undefined>(undefined);
     const methodsRef = useRef<AuthMethods | undefined>(undefined);
     const avatarUrlRef = useRef<string | undefined>(undefined);
-    const token = () => localStorage.getItem(tokenKey) ?? undefined;
+    const cookieAuth = props.cookieAuth === true;
+    /* Cookie mode keeps the establishing bearer only in memory: it authorizes the
+       one `/v0/me`/`createProfile` request that makes the gateway set the cookie,
+       and is never written to `localStorage`. Header mode persists it as before. */
+    const bearerRef = useRef<string | undefined>(undefined);
+    const token = () =>
+        cookieAuth ? bearerRef.current : (localStorage.getItem(tokenKey) ?? undefined);
+    const persistToken = (value?: string) => {
+        if (cookieAuth) {
+            bearerRef.current = value;
+            return;
+        }
+        if (value) localStorage.setItem(tokenKey, value);
+        else localStorage.removeItem(tokenKey);
+    };
     async function resolveSession(
         value?: string,
         options: {
@@ -119,8 +142,7 @@ export function AuthGate(props: AuthGateProps) {
         } = {},
     ) {
         const { profileRequired = false, allowRefresh = true } = options;
-        if (value) localStorage.setItem(tokenKey, value);
-        else localStorage.removeItem(tokenKey);
+        persistToken(value);
         /* A freshly issued token can already tell us the account has no active
          * profile. Enter onboarding on the saved bearer without probing the
          * protected /v0/me route, which intentionally answers 401 until a
@@ -132,10 +154,23 @@ export function AuthGate(props: AuthGateProps) {
         update({ loadingMessage: "Loading your profile.", mode: "loading" });
         let nextState: HappyState | undefined;
         try {
-            const response = await client.me(value);
+            /* Cookie bootstrap (a bearer in hand) verifies through the gateway's
+               `/v0/auth/web/session`, the only request that mints the cookie. A
+               cookie-only resume (no bearer) reads the normal `/v0/me`, which the
+               browser authenticates with the already-set cookie and which never
+               mints one. Header mode keeps its bearer `/v0/me`. */
+            const response =
+                cookieAuth && value !== undefined
+                    ? await client.webSession(value)
+                    : await client.me(cookieAuth ? undefined : value);
             nextState = happyStateCreate({
                 initialPermissions: response.permissions,
-                transport: createAuthenticatedTransport(props.serverUrl, value),
+                // Cookie mode rides the HttpOnly cookie the verification above just
+                // established, so its transport carries no Authorization header.
+                transport: createAuthenticatedTransport(
+                    props.serverUrl,
+                    cookieAuth ? undefined : value,
+                ),
             });
             await nextState.syncStart();
             const profile = await loadAvatar(response.user, nextState);
@@ -155,7 +190,7 @@ export function AuthGate(props: AuthGateProps) {
                 } catch (refreshReason) {
                     if (!(refreshReason instanceof ServerError) || refreshReason.status !== 401)
                         throw refreshReason;
-                    localStorage.removeItem(tokenKey);
+                    persistToken(undefined);
                     if (methodsRef.current?.method === "cloudflare_access")
                         return resolveSession(undefined, { allowRefresh: false });
                     update({ mode: "sign-in" });
@@ -263,6 +298,12 @@ export function AuthGate(props: AuthGateProps) {
             if (saved) await resolveSession(saved);
             else if (supported.method === "cloudflare_access") {
                 update({ loadingMessage: "Checking your Cloudflare Access session." });
+                await resolveSession(undefined, { allowRefresh: false });
+            } else if (cookieAuth) {
+                /* An existing HttpOnly cookie can't be read from JavaScript, so
+                   probe it directly with a bearer-free `/v0/me`: a live cookie
+                   resumes the workspace, and its absence falls through to sign-in. */
+                update({ loadingMessage: "Checking your saved session." });
                 await resolveSession(undefined, { allowRefresh: false });
             } else update({ mode: "sign-in" });
         } catch {
@@ -477,7 +518,7 @@ export function AuthGate(props: AuthGateProps) {
     const sessionReady = () =>
         mode === "ready" &&
         !!user &&
-        (!!token() || methods?.method === "cloudflare_access") &&
+        (cookieAuth || !!token() || methods?.method === "cloudflare_access") &&
         !!state;
     // Fade is reserved for the pre-app gate → app dissolve. Probe resolution
     // and every form-mode transition retain the same card DOM node.

@@ -31,3 +31,23 @@ export function bearerToken(request: FastifyRequest): string | undefined {
     if (typeof value !== "string") return undefined;
     return value?.match(/^Bearer +(.+)$/i)?.[1];
 }
+
+/** The HttpOnly browser-session cookie issued only by the web gateway after authentication. */
+export const authenticationCookieName = "happy2_auth_token";
+
+/**
+ * Returns the credential from the web gateway's exact HttpOnly cookie. It may be a
+ * configured development token or a normal session JWT; both are verified by the
+ * same durable-session checks as Authorization Bearer credentials.
+ */
+export function authenticationCookie(request: FastifyRequest): string | undefined {
+    const value = request.headers.cookie;
+    if (typeof value !== "string") return undefined;
+    for (const part of value.split(";")) {
+        const [name, ...values] = part.trim().split("=");
+        if (name !== authenticationCookieName) continue;
+        const token = values.join("=");
+        return token.length > 0 && token.length <= 4_096 ? token : undefined;
+    }
+    return undefined;
+}
