@@ -153,7 +153,8 @@ export function SettingsPage(props: SettingsPageProps) {
                 const name = () => profileName(snapshot);
                 const usernameDraft = handleDirty ? handleDraft : snapshot.profile.username;
                 const notificationLevel = () => notificationLevelGet(snapshot);
-                const error = () => saveError(snapshot) ?? localError;
+                const saveFailure = () => saveError(snapshot);
+                const error = () => saveFailure() ?? localError;
                 const saving = () => savePending(snapshot) || avatarUploading;
                 const statusError = () => {
                     const status = snapshot.status;
@@ -174,6 +175,7 @@ export function SettingsPage(props: SettingsPageProps) {
                         <Box
                             style={{
                                 alignItems: "center",
+                                boxSizing: "border-box",
                                 display: "flex",
                                 flexDirection: "column",
                                 padding: "32px 24px",
@@ -192,27 +194,43 @@ export function SettingsPage(props: SettingsPageProps) {
                                                 width: "100%",
                                             }}
                                         >
-                                            <Banner
-                                                tone={
-                                                    error()
-                                                        ? "danger"
-                                                        : saving()
-                                                          ? "info"
-                                                          : "success"
-                                                }
-                                                title={
-                                                    error()
-                                                        ? "Changes were not saved"
-                                                        : saving()
-                                                          ? "Saving changes…"
-                                                          : "All changes saved"
-                                                }
-                                            >
-                                                {error() ??
-                                                    (saving()
-                                                        ? "Your workspace is updating."
-                                                        : "Profile and notification settings are up to date.")}
-                                            </Banner>
+                                            {error() ? (
+                                                <Banner
+                                                    tone="danger"
+                                                    title={
+                                                        saveFailure()
+                                                            ? "Changes were not saved"
+                                                            : "Settings need attention"
+                                                    }
+                                                >
+                                                    {error()}
+                                                </Banner>
+                                            ) : (
+                                                <Box
+                                                    data-happy2-ui="settings-save-status"
+                                                    role="status"
+                                                    style={{
+                                                        alignItems: "center",
+                                                        color: "var(--happy2-text-muted)",
+                                                        display: "flex",
+                                                        flex: "0 0 20px",
+                                                        fontFamily: "var(--happy2-font-ui)",
+                                                        fontSize: "13px",
+                                                        fontSynthesis: "none",
+                                                        fontWeight: "400",
+                                                        height: "20px",
+                                                        justifyContent: "flex-end",
+                                                        lineHeight: "20px",
+                                                        width: "100%",
+                                                    }}
+                                                >
+                                                    {saving() ? (
+                                                        <span data-happy2-ui="settings-save-status-label">
+                                                            Saving…
+                                                        </span>
+                                                    ) : null}
+                                                </Box>
+                                            )}
                                             <ProfileCard
                                                 actions={
                                                     props.avatarActions ? (
