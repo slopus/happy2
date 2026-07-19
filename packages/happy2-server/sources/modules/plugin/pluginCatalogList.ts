@@ -19,9 +19,13 @@ export async function pluginCatalogList(
         pluginInstallationList(executor, actorUserId),
         pluginList(executor, actorUserId),
     ]);
-    const systemByShortName = new Map(systemPlugins.map((plugin) => [plugin.shortName, plugin]));
+    const systemByCatalogSource = new Map(
+        systemPlugins
+            .filter(({ sourceKind }) => sourceKind === "builtin")
+            .map((plugin) => [plugin.sourceReference, plugin]),
+    );
     return catalog.list().map((plugin) => {
-        const systemPlugin = systemByShortName.get(plugin.manifest.shortName);
+        const systemPlugin = systemByCatalogSource.get(plugin.manifest.shortName);
         const catalogMcp = plugin.manifest.mcp;
         const catalogContainer = effectiveContainer(plugin.manifest);
         const mcp = systemPlugin

@@ -278,7 +278,7 @@ export interface AgentSecretSummary {
  */
 export type PluginVariableKind = "secret" | "text";
 
-export type PluginSourceKind = "builtin" | "github" | "upload" | "zip_url";
+export type PluginSourceKind = "builtin" | "github" | "upload" | "zip_url" | "archive" | "link";
 
 export type PluginInstallationStatus =
     | "preparing"
@@ -344,6 +344,8 @@ export interface PluginInstallationSummary {
     readonly id: string;
     readonly pluginId: string;
     readonly shortName: string;
+    readonly sourceKind?: PluginSourceKind;
+    readonly sourceReference?: string;
     readonly sourceVersion: string;
     readonly packageDigest: string;
     /** The host API capabilities currently granted to this installation. */
@@ -392,6 +394,41 @@ export interface PluginCatalogItem {
     /** The host API capabilities this package declares and an administrator may grant. */
     readonly apiPermissions: readonly PluginApiPermissionSection[];
     readonly systemPlugin?: SystemPluginSummary;
+}
+
+export type PluginManagementRequestAction = "install" | "uninstall";
+
+export type PluginManagementRequestStatus =
+    | "pending"
+    | "processing"
+    | "approved"
+    | "denied"
+    | "failed";
+
+/**
+ * One chat-scoped agent request to install or uninstall a plugin. The staged
+ * package image travels through the authenticated transport while the request
+ * is pending or processing; terminal requests keep only durable metadata.
+ */
+export interface PluginManagementRequestSummary {
+    readonly id: string;
+    readonly action: PluginManagementRequestAction;
+    readonly status: PluginManagementRequestStatus;
+    readonly chatId: string;
+    readonly agentUserId?: string;
+    readonly requesterInstallationId?: string;
+    readonly displayName: string;
+    readonly shortName: string;
+    readonly description: string;
+    readonly reason?: string;
+    readonly sourceKind?: PluginSourceKind;
+    readonly sourceReference?: string;
+    readonly targetInstallationId?: string;
+    readonly createdAt: string;
+    readonly resolvedAt?: string;
+    readonly resolvedByUserId?: string;
+    readonly installationId?: string;
+    readonly lastError?: string;
 }
 
 /** One live progress frame from a plugin preparation or update-check stream. */

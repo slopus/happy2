@@ -65,6 +65,7 @@
 @import "./styles/agent-secret-detail.css";
 @import "./styles/plugin-catalog-panel.css";
 @import "./styles/plugin-install-dialog.css";
+@import "./styles/plugin-permission-card.css";
 @import "./styles/onboarding-screen.css";
 @import "./styles/setup-option-card.css";
 @import "./styles/default-agent-modal.css";

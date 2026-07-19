@@ -93,6 +93,9 @@ export function ChatView(props: ChatViewProps) {
             else {
                 const chat = state.chatOpen(nextChatId);
                 if (nextConversationKind === "channel") chat.getState().membersRetain();
+                // Agent plugin install/uninstall requests render as approval
+                // cards in every conversation and reconcile with the chat.
+                chat.getState().pluginRequestsRetain();
                 next = {
                     chatId: nextChatId,
                     conversationKind: nextConversationKind,
@@ -246,6 +249,8 @@ export function ChatView(props: ChatViewProps) {
             state.channelDefaultAgentUpdate(selectedChatId, agentUserId),
         agentCreate: (input) => state.agentCreate(input),
         directMessageCreate: (userId) => state.directMessageCreate(userId),
+        pluginRequestImageDownload: (chatId, requestId) =>
+            state.pluginManagementRequestImageDownload(chatId, requestId),
     };
     const pageNavigation = (): ChatPageNavigation => {
         const selected = conversation;

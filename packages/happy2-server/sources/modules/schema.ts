@@ -831,6 +831,51 @@ export const pluginMcpTools = sqliteTable(
     (table) => [primaryKey({ columns: [table.installationId, table.name] })],
 );
 
+export const pluginManagementRequests = sqliteTable(
+    "plugin_management_requests",
+    {
+        id: text("id").primaryKey().notNull(),
+        action: text("action").notNull(),
+        status: text("status").notNull().default("pending"),
+        chatId: text("chat_id")
+            .notNull()
+            .references(() => chats.id, { onDelete: "cascade" }),
+        actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+        agentUserId: text("agent_user_id").references(() => users.id, { onDelete: "set null" }),
+        requesterInstallationId: text("requester_installation_id").references(
+            () => pluginInstallations.id,
+            { onDelete: "set null" },
+        ),
+        callId: text("call_id").notNull(),
+        displayName: text("display_name").notNull(),
+        shortName: text("short_name").notNull(),
+        description: text("description").notNull(),
+        reason: text("reason"),
+        sourceKind: text("source_kind"),
+        sourceReference: text("source_reference"),
+        packageDigest: text("package_digest"),
+        packageDirectory: text("package_directory"),
+        targetInstallationId: text("target_installation_id"),
+        installationId: text("installation_id"),
+        resolvedByUserId: text("resolved_by_user_id").references(() => users.id, {
+            onDelete: "set null",
+        }),
+        resolvedAt: text("resolved_at"),
+        lastError: text("last_error"),
+        syncSequence: integer("sync_sequence").notNull().default(0),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [
+        index("plugin_management_requests_chat_index").on(table.chatId, table.createdAt),
+        uniqueIndex("plugin_management_requests_call_unique").on(
+            table.requesterInstallationId,
+            table.callId,
+            table.action,
+        ),
+    ],
+);
+
 export const messageAttachments = sqliteTable("message_attachments", {
     messageId: text("message_id").notNull(),
     fileId: text("file_id").notNull(),
@@ -1436,6 +1481,7 @@ export const schema = {
     pluginFunctionResults,
     pluginMcpTools,
     pluginSkills,
+    pluginManagementRequests,
     plugins,
     rateLimitBuckets,
     reactions,

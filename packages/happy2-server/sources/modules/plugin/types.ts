@@ -33,12 +33,16 @@ export type PluginHostPermission =
     | "chats:update"
     | "plugins:list"
     | "plugins:install"
-    | "plugins:uninstall";
+    | "plugins:uninstall"
+    | "plugins:request-install"
+    | "plugins:request-uninstall";
 export const pluginHostPermissions: readonly PluginHostPermission[] = [
     "chats:update",
     "plugins:list",
     "plugins:install",
     "plugins:uninstall",
+    "plugins:request-install",
+    "plugins:request-uninstall",
 ];
 
 export interface PluginApiPermissionDefinition {
@@ -61,13 +65,15 @@ export interface PluginContainer {
     permissions: PluginHostPermission[];
 }
 
-export type PluginSourceKind = "builtin" | "github" | "upload" | "zip_url";
+export type PluginSourceKind = "builtin" | "github" | "upload" | "zip_url" | "archive" | "link";
 
-export interface PluginSource {
-    kind: PluginSourceKind;
-    /** Stable identity used to reuse an installed package and to locate remote updates. */
-    reference: string;
-}
+export type PluginSource = {
+    [Kind in PluginSourceKind]: {
+        kind: Kind;
+        /** Stable identity used to reuse an installed package and to locate remote updates. */
+        reference: string;
+    };
+}[PluginSourceKind];
 
 export interface PluginManifest {
     schemaVersion: 1;
@@ -160,6 +166,45 @@ export interface PluginFunctionDefinition {
     label: string;
     name: string;
     parameters: Readonly<Record<string, unknown>>;
+}
+
+export interface PluginAgentCallContext {
+    actorUserId: string;
+    agentUserId: string;
+    callId: string;
+    chatId: string;
+    sessionId: string;
+}
+
+export type PluginManagementRequestStatus =
+    | "pending"
+    | "processing"
+    | "approved"
+    | "denied"
+    | "failed";
+
+export type PluginManagementRequestAction = "install" | "uninstall";
+
+export interface PluginManagementRequestSummary {
+    id: string;
+    action: PluginManagementRequestAction;
+    status: PluginManagementRequestStatus;
+    chatId: string;
+    agentUserId?: string;
+    requesterInstallationId?: string;
+    displayName: string;
+    shortName: string;
+    description: string;
+    imageUrl?: string;
+    reason?: string;
+    sourceKind?: PluginSource["kind"];
+    sourceReference?: string;
+    targetInstallationId?: string;
+    createdAt: string;
+    resolvedAt?: string;
+    resolvedByUserId?: string;
+    installationId?: string;
+    lastError?: string;
 }
 
 export type PluginFunctionResult =

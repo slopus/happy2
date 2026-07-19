@@ -10,6 +10,13 @@ export interface PluginRuntimeClaims {
     installationId: string;
     containerInstanceId: string;
     permissions: string[];
+    agentCall?: {
+        actorUserId: string;
+        agentUserId: string;
+        callId: string;
+        chatId: string;
+        sessionId: string;
+    };
 }
 export interface PluginChatClaims {
     installationId: string;
@@ -95,7 +102,19 @@ export class TokenService {
 
     async issuePluginRuntimeToken(claims: PluginRuntimeClaims): Promise<string> {
         if (!this.privateKey) throw new Error("This server has no JWT signing key");
-        return new SignJWT({ cid: claims.containerInstanceId, prm: claims.permissions })
+        const token = new SignJWT({
+            cid: claims.containerInstanceId,
+            prm: claims.permissions,
+            ...(claims.agentCall
+                ? {
+                      act: claims.agentCall.actorUserId,
+                      agt: claims.agentCall.agentUserId,
+                      cll: claims.agentCall.callId,
+                      cht: claims.agentCall.chatId,
+                      ses: claims.agentCall.sessionId,
+                  }
+                : {}),
+        })
             .setProtectedHeader({
                 alg: "RS256",
                 kid: this.config.jwt.keyId,
@@ -104,8 +123,9 @@ export class TokenService {
             .setIssuer(this.config.jwt.issuer)
             .setAudience(`${this.config.jwt.audience}/plugin-runtime`)
             .setSubject(claims.installationId)
-            .setIssuedAt()
-            .sign(this.privateKey);
+            .setIssuedAt();
+        if (claims.agentCall) token.setExpirationTime("5m");
+        return token.sign(this.privateKey);
     }
 
     async verifyPluginRuntimeToken(token: string): Promise<PluginRuntimeClaims> {
@@ -126,6 +146,21 @@ export class TokenService {
             installationId: payload.sub,
             containerInstanceId: payload.cid,
             permissions: payload.prm,
+            ...(typeof payload.act === "string" &&
+            typeof payload.agt === "string" &&
+            typeof payload.cll === "string" &&
+            typeof payload.cht === "string" &&
+            typeof payload.ses === "string"
+                ? {
+                      agentCall: {
+                          actorUserId: payload.act,
+                          agentUserId: payload.agt,
+                          callId: payload.cll,
+                          chatId: payload.cht,
+                          sessionId: payload.ses,
+                      },
+                  }
+                : {}),
         };
     }
 

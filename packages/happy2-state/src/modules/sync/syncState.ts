@@ -70,6 +70,8 @@ export interface SyncCoordinatorContext extends SidebarLoadContext {
     chatsGet(): Iterable<readonly [string, ChatStore]>;
     agentTraceReconcile(message: MessageSummary): void;
     agentTracesInvalidate(): void;
+    /** Reloads a retained chat's plugin management requests after a plugin.* chat update. */
+    chatPluginRequestsReconcile(chatId: string): void;
     areaReconcile(area: string): void;
     resetReconcile(): void;
     backgroundError(error: UserError): void;
@@ -292,6 +294,10 @@ export class SyncCoordinator {
             });
             this.context.agentTraceReconcile(message);
         }
+        // Plugin management updates carry no projection in the difference; the
+        // retained request list reconciles through its own durable read.
+        if (difference.updates.some((update) => update.kind.startsWith("plugin.")))
+            this.context.chatPluginRequestsReconcile(chatId);
     }
 
     private typingApply(event: Extract<RealtimeEvent, { type: "typing" }>): void {

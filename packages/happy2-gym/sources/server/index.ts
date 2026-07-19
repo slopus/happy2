@@ -39,6 +39,7 @@ import {
     type PluginCatalog,
     type PluginArchiveDownloader,
     type PluginMcpRuntime,
+    type PluginPackageLinkDownloader,
     type WebhookTransport,
     type WebhookUrlPolicy,
     type ServerConfig,
@@ -96,6 +97,7 @@ export interface GymServerOptions {
     pluginCatalog?: PluginCatalog;
     pluginMcpRuntime?: PluginMcpRuntime;
     pluginArchiveDownloader?: PluginArchiveDownloader;
+    pluginPackageLinkDownloader?: PluginPackageLinkDownloader;
     webhookTransport?: WebhookTransport;
     webhookUrlPolicy?: WebhookUrlPolicy;
     configure?: (config: ServerConfig) => void;
@@ -142,6 +144,7 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
             pluginCatalog: options.pluginCatalog,
             pluginMcpRuntime: options.pluginMcpRuntime,
             pluginArchiveDownloader: options.pluginArchiveDownloader,
+            pluginPackageLinkDownloader: options.pluginPackageLinkDownloader,
             webhookTransport: options.webhookTransport,
             webhookUrlPolicy: options.webhookUrlPolicy,
             fileStorage: new FileStorage(config, executor, fileSystem),
@@ -164,6 +167,7 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
             options.pluginCatalog,
             options.pluginMcpRuntime,
             options.pluginArchiveDownloader,
+            options.pluginPackageLinkDownloader,
             options.webhookTransport,
             options.webhookUrlPolicy,
             async () => {
@@ -212,6 +216,7 @@ class GymServerInstance implements GymServer {
         private pluginCatalog: PluginCatalog | undefined,
         private readonly pluginMcpRuntime: PluginMcpRuntime | undefined,
         private readonly pluginArchiveDownloader: PluginArchiveDownloader | undefined,
+        private readonly pluginPackageLinkDownloader: PluginPackageLinkDownloader | undefined,
         private readonly webhookTransport: WebhookTransport | undefined,
         private readonly webhookUrlPolicy: WebhookUrlPolicy | undefined,
         private readonly cleanupDatabase: () => Promise<void>,
@@ -377,6 +382,7 @@ class GymServerInstance implements GymServer {
             pluginCatalog: this.pluginCatalog,
             pluginMcpRuntime: this.pluginMcpRuntime,
             pluginArchiveDownloader: this.pluginArchiveDownloader,
+            pluginPackageLinkDownloader: this.pluginPackageLinkDownloader,
             webhookTransport: this.webhookTransport,
             webhookUrlPolicy: this.webhookUrlPolicy,
             fileStorage: new FileStorage(this.config, createDatabase(this.client), this.fileSystem),

@@ -18,12 +18,9 @@ export function createPluginHostApi(
     const app = Fastify({ logger });
     app.get("/plugins", async (request, reply) => {
         try {
-            const installationId = await plugins.authorizeHost(
-                bearerToken(request),
-                "plugins:list",
-            );
+            const claims = await plugins.authorizeHost(bearerToken(request), "plugins:list");
             return {
-                installationId,
+                installationId: claims.installationId,
                 plugins: await pluginInstallationListForHost(executor),
             };
         } catch (error) {
@@ -47,7 +44,7 @@ export function createPluginHostApi(
     });
     app.post("/plugins/install", async (request, reply) => {
         try {
-            const actorInstallationId = await plugins.authorizeHost(
+            const { installationId: actorInstallationId } = await plugins.authorizeHost(
                 bearerToken(request),
                 "plugins:install",
             );
@@ -71,7 +68,7 @@ export function createPluginHostApi(
     });
     app.post("/plugins/uninstall", async (request, reply) => {
         try {
-            const actorInstallationId = await plugins.authorizeHost(
+            const { installationId: actorInstallationId } = await plugins.authorizeHost(
                 bearerToken(request),
                 "plugins:uninstall",
             );
@@ -88,12 +85,79 @@ export function createPluginHostApi(
             throw error;
         }
     });
+
+    app.post("/plugin-install-requests", async (request, reply) => {
+        try {
+            const claims = await plugins.authorizeHost(
+                bearerToken(request),
+                "plugins:request-install",
+            );
+            if (!claims.agentCall)
+                throw new PluginError(
+                    "forbidden",
+                    "Plugin install requests require an active Happy agent call",
+                );
+            const body = object(request.body, "Request body");
+            only(body, ["sourceUrl", "reason"]);
+            if (typeof body.sourceUrl !== "string" || body.sourceUrl.length > 4_096)
+                throw new PluginError("broken_configuration", "sourceUrl must be a plugin ZIP URL");
+            const reason = optionalString(body.reason, "reason", 1_000);
+            const approval = await plugins.requestInstallLink({
+                requesterInstallationId: claims.installationId,
+                agentCall: claims.agentCall,
+                url: body.sourceUrl,
+                ...(reason ? { reason } : {}),
+            });
+            return reply.code(202).send({ approval });
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/plugin-uninstall-requests", async (request, reply) => {
+        try {
+            const claims = await plugins.authorizeHost(
+                bearerToken(request),
+                "plugins:request-uninstall",
+            );
+            if (!claims.agentCall)
+                throw new PluginError(
+                    "forbidden",
+                    "Plugin uninstall requests require an active Happy agent call",
+                );
+            const body = object(request.body, "Request body");
+            only(body, ["installationId", "reason"]);
+            const installationId = identifier(body.installationId, "installationId");
+            const reason = optionalString(body.reason, "reason", 1_000);
+            const approval = await plugins.requestUninstall({
+                requesterInstallationId: claims.installationId,
+                agentCall: claims.agentCall,
+                targetInstallationId: installationId,
+                ...(reason ? { reason } : {}),
+            });
+            return reply.code(202).send({ approval });
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
     app.setErrorHandler((error, request, reply) => {
         request.log.error(error);
         if (!reply.sent && !handled(reply, error))
             reply.code(500).send({ error: "internal_server_error" });
     });
     return app;
+}
+
+function optionalString(value: unknown, name: string, maximum: number): string | undefined {
+    if (value === undefined) return undefined;
+    if (typeof value !== "string" || !value.trim() || value.length > maximum)
+        throw new PluginHostRequestError(
+            `${name} must contain between 1 and ${maximum} characters`,
+        );
+    return value.trim();
 }
 
 function bearerToken(request: FastifyRequest): string {

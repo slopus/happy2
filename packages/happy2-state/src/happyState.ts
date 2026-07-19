@@ -129,6 +129,7 @@ import {
     pluginsOutputRoute,
     pluginsUpdateChecksStop,
 } from "./modules/plugins/pluginsState.js";
+import { chatPluginRequestDecide, chatPluginRequestsLoad } from "./modules/chat/chatState.js";
 import {
     permissionsLoad,
     permissionsStoreCreate,
@@ -329,6 +330,7 @@ export class HappyState implements AsyncDisposable, Disposable {
             chatsGet: () => this.chatEntries(),
             agentTraceReconcile: (message) => this.agentTraceReconcile(message),
             agentTracesInvalidate: () => this.agentTracesReload(),
+            chatPluginRequestsReconcile: (chatId) => this.chatPluginRequestsReconcile(chatId),
             areaReconcile: (area) => this.areaReconcile(area),
             resetReconcile: () => this.resetReconcile(),
             backgroundError,
@@ -519,6 +521,21 @@ export class HappyState implements AsyncDisposable, Disposable {
         if (!this.pluginInstallBinding)
             this.pluginInstallBinding = pluginInstallStoreCreate((event) => this.eventRoute(event));
         return this.pluginInstallBinding;
+    }
+
+    /**
+     * Downloads one staged plugin management request image PNG through the
+     * authenticated transport. The image exists only while the request package
+     * remains staged (pending or processing).
+     */
+    async pluginManagementRequestImageDownload(
+        chatId: string,
+        requestId: string,
+    ): Promise<ArrayBuffer> {
+        return this.runtime.operation("downloadPluginManagementRequestImage", {
+            chatId,
+            requestId,
+        });
     }
 
     threadOpen(rootMessageId: string): ThreadHandle {
@@ -990,6 +1007,29 @@ export class HappyState implements AsyncDisposable, Disposable {
                             });
                     });
                 return;
+            case "pluginRequestsRetained":
+                this.chatPluginRequestsLoad(event.chatId);
+                return;
+            case "pluginRequestDecisionSubmitted":
+                this.backgroundIfConnected(() =>
+                    chatPluginRequestDecide(
+                        {
+                            runtime: this.runtime,
+                            chatGet: (chatId) => this.chats.get(chatId),
+                            pluginsReconcile: () => {
+                                if (this.pluginsBinding)
+                                    this.runtime.background(
+                                        pluginsLoad({
+                                            runtime: this.runtime,
+                                            plugins: this.pluginsBinding,
+                                        }),
+                                    );
+                            },
+                        },
+                        event,
+                    ),
+                );
+                return;
             case "threadsMoreRequested":
             case "threadReadSubmitted":
             case "threadSubscriptionSubmitted":
@@ -1055,6 +1095,30 @@ export class HappyState implements AsyncDisposable, Disposable {
                 chatId,
             ),
         );
+        // A full chat reload also covers reset paths where individual chat
+        // updates were unavailable; a retained request list must not stale.
+        this.chatPluginRequestsReconcile(chatId);
+    }
+
+    private chatPluginRequestsLoad(chatId: string): void {
+        if (!this.runtime.connected) return;
+        this.runtime.background(
+            chatPluginRequestsLoad(
+                {
+                    runtime: this.runtime,
+                    identities: this.identities,
+                    chatGet: (id) => this.chats.get(id),
+                },
+                chatId,
+            ),
+        );
+    }
+
+    /** Reloads plugin management requests only for a chat surface that has retained them. */
+    private chatPluginRequestsReconcile(chatId: string): void {
+        const requests = this.chats.get(chatId)?.getState().pluginRequests;
+        if (requests?.type === "loading" || requests?.type === "ready")
+            this.chatPluginRequestsLoad(chatId);
     }
 
     private agentTraceLoad(messageId: string): void {

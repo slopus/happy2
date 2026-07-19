@@ -10,17 +10,18 @@ installations can be uninstalled without removing the reusable system-plugin
 snapshot.
 
 Plugin management is system-wide and administrator-only. The first installation
-of a catalog package creates one durable system-plugin record and one immutable
+of a source package creates one durable system-plugin record and one immutable
 package snapshot; later installations reuse that plugin identity and snapshot.
 Every installation has its own CUID2, variables, selected image, lifecycle, and
 dedicated container when it has a local runtime. Remote MCP configuration is
 persisted and health-checked independently per installation. Ready MCP
 installations expose their durably cached tools to Rig as external functions on
-every agent submission. Happy executes each durable call against the originating
-installation and resolves the result back into the paused Rig run. This feature
-does not yet inject installed skills or implement in-place upgrade, marketplace
-discovery, or OAuth flows. Remote update checks report drift but deliberately do
-not replace the installed snapshot.
+every agent submission. Happy also reconciles the skills from ready
+installations into the exact agent sandbox home before each turn. Happy executes
+each durable MCP call against the originating installation and resolves the
+result back into the paused Rig run. Upgrade, marketplace discovery, and OAuth
+flows are not implemented; individual installations can be uninstalled. Remote
+update checks report drift but deliberately do not replace the installed snapshot.
 
 MCP tools are discovered during each runtime activation and atomically replace
 that installation's SQLite cache before it becomes ready. Local discovery runs
@@ -49,7 +50,8 @@ to a ready installation.
 
 Each package has this shape. Built-ins live below
 `packages/happy2-server/plugins`; installed snapshots live below the configured
-`plugins.directory`:
+`plugins.directory`. A ZIP may contain this tree at its root or inside one
+top-level folder:
 
 ```text
 example-plugin/
@@ -124,8 +126,10 @@ administrator can choose one.
 }
 ```
 
-`version` uses `x.y.z` SemVer syntax. `shortName` is the stable catalog/package
-link and must match the package directory; it is not an installation identity.
+`version` uses `x.y.z` SemVer syntax. `shortName` is the stable package name and
+must match a built-in package directory. External ZIPs are not required to make
+their enclosing folder match; `shortName` still identifies the validated
+package metadata and is not an installation identity.
 The durable system plugin and every installation receive separate CUID2 IDs.
 Variable keys are environment variable names. Every declared variable is
 required for each installation. Secret values are encrypted with AES-256-GCM
@@ -143,6 +147,10 @@ each configured process, not persisted in the image or container definition.
 request. Permissions are grouped for presentation by API section: `chats:update`
 is a mutating permission in `chats`, while `plugins:list` is read-only and
 `plugins:install` and `plugins:uninstall` are mutating permissions in `plugins`.
+`plugins:request-install` and `plugins:request-uninstall` are also mutating
+permissions, but create chat-scoped human approvals instead of granting direct
+install or uninstall authority. Unknown and duplicate permissions are rejected
+when the package is loaded.
 Unknown and duplicate declarations are rejected when the package is loaded.
 
 Declarations are not grants. Each install request may include a `permissions`
@@ -159,10 +167,11 @@ and `POST /plugins/uninstall`. Each route requires its matching capability.
 Plugin-triggered installs must also choose a subset of the target package's
 declared permissions.
 
-The bundled `hello` package is the minimal skill-plus-MCP example. It declares no
-variables or MCP authentication, so an administrator can install it with an
-empty POST body; each call still creates a separate installation and bundled
-container.
+The bundled `hello` package is the minimal skill-plus-MCP example. The bundled
+`plugin-developer` package contributes a comprehensive Happy2 plugin-development
+skill and MCP tools for listing installations and requesting linked install or
+uninstall approval from the current chat. Neither format is a Conductor or
+Codex plugin format.
 
 ## Stdio MCP with a bundled container
 
@@ -321,6 +330,15 @@ read-only; a changed package requires an explicit future upgrade flow.
 The request body may be omitted when the manifest declares no variables and
 does not require a selected container image.
 
+`POST /v0/admin/plugins/installPlugin` installs an external package. Send either
+multipart form data with an `archive` ZIP part plus optional JSON `variables`
+and `containerImageId` fields, or JSON with `sourceUrl`, `variables`, and
+`containerImageId`. Link downloads allow public HTTPS only, revalidate every
+redirect and resolved address, and are capped at three redirects, 20 seconds,
+and 20 MiB. ZIP extraction rejects traversal, absolute paths, symlinks,
+encryption, duplicate entries, more than 1,000 entries, files above 5 MiB, and
+uncompressed package data above 20 MiB.
+
 `containerImageId` is required for every local container manifest without a
 bundled Dockerfile, and it is rejected in every other case. Unknown, missing, empty, or
 oversized variable values are rejected. The endpoint returns HTTP 202 after the
@@ -328,7 +346,56 @@ durable system plugin (created once), immutable package/image snapshot, new
 installation, variables, audit entry, initial state, and sync event are durable.
 Calling it again for the same `shortName` creates another installation with a
 new CUID2 and its own parameters and runtime. Container preparation continues
-asynchronously.
+asynchronously. `shortName` is globally unique across system plugins: a package
+from another source that reuses an existing name is rejected with HTTP 409. An
+agent request with such a collision can be staged for review, but approval
+resolves it to `failed` without replacing the existing plugin.
+
+`POST /v0/admin/pluginInstallations/:installationId/uninstallPlugin` removes
+one exact installation. Happy stops and removes that installation's local
+runtime, deletes its variables and tool cache through cascading durable state,
+and removes the system plugin and immutable package snapshot only when no other
+installation references it.
+
+### Agent-requested approval
+
+A local plugin container may ask Happy to install a public HTTPS ZIP or
+uninstall an exact installation while its MCP tool is executing for an agent
+turn. The normal long-lived incarnation token cannot make such a request. For
+that MCP call only, Happy injects a five-minute capability token bound to the
+originating Rig session, call ID, human actor, agent, chat, requester
+installation, and live container incarnation.
+
+The host API validates and stages the exact package before creating a durable
+chat request. The request stores the package digest, source, display name,
+description, icon, optional reason, and a preallocated installation ID. It does
+not install synchronously and does not use MCP elicitation as authority. Happy's
+own administrator approval is the authority and audit boundary. Agent-requested
+installs reject packages requiring variables or an administrator-selected
+container image, because those values must not be collected through chat.
+
+Chat members can list requests and read the staged icon while a request is
+`pending` or `processing`. A server administrator who is also a chat member can
+approve or deny them:
+
+- `GET /v0/chats/:chatId/pluginManagementRequests`
+- `GET /v0/chats/:chatId/pluginManagementRequests/:requestId/image`
+- `POST .../:requestId/approvePluginInstall`
+- `POST .../:requestId/denyPluginInstall`
+- `POST .../:requestId/approvePluginUninstall`
+- `POST .../:requestId/denyPluginUninstall`
+
+Request creation and every terminal resolution advance the chat's durable
+point, append audit/sync evidence, and publish server and chat realtime hints.
+Approval claims publish their intermediate `processing` state as well. If the
+complete server stops during a claimed operation, startup reconciles the request
+to `approved` only when the deterministic durable installation outcome exists;
+otherwise it records a terminal failure instead of leaving the card stuck.
+Every terminal path removes the staged package, and startup retries that cleanup
+for requests resolved immediately before a process stopped. Terminal projections
+therefore omit `imageUrl`; the UI must reconcile these durable requests and
+render their name, description, optional image, source, reason, status, and
+action controls.
 
 If the catalog later advertises an update, additional installations remain
 pinned to the existing system plugin's immutable manifest and package until an
@@ -383,6 +450,10 @@ Remote endpoints are rechecked.
 - `POST /v0/admin/plugins/:shortName/installPlugin` performs the durable install
   and queues lifecycle work. It may be called any number of times; each call
   creates a distinct installation linked to the same system plugin.
+- `POST /v0/admin/plugins/installPlugin` installs a validated ZIP upload or
+  public HTTPS ZIP link.
+- `POST /v0/admin/pluginInstallations/:installationId/uninstallPlugin` removes
+  one installation and removes its system plugin only when it was the last one.
 - `GET|POST /v0/pluginInstallations/:installationId/mcp` is the authenticated
   Streamable HTTP bridge for one ready local stdio installation. It follows MCP
   session semantics via `Mcp-Session-Id`. Happy’s existing bearer session is
@@ -402,6 +473,11 @@ Remote endpoints are rechecked.
   capability in `X-Happy2-Chat-Token`. The endpoint deliberately accepts no
   chat ID: the signed capability selects the chat, so tool arguments cannot
   redirect the update to another conversation.
+- `POST /plugin-install-requests` and
+  `POST /plugin-uninstall-requests` live only on the dedicated plugin host
+  listener. A container must present `HAPPY2_PLUGIN_API_TOKEN` and declare the
+  corresponding host permission. The two mutation-request endpoints also
+  require an active contextual agent-call token.
 
 Container processes receive `HAPPY2_PLUGIN_API_URL` and
 `HAPPY2_PLUGIN_API_TOKEN`. The URL is always
@@ -415,9 +491,11 @@ expose the host to an untrusted LAN should firewall
 `plugins.host_api_port`; it is a container capability endpoint, not a public
 service.
 
-The token is an RS256 capability containing the installation ID, a random CUID2
-container-incarnation ID, and the installation's exact granted permissions. Token bytes are
-never stored. The incarnation ID is stored in `plugin_installations` and also
+The ordinary token is an RS256 capability containing the installation ID, a
+random CUID2 container-incarnation ID, and the installation's exact granted
+permissions.
+Token bytes are never stored. The incarnation ID is stored in
+`plugin_installations` and also
 attached to the OCI container as `dev.happy2.plugin-instance`. On each request,
 Happy verifies the signature, matches the incarnation against the ready database
 row, and confirms that the correspondingly labelled container is running. A
@@ -428,7 +506,10 @@ The token intentionally has no time expiration: its lifetime is exactly the
 database-and-OCI incarnation lifetime, allowing a command to survive arbitrarily
 many server restarts without persisting or rotating token bytes. Killing,
 replacing, failing, or removing that incarnation immediately makes the token
-unauthorized.
+unauthorized. During one agent MCP call, Happy substitutes the bounded
+contextual token described above; it expires after five minutes and cannot be
+used outside that live container incarnation or after the exact durable external
+tool call stops being in progress.
 The capability is not a user session and the dedicated listener exposes no
 ordinary `/v0` APIs.
 
@@ -479,21 +560,37 @@ last complete MCP discovery keyed by installation and tool name.
 value for one installation; secret rows contain authenticated ciphertext rather
 than plaintext. No installation uses `shortName` as identity.
 
+`plugin_management_requests` records the chat-scoped install/uninstall action,
+requesting agent call, validated publisher metadata, exact staged package
+coordinates, resolution, audit-related sync sequence, and deterministic target
+or installation ID. Actionable staged packages live beneath the private plugin
+package store and are revalidated by path and digest before image reads or
+approval. They are reclaimed on approval, denial, failure, and restart cleanup;
+terminal history retains metadata and audit evidence rather than package bytes.
+
 The built-in catalog and durable system plugin are deliberately independent.
-Persisted rows use `source_kind = 'builtin'` as their built-in marker. During
+Persisted rows use `source_kind = 'builtin'`, `archive`, or `link`. During
 startup, the server compares those rows with the current built-in catalog. If a
 bundle was removed from the server, its installations, encrypted variables,
 system-plugin row, private package/image snapshot, and any named local containers
-are removed before the remaining runtimes start. Remotely sourced plugins will
-not participate in this catalog-pruning rule.
+are removed before the remaining runtimes start. Archive- and link-sourced
+plugins do not participate in this catalog-pruning rule.
+
+Before each agent turn, skills from ready installations are integrity-checked
+against their immutable package digest and reconciled under
+`.agents/skills/happy2-plugins/<pluginId>-<skillName>` in that exact agent home.
+Rig recursively discovers skills below `.agents/skills` on every agent loop, so
+the published frontmatter name and immutable package files stay unchanged.
+Happy owns only the `happy2-plugins` subtree; user and project skills elsewhere
+are left untouched. Uninstalling the final ready installation removes that
+plugin's skills on the next turn.
 
 When the catalog contains a different digest for a persisted plugin's
 `shortName`, reads set `updateAvailable: true`; they do not mutate or restart its
-installations. A future upgrade action can download/validate a remote package
-into the same package abstraction, stage a new immutable package/image snapshot,
-and atomically replace the system plugin version before reconciling all linked
-installations. Until that action exists, upgrades are advertised only and the
-old snapshot continues to run.
+installations. A future upgrade action can validate a replacement package, stage
+a new immutable package/image snapshot, and atomically replace the system plugin
+version before reconciling all linked installations. Until that action exists,
+upgrades are advertised only and the old snapshot continues to run.
 
 Configured installed-package storage:
 

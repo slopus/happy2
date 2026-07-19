@@ -48,4 +48,40 @@ describe("plugin runtime capability tokens", () => {
         });
         await expect(tokens.verifyPluginRuntimeToken(token)).rejects.toThrow();
     });
+
+    it("round-trips the bounded agent-call context separately from a user session", async () => {
+        const config = defaultConfig();
+        const keys = generateKeyPairSync("rsa", {
+            modulusLength: 2048,
+            publicKeyEncoding: { type: "spki", format: "pem" },
+            privateKeyEncoding: { type: "pkcs8", format: "pem" },
+        });
+        const service = await TokenService.create(config, keys);
+        const token = await service.issuePluginRuntimeToken({
+            installationId: "plugin-installation",
+            containerInstanceId: "container-incarnation",
+            permissions: ["plugins:request-install"],
+            agentCall: {
+                actorUserId: "actor-user",
+                agentUserId: "agent-user",
+                callId: "external-call",
+                chatId: "chat",
+                sessionId: "rig-session",
+            },
+        });
+
+        await expect(service.verifyPluginRuntimeToken(token)).resolves.toEqual({
+            installationId: "plugin-installation",
+            containerInstanceId: "container-incarnation",
+            permissions: ["plugins:request-install"],
+            agentCall: {
+                actorUserId: "actor-user",
+                agentUserId: "agent-user",
+                callId: "external-call",
+                chatId: "chat",
+                sessionId: "rig-session",
+            },
+        });
+        await expect(service.verify(token)).rejects.toThrow();
+    });
 });

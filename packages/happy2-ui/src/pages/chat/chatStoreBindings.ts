@@ -53,6 +53,48 @@ export function useAvatarImages(actions: { fileDownload(fileId: string): Promise
         },
     };
 }
+export function usePluginRequestImages(actions: {
+    pluginRequestImageDownload?(chatId: string, requestId: string): Promise<ArrayBuffer>;
+}) {
+    const [urls, setUrls] = useState<Record<string, string>>({});
+    const [requested] = useState(() => new Set<string>());
+    const [owned] = useState(() => new Set<string>());
+    const disposed = useRef(false);
+    async function load(chatId: string, requestId: string, key: string) {
+        try {
+            const contents = await actions.pluginRequestImageDownload!(chatId, requestId);
+            if (disposed.current) return;
+            const url = URL.createObjectURL(new Blob([contents], { type: "image/png" }));
+            owned.add(url);
+            setUrls((current) => ({ ...current, [key]: url }));
+        } catch {
+            // The staged image is optional; the glyph fallback remains visible.
+        }
+    }
+    useLayoutEffect(() => {
+        disposed.current = false;
+        return () => {
+            disposed.current = true;
+            for (const url of owned) URL.revokeObjectURL(url);
+        };
+    }, [owned]);
+    return {
+        /**
+         * Reactive object URL for one staged request image. `available` gates the
+         * download to pending/processing requests whose package is still staged;
+         * a previously downloaded image stays cached for the terminal card.
+         */
+        imageUrl(chatId: string, requestId: string, available: boolean) {
+            const key = `${chatId}\u0000${requestId}`;
+            if (available && actions.pluginRequestImageDownload && !requested.has(key)) {
+                requested.add(key);
+                queueMicrotask(() => void load(chatId, requestId, key));
+            }
+            return urls[key];
+        },
+    };
+}
+
 export function createAvatarProjection(options: {
     user: () => {
         id: string;

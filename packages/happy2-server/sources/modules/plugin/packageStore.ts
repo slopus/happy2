@@ -10,9 +10,16 @@ import {
     rename,
     rm,
 } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
+import { pluginArchiveExtract } from "./archive.js";
 import { pluginPackageLoadInstalled, pluginPackageLoadSource } from "./catalog.js";
-import type { PluginPackage } from "./types.js";
+import type { PluginPackage, PluginSource } from "./types.js";
+import type { PluginReadySkillPackage } from "./pluginSkillPackageListReady.js";
+
+export interface PreparedPluginPackage {
+    plugin: PluginPackage;
+    cleanup(): Promise<void>;
+}
 
 /** Persists one exact package snapshot per system plugin so catalog changes cannot mutate installed metadata or files. */
 export class PluginPackageStore {
@@ -60,6 +67,136 @@ export class PluginPackageStore {
                 packageDirectory: await realpath(destination),
                 imageStorageKey: `${pluginId}/plugin.png`,
             };
+        } finally {
+            await rm(staging, { force: true, recursive: true });
+        }
+    }
+
+    async prepareArchive(archive: Buffer, source: PluginSource): Promise<PreparedPluginPackage> {
+        await mkdir(this.root, { recursive: true, mode: 0o700 });
+        const temporary = resolve(this.root, `.incoming-${randomUUID()}`);
+        try {
+            const [candidate] = await pluginArchiveExtract(archive, temporary, "zip");
+            if (!candidate) throw new Error("Plugin ZIP does not contain a package");
+            const loaded = await pluginPackageLoadSource(candidate.directory, source);
+            const plugin =
+                source.kind === "archive"
+                    ? {
+                          ...loaded,
+                          source: { kind: "archive" as const, reference: loaded.packageDigest },
+                      }
+                    : loaded;
+            return {
+                plugin,
+                cleanup: () => rm(temporary, { force: true, recursive: true }),
+            };
+        } catch (error) {
+            await rm(temporary, { force: true, recursive: true });
+            throw error;
+        }
+    }
+
+    async stageRequest(plugin: PluginPackage, requestId: string): Promise<string> {
+        const destination = this.requestPath(requestId);
+        await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
+        await rm(destination, { force: true, recursive: true });
+        await cp(plugin.directory, destination, {
+            recursive: true,
+            errorOnExist: true,
+            force: false,
+        });
+        const copied = await pluginPackageLoadSource(destination, plugin.source);
+        if (copied.packageDigest !== plugin.packageDigest) {
+            await rm(destination, { force: true, recursive: true });
+            throw new Error("Plugin package changed while its approval snapshot was copied");
+        }
+        return realpath(destination);
+    }
+
+    async loadRequest(
+        requestId: string,
+        recordedDirectory: string,
+        source: PluginSource,
+        packageDigest: string,
+    ): Promise<PluginPackage> {
+        const destination = this.requestPath(requestId);
+        const [requestRoot, actual, recorded] = await Promise.all([
+            realpath(resolve(this.root, ".requests")),
+            realpath(destination),
+            realpath(recordedDirectory),
+        ]);
+        const expected = resolve(requestRoot, requestId);
+        if (actual !== expected || recorded !== expected)
+            throw new Error("Pending plugin package is outside the request package store");
+        const plugin = await pluginPackageLoadSource(actual, source);
+        if (plugin.packageDigest !== packageDigest)
+            throw new Error("Pending plugin package no longer matches its recorded digest");
+        return plugin;
+    }
+
+    async loadInstalled(
+        pluginId: string,
+        recordedDirectory: string,
+        shortName: string,
+        packageDigest: string,
+        source: PluginSource,
+    ): Promise<PluginPackage> {
+        await this.verify(pluginId, recordedDirectory, shortName, packageDigest);
+        return pluginPackageLoadInstalled(recordedDirectory, source, shortName);
+    }
+
+    async readRequestImage(
+        requestId: string,
+        recordedDirectory: string,
+        source: PluginSource,
+        packageDigest: string,
+    ): Promise<Buffer> {
+        const plugin = await this.loadRequest(requestId, recordedDirectory, source, packageDigest);
+        return readFile(plugin.iconPath);
+    }
+
+    async removeRequest(requestId: string): Promise<void> {
+        await rm(this.requestPath(requestId), { force: true, recursive: true });
+    }
+
+    async syncSkills(
+        installed: readonly PluginReadySkillPackage[],
+        agentHome: string,
+    ): Promise<void> {
+        const targetRoot = resolve(agentHome, ".agents", "skills", "happy2-plugins");
+        const staging = resolve(agentHome, ".agents", `.happy2-skills-${randomUUID()}`);
+        await rm(staging, { force: true, recursive: true });
+        await mkdir(staging, { recursive: true, mode: 0o700 });
+        const desired = new Set<string>();
+        try {
+            for (const item of installed) {
+                const plugin = await this.loadInstalled(
+                    item.pluginId,
+                    item.packageDirectory,
+                    item.shortName,
+                    item.packageDigest,
+                    item.source,
+                );
+                for (const skill of plugin.skills) {
+                    const directory = `${item.pluginId}-${skill.name}`;
+                    desired.add(directory);
+                    await cp(join(plugin.directory, skill.directory), join(staging, directory), {
+                        recursive: true,
+                        errorOnExist: true,
+                        force: false,
+                    });
+                }
+            }
+            await mkdir(targetRoot, { recursive: true, mode: 0o700 });
+            for (const entry of await readdir(targetRoot, { withFileTypes: true })) {
+                if (desired.has(entry.name)) continue;
+                await rm(join(targetRoot, entry.name), { force: true, recursive: true });
+            }
+            for (const directory of [...desired].sort()) {
+                const destination = join(targetRoot, directory);
+                await rm(destination, { force: true, recursive: true });
+                await rename(join(staging, directory), destination);
+            }
         } finally {
             await rm(staging, { force: true, recursive: true });
         }
@@ -239,6 +376,15 @@ export class PluginPackageStore {
         if (plugin.packageDigest !== packageDigest)
             throw new Error("Installed plugin package no longer matches its recorded digest");
         return plugin;
+    }
+
+    private requestPath(requestId: string): string {
+        if (!/^[a-z0-9]+$/.test(requestId)) throw new Error("Invalid plugin request id");
+        const destination = resolve(this.root, ".requests", requestId);
+        const requestRoot = resolve(this.root, ".requests");
+        if (!destination.startsWith(`${requestRoot}${sep}`))
+            throw new Error("Invalid plugin request package path");
+        return destination;
     }
 }
 

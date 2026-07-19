@@ -64,6 +64,14 @@
     color: var(--happy2-text-muted);
 }
 
+.happy2-plugin-catalog-panel__header-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
 /* ---- Cards ------------------------------------------------------------ */
 
 .happy2-plugin-catalog-panel__list {
@@ -140,6 +148,16 @@
     font-size: 13px;
     line-height: 18px;
     color: var(--happy2-text-secondary);
+}
+
+.happy2-plugin-catalog-panel__source {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
 }
 
 .happy2-plugin-catalog-panel__capabilities {

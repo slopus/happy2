@@ -47,6 +47,10 @@ import { WorkspaceService } from "./modules/workspace/index.js";
 import { pluginCatalogLoad, type PluginCatalog } from "./modules/plugin/catalog.js";
 import { PluginPackageStore } from "./modules/plugin/packageStore.js";
 import {
+    NodePluginPackageLinkDownloader,
+    type PluginPackageLinkDownloader,
+} from "./modules/plugin/packageLinkDownloader.js";
+import {
     AesGcmPluginSecretProtector,
     type PluginSecretProtector,
 } from "./modules/plugin/secrets.js";
@@ -111,6 +115,7 @@ interface Services {
     pluginMcpRuntime?: PluginMcpRuntime;
     pluginSecretProtector?: PluginSecretProtector;
     pluginArchiveDownloader?: PluginArchiveDownloader;
+    pluginPackageLinkDownloader?: PluginPackageLinkDownloader;
     logger?: boolean;
 }
 
@@ -290,6 +295,8 @@ export async function buildServer(
             livePubsub,
             pluginCatalog,
             new PluginPackageStore(config.plugins.directory),
+            services.pluginPackageLinkDownloader ??
+                new NodePluginPackageLinkDownloader(webhookUrlPolicy),
             pluginSecrets,
             services.pluginMcpRuntime ?? new SandboxPluginMcpRuntime(pluginProvider),
             services.tokens,

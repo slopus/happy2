@@ -15,6 +15,11 @@ export { userCreateProfile } from "./modules/user/userCreateProfile.js";
 export { syncInitialize } from "./modules/sync/syncInitialize.js";
 export { AesGcmSecretProtector } from "./modules/integrations/secrets.js";
 export { NodeWebhookTransport } from "./modules/integrations/transport.js";
+export {
+    NodePluginPackageLinkDownloader,
+    type PluginPackageLinkDownload,
+    type PluginPackageLinkDownloader,
+} from "./modules/plugin/packageLinkDownloader.js";
 export * from "./modules/integrations/types.js";
 export type { ResolvedWebhookUrl, WebhookUrlPolicy } from "./modules/integrations/ssrf.js";
 export * from "./modules/operations/types.js";

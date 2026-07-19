@@ -34,6 +34,20 @@ const definitions = {
         section: "plugins",
         access: "mutations",
     },
+    "plugins:request-install": {
+        id: "plugins:request-install",
+        displayName: "Request plugin installs",
+        description: "Ask a user in the current chat to approve installing a plugin.",
+        section: "plugins",
+        access: "mutations",
+    },
+    "plugins:request-uninstall": {
+        id: "plugins:request-uninstall",
+        displayName: "Request plugin uninstalls",
+        description: "Ask a user in the current chat to approve uninstalling a plugin.",
+        section: "plugins",
+        access: "mutations",
+    },
 } as const satisfies Record<
     PluginHostPermission,
     {

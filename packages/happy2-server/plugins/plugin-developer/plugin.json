@@ -1,0 +1,17 @@
+{
+    "schemaVersion": 1,
+    "version": "1.0.0",
+    "displayName": "Plugin Developer",
+    "shortName": "plugin-developer",
+    "description": "Helps agents design, validate, inspect, and request installation of Happy2 plugins.",
+    "variables": [],
+    "container": {
+        "dockerfile": "container/Dockerfile",
+        "permissions": ["plugins:list", "plugins:request-install", "plugins:request-uninstall"]
+    },
+    "mcp": {
+        "type": "stdio",
+        "command": "node",
+        "args": ["/plugin/server.mjs"]
+    }
+}

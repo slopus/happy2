@@ -34,6 +34,7 @@ import { RoleEditorPage } from "./pages/RoleEditorPage";
 import { MemberAccessPanelPage } from "./pages/MemberAccessPanelPage";
 import { PluginInstallDialogPage } from "./pages/PluginInstallDialogPage";
 import { PluginUninstallDialogPage } from "./pages/PluginUninstallDialogPage";
+import { PluginPermissionCardPage } from "./pages/PluginPermissionCardPage";
 import { ComposerPage } from "./pages/ComposerPage";
 import { DataTablePage } from "./pages/DataTablePage";
 import { DiffSnippetPage } from "./pages/DiffSnippetPage";
@@ -273,6 +274,12 @@ const components: BlueprintPage[] = [
         label: "Plugin uninstall dialog",
         number: "C-076",
         page: PluginUninstallDialogPage,
+    },
+    {
+        id: "plugin-permission-card",
+        label: "Plugin permission card",
+        number: "C-077",
+        page: PluginPermissionCardPage,
     },
 ];
 const fullScreens: BlueprintPage[] = [

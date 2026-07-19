@@ -19,6 +19,7 @@ import {
 import { CollaborationError } from "../modules/chat/types.js";
 
 const SHORT_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const MAX_PLUGIN_ARCHIVE_BYTES = 20 * 1024 * 1024;
 
 export function registerPluginRoutes(
     app: FastifyInstance,
@@ -147,6 +148,19 @@ export function registerPluginRoutes(
         },
     );
 
+    app.post("/v0/admin/plugins/installPlugin", async (request, reply) => {
+        const actorUserId = await actor(auth, request, reply);
+        if (!actorUserId) return;
+        try {
+            const installation = request.isMultipart()
+                ? await installUploadedPlugin(request, plugins, actorUserId)
+                : await installLinkedPlugin(request.body, plugins, actorUserId);
+            return reply.code(202).send({ installation });
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
     app.get("/v0/admin/pluginInstallations/:installationId/mcpTools", async (request, reply) => {
         const actorUserId = await actor(auth, request, reply);
         if (!actorUserId) return;
@@ -230,6 +244,21 @@ export function registerPluginRoutes(
         }
     });
 
+    app.get("/v0/chats/:chatId/pluginManagementRequests", async (request, reply) => {
+        const actorUserId = await actor(auth, request, reply);
+        if (!actorUserId) return;
+        try {
+            return {
+                requests: await plugins.listManagementRequests(
+                    actorUserId,
+                    pathIdentifier(request, "chatId"),
+                ),
+            };
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
     app.post("/v0/admin/systemPlugins/:pluginId/checkForUpdate", async (request, reply) => {
         const actorUserId = await actor(auth, request, reply);
         if (!actorUserId) return;
@@ -269,6 +298,102 @@ export function registerPluginRoutes(
             return handled(reply, error) ?? Promise.reject(error);
         }
     });
+
+    app.get(
+        "/v0/chats/:chatId/pluginManagementRequests/:requestId/image",
+        async (request, reply) => {
+            const actorUserId = await actor(auth, request, reply);
+            if (!actorUserId) return;
+            try {
+                const image = await plugins.managementRequestImage({
+                    actorUserId,
+                    chatId: pathIdentifier(request, "chatId"),
+                    requestId: pathIdentifier(request, "requestId"),
+                });
+                return reply.type("image/png").send(image);
+            } catch (error) {
+                return handled(reply, error) ?? Promise.reject(error);
+            }
+        },
+    );
+
+    app.post(
+        "/v0/chats/:chatId/pluginManagementRequests/:requestId/approvePluginInstall",
+        async (request, reply) => {
+            const actorUserId = await actor(auth, request, reply);
+            if (!actorUserId) return;
+            try {
+                only(request.body === undefined ? {} : object(request.body, "Request body"), []);
+                const approval = await plugins.approveManagementRequest({
+                    actorUserId,
+                    chatId: pathIdentifier(request, "chatId"),
+                    requestId: pathIdentifier(request, "requestId"),
+                });
+                return { approval };
+            } catch (error) {
+                return handled(reply, error) ?? Promise.reject(error);
+            }
+        },
+    );
+
+    app.post(
+        "/v0/chats/:chatId/pluginManagementRequests/:requestId/denyPluginInstall",
+        async (request, reply) => {
+            const actorUserId = await actor(auth, request, reply);
+            if (!actorUserId) return;
+            try {
+                only(request.body === undefined ? {} : object(request.body, "Request body"), []);
+                const approval = await plugins.denyManagementRequest({
+                    actorUserId,
+                    chatId: pathIdentifier(request, "chatId"),
+                    requestId: pathIdentifier(request, "requestId"),
+                    action: "install",
+                });
+                return { approval };
+            } catch (error) {
+                return handled(reply, error) ?? Promise.reject(error);
+            }
+        },
+    );
+
+    app.post(
+        "/v0/chats/:chatId/pluginManagementRequests/:requestId/approvePluginUninstall",
+        async (request, reply) => {
+            const actorUserId = await actor(auth, request, reply);
+            if (!actorUserId) return;
+            try {
+                only(request.body === undefined ? {} : object(request.body, "Request body"), []);
+                const approval = await plugins.approveUninstallManagementRequest({
+                    actorUserId,
+                    chatId: pathIdentifier(request, "chatId"),
+                    requestId: pathIdentifier(request, "requestId"),
+                });
+                return { approval };
+            } catch (error) {
+                return handled(reply, error) ?? Promise.reject(error);
+            }
+        },
+    );
+
+    app.post(
+        "/v0/chats/:chatId/pluginManagementRequests/:requestId/denyPluginUninstall",
+        async (request, reply) => {
+            const actorUserId = await actor(auth, request, reply);
+            if (!actorUserId) return;
+            try {
+                only(request.body === undefined ? {} : object(request.body, "Request body"), []);
+                const approval = await plugins.denyManagementRequest({
+                    actorUserId,
+                    chatId: pathIdentifier(request, "chatId"),
+                    requestId: pathIdentifier(request, "requestId"),
+                    action: "uninstall",
+                });
+                return { approval };
+            } catch (error) {
+                return handled(reply, error) ?? Promise.reject(error);
+            }
+        },
+    );
 
     const mcp = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
         const current = await auth.authenticate(request);
@@ -435,4 +560,66 @@ async function eventStream(
         reply.raw.removeListener("close", abort);
         if (!reply.raw.destroyed && !reply.raw.writableEnded) reply.raw.end();
     }
+}
+
+async function installLinkedPlugin(value: unknown, plugins: PluginService, actorUserId: string) {
+    const body = object(value, "Request body");
+    only(body, ["sourceUrl", "variables", "containerImageId"]);
+    if (typeof body.sourceUrl !== "string" || body.sourceUrl.length > 4_096)
+        throw new RequestError("sourceUrl must be an absolute plugin ZIP URL");
+    return plugins.installLink({
+        actorUserId,
+        url: body.sourceUrl,
+        variables: variables(body.variables),
+        ...(body.containerImageId === undefined
+            ? {}
+            : { containerImageId: identifier(body.containerImageId, "containerImageId") }),
+    });
+}
+
+async function installUploadedPlugin(
+    request: FastifyRequest,
+    plugins: PluginService,
+    actorUserId: string,
+) {
+    let archive: Buffer | undefined;
+    let variablesValue: unknown;
+    let containerImageId: string | undefined;
+    const seen = new Set<string>();
+    for await (const part of request.parts({
+        limits: { files: 1, fileSize: MAX_PLUGIN_ARCHIVE_BYTES, fields: 2, parts: 3 },
+    })) {
+        if (seen.has(part.fieldname))
+            throw new RequestError(`Duplicate multipart field ${part.fieldname}`);
+        seen.add(part.fieldname);
+        if (part.type === "file") {
+            if (part.fieldname !== "archive")
+                throw new RequestError("Plugin ZIP field must be named archive");
+            archive = await part.toBuffer();
+            if (part.file.truncated) throw new RequestError("Plugin ZIP exceeds 20 MiB");
+            continue;
+        }
+        if (part.fieldname === "variables") {
+            if (typeof part.value !== "string")
+                throw new RequestError("variables must contain JSON");
+            try {
+                variablesValue = JSON.parse(part.value);
+            } catch {
+                throw new RequestError("variables must contain a JSON object");
+            }
+            continue;
+        }
+        if (part.fieldname === "containerImageId") {
+            containerImageId = identifier(part.value, "containerImageId");
+            continue;
+        }
+        throw new RequestError(`Unexpected multipart field ${part.fieldname}`);
+    }
+    if (!archive?.length) throw new RequestError("archive plugin ZIP is required");
+    return plugins.installArchive({
+        actorUserId,
+        archive,
+        variables: variables(variablesValue),
+        ...(containerImageId ? { containerImageId } : {}),
+    });
 }

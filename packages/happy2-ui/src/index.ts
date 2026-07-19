@@ -63,6 +63,12 @@ export {
 } from "./PluginInstallDialog";
 export { PluginUninstallDialog, type PluginUninstallDialogProps } from "./PluginUninstallDialog";
 export {
+    PluginPermissionCard,
+    type PluginPermissionAction,
+    type PluginPermissionCardProps,
+    type PluginPermissionStatus,
+} from "./PluginPermissionCard";
+export {
     AgentRunCard,
     type AgentRun,
     type AgentRunAction,

@@ -29,9 +29,11 @@ export {
 } from "./modules/composer/composerState.js";
 export type {
     ChatHandle,
+    ChatInput,
     ChatMemberProjection,
     ChatMessageItem,
     ChatMessageProjection,
+    ChatOutput,
     ChatPinProjection,
     ChatReactionSummary,
     ChatSnapshot,

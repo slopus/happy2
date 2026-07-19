@@ -77,6 +77,18 @@ export async function pluginInstall(
                 ),
             )
             .limit(1);
+        const [nameCollision] = existing
+            ? []
+            : await tx
+                  .select({ id: plugins.id })
+                  .from(plugins)
+                  .where(eq(plugins.shortName, input.plugin.manifest.shortName))
+                  .limit(1);
+        if (nameCollision)
+            throw new PluginError(
+                "conflict",
+                `A different plugin source already uses ${input.plugin.manifest.shortName}`,
+            );
         let pluginId: string;
         let manifest: PluginManifest;
         let pluginCreated = false;

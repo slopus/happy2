@@ -11,8 +11,8 @@ import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { PluginError } from "./types.js";
 
 /**
- * Deletes one pluginInstallations row and its cascade-owned pluginInstallationVariables and pluginMcpTools after user or capability authorization.
- * The transaction records actor provenance and a plugins sync event after PluginService has stopped process/container resources, so a crash cannot orphan a deleted installation's runtime.
+ * Deletes one authorized plugin installation and its cascade-owned state, removing the plugin row when no installation remains.
+ * The transaction records actor provenance and a plugins sync event after PluginService has stopped process/container resources.
  */
 export async function pluginInstallationUninstall(
     executor: DrizzleExecutor,
@@ -21,7 +21,7 @@ export async function pluginInstallationUninstall(
         actorUserId?: string;
         actorInstallationId?: string;
     },
-): Promise<{ hint: MutationHint }> {
+): Promise<{ hint: MutationHint; pluginId: string; pluginRemoved: boolean }> {
     return withTransaction(executor, async (tx) => {
         if (input.actorUserId) await userRequirePermission(tx, input.actorUserId, "managePlugins");
         else if (!input.actorInstallationId)
@@ -31,6 +31,7 @@ export async function pluginInstallationUninstall(
                 id: pluginInstallations.id,
                 pluginId: pluginInstallations.pluginId,
                 shortName: plugins.shortName,
+                sourceVersion: plugins.sourceVersion,
             })
             .from(pluginInstallations)
             .innerJoin(plugins, eq(pluginInstallations.pluginId, plugins.id))
@@ -40,6 +41,13 @@ export async function pluginInstallationUninstall(
         await tx
             .delete(pluginInstallations)
             .where(eq(pluginInstallations.id, input.installationId));
+        const [remaining] = await tx
+            .select({ id: pluginInstallations.id })
+            .from(pluginInstallations)
+            .where(eq(pluginInstallations.pluginId, installation.pluginId))
+            .limit(1);
+        const pluginRemoved = !remaining;
+        if (pluginRemoved) await tx.delete(plugins).where(eq(plugins.id, installation.pluginId));
         await chatAppendAudit(tx, {
             actorUserId: input.actorUserId,
             action: "plugin.uninstalled",
@@ -49,7 +57,9 @@ export async function pluginInstallationUninstall(
                 pluginId: installation.pluginId,
                 shortName: installation.shortName,
                 actorInstallationId: input.actorInstallationId,
+                version: installation.sourceVersion,
             },
+            after: { pluginRemoved },
         });
         const sequence = await syncSequenceNext(tx);
         await syncEventInsert(tx, {
@@ -58,6 +68,10 @@ export async function pluginInstallationUninstall(
             entityId: input.installationId,
             actorUserId: input.actorUserId,
         });
-        return { hint: areaHint(sequence, "plugins") };
+        return {
+            hint: areaHint(sequence, "plugins"),
+            pluginId: installation.pluginId,
+            pluginRemoved,
+        };
     });
 }

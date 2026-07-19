@@ -18,12 +18,14 @@ import { pluginGetSource } from "./pluginGetSource.js";
 import { pluginGetImage } from "./pluginGetImage.js";
 import { pluginAuthorizeManagement } from "./pluginAuthorizeManagement.js";
 import { pluginInstallationGetRuntimeConfiguration } from "./pluginInstallationGetRuntimeConfiguration.js";
+import { pluginInstallationGetRequestUninstallContext } from "./pluginInstallationGetRequestUninstallContext.js";
+import { pluginInstallationUninstall } from "./pluginInstallationUninstall.js";
 import { pluginInstallationListIds } from "./pluginInstallationListIds.js";
 import { pluginInstallationListReadyMcpIds } from "./pluginInstallationListReadyMcpIds.js";
 import { pluginInstallationUpdateStatus } from "./pluginInstallationUpdateStatus.js";
 import { pluginInstallationPermissionsUpdate } from "./pluginInstallationPermissionsUpdate.js";
-import { pluginInstallationUninstall } from "./pluginInstallationUninstall.js";
 import { pluginInstallationGetContainerName } from "./pluginInstallationGetContainerName.js";
+import { pluginAgentCallContextGet } from "./pluginAgentCallContextGet.js";
 import { pluginRemoveMissingBuiltins } from "./pluginRemoveMissingBuiltins.js";
 import { pluginMcpToolsReplace, type PluginMcpToolInput } from "./pluginMcpToolsReplace.js";
 import { pluginMcpToolsListReady } from "./pluginMcpToolsListReady.js";
@@ -37,8 +39,20 @@ import { pluginContainerInstanceInvalidate } from "./pluginContainerInstanceInva
 import { pluginUninstall } from "./pluginUninstall.js";
 import { pluginArchiveExtract } from "./archive.js";
 import { pluginPackageLoadSource } from "./catalog.js";
+import { pluginManagementRequestBeginInstall } from "./pluginManagementRequestBeginInstall.js";
+import { pluginManagementRequestBeginUninstall } from "./pluginManagementRequestBeginUninstall.js";
+import { pluginManagementRequestCompleteInstall } from "./pluginManagementRequestCompleteInstall.js";
+import { pluginManagementRequestCompleteUninstall } from "./pluginManagementRequestCompleteUninstall.js";
+import { pluginManagementRequestCreateInstall } from "./pluginManagementRequestCreateInstall.js";
+import { pluginManagementRequestCreateUninstall } from "./pluginManagementRequestCreateUninstall.js";
+import { pluginManagementRequestDeny } from "./pluginManagementRequestDeny.js";
+import { pluginManagementRequestGetPackage } from "./pluginManagementRequestGetPackage.js";
+import { pluginManagementRequestList } from "./pluginManagementRequestList.js";
+import { pluginManagementRequestListTerminalIds } from "./pluginManagementRequestListTerminalIds.js";
+import { pluginManagementRequestRecoverProcessing } from "./pluginManagementRequestRecoverProcessing.js";
 import type { PluginCatalog } from "./catalog.js";
 import type { PluginPackageStore } from "./packageStore.js";
+import type { PluginPackageLinkDownloader } from "./packageLinkDownloader.js";
 import type { PluginLocalCommandHandle, PluginMcpRuntime } from "./runtime.js";
 import type { PluginSecretProtector } from "./secrets.js";
 import { RemotePluginMcpTransport } from "./utils/remoteMcpTransport.js";
@@ -54,10 +68,12 @@ import {
     MAX_PLUGIN_MCP_TOOLS,
     type PluginFunctionDefinition,
     type PluginFunctionResult,
+    type PluginAgentCallContext,
     type PluginHostPermission,
     type PluginInstallationSummary,
     type PluginPackage,
     type PreparedPluginSummary,
+    type PluginManagementRequestSummary,
     type PluginRuntimeConfiguration,
     type PluginSkillDefinition,
     type PluginUpdateCheck,
@@ -94,6 +110,7 @@ export class PluginService {
         private readonly pubsub: PubSub,
         private readonly catalog: PluginCatalog,
         private readonly packages: PluginPackageStore,
+        private readonly packageLinks: PluginPackageLinkDownloader,
         private readonly secrets: PluginSecretProtector,
         private readonly runtime: PluginMcpRuntime,
         private readonly tokens: TokenService,
@@ -106,6 +123,10 @@ export class PluginService {
 
     async start(): Promise<void> {
         await this.packages.cleanupTemporary();
+        for (const hint of await pluginManagementRequestRecoverProcessing(this.executor))
+            await this.publish(hint).catch(this.onError);
+        for (const requestId of await pluginManagementRequestListTerminalIds(this.executor))
+            await this.packages.removeRequest(requestId).catch(this.onError);
         const removed = await pluginRemoveMissingBuiltins(
             this.executor,
             this.catalog.list().map(({ source }) => source.reference),
@@ -138,15 +159,75 @@ export class PluginService {
             throw new PluginError("forbidden", "Plugin installation authority is required");
         const plugin = this.catalog.get(input.shortName);
         if (!plugin) throw new PluginError("not_found", "Built-in plugin was not found");
-        const installationId = createId();
+        return this.installPackage({ ...input, plugin });
+    }
+
+    async installArchive(input: {
+        actorUserId: string;
+        archive: Buffer;
+        variables: Readonly<Record<string, string>>;
+        containerImageId?: string;
+    }): Promise<PluginInstallationSummary> {
+        await pluginAuthorizeManagement(this.executor, input.actorUserId);
+        const prepared = await this.prepareRequestedArchive(input.archive, {
+            kind: "archive",
+            reference: "pending",
+        });
+        try {
+            return await this.installPackage({
+                ...input,
+                permissions: [],
+                plugin: prepared.plugin,
+            });
+        } finally {
+            await prepared.cleanup();
+        }
+    }
+
+    async installLink(input: {
+        actorUserId: string;
+        url: string;
+        variables: Readonly<Record<string, string>>;
+        containerImageId?: string;
+    }): Promise<PluginInstallationSummary> {
+        await pluginAuthorizeManagement(this.executor, input.actorUserId);
+        const downloaded = await this.downloadPackage(input.url);
+        const prepared = await this.prepareRequestedArchive(downloaded.body, {
+            kind: "link",
+            reference: downloaded.url,
+        });
+        try {
+            return await this.installPackage({
+                ...input,
+                permissions: [],
+                plugin: prepared.plugin,
+            });
+        } finally {
+            await prepared.cleanup();
+        }
+    }
+
+    private async installPackage(input: {
+        actorUserId?: string;
+        actorInstallationId?: string;
+        plugin: PluginPackage;
+        variables: Readonly<Record<string, string>>;
+        permissions: readonly PluginHostPermission[];
+        containerImageId?: string;
+        installationId?: string;
+    }): Promise<PluginInstallationSummary> {
+        const installationId = input.installationId ?? createId();
         const existing = await pluginFindBySource(
             this.executor,
-            plugin.source.kind,
-            plugin.source.reference,
+            input.plugin.source.kind,
+            input.plugin.source.reference,
         );
         const candidateId = existing ? undefined : createId();
         const candidate = candidateId
-            ? { pluginId: candidateId, ...(await this.packages.install(plugin, candidateId)) }
+            ? {
+                  pluginId: candidateId,
+                  ...(await this.packages.install(input.plugin, candidateId)),
+              }
             : undefined;
         let result: Awaited<ReturnType<typeof pluginInstall>>;
         try {
@@ -154,7 +235,7 @@ export class PluginService {
                 actorUserId: input.actorUserId,
                 actorInstallationId: input.actorInstallationId,
                 installationId,
-                plugin,
+                plugin: input.plugin,
                 candidate,
                 variables: input.variables,
                 permissions: input.permissions,
@@ -399,10 +480,32 @@ export class PluginService {
         try {
             if (containerName) await this.runtime.removeLocal(containerName);
             const result = await pluginInstallationUninstall(this.executor, input);
+            if (result.pluginRemoved) await this.packages.remove(result.pluginId);
             await this.publish(result.hint).catch(this.onError);
         } catch (error) {
             this.activate(input.installationId);
             throw error;
+        }
+    }
+
+    private async downloadPackage(url: string) {
+        try {
+            return await this.packageLinks.download(url);
+        } catch (error) {
+            if (error instanceof PluginError) throw error;
+            throw new PluginError("broken_configuration", errorMessage(error));
+        }
+    }
+
+    private async prepareRequestedArchive(
+        archive: Buffer,
+        source: Parameters<PluginPackageStore["prepareArchive"]>[1],
+    ) {
+        try {
+            return await this.packages.prepareArchive(archive, source);
+        } catch (error) {
+            if (error instanceof PluginError) throw error;
+            throw new PluginError("broken_configuration", errorMessage(error));
         }
     }
 
@@ -428,6 +531,232 @@ export class PluginService {
             contentType: image.contentType,
             checksumSha256: image.checksumSha256,
         };
+    }
+
+    async requestInstallLink(input: {
+        requesterInstallationId: string;
+        agentCall: PluginAgentCallContext;
+        url: string;
+        reason?: string;
+    }): Promise<PluginManagementRequestSummary> {
+        const downloaded = await this.downloadPackage(input.url);
+        const prepared = await this.prepareRequestedArchive(downloaded.body, {
+            kind: "link",
+            reference: downloaded.url,
+        });
+        const requestId = createId();
+        try {
+            if (prepared.plugin.manifest.variables.length)
+                throw new PluginError(
+                    "broken_configuration",
+                    "Plugins that require configuration must be installed directly by an administrator",
+                );
+            const container = effectiveContainer(prepared.plugin.manifest);
+            if (container && !container.dockerfile)
+                throw new PluginError(
+                    "broken_configuration",
+                    "Plugins that require an administrator-selected image cannot be requested from chat",
+                );
+            const packageDirectory = await this.packages.stageRequest(prepared.plugin, requestId);
+            try {
+                const result = await pluginManagementRequestCreateInstall(this.executor, {
+                    id: requestId,
+                    actorUserId: input.agentCall.actorUserId,
+                    agentUserId: input.agentCall.agentUserId,
+                    callId: input.agentCall.callId,
+                    chatId: input.agentCall.chatId,
+                    requesterInstallationId: input.requesterInstallationId,
+                    displayName: prepared.plugin.manifest.displayName,
+                    shortName: prepared.plugin.manifest.shortName,
+                    description: prepared.plugin.manifest.description,
+                    reason: input.reason,
+                    sourceKind: "link",
+                    sourceReference: downloaded.url,
+                    packageDigest: prepared.plugin.packageDigest,
+                    packageDirectory,
+                    installationId: createId(),
+                });
+                if (!result.created) await this.packages.removeRequest(requestId);
+                if (result.hint) await this.publish(result.hint).catch(this.onError);
+                return result.request;
+            } catch (error) {
+                await this.packages.removeRequest(requestId);
+                throw error;
+            }
+        } finally {
+            await prepared.cleanup();
+        }
+    }
+
+    async requestUninstall(input: {
+        requesterInstallationId: string;
+        agentCall: PluginAgentCallContext;
+        targetInstallationId: string;
+        reason?: string;
+    }): Promise<PluginManagementRequestSummary> {
+        const target = await pluginInstallationGetRequestUninstallContext(
+            this.executor,
+            input.targetInstallationId,
+        );
+        const plugin = await this.packages.loadInstalled(
+            target.pluginId,
+            target.packageDirectory,
+            target.shortName,
+            target.packageDigest,
+            target.source,
+        );
+        const requestId = createId();
+        const packageDirectory = await this.packages.stageRequest(plugin, requestId);
+        try {
+            const result = await pluginManagementRequestCreateUninstall(this.executor, {
+                id: requestId,
+                actorUserId: input.agentCall.actorUserId,
+                agentUserId: input.agentCall.agentUserId,
+                callId: input.agentCall.callId,
+                chatId: input.agentCall.chatId,
+                requesterInstallationId: input.requesterInstallationId,
+                targetInstallationId: input.targetInstallationId,
+                displayName: target.displayName,
+                shortName: target.shortName,
+                description: target.description,
+                reason: input.reason,
+                source: target.source,
+                packageDigest: target.packageDigest,
+                packageDirectory,
+            });
+            if (!result.created) await this.packages.removeRequest(requestId);
+            if (result.hint) await this.publish(result.hint).catch(this.onError);
+            return result.request;
+        } catch (error) {
+            await this.packages.removeRequest(requestId);
+            throw error;
+        }
+    }
+
+    listManagementRequests(
+        actorUserId: string,
+        chatId: string,
+    ): Promise<PluginManagementRequestSummary[]> {
+        return pluginManagementRequestList(this.executor, actorUserId, chatId);
+    }
+
+    async managementRequestImage(input: {
+        actorUserId: string;
+        chatId: string;
+        requestId: string;
+    }): Promise<Buffer> {
+        const request = await pluginManagementRequestGetPackage(
+            this.executor,
+            input.actorUserId,
+            input.chatId,
+            input.requestId,
+        );
+        return this.packages.readRequestImage(
+            request.id,
+            request.packageDirectory,
+            request.source,
+            request.packageDigest,
+        );
+    }
+
+    async approveManagementRequest(input: {
+        actorUserId: string;
+        chatId: string;
+        requestId: string;
+    }): Promise<PluginManagementRequestSummary> {
+        const work = await pluginManagementRequestBeginInstall(this.executor, input);
+        await this.publish(work.hint).catch(this.onError);
+        try {
+            const plugin = await this.packages.loadRequest(
+                work.id,
+                work.packageDirectory,
+                work.source,
+                work.packageDigest,
+            );
+            await this.installPackage({
+                actorUserId: input.actorUserId,
+                installationId: work.installationId,
+                plugin,
+                variables: {},
+                permissions: [],
+            });
+        } catch (error) {
+            const hint = await pluginManagementRequestCompleteInstall(this.executor, {
+                ...input,
+                installationId: work.installationId,
+                error: errorMessage(error),
+            });
+            await this.publish(hint).catch(this.onError);
+            await this.packages.removeRequest(input.requestId).catch(this.onError);
+            throw error;
+        }
+        const hint = await pluginManagementRequestCompleteInstall(this.executor, {
+            ...input,
+            installationId: work.installationId,
+        });
+        await this.publish(hint).catch(this.onError);
+        await this.packages.removeRequest(input.requestId).catch(this.onError);
+        const requests = await pluginManagementRequestList(
+            this.executor,
+            input.actorUserId,
+            input.chatId,
+        );
+        const request = requests.find(({ id }) => id === input.requestId);
+        if (!request) throw new Error("Completed plugin management request was not found");
+        return request;
+    }
+
+    async denyManagementRequest(input: {
+        actorUserId: string;
+        chatId: string;
+        requestId: string;
+        action: "install" | "uninstall";
+    }): Promise<PluginManagementRequestSummary> {
+        const hint = await pluginManagementRequestDeny(this.executor, input);
+        await this.publish(hint).catch(this.onError);
+        await this.packages.removeRequest(input.requestId).catch(this.onError);
+        const requests = await pluginManagementRequestList(
+            this.executor,
+            input.actorUserId,
+            input.chatId,
+        );
+        const request = requests.find(({ id }) => id === input.requestId);
+        if (!request) throw new Error("Denied plugin management request was not found");
+        return request;
+    }
+
+    async approveUninstallManagementRequest(input: {
+        actorUserId: string;
+        chatId: string;
+        requestId: string;
+    }): Promise<PluginManagementRequestSummary> {
+        const work = await pluginManagementRequestBeginUninstall(this.executor, input);
+        await this.publish(work.hint).catch(this.onError);
+        try {
+            await this.uninstallInstallation({
+                actorUserId: input.actorUserId,
+                installationId: work.targetInstallationId,
+            });
+        } catch (error) {
+            const hint = await pluginManagementRequestCompleteUninstall(this.executor, {
+                ...input,
+                error: errorMessage(error),
+            });
+            await this.publish(hint).catch(this.onError);
+            await this.packages.removeRequest(input.requestId).catch(this.onError);
+            throw error;
+        }
+        const hint = await pluginManagementRequestCompleteUninstall(this.executor, input);
+        await this.publish(hint).catch(this.onError);
+        await this.packages.removeRequest(input.requestId).catch(this.onError);
+        const requests = await pluginManagementRequestList(
+            this.executor,
+            input.actorUserId,
+            input.chatId,
+        );
+        const request = requests.find(({ id }) => id === input.requestId);
+        if (!request) throw new Error("Completed plugin uninstall request was not found");
+        return request;
     }
 
     async openLocal(installationId: string): Promise<Transport> {
@@ -524,16 +853,27 @@ export class PluginService {
     async callFunction(
         functionName: string,
         args: unknown,
-        context: { chatId: string },
+        context: { chatId: string; sessionId: string; callId: string },
         signal?: AbortSignal,
     ): Promise<PluginFunctionResult> {
         try {
+            const agentCall = await pluginAgentCallContextGet(
+                this.executor,
+                context.sessionId,
+                context.callId,
+            );
             return await withOperationTimeout(
                 FUNCTION_EXECUTION_TIMEOUT_MS,
                 "Plugin MCP function execution",
                 signal,
                 (operationSignal) =>
-                    this.callFunctionWithSignal(functionName, args, context, operationSignal),
+                    this.callFunctionWithSignal(
+                        functionName,
+                        args,
+                        context,
+                        agentCall,
+                        operationSignal,
+                    ),
             );
         } catch (error) {
             if (signal?.aborted) throw error;
@@ -551,6 +891,7 @@ export class PluginService {
         functionName: string,
         args: unknown,
         context: { chatId: string },
+        agentCall: PluginAgentCallContext,
         signal: AbortSignal,
     ): Promise<PluginFunctionResult> {
         const installationId = pluginFunctionInstallationId(functionName);
@@ -572,7 +913,7 @@ export class PluginService {
             installationId,
             chatId: context.chatId,
         });
-        const result = await this.withClient(installationId, signal, async (client) => {
+        const result = await this.withClient(installationId, signal, agentCall, async (client) => {
             const result = await client.callTool({
                 name: cached.name,
                 arguments: jsonArguments(args),
@@ -615,12 +956,32 @@ export class PluginService {
         return [...records];
     }
 
-    async authorizeHost(token: string, permission: PluginHostPermission): Promise<string> {
+    async authorizeHost(
+        token: string,
+        permission: PluginHostPermission,
+    ): Promise<Awaited<ReturnType<TokenService["verifyPluginRuntimeToken"]>>> {
         let claims: Awaited<ReturnType<TokenService["verifyPluginRuntimeToken"]>>;
         try {
             claims = await this.tokens.verifyPluginRuntimeToken(token);
         } catch {
             throw new PluginError("forbidden", "Plugin runtime token is invalid");
+        }
+        if (claims.agentCall) {
+            const active = await pluginAgentCallContextGet(
+                this.executor,
+                claims.agentCall.sessionId,
+                claims.agentCall.callId,
+            ).catch(() => undefined);
+            if (
+                !active ||
+                active.actorUserId !== claims.agentCall.actorUserId ||
+                active.agentUserId !== claims.agentCall.agentUserId ||
+                active.chatId !== claims.agentCall.chatId
+            )
+                throw new PluginError(
+                    "forbidden",
+                    "Plugin agent-call capability is no longer active",
+                );
         }
         if (!claims.permissions.includes(permission))
             throw new PluginError("forbidden", `Plugin runtime lacks ${permission} permission`);
@@ -647,7 +1008,7 @@ export class PluginService {
             if (hint) await this.publish(hint).catch(this.onError);
             throw new PluginError("forbidden", "Plugin container incarnation is not running");
         }
-        return claims.installationId;
+        return claims;
     }
 
     async chatUpdate(
@@ -655,7 +1016,7 @@ export class PluginService {
         chatToken: string,
         input: { title?: string; description?: string | null },
     ): Promise<{ chat: ChatMetadataSummary; sync: MutationHint }> {
-        const installationId = await this.authorizeHost(runtimeToken, "chats:update");
+        const { installationId } = await this.authorizeHost(runtimeToken, "chats:update");
         let claims: Awaited<ReturnType<TokenService["verifyPluginChatToken"]>>;
         try {
             claims = await this.tokens.verifyPluginChatToken(chatToken);
@@ -786,6 +1147,7 @@ export class PluginService {
     private async withClient<T>(
         installationId: string,
         signal: AbortSignal | undefined,
+        agentCall: PluginAgentCallContext | undefined,
         action: (client: Client, configuration: PluginRuntimeConfiguration) => Promise<T>,
     ): Promise<T | undefined> {
         signal?.throwIfAborted();
@@ -798,7 +1160,7 @@ export class PluginService {
         if (configuration.type === "local" && !configuration.mcp) return undefined;
         const localToken =
             configuration.type === "local"
-                ? await this.pluginRuntimeToken(configuration)
+                ? await this.pluginRuntimeToken(configuration, agentCall)
                 : undefined;
         const transport =
             configuration.type === "local"
@@ -1091,7 +1453,13 @@ export class PluginService {
     }
 
     private publish(hint: MutationHint): Promise<void> {
-        return this.pubsub.publish(realtimeTopics.server, { type: "sync", ...hint });
+        const event = { type: "sync" as const, ...hint };
+        return Promise.all([
+            this.pubsub.publish(realtimeTopics.server, event),
+            ...hint.chats.map(({ chatId }) =>
+                this.pubsub.publish(realtimeTopics.chat(chatId), event),
+            ),
+        ]).then(() => undefined);
     }
 
     private closeCommand(installationId: string): void {
@@ -1136,6 +1504,7 @@ export class PluginService {
 
     private pluginRuntimeToken(
         configuration: Extract<PluginRuntimeConfiguration, { type: "local" }>,
+        agentCall?: PluginAgentCallContext,
     ): Promise<string> {
         if (!configuration.containerInstanceId)
             throw new PluginError("not_ready", "Plugin container incarnation is unavailable");
@@ -1143,6 +1512,7 @@ export class PluginService {
             installationId: configuration.installationId,
             containerInstanceId: configuration.containerInstanceId,
             permissions: configuration.permissions,
+            ...(agentCall ? { agentCall } : {}),
         });
     }
 }

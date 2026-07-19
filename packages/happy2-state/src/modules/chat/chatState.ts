@@ -1,4 +1,5 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
+import { type PluginManagementRequestSummary } from "../../resources.js";
 import {
     type AgentActivityState,
     type ChatPinSummary,
@@ -149,6 +150,100 @@ export async function chatPinsLoad(context: ChatLoadContext, chatId: string): Pr
     }
 }
 
+/**
+ * Ordering guard for plugin request reads, keyed by the materialized store so
+ * a store's disposal naturally invalidates its in-flight reads. Every read
+ * takes a new generation; only the newest may land, and a direct decision
+ * result bumps the generation so an older pending list can never regress a
+ * request the server already resolved.
+ */
+const pluginRequestGenerations = new WeakMap<ChatStore, number>();
+
+function pluginRequestGenerationNext(chat: ChatStore): number {
+    const generation = (pluginRequestGenerations.get(chat) ?? 0) + 1;
+    pluginRequestGenerations.set(chat, generation);
+    return generation;
+}
+
+/** Loads render-ready plugin management requests only after the retained chat surface requests them. */
+export async function chatPluginRequestsLoad(
+    context: ChatLoadContext,
+    chatId: string,
+): Promise<void> {
+    const chat = context.chatGet(chatId);
+    if (!chat || !context.runtime.connected) return;
+    const generation = pluginRequestGenerationNext(chat);
+    const current = (): ChatStore | undefined => {
+        const binding = context.chatGet(chatId);
+        return binding === chat && pluginRequestGenerations.get(chat) === generation
+            ? binding
+            : undefined;
+    };
+    try {
+        const result = await context.runtime.operation("getPluginManagementRequests", { chatId });
+        current()
+            ?.getState()
+            .chatInput({ type: "pluginRequestsLoaded", requests: result.requests });
+    } catch (error) {
+        current()
+            ?.getState()
+            .chatInput({ type: "pluginRequestsFailed", error: userError(error) });
+    }
+}
+
+export interface ChatPluginRequestDecideContext {
+    readonly runtime: StateRuntime;
+    chatGet(chatId: string): ChatStore | undefined;
+    /** Reconciles the admin plugin surface after a decision durably changes installations. */
+    pluginsReconcile(): void;
+}
+
+/**
+ * Performs one chat-scoped approve/deny decision against the exact request and applies the
+ * terminal approval summary authoritatively to the retained chat surface. An approval durably
+ * installs or uninstalls the plugin, so the admin plugin surface reconciles afterwards.
+ */
+export async function chatPluginRequestDecide(
+    context: ChatPluginRequestDecideContext,
+    event: Extract<ChatOutput, { type: "pluginRequestDecisionSubmitted" }>,
+): Promise<void> {
+    const operation =
+        event.action === "install"
+            ? event.decision === "approve"
+                ? ("approvePluginInstall" as const)
+                : ("denyPluginInstall" as const)
+            : event.decision === "approve"
+              ? ("approvePluginUninstall" as const)
+              : ("denyPluginUninstall" as const);
+    try {
+        const result = await context.runtime.operation(operation, {
+            chatId: event.chatId,
+            requestId: event.requestId,
+        });
+        const chat = context.chatGet(event.chatId);
+        if (chat) {
+            // A list read started before this decision may still be in flight
+            // with the request pending; invalidate it so the older read cannot
+            // land after this authoritative terminal result.
+            pluginRequestGenerationNext(chat);
+            chat.getState().chatInput({
+                type: "pluginRequestReconciled",
+                request: result.approval,
+            });
+        }
+        if (event.decision === "approve") context.pluginsReconcile();
+    } catch (error) {
+        context
+            .chatGet(event.chatId)
+            ?.getState()
+            .chatInput({
+                type: "pluginRequestDecisionFailed",
+                requestId: event.requestId,
+                error: userError(error),
+            });
+    }
+}
+
 /** Creates one on-demand conversation surface with state and mutations in one Zustand object. */
 export function chatStoreCreate(
     chatId: string,
@@ -161,6 +256,8 @@ export function chatStoreCreate(
         hasMoreMessages: false,
         members: { type: "unloaded" },
         pins: { type: "unloaded" },
+        pluginRequests: { type: "unloaded" },
+        pluginRequestPendingIds: [],
         reactionActors: {},
         typing: [],
         agentActivity: [],
@@ -177,6 +274,36 @@ export function chatStoreCreate(
             if (current.type === "loading" || current.type === "ready") return;
             get().chatInput({ type: "pinsLoading" });
             output({ type: "pinsRetained", chatId });
+        },
+        pluginRequestsRetain(): void {
+            const current = get().pluginRequests;
+            if (current.type === "loading" || current.type === "ready") return;
+            get().chatInput({ type: "pluginRequestsLoading" });
+            output({ type: "pluginRequestsRetained", chatId });
+        },
+        pluginRequestApprove(requestId): void {
+            const request = pluginRequestActionable(get(), requestId);
+            if (!request) return;
+            get().chatInput({ type: "pluginRequestPending", requestId });
+            output({
+                type: "pluginRequestDecisionSubmitted",
+                chatId,
+                requestId,
+                action: request.action,
+                decision: "approve",
+            });
+        },
+        pluginRequestDeny(requestId): void {
+            const request = pluginRequestActionable(get(), requestId);
+            if (!request) return;
+            get().chatInput({ type: "pluginRequestPending", requestId });
+            output({
+                type: "pluginRequestDecisionSubmitted",
+                chatId,
+                requestId,
+                action: request.action,
+                decision: "deny",
+            });
         },
         reactionActorsRetain(messageId, reactionKey): void {
             const key = reactionActorsKey(messageId, reactionKey);
@@ -268,6 +395,95 @@ export function chatStoreCreate(
                         return { ...snapshot, pins: { type: "ready", value: event.pins } };
                     case "pinsFailed":
                         return { ...snapshot, pins: { type: "error", error: event.error } };
+                    case "pluginRequestsLoading":
+                        return snapshot.pluginRequests.type === "loading" ||
+                            snapshot.pluginRequests.type === "ready"
+                            ? snapshot
+                            : { ...snapshot, pluginRequests: { type: "loading" } };
+                    case "pluginRequestsLoaded": {
+                        // Preserve references for unchanged requests so rows keep
+                        // their identity across ordinary reconciliation reads.
+                        const previous =
+                            snapshot.pluginRequests.type === "ready"
+                                ? snapshot.pluginRequests.value
+                                : [];
+                        const value = event.requests.map((request) => {
+                            const before = previous.find(
+                                (candidate) => candidate.id === request.id,
+                            );
+                            return before && pluginRequestEquivalent(before, request)
+                                ? before
+                                : request;
+                        });
+                        const unchanged =
+                            snapshot.pluginRequests.type === "ready" &&
+                            previous.length === value.length &&
+                            previous.every((request, index) => request === value[index]);
+                        return {
+                            ...snapshot,
+                            pluginRequests: unchanged
+                                ? snapshot.pluginRequests
+                                : { type: "ready", value },
+                            // A decision that resolved on another surface arrives through
+                            // this durable read; its local busy marker must not survive it.
+                            pluginRequestPendingIds: snapshot.pluginRequestPendingIds.filter(
+                                (id) =>
+                                    event.requests.find((request) => request.id === id)?.status ===
+                                    "pending",
+                            ),
+                        };
+                    }
+                    case "pluginRequestsFailed":
+                        return {
+                            ...snapshot,
+                            pluginRequests:
+                                snapshot.pluginRequests.type === "ready"
+                                    ? snapshot.pluginRequests
+                                    : { type: "error", error: event.error },
+                        };
+                    case "pluginRequestPending":
+                        return {
+                            ...snapshot,
+                            pluginRequestPendingIds: snapshot.pluginRequestPendingIds.includes(
+                                event.requestId,
+                            )
+                                ? snapshot.pluginRequestPendingIds
+                                : [...snapshot.pluginRequestPendingIds, event.requestId],
+                            pluginRequestActionError: undefined,
+                        };
+                    case "pluginRequestReconciled": {
+                        if (snapshot.pluginRequests.type !== "ready")
+                            return {
+                                ...snapshot,
+                                pluginRequestPendingIds: snapshot.pluginRequestPendingIds.filter(
+                                    (id) => id !== event.request.id,
+                                ),
+                            };
+                        const existing = snapshot.pluginRequests.value.findIndex(
+                            (request) => request.id === event.request.id,
+                        );
+                        const value =
+                            existing < 0
+                                ? [...snapshot.pluginRequests.value, event.request]
+                                : snapshot.pluginRequests.value.map((request, index) =>
+                                      index === existing ? event.request : request,
+                                  );
+                        return {
+                            ...snapshot,
+                            pluginRequests: { type: "ready", value },
+                            pluginRequestPendingIds: snapshot.pluginRequestPendingIds.filter(
+                                (id) => id !== event.request.id,
+                            ),
+                        };
+                    }
+                    case "pluginRequestDecisionFailed":
+                        return {
+                            ...snapshot,
+                            pluginRequestPendingIds: snapshot.pluginRequestPendingIds.filter(
+                                (id) => id !== event.requestId,
+                            ),
+                            pluginRequestActionError: event.error,
+                        };
                     case "reactionActorsLoading": {
                         const key = reactionActorsKey(event.messageId, event.reactionKey);
                         if (snapshot.reactionActors[key]?.type === "loading") return snapshot;
@@ -438,6 +654,10 @@ export interface ChatSnapshot {
     readonly hasMoreMessages: boolean;
     readonly members: Loadable<readonly ChatMemberProjection[]>;
     readonly pins: Loadable<readonly ChatPinProjection[]>;
+    readonly pluginRequests: Loadable<readonly PluginManagementRequestSummary[]>;
+    /** Request ids whose approve/deny decision is still in flight from this surface. */
+    readonly pluginRequestPendingIds: readonly string[];
+    readonly pluginRequestActionError?: UserError;
     readonly reactionActors: Readonly<Record<string, Loadable<ReactionActors>>>;
     readonly typing: readonly TypingState[];
     readonly agentActivity: readonly AgentActivityState[];
@@ -453,6 +673,14 @@ export interface AgentEffortProjection {
 export type ChatOutput =
     | { readonly type: "membersRetained"; readonly chatId: string }
     | { readonly type: "pinsRetained"; readonly chatId: string }
+    | { readonly type: "pluginRequestsRetained"; readonly chatId: string }
+    | {
+          readonly type: "pluginRequestDecisionSubmitted";
+          readonly chatId: string;
+          readonly requestId: string;
+          readonly action: PluginManagementRequestSummary["action"];
+          readonly decision: "approve" | "deny";
+      }
     | {
           readonly type: "reactionActorsRetained";
           readonly chatId: string;
@@ -489,6 +717,22 @@ export type ChatInput =
     | { readonly type: "pinsLoading" }
     | { readonly type: "pinsLoaded"; readonly pins: readonly ChatPinProjection[] }
     | { readonly type: "pinsFailed"; readonly error: UserError }
+    | { readonly type: "pluginRequestsLoading" }
+    | {
+          readonly type: "pluginRequestsLoaded";
+          readonly requests: readonly PluginManagementRequestSummary[];
+      }
+    | { readonly type: "pluginRequestsFailed"; readonly error: UserError }
+    | { readonly type: "pluginRequestPending"; readonly requestId: string }
+    | {
+          readonly type: "pluginRequestReconciled";
+          readonly request: PluginManagementRequestSummary;
+      }
+    | {
+          readonly type: "pluginRequestDecisionFailed";
+          readonly requestId: string;
+          readonly error: UserError;
+      }
     | {
           readonly type: "reactionActorsLoading";
           readonly messageId: string;
@@ -518,6 +762,9 @@ export type ChatInput =
 export interface ChatState extends ChatSnapshot {
     membersRetain(): void;
     pinsRetain(): void;
+    pluginRequestsRetain(): void;
+    pluginRequestApprove(requestId: string): void;
+    pluginRequestDeny(requestId: string): void;
     reactionActorsRetain(messageId: string, reactionKey: string): void;
     agentEffortRetain(agentUserId: string): void;
     agentEffortChange(agentUserId: string, effort: string): void;
@@ -555,6 +802,44 @@ function agentEffortMessageApply(snapshot: ChatState, item: ChatMessageItem): Ch
 
 export function reactionActorsKey(messageId: string, reactionKey: string): string {
     return `${messageId}\u0000${reactionKey}`;
+}
+
+/** Field-complete equality over the closed request summary; equal requests keep their reference. */
+function pluginRequestEquivalent(
+    left: PluginManagementRequestSummary,
+    right: PluginManagementRequestSummary,
+): boolean {
+    return (
+        left.id === right.id &&
+        left.action === right.action &&
+        left.status === right.status &&
+        left.chatId === right.chatId &&
+        left.agentUserId === right.agentUserId &&
+        left.requesterInstallationId === right.requesterInstallationId &&
+        left.displayName === right.displayName &&
+        left.shortName === right.shortName &&
+        left.description === right.description &&
+        left.reason === right.reason &&
+        left.sourceKind === right.sourceKind &&
+        left.sourceReference === right.sourceReference &&
+        left.targetInstallationId === right.targetInstallationId &&
+        left.createdAt === right.createdAt &&
+        left.resolvedAt === right.resolvedAt &&
+        left.resolvedByUserId === right.resolvedByUserId &&
+        left.installationId === right.installationId &&
+        left.lastError === right.lastError
+    );
+}
+
+/** A decision may target only a loaded, still-pending request without an in-flight decision. */
+function pluginRequestActionable(
+    snapshot: ChatSnapshot,
+    requestId: string,
+): PluginManagementRequestSummary | undefined {
+    if (snapshot.pluginRequests.type !== "ready") return undefined;
+    if (snapshot.pluginRequestPendingIds.includes(requestId)) return undefined;
+    const request = snapshot.pluginRequests.value.find((candidate) => candidate.id === requestId);
+    return request?.status === "pending" ? request : undefined;
 }
 
 /** Converts one server message into a render projection without presence or reaction actor payloads. */

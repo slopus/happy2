@@ -43,6 +43,8 @@ const sourceKindLabels: Record<SystemPluginSummary["sourceKind"], string> = {
     github: "GitHub",
     upload: "Uploaded ZIP",
     zip_url: "ZIP URL",
+    archive: "Uploaded ZIP",
+    link: "ZIP URL",
 };
 /**
  * Complete plugin management page backed by PluginsStore: the built-in catalog,
@@ -361,7 +363,12 @@ function candidateProject(
         shortName: candidate.shortName,
         version: candidate.version,
         description: candidate.description,
-        sourceKind: candidate.sourceKind,
+        sourceKind:
+            candidate.sourceKind === "archive"
+                ? "upload"
+                : candidate.sourceKind === "link"
+                  ? "zip_url"
+                  : candidate.sourceKind,
         sourceReference: sourceReferenceLabel(candidate, flow),
         skills: candidate.skills.map((skill) => ({
             name: skill.name,

@@ -185,7 +185,7 @@ interface AgentPluginCapabilities {
     callFunction(
         functionName: string,
         args: unknown,
-        context: { chatId: string },
+        context: { chatId: string; sessionId: string; callId: string },
         signal?: AbortSignal,
     ): Promise<PluginFunctionResult>;
     listFunctions(signal?: AbortSignal): Promise<readonly PluginFunctionDefinition[]>;
@@ -1395,7 +1395,7 @@ export class AgentService {
             return this.pluginCapabilities.callFunction(
                 functionName,
                 args,
-                { chatId },
+                { chatId, sessionId, callId },
                 this.shutdown.signal,
             );
         });

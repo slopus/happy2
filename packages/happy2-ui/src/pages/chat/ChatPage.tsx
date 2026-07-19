@@ -2,9 +2,11 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
     AgentTracePanel,
     AppShell,
+    Banner,
     Button,
     Lightbox,
     ModalOverlay,
+    PluginPermissionCard,
     Sidebar,
     type ContextItem,
 } from "./ChatPageComponents.js";
@@ -56,6 +58,7 @@ import { chatCreationModelCreate, useChatCreateRequest } from "./chatCreationMod
 import { chatChannelModelCreate } from "./chatChannelModel.js";
 import {
     useAvatarImages,
+    usePluginRequestImages,
     createAvatarProjection,
     useOptionalStoreSnapshot,
     useStoreSnapshot,
@@ -144,6 +147,8 @@ export interface ChatPageActions {
     channelDefaultAgentUpdate(chatId: string, agentUserId: string): Promise<void>;
     agentCreate(input: import("happy2-state").CreateAgentInput): Promise<void>;
     directMessageCreate(userId: string): Promise<void>;
+    /** Downloads one staged plugin request image while the request package remains staged. */
+    pluginRequestImageDownload?(chatId: string, requestId: string): Promise<ArrayBuffer>;
 }
 export function ChatPage(props: ChatPageProps) {
     const user = () => props.user;
@@ -497,6 +502,64 @@ export function ChatPage(props: ChatPageProps) {
             : undefined;
         return person ? `${person.displayName} activity` : "Agent activity";
     };
+
+    const requestImages = usePluginRequestImages(props.actions);
+    const pluginRequestEntries = (): ReactNode[] => {
+        const snapshot = chatSnapshot();
+        const requests = snapshot?.pluginRequests;
+        if (!snapshot || requests?.type !== "ready" || requests.value.length === 0) return [];
+        const requester = (agentUserId?: string) =>
+            agentUserId
+                ? directoryUsers().find((person) => person.id === agentUserId)?.displayName
+                : undefined;
+        const nodes: ReactNode[] = requests.value.map((request) => (
+            <div
+                className="happy2-plugin-permission-card-row"
+                data-happy2-ui="plugin-permission-card-row"
+                key={`plugin-request:${request.id}`}
+            >
+                <PluginPermissionCard
+                    action={request.action}
+                    busy={snapshot.pluginRequestPendingIds.includes(request.id)}
+                    canDecide={isServerAdmin()}
+                    description={request.description}
+                    error={request.lastError}
+                    imageUrl={requestImages.imageUrl(
+                        request.chatId,
+                        request.id,
+                        request.status === "pending" || request.status === "processing",
+                    )}
+                    onApprove={() => props.chat?.getState().pluginRequestApprove(request.id)}
+                    onDeny={() => props.chat?.getState().pluginRequestDeny(request.id)}
+                    pluginName={request.displayName}
+                    reason={request.reason}
+                    requestedBy={requester(request.agentUserId)}
+                    shortName={request.shortName}
+                    source={
+                        request.sourceKind === "link"
+                            ? request.sourceReference
+                            : request.sourceKind === "archive"
+                              ? `ZIP · ${request.sourceReference ?? request.shortName}`
+                              : undefined
+                    }
+                    status={request.status}
+                />
+            </div>
+        ));
+        const decisionError = snapshot.pluginRequestActionError;
+        if (decisionError)
+            nodes.push(
+                <div
+                    className="happy2-plugin-permission-card-row"
+                    key="plugin-request:decision-error"
+                >
+                    <Banner tone="danger" title="Plugin request decision failed">
+                        {decisionError.message}
+                    </Banner>
+                </div>,
+            );
+        return nodes;
+    };
     function selectConversation(id: string, replace = false) {
         pendingSelection.current = undefined;
         const projection = sidebarChats().find((candidate) => candidate.id === id);
@@ -791,9 +854,12 @@ export function ChatPage(props: ChatPageProps) {
                         !activeChat()?.membershipRole,
                     )}
                     menuItems={activeConversationId() ? channelModel.menuItems() : undefined}
-                    messageEntries={conversationEntries().map((entry, index, list) =>
-                        renderEntry(entry, index, list),
-                    )}
+                    messageEntries={[
+                        ...conversationEntries().map((entry, index, list) =>
+                            renderEntry(entry, index, list),
+                        ),
+                        ...pluginRequestEntries(),
+                    ]}
                     onAgentAdd={(agentId) => props.composer?.getState().agentUserAdd(agentId)}
                     onAgentRemove={(agentId) => props.composer?.getState().agentUserRemove(agentId)}
                     onAudienceChange={(audience) =>

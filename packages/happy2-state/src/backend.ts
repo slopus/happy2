@@ -44,6 +44,7 @@ import type {
     PluginCatalogItem,
     PluginHostPermission,
     PluginInstallationSummary,
+    PluginManagementRequestSummary,
     SystemPluginSummary,
     PublicServerSetupStatus,
     RoleSummary,
@@ -236,6 +237,22 @@ export const backendOperations = {
     installPreparedPlugin: post("/v0/admin/pluginPackages/installPlugin"),
     checkPluginUpdate: post("/v0/admin/systemPlugins/:pluginId/checkForUpdate"),
     uninstallPlugin: post("/v0/admin/systemPlugins/:pluginId/uninstallPlugin"),
+    getPluginManagementRequests: get("/v0/chats/:chatId/pluginManagementRequests"),
+    downloadPluginManagementRequestImage: get(
+        "/v0/chats/:chatId/pluginManagementRequests/:requestId/image",
+    ),
+    approvePluginInstall: post(
+        "/v0/chats/:chatId/pluginManagementRequests/:requestId/approvePluginInstall",
+    ),
+    denyPluginInstall: post(
+        "/v0/chats/:chatId/pluginManagementRequests/:requestId/denyPluginInstall",
+    ),
+    approvePluginUninstall: post(
+        "/v0/chats/:chatId/pluginManagementRequests/:requestId/approvePluginUninstall",
+    ),
+    denyPluginUninstall: post(
+        "/v0/chats/:chatId/pluginManagementRequests/:requestId/denyPluginUninstall",
+    ),
     getAgentSecrets: get("/v0/admin/agentSecrets"),
     createAgentSecret: sensitivePost("/v0/admin/agentSecrets/createSecret"),
     deleteAgentSecret: post("/v0/admin/agentSecrets/:secretId/deleteSecret"),
@@ -982,6 +999,14 @@ export interface KnownBackendResults {
             readonly installationIds: readonly string[];
         };
     };
+    getPluginManagementRequests: {
+        readonly requests: readonly PluginManagementRequestSummary[];
+    };
+    downloadPluginManagementRequestImage: ArrayBuffer;
+    approvePluginInstall: { readonly approval: PluginManagementRequestSummary };
+    denyPluginInstall: { readonly approval: PluginManagementRequestSummary };
+    approvePluginUninstall: { readonly approval: PluginManagementRequestSummary };
+    denyPluginUninstall: { readonly approval: PluginManagementRequestSummary };
     getAgentSecrets: { readonly secrets: readonly AgentSecretSummary[] };
     createAgentSecret: { readonly secret: AgentSecretSummary; readonly sync: unknown };
     deleteAgentSecret: { readonly removed: boolean; readonly sync: unknown };

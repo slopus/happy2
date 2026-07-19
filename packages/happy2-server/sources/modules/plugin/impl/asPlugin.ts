@@ -64,7 +64,14 @@ export function asSystemPlugin(row: Record<string, unknown>): SystemPluginSummar
     };
 }
 
-const sourceKinds = new Set<PluginSourceKind>(["builtin", "github", "upload", "zip_url"]);
+const sourceKinds = new Set<PluginSourceKind>([
+    "builtin",
+    "github",
+    "upload",
+    "zip_url",
+    "archive",
+    "link",
+]);
 
 function requiredString(value: unknown, name: string): string {
     if (typeof value !== "string" || !value) throw new Error(`Invalid ${name}`);
