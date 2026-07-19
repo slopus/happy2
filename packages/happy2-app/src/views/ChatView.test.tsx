@@ -107,6 +107,8 @@ it("acquires and releases exactly one trace lease per routed panel lifetime", as
     const navigation = navigationStub();
     const view = (route: DesktopRoute) => (
         <ChatView
+            adminStartSection="users"
+            canOpenAdmin={false}
             navigation={navigation}
             rail={<div>Rail</div>}
             route={route}

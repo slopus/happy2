@@ -224,7 +224,13 @@ async function waitForMessages(
     let messages: Array<Record<string, unknown>> = [];
     await waitFor(async () => {
         messages = (await client.get(`/v0/chats/${chatId}/messages`)).json().messages;
-        return messages.length >= count;
+        return (
+            messages.length >= count &&
+            messages.every(
+                (message) =>
+                    message.kind !== "automated" || message.generationStatus !== "streaming",
+            )
+        );
     }, `${count} chat messages`);
     return messages;
 }
