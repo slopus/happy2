@@ -83,6 +83,9 @@ it("authorizes exact chat Rig terminals and carries protocol input resize reconn
                 })
         ).statusCode,
     ).toBe(404);
+    for (const body of [null, [], { cols: 80, rows: 24, unexpected: true }]) {
+        expect((await server.as(owner).post(createPath, body)).statusCode).toBe(400);
+    }
 
     const created = await server.as(owner).post(createPath, { cols: 80, rows: 24 });
     expect(created.statusCode).toBe(201);
@@ -99,8 +102,36 @@ it("authorizes exact chat Rig terminals and carries protocol input resize reconn
     const baseUrl = web.url;
     const attachPath = `${terminalPath}/attach`;
 
+    const cookie = await webSessionCookie(baseUrl, owner);
+    const cookieAttachment = await attachTerminal(baseUrl, attachPath, owner, terminalView(), {
+        bearerProtocol: false,
+        headers: { cookie: `other=value; ${cookie}` },
+    });
+    cookieAttachment.close();
+    await waitFor(() => rig.terminalAttachmentDisconnectCount === 1);
+    const headerAttachment = await attachTerminal(baseUrl, attachPath, owner, terminalView(), {
+        bearerProtocol: false,
+        headers: {
+            authorization: `Bearer ${owner.token}`,
+            "cf-access-jwt-assertion": "forwarded-by-gateway",
+        },
+    });
+    headerAttachment.close();
+    await waitFor(() => rig.terminalAttachmentDisconnectCount === 2);
+
     expect(await webSocketStatus(backendUrl, attachPath)).toBe(401);
+    expect(await webSocketStatus(backendUrl, attachPath, undefined, false)).toBe(400);
     expect(await webSocketStatus(backendUrl, attachPath, owner, false)).toBe(400);
+    expect(
+        await webSocketStatus(backendUrl, attachPath, undefined, true, {
+            cookie: "happy2_auth_token=",
+        }),
+    ).toBe(401);
+    expect(
+        await webSocketStatus(backendUrl, attachPath, undefined, true, {
+            cookie: `happy2_auth_token=${"x".repeat(4_097)}`,
+        }),
+    ).toBe(401);
     expect(await webSocketStatus(backendUrl, attachPath, outsider)).toBe(404);
     expect(
         await webSocketStatus(
@@ -134,14 +165,16 @@ it("authorizes exact chat Rig terminals and carries protocol input resize reconn
 
     const reconnectState = firstAttachment.protocol.reconnectState();
     firstAttachment.close();
-    await waitFor(() => rig.terminalAttachmentDisconnectCount === 1);
+    await waitFor(() => rig.terminalAttachmentDisconnectCount === 3);
     const reconnected = await attachTerminal(baseUrl, attachPath, owner, view, {
         reconnectState,
     });
     reconnected.protocol.writeInput("echo ready\r");
     await waitFor(() => rig.terminalInputs.length === 2 && view.rendered().includes("echo ready"));
 
-    const stopped = await server.as(owner).post(`${terminalPath}/stopTerminal`, {});
+    const stopPath = `${terminalPath}/stopTerminal`;
+    expect((await server.as(owner).post(stopPath, { unexpected: true })).statusCode).toBe(400);
+    const stopped = await server.as(owner).post(stopPath, null);
     expect(stopped.json().terminal).toMatchObject({
         exitCode: 0,
         rows: 41,
@@ -149,7 +182,7 @@ it("authorizes exact chat Rig terminals and carries protocol input resize reconn
     });
     await expect(reconnected.exited).resolves.toBe(0);
     reconnected.close();
-    await waitFor(() => rig.terminalAttachmentDisconnectCount === 2);
+    await waitFor(() => rig.terminalAttachmentDisconnectCount === 4);
 
     const oversized = await server.as(owner).post(createPath, { cols: 80, rows: 24 });
     const oversizedTerminalId = oversized.json().terminal.id as string;
@@ -193,20 +226,31 @@ async function attachTerminal(
     path: string,
     user: GymUser,
     view: TerminalView,
-    options: { reconnectState?: RemoteTerminalReconnectState } = {},
+    options: {
+        bearerProtocol?: boolean;
+        headers?: Record<string, string>;
+        reconnectState?: RemoteTerminalReconnectState;
+    } = {},
 ): Promise<{
     close(): void;
     exited: Promise<number | null>;
     protocol: RemoteTerminalProtocolClient;
 }> {
-    const webSocket = new WebSocket(webSocketUrl(baseUrl, path), [
-        TERMINAL_PROTOCOL,
-        `happy2-auth.${user.token}`,
-    ]);
-    await new Promise<void>((resolve, reject) => {
-        webSocket.once("open", resolve);
-        webSocket.once("error", reject);
-    });
+    const webSocket = new WebSocket(
+        webSocketUrl(baseUrl, path),
+        [
+            TERMINAL_PROTOCOL,
+            ...(options.bearerProtocol === false ? [] : [`happy2-auth.${user.token}`]),
+        ],
+        { headers: options.headers },
+    );
+    await withTimeout(
+        new Promise<void>((resolve, reject) => {
+            webSocket.once("open", resolve);
+            webSocket.once("error", reject);
+        }),
+        `opening terminal WebSocket ${path}`,
+    );
     const stream = createWebSocketStream(webSocket, { allowHalfOpen: false });
     let exitResolve!: (exitCode: number | null) => void;
     const exited = new Promise<number | null>((resolve) => {
@@ -238,7 +282,7 @@ async function attachTerminal(
         },
         stream,
     });
-    await protocol.ready;
+    await withTimeout(protocol.ready, `waiting for terminal protocol ${path}`);
     expect(webSocket.protocol).toBe(TERMINAL_PROTOCOL);
     return {
         close() {
@@ -250,30 +294,44 @@ async function attachTerminal(
     };
 }
 
+async function webSessionCookie(baseUrl: string, user: GymUser): Promise<string> {
+    const response = await fetch(new URL("/v0/auth/web/session", baseUrl), {
+        headers: { authorization: `Bearer ${user.token}` },
+    });
+    expect(response.status).toBe(200);
+    const cookie = response.headers.get("set-cookie")?.split(";", 1)[0];
+    expect(cookie).toBeTruthy();
+    return cookie!;
+}
+
 async function webSocketStatus(
     baseUrl: string,
     path: string,
     user?: GymUser,
     includeProtocol = true,
+    headers?: Record<string, string>,
 ): Promise<number> {
     const protocols = [
         ...(includeProtocol ? [TERMINAL_PROTOCOL] : []),
         ...(user ? [`happy2-auth.${user.token}`] : []),
     ];
-    const webSocket = new WebSocket(webSocketUrl(baseUrl, path), protocols);
-    return await new Promise<number>((resolve, reject) => {
-        webSocket.once("unexpected-response", (_request, response) => {
-            const status = response.statusCode ?? 500;
-            response.resume();
-            webSocket.terminate();
-            resolve(status);
-        });
-        webSocket.once("open", () => {
-            webSocket.terminate();
-            reject(new Error("WebSocket unexpectedly connected"));
-        });
-        webSocket.once("error", reject);
-    });
+    const webSocket = new WebSocket(webSocketUrl(baseUrl, path), protocols, { headers });
+    return await withTimeout(
+        new Promise<number>((resolve, reject) => {
+            webSocket.once("unexpected-response", (_request, response) => {
+                const status = response.statusCode ?? 500;
+                response.resume();
+                webSocket.terminate();
+                resolve(status);
+            });
+            webSocket.once("open", () => {
+                webSocket.terminate();
+                reject(new Error("WebSocket unexpectedly connected"));
+            });
+            webSocket.once("error", reject);
+        }),
+        `waiting for WebSocket status ${path}`,
+    );
 }
 
 async function oversizedFrameCloseCode(
@@ -371,5 +429,19 @@ async function waitFor(check: () => boolean | Promise<boolean>): Promise<void> {
     while (!(await check())) {
         if (Date.now() >= deadline) throw new Error("Timed out waiting for terminal state");
         await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+}
+
+async function withTimeout<T>(promise: Promise<T>, action: string): Promise<T> {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<never>((_resolve, reject) => {
+                timeout = setTimeout(() => reject(new Error(`Timed out ${action}`)), 2_000);
+            }),
+        ]);
+    } finally {
+        clearTimeout(timeout);
     }
 }

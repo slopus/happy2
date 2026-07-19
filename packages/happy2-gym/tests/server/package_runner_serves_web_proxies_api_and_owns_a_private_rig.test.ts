@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -141,8 +143,31 @@ describe.sequential("the package runner", () => {
                     host: "127.0.0.1",
                     logger: false,
                     port: 0,
+                    trustedProxyHops: 1,
                     webRoot: fixture.webRoot,
                 });
+                const missingSession = await fetch(`${web.url}/v0/auth/web/session`);
+                expect(missingSession.status).toBe(401);
+                expect(missingSession.headers.get("set-cookie")).toBeNull();
+                const malformedSession = await fetch(`${web.url}/v0/auth/web/session`, {
+                    headers: { authorization: "Bearer invalid token" },
+                });
+                expect(malformedSession.status).toBe(401);
+                expect(malformedSession.headers.get("set-cookie")).toBeNull();
+                const fallback = await fetch(`${web.url}/chats/from-web-gateway`, {
+                    headers: { accept: "text/html" },
+                });
+                expect(fallback.status).toBe(200);
+                expect(await fallback.text()).toContain("Happy (2) packaged web fixture");
+                expect(
+                    (
+                        await fetch(`${web.url}/chats/from-web-gateway`, {
+                            method: "HEAD",
+                            headers: { accept: "text/html" },
+                        })
+                    ).status,
+                ).toBe(200);
+                expect((await fetch(`${web.url}/not-a-route`)).status).toBe(404);
                 const sessionToken = await registerUser(web.url);
                 const directSessionLookup = await fetch(`${web.url}/v0/me`, {
                     headers: { authorization: `Bearer ${sessionToken}` },
@@ -189,12 +214,71 @@ describe.sequential("the package runner", () => {
                     headers: { cookie: cookie! },
                 });
                 expect(cookieAuthenticated.status).toBe(200);
+
+                const secureSession = await fetch(`${web.url}/v0/auth/web/session`, {
+                    headers: {
+                        authorization: `Bearer ${sessionToken}`,
+                        "x-forwarded-proto": "https",
+                    },
+                });
+                expect(secureSession.status).toBe(200);
+                expect(secureSession.headers.get("set-cookie")).toContain("; Secure");
+
+                await web.close();
+                await web.close();
+                web = undefined;
             } finally {
                 await web?.close();
                 await backend?.close();
                 await rm(fixture.directory, { force: true, recursive: true });
             }
         });
+    });
+
+    it("rejects malformed backend origins before starting the web gateway", async () => {
+        for (const backendUrl of [
+            "not-an-origin",
+            "ftp://example.com",
+            "http://user@example.com",
+            "http://user:password@example.com",
+            "http://example.com/path",
+            "http://example.com/?query=1",
+            "http://example.com/#fragment",
+        ]) {
+            await expect(startWebHappy2({ backendUrl, logger: false })).rejects.toThrow(
+                /absolute HTTP|HTTP\(S\) origin/,
+            );
+        }
+    });
+
+    it("falls back to binary content when an upstream response omits its content type", async () => {
+        const webRoot = await mkdtemp(join(tmpdir(), "happy2-web-content-type-"));
+        await writeFile(join(webRoot, "index.html"), "<!doctype html><title>Gateway</title>\n");
+        const upstream = createServer((_request, response) => {
+            response.statusCode = 418;
+            response.end("upstream response");
+        });
+        await new Promise<void>((resolve, reject) => {
+            upstream.once("error", reject);
+            upstream.listen(0, "127.0.0.1", resolve);
+        });
+        let web: RunningHappy2 | undefined;
+        try {
+            const address = upstream.address() as AddressInfo;
+            web = await startWebHappy2({
+                backendUrl: `http://127.0.0.1:${address.port}`,
+                port: 0,
+                webRoot,
+            });
+            const response = await fetch(`${web.url}/v0/auth/web/session`);
+            expect(response.status).toBe(418);
+            expect(response.headers.get("content-type")).toBe("application/octet-stream");
+            expect(await response.text()).toBe("upstream response");
+        } finally {
+            await web?.close();
+            await new Promise<void>((resolve) => upstream.close(() => resolve()));
+            await rm(webRoot, { force: true, recursive: true });
+        }
     });
 
     it("starts the bundled Rig daemon with package-private socket, token, and session state", async () => {

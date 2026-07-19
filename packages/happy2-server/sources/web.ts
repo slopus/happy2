@@ -155,6 +155,7 @@ function terminalProxyRequestHeaders(
         ...(typeof request.headers.authorization === "string"
             ? { authorization: request.headers.authorization }
             : {}),
+        ...(typeof request.headers.cookie === "string" ? { cookie: request.headers.cookie } : {}),
         ...(typeof request.headers["cf-access-jwt-assertion"] === "string"
             ? { "cf-access-jwt-assertion": request.headers["cf-access-jwt-assertion"] }
             : {}),
