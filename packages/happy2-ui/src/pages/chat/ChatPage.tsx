@@ -144,6 +144,8 @@ export interface ChatPageActions {
     chatJoin(chatId: string): Promise<void>;
     chatLeave(chatId: string): Promise<void>;
     chatStarSet(chatId: string, starred: boolean): Promise<void>;
+    chatArchive(chatId: string): Promise<void>;
+    chatRestore(chatId: string): Promise<void>;
     channelCreate(input: import("happy2-state").CreateChannelInput): Promise<void>;
     channelUpdate(chatId: string, input: import("happy2-state").ChannelUpdateInput): Promise<void>;
     channelDefaultAgentUpdate(chatId: string, agentUserId: string): Promise<void>;
@@ -391,6 +393,7 @@ export function ChatPage(props: ChatPageProps) {
         actions: props.actions,
         onInfoOpen: () => infoModel.open(),
         onLeave: () => props.actions.chatSelect("", "chat"),
+        onArchived: () => props.actions.chatSelect("", "chat", true),
         onError: showError,
     });
     const conversation: Conversation = (() => {
@@ -602,7 +605,8 @@ export function ChatPage(props: ChatPageProps) {
             }
             return;
         }
-        if (!activeConversationId() && chats.length) selectConversation(chats[0]!.id, true);
+        const fallback = chats.find((projection) => !projection.chat.archivedAt);
+        if (!activeConversationId() && fallback) selectConversation(fallback.id, true);
     });
     useLayoutEffect(() => {
         const snapshot = chatSnapshot();
@@ -851,7 +855,7 @@ export function ChatPage(props: ChatPageProps) {
                     composerDefaultAgent={
                         audienceRoutingActive() ? composerDefaultAgent() : undefined
                     }
-                    composerDisabled={!activeConversationId()}
+                    composerDisabled={!activeConversationId() || Boolean(activeChat()?.archivedAt)}
                     composerHint={liveComposerHint()}
                     composerMentions={mentionCandidates()}
                     composerPending={composerSnapshot()?.submission.status === "pending" || busy()}

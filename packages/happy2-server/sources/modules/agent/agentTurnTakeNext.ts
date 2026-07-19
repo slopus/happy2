@@ -1,8 +1,8 @@
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 import { agentTurnWork } from "./impl/agentTurnWork.js";
 import { agentTurnWorkSelection } from "./impl/agentTurnWorkSelection.js";
-import { agentTurns, messages } from "../schema.js";
-import { and, eq, sql } from "drizzle-orm";
+import { agentTurns, chats, messages } from "../schema.js";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 /**
  * Claims the oldest eligible agentTurns item for one worker and records a bounded ownership lease.
@@ -33,6 +33,12 @@ export async function agentTurnTakeNext(
     return withTransaction(executor, async (tx) => {
         const leaseExpiresAt = new Date(Date.now() + 45_000).toISOString();
         const claimedAt = new Date().toISOString();
+        const [chat] = await tx
+            .select({ id: chats.id })
+            .from(chats)
+            .where(and(eq(chats.id, chatId), isNull(chats.archivedAt), isNull(chats.deletedAt)))
+            .limit(1);
+        if (!chat) return undefined;
         const [active] = await tx
             .select(agentTurnWorkSelection)
             .from(agentTurns)

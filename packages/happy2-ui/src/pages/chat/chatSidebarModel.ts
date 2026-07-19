@@ -26,8 +26,9 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
         const peer = projection.participants.find((person) => person.id !== options.user().id);
         const agentConversation = isAgentConversation(projection);
         const inactive = chat.id !== options.activeConversationId();
+        const live = !chat.archivedAt;
         return {
-            badge: inactive && chat.mentionCount > 0 ? chat.mentionCount : undefined,
+            badge: live && inactive && chat.mentionCount > 0 ? chat.mentionCount : undefined,
             id: chat.id,
             imageUrl: options.avatarFor(peer?.id, projection.avatarFileId),
             initials: peer ? identityInitials(peer) : projection.displayName.slice(0, 2),
@@ -38,7 +39,7 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
                     ? users().find((candidate) => candidate.id === peer.id)?.presence === "online"
                     : undefined,
             tone: toneFor(peer?.id ?? chat.id),
-            unread: inactive && chat.unreadCount > 0,
+            unread: live && inactive && chat.unreadCount > 0,
         };
     }
     const sections: SidebarSection[] = (() => {
@@ -46,6 +47,8 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
         const projections = chats().filter(
             (projection) => !needle || projection.displayName.toLowerCase().includes(needle),
         );
+        const active = projections.filter((projection) => !projection.chat.archivedAt);
+        const archived = projections.filter((projection) => projection.chat.archivedAt);
         const ordered = (values: readonly DeepReadonly<SidebarChatProjection>[]) => [
             ...values.filter((projection) => projection.chat.starred),
             ...values.filter((projection) => !projection.chat.starred),
@@ -56,9 +59,9 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
                 label: "Channels",
                 action: { icon: "plus", label: "Add channel" },
                 empty: { actionLabel: "Create", description: "No channels yet." },
-                items: ordered(
-                    projections.filter((projection) => projection.chat.kind !== "dm"),
-                ).map(item),
+                items: ordered(active.filter((projection) => projection.chat.kind !== "dm")).map(
+                    item,
+                ),
             },
             {
                 id: "dms",
@@ -66,7 +69,7 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
                 action: { icon: "edit", label: "New message" },
                 empty: { actionLabel: "Message", description: "No teammate chats yet." },
                 items: ordered(
-                    projections.filter(
+                    active.filter(
                         (projection) =>
                             projection.chat.kind === "dm" && !isAgentConversation(projection),
                     ),
@@ -78,17 +81,23 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
                 action: { icon: "plus", label: "New agent" },
                 empty: { actionLabel: "New agent", description: "No agent chats yet." },
                 items: ordered(
-                    projections.filter(
+                    active.filter(
                         (projection) =>
                             projection.chat.kind === "dm" && isAgentConversation(projection),
                     ),
                 ).map(item),
             },
+            {
+                id: "archived",
+                label: "Archived",
+                empty: { actionLabel: "View", description: "No archived chats." },
+                items: ordered(archived).map(item),
+            },
         ];
     })();
     const directoryItems: MenuItem[] = options
         .directorySnapshot()
-        .channels.filter((chat) => !chat.membershipRole)
+        .channels.filter((chat) => !chat.membershipRole && !chat.archivedAt)
         .map((chat) => ({
             id: chat.id,
             icon: "hash",

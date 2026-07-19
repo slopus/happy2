@@ -247,6 +247,8 @@ export function ChatView(props: ChatViewProps) {
         chatJoin: (selectedChatId) => state.chatJoin(selectedChatId),
         chatLeave: (selectedChatId) => state.chatLeave(selectedChatId),
         chatStarSet: (selectedChatId, starred) => state.chatStarSet(selectedChatId, starred),
+        chatArchive: (selectedChatId) => state.chatArchive(selectedChatId),
+        chatRestore: (selectedChatId) => state.chatRestore(selectedChatId),
         channelCreate: (input) => state.channelCreate(input),
         channelUpdate: (selectedChatId, input) => state.channelUpdate(selectedChatId, input),
         channelDefaultAgentUpdate: (selectedChatId, agentUserId) =>

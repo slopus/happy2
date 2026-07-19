@@ -122,11 +122,17 @@ it("places the default-agent conversation in the agents section and projects dis
     // The default-agent conversation is a normal DM-with-agent row inside the
     // agents section; there is no privileged pinned row above the sections.
     expect("pinnedItems" in model).toBe(false);
-    expect(model.sections.map((section) => section.id)).toEqual(["channels", "dms", "agents"]);
+    expect(model.sections.map((section) => section.id)).toEqual([
+        "channels",
+        "dms",
+        "agents",
+        "archived",
+    ]);
     expect(model.sections.map((section) => section.items.map((item) => item.label))).toEqual([
         ["Engineering"],
         ["Grace Hopper"],
         ["Build agent", "Happy"],
+        [],
     ]);
     expect(model.sections[1]!.items[0]).toMatchObject({ unread: true, badge: undefined });
     expect(model.sections[2]!.items[0]).toMatchObject({ unread: true, badge: 2 });

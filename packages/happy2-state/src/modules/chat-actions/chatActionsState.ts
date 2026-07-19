@@ -98,6 +98,18 @@ export async function channelUpdate(
     await chatResultApply(context, result.chat);
 }
 
+/** Archives a manageable chat and reconciles the authoritative lifecycle metadata. */
+export async function chatArchive(context: ChatActionContext, chatId: string): Promise<void> {
+    const result = await context.runtime.operation("archiveChannel", { chatId });
+    await chatResultApply(context, result.chat);
+}
+
+/** Restores an archived manageable chat and reconciles it into active surfaces. */
+export async function chatRestore(context: ChatActionContext, chatId: string): Promise<void> {
+    const result = await context.runtime.operation("unarchiveChannel", { chatId });
+    await chatResultApply(context, result.chat);
+}
+
 export interface ChatActionContext {
     readonly runtime: StateRuntime;
     readonly sidebar: SidebarStore;

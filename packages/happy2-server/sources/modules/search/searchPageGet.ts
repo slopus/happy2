@@ -148,6 +148,7 @@ export async function searchPageGet(
                         sql`datetime(${messages.expiresAt}) > CURRENT_TIMESTAMP`,
                     ),
                     isNull(chats.deletedAt),
+                    isNull(chats.archivedAt),
                     or(eq(chats.kind, "public_channel"), sql`${chatMembers.userId} IS NOT NULL`),
                 ),
             )
