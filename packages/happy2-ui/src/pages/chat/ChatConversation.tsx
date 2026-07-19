@@ -32,6 +32,7 @@ export interface ChatConversationProps {
     composerAgentOptions?: ComposerAgent[];
     composerAudience?: AudienceValue;
     composerDefaultAgent?: ComposerAgent;
+    composerCompactHint: string;
     composerDisabled: boolean;
     composerHint: string;
     composerMentions: Mentionable[];
@@ -187,6 +188,7 @@ export function ChatConversation(props: ChatConversationProps) {
                     defaultAgent={props.composerDefaultAgent}
                     disabled={props.composerDisabled}
                     emoji={emojiItems}
+                    compactHint={props.composerCompactHint}
                     hint={props.composerHint}
                     mentions={props.composerMentions}
                     onAgentAdd={props.onAgentAdd}

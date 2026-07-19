@@ -504,6 +504,11 @@ export function ChatPage(props: ChatPageProps) {
             ? `${person.displayName} is typing…`
             : (statusHint ?? (audienceRoutingActive() ? composerAudienceHint : composerHint));
     };
+    const liveComposerCompactHint = () => {
+        const actor = typingActor();
+        const person = actor && directoryUsers().find((candidate) => candidate.id === actor.userId);
+        return person ? "Typing…" : (statusHint ?? "Enter to send");
+    };
     const activeAgentActivity = (): readonly DeepReadonly<AgentActivityState>[] =>
         chatSnapshot()?.agentActivity ?? [];
     const activeTraceMessageId = () => {
@@ -851,6 +856,7 @@ export function ChatPage(props: ChatPageProps) {
                     composerDefaultAgent={
                         audienceRoutingActive() ? composerDefaultAgent() : undefined
                     }
+                    composerCompactHint={liveComposerCompactHint()}
                     composerDisabled={!activeConversationId()}
                     composerHint={liveComposerHint()}
                     composerMentions={mentionCandidates()}

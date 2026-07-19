@@ -213,6 +213,8 @@ export type ComposerProps = {
      */
     audience?: AudienceValue;
     className?: string;
+    /** Short companion for `hint`, shown only when the toolbar needs to compact. */
+    compactHint?: string;
     contextItems?: ContextItem[];
     "data-testid"?: string;
     /** The chat's default agent, always addressed in Agents mode. */
@@ -528,6 +530,7 @@ export function Composer(props: ComposerProps) {
         <div
             className={["happy2-composer", props.className].filter(Boolean).join(" ")}
             aria-busy={props.pending ? "true" : undefined}
+            data-audience={audienceEnabled() ? "" : undefined}
             data-disabled={props.disabled ? "" : undefined}
             data-pending={props.pending ? "" : undefined}
             data-happy2-ui="composer"
@@ -726,6 +729,14 @@ export function Composer(props: ComposerProps) {
                     {props.hint ? (
                         <span className="happy2-composer__hint" data-happy2-ui="composer-hint">
                             {props.hint}
+                        </span>
+                    ) : null}
+                    {props.compactHint ? (
+                        <span
+                            className="happy2-composer__hint--compact"
+                            data-happy2-ui="composer-hint-compact"
+                        >
+                            {props.compactHint}
                         </span>
                     ) : null}
                     <Button

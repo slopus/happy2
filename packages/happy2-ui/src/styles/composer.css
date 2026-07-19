@@ -227,13 +227,19 @@
     height: 16px;
 }
 
-.happy2-composer__hint {
+.happy2-composer__hint,
+.happy2-composer__hint--compact {
+    flex: none;
     color: var(--happy2-text-faint);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 500;
     line-height: 14px;
     white-space: nowrap;
+}
+
+.happy2-composer__hint--compact {
+    display: none;
 }
 
 .happy2-composer__popover {
@@ -262,16 +268,39 @@
     white-space: nowrap;
 }
 
-/* A channel can remain open beside the 340px information/thread panel at the
- * 1024px desktop minimum. Keep every composer action reachable in that narrow
- * main column by compacting only this component's audience control and hint. */
+/* Composer stages follow the measured demand of each toolbar row. Audience
+ * rows need about 614.4px of content width, so they switch to the host-owned
+ * compact hint at 620px; all-composer rows switch at their 432px boundary.
+ * At 420px the established narrow-panel stage also compacts the audience
+ * control and hides every hint, keeping each action reachable beside a panel. */
+@container (max-width: 620px) {
+    .happy2-composer:where([data-audience]) .happy2-composer__hint {
+        display: none;
+    }
+
+    .happy2-composer:where([data-audience]) .happy2-composer__hint--compact {
+        display: block;
+    }
+}
+
+@container (max-width: 432px) {
+    .happy2-composer .happy2-composer__hint {
+        display: none;
+    }
+
+    .happy2-composer .happy2-composer__hint--compact {
+        display: block;
+    }
+}
+
 @container (max-width: 420px) {
     .happy2-composer .happy2-audience-toggle .happy2-segmented-control {
         width: 120px;
     }
 
     .happy2-composer .happy2-audience-toggle .happy2-segmented-control__icon,
-    .happy2-composer__hint {
+    .happy2-composer .happy2-composer__hint,
+    .happy2-composer .happy2-composer__hint--compact {
         display: none;
     }
 }

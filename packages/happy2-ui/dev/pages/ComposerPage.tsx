@@ -60,6 +60,11 @@ const INITIAL_ATTACHMENTS: ComposerAttachment[] = [
     { id: "handshake.md", name: "handshake.md", size: 12800 },
 ];
 const RECONCILED_TEXT = "Draft restored from the server after reconnect.";
+const TOOLBAR_STAGES = [
+    { contentWidth: 621, label: "621px content · full hint" },
+    { contentWidth: 530, label: "530px content · compact hint" },
+    { contentWidth: 420, label: "420px content · compact audience" },
+] as const;
 /*
  * Live composer driven entirely by a standalone happy2-state composer fixture —
  * no transport, authentication, server, or cross-store bridge. It exercises
@@ -358,6 +363,50 @@ export function ComposerPage() {
                             pending
                             value="Shipping the message…"
                         />
+                    </div>
+                </Specimen>
+            </div>
+
+            <div className="specimen-grid">
+                <Specimen
+                    detail="unscaled audience-enabled toolbar at its full, compact-hint, and narrow-panel stages · send remains 7px inside the card"
+                    label="Toolbar stages"
+                    number="CP-09"
+                    stage="app"
+                >
+                    <div
+                        style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "24px",
+                            padding: "24px 20px",
+                        }}
+                    >
+                        {TOOLBAR_STAGES.map((toolbarStage) => (
+                            <div
+                                key={toolbarStage.contentWidth}
+                                style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: "6px",
+                                    width: `${toolbarStage.contentWidth + 2}px`,
+                                }}
+                            >
+                                <DimensionRule label={toolbarStage.label} />
+                                <Composer
+                                    audience="people"
+                                    compactHint="Enter to send"
+                                    emoji={EMOJI}
+                                    hint="Enter to send · Shift+Tab to switch audience"
+                                    mentions={MENTIONS}
+                                    onAttachFile={noop}
+                                    onAudienceChange={noop}
+                                    onSend={noop}
+                                    onValueChange={noop}
+                                    value="Ready to send"
+                                />
+                            </div>
+                        ))}
                     </div>
                 </Specimen>
             </div>
