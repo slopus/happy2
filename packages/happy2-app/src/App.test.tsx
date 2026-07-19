@@ -36,6 +36,7 @@ function DesktopSessionFixture(props: {
         },
     );
     const session: AuthSession = {
+        devTokensEnabled: false,
         user,
         state: props.state,
         updateUser,

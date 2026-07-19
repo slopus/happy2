@@ -16,6 +16,7 @@ export type User = {
 export type AuthMethods = {
     role: "all" | "auth" | "api";
     method: AuthMethod;
+    devTokensEnabled: boolean;
     signupEnabled?: boolean;
     oidcProvider?: string;
 };

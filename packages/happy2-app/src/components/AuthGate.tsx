@@ -31,6 +31,8 @@ import { preAuthOnboardingStep } from "../onboarding/onboardingRoute";
 export type AuthSession = {
     state: HappyState;
     user: User;
+    /** Deployment capability discovered before authentication; no Settings re-fetch is needed. */
+    devTokensEnabled: boolean;
     updateUser: (user: User) => void;
     /**
      * Adopt a freshly uploaded avatar file as the current user's photo. Owns the
@@ -467,6 +469,9 @@ export function AuthGate(props: AuthGateProps) {
         },
         get user() {
             return user!;
+        },
+        get devTokensEnabled() {
+            return methods?.devTokensEnabled === true;
         },
         updateUser: (nextUser) => update({ user: nextUser }),
         setAvatar,

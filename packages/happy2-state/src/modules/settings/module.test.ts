@@ -2,10 +2,50 @@ import { describe, expect, it, vi } from "vitest";
 import { UserError } from "../../types.js";
 import type { ClientTransport, HttpRequest, HttpResponse } from "../../transport.js";
 import { StateRuntime } from "../runtime/runtimeState.js";
-import { avatarUpload } from "./settingsState.js";
+import { avatarUpload, developmentTokenCreate } from "./settingsState.js";
 import { settingsStoreCreate } from "./settingsState.js";
 
 describe("settings module", () => {
+    it("creates a session-bound development token once without idempotency or retry", async () => {
+        const credential = {
+            token: "happy2_dev_secret",
+            sessionId: "session-1",
+            expiresAt: "2026-07-20T01:00:00.000Z",
+        };
+        const requests: HttpRequest[] = [];
+        let fail = false;
+        const transport: ClientTransport = {
+            async request<T = unknown>(request: HttpRequest): Promise<HttpResponse<T>> {
+                requests.push(request);
+                return fail
+                    ? ({
+                          status: 503,
+                          body: { error: "unavailable" } as T,
+                      } satisfies HttpResponse<T>)
+                    : ({ status: 201, body: credential as T } satisfies HttpResponse<T>);
+            },
+            subscribe: () => () => undefined,
+        };
+        const runtime = new StateRuntime({ transport });
+
+        await expect(developmentTokenCreate({ runtime })).resolves.toEqual(credential);
+        expect(requests).toEqual([
+            {
+                method: "POST",
+                path: "/v0/me/createDevToken",
+                body: {},
+            },
+        ]);
+
+        fail = true;
+        await expect(developmentTokenCreate({ runtime })).rejects.toEqual(
+            expect.objectContaining({ name: "UserError" }),
+        );
+        expect(requests).toHaveLength(2);
+        expect(requests[1]?.headers?.["idempotency-key"]).toBeUndefined();
+        runtime.stop();
+    });
+
     it("uploads an avatar candidate through the typed settings action", async () => {
         const uploaded = {
             id: "avatar-1",

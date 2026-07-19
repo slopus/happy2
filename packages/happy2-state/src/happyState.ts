@@ -36,6 +36,7 @@ import type { SidebarStore } from "./modules/sidebar/sidebarState.js";
 import { SidebarChatsProjector } from "./modules/sidebar/sidebarState.js";
 import { SettingsCoordinator } from "./modules/settings/settingsState.js";
 import { avatarUpload } from "./modules/settings/settingsState.js";
+import { developmentTokenCreate } from "./modules/settings/settingsState.js";
 import {
     settingsStoreCreate,
     type SettingsOutput,
@@ -553,6 +554,10 @@ export class HappyState implements AsyncDisposable, Disposable {
 
     async avatarUpload(body: FormData): Promise<import("./resources.js").UploadedFile> {
         return avatarUpload({ runtime: this.runtime }, body);
+    }
+
+    async developmentTokenCreate(): Promise<import("./resources.js").DevelopmentTokenCredential> {
+        return developmentTokenCreate({ runtime: this.runtime });
     }
 
     settings(options: SettingsStoreOptions = {}): SettingsStore {

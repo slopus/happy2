@@ -1,6 +1,6 @@
 import { UserError } from "happy2-state";
 import { settingsStoreFixtureCreate } from "happy2-state/testing";
-import { expect, it, onTestFinished } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { createRenderer } from "../../testing";
 import { SettingsPage } from "./SettingsPage";
 
@@ -85,4 +85,115 @@ it("preserves the focused input node across synchronous typed field store update
     fixture.input({ type: "profileSaving" });
     expect(view.container.querySelector("#settings-name")).toBe(input);
     expect(document.activeElement).toBe(input);
+});
+
+it("gates development tokens, prevents duplicate creation, copies, and clears the secret", async () => {
+    const fixture = settingsStoreFixtureCreate({ profile: loaded.profile });
+    onTestFinished(() => fixture[Symbol.dispose]());
+    fixture.input({ type: "settingsLoaded", ...loaded, avatarRevision: 0 });
+    let resolveCredential!: (credential: {
+        token: string;
+        sessionId: string;
+        expiresAt: string;
+    }) => void;
+    const developmentTokenCreate = vi.fn(
+        () =>
+            new Promise<{
+                token: string;
+                sessionId: string;
+                expiresAt: string;
+            }>((resolve) => {
+                resolveCredential = resolve;
+            }),
+    );
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText },
+    });
+    onTestFinished(() => {
+        if (clipboardDescriptor) Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+        else Reflect.deleteProperty(navigator, "clipboard");
+    });
+    const view = createRenderer();
+    view.render(
+        () => (
+            <SettingsPage
+                developmentTokenActions={{ developmentTokenCreate }}
+                store={fixture.store}
+            />
+        ),
+        { width: 1024, height: 704 },
+    );
+    await view.ready();
+
+    const buttonNamed = (name: string) =>
+        Array.from(view.container.querySelectorAll<HTMLButtonElement>("button")).find(
+            (button) => button.textContent?.trim() === name,
+        );
+    const create = buttonNamed("Create development token")!;
+    create.click();
+    create.click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(developmentTokenCreate).toHaveBeenCalledTimes(1);
+    expect(buttonNamed("Creating token…")?.disabled).toBe(true);
+
+    const credential = {
+        token: "happy2_dev_settings_secret",
+        sessionId: "session-1",
+        expiresAt: "2026-07-20T01:00:00.000Z",
+    };
+    resolveCredential(credential);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(view.container.querySelector('[data-testid="development-token-modal"]')).not.toBeNull();
+    expect(view.container.textContent).toContain(credential.token);
+    expect(view.container.textContent).toContain("UTC");
+
+    view.container.querySelector<HTMLButtonElement>('button[aria-label="Hide secret"]')!.click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(view.container.textContent).not.toContain(credential.token);
+    view.container.querySelector<HTMLButtonElement>('button[aria-label="Reveal secret"]')!.click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    buttonNamed("Copy")!.click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(writeText).toHaveBeenCalledWith(credential.token);
+    expect(buttonNamed("Copied")).toBeTruthy();
+
+    view.container.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(view.container.querySelector('[data-testid="development-token-modal"]')).toBeNull();
+    expect(view.container.textContent).not.toContain(credential.token);
+});
+
+it("keeps the development-token row absent when disabled and localizes creation failures", async () => {
+    const fixture = settingsStoreFixtureCreate({ profile: loaded.profile });
+    onTestFinished(() => fixture[Symbol.dispose]());
+    fixture.input({ type: "settingsLoaded", ...loaded, avatarRevision: 0 });
+    const view = createRenderer();
+    view.render(() => <SettingsPage store={fixture.store} />, { width: 1024, height: 704 });
+    await view.ready();
+    expect(view.container.textContent).not.toContain("Development token");
+
+    const failed = createRenderer();
+    failed.render(
+        () => (
+            <SettingsPage
+                developmentTokenActions={{
+                    developmentTokenCreate: () => Promise.reject(new Error("Issuance denied")),
+                }}
+                store={fixture.store}
+            />
+        ),
+        { width: 1024, height: 704 },
+    );
+    await failed.ready();
+    Array.from(failed.container.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.trim() === "Create development token")!
+        .click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(
+        failed.container.querySelector('[data-testid="development-token-error"]')?.textContent,
+    ).toContain("Issuance denied");
+    expect(failed.container.querySelector('[data-testid="development-token-modal"]')).toBeNull();
 });

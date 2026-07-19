@@ -56,7 +56,18 @@ export function SettingsStorePage() {
                 label="Settings — ready"
                 number="01"
             >
-                <SettingsPage avatarTone="brand" presence="online" store={fixture.store} />
+                <SettingsPage
+                    avatarTone="brand"
+                    developmentTokenActions={{
+                        developmentTokenCreate: async () => ({
+                            token: "happy2_dev_blueprint_token",
+                            sessionId: "session_blueprint",
+                            expiresAt: "2026-07-20T01:00:00.000Z",
+                        }),
+                    }}
+                    presence="online"
+                    store={fixture.store}
+                />
             </FullScreenSpecimen>
         </ComponentPage>
     );

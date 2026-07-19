@@ -1,0 +1,15 @@
+.happy2-development-token-modal__content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+}
+
+.happy2-development-token-modal__description {
+    color: var(--happy2-text-secondary);
+    font-family: var(--happy2-font-ui);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 20px;
+    margin: 0;
+}

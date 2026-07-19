@@ -1,6 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
     type ClientUser,
+    type DevelopmentTokenCredential,
     type NotificationPreferences,
     type UploadedFile,
 } from "../../resources.js";
@@ -10,6 +11,17 @@ import { type StateRuntime, userError } from "../runtime/runtimeState.js";
 
 export interface AvatarUploadContext {
     readonly runtime: StateRuntime;
+}
+
+export interface DevelopmentTokenCreateContext {
+    readonly runtime: StateRuntime;
+}
+
+/** Creates a one-time development credential without retaining or broadcasting its secret. */
+export async function developmentTokenCreate(
+    context: DevelopmentTokenCreateContext,
+): Promise<DevelopmentTokenCredential> {
+    return context.runtime.operation("createDevelopmentToken");
 }
 
 /** Uploads an avatar candidate without applying it, keeping upload and profile mutation explicit. */

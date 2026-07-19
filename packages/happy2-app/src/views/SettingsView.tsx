@@ -15,6 +15,7 @@ export function SettingsView(props: SettingsViewProps) {
         <SettingsPage
             avatarActions={session ? props.state : undefined}
             avatarUrl={session?.user.avatarUrl}
+            developmentTokenActions={session?.devTokensEnabled ? props.state : undefined}
             onAvatarChanged={session?.setAvatar}
             onProfileChange={
                 session

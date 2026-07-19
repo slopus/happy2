@@ -51,6 +51,7 @@ import { MessagePage } from "./pages/MessagePage";
 import { ModalPage } from "./pages/ModalPage";
 import { ModalOverlayPage } from "./pages/ModalOverlayPage";
 import { DefaultAgentModalPage } from "./pages/DefaultAgentModalPage";
+import { DevelopmentTokenModalPage } from "./pages/DevelopmentTokenModalPage";
 import { ModerationReportCardPage } from "./pages/ModerationReportCardPage";
 import { NotificationListPage } from "./pages/NotificationListPage";
 import { OnboardingScreenPage } from "./pages/OnboardingScreenPage";
@@ -231,6 +232,12 @@ const components: BlueprintPage[] = [
         label: "Member access panel",
         number: "C-070",
         page: MemberAccessPanelPage,
+    },
+    {
+        id: "development-token-modal",
+        label: "Development token modal",
+        number: "C-071",
+        page: DevelopmentTokenModalPage,
     },
 ];
 const fullScreens: BlueprintPage[] = [

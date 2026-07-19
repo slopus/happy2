@@ -381,6 +381,13 @@ export interface ApiCredentialSummary {
     readonly createdAt: string;
 }
 
+/** One-time development credential bound to the authenticated session that issued it. */
+export interface DevelopmentTokenCredential {
+    readonly token: string;
+    readonly sessionId: string;
+    readonly expiresAt: string;
+}
+
 export interface WebhookSubscriptionSummary {
     readonly id: string;
     readonly integrationId: string;

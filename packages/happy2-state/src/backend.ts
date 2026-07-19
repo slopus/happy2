@@ -31,6 +31,7 @@ import type {
     ClientUser,
     CombinedOnboardingStatus,
     DataExportJob,
+    DevelopmentTokenCredential,
     EffectivePermissions,
     IntegrationSummary,
     MemberPermissionDetail,
@@ -109,6 +110,7 @@ export const backendOperations = {
     updateProfile: post("/v0/me/updateProfile"),
     uploadAvatarFile: post("/v0/me/uploadAvatarFile", "body"),
     updateAvatar: post("/v0/me/updateAvatar"),
+    createDevelopmentToken: secretPost("/v0/me/createDevToken"),
 
     getSetupStatus: get("/v0/setup/status"),
     getSetup: get("/v0/setup"),
@@ -813,6 +815,7 @@ export interface KnownBackendResults {
     updateProfile: { readonly user: ClientUser };
     uploadAvatarFile: { readonly file: UploadedFile };
     updateAvatar: { readonly user: ClientUser };
+    createDevelopmentToken: DevelopmentTokenCredential;
     getSetupStatus: PublicServerSetupStatus;
     getSetup: CombinedOnboardingStatus;
     getSetupSandboxProviders: SandboxProviderDiscovery;

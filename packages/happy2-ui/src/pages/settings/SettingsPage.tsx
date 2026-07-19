@@ -1,10 +1,17 @@
 import { useRef, useState } from "react";
-import type { ClientUser, HappyState, SettingsSnapshot, SettingsStore } from "happy2-state";
+import type {
+    ClientUser,
+    DevelopmentTokenCredential,
+    HappyState,
+    SettingsSnapshot,
+    SettingsStore,
+} from "happy2-state";
 import type { ToneName } from "../../Avatar";
 import { Banner } from "../../Banner";
 import { Box } from "../../Box";
 import { Button } from "../../Button";
 import { EmptyState } from "../../EmptyState";
+import { DevelopmentTokenModal } from "../../DevelopmentTokenModal";
 import { FormRow } from "../../FormRow";
 import { Modal } from "../../Modal";
 import { ModalOverlay } from "../../ModalOverlay";
@@ -22,6 +29,8 @@ export interface SettingsPageProps {
     presence?: "online" | "offline";
     /** HappyState owns typed upload/set actions while the page owns the chosen browser File. */
     avatarActions?: Pick<HappyState, "avatarUpload" | "avatarSet">;
+    /** Present only when the server advertises session-bound development-token support. */
+    developmentTokenActions?: Pick<HappyState, "developmentTokenCreate">;
     onAvatarChanged?: (fileId: string) => Promise<void>;
     /** Lets a host project the changed profile into chrome outside the settings surface. */
     onProfileChange?: (profile: ClientUser) => void;
@@ -38,7 +47,14 @@ export function SettingsPage(props: SettingsPageProps) {
     const [usernameConfirmationOpen, setUsernameConfirmationOpen] = useState(false);
     const [avatarUploading, setAvatarUploading] = useState(false);
     const [localError, setLocalError] = useState<string>();
+    const [developmentTokenPending, setDevelopmentTokenPending] = useState(false);
+    const [developmentTokenError, setDevelopmentTokenError] = useState<string>();
+    const [developmentToken, setDevelopmentToken] = useState<DevelopmentTokenCredential>();
+    const [developmentTokenRevealed, setDevelopmentTokenRevealed] = useState(false);
+    const [developmentTokenCopied, setDevelopmentTokenCopied] = useState(false);
+    const [developmentTokenCopyError, setDevelopmentTokenCopyError] = useState<string>();
     const avatarInput = useRef<HTMLInputElement>(null);
+    const developmentTokenPendingRef = useRef(false);
     const profileChanged = () => props.onProfileChange?.(props.store.getState().profile);
     const displayNameUpdate = (value: string) => {
         const parts = value.trimStart().split(/\s+/);
@@ -89,6 +105,47 @@ export function SettingsPage(props: SettingsPageProps) {
             setAvatarUploading(false);
             if (avatarInput.current) avatarInput.current.value = "";
         }
+    };
+    const developmentTokenCreate = async () => {
+        if (!props.developmentTokenActions || developmentTokenPendingRef.current) return;
+        developmentTokenPendingRef.current = true;
+        setDevelopmentTokenPending(true);
+        setDevelopmentTokenError(undefined);
+        try {
+            const credential = await props.developmentTokenActions.developmentTokenCreate();
+            setDevelopmentToken(credential);
+            setDevelopmentTokenRevealed(true);
+            setDevelopmentTokenCopied(false);
+            setDevelopmentTokenCopyError(undefined);
+        } catch (reason) {
+            setDevelopmentTokenError(
+                errorMessage(reason, "The development token could not be created."),
+            );
+        } finally {
+            developmentTokenPendingRef.current = false;
+            setDevelopmentTokenPending(false);
+        }
+    };
+    const developmentTokenCopy = async () => {
+        if (!developmentToken) return;
+        try {
+            if (!navigator.clipboard?.writeText)
+                throw new Error("Clipboard access is unavailable.");
+            await navigator.clipboard.writeText(developmentToken.token);
+            setDevelopmentTokenCopied(true);
+            setDevelopmentTokenCopyError(undefined);
+        } catch (reason) {
+            setDevelopmentTokenCopied(false);
+            setDevelopmentTokenCopyError(
+                errorMessage(reason, "Copy the token manually from the field above."),
+            );
+        }
+    };
+    const developmentTokenClose = () => {
+        setDevelopmentToken(undefined);
+        setDevelopmentTokenRevealed(false);
+        setDevelopmentTokenCopied(false);
+        setDevelopmentTokenCopyError(undefined);
     };
     return (
         <StoreSurface store={props.store}>
@@ -366,6 +423,45 @@ export function SettingsPage(props: SettingsPageProps) {
                                                     label="Email notifications"
                                                 />
                                             </Box>
+                                            {props.developmentTokenActions ? (
+                                                <Box
+                                                    style={{
+                                                        display: "flex",
+                                                        flexDirection: "column",
+                                                        gap: "8px",
+                                                    }}
+                                                >
+                                                    {developmentTokenError ? (
+                                                        <Banner
+                                                            data-testid="development-token-error"
+                                                            tone="danger"
+                                                            title="Development token unavailable"
+                                                        >
+                                                            {developmentTokenError}
+                                                        </Banner>
+                                                    ) : null}
+                                                    <FormRow
+                                                        control={
+                                                            <Button
+                                                                disabled={developmentTokenPending}
+                                                                icon="terminal"
+                                                                onClick={() =>
+                                                                    void developmentTokenCreate()
+                                                                }
+                                                                size="small"
+                                                                type="button"
+                                                                variant="secondary"
+                                                            >
+                                                                {developmentTokenPending
+                                                                    ? "Creating token…"
+                                                                    : "Create development token"}
+                                                            </Button>
+                                                        }
+                                                        description="Connect a local web or UI build to this server. The token carries your current access and remains valid until this server invalidates it or its expiry is reached."
+                                                        label="Development token"
+                                                    />
+                                                </Box>
+                                            ) : null}
                                         </Box>
                                         {usernameConfirmationOpen ? (
                                             <ModalOverlay
@@ -412,6 +508,22 @@ export function SettingsPage(props: SettingsPageProps) {
                                                     and profile links will use the new username.
                                                 </Modal>
                                             </ModalOverlay>
+                                        ) : null}
+                                        {developmentToken ? (
+                                            <DevelopmentTokenModal
+                                                copied={developmentTokenCopied}
+                                                copyError={developmentTokenCopyError}
+                                                credential={developmentToken}
+                                                onClose={developmentTokenClose}
+                                                onCopy={() => void developmentTokenCopy()}
+                                                onToggleReveal={() => {
+                                                    setDevelopmentTokenRevealed(
+                                                        !developmentTokenRevealed,
+                                                    );
+                                                    setDevelopmentTokenCopied(false);
+                                                }}
+                                                revealed={developmentTokenRevealed}
+                                            />
                                         ) : null}
                                     </>
                                 ) : (
@@ -474,4 +586,8 @@ function savePending(snapshot: SettingsSnapshot): boolean {
     return [snapshot.profileSave, snapshot.presenceSave, snapshot.notificationsSave].some(
         (save) => save.type === "dirty" || save.type === "saving",
     );
+}
+
+function errorMessage(reason: unknown, fallback: string): string {
+    return reason instanceof Error && reason.message ? reason.message : fallback;
 }

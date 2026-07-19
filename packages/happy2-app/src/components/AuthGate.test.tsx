@@ -1,6 +1,8 @@
 import { fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { App } from "../App";
+import { desktopNavigationCreate } from "../navigation/desktopNavigationCreate";
+import { desktopMemoryHistoryCreate, desktopRouterCreate } from "../navigation/desktopRouter";
 
 /* AuthGate drives the password onboarding flow end to end against the real
  * server contract. A newly registered (or freshly signed-in) password account
@@ -101,6 +103,62 @@ async function fillAndSubmitCredentials(screen: ReturnType<typeof render>, submi
 afterEach(() => vi.unstubAllGlobals());
 
 describe("AuthGate password onboarding", () => {
+    it("carries the advertised development-token capability into authenticated settings", async () => {
+        const developmentToken = "happy2_dev_from_settings";
+        const fetchMock = routedFetch({
+            ...workspaceRoutes,
+            "GET /v0/auth/methods": () =>
+                json({
+                    role: "all",
+                    method: "password",
+                    signupEnabled: true,
+                    devTokensEnabled: true,
+                }),
+            "GET /v0/me": () =>
+                json({
+                    user: { id: "u_ada", firstName: "Ada", username: "ada", kind: "human" },
+                    permissions: { allowed: [], owner: false },
+                }),
+            "GET /v0/contacts": () => json({ users: [] }),
+            "GET /v0/presence": () => json({ presence: [], statuses: [] }),
+            "GET /v0/me/notificationPreferences": () =>
+                json({
+                    preferences: {
+                        directMessages: "all",
+                        mentions: "all",
+                        threadReplies: "mentions",
+                        reactions: "all",
+                        calls: "all",
+                        emailNotifications: false,
+                        desktopNotifications: true,
+                    },
+                }),
+            "POST /v0/me/createDevToken": () =>
+                json(
+                    {
+                        token: developmentToken,
+                        sessionId: "session-1",
+                        expiresAt,
+                    },
+                    201,
+                ),
+        });
+        vi.stubGlobal("fetch", fetchMock);
+        stubLocalStorage({ [tokenKey]: "saved-token" });
+        const navigation = desktopNavigationCreate(
+            desktopRouterCreate(desktopMemoryHistoryCreate("/settings/account")),
+        );
+        onTestFinished(() => navigation[Symbol.dispose]());
+
+        const screen = render(<App navigation={navigation} serverUrl="http://server" />);
+        fireEvent.click(await screen.findByRole("button", { name: "Create development token" }));
+
+        expect(await screen.findByText(developmentToken)).toBeTruthy();
+        const requests = callsTo(fetchMock, "POST", "/v0/me/createDevToken");
+        expect(requests).toHaveLength(1);
+        expect(authHeader(requests[0]![1] ?? {})).toBe("Bearer saved-token");
+    });
+
     it("registers a new account and enters onboarding without probing /v0/me", async () => {
         const fetchMock = routedFetch({
             "GET /v0/auth/methods": passwordMethods,
