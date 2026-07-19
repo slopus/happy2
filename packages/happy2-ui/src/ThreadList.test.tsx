@@ -137,9 +137,9 @@ it("holds ThreadList geometry, row anatomy, and optical alignment", async () => 
             "overflow-y",
         ]),
     ).toEqual({
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "border-radius": "10px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
         display: "flex",
@@ -179,7 +179,7 @@ it("holds ThreadList geometry, row anatomy, and optical alignment", async () => 
         expect(a.computedStyle("border-radius"), `launch avatar ${n} radius`).toBe("999px");
         expect(a.computedStyle("z-index"), `launch avatar ${n} z`).toBe(String(4 - n));
         const shadow = a.computedStyle("box-shadow");
-        expect(shadow, `launch avatar ${n} ring color`).toContain("rgb(28, 27, 34)");
+        expect(shadow, `launch avatar ${n} ring color`).toContain("rgb(255, 255, 255)");
         expect(shadow, `launch avatar ${n} ring spread`).toContain("2px");
     }
     expect(avatar("launch", 2).bounds().x - avatar("launch", 1).bounds().x).toBe(18);
@@ -194,7 +194,7 @@ it("holds ThreadList geometry, row anatomy, and optical alignment", async () => 
     expect(more.bounds().x - infraA2.bounds().x).toBe(18);
     expect(more.bounds()).toMatchObject({ width: 28, height: 28 });
     expect(more.element.textContent).toBe("+3");
-    expect(more.computedStyle("background-color")).toBe("rgb(36, 34, 43)");
+    expect(more.computedStyle("background-color")).toBe("rgb(240, 240, 242)");
     await ink(more, "overflow chip");
 
     /* Isolated single avatar: symmetric disc centered in its 28px box. A
@@ -221,7 +221,7 @@ it("holds ThreadList geometry, row anatomy, and optical alignment", async () => 
         },
         text: "Launch checklist for v4",
     });
-    expect(launchTitle.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(launchTitle.computedStyle("color")).toBe("rgb(0, 0, 0)");
     await unclippedText(launchTitle, "launch title");
 
     /* Read row: same face, 600 weight instead of 700. */
@@ -245,7 +245,7 @@ it("holds ThreadList geometry, row anatomy, and optical alignment", async () => 
         size: 12,
         weight: "400",
     });
-    expect(launchSnippet.computedStyle("color")).toBe("rgb(165, 160, 176)");
+    expect(launchSnippet.computedStyle("color")).toBe("rgb(142, 142, 147)");
     await unclippedText(launchSnippet, "launch snippet");
 
     /* Title and snippet share the text column's left edge. */
@@ -257,7 +257,7 @@ it("holds ThreadList geometry, row anatomy, and optical alignment", async () => 
     for (const id of ["launch", "design"] as const) {
         const time = part(id, "thread-list-time");
         expect(time.textMetrics().font.size, `${id} time size`).toBe(11);
-        expect(time.computedStyle("color"), `${id} time color`).toBe("rgb(117, 112, 133)");
+        expect(time.computedStyle("color"), `${id} time color`).toBe("rgb(142, 142, 147)");
         const timeRight = time.bounds().x + time.bounds().width;
         expect(
             Math.abs(rowRight(id) - timeRight - 16),
@@ -272,7 +272,7 @@ it("holds ThreadList geometry, row anatomy, and optical alignment", async () => 
     const replies = part("launch", "thread-list-replies");
     expect(replies.bounds().height).toBe(18);
     expect(replies.computedStyles(["background-color", "border-radius"])).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-radius": "999px",
     });
     const replyIcon = view.$(
@@ -288,7 +288,7 @@ it("holds ThreadList geometry, row anatomy, and optical alignment", async () => 
         size: 11,
         weight: "700",
     });
-    expect(replyCount.computedStyle("color")).toBe("rgb(165, 160, 176)");
+    expect(replyCount.computedStyle("color")).toBe("rgb(142, 142, 147)");
     await unclippedText(replyCount, "reply count");
     expect(part("infra", "thread-list-reply-count").element.textContent).toBe("128");
 
@@ -297,7 +297,7 @@ it("holds ThreadList geometry, row anatomy, and optical alignment", async () => 
     const badge = (id: string) => view.$(`[data-thread-id="${id}"] [data-happy2-ui="count-badge"]`);
     expect(badge("launch").element.textContent).toBe("3");
     expect(badge("launch").bounds().height).toBe(18);
-    expect(badge("launch").computedStyle("background-color")).toBe("rgb(139, 124, 247)");
+    expect(badge("launch").computedStyle("background-color")).toBe("rgb(0, 122, 255)");
     await ink(badge("launch"), "unread badge");
     expect(badge("infra").element.textContent).toBe("24");
     /* Read rows carry no unread badge. */
@@ -325,7 +325,7 @@ it("holds ThreadList geometry, row anatomy, and optical alignment", async () => 
     expect(row("muted").element.getAttribute("data-subscribed")).toBe("false");
     expect(row("launch").element.hasAttribute("data-subscribed")).toBe(false);
     const follow = part("muted", "thread-list-follow");
-    expect(follow.computedStyle("color")).toBe("rgb(85, 81, 95)");
+    expect(follow.computedStyle("color")).toBe("rgb(142, 142, 147)");
     const followIcon = view.$('[data-thread-id="muted"] [data-happy2-ui="thread-list-follow"] svg');
     expect(followIcon.bounds()).toMatchObject({ width: 14, height: 14 });
     await ink(follow, "muted bell");
@@ -339,7 +339,7 @@ it("holds ThreadList geometry, row anatomy, and optical alignment", async () => 
     /* ---- Empty slot ---------------------------------------------------- */
 
     const emptyRoot = view.$('[data-testid="empty"]');
-    expect(emptyRoot.computedStyle("background-color")).toBe("rgb(28, 27, 34)");
+    expect(emptyRoot.computedStyle("background-color")).toBe("rgb(255, 255, 255)");
     expect(emptyRoot.computedStyle("border-top-width")).toBe("1px");
     expect(
         view.container.querySelector('[data-testid="empty"] [data-happy2-ui="thread-list-item"]'),
@@ -347,7 +347,7 @@ it("holds ThreadList geometry, row anatomy, and optical alignment", async () => 
     const empty = view.$('[data-testid="empty"] [data-happy2-ui="thread-list-empty"]');
     expect(empty.element.textContent).toBe("No followed threads yet");
     expect(empty.computedStyles(["color", "font-size", "text-align"])).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-size": "13px",
         "text-align": "center",
     });

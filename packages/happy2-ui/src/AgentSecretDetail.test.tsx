@@ -49,7 +49,7 @@ const AVAILABLE_CHANNELS = [
 function frame(view: View, render: () => any, height: number, width = 560) {
     return view.render(
         () => (
-            <div style={{ width: `${width}px`, height: `${height}px`, background: "#17161c" }}>
+            <div style={{ width: `${width}px`, height: `${height}px`, background: "#f5f5f5" }}>
                 {render()}
             </div>
         ),
@@ -96,7 +96,7 @@ it("holds AgentSecretDetail layout, variable names, bindings, and attach/detach 
         "flex-direction": "column",
         gap: "20px",
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
     });
 
     // Variables strip: one outline badge per name, plus the never-leaves note.

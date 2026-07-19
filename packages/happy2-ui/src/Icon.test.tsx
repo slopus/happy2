@@ -64,7 +64,7 @@ function ControlSquare(props: { size: number }) {
                 position: "relative",
             }}
         >
-            <div style={{ position: "absolute", inset, background: "#131217" }} />
+            <div style={{ position: "absolute", inset, background: "#ffffff" }} />
         </div>
     );
 }
@@ -90,7 +90,7 @@ it("holds Icon box geometry across sizes", async () => {
     );
     view.render(
         () => (
-            <div data-testid="icon-inherit" style={{ display: "flex", color: "#a5a0b0" }}>
+            <div data-testid="icon-inherit" style={{ display: "flex", color: "#8e8e93" }}>
                 <Icon name="bell" size={20} />
             </div>
         ),
@@ -98,8 +98,8 @@ it("holds Icon box geometry across sizes", async () => {
     );
     view.render(
         () => (
-            <div data-testid="icon-colored" style={{ display: "flex", color: "#a5a0b0" }}>
-                <Icon name="bell" size={20} color="#8b7cf7" aria-label="Notifications" />
+            <div data-testid="icon-colored" style={{ display: "flex", color: "#8e8e93" }}>
+                <Icon name="bell" size={20} color="#007aff" aria-label="Notifications" />
             </div>
         ),
         { width: 44, height: 44, padding: 12 },
@@ -138,13 +138,13 @@ it("holds Icon box geometry across sizes", async () => {
     expect(fallback.element.getAttribute("data-name")).toBe("check");
     const inherit = view.$('[data-testid="icon-inherit"] [data-happy2-ui="icon"]');
     expect(inherit.computedStyles(["color", "stroke"])).toEqual({
-        color: "rgb(165, 160, 176)",
-        stroke: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
+        stroke: "rgb(142, 142, 147)",
     });
     const colored = view.$('[data-testid="icon-colored"] [data-happy2-ui="icon"]');
     expect(colored.computedStyles(["color", "stroke"])).toEqual({
-        color: "rgb(139, 124, 247)",
-        stroke: "rgb(139, 124, 247)",
+        color: "rgb(0, 122, 255)",
+        stroke: "rgb(0, 122, 255)",
     });
     expect(colored.element.getAttribute("aria-label")).toBe("Notifications");
     expect(colored.element.getAttribute("role")).toBe("img");
@@ -161,7 +161,7 @@ it("renders the entire pinned glyph set on the 20-unit grid", async () => {
                     justifyItems: "center",
                     alignItems: "center",
                     gap: "4px",
-                    color: "#131217",
+                    color: "#ffffff",
                 }}
             >
                 {iconNames.map((name) => (
@@ -193,7 +193,7 @@ for (const size of OPTICAL_SIZES) {
                     data-testid="optical-fixtures"
                     style={{
                         alignItems: "flex-start",
-                        color: "#131217",
+                        color: "#ffffff",
                         display: "flex",
                         flexWrap: "wrap",
                         gap: `${gap}px`,

@@ -9,7 +9,7 @@ type Renderer = ReturnType<typeof createRenderer>;
 
 /* Dark stage the Relay theme actually sits on, so the subtle white-alpha box
  * fill and hairline of an unchecked control are visible and measurable. */
-const STAGE = "#1c1b22";
+const STAGE = "#ffffff";
 
 /*
  * Alpha-weighted ink centroid of the glyph inside `boxSelector`, expressed as
@@ -136,12 +136,12 @@ it("holds Checkbox geometry, colors, glyph centering, and typography across stat
 
     const boxSpec = {
         unchecked: {
-            "background-color": "rgba(255, 255, 255, 0.05)",
-            "border-top-color": "rgba(255, 255, 255, 0.13)",
+            "background-color": "rgb(245, 245, 245)",
+            "border-top-color": "rgb(209, 209, 214)",
         },
         active: {
-            "background-color": "rgb(139, 124, 247)",
-            "border-top-color": "rgb(139, 124, 247)",
+            "background-color": "rgb(0, 122, 255)",
+            "border-top-color": "rgb(0, 122, 255)",
         },
     } as const;
 
@@ -207,7 +207,7 @@ it("holds Checkbox geometry, colors, glyph centering, and typography across stat
     /* ---- Label typography -------------------------------------------------- */
 
     const label = view.$('[data-testid="cb-checked"] [data-happy2-ui="checkbox-label"]');
-    expect(label.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(label.computedStyle("color")).toBe("rgb(0, 0, 0)");
     expect(label.textMetrics()).toMatchObject({
         font: {
             family: "happy2 Figtree, system-ui, sans-serif",
@@ -353,7 +353,7 @@ it("holds Checkbox focus ring and reports changes through onChange", async () =>
     expect(
         box.computedStyles(["outline-color", "outline-offset", "outline-style", "outline-width"]),
     ).toEqual({
-        "outline-color": "rgb(168, 155, 255)",
+        "outline-color": "rgb(0, 122, 255)",
         "outline-offset": "2px",
         "outline-style": "solid",
         "outline-width": "2px",

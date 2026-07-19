@@ -1,10 +1,12 @@
 /*
- * Happy (2) design tokens — "Relay" dark theme.
+ * Happy (2) design tokens.
  *
- * Every happy2-ui component consumes these custom properties; no component
- * hard-codes a color. Text colors are solid values so rendering tests can
- * assert exact rgb() results in every browser. Alpha values are reserved for
- * fills and hairlines that must composite over varying surfaces.
+ * The palette follows the original Happy app: neutral iOS-like surfaces,
+ * black/white primary actions, blue for selection, and familiar system
+ * semantic colours. The default follows the operating-system colour scheme.
+ * Components consume only these custom properties, which keeps the complete
+ * UI in one coherent theme without a React theme provider or a duplicate
+ * light-mode component tree.
  */
 
 @font-face {
@@ -25,88 +27,205 @@
         format("woff2-variations");
 }
 
-:root {
-    /* Surfaces */
-    --happy2-bg-chrome: #131217; /* window chrome: title bar and rail */
-    --happy2-bg-app: #17161c; /* main content shell base */
-    --happy2-bg-surface: #1c1b22; /* cards and panels on the app base */
-    --happy2-bg-raised: #24222b; /* raised card, popover, active surface */
-    --happy2-bg-inset: rgb(255 255 255 / 0.05); /* inputs, search wells */
-    --happy2-bg-hover: rgb(255 255 255 / 0.04);
-    --happy2-bg-code: #141319; /* diff and code blocks */
-    /* Window backdrop: a slight top-center lift over the chrome base so the
-       seamless rail+title-bar frame reads with depth. background-color stays
-       --happy2-bg-chrome; this is layered as background-image. */
-    --happy2-bg-window: radial-gradient(130% 92% at 50% 0%, #15141b 0%, #131217 55%);
+:root,
+.happy2-theme-light {
+    color-scheme: light;
 
-    /* Hairlines */
-    --happy2-border: rgb(255 255 255 / 0.07);
-    --happy2-border-strong: rgb(255 255 255 / 0.13);
+    /* Original Happy light appearance. */
+    --happy2-bg-chrome: #ffffff;
+    --happy2-bg-app: #f5f5f5;
+    --happy2-bg-surface: #ffffff;
+    --happy2-bg-raised: #f0f0f2;
+    --happy2-bg-inset: #f5f5f5;
+    --happy2-bg-hover: rgb(0 0 0 / 0.06);
+    --happy2-bg-code: #f6f8fa;
+    --happy2-bg-window: none;
 
-    /* Text */
-    --happy2-text: #edeaf2;
-    --happy2-text-secondary: #a5a0b0;
-    --happy2-text-muted: #757085;
-    --happy2-text-faint: #55515f;
+    --happy2-border: #eaeaea;
+    --happy2-border-strong: #d1d1d6;
+
+    --happy2-text: #000000;
+    --happy2-text-secondary: #8e8e93;
+    --happy2-text-muted: #8e8e93;
+    --happy2-text-faint: #8e8e93;
     --happy2-text-on-accent: #ffffff;
-    --happy2-text-on-fill: #131217; /* dark text over bright solid fills */
+    --happy2-text-on-fill: #ffffff;
 
-    /* Accent — violet with the brand pink gradient */
-    --happy2-accent: #8b7cf7;
-    --happy2-accent-strong: #a89bff;
-    --happy2-accent-soft: rgb(139 124 247 / 0.15);
-    --happy2-pink: #f472b6;
-    --happy2-brand-gradient: linear-gradient(135deg, #8b7cf7, #f472b6);
+    /* Selection and links are the original Happy blue, while primary actions
+       remain the app's deliberately monochrome black controls. */
+    --happy2-accent: #007aff;
+    --happy2-accent-strong: #007aff;
+    --happy2-accent-soft: rgb(0 122 255 / 0.14);
+    --happy2-action: #000000;
+    --happy2-action-strong: #1a1a1a;
+    --happy2-action-text: #ffffff;
+    --happy2-pink: #2baccc;
+    --happy2-brand-gradient: linear-gradient(135deg, #000000, #2baccc);
 
-    /* Semantics */
-    --happy2-success: #34d399;
-    --happy2-success-strong: #6ee7b7;
-    --happy2-success-soft: rgb(52 211 153 / 0.13);
-    --happy2-warning: #fbbf24;
-    --happy2-warning-strong: #fcd34d;
-    --happy2-warning-soft: rgb(251 191 36 / 0.13);
-    --happy2-danger: #f87171;
-    --happy2-danger-strong: #fca5a5;
-    --happy2-danger-soft: rgb(248 113 113 / 0.13);
-    --happy2-info: #60a5fa;
-    --happy2-info-soft: rgb(96 165 250 / 0.13);
-    --happy2-online: #34d399;
+    --happy2-success: #34c759;
+    --happy2-success-strong: #248a3d;
+    --happy2-success-soft: rgb(52 199 89 / 0.14);
+    --happy2-warning: #ff9500;
+    --happy2-warning-strong: #c93400;
+    --happy2-warning-soft: rgb(255 149 0 / 0.14);
+    --happy2-danger: #ff3b30;
+    --happy2-danger-strong: #d70015;
+    --happy2-danger-soft: rgb(255 59 48 / 0.12);
+    --happy2-info: #007aff;
+    --happy2-info-soft: rgb(0 122 255 / 0.14);
+    --happy2-online: #34c759;
 
-    /* Diff */
-    --happy2-diff-add: #34d399;
-    --happy2-diff-add-bg: rgb(52 211 153 / 0.09);
-    --happy2-diff-del: #f87171;
-    --happy2-diff-del-bg: rgb(248 113 113 / 0.09);
+    --happy2-diff-add: #28a745;
+    --happy2-diff-add-bg: #e6ffed;
+    --happy2-diff-del: #dc3545;
+    --happy2-diff-del-bg: #ffeef0;
 
-    /* Identity tones (avatars, brand marks) */
-    --happy2-tone-violet: linear-gradient(135deg, #8b7cf7, #6d28d9);
-    --happy2-tone-ember: linear-gradient(135deg, #fb923c, #e11d48);
-    --happy2-tone-mint: linear-gradient(135deg, #34d399, #0d9488);
-    --happy2-tone-ocean: linear-gradient(135deg, #38bdf8, #6366f1);
-    --happy2-tone-rose: linear-gradient(135deg, #fb7185, #c026d3);
-    --happy2-tone-amber: linear-gradient(135deg, #fbbf24, #ea580c);
-    --happy2-tone-slate: linear-gradient(135deg, #94a3b8, #475569);
-    --happy2-tone-brand: linear-gradient(135deg, #8b7cf7, #f472b6);
+    --happy2-tone-violet: linear-gradient(135deg, #007aff, #5856d6);
+    --happy2-tone-ember: linear-gradient(135deg, #ff9500, #ff3b30);
+    --happy2-tone-mint: linear-gradient(135deg, #34c759, #30b0c7);
+    --happy2-tone-ocean: linear-gradient(135deg, #2baccc, #007aff);
+    --happy2-tone-rose: linear-gradient(135deg, #ff6b6b, #af52de);
+    --happy2-tone-amber: linear-gradient(135deg, #ffcc00, #ff9500);
+    --happy2-tone-slate: linear-gradient(135deg, #8e8e93, #48484a);
+    --happy2-tone-brand: linear-gradient(135deg, #000000, #2baccc);
 
-    /* Typography */
     --happy2-font-ui: "happy2 Figtree", system-ui, sans-serif;
     --happy2-font-mono: "happy2 Mono", ui-monospace, monospace;
     --happy2-font-emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 
-    /* Radii */
     --happy2-radius-sm: 6px;
     --happy2-radius-md: 10px;
-    --happy2-radius-window: 8px; /* matches the native macOS window corner */
-    --happy2-radius-shell: 14px; /* main content shell contract */
+    --happy2-radius-window: 8px;
+    --happy2-radius-shell: 14px;
     --happy2-radius-pill: 999px;
 
-    /* Focus */
-    --happy2-focus-ring: 2px solid #a89bff;
-
-    /* Overlay — every modal-class surface floats on one dim at one stacking
-       level, above all app chrome and in-panel popovers. */
-    --happy2-scrim: rgb(0 0 0 / 0.6);
+    --happy2-focus-ring: 2px solid #007aff;
+    --happy2-scrim: rgb(0 0 0 / 0.32);
+    --happy2-scrollbar: rgb(142 142 147 / 0.4);
     --happy2-z-overlay: 1000;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        color-scheme: dark;
+
+        /* Original Happy dark appearance. */
+        --happy2-bg-chrome: #18171c;
+        --happy2-bg-app: #000000;
+        --happy2-bg-surface: #1c1c1e;
+        --happy2-bg-raised: #2c2c2e;
+        --happy2-bg-inset: #303030;
+        --happy2-bg-hover: rgb(255 255 255 / 0.08);
+        --happy2-bg-code: #161b22;
+        --happy2-bg-window: none;
+
+        --happy2-border: #38383a;
+        --happy2-border-strong: #48484a;
+
+        --happy2-text: #ffffff;
+        --happy2-text-secondary: #8e8e93;
+        --happy2-text-muted: #8e8e93;
+        --happy2-text-faint: #98989d;
+        --happy2-text-on-accent: #ffffff;
+        --happy2-text-on-fill: #000000;
+
+        --happy2-accent: #0a84ff;
+        --happy2-accent-strong: #0a84ff;
+        --happy2-accent-soft: rgb(10 132 255 / 0.22);
+        --happy2-action: #ffffff;
+        --happy2-action-strong: #f0f0f0;
+        --happy2-action-text: #000000;
+        --happy2-pink: #2baccc;
+        --happy2-brand-gradient: linear-gradient(135deg, #ffffff, #2baccc);
+
+        --happy2-success: #32d74b;
+        --happy2-success-strong: #32d74b;
+        --happy2-success-soft: rgb(50 215 75 / 0.16);
+        --happy2-warning: #ff9f0a;
+        --happy2-warning-strong: #ffab00;
+        --happy2-warning-soft: rgb(255 159 10 / 0.15);
+        --happy2-danger: #ff453a;
+        --happy2-danger-strong: #ff6b6b;
+        --happy2-danger-soft: rgb(255 69 58 / 0.15);
+        --happy2-info: #0a84ff;
+        --happy2-info-soft: rgb(10 132 255 / 0.18);
+        --happy2-online: #32d74b;
+
+        --happy2-diff-add: #3fb950;
+        --happy2-diff-add-bg: #0d2e1f;
+        --happy2-diff-del: #f85149;
+        --happy2-diff-del-bg: #3f1b23;
+
+        --happy2-tone-violet: linear-gradient(135deg, #0a84ff, #5e5ce6);
+        --happy2-tone-ember: linear-gradient(135deg, #ff9f0a, #ff453a);
+        --happy2-tone-mint: linear-gradient(135deg, #32d74b, #30d5c8);
+        --happy2-tone-ocean: linear-gradient(135deg, #2baccc, #0a84ff);
+        --happy2-tone-rose: linear-gradient(135deg, #ff6b6b, #bf5af2);
+        --happy2-tone-amber: linear-gradient(135deg, #ffd60a, #ff9f0a);
+        --happy2-tone-slate: linear-gradient(135deg, #98989d, #48484a);
+        --happy2-tone-brand: linear-gradient(135deg, #ffffff, #2baccc);
+
+        --happy2-focus-ring: 2px solid #0a84ff;
+        --happy2-scrim: rgb(0 0 0 / 0.52);
+        --happy2-scrollbar: rgb(142 142 147 / 0.4);
+    }
+}
+
+/* Explicit preview/test override. Product surfaces do not set this class: the
+ * media query above is the runtime source of truth. */
+.happy2-theme-dark {
+    color-scheme: dark;
+    --happy2-bg-chrome: #18171c;
+    --happy2-bg-app: #000000;
+    --happy2-bg-surface: #1c1c1e;
+    --happy2-bg-raised: #2c2c2e;
+    --happy2-bg-inset: #303030;
+    --happy2-bg-hover: rgb(255 255 255 / 0.08);
+    --happy2-bg-code: #161b22;
+    --happy2-bg-window: none;
+    --happy2-border: #38383a;
+    --happy2-border-strong: #48484a;
+    --happy2-text: #ffffff;
+    --happy2-text-secondary: #8e8e93;
+    --happy2-text-muted: #8e8e93;
+    --happy2-text-faint: #98989d;
+    --happy2-text-on-accent: #ffffff;
+    --happy2-text-on-fill: #000000;
+    --happy2-accent: #0a84ff;
+    --happy2-accent-strong: #0a84ff;
+    --happy2-accent-soft: rgb(10 132 255 / 0.22);
+    --happy2-action: #ffffff;
+    --happy2-action-strong: #f0f0f0;
+    --happy2-action-text: #000000;
+    --happy2-pink: #2baccc;
+    --happy2-brand-gradient: linear-gradient(135deg, #ffffff, #2baccc);
+    --happy2-success: #32d74b;
+    --happy2-success-strong: #32d74b;
+    --happy2-success-soft: rgb(50 215 75 / 0.16);
+    --happy2-warning: #ff9f0a;
+    --happy2-warning-strong: #ffab00;
+    --happy2-warning-soft: rgb(255 159 10 / 0.15);
+    --happy2-danger: #ff453a;
+    --happy2-danger-strong: #ff6b6b;
+    --happy2-danger-soft: rgb(255 69 58 / 0.15);
+    --happy2-info: #0a84ff;
+    --happy2-info-soft: rgb(10 132 255 / 0.18);
+    --happy2-online: #32d74b;
+    --happy2-diff-add: #3fb950;
+    --happy2-diff-add-bg: #0d2e1f;
+    --happy2-diff-del: #f85149;
+    --happy2-diff-del-bg: #3f1b23;
+    --happy2-tone-violet: linear-gradient(135deg, #0a84ff, #5e5ce6);
+    --happy2-tone-ember: linear-gradient(135deg, #ff9f0a, #ff453a);
+    --happy2-tone-mint: linear-gradient(135deg, #32d74b, #30d5c8);
+    --happy2-tone-ocean: linear-gradient(135deg, #2baccc, #0a84ff);
+    --happy2-tone-rose: linear-gradient(135deg, #ff6b6b, #bf5af2);
+    --happy2-tone-amber: linear-gradient(135deg, #ffd60a, #ff9f0a);
+    --happy2-tone-slate: linear-gradient(135deg, #98989d, #48484a);
+    --happy2-tone-brand: linear-gradient(135deg, #ffffff, #2baccc);
+    --happy2-focus-ring: 2px solid #0a84ff;
+    --happy2-scrim: rgb(0 0 0 / 0.52);
+    --happy2-scrollbar: rgb(142 142 147 / 0.4);
 }
 
 .happy2-box {

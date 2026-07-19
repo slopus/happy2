@@ -10,4 +10,37 @@ body,
     height: 100%;
     margin: 0;
     background: var(--happy2-bg-chrome);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+html,
+body {
+    color-scheme: light dark;
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+    scrollbar-color: var(--happy2-scrollbar) transparent;
+    scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--happy2-scrollbar);
+    border: 2px solid transparent;
+    border-radius: var(--happy2-radius-sm);
+    background-clip: padding-box;
 }

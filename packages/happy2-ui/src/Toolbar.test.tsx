@@ -182,11 +182,11 @@ it(
         ).toEqual({
             "align-items": "center",
             "background-color": "rgba(0, 0, 0, 0)",
-            "border-bottom-color": "rgba(255, 255, 255, 0.07)",
+            "border-bottom-color": "rgb(234, 234, 234)",
             "border-bottom-style": "solid",
             "border-bottom-width": "1px",
             "box-sizing": "border-box",
-            color: "rgb(237, 234, 242)",
+            color: "rgb(0, 0, 0)",
             display: "flex",
             "font-family": fontFamily,
             height: "48px",
@@ -218,7 +218,7 @@ it(
                 "line-height",
             ]),
         ).toEqual({
-            color: "rgb(237, 234, 242)",
+            color: "rgb(0, 0, 0)",
             "font-family": fontFamily,
             "font-size": "15px",
             "font-weight": "700",
@@ -243,7 +243,7 @@ it(
         expect(
             subtitle.computedStyles(["color", "font-size", "font-weight", "line-height"]),
         ).toEqual({
-            color: "rgb(117, 112, 133)",
+            color: "rgb(142, 142, 147)",
             "font-size": "12px",
             "font-weight": "500",
             "line-height": "16px",
@@ -265,16 +265,16 @@ it(
                 "box-sizing",
             ]),
         ).toEqual({
-            "background-color": "rgba(255, 255, 255, 0.05)",
+            "background-color": "rgb(245, 245, 245)",
             "border-radius": "6px",
-            "border-top-color": "rgba(255, 255, 255, 0.07)",
+            "border-top-color": "rgb(234, 234, 234)",
             "border-top-width": "1px",
             "box-sizing": "border-box",
         });
         const searchIcon = part("s-full", "search-icon");
         expect(searchIcon.bounds().width, "search icon box").toBe(14);
         expect(searchIcon.bounds().height, "search icon box").toBe(14);
-        expect(searchIcon.computedStyle("color")).toBe("rgb(117, 112, 133)");
+        expect(searchIcon.computedStyle("color")).toBe("rgb(142, 142, 147)");
         /* The search glyph is Icon-owned and must not be re-tuned here. Its true
    drift is <=0.4px, proven differentially against a calibration square in
    Icon.test.tsx; this absolute (un-calibrated) capture additionally carries
@@ -290,7 +290,7 @@ it(
         expect(
             searchInput.computedStyles(["color", "font-family", "font-size", "font-weight"]),
         ).toEqual({
-            color: "rgb(237, 234, 242)",
+            color: "rgb(0, 0, 0)",
             "font-family": fontFamily,
             "font-size": "13px",
             "font-weight": "500",

@@ -158,10 +158,10 @@ it("holds BuildProgressPanel layout, progress geometry, typography, log, and fai
             "padding-top",
         ]),
     ).toEqual({
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "border-top-left-radius": "10px",
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         display: "flex",
         "flex-direction": "column",
         "font-family":
@@ -179,7 +179,7 @@ it("holds BuildProgressPanel layout, progress geometry, typography, log, and fai
     const title = view.$('[data-testid="bp-building"] [data-happy2-ui="build-progress-title"]');
     expect(title.textMetrics().text).toBe("Daycare Minimal");
     expect(title.computedStyles(["color", "font-size", "font-weight", "line-height"])).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-size": "15px",
         "font-weight": "600",
         "line-height": "20px",
@@ -213,13 +213,13 @@ it("holds BuildProgressPanel layout, progress geometry, typography, log, and fai
     expect(track.computedStyle("overflow-x")).toBe("hidden");
     /* Fill width is exactly 45% of the track within 1px, accent-colored. */
     expect(Math.abs(fill.width() - 0.45 * track.width())).toBeLessThanOrEqual(1);
-    expect(fill.computedStyle("background-color")).toBe("rgb(139, 124, 247)");
+    expect(fill.computedStyle("background-color")).toBe("rgb(0, 122, 255)");
 
     /* Ready: fill forced to the full track width, success-colored. */
     const readyTrack = view.$('[data-testid="bp-ready"] [data-happy2-ui="build-progress-track"]');
     const readyFill = view.$('[data-testid="bp-ready"] [data-happy2-ui="build-progress-fill"]');
     expect(Math.abs(readyFill.width() - readyTrack.width())).toBeLessThanOrEqual(0.5);
-    expect(readyFill.computedStyle("background-color")).toBe("rgb(52, 211, 153)");
+    expect(readyFill.computedStyle("background-color")).toBe("rgb(52, 199, 89)");
 
     /* Numeric clamp: >100 saturates to the full width, <0 collapses to zero. */
     const overTrack = view.$('[data-testid="bp-over"] [data-happy2-ui="build-progress-track"]');
@@ -247,7 +247,7 @@ it("holds BuildProgressPanel layout, progress geometry, typography, log, and fai
     expect(
         statusLabel.computedStyles(["color", "font-size", "font-weight", "line-height"]),
     ).toEqual({
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-size": "13px",
         "font-weight": "500",
         "line-height": "18px",
@@ -292,7 +292,7 @@ it("holds BuildProgressPanel layout, progress geometry, typography, log, and fai
             "overflow-y",
         ]),
     ).toEqual({
-        "background-color": "rgb(20, 19, 25)",
+        "background-color": "rgb(246, 248, 250)",
         "font-family": monoFamily(),
         "max-height": "160px",
         "overflow-x": "auto",
@@ -304,7 +304,7 @@ it("holds BuildProgressPanel layout, progress geometry, typography, log, and fai
         '[data-testid="bp-failed"] [data-happy2-ui="build-progress-truncated"]',
     );
     expect(truncated.element.textContent?.trim()).toBe("Earlier log truncated");
-    expect(truncated.computedStyle("color")).toBe("rgb(251, 191, 36)");
+    expect(truncated.computedStyle("color")).toBe("rgb(255, 149, 0)");
     /* No truncation note when logTruncated is not set. */
     expect(
         view.container.querySelector(
@@ -318,7 +318,7 @@ it("holds BuildProgressPanel layout, progress geometry, typography, log, and fai
     const errorText = view.$(
         '[data-testid="bp-failed"] [data-happy2-ui="build-progress-error-text"]',
     );
-    expect(errorText.computedStyle("color")).toBe("rgb(248, 113, 113)");
+    expect(errorText.computedStyle("color")).toBe("rgb(255, 59, 48)");
     await paints(errorText, "error text");
 
     const retry = view.$('[data-testid="bp-failed"] [data-happy2-ui="button"]');
@@ -350,7 +350,7 @@ it("holds BuildProgressPanel layout, progress geometry, typography, log, and fai
         spinner.computedStyles(["border-radius", "border-top-color", "border-top-width"]),
     ).toEqual({
         "border-radius": "999px",
-        "border-top-color": "rgb(139, 124, 247)",
+        "border-top-color": "rgb(0, 122, 255)",
         "border-top-width": "2px",
     });
     /* Static ring paints an unclipped, geometrically centered contour. */

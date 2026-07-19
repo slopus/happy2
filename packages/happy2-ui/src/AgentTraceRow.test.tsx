@@ -38,7 +38,7 @@ it("holds AgentTraceRow geometry, states, icon mapping, and click behavior", asy
         () => (
             <div
                 style={{
-                    background: "#17161c",
+                    background: "#f5f5f5",
                     display: "flex",
                     flexDirection: "column",
                     gap: "10px",
@@ -90,7 +90,7 @@ it("holds AgentTraceRow geometry, states, icon mapping, and click behavior", asy
         () => (
             <div
                 style={{
-                    background: "#17161c",
+                    background: "#f5f5f5",
                     display: "flex",
                     flexDirection: "column",
                     padding: "16px",
@@ -140,7 +140,7 @@ it("holds AgentTraceRow geometry, states, icon mapping, and click behavior", asy
         "align-items": "center",
         "background-color": "rgba(0, 0, 0, 0)",
         "border-radius": "6px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
         cursor: "pointer",
@@ -157,11 +157,11 @@ it("holds AgentTraceRow geometry, states, icon mapping, and click behavior", asy
         view.$(`[data-testid="${testid}"] [data-happy2-ui="agent-trace-row-dot"]`);
     expect(dotOf("tr-running").bounds()).toMatchObject({ width: 5, height: 5 });
     expect(dotOf("tr-running").computedStyles(["background-color", "border-radius"])).toEqual({
-        "background-color": "rgb(139, 124, 247)",
+        "background-color": "rgb(0, 122, 255)",
         "border-radius": "999px",
     });
-    expect(dotOf("tr-complete").computedStyle("background-color")).toBe("rgb(52, 211, 153)");
-    expect(dotOf("tr-failed").computedStyle("background-color")).toBe("rgb(248, 113, 113)");
+    expect(dotOf("tr-complete").computedStyle("background-color")).toBe("rgb(52, 199, 89)");
+    expect(dotOf("tr-failed").computedStyle("background-color")).toBe("rgb(255, 59, 48)");
     const drift = await dotDrift(view, '[data-testid="tr-running"]');
     expect(Math.abs(drift), `dot lane drift ${drift}`).toBeLessThanOrEqual(0.5);
 
@@ -185,7 +185,7 @@ it("holds AgentTraceRow geometry, states, icon mapping, and click behavior", asy
     const title = view.$('[data-testid="tr-running"] [data-happy2-ui="agent-trace-row-title"]');
     expect(title.element.textContent).toBe("Thinking");
     expect(title.computedStyles(["color", "font-family", "font-size", "font-weight"])).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-family": uiFamily(),
         "font-size": "12px",
         "font-weight": "500",
@@ -202,7 +202,7 @@ it("holds AgentTraceRow geometry, states, icon mapping, and click behavior", asy
             "white-space",
         ]),
     ).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-family": monoFamily(),
         "font-size": "11px",
         "overflow-x": "hidden",
@@ -242,7 +242,7 @@ it("holds AgentTraceRow geometry, states, icon mapping, and click behavior", asy
         '[data-testid="tr-complete"] [data-happy2-ui="agent-trace-row-title"]',
     );
     expect(completeTitle.element.textContent).toBe("View trace");
-    expect(completeTitle.computedStyle("color")).toBe("rgb(168, 155, 255)");
+    expect(completeTitle.computedStyle("color")).toBe("rgb(0, 122, 255)");
     expect(
         view.$('[data-testid="tr-complete"] [data-happy2-ui="agent-trace-row-count"]').element
             .textContent,

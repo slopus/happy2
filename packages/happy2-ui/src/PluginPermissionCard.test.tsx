@@ -33,7 +33,7 @@ it("holds pending layout: amber treatment, package image, request content, and w
     const decisions: string[] = [];
     const view = createRenderer().render(
         () => (
-            <div style={{ width: "600px", background: "#17161c", display: "flex", padding: "0" }}>
+            <div style={{ width: "600px", background: "#f5f5f5", display: "flex", padding: "0" }}>
                 <PluginPermissionCard
                     {...REQUEST}
                     action="install"
@@ -62,15 +62,15 @@ it("holds pending layout: amber treatment, package image, request content, and w
             "overflow-x",
         ]),
     ).toEqual({
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "border-top-left-radius": "10px",
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "max-width": "560px",
         "overflow-x": "hidden",
     });
     expect(root.computedStyle("font-family")).toBe(uiFamily());
-    expect(root.computedStyle("border-top-color")).toBe("rgba(251, 191, 36, 0.13)");
+    expect(root.computedStyle("border-top-color")).toBe("rgba(255, 149, 0, 0.14)");
     expect(root.element.getAttribute("data-status")).toBe("pending");
 
     // No banner while pending; the shield chip wears the warning tone.
@@ -80,7 +80,7 @@ it("holds pending layout: amber treatment, package image, request content, and w
     const chip = view.$('[data-happy2-ui="plugin-permission-card-chip"]');
     expect(chip.bounds().width).toBe(26);
     expect(chip.bounds().height).toBe(26);
-    expect(chip.computedStyle("color")).toBe("rgb(251, 191, 36)");
+    expect(chip.computedStyle("color")).toBe("rgb(255, 149, 0)");
 
     // Type badge and the requesting agent pinned right.
     expect(view.$('[data-testid="card"] [data-happy2-ui="badge-label"]').element.textContent).toBe(
@@ -138,7 +138,7 @@ it("disables decisions while busy or processing and hides them without decision 
     const view = createRenderer()
         .render(
             () => (
-                <div style={{ width: "600px", background: "#17161c", display: "flex" }}>
+                <div style={{ width: "600px", background: "#f5f5f5", display: "flex" }}>
                     <PluginPermissionCard
                         {...REQUEST}
                         action="install"
@@ -154,7 +154,7 @@ it("disables decisions while busy or processing and hides them without decision 
         )
         .render(
             () => (
-                <div style={{ width: "600px", background: "#17161c", display: "flex" }}>
+                <div style={{ width: "600px", background: "#f5f5f5", display: "flex" }}>
                     <PluginPermissionCard
                         {...REQUEST}
                         action="uninstall"
@@ -167,7 +167,7 @@ it("disables decisions while busy or processing and hides them without decision 
         )
         .render(
             () => (
-                <div style={{ width: "600px", background: "#17161c", display: "flex" }}>
+                <div style={{ width: "600px", background: "#f5f5f5", display: "flex" }}>
                     <PluginPermissionCard
                         {...REQUEST}
                         action="install"
@@ -208,7 +208,7 @@ it("disables decisions while busy or processing and hides them without decision 
     // treatment but replaces the actions with the approval-required state.
     const member = view.$('[data-testid="member"]');
     expect(member.element.getAttribute("data-status")).toBe("pending");
-    expect(member.computedStyle("border-top-color")).toBe("rgba(251, 191, 36, 0.13)");
+    expect(member.computedStyle("border-top-color")).toBe("rgba(255, 149, 0, 0.14)");
     expect(member.element.querySelector('[data-action="approve"]')).toBeNull();
     expect(member.element.querySelector('[data-action="deny"]')).toBeNull();
     expect(member.element.querySelector("button")).toBeNull();
@@ -216,7 +216,7 @@ it("disables decisions while busy or processing and hides them without decision 
         '[data-testid="member"] [data-happy2-ui="plugin-permission-card-state-label"]',
     );
     expect(memberState.element.textContent).toBe("Administrator approval required");
-    expect(memberState.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(memberState.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(decisions).toEqual([]);
 
     await view.screenshot("PluginPermissionCard.busy.test");
@@ -226,7 +226,7 @@ it("renders clearly terminal approved, denied, and failed states", async () => {
     const view = createRenderer()
         .render(
             () => (
-                <div style={{ width: "600px", background: "#17161c", display: "flex" }}>
+                <div style={{ width: "600px", background: "#f5f5f5", display: "flex" }}>
                     <PluginPermissionCard
                         {...REQUEST}
                         action="install"
@@ -239,7 +239,7 @@ it("renders clearly terminal approved, denied, and failed states", async () => {
         )
         .render(
             () => (
-                <div style={{ width: "600px", background: "#17161c", display: "flex" }}>
+                <div style={{ width: "600px", background: "#f5f5f5", display: "flex" }}>
                     <PluginPermissionCard
                         {...REQUEST}
                         action="uninstall"
@@ -252,7 +252,7 @@ it("renders clearly terminal approved, denied, and failed states", async () => {
         )
         .render(
             () => (
-                <div style={{ width: "600px", background: "#17161c", display: "flex" }}>
+                <div style={{ width: "600px", background: "#f5f5f5", display: "flex" }}>
                     <PluginPermissionCard
                         {...REQUEST}
                         action="install"
@@ -273,7 +273,7 @@ it("renders clearly terminal approved, denied, and failed states", async () => {
 
     // Approved: mint banner, success state line, no action buttons.
     expect(banner("approved").element.textContent).toContain("Approved");
-    expect(banner("approved").computedStyle("color")).toBe("rgb(110, 231, 183)");
+    expect(banner("approved").computedStyle("color")).toBe("rgb(36, 138, 61)");
     expect(banner("approved").bounds().height).toBe(32);
     expect(state("approved").element.textContent).toBe("Approved — Chat Helper was installed");
     expect(
@@ -282,7 +282,7 @@ it("renders clearly terminal approved, denied, and failed states", async () => {
 
     // Denied: danger banner and a neutral terminal line.
     expect(banner("denied").element.textContent).toContain("Denied");
-    expect(banner("denied").computedStyle("color")).toBe("rgb(252, 165, 165)");
+    expect(banner("denied").computedStyle("color")).toBe("rgb(215, 0, 21)");
     expect(state("denied").element.textContent).toBe("Denied — no changes were made");
 
     // Failed: danger banner carries the bounded diagnostic in the state line.

@@ -92,7 +92,7 @@ it("holds AgentActivityStrip card geometry, row layout, colors, and meta formatt
         () => (
             <div
                 style={{
-                    background: "#17161c",
+                    background: "#f5f5f5",
                     display: "flex",
                     flexDirection: "column",
                     padding: "16px",
@@ -112,7 +112,7 @@ it("holds AgentActivityStrip card geometry, row layout, colors, and meta formatt
         () => (
             <div
                 style={{
-                    background: "#17161c",
+                    background: "#f5f5f5",
                     display: "flex",
                     flexDirection: "column",
                     padding: "16px",
@@ -158,9 +158,9 @@ it("holds AgentActivityStrip card geometry, row layout, colors, and meta formatt
             "padding-top",
         ]),
     ).toEqual({
-        "background-color": "rgb(20, 19, 25)",
+        "background-color": "rgb(246, 248, 250)",
         "border-radius": "6px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
         display: "flex",
@@ -260,10 +260,10 @@ it("holds AgentActivityStrip card geometry, row layout, colors, and meta formatt
                 `[data-testid="strip-mixed"] [data-status="${status}"] [data-happy2-ui="agent-activity-strip-dot"]`,
             )
             .computedStyle("background-color");
-    expect(dotColor("running")).toBe("rgb(139, 124, 247)");
-    expect(dotColor("completed")).toBe("rgb(52, 211, 153)");
-    expect(dotColor("error")).toBe("rgb(248, 113, 113)");
-    expect(dotColor("queued")).toBe("rgb(117, 112, 133)");
+    expect(dotColor("running")).toBe("rgb(0, 122, 255)");
+    expect(dotColor("completed")).toBe("rgb(52, 199, 89)");
+    expect(dotColor("error")).toBe("rgb(255, 59, 48)");
+    expect(dotColor("queued")).toBe("rgb(142, 142, 147)");
     const runningDot = view.$(
         '[data-testid="strip-mixed"] [data-status="running"] [data-happy2-ui="agent-activity-strip-dot"]',
     );
@@ -292,7 +292,7 @@ it("holds AgentActivityStrip card geometry, row layout, colors, and meta formatt
             "text-overflow",
         ]),
     ).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-family": uiFamily(),
         "font-size": "12px",
         "font-weight": "500",
@@ -303,7 +303,7 @@ it("holds AgentActivityStrip card geometry, row layout, colors, and meta formatt
     expect(latest.element.textContent).toBe('grep -rn "sessionCreate" sources/modules');
     expect(latest.computedStyles(["color", "font-family", "text-overflow", "white-space"])).toEqual(
         {
-            color: "rgb(117, 112, 133)",
+            color: "rgb(142, 142, 147)",
             "font-family": monoFamily(),
             "text-overflow": "ellipsis",
             "white-space": "nowrap",
@@ -337,7 +337,7 @@ it("holds AgentActivityStrip card geometry, row layout, colors, and meta formatt
     expect(
         meta.computedStyles(["color", "font-family", "font-size", "font-variant-numeric"]),
     ).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-family": monoFamily(),
         "font-size": "11px",
         "font-variant-numeric": "lining-nums tabular-nums",
@@ -375,7 +375,7 @@ it("holds AgentActivityStrip card geometry, row layout, colors, and meta formatt
     const command = view.$(`${firstTerminal} [data-happy2-ui="agent-activity-strip-command"]`);
     expect(command.element.textContent).toBe("pnpm --dir packages/happy2-server test");
     expect(command.computedStyles(["color", "font-family", "text-overflow"])).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-family": monoFamily(),
         "text-overflow": "ellipsis",
     });
@@ -383,7 +383,7 @@ it("holds AgentActivityStrip card geometry, row layout, colors, and meta formatt
     expect(cwd.element.textContent).toBe("~/work/happy2");
     /* Plain ellipsis truncation only — no direction:rtl trick. */
     expect(cwd.computedStyles(["color", "direction", "text-overflow", "white-space"])).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         direction: "ltr",
         "text-overflow": "ellipsis",
         "white-space": "nowrap",
@@ -437,7 +437,7 @@ it("caps a maximum valid payload at 144px and scrolls it without displacing sibl
         () => (
             <div
                 style={{
-                    background: "#17161c",
+                    background: "#f5f5f5",
                     display: "flex",
                     flexDirection: "column",
                     gap: "8px",
@@ -512,7 +512,7 @@ it("truncates long strip content with a plain ellipsis at narrow widths", async 
         () => (
             <div
                 style={{
-                    background: "#17161c",
+                    background: "#f5f5f5",
                     display: "flex",
                     flexDirection: "column",
                     padding: "16px",

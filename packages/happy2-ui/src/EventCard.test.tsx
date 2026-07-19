@@ -130,9 +130,9 @@ it("holds EventCard geometry, transition lane, and optical centering", async () 
             "padding-right",
         ]),
     ).toEqual({
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "border-radius": "8px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
         cursor: "pointer",
@@ -174,9 +174,9 @@ it("holds EventCard geometry, transition lane, and optical centering", async () 
     const chip = view.$('[data-testid="ev-transition"] [data-happy2-ui="event-card-chip"]');
     expect(chip.offsets().left).toBe(13); /* border 1 + pad 12 */
     expect(chip.computedStyles(["background-color", "border-radius", "color"])).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-radius": "6px",
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
     });
 
     /* ---- Title + inline meta ------------------------------------------------ */
@@ -187,7 +187,7 @@ it("holds EventCard geometry, transition lane, and optical centering", async () 
     expect(titleMetrics.font.size).toBe(13);
     expect(titleMetrics.font.weight).toBe("600");
     expect(titleMetrics.font.lineHeight).toBe(18);
-    expect(title.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(title.computedStyle("color")).toBe("rgb(0, 0, 0)");
     expect(title.bounds().x - row.bounds().x).toBe(47); /* 13 + chip 24 + gap 10 */
     /* Titles are arbitrary word runs whose descender mass drags the centroid
      * (content-dependent): assert the deterministic line-box symmetry — the
@@ -200,7 +200,7 @@ it("holds EventCard geometry, transition lane, and optical centering", async () 
 
     const meta = view.$('[data-testid="ev-transition"] [data-happy2-ui="event-card-meta"]');
     expect(meta.textMetrics().font.size).toBe(12);
-    expect(meta.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(meta.computedStyle("color")).toBe("rgb(142, 142, 147)");
     /* Uppercase + digits ticket ref: cap-band ink is symmetric enough for a
      * full vertical centroid check against the row center. */
     const metaInk = await ink(meta, row, "meta");
@@ -215,16 +215,16 @@ it("holds EventCard geometry, transition lane, and optical centering", async () 
     const to = view.$('[data-testid="ev-transition"] [data-happy2-ui="event-card-to"]');
     expect(from.textMetrics().text).toBe("In progress");
     expect(from.computedStyles(["color", "font-size", "font-weight"])).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-size": "12px",
         "font-weight": "500",
     });
     expect(arrow.bounds().width).toBe(12);
     expect(arrow.bounds().height).toBe(12);
-    expect(arrow.computedStyle("color")).toBe("rgb(85, 81, 95)");
+    expect(arrow.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(to.textMetrics().text).toBe("In review");
     expect(to.computedStyles(["color", "font-size", "font-weight"])).toEqual({
-        color: "rgb(168, 155, 255)",
+        color: "rgb(0, 122, 255)",
         "font-size": "12px",
         "font-weight": "600",
     });
@@ -248,7 +248,7 @@ it("holds EventCard geometry, transition lane, and optical centering", async () 
     const timeMetrics = time.textMetrics();
     expect(timeMetrics.font.family).toBe("happy2 Mono, ui-monospace, monospace");
     expect(timeMetrics.font.size).toBe(11);
-    expect(time.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(time.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(row.bounds().x + 680 - (time.bounds().x + time.bounds().width)).toBe(13);
     /* Gecko reports the ink-right edge at a subpixel float; 2dp is exact enough. */
     expect(time.bounds().x - (to.bounds().x + to.bounds().width)).toBeCloseTo(8, 2);
@@ -286,8 +286,8 @@ it("holds EventCard geometry, transition lane, and optical centering", async () 
     expect(badge.bounds().y - badgeRow.bounds().y).toBe(13); /* (44 - 18) / 2 */
     expect((await badge.visibleMetrics()).pixelCount).toBeGreaterThan(0);
     expect(badge.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(52, 211, 153, 0.13)",
-        color: "rgb(110, 231, 183)",
+        "background-color": "rgba(52, 199, 89, 0.14)",
+        color: "rgb(36, 138, 61)",
     });
     expect(
         view.container.querySelector(

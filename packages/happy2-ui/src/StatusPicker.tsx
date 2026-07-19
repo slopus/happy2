@@ -31,7 +31,7 @@ const AVAILABILITY: {
     { value: "dnd", label: "Busy" },
 ];
 /**
- * C-034 StatusPicker — availability chooser + custom status editor on the Relay
+ * C-034 StatusPicker — availability chooser + custom status editor on the Happy
  * raised card. The availability row is a bespoke segmented control (generic
  * SegmentedControl can't carry per-state identity dots) with a sliding pill,
  * equal integer columns, and a colored status dot per segment. The custom

@@ -10,11 +10,9 @@ export type AppShellProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     titleBar: ReactNode;
 };
 /*
- * Window composition for the Relay desktop app. Chrome base, title bar row,
- * then rail | the main card (no top/left inset, 8px right/bottom inset and
- * native-window radius) and an optional right panel card across an 8px gap.
- * The optional sidebar lives inside the main card so navigation and workspace
- * form one continuous content panel.
+ * Window composition for the Happy desktop app. Chrome base, title bar row,
+ * then rail | navigation | workspace and an optional right inspector. Every
+ * region meets on a hairline so the desktop feels like one native surface.
  */
 export function AppShell(props: AppShellProps) {
     const [local, rest] = partitionComponentProps(props, [
@@ -62,7 +60,11 @@ export function AppShell(props: AppShellProps) {
                         <aside
                             className="happy2-app-shell__panel"
                             data-happy2-ui="app-shell-panel"
-                            style={{ width: `${local.panelWidth ?? 340}px` }}
+                            style={
+                                local.panelWidth === undefined
+                                    ? undefined
+                                    : { width: `${local.panelWidth}px` }
+                            }
                         >
                             {local.panel}
                         </aside>

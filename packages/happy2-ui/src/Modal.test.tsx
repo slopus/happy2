@@ -148,9 +148,9 @@ it("holds Modal dialog geometry, header/body/footer layout, and optical glyph ce
             "width",
         ]),
     ).toEqual({
-        "background-color": "rgb(36, 34, 43)",
+        "background-color": "rgb(240, 240, 242)",
         "border-bottom-left-radius": "14px",
-        "border-top-color": "rgba(255, 255, 255, 0.13)",
+        "border-top-color": "rgb(209, 209, 214)",
         "border-top-left-radius": "14px",
         "border-top-width": "1px",
         "box-shadow": "rgba(0, 0, 0, 0.5) 0px 24px 64px 0px",
@@ -197,9 +197,9 @@ it("holds Modal dialog geometry, header/body/footer layout, and optical glyph ce
     expect(chip.offsets().left).toBe(20);
     expect(chip.offsets().top).toBe(16);
     expect(chip.computedStyles(["background-color", "border-radius", "color"])).toEqual({
-        "background-color": "rgba(139, 124, 247, 0.15)",
+        "background-color": "rgba(0, 122, 255, 0.14)",
         "border-radius": "8px",
-        color: "rgb(139, 124, 247)",
+        color: "rgb(0, 122, 255)",
     });
     /* Chip glyph optically centered on both axes (reuses the tuned Icon set). */
     const chipGlyph = await glyphDrift(
@@ -213,7 +213,7 @@ it("holds Modal dialog geometry, header/body/footer layout, and optical glyph ce
     /* Title: 16/24/700, Figtree, sits after chip (28) + gap (12) + inset (20). */
     const title = view.$('[data-testid="md"] [data-happy2-ui="modal-title"]');
     expect(title.offsets().left).toBe(60);
-    expect(title.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(title.computedStyle("color")).toBe("rgb(0, 0, 0)");
     const titleMetrics = title.textMetrics();
     expect(titleMetrics.text).toBe("Create a channel");
     expect(titleMetrics.font.family).toBe("happy2 Figtree, system-ui, sans-serif");
@@ -258,7 +258,7 @@ it("holds Modal dialog geometry, header/body/footer layout, and optical glyph ce
             "padding-top",
         ]),
     ).toEqual({
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-size": "13px",
         "font-weight": "400",
         "line-height": "20px",
@@ -302,7 +302,7 @@ it("holds Modal dialog geometry, header/body/footer layout, and optical glyph ce
             "padding-top",
         ]),
     ).toEqual({
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         display: "flex",
         "justify-content": "flex-end",
@@ -391,8 +391,8 @@ it("holds Modal tone treatments and the minimal (no icon / footer / close) form"
     const dangerChip = view.$('[data-testid="danger"] [data-happy2-ui="modal-icon"]');
     expect(dangerChip.bounds().width).toBe(28);
     expect(dangerChip.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(248, 113, 113, 0.13)",
-        color: "rgb(248, 113, 113)",
+        "background-color": "rgba(255, 59, 48, 0.12)",
+        color: "rgb(255, 59, 48)",
     });
     const dangerGlyph = await glyphDrift(
         view,
@@ -408,7 +408,7 @@ it("holds Modal tone treatments and the minimal (no icon / footer / close) form"
     /* Title stays on the neutral text token; only the chip is toned. */
     expect(
         view.$('[data-testid="danger"] [data-happy2-ui="modal-title"]').computedStyle("color"),
-    ).toBe("rgb(237, 234, 242)");
+    ).toBe("rgb(0, 0, 0)");
 
     /* ---- Minimal: title + body only, header still the fixed 60px row ---- */
 

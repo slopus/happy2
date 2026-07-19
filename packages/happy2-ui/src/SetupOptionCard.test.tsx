@@ -130,10 +130,10 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
         ]),
     ).toEqual({
         "align-items": "flex-start",
-        "background-color": "rgb(36, 34, 43)",
+        "background-color": "rgb(240, 240, 242)",
         "border-radius": "10px",
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         cursor: "pointer",
         display: "flex",
         "font-family": fontFamily(),
@@ -146,8 +146,8 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
     expect(
         selected.computedStyles(["background-color", "border-top-color", "border-top-width"]),
     ).toEqual({
-        "background-color": "rgba(139, 124, 247, 0.15)",
-        "border-top-color": "rgb(139, 124, 247)",
+        "background-color": "rgba(0, 122, 255, 0.14)",
+        "border-top-color": "rgb(0, 122, 255)",
         "border-top-width": "1px",
     });
 
@@ -166,9 +166,9 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
         ]),
     ).toEqual({
         "align-items": "center",
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-radius": "8px",
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         display: "flex",
         "justify-content": "center",
     });
@@ -186,7 +186,7 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
 
     const title = part(view, "chip", "setup-option-title");
     expect(title.computedStyles(["color", "font-size", "font-weight", "line-height"])).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-size": "15px",
         "font-weight": "600",
         "line-height": "20px",
@@ -198,7 +198,7 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
     expect(
         description.computedStyles(["color", "font-size", "font-weight", "line-height"]),
     ).toEqual({
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-size": "13px",
         "font-weight": "400",
         "line-height": "18px",
@@ -207,7 +207,7 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
 
     const meta = part(view, "chip", "setup-option-meta");
     expect(meta.computedStyles(["color", "font-size", "font-weight", "line-height"])).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-size": "12px",
         "font-weight": "500",
         "line-height": "16px",
@@ -217,7 +217,7 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
 
     const hint = part(view, "disabled", "setup-option-hint");
     expect(hint.computedStyles(["color", "font-size", "font-weight", "line-height"])).toEqual({
-        color: "rgb(248, 113, 113)",
+        color: "rgb(255, 59, 48)",
         "font-size": "12px",
         "font-weight": "400",
         "line-height": "16px",
@@ -226,7 +226,7 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
 
     const recommended = part(view, "selected", "setup-option-recommended");
     expect(recommended.computedStyles(["color", "text-transform"])).toEqual({
-        color: "rgb(139, 124, 247)",
+        color: "rgb(0, 122, 255)",
         "text-transform": "uppercase",
     });
 
@@ -259,7 +259,7 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
         "selected has no ring",
     ).toBeNull();
     const check = part(view, "selected", "setup-option-check");
-    expect(check.computedStyle("color")).toBe("rgb(139, 124, 247)");
+    expect(check.computedStyle("color")).toBe("rgb(0, 122, 255)");
     const checkGlyph = await glyphDrift(
         view,
         '[data-testid="selected"] [data-happy2-ui="setup-option-trailing"]',
@@ -298,7 +298,7 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
         ]),
     ).toEqual({
         "border-radius": "999px",
-        "border-top-color": "rgb(139, 124, 247)",
+        "border-top-color": "rgb(0, 122, 255)",
         "border-top-width": "2px",
         "box-sizing": "border-box",
     });

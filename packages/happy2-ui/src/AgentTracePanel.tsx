@@ -54,7 +54,7 @@ function formatUtcClock(epochMs: number): string {
 }
 /**
  * C-068 AgentTracePanel — the right-sidebar activity trace for one agent turn:
- * an activity log, not a chat. A 52px surface header (shared height with
+ * an activity log, not a chat. A 56px surface header (shared height with
  * ChannelHeader, InfoPanel, and ThreadPanel) carries the agent title, the step
  * count, a turn-status badge, and a close button; below it a full-bleed
  * scrollport body lists entries (kind glyph, title, mono detail, UTC

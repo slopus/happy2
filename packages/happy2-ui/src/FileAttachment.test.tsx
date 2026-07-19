@@ -9,7 +9,7 @@ function stage(testid: string, children: ReactNode) {
         <div
             data-testid={testid}
             style={{
-                background: "#17161c",
+                background: "#f5f5f5",
                 boxSizing: "border-box",
                 display: "block",
                 height: "100%",
@@ -95,7 +95,7 @@ it("holds FileAttachment geometry, typography, truncation, and interactivity", a
         ]),
     ).toEqual({
         "align-items": "center",
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-bottom-width": "1px",
         "border-radius": "10px",
         "box-sizing": "border-box",
@@ -109,14 +109,14 @@ it("holds FileAttachment geometry, typography, truncation, and interactivity", a
     const name = view.$('[data-testid="fa"] [data-happy2-ui="file-attachment-name"]');
     expect(name.element.textContent).toBe("Relay Flagship (standalone).html");
     expect(name.computedStyles(["color", "font-size", "font-weight"])).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-size": "13px",
         "font-weight": "600",
     });
     const size = view.$('[data-testid="fa"] [data-happy2-ui="file-attachment-size"]');
     expect(size.element.textContent).toBe("283 KB");
     expect(size.textMetrics().font.family).toBe("happy2 Mono, ui-monospace, monospace");
-    expect(size.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(size.computedStyle("color")).toBe("rgb(142, 142, 147)");
     /* The doc glyph is optically centered in the 36px pill's vertical lane. */
     const iconInk = await icon.visibleMetrics();
     expect(iconInk.pixelCount, "doc glyph paints").toBeGreaterThan(0);
@@ -140,7 +140,7 @@ it("holds FileAttachment geometry, typography, truncation, and interactivity", a
     expect(
         chat.computedStyles(["background-color", "border-radius", "display", "height", "width"]),
     ).toEqual({
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "border-radius": "8px",
         display: "inline-flex",
         height: "64px",

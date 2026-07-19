@@ -123,9 +123,9 @@ it("holds DiffSnippet geometry, colors, typography, and scrolling", async () => 
             "overflow-y",
         ]),
     ).toEqual({
-        "background-color": "rgb(20, 19, 25)",
+        "background-color": "rgb(246, 248, 250)",
         "border-bottom-width": "1px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-left-radius": "8px",
         "border-top-width": "1px",
         "box-sizing": "border-box",
@@ -154,8 +154,8 @@ it("holds DiffSnippet geometry, colors, typography, and scrolling", async () => 
         ]),
     ).toEqual({
         "align-items": "center",
-        "background-color": "rgba(255, 255, 255, 0.05)",
-        "border-bottom-color": "rgba(255, 255, 255, 0.07)",
+        "background-color": "rgb(245, 245, 245)",
+        "border-bottom-color": "rgb(234, 234, 234)",
         "border-bottom-width": "1px",
         "box-sizing": "border-box",
         display: "flex",
@@ -180,7 +180,7 @@ it("holds DiffSnippet geometry, colors, typography, and scrolling", async () => 
         size: 11,
         weight: "600",
     });
-    expect(file.computedStyle("color")).toBe("rgb(165, 160, 176)");
+    expect(file.computedStyle("color")).toBe("rgb(142, 142, 147)");
     /* Integer line-box geometry: 16px line at 5px from the header top,
      * 7px to the header bottom edge (hairline + reserved padding row),
      * i.e. dead-centered in the visible 27px field. */
@@ -191,8 +191,8 @@ it("holds DiffSnippet geometry, colors, typography, and scrolling", async () => 
     const removed = view.$('[data-testid="diff-full"] [data-happy2-ui="diff-snippet-removed"]');
     expect(added.element.textContent).toBe("+41");
     expect(removed.element.textContent).toBe("−12");
-    expect(added.computedStyle("color")).toBe("rgb(52, 211, 153)");
-    expect(removed.computedStyle("color")).toBe("rgb(248, 113, 113)");
+    expect(added.computedStyle("color")).toBe("rgb(40, 167, 69)");
+    expect(removed.computedStyle("color")).toBe("rgb(220, 53, 69)");
     const stats = view.$('[data-testid="diff-full"] [data-happy2-ui="diff-snippet-stats"]');
     /* toBeCloseTo: mono text advance widths carry float dust in Gecko (11.999). */
     expect(stats.offsets().right).toBeCloseTo(12, 1);
@@ -219,8 +219,8 @@ it("holds DiffSnippet geometry, colors, typography, and scrolling", async () => 
             "white-space",
         ]),
     ).toEqual({
-        "background-color": "rgba(52, 211, 153, 0.09)",
-        color: "rgb(52, 211, 153)",
+        "background-color": "rgb(230, 255, 237)",
+        color: "rgb(40, 167, 69)",
         "font-family": monoFamily,
         "font-size": "12px",
         "font-weight": "400",
@@ -229,14 +229,14 @@ it("holds DiffSnippet geometry, colors, typography, and scrolling", async () => 
         "white-space": "pre",
     });
     expect(del.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(248, 113, 113, 0.09)",
-        color: "rgb(248, 113, 113)",
+        "background-color": "rgb(255, 238, 240)",
+        color: "rgb(220, 53, 69)",
     });
     expect(context.computedStyles(["background-color", "color"])).toEqual({
         "background-color": "rgba(0, 0, 0, 0)",
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
     });
-    expect(meta.computedStyle("color")).toBe("rgb(85, 81, 95)");
+    expect(meta.computedStyle("color")).toBe("rgb(142, 142, 147)");
 
     /* — number gutter: 32px, faint, right-aligned — */
     const number = view.$(
@@ -246,7 +246,7 @@ it("holds DiffSnippet geometry, colors, typography, and scrolling", async () => 
     expect(number.bounds().width).toBe(32);
     expect(number.offsets().left).toBe(0);
     expect(number.computedStyles(["color", "padding-right", "text-align", "width"])).toEqual({
-        color: "rgb(85, 81, 95)",
+        color: "rgb(142, 142, 147)",
         "padding-right": "6px",
         "text-align": "right",
         width: "32px",

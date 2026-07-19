@@ -38,7 +38,7 @@ const iconSizes: Record<TextFieldSize, 14 | 16 | 18> = {
  */
 const MULTILINE_LINE_HEIGHT = 20;
 /**
- * C-018 TextField — labeled text input / textarea on the Relay inset well.
+ * C-018 TextField — labeled text input / textarea on the Happy inset well.
  * Three contract heights (28/36/44), optional label with required marker,
  * leading icon, hint, and error message. Props-only and fully controlled.
  */

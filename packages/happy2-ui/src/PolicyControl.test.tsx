@@ -15,12 +15,12 @@ type Engine = "chromium" | "firefox" | "webkit";
 const engine = () => server.browser as Engine;
 
 /* Fixed theme colors so every engine reports the same rgb(). */
-const TEXT = "rgb(237, 234, 242)"; // --happy2-text  #edeaf2
-const SECONDARY = "rgb(165, 160, 176)"; // --happy2-text-secondary #a5a0b0
-const MUTED = "rgb(117, 112, 133)"; // --happy2-text-muted #757085
-const SURFACE = "rgb(28, 27, 34)"; // --happy2-bg-surface #1c1b22
-const HAIRLINE = "rgba(255, 255, 255, 0.07)"; // --happy2-border
-const ACCENT = "rgb(139, 124, 247)"; // --happy2-accent #8b7cf7
+const TEXT = "rgb(0, 0, 0)"; // --happy2-text  #000000
+const SECONDARY = "rgb(142, 142, 147)"; // --happy2-text-secondary #8e8e93
+const MUTED = "rgb(142, 142, 147)"; // --happy2-text-muted #8e8e93
+const SURFACE = "rgb(255, 255, 255)"; // --happy2-bg-surface #ffffff
+const HAIRLINE = "rgb(234, 234, 234)"; // --happy2-border
+const ACCENT = "rgb(0, 122, 255)"; // --happy2-accent #007aff
 
 /* Card fills a 400px host; border 1 + padding 20 each side → 358 content. */
 const CARD_W = 400;

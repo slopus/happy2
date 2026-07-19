@@ -56,9 +56,9 @@ async function paints(part: RenderedElement<Element>, name: string) {
 }
 
 const trendColors = {
-    up: "rgb(52, 211, 153)",
-    down: "rgb(248, 113, 113)",
-    flat: "rgb(117, 112, 133)",
+    up: "rgb(52, 199, 89)",
+    down: "rgb(255, 59, 48)",
+    flat: "rgb(142, 142, 147)",
 } as const;
 
 it("holds StatTile card geometry, typography, and trend deltas", async () => {
@@ -131,9 +131,9 @@ it("holds StatTile card geometry, typography, and trend deltas", async () => {
             "row-gap",
         ]),
     ).toEqual({
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "border-radius": "10px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
         display: "flex",
@@ -159,7 +159,7 @@ it("holds StatTile card geometry, typography, and trend deltas", async () => {
     /* ---- Label: muted, vertically centered in the 28px header ------------ */
 
     const label = view.$('[data-testid="st-full"] [data-happy2-ui="stat-tile-label"]');
-    expect(label.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(label.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(label.textMetrics()).toMatchObject({
         font: {
             family: "happy2 Figtree, system-ui, sans-serif",
@@ -180,9 +180,9 @@ it("holds StatTile card geometry, typography, and trend deltas", async () => {
     expect(chip.bounds()).toMatchObject({ width: 28, height: 28 });
     expect(chip.offsets()).toMatchObject({ top: 0, right: 0, bottom: 0 }); /* pinned top-right */
     expect(chip.computedStyles(["background-color", "border-radius", "color"])).toEqual({
-        "background-color": "rgba(139, 124, 247, 0.15)",
+        "background-color": "rgba(0, 122, 255, 0.14)",
         "border-radius": "6px",
-        color: "rgb(168, 155, 255)",
+        color: "rgb(0, 122, 255)",
     });
     const chipIcon = view.$(
         '[data-testid="st-full"] [data-happy2-ui="stat-tile-icon"] [data-happy2-ui="icon"]',
@@ -195,7 +195,7 @@ it("holds StatTile card geometry, typography, and trend deltas", async () => {
 
     /* ---- Value: 28px tabular, solid text colour, unclipped, left-flush --- */
 
-    expect(value.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(value.computedStyle("color")).toBe("rgb(0, 0, 0)");
     const valueVariant = value.computedStyle("font-variant-numeric");
     expect(valueVariant, "value tabular-nums").toContain("tabular-nums");
     expect(valueVariant, "value lining-nums").toContain("lining-nums");
@@ -237,7 +237,7 @@ it("holds StatTile card geometry, typography, and trend deltas", async () => {
     await paints(deltaValue, "delta value");
 
     const hint = view.$('[data-testid="st-full"] [data-happy2-ui="stat-tile-hint"]');
-    expect(hint.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(hint.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(hint.textMetrics()).toMatchObject({
         font: { lineHeight: 16, size: 12, weight: "500" },
         text: "vs last week",
@@ -328,11 +328,11 @@ it("holds StatTile tones and content states", async () => {
     /* ---- Tones: chip fill + glyph colour per tone ------------------------ */
 
     const toneChips: Record<string, { background: string; color: string }> = {
-        neutral: { background: "rgba(255, 255, 255, 0.05)", color: "rgb(165, 160, 176)" },
-        accent: { background: "rgba(139, 124, 247, 0.15)", color: "rgb(168, 155, 255)" },
-        success: { background: "rgba(52, 211, 153, 0.13)", color: "rgb(110, 231, 183)" },
-        warning: { background: "rgba(251, 191, 36, 0.13)", color: "rgb(252, 211, 77)" },
-        danger: { background: "rgba(248, 113, 113, 0.13)", color: "rgb(252, 165, 165)" },
+        neutral: { background: "rgb(245, 245, 245)", color: "rgb(142, 142, 147)" },
+        accent: { background: "rgba(0, 122, 255, 0.14)", color: "rgb(0, 122, 255)" },
+        success: { background: "rgba(52, 199, 89, 0.14)", color: "rgb(36, 138, 61)" },
+        warning: { background: "rgba(255, 149, 0, 0.14)", color: "rgb(201, 52, 0)" },
+        danger: { background: "rgba(255, 59, 48, 0.12)", color: "rgb(215, 0, 21)" },
     };
     for (const [id, tone] of tones.map(([id, tone]) => [id, tone] as const)) {
         const chip = view.$(`[data-testid="${id}"] [data-happy2-ui="stat-tile-icon"]`);

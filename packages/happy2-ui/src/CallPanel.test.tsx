@@ -129,12 +129,12 @@ it("holds active CallPanel geometry, typography, tiles, and controls", async () 
             "width",
         ]),
     ).toEqual({
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "border-radius": "14px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         display: "flex",
         "flex-direction": "column",
         "font-family": fontFamily,
@@ -154,8 +154,8 @@ it("holds active CallPanel geometry, typography, tiles, and controls", async () 
     expect(badge.bounds().x - header.bounds().x).toBe(0);
     expect(badge.bounds().y - header.bounds().y).toBe(3); /* (24 - 18) / 2 */
     expect(badge.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(52, 211, 153, 0.13)",
-        color: "rgb(110, 231, 183)",
+        "background-color": "rgba(52, 199, 89, 0.14)",
+        color: "rgb(36, 138, 61)",
     });
     expect((await badge.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
@@ -164,7 +164,7 @@ it("holds active CallPanel geometry, typography, tiles, and controls", async () 
     expect(duration.textMetrics().font.family).toBe("happy2 Mono, ui-monospace, monospace");
     expect(duration.textMetrics().font.size).toBe(12);
     expect(duration.textMetrics().font.weight).toBe("600");
-    expect(duration.computedStyle("color")).toBe("rgb(165, 160, 176)");
+    expect(duration.computedStyle("color")).toBe("rgb(142, 142, 147)");
     /* Pinned to the header's right edge. */
     expect(
         header.bounds().x + header.bounds().width - (duration.bounds().x + duration.bounds().width),
@@ -217,7 +217,7 @@ it("holds active CallPanel geometry, typography, tiles, and controls", async () 
     expect(
         ring.computedStyles(["border-top-color", "border-top-width", "border-top-left-radius"]),
     ).toEqual({
-        "border-top-color": "rgb(52, 211, 153)",
+        "border-top-color": "rgb(52, 199, 89)",
         "border-top-width": "2px",
         "border-top-left-radius": "999px",
     });
@@ -236,8 +236,8 @@ it("holds active CallPanel geometry, typography, tiles, and controls", async () 
     );
     expect(mute.bounds().width).toBe(18);
     expect(mute.bounds().height).toBe(18);
-    expect(mute.computedStyle("background-color")).toBe("rgb(36, 34, 43)");
-    expect(mute.computedStyle("color")).toBe("rgb(248, 113, 113)");
+    expect(mute.computedStyle("background-color")).toBe("rgb(240, 240, 242)");
+    expect(mute.computedStyle("color")).toBe("rgb(255, 59, 48)");
     expect(wrap1.bounds().x + 48 - (mute.bounds().x + mute.bounds().width)).toBeLessThanOrEqual(
         0.5,
     );
@@ -259,7 +259,7 @@ it("holds active CallPanel geometry, typography, tiles, and controls", async () 
     expect(name0.textMetrics().font.family).toBe("happy2 Figtree, system-ui, sans-serif");
     expect(name0.textMetrics().font.size).toBe(13);
     expect(name0.textMetrics().font.weight).toBe("600");
-    expect(name0.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(name0.computedStyle("color")).toBe("rgb(0, 0, 0)");
     const nameLeft = name0.bounds().x - tile0.bounds().x;
     const nameRight =
         tile0.bounds().x + tile0.bounds().width - (name0.bounds().x + name0.bounds().width);
@@ -273,7 +273,7 @@ it("holds active CallPanel geometry, typography, tiles, and controls", async () 
     );
     expect(state0.textMetrics().text).toBe("Joined");
     expect(state0.textMetrics().font.size).toBe(11);
-    expect(state0.computedStyle("color")).toBe("rgb(110, 231, 183)");
+    expect(state0.computedStyle("color")).toBe("rgb(36, 138, 61)");
     const stateInk = await ink(state0, tile0, "tile state");
     const stateTarget = layoutTop(state0, tile0) + state0.bounds().height / 2;
     expect(Math.abs(stateInk.y - stateTarget), "tile state optical y").toBeLessThanOrEqual(
@@ -289,14 +289,14 @@ it("holds active CallPanel geometry, typography, tiles, and controls", async () 
     const leaveBtn = view.$('[data-testid="cp-panel"] [data-action="leave"]');
     expect(muteBtn.bounds().width).toBe(36);
     expect(muteBtn.bounds().height).toBe(36);
-    expect(muteBtn.computedStyle("background-color")).toBe("rgb(36, 34, 43)"); /* secondary */
+    expect(muteBtn.computedStyle("background-color")).toBe("rgb(240, 240, 242)"); /* secondary */
     expect(videoBtn.bounds().width).toBe(36);
-    expect(videoBtn.computedStyle("background-color")).toBe("rgb(36, 34, 43)");
+    expect(videoBtn.computedStyle("background-color")).toBe("rgb(240, 240, 242)");
     expect(leaveBtn.bounds().height).toBe(36);
     expect(leaveBtn.element.textContent).toBe("Leave");
     expect(leaveBtn.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(248, 113, 113, 0.13)",
-        color: "rgb(252, 165, 165)",
+        "background-color": "rgba(255, 59, 48, 0.12)",
+        color: "rgb(215, 0, 21)",
     });
     expect((await leaveBtn.visibleMetrics()).pixelCount).toBeGreaterThan(0);
     /* 8px gaps, group optically centered in the footer. */
@@ -431,7 +431,7 @@ it("holds incoming card and status/kind variants", async () => {
         ]),
     ).toEqual({
         "align-items": "center",
-        "background-color": "rgb(36, 34, 43)",
+        "background-color": "rgb(240, 240, 242)",
         "border-radius": "10px",
         display: "flex",
         "flex-direction": "row",
@@ -454,7 +454,7 @@ it("holds incoming card and status/kind variants", async () => {
     expect(callerName.textMetrics().text).toBe("Ada Lovelace");
     expect(callerName.textMetrics().font.size).toBe(15);
     expect(callerName.textMetrics().font.weight).toBe("700");
-    expect(callerName.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(callerName.computedStyle("color")).toBe("rgb(0, 0, 0)");
     const caller = view.$('[data-testid="cp-incoming"] [data-happy2-ui="call-panel-caller"]');
     const callerNameInk = await ink(callerName, caller, "caller name");
     const callerNameTarget = layoutTop(callerName, caller) + callerName.bounds().height / 2;
@@ -468,7 +468,7 @@ it("holds incoming card and status/kind variants", async () => {
     );
     expect(callerSub.textMetrics().text).toBe("Incoming video call");
     expect(callerSub.textMetrics().font.size).toBe(12);
-    expect(callerSub.computedStyle("color")).toBe("rgb(165, 160, 176)");
+    expect(callerSub.computedStyle("color")).toBe("rgb(142, 142, 147)");
     const callerSubInk = await ink(callerSub, caller, "caller sub");
     const callerSubTarget = layoutTop(callerSub, caller) + callerSub.bounds().height / 2;
     expect(Math.abs(callerSubInk.y - callerSubTarget), "caller sub optical y").toBeLessThanOrEqual(
@@ -479,11 +479,9 @@ it("holds incoming card and status/kind variants", async () => {
     const join = view.$('[data-testid="cp-incoming"] [data-action="join"]');
     expect(decline.bounds().width).toBe(36);
     expect(decline.bounds().height).toBe(36);
-    expect(decline.computedStyle("background-color")).toBe(
-        "rgba(248, 113, 113, 0.13)",
-    ); /* danger */
+    expect(decline.computedStyle("background-color")).toBe("rgba(255, 59, 48, 0.12)"); /* danger */
     expect(join.bounds().width).toBe(36);
-    expect(join.computedStyle("background-color")).toBe("rgb(139, 124, 247)"); /* primary */
+    expect(join.computedStyle("background-color")).toBe("rgb(0, 0, 0)"); /* primary */
     /* Join pinned to the card's right edge, 8px after decline. */
     expect(
         incoming.bounds().x + incoming.bounds().width - (join.bounds().x + join.bounds().width),
@@ -516,8 +514,8 @@ it("holds incoming card and status/kind variants", async () => {
     expect(ringingBadge.element.getAttribute("data-variant")).toBe("info");
     expect(ringingBadge.element.textContent).toBe("Ringing");
     expect(ringingBadge.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(96, 165, 250, 0.13)",
-        color: "rgb(96, 165, 250)",
+        "background-color": "rgba(0, 122, 255, 0.14)",
+        color: "rgb(0, 122, 255)",
     });
     expect(
         view.container.querySelector(
@@ -537,7 +535,7 @@ it("holds incoming card and status/kind variants", async () => {
         '[data-testid="cp-ringing"] [data-participant-id="r1"] [data-happy2-ui="call-panel-tile-state"]',
     );
     expect(ringingState.textMetrics().text).toBe("Ringing");
-    expect(ringingState.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(ringingState.computedStyle("color")).toBe("rgb(142, 142, 147)");
 
     /* ---- Ended panel: neutral pill, no controls, danger captions ------- */
     const ended = view.$('[data-testid="cp-ended"]');
@@ -547,8 +545,8 @@ it("holds incoming card and status/kind variants", async () => {
     expect(endedBadge.element.getAttribute("data-variant")).toBe("neutral");
     expect(endedBadge.element.textContent).toBe("Ended");
     expect(endedBadge.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
-        color: "rgb(165, 160, 176)",
+        "background-color": "rgb(245, 245, 245)",
+        color: "rgb(142, 142, 147)",
     });
     /* Ended calls drop the control row. */
     expect(
@@ -560,11 +558,11 @@ it("holds incoming card and status/kind variants", async () => {
         '[data-testid="cp-ended"] [data-participant-id="e0"] [data-happy2-ui="call-panel-tile-state"]',
     );
     expect(declinedState.textMetrics().text).toBe("Declined");
-    expect(declinedState.computedStyle("color")).toBe("rgb(252, 165, 165)");
+    expect(declinedState.computedStyle("color")).toBe("rgb(215, 0, 21)");
     const missedState = view.$(
         '[data-testid="cp-ended"] [data-participant-id="e1"] [data-happy2-ui="call-panel-tile-state"]',
     );
-    expect(missedState.computedStyle("color")).toBe("rgb(252, 165, 165)");
+    expect(missedState.computedStyle("color")).toBe("rgb(215, 0, 21)");
 
     await view.screenshot("CallPanel.variants.test");
 }, 120_000);

@@ -74,7 +74,7 @@ function TableCheckbox(props: {
     );
 }
 /**
- * C-030 DataTable — Relay admin table. Column headers with alignment, body rows
+ * C-030 DataTable — Happy admin table. Column headers with alignment, body rows
  * with optional selection checkboxes, a trailing row-actions slot, dense mode,
  * and an empty slot. Renders a real <table> so column widths, alignment,
  * truncation, and a sticky header all resolve to exact geometry.

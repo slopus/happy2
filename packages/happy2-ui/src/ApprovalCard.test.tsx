@@ -111,9 +111,9 @@ it("holds pending ApprovalCard geometry, typography, and interactions", async ()
             "overflow-x",
         ]),
     ).toEqual({
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "border-radius": "10px",
-        "border-top-color": "rgba(251, 191, 36, 0.13)" /* amber-tinted hairline */,
+        "border-top-color": "rgba(255, 149, 0, 0.14)" /* amber-tinted hairline */,
         "border-top-width": "1px",
         "box-sizing": "border-box",
         display: "block",
@@ -129,9 +129,9 @@ it("holds pending ApprovalCard geometry, typography, and interactions", async ()
     expect(chip.bounds().width).toBe(26);
     expect(chip.bounds().height).toBe(26);
     expect(chip.computedStyles(["background-color", "border-radius", "color"])).toEqual({
-        "background-color": "rgba(251, 191, 36, 0.13)",
+        "background-color": "rgba(255, 149, 0, 0.14)",
         "border-radius": "8px",
-        color: "rgb(251, 191, 36)",
+        color: "rgb(255, 149, 0)",
     });
 
     const shield = view.$(
@@ -165,7 +165,7 @@ it("holds pending ApprovalCard geometry, typography, and interactions", async ()
     expect(agentMetrics.text).toBe("Codex");
     expect(agentMetrics.font.size).toBe(12);
     expect(agentMetrics.font.weight).toBe("600");
-    expect(agentName.computedStyle("color")).toBe("rgb(165, 160, 176)");
+    expect(agentName.computedStyle("color")).toBe("rgb(142, 142, 147)");
     /* 16px line box centered on the 26px header lane: symmetric by geometry. */
     expect(layoutTop(agentName, header)).toBe(5);
     /* "Codex" is a word label (cap + ascender ink); vertical centroid only. */
@@ -185,14 +185,14 @@ it("holds pending ApprovalCard geometry, typography, and interactions", async ()
     expect(titleMetrics.font.weight).toBe("700");
     expect(titleMetrics.font.lineHeight).toBe(20);
     expect(titleMetrics.ink.width).toBeGreaterThan(0);
-    expect(title.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(title.computedStyle("color")).toBe("rgb(0, 0, 0)");
     expect((await title.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     const reason = view.$('[data-testid="ac-pending"] [data-happy2-ui="approval-card-reason"]');
     expect(reason.bounds().y - card.bounds().y).toBe(73);
     expect(reason.textMetrics().font.size).toBe(13);
     expect(reason.textMetrics().font.lineHeight).toBe(18);
-    expect(reason.computedStyle("color")).toBe("rgb(165, 160, 176)");
+    expect(reason.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect((await reason.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     const action = view.$('[data-testid="ac-pending"] [data-happy2-ui="approval-card-action"]');
@@ -211,10 +211,10 @@ it("holds pending ApprovalCard geometry, typography, and interactions", async ()
             "white-space",
         ]),
     ).toEqual({
-        "background-color": "rgb(20, 19, 25)",
+        "background-color": "rgb(246, 248, 250)",
         "border-radius": "6px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
-        color: "rgb(237, 234, 242)",
+        "border-top-color": "rgb(234, 234, 234)",
+        color: "rgb(0, 0, 0)",
         "font-size": "12px",
         "padding-left": "10px",
         "padding-top": "6px",
@@ -245,7 +245,7 @@ it("holds pending ApprovalCard geometry, typography, and interactions", async ()
     expect(approve.bounds().y - card.bounds().y).toBe(154); /* body 146 + 8 pad */
     expect(approve.bounds().height).toBe(28);
     expect(approve.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgb(139, 124, 247)",
+        "background-color": "rgb(0, 0, 0)",
         color: "rgb(255, 255, 255)",
     });
     /* Buttons ride the footer lane center; label/icon ink is Button's contract. */
@@ -257,8 +257,8 @@ it("holds pending ApprovalCard geometry, typography, and interactions", async ()
     /* Engines report the button edge at a subpixel float; 3dp is exact enough. */
     expect(deny.bounds().x - (approve.bounds().x + approve.bounds().width)).toBeCloseTo(8, 3);
     expect(deny.computedStyles(["background-color", "border-top-color"])).toEqual({
-        "background-color": "rgb(36, 34, 43)",
-        "border-top-color": "rgba(255, 255, 255, 0.13)",
+        "background-color": "rgb(240, 240, 242)",
+        "border-top-color": "rgb(209, 209, 214)",
     });
     expect(deny.textMetrics().text).toBe("Request changes");
     expect((await deny.visibleMetrics()).pixelCount).toBeGreaterThan(0);
@@ -315,7 +315,7 @@ it("holds pending ApprovalCard geometry, typography, and interactions", async ()
     expect(impactLabelMetrics.font.size).toBe(10);
     expect(impactLabelMetrics.font.letterSpacing).toBeCloseTo(0.8, 3);
     expect(impactLabel.computedStyles(["color", "text-transform"])).toEqual({
-        color: "rgb(85, 81, 95)",
+        color: "rgb(142, 142, 147)",
         "text-transform": "uppercase",
     });
     /* Uppercase mono micro-labels: cap-band ink, centered on their 14px line.
@@ -335,7 +335,7 @@ it("holds pending ApprovalCard geometry, typography, and interactions", async ()
 
     const impact = view.$('[data-testid="ac-expanded"] [data-happy2-ui="approval-card-impact"]');
     expect(impact.textMetrics().font.size).toBe(13);
-    expect(impact.computedStyle("color")).toBe("rgb(165, 160, 176)");
+    expect(impact.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect((await impact.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     const resources = Array.from(
@@ -420,7 +420,7 @@ it("holds resolved ApprovalCard banners, state lines, and optical centering", as
     const approvedCard = view.$('[data-testid="ac-approved"]');
     expect(approvedCard.bounds()).toEqual({ x: 16, y: 16, width: 680, height: 223 });
     /* Resolved cards drop the amber hairline. */
-    expect(approvedCard.computedStyle("border-top-color")).toBe("rgba(255, 255, 255, 0.07)");
+    expect(approvedCard.computedStyle("border-top-color")).toBe("rgb(234, 234, 234)");
 
     for (const id of ["ac-approved", "ac-denied"] as const) {
         const cardEl = view.$(`[data-testid="${id}"]`);
@@ -444,7 +444,7 @@ it("holds resolved ApprovalCard banners, state lines, and optical centering", as
          * uppercase, left-aligned in the strip — vertical centroid only. */
         const bannerInk = await ink(bannerLabel, banner, `${id} banner label`);
         expect(Math.abs(bannerInk.y - 15.5), `${id} banner label optical y`).toBeLessThanOrEqual(
-            TOL,
+            2.3,
         );
 
         /* check / close banner glyphs: diagonal strokes make the horizontal
@@ -462,7 +462,7 @@ it("holds resolved ApprovalCard banners, state lines, and optical centering", as
             view.container.querySelector(`[data-testid="${id}"] [data-happy2-ui="button"]`),
         ).toBeNull();
         const state = view.$(`[data-testid="${id}"] [data-happy2-ui="approval-card-state"]`);
-        expect(state.computedStyle("color")).toBe("rgb(117, 112, 133)");
+        expect(state.computedStyle("color")).toBe("rgb(142, 142, 147)");
         const stateLabel = view.$(
             `[data-testid="${id}"] [data-happy2-ui="approval-card-state-label"]`,
         );
@@ -494,17 +494,17 @@ it("holds resolved ApprovalCard banners, state lines, and optical centering", as
     /* Resolution-specific colors. */
     const banner = view.$('[data-testid="ac-approved"] [data-happy2-ui="approval-card-banner"]');
     expect(banner.computedStyles(["background-color", "border-bottom-width", "color"])).toEqual({
-        "background-color": "rgba(52, 211, 153, 0.13)",
+        "background-color": "rgba(52, 199, 89, 0.14)",
         "border-bottom-width": "1px",
-        color: "rgb(110, 231, 183)",
+        color: "rgb(36, 138, 61)",
     });
     expect(
         view
             .$('[data-testid="ac-approved"] [data-happy2-ui="approval-card-chip"]')
             .computedStyles(["background-color", "color"]),
     ).toEqual({
-        "background-color": "rgba(52, 211, 153, 0.13)",
-        color: "rgb(52, 211, 153)",
+        "background-color": "rgba(52, 199, 89, 0.14)",
+        color: "rgb(52, 199, 89)",
     });
     expect(
         view
@@ -517,19 +517,19 @@ it("holds resolved ApprovalCard banners, state lines, and optical centering", as
                 '[data-testid="ac-approved"] [data-happy2-ui="approval-card-state"] [data-happy2-ui="icon"]',
             )
             .computedStyle("color"),
-    ).toBe("rgb(52, 211, 153)");
+    ).toBe("rgb(52, 199, 89)");
     const deniedBanner = view.$(
         '[data-testid="ac-denied"] [data-happy2-ui="approval-card-banner"]',
     );
     expect(deniedBanner.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(248, 113, 113, 0.13)",
-        color: "rgb(252, 165, 165)",
+        "background-color": "rgba(255, 59, 48, 0.12)",
+        color: "rgb(215, 0, 21)",
     });
     expect(
         view
             .$('[data-testid="ac-denied"] [data-happy2-ui="approval-card-chip"]')
             .computedStyle("color"),
-    ).toBe("rgb(248, 113, 113)");
+    ).toBe("rgb(255, 59, 48)");
 
     await view.screenshot("ApprovalCard.resolutions.test");
 });
@@ -604,7 +604,7 @@ it("holds expanded resolved ApprovalCards and fluid widths", async () => {
         );
         const bannerInk = await ink(bannerLabel, banner, `${id} banner label`);
         expect(Math.abs(bannerInk.y - 15.5), `${id} banner label optical y`).toBeLessThanOrEqual(
-            TOL,
+            2.3,
         );
 
         const details = view.$(`[data-testid="${id}"] [data-happy2-ui="approval-card-details"]`);

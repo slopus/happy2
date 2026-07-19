@@ -7,7 +7,7 @@ import { FileEditor } from "./FileEditor";
 import { createRenderer } from "./testing";
 
 /*
- * FileEditor owns the editor surface contract: a 52px header (name + directory
+ * FileEditor owns the editor surface contract: a 56px header (name + directory
  * subtitle + unsaved marker + Save/Revert/Close), a monospace code body on the
  * code surface, and a hairline status bar. Buttons and Icon are primitives
  * tuned in their own tests, so this file asserts layout, computed tokens, the
@@ -62,11 +62,11 @@ it("holds FileEditor header, code body, status bar, and dirty affordances", asyn
     expect(root.computedStyles(["display", "flex-direction", "background-color"])).toEqual({
         display: "flex",
         "flex-direction": "column",
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
     });
 
     const header = view.$('[data-testid="clean"] [data-happy2-ui="file-editor-header"]');
-    expect(header.bounds().height).toBe(52);
+    expect(header.bounds().height).toBe(56);
 
     const name = view.$('[data-testid="clean"] [data-happy2-ui="file-editor-name"]');
     const nameMetrics = name.textMetrics();
@@ -74,12 +74,12 @@ it("holds FileEditor header, code body, status bar, and dirty affordances", asyn
     expect(nameMetrics.font.family).toBe(fontUi);
     expect(nameMetrics.font.size).toBe(14);
     expect(nameMetrics.font.weight).toBe("600");
-    expect(name.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(name.computedStyle("color")).toBe("rgb(0, 0, 0)");
 
     const subtitle = view.$('[data-testid="clean"] [data-happy2-ui="file-editor-subtitle"]');
     expect(subtitle.element.textContent).toBe("src/");
     expect(subtitle.textMetrics().font.family).toBe(fontMono);
-    expect(subtitle.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(subtitle.computedStyle("color")).toBe("rgb(142, 142, 147)");
 
     /* ---- Code body: monospace ink on the code surface ------------------- */
 
@@ -99,7 +99,7 @@ it("holds FileEditor header, code body, status bar, and dirty affordances", asyn
     ).toEqual({
         "font-size": "13px",
         "line-height": "20px",
-        "background-color": "rgb(20, 19, 25)",
+        "background-color": "rgb(246, 248, 250)",
         "white-space": "pre",
         resize: "none",
     });
@@ -135,7 +135,7 @@ it("holds FileEditor header, code body, status bar, and dirty affordances", asyn
     const marker = view.$('[data-testid="dirty"] [data-happy2-ui="file-editor-marker"]');
     expect(marker.bounds().width).toBe(8);
     expect(marker.bounds().height).toBe(8);
-    expect(marker.computedStyle("background-color")).toBe("rgb(139, 124, 247)");
+    expect(marker.computedStyle("background-color")).toBe("rgb(0, 122, 255)");
     expect((await marker.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     const dirtyActions = '[data-testid="dirty"] [data-happy2-ui="file-editor-actions"]';

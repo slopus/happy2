@@ -44,7 +44,7 @@ export type RailProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
     style?: CSSProperties;
 };
 /**
- * The 76px feature rail: happy otter brand mark (replaceable through the brand
+ * The 64px feature rail: happy otter brand mark (replaceable through the brand
  * slot), icon+label destinations, and a footer slot pinned to the bottom.
  * Navigation only — the app shell composes it next to the main content panel.
  */

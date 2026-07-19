@@ -39,11 +39,11 @@ const nodes: FileTreeNode[] = [
 ];
 
 const statusColor: Record<string, string> = {
-    "src/index.ts": "rgb(251, 191, 36)", // modified · warning
-    "src/new.ts": "rgb(52, 211, 153)", // added · success
-    "src/old.ts": "rgb(248, 113, 113)", // deleted · danger
-    "notes.md": "rgb(96, 165, 250)", // renamed · info
-    ".env": "rgb(52, 211, 153)", // untracked · success
+    "src/index.ts": "rgb(255, 149, 0)", // modified · warning
+    "src/new.ts": "rgb(52, 199, 89)", // added · success
+    "src/old.ts": "rgb(255, 59, 48)", // deleted · danger
+    "notes.md": "rgb(0, 122, 255)", // renamed · info
+    ".env": "rgb(52, 199, 89)", // untracked · success
 };
 
 const statusLetter: Record<string, string> = {
@@ -174,7 +174,7 @@ it("holds FileTree row grid, indentation, disclosure, git decorations, and selec
     expect(srcMetrics.font.size).toBe(13);
     expect(srcMetrics.font.weight).toBe("600");
     expect(srcMetrics.font.lineHeight).toBe(18);
-    expect(srcName.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(srcName.computedStyle("color")).toBe("rgb(0, 0, 0)");
 
     /* ---- File typography (unselected, no status) ----------------------- */
 
@@ -182,17 +182,17 @@ it("holds FileTree row grid, indentation, disclosure, git decorations, and selec
     const plainMetrics = plainName.textMetrics();
     expect(plainMetrics.font.weight).toBe("500");
     expect(plainMetrics.font.size).toBe(13);
-    expect(plainName.computedStyle("color")).toBe("rgb(165, 160, 176)");
+    expect(plainName.computedStyle("color")).toBe("rgb(142, 142, 147)");
 
     /* ---- Selection: README.md carries the accent-soft surface + solid ink */
 
     expect(row("README.md").element.getAttribute("data-selected")).toBe("");
-    expect(row("README.md").computedStyle("background-color")).toBe("rgba(139, 124, 247, 0.15)");
+    expect(row("README.md").computedStyle("background-color")).toBe("rgba(0, 122, 255, 0.14)");
     expect(
         view
             .$(sel('[data-path="README.md"] [data-happy2-ui="file-tree-name"]'))
             .computedStyle("color"),
-    ).toBe("rgb(237, 234, 242)");
+    ).toBe("rgb(0, 0, 0)");
     /* Unselected rows keep the transparent surface. */
     expect(row("src/theme.css").computedStyle("background-color")).toBe("rgba(0, 0, 0, 0)");
 
@@ -217,7 +217,7 @@ it("holds FileTree row grid, indentation, disclosure, git decorations, and selec
             .computedStyle("text-decoration-line"),
     ).toBe("line-through");
     const docsName = view.$(sel('[data-path="docs/"] [data-happy2-ui="file-tree-name"]'));
-    expect(docsName.computedStyle("color")).toBe("rgb(85, 81, 95)");
+    expect(docsName.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(row("docs/").element.getAttribute("data-status")).toBe("ignored");
 
     /* Status letter is tabular mono for a stable single-column decoration. */
@@ -234,7 +234,7 @@ it("holds FileTree row grid, indentation, disclosure, git decorations, and selec
     expect(more.element.tagName).toBe("BUTTON");
     expect(more.element.textContent).toBe("Show more…");
     expect(more.computedStyle("padding-left")).toBe("24px");
-    expect(more.computedStyle("color")).toBe("rgb(139, 124, 247)");
+    expect(more.computedStyle("color")).toBe("rgb(0, 122, 255)");
     expect((await more.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     window.scrollTo(0, 0);
@@ -306,7 +306,7 @@ it("routes selection, disclosure, and paging callbacks, and renders loading/empt
     /* Whole-tree loading and empty states render a single muted status line. */
     const busy = view.$(at("busy", '[data-happy2-ui="file-tree-status-line"]'));
     expect(busy.element.textContent).toBe("Loading files…");
-    expect(busy.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(busy.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(view.$(at("empty", '[data-happy2-ui="file-tree-empty"]')).element.textContent).toBe(
         "No files to show.",
     );

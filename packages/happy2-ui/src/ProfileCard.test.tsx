@@ -34,7 +34,7 @@ async function paints(part: RenderedElement<Element>, name: string) {
     return vis;
 }
 
-const violetTone = "linear-gradient(135deg, rgb(139, 124, 247), rgb(109, 40, 217))";
+const violetTone = "linear-gradient(135deg, rgb(0, 122, 255), rgb(88, 86, 214))";
 
 it("holds ProfileCard geometry, typography, presence, and status layout", async () => {
     const view = createRenderer();
@@ -99,12 +99,12 @@ it("holds ProfileCard geometry, typography, presence, and status layout", async 
         ]),
     ).toEqual({
         "align-items": "center",
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "border-radius": "10px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "column-gap": "16px",
         display: "flex",
         "font-family": uiFont(),
@@ -186,7 +186,7 @@ it("holds ProfileCard geometry, typography, presence, and status layout", async 
 
     const name = view.$('[data-testid="pc-full"] [data-happy2-ui="profile-card-name"]');
     const username = view.$('[data-testid="pc-full"] [data-happy2-ui="profile-card-username"]');
-    expect(name.computedStyle("color"), "name colour").toBe("rgb(237, 234, 242)");
+    expect(name.computedStyle("color"), "name colour").toBe("rgb(0, 0, 0)");
     expect(name.textMetrics()).toMatchObject({
         font: {
             family: "happy2 Figtree, system-ui, sans-serif",
@@ -196,7 +196,7 @@ it("holds ProfileCard geometry, typography, presence, and status layout", async 
         },
         text: "Ada Lovelace",
     });
-    expect(username.computedStyle("color"), "username colour").toBe("rgb(117, 112, 133)");
+    expect(username.computedStyle("color"), "username colour").toBe("rgb(142, 142, 147)");
     expect(username.textMetrics()).toMatchObject({
         font: {
             family: "happy2 Mono, ui-monospace, monospace",
@@ -223,7 +223,7 @@ it("holds ProfileCard geometry, typography, presence, and status layout", async 
 
     /* ---- Title ----------------------------------------------------------- */
 
-    expect(title.computedStyle("color"), "title colour").toBe("rgb(165, 160, 176)");
+    expect(title.computedStyle("color"), "title colour").toBe("rgb(142, 142, 147)");
     expect(title.textMetrics()).toMatchObject({
         font: {
             family: "happy2 Figtree, system-ui, sans-serif",
@@ -241,9 +241,9 @@ it("holds ProfileCard geometry, typography, presence, and status layout", async 
         status.computedStyles(["background-color", "border-radius", "color", "display"]),
         "status pill chrome",
     ).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-radius": "999px",
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         display: "flex",
     });
 
@@ -283,7 +283,7 @@ it("holds ProfileCard geometry, typography, presence, and status layout", async 
     const statusText = view.$(
         '[data-testid="pc-full"] [data-happy2-ui="profile-card-status-text"]',
     );
-    expect(statusText.computedStyle("color"), "status text colour").toBe("rgb(165, 160, 176)");
+    expect(statusText.computedStyle("color"), "status text colour").toBe("rgb(142, 142, 147)");
     expect(statusText.textMetrics()).toMatchObject({
         font: { lineHeight: 16, size: 12, weight: "500" },
         text: "In the studio",

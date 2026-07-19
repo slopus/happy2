@@ -31,7 +31,7 @@ const BUILD_LOG = [
 function frame(view: View, render: () => any, height: number, width = 560) {
     return view.render(
         () => (
-            <div style={{ width: `${width}px`, height: `${height}px`, background: "#17161c" }}>
+            <div style={{ width: `${width}px`, height: `${height}px`, background: "#f5f5f5" }}>
                 {render()}
             </div>
         ),
@@ -76,7 +76,7 @@ it("holds AgentImageDetail layout, progress, and the Dockerfile + build log bloc
         "flex-direction": "column",
         gap: "16px",
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
     });
 
     // Status strip: a warning "Building" badge and a determinate progress bar.
@@ -91,15 +91,15 @@ it("holds AgentImageDetail layout, progress, and the Dockerfile + build log bloc
         0.6,
     );
     expect(fill.computedStyle("background-image")).toBe(
-        "linear-gradient(135deg, rgb(139, 124, 247), rgb(244, 114, 182))",
+        "linear-gradient(135deg, rgb(0, 0, 0), rgb(43, 172, 204))",
     );
     expect(view.$(".happy2-agent-image-detail__progress-value").element.textContent).toBe("62%");
 
-    // Dockerfile block: exact source, monospace, on the code surface (#141319).
+    // Dockerfile block: exact source, monospace, on the code surface (#f6f8fa).
     const dockerfile = view.$('[data-happy2-ui="agent-image-detail-dockerfile"]');
     expect(dockerfile.element.textContent).toBe(DOCKERFILE);
     expect(dockerfile.computedStyles(codeStyles)).toEqual({
-        "background-color": "rgb(20, 19, 25)",
+        "background-color": "rgb(246, 248, 250)",
         "border-radius": "10px",
         "font-family": monoFamily(),
         "font-size": "12px",

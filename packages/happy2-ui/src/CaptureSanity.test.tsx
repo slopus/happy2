@@ -13,7 +13,7 @@ it("captures elements at exact 2x scale", async () => {
         () => (
             <div
                 data-testid="square"
-                style={{ width: "100px", height: "100px", background: "#8b7cf7" }}
+                style={{ width: "100px", height: "100px", background: "#007aff" }}
             />
         ),
         { width: 140, height: 140, padding: 20 },

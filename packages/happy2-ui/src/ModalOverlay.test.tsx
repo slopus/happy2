@@ -105,7 +105,7 @@ it("holds ModalOverlay backdrop geometry, centering, and backdrop-only dismiss",
     ).toEqual({
         position: "fixed",
         "z-index": "1000",
-        "background-color": "rgba(0, 0, 0, 0.6)",
+        "background-color": "rgba(0, 0, 0, 0.32)",
         display: "flex",
         "align-items": "center",
         "justify-content": "center",

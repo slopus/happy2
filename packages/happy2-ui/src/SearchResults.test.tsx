@@ -112,12 +112,12 @@ it("holds SearchResults geometry, group headers, row layouts, highlight, and opt
             "padding",
         ]),
     ).toEqual({
-        "background-color": "rgb(36, 34, 43)",
+        "background-color": "rgb(240, 240, 242)",
         "border-radius": "10px",
-        "border-top-color": "rgba(255, 255, 255, 0.13)",
+        "border-top-color": "rgb(209, 209, 214)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         display: "block",
         padding: "6px",
     });
@@ -162,7 +162,7 @@ it("holds SearchResults geometry, group headers, row layouts, highlight, and opt
         expect(
             label.computedStyles(["color", "text-transform"]),
             `${spec.type} label color`,
-        ).toEqual({ color: "rgb(85, 81, 95)", "text-transform": "uppercase" });
+        ).toEqual({ color: "rgb(142, 142, 147)", "text-transform": "uppercase" });
         /* 11px label line box (16px) centered in the 28px head: (28-16)/2 = 6. */
         expect(label.offsets().top, `${spec.type} label box top`).toBe(6);
         expect(label.offsets().bottom, `${spec.type} label box bottom`).toBe(6);
@@ -181,7 +181,7 @@ it("holds SearchResults geometry, group headers, row layouts, highlight, and opt
             size: 11,
             weight: "500",
         });
-        expect(count.computedStyle("color"), `${spec.type} count color`).toBe("rgb(117, 112, 133)");
+        expect(count.computedStyle("color"), `${spec.type} count color`).toBe("rgb(142, 142, 147)");
         expect(count.offsets().right, `${spec.type} count trailing offset`).toBe(10);
         await paints(count, `${spec.type} count`);
     }
@@ -226,9 +226,9 @@ it("holds SearchResults geometry, group headers, row layouts, highlight, and opt
             glyph.computedStyles(["background-color", "border-radius", "color"]),
             `${id} glyph tokens`,
         ).toEqual({
-            "background-color": "rgba(255, 255, 255, 0.05)",
+            "background-color": "rgb(245, 245, 245)",
             "border-radius": "999px",
-            color: "rgb(165, 160, 176)",
+            color: "rgb(142, 142, 147)",
         });
 
         const icon = q(`[data-item-id="${id}"] [data-happy2-ui="search-results-row-glyph"] svg`);
@@ -286,7 +286,7 @@ it("holds SearchResults geometry, group headers, row layouts, highlight, and opt
             weight: "500",
             lineHeight: 20,
         });
-        expect(title.computedStyle("color"), `${id} title color`).toBe("rgb(237, 234, 242)");
+        expect(title.computedStyle("color"), `${id} title color`).toBe("rgb(0, 0, 0)");
         expect(title.offsets().left, `${id} title left`).toBe(0);
         await paints(title, `${id} title`);
         /* Every row title shares one real line-box baseline (same font/size in a
@@ -305,7 +305,7 @@ it("holds SearchResults geometry, group headers, row layouts, highlight, and opt
             weight: "400",
             lineHeight: 16,
         });
-        expect(meta.computedStyle("color"), `${id} meta color`).toBe("rgb(117, 112, 133)");
+        expect(meta.computedStyle("color"), `${id} meta color`).toBe("rgb(142, 142, 147)");
         await paints(meta, `${id} meta`);
     }
 
@@ -322,8 +322,8 @@ it("holds SearchResults geometry, group headers, row layouts, highlight, and opt
         mark.computedStyles(["background-color", "color", "font-weight"]),
         "mark tokens",
     ).toEqual({
-        "background-color": "rgba(139, 124, 247, 0.15)",
-        color: "rgb(168, 155, 255)",
+        "background-color": "rgba(0, 122, 255, 0.14)",
+        color: "rgb(0, 122, 255)",
         "font-weight": "600",
     });
     await paints(mark, "launch-week mark");
@@ -409,7 +409,7 @@ it("renders the empty state and rich message snippets", async () => {
     /* ---- Empty state ----------------------------------------------------- */
 
     const emptyCard = view.$('[data-testid="empty"]');
-    expect(emptyCard.computedStyle("background-color")).toBe("rgb(36, 34, 43)");
+    expect(emptyCard.computedStyle("background-color")).toBe("rgb(240, 240, 242)");
     const emptyLabel = view.$(
         '[data-testid="empty"] [data-happy2-ui="search-results-empty-label"]',
     );
@@ -419,7 +419,7 @@ it("renders the empty state and rich message snippets", async () => {
         size: 13,
         weight: "500",
     });
-    expect(emptyLabel.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(emptyLabel.computedStyle("color")).toBe("rgb(142, 142, 147)");
     await paints(emptyLabel, "empty label");
     const emptyIcon = view.$(
         '[data-testid="empty"] [data-happy2-ui="search-results-empty-icon"] svg',
@@ -452,7 +452,7 @@ it("renders the empty state and rich message snippets", async () => {
 
     const mention = view.$('[data-testid="rich"] [data-happy2-ui="search-results-mention"]');
     expect(mention.element.textContent).toBe("@maya");
-    expect(mention.computedStyle("color")).toBe("rgb(139, 124, 247)");
+    expect(mention.computedStyle("color")).toBe("rgb(0, 122, 255)");
     await paints(mention, "rich mention");
 
     const code = view.$('[data-testid="rich"] [data-happy2-ui="search-results-code"]');
@@ -462,13 +462,13 @@ it("renders the empty state and rich message snippets", async () => {
 
     const link = view.$('[data-testid="rich"] [data-happy2-ui="search-results-link"]');
     expect(link.element.textContent).toBe("run");
-    expect(link.computedStyle("color")).toBe("rgb(139, 124, 247)");
+    expect(link.computedStyle("color")).toBe("rgb(0, 122, 255)");
     await paints(link, "rich link");
 
     /* The plain-text "launch" segment (not the mention) is highlighted. */
     const richMark = view.$('[data-testid="rich"] [data-happy2-ui="search-results-mark"]');
     expect(richMark.element.textContent).toBe("launch");
-    expect(richMark.computedStyle("background-color")).toBe("rgba(139, 124, 247, 0.15)");
+    expect(richMark.computedStyle("background-color")).toBe("rgba(0, 122, 255, 0.14)");
     await paints(richMark, "rich mark");
 
     window.scrollTo(0, 0);

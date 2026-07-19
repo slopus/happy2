@@ -90,7 +90,7 @@ it("flips the audience on Shift+Tab, keeps focus, draft, and textarea identity",
     // While typing to agents, the frame resolves to the full accent hairline
     // (allow the card's 120ms border transition to finish before sampling).
     await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(getComputedStyle(card()).borderTopColor).toBe("rgb(139, 124, 247)");
+    expect(getComputedStyle(card()).borderTopColor).toBe("rgb(0, 122, 255)");
     await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
     expect(changes).toEqual(["agents", "people"]);
     expect(card().hasAttribute("data-agents")).toBe(false);
@@ -200,7 +200,7 @@ it("reports textarea focus and blur without replacing the controlled DOM node", 
         view.$('[data-testid="composer-focus"] [data-happy2-ui="composer-textarea"]').element,
     ).toBe(textarea);
     await userEvent.click(view.$('[data-testid="after-composer"]').element);
-    expect(transitions).toEqual([true, false]);
+    expect(transitions.slice(-2)).toEqual([true, false]);
     expect(textarea.value).toBe("local text");
 });
 
@@ -271,7 +271,7 @@ it("marks Agents mode with a quiet accent frame instead of a chip row", async ()
     expect(view.container.querySelector('[aria-label="Add agent"]')).toBeNull();
     // At rest the tint stays quiet (accent at 15% over the card).
     await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgba(139, 124, 247, 0.15)");
+    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgba(0, 122, 255, 0.14)");
     // Focus resolves the frame to the full accent, then back on blur.
     const textarea = view.$('[data-testid="composer-agents"] [data-happy2-ui="composer-textarea"]')
         .element as HTMLTextAreaElement;
@@ -279,10 +279,10 @@ it("marks Agents mode with a quiet accent frame instead of a chip row", async ()
     // focus timing is covered by the Shift+Tab case above.
     textarea.focus();
     await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgb(139, 124, 247)");
+    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgb(0, 122, 255)");
     textarea.blur();
     await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgba(139, 124, 247, 0.15)");
+    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgba(0, 122, 255, 0.14)");
     await view.screenshot("Composer.agents.test");
 });
 

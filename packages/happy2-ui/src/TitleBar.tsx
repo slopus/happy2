@@ -43,12 +43,12 @@ export function WindowDragRegion(props: WindowDragRegionProps) {
             aria-hidden="true"
             className={["happy2-window-drag-region", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="window-drag-region"
-            style={{ height: toCssDimension(local.height ?? 38), ...local.style }}
+            style={{ height: toCssDimension(local.height ?? 56), ...local.style }}
         />
     );
 }
 /**
- * Global search well: 26px inset field with a leading search icon and a
+ * Global search well: 32px inset field with a leading search icon and a
  * trailing shortcut KeyCap. Fills its container unless `width` is given.
  */
 export function SearchField(props: SearchFieldProps) {
@@ -115,7 +115,7 @@ export type TitleBarOpenerProps = TitleBarSharedProps & {
 /** The search well is either editable or a palette opener, never both. */
 export type TitleBarProps = TitleBarEditableProps | TitleBarOpenerProps;
 /**
- * 38px window title bar: draggable app-owned chrome under the transparent
+ * 56px window title bar: draggable app-owned chrome under the transparent
  * native title bar, with a centered 420px-max SearchField between two 1fr
  * slots.
  */

@@ -1,7 +1,7 @@
 /*
  * C-054 FileEditor — single-file text editor surface.
  *
- * A column that fills its container: a 52px surface header (name + directory
+ * A column that fills its container: a 56px surface header (name + directory
  * subtitle, unsaved marker, Save / Revert / Close), an optional alert banner,
  * a monospace code body that fills and scrolls, and a hairline status bar.
  * Colors and type are theme tokens only.
@@ -31,7 +31,7 @@
     flex: none;
     align-items: center;
     gap: 8px;
-    height: 52px;
+    height: 56px;
     padding: 0 12px;
     border-bottom: 1px solid var(--happy2-border);
 }

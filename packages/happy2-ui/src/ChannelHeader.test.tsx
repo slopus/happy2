@@ -6,10 +6,10 @@ import { ChannelHeader } from "./ChannelHeader";
 import type { MenuItem } from "./Menu";
 import { createRenderer, type RenderedElement } from "./testing";
 /*
- * The header is a 52px strip whose bottom hairline sits inside the box, so
- * the content lane is 51px tall and its center is 25.5px from the top.
+ * The header is a 56px strip whose bottom hairline sits inside the box, so
+ * the content lane is 55px tall and its center is 27.5px from the top.
  */
-const LANE_CENTER = 25.5;
+const LANE_CENTER = 27.5;
 /* Fixtures sit on the app surface color the header is contracted against.
    The extra half-pixel of top padding puts *.5 offsets on integer device rows
    so element captures never expand the clip and skew centroid measurements. */
@@ -18,7 +18,7 @@ function stage(testid: string, padding: number, children: ReactNode) {
         <div
             data-testid={testid}
             style={{
-                background: "#17161c",
+                background: "#f5f5f5",
                 boxSizing: "border-box",
                 height: "100%",
                 padding: `${padding + 0.5}px ${padding}px ${Math.max(0, padding - 0.5)}px`,
@@ -117,7 +117,7 @@ it("holds ChannelHeader geometry, colors, and optical alignment", { timeout: 900
     /* ---- Root contract (s-full, 760px) --------------------------------- */
     const hFull = header("s-full");
     expect(hFull.element.tagName).toBe("HEADER");
-    expect(hFull.bounds()).toEqual({ x: 12, y: 12.5, width: 736, height: 52 });
+    expect(hFull.bounds()).toEqual({ x: 12, y: 12.5, width: 736, height: 56 });
     expect(
         hFull.computedStyles([
             "align-items",
@@ -135,13 +135,13 @@ it("holds ChannelHeader geometry, colors, and optical alignment", { timeout: 900
     ).toEqual({
         "align-items": "center",
         "background-color": "rgba(0, 0, 0, 0)",
-        "border-bottom-color": "rgba(255, 255, 255, 0.07)",
+        "border-bottom-color": "rgb(234, 234, 234)",
         "border-bottom-style": "solid",
         "border-bottom-width": "1px",
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         display: "flex",
-        height: "52px",
+        height: "56px",
         "padding-left": "16px",
         "padding-right": "16px",
     });
@@ -153,7 +153,7 @@ it("holds ChannelHeader geometry, colors, and optical alignment", { timeout: 900
     expect(star.bounds().width).toBe(28);
     expect(star.bounds().height).toBe(28);
     /* Starred → amber (--happy2-warning). */
-    expect(star.computedStyle("color")).toBe("rgb(251, 191, 36)");
+    expect(star.computedStyle("color")).toBe("rgb(255, 149, 0)");
     const starIcon = view.$(
         '[data-testid="s-full"] [data-happy2-ui="channel-header-star"] [data-happy2-ui="icon"]',
     );
@@ -167,7 +167,7 @@ it("holds ChannelHeader geometry, colors, and optical alignment", { timeout: 900
     const icon = part("s-full", "icon");
     expect(icon.bounds().width).toBe(16);
     expect(icon.bounds().height).toBe(16);
-    expect(icon.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(icon.computedStyle("color")).toBe("rgb(142, 142, 147)");
     const iconInk = await inkCenter("hash icon", icon, hFull);
     expect(Math.abs(iconInk.dx), "hash icon optical x").toBeLessThanOrEqual(0.75);
     expect(Math.abs(iconInk.dy), "hash icon optical y").toBeLessThanOrEqual(0.75);
@@ -179,7 +179,7 @@ it("holds ChannelHeader geometry, colors, and optical alignment", { timeout: 900
     expect(titleMetrics.font.size).toBe(15);
     expect(titleMetrics.font.weight).toBe("700");
     expect(titleMetrics.font.lineHeight).toBe(20);
-    expect(title.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(title.computedStyle("color")).toBe("rgb(0, 0, 0)");
     /* Word labels have asymmetric ink along x, so only the vertical centroid
        is asserted. */
     const titleInk = await inkCenter("title launch-week", title, hFull);
@@ -189,13 +189,13 @@ it("holds ChannelHeader geometry, colors, and optical alignment", { timeout: 900
     expect(dot.bounds().height).toBe(3);
     expect(dot.bounds().y - hFull.bounds().y + 1.5).toBe(LANE_CENTER);
     expect(dot.computedStyles(["background-color", "border-radius"])).toEqual({
-        "background-color": "rgb(85, 81, 95)",
+        "background-color": "rgb(142, 142, 147)",
         "border-radius": "999px",
     });
     const topic = part("s-full", "topic");
     expect(topic.element.textContent).toBe("Ship mobile v2 by Fri");
     expect(topic.computedStyles(["color", "font-size", "font-weight", "line-height"])).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-size": "12px",
         "font-weight": "400",
         "line-height": "16px",
@@ -269,7 +269,7 @@ it("holds ChannelHeader geometry, colors, and optical alignment", { timeout: 900
     );
     /* ---- Narrow (420px): truncating topic, 1-digit count ---------------- */
     const hNarrow = header("s-narrow");
-    expect(hNarrow.bounds().height).toBe(52);
+    expect(hNarrow.bounds().height).toBe(56);
     const narrowTopic = part("s-narrow", "topic");
     const narrowTopicText = narrowTopic.element.querySelector(".happy2-channel-header__topic-ink")!;
     expect(narrowTopicText.scrollWidth, "narrow topic truncates with an ellipsis").toBeGreaterThan(
@@ -284,7 +284,7 @@ it("holds ChannelHeader geometry, colors, and optical alignment", { timeout: 900
     expect(Math.abs(narrowCountInk.dy), "count 8 optical y").toBeLessThanOrEqual(0.75);
     /* ---- Minimal: title only, every optional part absent ---------------- */
     const hMin = header("s-min");
-    expect(hMin.bounds()).toEqual({ x: 12, y: 12.5, width: 456, height: 52 });
+    expect(hMin.bounds()).toEqual({ x: 12, y: 12.5, width: 456, height: 56 });
     const minLead = part("s-min", "lead");
     /* No onTitleClick → the lead is a heading, not a button. */
     expect(minLead.element.tagName).toBe("H2");

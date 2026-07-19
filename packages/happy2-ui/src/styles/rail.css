@@ -1,9 +1,9 @@
 /*
- * Rail — the 76px feature rail on the far left of the window chrome.
+ * Rail — the compact 64px feature rail on the far left of the window.
  *
- * Contract: 76px wide, fills its parent's height, transparent over the window
- * chrome. Column: 34px otter brand mark (replaceable via the brand slot),
- * 60×52 icon+label item buttons, footer slot pinned with equal 20px
+ * Contract: 64px wide, fills its parent's height, transparent over the window
+ * chrome. Column: 32px brand mark (replaceable via the brand slot),
+ * 52×48 icon+label item buttons, footer slot pinned with equal 16px
  * left/right/bottom clearance.
  */
 
@@ -17,12 +17,12 @@
     flex: none;
     flex-direction: column;
     align-items: center;
-    width: 76px;
+    width: 64px;
     height: 100%;
-    padding: 10px 0 20px;
+    padding: 12px 0 16px;
     /* Seamless chrome: transparent over the window backdrop, no right hairline —
-       the rail and title bar read as one frame. The full 76px lane centers its
-       60px items on integer coordinates. */
+       the rail and title bar read as one frame. The compact lane centers its
+       52px-wide items on integer coordinates. */
     background: transparent;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
@@ -34,13 +34,13 @@
     display: flex;
     flex: none;
     justify-content: center;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
 }
 
 .happy2-rail__brand-image {
     display: block;
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     object-fit: contain;
     -webkit-user-drag: none;
     -webkit-user-select: none;
@@ -65,8 +65,8 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    width: 60px;
-    height: 52px;
+    width: 52px;
+    height: 48px;
     margin: 0;
     padding: 0;
     background: transparent;
@@ -107,18 +107,18 @@
 
 .happy2-rail__item-badge {
     position: absolute;
-    top: -6px;
-    left: 13px;
+    top: 4px;
+    right: 4px;
     display: block;
 }
 
 .happy2-rail__item-badge > .happy2-count-badge {
-    border-radius: 6px;
+    border-radius: 4px;
 }
 
 .happy2-rail__item-label {
     display: block;
-    max-width: 56px;
+    max-width: 48px;
     overflow: hidden;
     font-size: 10px;
     font-weight: 700;
@@ -164,10 +164,10 @@
     height: 36px;
     margin: 0;
     padding: 0;
-    background: var(--happy2-accent);
+    background: var(--happy2-action);
     border: 0;
     border-radius: var(--happy2-radius-pill);
-    color: var(--happy2-text-on-accent);
+    color: var(--happy2-action-text);
     appearance: none;
     cursor: pointer;
     transition:
@@ -176,7 +176,7 @@
 }
 
 .happy2-rail__primary:hover {
-    background: var(--happy2-accent-strong);
+    background: var(--happy2-action-strong);
 }
 
 .happy2-rail__primary:active {

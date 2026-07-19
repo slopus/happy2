@@ -166,9 +166,9 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
         ]),
     ).toEqual({
         "align-items": "center",
-        "background-color": "rgb(19, 18, 23)",
+        "background-color": "rgb(255, 255, 255)",
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         display: "flex",
         "font-family": fontFamily(),
         "justify-content": "center",
@@ -182,10 +182,10 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
     const scrim = view.$('[data-happy2-ui="onboarding-scrim"]');
     expect(bg.element.getAttribute("data-has-image")).toBeNull();
     expect(bg.offsets()).toMatchObject({ left: 0, right: 0, top: 0, bottom: 0 });
-    expect(bg.computedStyle("background-image")).toContain("gradient");
+    expect(bg.computedStyle("background-image")).toBe("none");
     expect(bg.computedStyle("background-size")).toBe("cover");
     expect(scrim.offsets()).toMatchObject({ left: 0, right: 0, top: 0, bottom: 0 });
-    expect(scrim.computedStyle("background-color")).toBe("rgba(0, 0, 0, 0.6)");
+    expect(scrim.computedStyle("background-color")).toBe("rgba(0, 0, 0, 0.32)");
 
     /* ---- Card: centered on both axes, 480×600 -------------------------- */
 
@@ -209,7 +209,7 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
             "padding-top",
         ]),
     ).toEqual({
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "border-radius": "14px",
         "box-sizing": "border-box",
         display: "flex",
@@ -250,7 +250,7 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
     });
     expect(mark.computedStyle("background-image")).toContain("linear-gradient");
     expect(brandName.offsets().left).toBe(40); /* 28 mark + 12 gap, relative to brand */
-    expect(brandName.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(brandName.computedStyle("color")).toBe("rgb(0, 0, 0)");
     const nameMetrics = brandName.textMetrics();
     expect(nameMetrics.text).toBe("Relay");
     expect(nameMetrics.font).toMatchObject({
@@ -286,10 +286,10 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
     const upcomingDot = view.$(
         '[data-happy2-ui="onboarding-step"][data-state="upcoming"] [data-happy2-ui="onboarding-step-dot"]',
     );
-    expect(completeDot.computedStyle("background-color")).toBe("rgb(52, 211, 153)");
-    expect(currentDot.computedStyle("background-color")).toBe("rgb(139, 124, 247)");
+    expect(completeDot.computedStyle("background-color")).toBe("rgb(52, 199, 89)");
+    expect(currentDot.computedStyle("background-color")).toBe("rgb(0, 122, 255)");
     expect(upcomingDot.computedStyle("background-color")).toBe("rgba(0, 0, 0, 0)");
-    expect(upcomingDot.computedStyle("border-top-color")).toBe("rgb(85, 81, 95)");
+    expect(upcomingDot.computedStyle("border-top-color")).toBe("rgb(142, 142, 147)");
 
     const completeLabel = view.$(
         '[data-happy2-ui="onboarding-step"][data-state="complete"] [data-happy2-ui="onboarding-step-label"]',
@@ -300,9 +300,9 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
     const upcomingLabel = view.$(
         '[data-happy2-ui="onboarding-step"][data-state="upcoming"] [data-happy2-ui="onboarding-step-label"]',
     );
-    expect(completeLabel.computedStyle("color")).toBe("rgb(165, 160, 176)");
-    expect(currentLabel.computedStyle("color")).toBe("rgb(237, 234, 242)");
-    expect(upcomingLabel.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(completeLabel.computedStyle("color")).toBe("rgb(142, 142, 147)");
+    expect(currentLabel.computedStyle("color")).toBe("rgb(0, 0, 0)");
+    expect(upcomingLabel.computedStyle("color")).toBe("rgb(142, 142, 147)");
 
     /* The complete step paints its check glyph unclipped inside the dot. */
     const completeCheck = view.$(
@@ -326,7 +326,7 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
             "text-transform",
         ]),
     ).toEqual({
-        color: "rgb(139, 124, 247)",
+        color: "rgb(0, 122, 255)",
         "font-size": "12px",
         "font-weight": "700",
         "letter-spacing": "0.96px",
@@ -337,7 +337,7 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
 
     expect(title.element.tagName).toBe("H1");
     expect(title.height()).toBe(30);
-    expect(title.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(title.computedStyle("color")).toBe("rgb(0, 0, 0)");
     const titleMetrics = title.textMetrics();
     expect(titleMetrics.text).toBe("Connect your server");
     expect(titleMetrics.font).toMatchObject({
@@ -352,7 +352,7 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
     await paints(title, "title");
 
     expect(copy.computedStyles(["color", "font-size", "font-weight", "line-height"])).toEqual({
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-size": "15px",
         "font-weight": "400",
         "line-height": "22px",
@@ -437,7 +437,7 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
             "margin-left",
         ]),
     ).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-size": "13px",
         "line-height": "18px",
         "margin-top": "20px",
@@ -553,9 +553,9 @@ it("keeps loading and form card rects identical while holding width variants", a
         ]),
     ).toEqual({
         "border-radius": "999px",
-        "border-top-color": "rgb(139, 124, 247)",
+        "border-top-color": "rgb(0, 122, 255)",
         "border-top-width": "2px",
-        "border-left-color": "rgba(255, 255, 255, 0.13)",
+        "border-left-color": "rgb(209, 209, 214)",
         "box-sizing": "border-box",
     });
     const ring = await spinner.visibleMetrics();
@@ -583,7 +583,7 @@ it("keeps loading and form card rects identical while holding width variants", a
     expect(
         loadingLabel.computedStyles(["color", "font-size", "font-weight", "line-height"]),
     ).toEqual({
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-size": "14px",
         "font-weight": "500",
         "line-height": "20px",
@@ -773,7 +773,7 @@ it("keeps short-window overflow reachable without clipping a focused trailing fi
             "outline-width",
         ]),
     ).toEqual({
-        "outline-color": "rgb(168, 155, 255)",
+        "outline-color": "rgb(0, 122, 255)",
         "outline-offset": "1px",
         "outline-style": "solid",
         "outline-width": "2px",

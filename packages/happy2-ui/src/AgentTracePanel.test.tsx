@@ -92,7 +92,7 @@ function host(children: ReactNode, testid: string, height: number) {
         <div
             data-testid={testid}
             style={{
-                background: "#1c1b22",
+                background: "#ffffff",
                 display: "flex",
                 flexDirection: "column",
                 height: `${height}px`,
@@ -144,17 +144,17 @@ it("holds AgentTracePanel header, scrollport contract, entry rows, and timestamp
     expect(
         panel.computedStyles(["color", "display", "flex-direction", "font-family", "min-height"]),
     ).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         display: "flex",
         "flex-direction": "column",
         "font-family": uiFamily(),
         "min-height": "0px",
     });
 
-    /* ---- Header: 52px surface header, title, step count, badge, close ---- */
+    /* ---- Header: 56px surface header, title, step count, badge, close ---- */
 
     const header = view.$('[data-testid="tp-running"] [data-happy2-ui="toolbar"]');
-    expect(header.height()).toBe(52);
+    expect(header.height()).toBe(56);
     expect(header.width()).toBe(288);
     expect(
         view.$('[data-testid="tp-running"] [data-happy2-ui="toolbar-title"]').element.textContent,
@@ -177,8 +177,8 @@ it("holds AgentTracePanel header, scrollport contract, entry rows, and timestamp
 
     const body = view.$('[data-testid="tp-running"] [data-happy2-ui="agent-trace-panel-body"]');
     expect(body.bounds().width).toBe(288);
-    expect(body.bounds().height).toBe(468);
-    expect(body.bounds().y - panel.bounds().y).toBe(52);
+    expect(body.bounds().height).toBe(464);
+    expect(body.bounds().y - panel.bounds().y).toBe(56);
     expect(
         body.computedStyles([
             "margin-top",
@@ -274,9 +274,9 @@ it("holds AgentTracePanel header, scrollport contract, entry rows, and timestamp
         view.$(
             `[data-testid="tp-running"] [data-happy2-ui="agent-trace-panel-entries"] > :nth-child(${index + 1}) [data-happy2-ui="agent-trace-panel-entry-dot"]`,
         );
-    expect(rowDot(0).computedStyle("background-color")).toBe("rgb(52, 211, 153)");
-    expect(rowDot(4).computedStyle("background-color")).toBe("rgb(248, 113, 113)");
-    expect(rowDot(6).computedStyle("background-color")).toBe("rgb(139, 124, 247)");
+    expect(rowDot(0).computedStyle("background-color")).toBe("rgb(52, 199, 89)");
+    expect(rowDot(4).computedStyle("background-color")).toBe("rgb(255, 59, 48)");
+    expect(rowDot(6).computedStyle("background-color")).toBe("rgb(0, 122, 255)");
     expect(rowDot(0).bounds()).toMatchObject({ width: 5, height: 5 });
     const drift = await dotDrift(
         view,
@@ -291,7 +291,7 @@ it("holds AgentTracePanel header, scrollport contract, entry rows, and timestamp
     const title = view.$(`${second} [data-happy2-ui="agent-trace-panel-entry-title"]`);
     expect(title.element.textContent).toBe("Thinking");
     expect(title.computedStyles(["color", "font-family", "font-size", "font-weight"])).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-family": uiFamily(),
         "font-size": "12px",
         "font-weight": "500",
@@ -308,7 +308,7 @@ it("holds AgentTracePanel header, scrollport contract, entry rows, and timestamp
             "white-space",
         ]),
     ).toEqual({
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-family": monoFamily(),
         "font-size": "11px",
         "overflow-x": "hidden",
@@ -323,7 +323,7 @@ it("holds AgentTracePanel header, scrollport contract, entry rows, and timestamp
     expect(
         time.computedStyles(["color", "font-family", "font-size", "font-variant-numeric"]),
     ).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-family": monoFamily(),
         "font-size": "11px",
         "font-variant-numeric": "lining-nums tabular-nums",
@@ -457,7 +457,7 @@ it("scrolls overflowing traces edge to edge and centers loading, error, and empt
     /* ---- Overflow: the scrollport owns scrolling for the full region ------ */
 
     const body = view.$('[data-testid="tp-scroll"] [data-happy2-ui="agent-trace-panel-body"]');
-    expect(body.bounds()).toMatchObject({ width: 288, height: 268 });
+    expect(body.bounds()).toMatchObject({ width: 288, height: 264 });
     expect(body.element.scrollHeight).toBeGreaterThan(body.element.clientHeight);
     /* Single-step badge grammar while we are here. */
     expect(
@@ -508,7 +508,7 @@ it("scrolls overflowing traces edge to edge and centers loading, error, and empt
     expect(loading.element.textContent).toBe("Loading activity…");
     expect(loading.computedStyles(["align-items", "color", "display", "justify-content"])).toEqual({
         "align-items": "center",
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         display: "flex",
         "justify-content": "center",
     });
@@ -524,12 +524,12 @@ it("scrolls overflowing traces edge to edge and centers loading, error, and empt
     const error = stateOf("tp-error");
     expect(error.element.getAttribute("data-state")).toBe("error");
     expect(error.element.textContent).toBe("Could not load activity for this turn.");
-    expect(error.computedStyle("color")).toBe("rgb(248, 113, 113)");
+    expect(error.computedStyle("color")).toBe("rgb(255, 59, 48)");
 
     const empty = stateOf("tp-empty");
     expect(empty.element.getAttribute("data-state")).toBe("empty");
     expect(empty.element.textContent).toBe("No activity yet");
-    expect(empty.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(empty.computedStyle("color")).toBe("rgb(142, 142, 147)");
 
     /* ---- Header badges track the turn status ------------------------------ */
 

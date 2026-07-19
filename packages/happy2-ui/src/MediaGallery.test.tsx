@@ -25,7 +25,7 @@ const GLYPH_TOL = 0.4;
 /* Deterministic data-URI thumbnail — a solid violet 4:3 rect, no network. */
 const THUMB = `data:image/svg+xml,${encodeURIComponent(
     "<svg xmlns='http://www.w3.org/2000/svg' width='160' height='120'>" +
-        "<rect width='160' height='120' fill='#8b7cf7'/></svg>",
+        "<rect width='160' height='120' fill='#007aff'/></svg>",
 )}`;
 
 /*
@@ -109,7 +109,7 @@ it("holds MediaGallery grid geometry, tile anatomy, overlays, and footer typogra
         "grid-template-columns": "160px 160px 160px",
         "column-gap": "12px",
         "row-gap": "12px",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
     });
     const rootBounds = root.bounds();
 
@@ -151,8 +151,8 @@ it("holds MediaGallery grid geometry, tile anatomy, overlays, and footer typogra
             "border-radius": "10px",
             // 1px inset hairline (see media-gallery.css) — the thumb keeps a
             // clean integer 4:3 border box because it carries no layout border.
-            "box-shadow": "rgba(255, 255, 255, 0.07) 0px 0px 0px 1px inset",
-            "background-color": "rgb(36, 34, 43)",
+            "box-shadow": "rgb(234, 234, 234) 0px 0px 0px 1px inset",
+            "background-color": "rgb(240, 240, 242)",
         });
     }
 
@@ -170,7 +170,7 @@ it("holds MediaGallery grid geometry, tile anatomy, overlays, and footer typogra
         text: "Standup recording.mp4",
     });
     expect(name.computedStyles(["color", "white-space", "text-overflow", "overflow"])).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "white-space": "nowrap",
         "text-overflow": "ellipsis",
         overflow: "hidden",
@@ -183,7 +183,7 @@ it("holds MediaGallery grid geometry, tile anatomy, overlays, and footer typogra
         font: { family: uiFont, lineHeight: 14, size: 11, weight: "500" },
         text: "48 MB",
     });
-    expect(size.computedStyle("color"), "size muted").toBe("rgb(117, 112, 133)");
+    expect(size.computedStyle("color"), "size muted").toBe("rgb(142, 142, 147)");
 
     /* ---- File glyph medallion (tile f1): centered 48px chip, 20px Icon --- */
 
@@ -204,11 +204,11 @@ it("holds MediaGallery grid geometry, tile anatomy, overlays, and footer typogra
             "color",
         ]),
     ).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-radius": "10px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
     });
 
     const icon = view.$(
@@ -219,7 +219,7 @@ it("holds MediaGallery grid geometry, tile anatomy, overlays, and footer typogra
     // Centered in the 48px medallion: (48 - 20) / 2 = 14 (13 + 1px border).
     expect(icon.bounds().x - glyph.bounds().x, "icon left inset").toBe(14);
     expect(icon.bounds().y - glyph.bounds().y, "icon top inset").toBe(14);
-    expect(icon.computedStyle("stroke"), "icon stroke").toBe("rgb(165, 160, 176)");
+    expect(icon.computedStyle("stroke"), "icon stroke").toBe("rgb(142, 142, 147)");
 
     // Balanced glyph: alpha centroid on the medallion center (24, 24).
     const glyphInk = await ink(icon, glyph, "file glyph");
@@ -255,9 +255,9 @@ it("holds MediaGallery grid geometry, tile anatomy, overlays, and footer typogra
             "font-weight",
         ]),
     ).toEqual({
-        "background-color": "rgb(19, 18, 23)",
+        "background-color": "rgb(255, 255, 255)",
         "border-radius": "2px",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-size": "11px",
         "font-weight": "600",
     });
@@ -330,7 +330,7 @@ it("holds MediaGallery column density, truncation, and the empty slot", async ()
                 empty={
                     <div
                         data-testid="empty-body"
-                        style={{ height: "120px", background: "#24222b" }}
+                        style={{ height: "120px", background: "#f0f0f2" }}
                     >
                         No files shared yet
                     </div>

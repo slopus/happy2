@@ -77,7 +77,7 @@ const sizes = ["small", "medium", "large"] as const;
  * invisible on the renderer's default white). Repainted away during pixel
  * measurement, so it never biases a centroid. */
 const stage: Record<string, string> = {
-    background: "#1c1b22",
+    background: "#ffffff",
     boxSizing: "border-box",
     display: "flex",
     alignItems: "flex-start",
@@ -160,9 +160,9 @@ it("holds Select geometry, tokens, typography, chevron centering, and value cent
             id,
         ).toEqual({
             "align-items": "center",
-            "background-color": "rgba(255, 255, 255, 0.05)",
+            "background-color": "rgb(245, 245, 245)",
             "border-radius": "6px",
-            "border-top-color": "rgba(255, 255, 255, 0.07)",
+            "border-top-color": "rgb(234, 234, 234)",
             "border-top-width": "1px",
             "box-sizing": "border-box",
             display: "flex",
@@ -218,7 +218,7 @@ it("holds Select geometry, tokens, typography, chevron centering, and value cent
             ]),
             id,
         ).toEqual({
-            color: "rgb(237, 234, 242)",
+            color: "rgb(0, 0, 0)",
             "font-family": fontFamily,
             "font-size": `${spec.fontSize}px`,
             "font-weight": "500",
@@ -285,7 +285,7 @@ it("holds Select geometry, tokens, typography, chevron centering, and value cent
             ),
             `${id} chevron box vertical centering`,
         ).toBeLessThanOrEqual(0.1);
-        expect(chevronBox.computedStyle("color"), `${id} chevron color`).toBe("rgb(117, 112, 133)");
+        expect(chevronBox.computedStyle("color"), `${id} chevron color`).toBe("rgb(142, 142, 147)");
 
         /* Chevron glyph ink is the tuned chevron-down Icon (Icon.test.tsx
          * proves ≤0.6px both axes at sizes 14/16); assert it renders centered
@@ -306,7 +306,7 @@ it("holds Select geometry, tokens, typography, chevron centering, and value cent
             label.computedStyles(["color", "display", "font-size", "font-weight", "line-height"]),
             id,
         ).toEqual({
-            color: "rgb(165, 160, 176)",
+            color: "rgb(142, 142, 147)",
             display: "block",
             "font-size": "12px",
             "font-weight": "600",
@@ -412,7 +412,7 @@ it("holds Select placeholder, error, disabled, focus, truncation, and fullWidth 
     );
     expect(placeholderRoot.element.getAttribute("data-placeholder")).toBe("");
     expect(placeholderValue.textMetrics().text).toBe("Select a role…");
-    expect(placeholderValue.computedStyle("color"), "placeholder color").toBe("rgb(117, 112, 133)");
+    expect(placeholderValue.computedStyle("color"), "placeholder color").toBe("rgb(142, 142, 147)");
     expect((placeholderSelect.element as HTMLSelectElement).value).toBe("");
     expect((await placeholderValue.visibleMetrics()).pixelCount, "placeholder ink").toBeGreaterThan(
         0,
@@ -429,11 +429,11 @@ it("holds Select placeholder, error, disabled, focus, truncation, and fullWidth 
         ]),
         "error border",
     ).toEqual({
-        "border-top-color": "rgb(248, 113, 113)",
-        "border-right-color": "rgb(248, 113, 113)",
-        "border-bottom-color": "rgb(248, 113, 113)",
+        "border-top-color": "rgb(255, 59, 48)",
+        "border-right-color": "rgb(255, 59, 48)",
+        "border-bottom-color": "rgb(255, 59, 48)",
     });
-    expect(errorMessage.computedStyle("color"), "error message color").toBe("rgb(248, 113, 113)");
+    expect(errorMessage.computedStyle("color"), "error message color").toBe("rgb(255, 59, 48)");
     expect(errorMessage.textMetrics().text).toBe("Pick a role to continue");
     expect(errorMessage.textMetrics().font).toMatchObject({
         size: 12,
@@ -444,7 +444,7 @@ it("holds Select placeholder, error, disabled, focus, truncation, and fullWidth 
 
     /* ---- Hint: muted message, hooked as select-hint ----------------- */
     const hint = view.$('[data-testid="sel-hint"] [data-happy2-ui="select-hint"]');
-    expect(hint.computedStyle("color"), "hint color").toBe("rgb(117, 112, 133)");
+    expect(hint.computedStyle("color"), "hint color").toBe("rgb(142, 142, 147)");
     expect(hint.textMetrics().text).toBe("Applied to every new message");
 
     /* ---- Disabled: dimmed, still a real disabled control ------------ */
@@ -474,8 +474,8 @@ it("holds Select placeholder, error, disabled, focus, truncation, and fullWidth 
         ]),
         "focus ring",
     ).toEqual({
-        "border-top-color": "rgba(255, 255, 255, 0.13)",
-        "outline-color": "rgb(168, 155, 255)",
+        "border-top-color": "rgb(209, 209, 214)",
+        "outline-color": "rgb(0, 122, 255)",
         "outline-offset": "1px",
         "outline-style": "solid",
         "outline-width": "2px",

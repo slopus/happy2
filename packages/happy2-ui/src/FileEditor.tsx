@@ -44,7 +44,7 @@ function splitPath(path: string): {
 }
 /**
  * C-054 FileEditor — a props-only text editor surface for one workspace file.
- * A 52px surface header (name, directory subtitle, unsaved marker, Save /
+ * A 56px surface header (name, directory subtitle, unsaved marker, Save /
  * Revert / Close), an optional alert banner for disk-change or conflict, a
  * monospace code body, and a status bar. Cmd/Ctrl+S saves. The app owns the
  * draft, the dirty/saving state, and the conflict-safe write — the editor only

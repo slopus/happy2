@@ -1,7 +1,7 @@
 /*
  * C-068 AgentTracePanel — right-sidebar activity trace for one agent turn.
  *
- * A column that fills the panel region: a 52px surface header (shared with
+ * A column that fills the panel region: a 56px surface header (shared with
  * ChannelHeader / InfoPanel / ThreadPanel) with title, step count, status
  * badge, and close, then a full-bleed scrollport body. The scrollport owns no
  * spacing; the inner entries wrapper owns the 12px inset and the 12px row gap.

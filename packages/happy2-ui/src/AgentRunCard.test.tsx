@@ -152,9 +152,9 @@ it("holds the review hero card geometry, mint treatment, and interactions at 680
         ]),
     ).toEqual({
         "background-color": resolvedColor(
-            "color-mix(in srgb, rgb(52, 211, 153) 5%, rgb(28, 27, 34))",
+            "color-mix(in srgb, rgb(52, 199, 89) 5%, rgb(255, 255, 255))",
         ),
-        "border-top-color": resolvedColor("color-mix(in srgb, rgb(52, 211, 153) 35%, transparent)"),
+        "border-top-color": resolvedColor("color-mix(in srgb, rgb(52, 199, 89) 35%, transparent)"),
         "border-top-style": "solid",
         "border-top-width": "1px",
         "border-top-left-radius": "10px",
@@ -165,7 +165,7 @@ it("holds the review hero card geometry, mint treatment, and interactions at 680
         position: "relative",
     });
     expect(review.computedStyle("box-shadow")).toContain("24px");
-    expect(review.computedStyle("box-shadow")).toContain("0.13");
+    expect(review.computedStyle("box-shadow")).toContain("0.14");
 
     /* — header row: agent avatar, name, status badge, expand toggle — */
     const header = view.$('[data-testid="run-review"] [data-happy2-ui="agent-run-card-header"]');
@@ -185,19 +185,19 @@ it("holds the review hero card geometry, mint treatment, and interactions at 680
         size: 13,
         weight: "700",
     });
-    expect(agent.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(agent.computedStyle("color")).toBe("rgb(0, 0, 0)");
     const kind = view.$('[data-testid="run-review"] [data-happy2-ui="agent-run-card-kind"]');
     expect(kind.element.textContent).toBe("· run");
     expect(kind.computedStyles(["color", "font-weight"])).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-weight": "500",
     });
 
     const badge = view.$('[data-testid="run-review"] [data-happy2-ui="badge"]');
     expect(badge.element.textContent).toBe("NEEDS REVIEW");
     expect(badge.computedStyles(["background-color", "color", "height"])).toEqual({
-        "background-color": "rgba(52, 211, 153, 0.13)",
-        color: "rgb(110, 231, 183)",
+        "background-color": "rgba(52, 199, 89, 0.14)",
+        color: "rgb(36, 138, 61)",
         height: "18px",
     });
     expect(badge.offsets().top).toBe(5); /* 18px pill row-centered in the 28px header */
@@ -211,7 +211,7 @@ it("holds the review hero card geometry, mint treatment, and interactions at 680
     expect(toggle.element.tagName).toBe("BUTTON");
     expect(toggle.computedStyles(["border-radius", "color"])).toEqual({
         "border-radius": "6px",
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
     });
 
     /* — title and mono diffstat meta — */
@@ -231,7 +231,7 @@ it("holds the review hero card geometry, mint treatment, and interactions at 680
         size: 15,
         weight: "700",
     });
-    expect(title.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(title.computedStyle("color")).toBe("rgb(0, 0, 0)");
 
     const meta = view.$('[data-testid="run-review"] [data-happy2-ui="agent-run-card-meta"]');
     expect(meta.bounds()).toEqual({ x: 29, y: 93, width: 646, height: 16 });
@@ -241,8 +241,8 @@ it("holds the review hero card geometry, mint treatment, and interactions at 680
     expect(added.element.textContent).toBe("+164");
     expect(removed.element.textContent).toBe("−38");
     expect(detail.element.textContent).toBe("6 files · 12 steps · tests passing");
-    expect(added.computedStyle("color")).toBe("rgb(52, 211, 153)");
-    expect(removed.computedStyle("color")).toBe("rgb(248, 113, 113)");
+    expect(added.computedStyle("color")).toBe("rgb(40, 167, 69)");
+    expect(removed.computedStyle("color")).toBe("rgb(220, 53, 69)");
     const detailMetrics = detail.textMetrics();
     expect(detailMetrics.font).toEqual({
         family: "happy2 Mono, ui-monospace, monospace",
@@ -251,7 +251,7 @@ it("holds the review hero card geometry, mint treatment, and interactions at 680
         size: 12,
         weight: "500",
     });
-    expect(detail.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(detail.computedStyle("color")).toBe("rgb(142, 142, 147)");
 
     /* — branch row — */
     const branch = view.$('[data-testid="run-review"] [data-happy2-ui="agent-run-card-branch"]');
@@ -261,7 +261,7 @@ it("holds the review hero card geometry, mint treatment, and interactions at 680
     );
     expect(branchName.element.textContent).toBe("fix/auth-flake");
     expect(branchName.computedStyles(["color", "font-size"])).toEqual({
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-size": "12px",
     });
     const branchIcon = view.$(
@@ -279,12 +279,12 @@ it("holds the review hero card geometry, mint treatment, and interactions at 680
     );
     expect(primary.element.textContent).toBe("Review diff");
     expect(primary.bounds().height).toBe(28);
-    expect(primary.computedStyle("background-color")).toBe("rgb(139, 124, 247)");
+    expect(primary.computedStyle("background-color")).toBe("rgb(0, 0, 0)");
     const secondary = view.$(
         '[data-testid="run-review"] [data-happy2-ui="button"][data-variant="secondary"]',
     );
     expect(secondary.element.textContent).toBe("Open in #eng-core");
-    expect(secondary.computedStyle("background-color")).toBe("rgb(36, 34, 43)");
+    expect(secondary.computedStyle("background-color")).toBe("rgb(240, 240, 242)");
 
     /* — collapsed cards hide steps and the children slot — */
     expect(review.element.querySelector('[data-happy2-ui="agent-run-card-steps"]')).toBeNull();
@@ -341,7 +341,7 @@ it("holds the working and queued status treatments at 680 and 440", async () => 
     const working = view.$('[data-testid="run-working"]');
     expect(working.bounds()).toEqual({ x: 12, y: 12, width: 680, height: 114 });
     expect(working.computedStyles(["border-top-color", "border-top-style"])).toEqual({
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-style": "solid",
     });
     const progress = view.$(
@@ -349,7 +349,7 @@ it("holds the working and queued status treatments at 680 and 440", async () => 
     );
     expect(progress.bounds()).toEqual({ x: 13, y: 13, width: 678, height: 3 });
     expect(progress.computedStyles(["background-color", "position"])).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         position: "absolute",
     });
     expect(progress.element.getAttribute("aria-valuenow")).toBe("50");
@@ -361,8 +361,8 @@ it("holds the working and queued status treatments at 680 and 440", async () => 
     const workingBadge = view.$('[data-testid="run-working"] [data-happy2-ui="badge"]');
     expect(workingBadge.element.textContent).toBe("RUNNING");
     expect(workingBadge.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(251, 191, 36, 0.13)",
-        color: "rgb(252, 211, 77)",
+        "background-color": "rgba(255, 149, 0, 0.14)",
+        color: "rgb(201, 52, 0)",
     });
     expect(workingBadge.offsets().top).toBe(5);
 
@@ -372,15 +372,15 @@ it("holds the working and queued status treatments at 680 and 440", async () => 
     expect(
         queued.computedStyles(["border-top-color", "border-top-style", "border-top-width"]),
     ).toEqual({
-        "border-top-color": "rgba(255, 255, 255, 0.13)",
+        "border-top-color": "rgb(209, 209, 214)",
         "border-top-style": "dashed",
         "border-top-width": "1px",
     });
     const queuedBadge = view.$('[data-testid="run-queued"] [data-happy2-ui="badge"]');
     expect(queuedBadge.element.textContent).toBe("QUEUED");
     expect(queuedBadge.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
-        color: "rgb(165, 160, 176)",
+        "background-color": "rgb(245, 245, 245)",
+        color: "rgb(142, 142, 147)",
     });
     expect(queuedBadge.offsets().top).toBe(5);
     expect(queued.element.querySelector('[data-happy2-ui="agent-run-card-progress"]')).toBeNull();
@@ -389,14 +389,14 @@ it("holds the working and queued status treatments at 680 and 440", async () => 
     const complete = view.$('[data-testid="run-complete"]');
     expect(complete.bounds()).toEqual({ x: 12, y: 12, width: 440, height: 138 });
     expect(complete.computedStyles(["border-top-color", "border-top-style"])).toEqual({
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-style": "solid",
     });
     const completeBadge = view.$('[data-testid="run-complete"] [data-happy2-ui="badge"]');
     expect(completeBadge.element.textContent).toBe("COMPLETED");
     expect(completeBadge.offsets().top).toBe(5);
     const check = view.$('[data-testid="run-complete"] [data-happy2-ui="agent-run-card-check"]');
-    expect(check.computedStyle("color")).toBe("rgb(52, 211, 153)");
+    expect(check.computedStyle("color")).toBe("rgb(52, 199, 89)");
     expect(check.element.querySelector('[data-happy2-ui="icon"]')?.getAttribute("data-name")).toBe(
         "check-circle",
     );
@@ -418,7 +418,7 @@ it("holds the expanded complete card at 440: steps, children slot, and max-width
                 >
                     <div
                         data-testid="diff-marker"
-                        style={{ background: "#141319", height: "40px" }}
+                        style={{ background: "#f6f8fa", height: "40px" }}
                     />
                 </AgentRunCard>
             ),
@@ -441,11 +441,11 @@ it("holds the expanded complete card at 440: steps, children slot, and max-width
     const complete = view.$('[data-testid="run-complete"]');
     expect(complete.bounds()).toEqual({ x: 12, y: 12, width: 440, height: 322 });
     expect(complete.computedStyles(["border-top-color", "border-top-style"])).toEqual({
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-style": "solid",
     });
     const check = view.$('[data-testid="run-complete"] [data-happy2-ui="agent-run-card-check"]');
-    expect(check.computedStyle("color")).toBe("rgb(52, 211, 153)");
+    expect(check.computedStyle("color")).toBe("rgb(52, 199, 89)");
     const badge = view.$('[data-testid="run-complete"] [data-happy2-ui="badge"]');
     expect(badge.element.textContent).toBe("COMPLETED");
     const toggle = view.$('[data-testid="run-complete"] [data-happy2-ui="agent-run-card-toggle"]');
@@ -487,7 +487,7 @@ it("holds the expanded complete card at 440: steps, children slot, and max-width
     expect(doneGlyph.bounds().width).toBe(16);
     expect(doneGlyph.bounds().height).toBe(16);
     expect(doneGlyph.offsets().top).toBe(6);
-    expect(doneGlyph.computedStyle("color")).toBe("rgb(52, 211, 153)");
+    expect(doneGlyph.computedStyle("color")).toBe("rgb(52, 199, 89)");
 
     const workingDot = view.$(
         '[data-testid="run-complete"] li[data-status="working"] [data-happy2-ui="agent-run-card-step-dot"]',
@@ -495,7 +495,7 @@ it("holds the expanded complete card at 440: steps, children slot, and max-width
     expect(workingDot.bounds().width).toBe(8);
     expect(workingDot.bounds().height).toBe(8);
     expect(workingDot.computedStyles(["background-color", "border-radius"])).toEqual({
-        "background-color": "rgb(139, 124, 247)",
+        "background-color": "rgb(0, 122, 255)",
         "border-radius": "999px",
     });
     expect(workingDot.computedStyle("box-shadow")).toContain("3px");
@@ -506,7 +506,7 @@ it("holds the expanded complete card at 440: steps, children slot, and max-width
         pendingDot.computedStyles(["background-color", "border-top-color", "border-top-width"]),
     ).toEqual({
         "background-color": "rgba(0, 0, 0, 0)",
-        "border-top-color": "rgb(85, 81, 95)",
+        "border-top-color": "rgb(142, 142, 147)",
         "border-top-width": "1px",
     });
 
@@ -520,16 +520,16 @@ it("holds the expanded complete card at 440: steps, children slot, and max-width
         '[data-testid="run-complete"] [data-status="pending"] [data-happy2-ui="agent-run-card-step-label"]',
     );
     expect(doneLabel.computedStyles(["color", "font-size", "font-weight"])).toEqual({
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-size": "13px",
         "font-weight": "500",
     });
     expect(workingLabel.computedStyles(["color", "font-weight"])).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-weight": "600",
     });
     expect(pendingLabel.computedStyles(["color", "font-weight"])).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-weight": "500",
     });
     /* Long pending label truncates inside the narrow lane instead of pushing it. */
@@ -566,7 +566,7 @@ it("holds every status expanded, including narrow 440 title wrap", async () => {
                     onExpandedChange={() => {}}
                     run={reviewRun}
                 >
-                    <div style={{ background: "#141319", height: "40px" }} />
+                    <div style={{ background: "#f6f8fa", height: "40px" }} />
                 </AgentRunCard>
             ),
             { width: 704, height: 346, padding: 12 },

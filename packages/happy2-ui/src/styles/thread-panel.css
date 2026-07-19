@@ -1,7 +1,7 @@
 /*
  * C-048 ThreadPanel — thread side panel.
  *
- * A column that fills the panel region: a 52px surface header (shared with
+ * A column that fills the panel region: a 56px surface header (shared with
  * ChannelHeader / InfoPanel), a transcript body that fills and scrolls (a
  * MessageList drops straight in), and an optional reply composer pinned to the
  * bottom with equal side/bottom clearance.

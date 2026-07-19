@@ -76,26 +76,26 @@ const subtitleText: Record<string, string> = {
 
 const roleSpec: Record<string, { bg: string; color: string; label: string; variant: string }> = {
     ada: {
-        bg: "rgba(139, 124, 247, 0.15)",
-        color: "rgb(168, 155, 255)",
+        bg: "rgba(0, 122, 255, 0.14)",
+        color: "rgb(0, 122, 255)",
         label: "Owner",
         variant: "accent",
     },
     grace: {
-        bg: "rgba(96, 165, 250, 0.13)",
-        color: "rgb(96, 165, 250)",
+        bg: "rgba(0, 122, 255, 0.14)",
+        color: "rgb(0, 122, 255)",
         label: "Admin",
         variant: "info",
     },
     linus: {
-        bg: "rgba(255, 255, 255, 0.05)",
-        color: "rgb(165, 160, 176)",
+        bg: "rgb(245, 245, 245)",
+        color: "rgb(142, 142, 147)",
         label: "Member",
         variant: "neutral",
     },
     katherine: {
-        bg: "rgba(255, 255, 255, 0.05)",
-        color: "rgb(165, 160, 176)",
+        bg: "rgb(245, 245, 245)",
+        color: "rgb(142, 142, 147)",
         label: "Member",
         variant: "neutral",
     },
@@ -182,7 +182,7 @@ it("holds MemberList geometry, typography, role badges, and optical alignment", 
      * first row has no divider; every following row draws --happy2-border. */
     expect(getComputedStyle(row("ada").element, "::before").content).toBe("none");
     expect(getComputedStyle(row("grace").element, "::before").backgroundColor).toBe(
-        "rgba(255, 255, 255, 0.07)",
+        "rgb(234, 234, 234)",
     );
 
     /* ---- Avatar lane ---------------------------------------------------- */
@@ -240,7 +240,7 @@ it("holds MemberList geometry, typography, role badges, and optical alignment", 
         expect(tm.font.weight, id).toBe("600");
         expect(tm.font.lineHeight, id).toBe(18);
         expect(tm.font.letterSpacing, id).toBeCloseTo(-0.14, 2);
-        expect(name.computedStyle("color"), id).toBe("rgb(237, 234, 242)");
+        expect(name.computedStyle("color"), id).toBe("rgb(0, 0, 0)");
         expect((await name.visibleMetrics()).pixelCount, id).toBeGreaterThan(0);
         const baseline = tm.baseline.fromSurfaceTop - row(id).bounds().y;
         sharedBaseline ??= baseline;
@@ -257,7 +257,7 @@ it("holds MemberList geometry, typography, role badges, and optical alignment", 
         expect(tm.font.size, id).toBe(12);
         expect(tm.font.weight, id).toBe("500");
         expect(tm.font.lineHeight, id).toBe(16);
-        expect(sub.computedStyle("color"), id).toBe("rgb(117, 112, 133)");
+        expect(sub.computedStyle("color"), id).toBe("rgb(142, 142, 147)");
         expect((await sub.visibleMetrics()).pixelCount, id).toBeGreaterThan(0);
     }
 
@@ -413,8 +413,8 @@ it("holds MemberList trailing variants, minimal rows, and role colors", async ()
 
     /* Owner badge accent tokens (the roster test covers the other variants). */
     const adaBadge = view.$('[data-testid="menu"] [data-member-id="ada"] [data-happy2-ui="badge"]');
-    expect(adaBadge.computedStyle("background-color")).toBe("rgba(139, 124, 247, 0.15)");
-    expect(adaBadge.computedStyle("color")).toBe("rgb(168, 155, 255)");
+    expect(adaBadge.computedStyle("background-color")).toBe("rgba(0, 122, 255, 0.14)");
+    expect(adaBadge.computedStyle("color")).toBe("rgb(0, 122, 255)");
 
     /* ---- Minimal rows: no trailing, single-line name, image avatar ---- */
 
@@ -462,8 +462,8 @@ it("holds MemberList trailing variants, minimal rows, and role colors", async ()
     const imgBadge = view.$(
         '[data-testid="plain"] [data-member-id="img"] [data-happy2-ui="badge"]',
     );
-    expect(imgBadge.computedStyle("background-color")).toBe("rgba(96, 165, 250, 0.13)");
-    expect(imgBadge.computedStyle("color")).toBe("rgb(96, 165, 250)");
+    expect(imgBadge.computedStyle("background-color")).toBe("rgba(0, 122, 255, 0.14)");
+    expect(imgBadge.computedStyle("color")).toBe("rgb(0, 122, 255)");
 
     window.scrollTo(0, 0);
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));

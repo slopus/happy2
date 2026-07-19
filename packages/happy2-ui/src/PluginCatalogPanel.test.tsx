@@ -69,7 +69,7 @@ function Frame(props: { children: ReactNode; width?: number; height?: number }) 
                 height: `${props.height ?? 560}px`,
                 overflow: "hidden",
                 transform: "translateZ(0)",
-                background: "#17161c",
+                background: "#f5f5f5",
                 display: "flex",
             }}
         >
@@ -181,7 +181,7 @@ it("holds PluginCatalogPanel layout, capability badges, installation health, and
     const view = createRenderer().render(
         () => (
             <div
-                style={{ width: "980px", height: "520px", background: "#17161c", display: "flex" }}
+                style={{ width: "980px", height: "520px", background: "#f5f5f5", display: "flex" }}
             >
                 <PluginCatalogPanel
                     data-testid="panel"
@@ -209,7 +209,7 @@ it("holds PluginCatalogPanel layout, capability badges, installation health, and
         ]),
     ).toEqual({
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         display: "flex",
         "flex-direction": "column",
         gap: "16px",
@@ -228,7 +228,7 @@ it("holds PluginCatalogPanel layout, capability badges, installation health, and
         weight: "600",
     });
     expect(view.$(".happy2-plugin-catalog-panel__subtitle").computedStyle("color")).toBe(
-        "rgb(117, 112, 133)",
+        "rgb(142, 142, 147)",
     );
 
     // Card row: 40px icon slot with 8px radius, body fills, action pins right.
@@ -331,13 +331,13 @@ it("holds PluginCatalogPanel layout, capability badges, installation health, and
     );
     expect(runTaskName.textMetrics().text).toBe("run-task");
     expect(runTaskName.textMetrics().font.size).toBe(12);
-    expect(runTaskName.computedStyle("color")).toBe("rgb(139, 124, 247)");
+    expect(runTaskName.computedStyle("color")).toBe("rgb(0, 122, 255)");
     expect(runTaskName.computedStyle("font-family")).toContain("happy2 Mono");
     const runTaskDescription = view.$(
         `${card("task-runner")} [data-skill-name="run-task"] [data-happy2-ui="plugin-catalog-skill-description"]`,
     );
     expect(runTaskDescription.textMetrics().font.size).toBe(13);
-    expect(runTaskDescription.computedStyle("color")).toBe("rgb(165, 160, 176)");
+    expect(runTaskDescription.computedStyle("color")).toBe("rgb(142, 142, 147)");
     const rows = skillRows("task-runner");
     const first = rows[0]!.getBoundingClientRect();
     const second = rows[1]!.getBoundingClientRect();
@@ -386,7 +386,7 @@ it("contains a maximum-length skill name inside a constrained catalog card", asy
         () => (
             // A deliberately narrow desktop catalog card stresses containment.
             <div
-                style={{ width: "360px", height: "320px", background: "#17161c", display: "flex" }}
+                style={{ width: "360px", height: "320px", background: "#f5f5f5", display: "flex" }}
             >
                 <PluginCatalogPanel
                     data-testid="panel"
@@ -452,7 +452,7 @@ it("disables the install action while an install is in flight", async () => {
     const view = createRenderer().render(
         () => (
             <div
-                style={{ width: "760px", height: "240px", background: "#17161c", display: "flex" }}
+                style={{ width: "760px", height: "240px", background: "#f5f5f5", display: "flex" }}
             >
                 <PluginCatalogPanel
                     busyShortNames={["hello"]}
@@ -548,7 +548,7 @@ it("renders the install dialog with masked variables, image selection, grouped p
         "align-items": "center",
         "justify-content": "center",
     });
-    expect(overlay.computedStyle("background-color")).toBe("rgba(0, 0, 0, 0.6)");
+    expect(overlay.computedStyle("background-color")).toBe("rgba(0, 0, 0, 0.32)");
     // Contained by the transformed Frame, the overlay covers it exactly.
     expect(overlay.bounds()).toMatchObject({ width: 760, height: 560 });
 
@@ -716,7 +716,7 @@ it("shows loading, error, and empty affordances", async () => {
                     style={{
                         width: "560px",
                         height: "200px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -731,7 +731,7 @@ it("shows loading, error, and empty affordances", async () => {
                     style={{
                         width: "560px",
                         height: "200px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -750,7 +750,7 @@ it("shows loading, error, and empty affordances", async () => {
                     style={{
                         width: "560px",
                         height: "220px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >

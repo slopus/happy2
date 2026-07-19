@@ -142,12 +142,12 @@ it("holds DataTable geometry, alignment, selection, and header typography", asyn
             "overflow-y",
         ]),
     ).toEqual({
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "border-radius": "10px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         display: "block",
         "overflow-x": "hidden",
         "overflow-y": "hidden",
@@ -182,9 +182,9 @@ it("holds DataTable geometry, alignment, selection, and header typography", asyn
             "vertical-align",
         ]),
     ).toEqual({
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "box-sizing": "border-box",
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-size": "12px",
         "font-weight": "600",
         "letter-spacing": "0.72px",
@@ -194,7 +194,7 @@ it("holds DataTable geometry, alignment, selection, and header typography", asyn
         "vertical-align": "middle",
     });
     const headShadow = nameTh.computedStyle("box-shadow");
-    expect(headShadow, "header hairline color").toContain("rgba(255, 255, 255, 0.13)");
+    expect(headShadow, "header hairline color").toContain("rgb(209, 209, 214)");
     expect(headShadow, "header hairline offset").toContain("-1px");
     expect(headShadow, "header hairline inset").toContain("inset");
 
@@ -232,14 +232,14 @@ it("holds DataTable geometry, alignment, selection, and header typography", asyn
             "vertical-align",
         ]),
     ).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-size": "13px",
         "font-weight": "500",
         "line-height": "18px",
         "vertical-align": "middle",
     });
     const bodyShadow = emailTd.computedStyle("box-shadow");
-    expect(bodyShadow, "row hairline color").toContain("rgba(255, 255, 255, 0.07)");
+    expect(bodyShadow, "row hairline color").toContain("rgb(234, 234, 234)");
     expect(bodyShadow, "row hairline offset").toContain("-1px");
     expect(bodyShadow, "row hairline inset").toContain("inset");
     // Last row drops the hairline so it never doubles with the container border.
@@ -250,7 +250,7 @@ it("holds DataTable geometry, alignment, selection, and header typography", asyn
 
     // Selected vs. default row background tokens.
     expect(nameTd.computedStyle("background-color"), "selected row bg").toBe(
-        "rgba(139, 124, 247, 0.15)",
+        "rgba(0, 122, 255, 0.14)",
     );
     const graceTd = view.$(
         '[data-happy2-ui="data-table-body"] [data-row-id="grace"] [data-column-id="email"]',
@@ -294,7 +294,7 @@ it("holds DataTable geometry, alignment, selection, and header typography", asyn
         checkBox.computedStyles(["background-color", "border-radius"]),
         "checked checkbox fill",
     ).toEqual({
-        "background-color": "rgb(139, 124, 247)",
+        "background-color": "rgb(0, 122, 255)",
         "border-radius": "6px",
     });
     const boxLeft = boxBounds.x - selectTdBounds.x;
@@ -328,7 +328,7 @@ it("holds DataTable geometry, alignment, selection, and header typography", asyn
         '[data-happy2-ui="data-table-select-all"] [data-happy2-ui="data-table-check-box"]',
     );
     expect(headerBox.computedStyle("background-color"), "indeterminate fill").toBe(
-        "rgb(139, 124, 247)",
+        "rgb(0, 122, 255)",
     );
     const bar = view.$('[data-happy2-ui="data-table-select-all"] .happy2-data-table__check-bar');
     expect(bar.bounds().width, "indeterminate bar width").toBe(8);

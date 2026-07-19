@@ -40,7 +40,7 @@ export type ChannelHeaderProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
     topic?: string;
 };
 /**
- * 52px channel context strip at the top of the main app surface, modeled on
+ * 56px channel context strip at the top of the main app surface, modeled on
  * Slack: an optional leading star toggle, a clickable channel icon + title that
  * opens details, a truncating topic, and a right cluster with a member-count
  * pill, an agent chip, a free actions slot, and an overflow "⋮" menu.

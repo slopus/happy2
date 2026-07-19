@@ -1,10 +1,8 @@
 /*
- * C-009 Sidebar — 288px navigation column on the chrome surface.
+ * C-009 Sidebar — responsive native navigation column.
  *
- * Contract: 288px wide, fills height, transparent over the window chrome with
- * no right hairline (seamless with the rail/title-bar frame). 52px header,
- * scrollable 8px-padded body on a 32px row grid, optional 52px footer behind a
- * top hairline.
+ * Contract: 30% of the desktop width, clamped to 250–360px. It fills height
+ * on the grouped surface, with a 56px header, 32px rows, and a 56px footer.
  */
 
 .happy2-sidebar,
@@ -16,9 +14,9 @@
     display: flex;
     flex: none;
     flex-direction: column;
-    width: 288px;
+    width: clamp(250px, 30vw, 360px);
     height: 100%;
-    background: transparent;
+    background: var(--happy2-bg-app);
     color: var(--happy2-text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
@@ -34,7 +32,7 @@
     flex: none;
     align-items: center;
     gap: 8px;
-    height: 52px;
+    height: 56px;
     padding: 0 16px;
 }
 
@@ -340,7 +338,7 @@
     display: flex;
     flex: none;
     align-items: center;
-    height: 52px;
+    height: 56px;
     padding: 0 16px;
     border-top: 1px solid var(--happy2-border);
 }

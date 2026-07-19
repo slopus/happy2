@@ -45,14 +45,14 @@ async function glyphDrift(el: RenderedElement<Element>, label: string) {
 
 /* Per-kind icon colour = the tone token the CSS resolves on the kind element. */
 const kindColor: Record<NotificationKind, string> = {
-    mention: "rgb(168, 155, 255)", // --happy2-accent-strong
-    thread_reply: "rgb(96, 165, 250)", // --happy2-info
-    direct_message: "rgb(110, 231, 183)", // --happy2-success-strong
-    reaction: "rgb(252, 211, 77)", // --happy2-warning-strong
-    call: "rgb(110, 231, 183)", // --happy2-success-strong
-    system: "rgb(165, 160, 176)", // --happy2-text-secondary
-    moderation: "rgb(252, 165, 165)", // --happy2-danger-strong
-    automation: "rgb(252, 211, 77)", // --happy2-warning-strong
+    mention: "rgb(0, 122, 255)", // --happy2-accent-strong
+    thread_reply: "rgb(0, 122, 255)", // --happy2-info
+    direct_message: "rgb(36, 138, 61)", // --happy2-success-strong
+    reaction: "rgb(201, 52, 0)", // --happy2-warning-strong
+    call: "rgb(36, 138, 61)", // --happy2-success-strong
+    system: "rgb(142, 142, 147)", // --happy2-text-secondary
+    moderation: "rgb(215, 0, 21)", // --happy2-danger-strong
+    automation: "rgb(201, 52, 0)", // --happy2-warning-strong
 };
 
 const inbox: NotificationItem[] = [
@@ -133,9 +133,9 @@ it("holds NotificationList geometry, row anatomy, typography, and optical alignm
             "overflow-y",
         ]),
     ).toEqual({
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "border-radius": "10px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
         display: "flex",
@@ -159,7 +159,7 @@ it("holds NotificationList geometry, row anatomy, typography, and optical alignm
     /* ---- Read vs unread background token ------------------------------ */
 
     expect(row("n1").computedStyle("background-color"), "unread bg").toBe(
-        "rgba(139, 124, 247, 0.15)",
+        "rgba(0, 122, 255, 0.14)",
     );
     expect(row("n3").computedStyle("background-color"), "read bg").toBe("rgba(0, 0, 0, 0)");
 
@@ -177,7 +177,7 @@ it("holds NotificationList geometry, row anatomy, typography, and optical alignm
     );
     expect(rel(dot, row("n1"))).toEqual({ x: 16, y: 28, width: 8, height: 8 });
     expect(dot.computedStyles(["background-color", "border-radius"])).toEqual({
-        "background-color": "rgb(139, 124, 247)",
+        "background-color": "rgb(0, 122, 255)",
         "border-radius": "999px",
     });
     // Symmetric disc → tight centroid inside its own 8px box, both axes.
@@ -208,9 +208,9 @@ it("holds NotificationList geometry, row anatomy, typography, and optical alignm
             "color",
         ]),
     ).toEqual({
-        "background-color": "rgb(36, 34, 43)",
+        "background-color": "rgb(240, 240, 242)",
         "border-radius": "999px",
-        "border-top-color": "rgb(28, 27, 34)",
+        "border-top-color": "rgb(255, 255, 255)",
         "border-top-width": "2px",
         color: kindColor.mention,
     });
@@ -240,7 +240,7 @@ it("holds NotificationList geometry, row anatomy, typography, and optical alignm
     expect(tile.element.getAttribute("data-variant")).toBe("tile");
     expect(rel(tile, row("n4"))).toEqual({ x: 36, y: 14, width: 36, height: 36 });
     expect(tile.computedStyles(["background-color", "border-radius", "color"])).toEqual({
-        "background-color": "rgb(36, 34, 43)", // neutral tone → --happy2-bg-raised
+        "background-color": "rgb(240, 240, 242)", // neutral tone → --happy2-bg-raised
         "border-radius": "999px",
         color: kindColor.system,
     });
@@ -283,7 +283,7 @@ it("holds NotificationList geometry, row anatomy, typography, and optical alignm
             "white-space",
         ]),
     ).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-family": uiFamily,
         "font-weight": "600", // unread → heavier
         "overflow-x": "hidden",
@@ -313,7 +313,7 @@ it("holds NotificationList geometry, row anatomy, typography, and optical alignm
     );
     expect(context.textMetrics().font.size).toBe(12);
     expect(context.textMetrics().font.lineHeight).toBe(16);
-    expect(context.computedStyle("color")).toBe("rgb(117, 112, 133)"); // --happy2-text-muted
+    expect(context.computedStyle("color")).toBe("rgb(142, 142, 147)"); // --happy2-text-muted
     expect((await context.visibleMetrics()).pixelCount, "context ink").toBeGreaterThan(0);
 
     /* ---- Time: mono, muted, right-aligned in the row ----------------- */
@@ -325,7 +325,7 @@ it("holds NotificationList geometry, row anatomy, typography, and optical alignm
     expect(timeMetrics.font.family).toBe("happy2 Mono, ui-monospace, monospace");
     expect(timeMetrics.font.size).toBe(11);
     expect(timeMetrics.text).toBe("2m");
-    expect(time.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(time.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(time.offsets().right, "time right-alignment").toBe(16);
     expect((await time.visibleMetrics()).pixelCount, "time ink").toBeGreaterThan(0);
     // Time sits to the right of the body.
@@ -501,9 +501,9 @@ it("renders every notification kind with a centred kind glyph, plus tiles and th
 
     /* Actor-less tiles: soft tone background + a tuned 16px glyph. */
     const tileBg: Record<string, string> = {
-        "t-system": "rgb(36, 34, 43)", // neutral → --happy2-bg-raised
-        "t-moderation": "rgba(248, 113, 113, 0.13)", // --happy2-danger-soft
-        "t-automation": "rgba(251, 191, 36, 0.13)", // --happy2-warning-soft
+        "t-system": "rgb(240, 240, 242)", // neutral → --happy2-bg-raised
+        "t-moderation": "rgba(255, 59, 48, 0.12)", // --happy2-danger-soft
+        "t-automation": "rgba(255, 149, 0, 0.14)", // --happy2-warning-soft
     };
     for (const item of tiles) {
         const tile = view.$(
@@ -526,7 +526,7 @@ it("renders every notification kind with a centred kind glyph, plus tiles and th
     const empty = view.$('[data-testid="empty"] [data-happy2-ui="notification-list-empty"]');
     expect(empty.element.textContent).toBe("You're all caught up");
     expect(empty.computedStyles(["color", "text-align"])).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "text-align": "center",
     });
     expect(empty.bounds().height).toBeGreaterThanOrEqual(96);

@@ -17,7 +17,7 @@ export type ThreadPanelProps = {
     composer?: ReactNode;
 };
 /**
- * C-048 ThreadPanel — the thread side panel. A 52px surface header (shared
+ * C-048 ThreadPanel — the thread side panel. A 56px surface header (shared
  * height with ChannelHeader and InfoPanel), a flexible transcript body that
  * fills and scrolls, and an optional reply composer pinned to the bottom.
  * Props only — the app supplies the message list, composer, and close handler.

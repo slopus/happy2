@@ -1,8 +1,8 @@
 /*
- * C-020 Switch — Relay toggle. Track and thumb are integer boxes on the 4px
+ * C-020 Switch — Happy toggle. Track and thumb are integer boxes on the 4px
  * grid: medium is a 36×20 track with a 16px thumb (16px travel), small is a
  * 28×16 track with a 12px thumb (12px travel). Off tracks are an inset well
- * with a hairline ring; on tracks fill with the violet accent. Tokens only.
+ * with a hairline ring; on tracks fill with the system accent. Tokens only.
  */
 
 .happy2-switch {

@@ -21,11 +21,11 @@ export type AuthScreenProps = {
     loadingLabel?: string;
 };
 /**
- * C-032 AuthScreen — full-window auth / onboarding split for the Relay dark
- * theme (replaces the old green / light auth).
+ * C-032 AuthScreen — full-window auth / onboarding split for Happy's system
+ * theme.
  *
  * Two columns fill the window: a decorative hero panel (a generated background
- * image, degrading to the violet→pink brand gradient) and a fixed 480px form
+ * image, degrading to the monochrome-to-blue brand gradient) and a fixed 480px form
  * panel on the app surface. The form panel stacks a brand mast (mark chip +
  * wordmark), a vertically centered content block (kicker, large Figtree title,
  * secondary copy, and the app's form slot), and an optional footer. When

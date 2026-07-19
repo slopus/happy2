@@ -14,7 +14,7 @@ export type SwitchProps = {
     style?: CSSProperties;
 };
 /**
- * C-020 Switch — Relay toggle. Integer track/thumb geometry on the 4px grid,
+ * C-020 Switch — Happy toggle. Integer track/thumb geometry on the 4px grid,
  * accent-filled when on and inset-welled when off, with an optional label and
  * secondary description. The whole control is one `role="switch"` button so the
  * label and description are part of the hit target. Desktop only, props only.

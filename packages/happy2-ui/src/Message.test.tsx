@@ -11,7 +11,7 @@ function stage(testid: string, children: ReactNode) {
         <div
             data-testid={testid}
             style={{
-                background: "#17161c",
+                background: "#f5f5f5",
                 boxSizing: "border-box",
                 display: "flex",
                 flexDirection: "column",
@@ -106,7 +106,7 @@ it("shows the audience pill in the meta row without shifting author or time vert
         "font-size": "10px",
         "font-weight": "700",
         "border-radius": "999px",
-        color: "rgb(168, 155, 255)",
+        color: "rgb(0, 122, 255)",
     });
     const ink = await audience.visibleMetrics();
     expect(ink.pixelCount).toBeGreaterThan(0);
@@ -191,8 +191,8 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
                     <div
                         data-testid="attach"
                         style={{
-                            background: "#1c1b22",
-                            border: "1px solid rgba(255, 255, 255, 0.07)",
+                            background: "#ffffff",
+                            border: "1px solid rgb(234, 234, 234)",
                             borderRadius: "10px",
                             boxSizing: "border-box",
                             height: "44px",
@@ -255,7 +255,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     ).toEqual({
         "box-sizing": "border-box",
         "align-items": "flex-start",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "column-gap": "12px",
         display: "flex",
         "padding-bottom": "6px",
@@ -308,7 +308,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     expect(authorMetrics.ink.width).toBeGreaterThan(0);
     const time = view.$('[data-testid="m1"] [data-happy2-ui="message-time"]');
     expect(time.computedStyles(["color", "font-size", "font-weight"])).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-size": "11px",
         "font-weight": "500",
     });
@@ -334,7 +334,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     /* ---- Body + segments ------------------------------------------------ */
     const body = view.$('[data-testid="m1"] [data-happy2-ui="message-body"]');
     expect(body.computedStyles(["color", "font-size", "line-height"])).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-size": "15px",
         "line-height": "22px",
     });
@@ -350,9 +350,9 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
             "padding-right",
         ]),
     ).toEqual({
-        "background-color": "rgba(139, 124, 247, 0.15)",
+        "background-color": "rgba(0, 122, 255, 0.14)",
         "border-radius": "4px",
-        color: "rgb(168, 155, 255)",
+        color: "rgb(0, 122, 255)",
         "font-weight": "500",
         "padding-left": "5px",
         "padding-right": "5px",
@@ -360,7 +360,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     expect((await mention.visibleMetrics()).pixelCount).toBeGreaterThan(0);
     const code = view.$('[data-testid="m1"] [data-happy2-ui="message-code"]');
     expect(code.computedStyles(["background-color", "border-radius", "font-size"])).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-radius": "4px",
         "font-size": "13px",
     });
@@ -368,7 +368,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     expect((await code.visibleMetrics()).pixelCount).toBeGreaterThan(0);
     const link = view.$('[data-testid="m1"] [data-happy2-ui="message-link"]');
     expect(link.computedStyles(["color", "text-decoration-line"])).toEqual({
-        color: "rgb(139, 124, 247)",
+        color: "rgb(0, 122, 255)",
         "text-decoration-line": "none",
     });
     expect((await link.visibleMetrics()).pixelCount).toBeGreaterThan(0);
@@ -410,7 +410,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     expect(addButton.computedStyles(["background-color", "border-radius", "color"])).toEqual({
         "background-color": "rgba(0, 0, 0, 0)",
         "border-radius": "999px",
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
     });
     const addIcon = await view
         .$('[data-testid="m1"] [data-happy2-ui="message-react-add"] svg')
@@ -425,7 +425,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     expect(repliesButton.element.tagName).toBe("BUTTON");
     expect(repliesButton.element.textContent).toBe("3 replies");
     expect(repliesButton.computedStyles(["color", "font-size", "font-weight"])).toEqual({
-        color: "rgb(139, 124, 247)",
+        color: "rgb(0, 122, 255)",
         "font-size": "12px",
         "font-weight": "700",
     });
@@ -454,7 +454,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     ).toBeNull();
     const gutterTime = view.$('[data-testid="m3"] [data-happy2-ui="message-gutter-time"]');
     expect(gutterTime.computedStyles(["color", "font-size", "line-height"])).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-size": "11px",
         "line-height": "22px",
     });
@@ -554,7 +554,7 @@ it("makes the avatar and author name a profile affordance without shifting geome
     expect(authorMetrics.font.weight).toBe("700");
     expect(authorMetrics.font.lineHeight).toBe(20);
     expect(author.computedStyles(["color", "cursor", "text-align"])).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         cursor: "pointer",
         "text-align": "left",
     });
@@ -700,7 +700,7 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
             "position",
         ]),
     ).toEqual({
-        "background-color": "rgb(36, 34, 43)",
+        "background-color": "rgb(240, 240, 242)",
         "border-radius": "6px",
         display: "flex",
         opacity: "1",
@@ -1098,7 +1098,7 @@ it("anchors MessageList to the bottom and lays out sparse histories", async () =
         '[data-testid="sparse"] [data-happy2-ui="message-list-intro-description"]',
     );
     expect(description.computedStyles(["color", "font-size", "line-height"])).toEqual({
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-size": "13px",
         "line-height": "20px",
     });
@@ -1116,9 +1116,9 @@ it("anchors MessageList to the bottom and lays out sparse histories", async () =
             "text-transform",
         ]),
     ).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-radius": "999px",
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-size": "11px",
         "font-weight": "700",
         "text-transform": "uppercase",
@@ -1130,7 +1130,7 @@ it("anchors MessageList to the bottom and lays out sparse histories", async () =
     expect(lines.length).toBe(2);
     const line = view.$('[data-testid="sparse"] [data-happy2-ui="day-divider-line"]');
     expect(line.bounds().height).toBe(1);
-    expect(line.computedStyle("background-color")).toBe("rgba(255, 255, 255, 0.07)");
+    expect(line.computedStyle("background-color")).toBe("rgb(234, 234, 234)");
     await view.screenshot("MessageList.test");
 });
 it("virtualizes long MessageList histories with bounded mounted rows", async () => {
@@ -1499,7 +1499,7 @@ it("renders string bodies as safe streaming Markdown", async () => {
     const mdBody = view.$('[data-testid="md"] [data-happy2-ui="message-body"]');
     expect(mdBody.element.getAttribute("data-markdown")).toBe("");
     expect(mdBody.computedStyles(["color", "font-size", "line-height"])).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-size": "15px",
         "line-height": "22px",
     });
@@ -1601,7 +1601,7 @@ it("renders string bodies as safe streaming Markdown", async () => {
     const caret = view.$('[data-testid="md-stream"] [data-happy2-ui="message-stream-caret"]');
     expect(caret.bounds().width).toBe(8);
     expect(caret.bounds().height).toBe(15);
-    expect(caret.computedStyle("background-color")).toBe("rgb(139, 124, 247)");
+    expect(caret.computedStyle("background-color")).toBe("rgb(0, 122, 255)");
     /* Streamed content is never dimmed — that treatment is reserved for delivery. */
     const streamContent = view.$('[data-testid="md-stream"] [data-happy2-ui="message-content"]');
     expect(streamContent.computedStyle("opacity")).toBe("1");
@@ -1639,7 +1639,7 @@ it("renders string bodies as safe streaming Markdown", async () => {
     expect(failedRoot.element.getAttribute("aria-busy")).toBeNull();
     const failed = view.$('[data-testid="md-failed"] [data-happy2-ui="message-generation-failed"]');
     expect(failed.element.getAttribute("aria-label")).toBe("Generation failed");
-    expect(failed.computedStyle("background-color")).toBe("rgb(248, 113, 113)");
+    expect(failed.computedStyle("background-color")).toBe("rgb(255, 59, 48)");
     const failedParagraph = view.$('[data-testid="md-failed"] [data-happy2-ui="message-body"] p');
     const failedParagraphBounds = failedParagraph.bounds();
     const failedBounds = failed.bounds();
@@ -1744,7 +1744,7 @@ it("centers SystemNotice service lines and lifts @user / #channel refs", async (
     /* ---- Text + ref color/weight contract --------------------------------- */
     const text = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-text"]');
     expect(text.computedStyles(["color", "font-size", "font-weight", "line-height"])).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-size": "13px",
         "font-weight": "400",
         "line-height": "20px",
@@ -1756,7 +1756,7 @@ it("centers SystemNotice service lines and lifts @user / #channel refs", async (
     expect(Array.from(refs, (node) => node.textContent)).toEqual(["@ada", "#welcome"]);
     const firstRef = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-ref"]');
     expect(firstRef.computedStyles(["color", "font-weight"])).toEqual({
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-weight": "500",
     });
     /* The by-@ada actor and both refs survive in a multi-ref line. */
@@ -1770,7 +1770,7 @@ it("centers SystemNotice service lines and lifts @user / #channel refs", async (
     ]);
     /* ---- Leading glyph: faint, 14px, painted -------------------------------- */
     const iconSlot = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-icon"]');
-    expect(iconSlot.computedStyle("color")).toBe("rgb(85, 81, 95)");
+    expect(iconSlot.computedStyle("color")).toBe("rgb(142, 142, 147)");
     const iconSvg = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-icon"] svg');
     const iconBounds = iconSvg.bounds();
     expect(iconBounds.width).toBe(14);

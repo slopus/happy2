@@ -90,7 +90,7 @@ it("holds AgentSecretPanel layout, variable names, attachment counts, and row ac
     const view = createRenderer().render(
         () => (
             <div
-                style={{ width: "980px", height: "340px", background: "#17161c", display: "flex" }}
+                style={{ width: "980px", height: "340px", background: "#f5f5f5", display: "flex" }}
             >
                 <AgentSecretPanel
                     data-testid="panel"
@@ -120,7 +120,7 @@ it("holds AgentSecretPanel layout, variable names, attachment counts, and row ac
         ]),
     ).toEqual({
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         display: "flex",
         "flex-direction": "column",
         gap: "16px",
@@ -139,7 +139,7 @@ it("holds AgentSecretPanel layout, variable names, attachment counts, and row ac
         weight: "600",
     });
     expect(view.$(".happy2-agent-secret-panel__subtitle").computedStyle("color")).toBe(
-        "rgb(117, 112, 133)",
+        "rgb(142, 142, 147)",
     );
 
     // Header actions pin right and expose only New secret — there is no refresh
@@ -230,7 +230,7 @@ it("disables the delete action while a delete is in flight", async () => {
     const view = createRenderer().render(
         () => (
             <div
-                style={{ width: "980px", height: "240px", background: "#17161c", display: "flex" }}
+                style={{ width: "980px", height: "240px", background: "#f5f5f5", display: "flex" }}
             >
                 <AgentSecretPanel
                     busySecretIds={["service-api"]}
@@ -267,7 +267,7 @@ it("renders the create overlay with controlled, masked inputs and submit gating"
                     style={{
                         width: "760px",
                         height: "560px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -294,7 +294,7 @@ it("renders the create overlay with controlled, masked inputs and submit gating"
                     style={{
                         width: "760px",
                         height: "560px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -410,7 +410,7 @@ it("shows loading, error, and empty affordances", async () => {
                     style={{
                         width: "560px",
                         height: "200px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -425,7 +425,7 @@ it("shows loading, error, and empty affordances", async () => {
                     style={{
                         width: "560px",
                         height: "200px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -444,7 +444,7 @@ it("shows loading, error, and empty affordances", async () => {
                     style={{
                         width: "560px",
                         height: "220px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >

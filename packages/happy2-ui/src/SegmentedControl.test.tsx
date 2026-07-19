@@ -135,9 +135,9 @@ it("holds SegmentedControl dimensions, layout, colors, and pill placement", asyn
             ]),
             id,
         ).toEqual({
-            "background-color": "rgba(255, 255, 255, 0.05)",
+            "background-color": "rgb(245, 245, 245)",
             "border-radius": "6px",
-            "border-top-color": "rgba(255, 255, 255, 0.07)",
+            "border-top-color": "rgb(234, 234, 234)",
             "border-top-width": "1px",
             "box-sizing": "border-box",
             display: "grid",
@@ -185,9 +185,9 @@ it("holds SegmentedControl dimensions, layout, colors, and pill placement", asyn
             ]),
             `${id} pill`,
         ).toEqual({
-            "background-color": "rgb(36, 34, 43)",
+            "background-color": "rgb(240, 240, 242)",
             "border-radius": "1px",
-            "border-top-color": "rgba(255, 255, 255, 0.13)",
+            "border-top-color": "rgb(209, 209, 214)",
             "box-sizing": "border-box",
             position: "absolute",
         });
@@ -199,9 +199,9 @@ it("holds SegmentedControl dimensions, layout, colors, and pill placement", asyn
         const inactiveLabel = view.$(
             `[data-testid="${id}"] [data-value="day"] [data-happy2-ui="segmented-control-label"]`,
         );
-        expect(activeLabel.computedStyle("color"), `${id} active color`).toBe("rgb(237, 234, 242)");
+        expect(activeLabel.computedStyle("color"), `${id} active color`).toBe("rgb(0, 0, 0)");
         expect(inactiveLabel.computedStyle("color"), `${id} inactive color`).toBe(
-            "rgb(165, 160, 176)",
+            "rgb(142, 142, 147)",
         );
 
         // Label typography contract.
@@ -374,16 +374,14 @@ it("holds SegmentedControl icon segments, selection sweep, fullWidth, and disabl
         const selectedLabel = view.$(
             `[data-testid="${id}"] [data-value="${SWEEP[index]!.value}"] [data-happy2-ui="segmented-control-label"]`,
         );
-        expect(selectedLabel.computedStyle("color"), `${id} active color`).toBe(
-            "rgb(237, 234, 242)",
-        );
+        expect(selectedLabel.computedStyle("color"), `${id} active color`).toBe("rgb(0, 0, 0)");
         for (let other = 0; other < SWEEP.length; other += 1) {
             if (other === index) continue;
             const otherLabel = view.$(
                 `[data-testid="${id}"] [data-value="${SWEEP[other]!.value}"] [data-happy2-ui="segmented-control-label"]`,
             );
             expect(otherLabel.computedStyle("color"), `${id} inactive ${other}`).toBe(
-                "rgb(165, 160, 176)",
+                "rgb(142, 142, 147)",
             );
         }
     }

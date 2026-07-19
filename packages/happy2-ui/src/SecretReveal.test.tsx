@@ -140,9 +140,9 @@ it("holds SecretReveal card, header, mono token, and warning-banner contract", a
         ]),
         "card computed",
     ).toEqual({
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "border-radius": "10px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
         display: "flex",
@@ -166,7 +166,7 @@ it("holds SecretReveal card, header, mono token, and warning-banner contract", a
         size: 13,
         weight: "600",
     });
-    expect(label.computedStyle("color"), "label color").toBe("rgb(237, 234, 242)");
+    expect(label.computedStyle("color"), "label color").toBe("rgb(0, 0, 0)");
 
     const meta = view.$('[data-testid="masked"] [data-happy2-ui="secret-reveal-meta"]');
     expect(meta.textMetrics().text, "meta text").toBe(META);
@@ -176,7 +176,7 @@ it("holds SecretReveal card, header, mono token, and warning-banner contract", a
         size: 12,
         weight: "500",
     });
-    expect(meta.computedStyle("color"), "meta color").toBe("rgb(117, 112, 133)");
+    expect(meta.computedStyle("color"), "meta color").toBe("rgb(142, 142, 147)");
     // Meta stacks directly under the label: 16px line box + 2px column gap.
     expect(meta.bounds().y - label.bounds().y, "label/meta stack").toBeCloseTo(18, 3);
 
@@ -198,9 +198,9 @@ it("holds SecretReveal card, header, mono token, and warning-banner contract", a
         copy.computedStyles(["background-color", "border-top-color", "color"]),
         "copy tokens",
     ).toEqual({
-        "background-color": "rgb(36, 34, 43)",
-        "border-top-color": "rgba(255, 255, 255, 0.13)",
-        color: "rgb(237, 234, 242)",
+        "background-color": "rgb(240, 240, 242)",
+        "border-top-color": "rgb(209, 209, 214)",
+        color: "rgb(0, 0, 0)",
     });
     const copyLabel = view.$(
         '[data-testid="masked"] .happy2-secret-reveal__copy [data-happy2-ui="button-label"]',
@@ -236,9 +236,9 @@ it("holds SecretReveal card, header, mono token, and warning-banner contract", a
         ]),
         "field computed",
     ).toEqual({
-        "background-color": "rgb(20, 19, 25)",
+        "background-color": "rgb(246, 248, 250)",
         "border-radius": "6px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "box-sizing": "border-box",
         display: "block",
         padding: "12px 14px",
@@ -253,7 +253,7 @@ it("holds SecretReveal card, header, mono token, and warning-banner contract", a
         size: 13,
         weight: "500",
     });
-    expect(token.computedStyle("color"), "masked token color").toBe("rgb(165, 160, 176)");
+    expect(token.computedStyle("color"), "masked token color").toBe("rgb(142, 142, 147)");
     expect(token.computedStyle("font-variant-numeric"), "token tabular").toContain("tabular-nums");
     expect(token.bounds().x - field.bounds().x, "token left inset").toBeCloseTo(15, 3); // border 1 + pad 14
     await assertTextInk(token, "masked token");
@@ -265,8 +265,8 @@ it("holds SecretReveal card, header, mono token, and warning-banner contract", a
         banner.computedStyles(["background-color", "border-top-color", "border-radius"]),
         "banner tokens",
     ).toEqual({
-        "background-color": "rgba(251, 191, 36, 0.13)",
-        "border-top-color": "rgb(251, 191, 36)",
+        "background-color": "rgba(255, 149, 0, 0.14)",
+        "border-top-color": "rgb(255, 149, 0)",
         "border-radius": "10px",
     });
     const bannerMsg = view.$('[data-testid="masked"] [data-happy2-ui="banner-message"]');
@@ -281,7 +281,7 @@ it("holds SecretReveal card, header, mono token, and warning-banner contract", a
     expect(revealedToken.bounds().height, "revealed token wraps").toBeGreaterThanOrEqual(40);
     expect(revealedField.bounds().height, "revealed grows").toBeGreaterThan(field.bounds().height);
     expect(revealedToken.textMetrics().text, "revealed token text").toBe(SECRET);
-    expect(revealedToken.computedStyle("color"), "revealed token color").toBe("rgb(237, 234, 242)");
+    expect(revealedToken.computedStyle("color"), "revealed token color").toBe("rgb(0, 0, 0)");
     await assertTextInk(revealedToken, "revealed token");
 
     await view.screenshot("SecretReveal.test");
@@ -329,9 +329,9 @@ it("holds SecretReveal copied, minimal, and reveal/copy interaction states", asy
         copiedButton.computedStyles(["background-color", "border-top-color", "color"]),
         "copied tokens",
     ).toEqual({
-        "background-color": "rgba(52, 211, 153, 0.13)",
+        "background-color": "rgba(52, 199, 89, 0.14)",
         "border-top-color": "rgba(0, 0, 0, 0)",
-        color: "rgb(110, 231, 183)",
+        color: "rgb(36, 138, 61)",
     });
     const copiedLabel = view.$(
         '[data-testid="copied"] .happy2-secret-reveal__copy [data-happy2-ui="button-label"]',
@@ -365,7 +365,7 @@ it("holds SecretReveal copied, minimal, and reveal/copy interaction states", asy
     expect(minimalField.bounds().width, "minimal field width").toBe(266); // 300 - 32 - 2
     const minimalToken = view.$('[data-testid="minimal"] [data-happy2-ui="secret-reveal-token"]');
     expect(minimalToken.textMetrics().text, "minimal masked").toBe(MASK);
-    expect(minimalToken.computedStyle("color"), "minimal masked color").toBe("rgb(165, 160, 176)");
+    expect(minimalToken.computedStyle("color"), "minimal masked color").toBe("rgb(142, 142, 147)");
 
     // ---- Interaction: reveal and copy fire their own callbacks ---------------
     const revealButton = view.$('[data-testid="minimal"] .happy2-secret-reveal__reveal')

@@ -127,7 +127,7 @@
     cursor: not-allowed;
 }
 
-/* Keep the popup list on the Relay surface where the engine allows it. */
+/* Keep the popup list on the Happy surface where the engine allows it. */
 .happy2-select__native option {
     background: var(--happy2-bg-raised);
     color: var(--happy2-text);

@@ -22,12 +22,12 @@ const sizeSpecs = {
     { trackW: number; trackH: number; thumb: number; inset: number; travel: number }
 >;
 
-const OFF_TRACK = "rgba(255, 255, 255, 0.05)";
-const ON_TRACK = "rgb(139, 124, 247)";
-const OFF_RING = "rgba(255, 255, 255, 0.13) 0px 0px 0px 1px inset";
+const OFF_TRACK = "rgb(245, 245, 245)";
+const ON_TRACK = "rgb(0, 122, 255)";
+const OFF_RING = "rgb(209, 209, 214) 0px 0px 0px 1px inset";
 const THUMB = "rgb(255, 255, 255)";
-const TEXT = "rgb(237, 234, 242)";
-const MUTED = "rgb(117, 112, 133)";
+const TEXT = "rgb(0, 0, 0)";
+const MUTED = "rgb(142, 142, 147)";
 
 type Renderer = ReturnType<typeof createRenderer>;
 
@@ -71,7 +71,7 @@ it("holds Switch track/thumb geometry, on/off colors, and thumb optical centerin
                     // Relay is a dark theme: the off-well, hairline ring, and
                     // white thumb only read against the app surface. Repainted
                     // away during visibleMetrics, so it never skews measurement.
-                    background: "#17161c",
+                    background: "#f5f5f5",
                     borderRadius: "10px",
                 }}
             >
@@ -91,7 +91,7 @@ it("holds Switch track/thumb geometry, on/off colors, and thumb optical centerin
     // A standalone switch (no flex/grid parent) keeps its natural inline-flex.
     view.render(
         () => (
-            <div style={{ padding: "18px 22px", background: "#17161c", borderRadius: "10px" }}>
+            <div style={{ padding: "18px 22px", background: "#f5f5f5", borderRadius: "10px" }}>
                 <Switch aria-label="solo" checked data-testid="solo" />
             </div>
         ),
@@ -241,7 +241,7 @@ it("holds Switch label typography, layout, and disabled state", async () => {
                     flexDirection: "column",
                     gap: "20px",
                     padding: "24px 28px",
-                    background: "#17161c",
+                    background: "#f5f5f5",
                     borderRadius: "10px",
                 }}
             >

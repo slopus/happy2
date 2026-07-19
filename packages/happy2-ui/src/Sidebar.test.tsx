@@ -17,8 +17,8 @@ const OPTICAL = 0.75;
  * direct sections covering every row kind in resting and unread states, short
  * and long labels, 1- and 2-char initials, 1/2/3-digit badge counts, both
  * agent statuses, meta trailing text, and presence. Geometry is hand-computed:
- * header 52, body pad 8, rows 32 with 2px gaps, 12px between sections, 24px
- * section heads, footer 52.
+ * header 56, body pad 8, rows 32 with 2px gaps, 12px between sections, 24px
+ * section heads, footer 56.
  */
 const sections: SidebarSection[] = [
     {
@@ -138,7 +138,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
                 title="Acme Studio"
             />
         ),
-        { width: 320, height: 700 },
+        { width: 400, height: 700 },
     );
     view.render(
         () => (
@@ -170,7 +170,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
 
     const root = view.$('[data-testid="full"]');
     expect(root.element.tagName).toBe("NAV");
-    expect(root.bounds()).toEqual({ x: 0, y: 0, width: 288, height: 700 });
+    expect(root.bounds()).toEqual({ x: 0, y: 0, width: 360, height: 700 });
     expect(
         root.computedStyles([
             "background-color",
@@ -182,19 +182,19 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
             "width",
         ]),
     ).toEqual({
-        "background-color": "rgba(0, 0, 0, 0)",
+        "background-color": "rgb(245, 245, 245)",
         "border-right-width": "0px",
         "box-sizing": "border-box",
         display: "flex",
         "flex-direction": "column",
         "overflow-x": "hidden",
-        width: "288px",
+        width: "360px",
     });
 
     /* ---- Header --------------------------------------------------------- */
 
     const header = view.$('[data-testid="full"] [data-happy2-ui="sidebar-header"]');
-    expect(header.bounds()).toEqual({ x: 0, y: 0, width: 288, height: 52 });
+    expect(header.bounds()).toEqual({ x: 0, y: 0, width: 360, height: 56 });
     expect(header.computedStyles(["padding-left", "padding-right"])).toEqual({
         "padding-left": "16px",
         "padding-right": "16px",
@@ -209,20 +209,20 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     expect(titleMetrics.font.weight).toBe("800");
     expect(titleMetrics.font.lineHeight).toBe(20);
     expect(titleMetrics.font.letterSpacing).toBeCloseTo(-0.15, 3);
-    expect(title.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(title.computedStyle("color")).toBe("rgb(0, 0, 0)");
 
     /*
      * Heading block (title + subtitle ink together) is optically centered in
-     * the 52px header. The stack is box-symmetric (9px above and below) and
+     * the 56px header. The stack is box-symmetric (11px above and below) and
      * the painted centroid lands on the header midline.
      */
     const heading = view.$('[data-testid="full"] [data-happy2-ui="sidebar-heading"]');
-    expect(heading.offsets().top).toBe(9);
-    expect(heading.offsets().bottom).toBe(9);
+    expect(heading.offsets().top).toBe(11);
+    expect(heading.offsets().bottom).toBe(11);
     const headingInk = await heading.visibleMetrics();
     expect(headingInk.pixelCount).toBeGreaterThan(0);
     expect(
-        Math.abs(heading.bounds().y - header.bounds().y + headingInk.center.y - 26),
+        Math.abs(heading.bounds().y - header.bounds().y + headingInk.center.y - 28),
         "heading ink vs header center",
     ).toBeLessThanOrEqual(OPTICAL);
 
@@ -231,7 +231,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     expect(titleInk.pixelCount).toBeGreaterThan(0);
     const chevron = view.$('[data-testid="full"] .happy2-sidebar__title-chevron');
     expect(chevron.bounds().width).toBe(14);
-    expect(chevron.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(chevron.computedStyle("color")).toBe("rgb(142, 142, 147)");
     const chevronInk = await chevron.visibleMetrics();
     expect(chevronInk.pixelCount).toBeGreaterThan(0);
     expect(
@@ -242,7 +242,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     const subtitle = view.$('[data-testid="full"] [data-happy2-ui="sidebar-subtitle"]');
     expect(subtitle.textMetrics().font.size).toBe(11);
     expect(subtitle.textMetrics().font.lineHeight).toBe(14);
-    expect(subtitle.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(subtitle.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect((await subtitle.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     const compose = view.$('[data-testid="full"] .happy2-sidebar__compose');
@@ -257,7 +257,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     /* ---- Body and section rhythm ---------------------------------------- */
 
     const body = view.$('[data-testid="full"] [data-happy2-ui="sidebar-body"]');
-    expect(body.bounds().y).toBe(52);
+    expect(body.bounds().y).toBe(56);
     /* Scrollport edge-to-edge; the inner content wrapper owns the 8px inset. */
     expect(
         body.computedStyles(["overflow-y", "padding-left", "padding-right", "padding-top"]),
@@ -279,25 +279,25 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
 
     const row = (id: string) => view.$(`[data-testid="full"] [data-item-id="${id}"]`);
     /* 32px rows on the grid: gaps 2, sections 12 apart, heads 24. */
-    expect(row("inbox").bounds()).toEqual({ x: 8, y: 60, width: 272, height: 32 });
-    expect(row("my-issues").bounds().y).toBe(94);
-    expect(row("agent-runs").bounds().y).toBe(128);
-    expect(row("launch-week").bounds().y).toBe(198);
-    expect(row("eng-core").bounds().y).toBe(232);
-    expect(row("design-crit").bounds().y).toBe(266);
-    expect(row("claude").bounds().y).toBe(336);
-    expect(row("codex").bounds().y).toBe(370);
-    expect(row("scout").bounds().y).toBe(404);
-    expect(row("maya").bounds().y).toBe(474);
-    expect(row("jun").bounds().y).toBe(508);
-    expect(row("invite").bounds().y).toBe(542);
-    expect(row("requests").bounds().y).toBe(576);
+    expect(row("inbox").bounds()).toEqual({ x: 8, y: 64, width: 344, height: 32 });
+    expect(row("my-issues").bounds().y).toBe(98);
+    expect(row("agent-runs").bounds().y).toBe(132);
+    expect(row("launch-week").bounds().y).toBe(202);
+    expect(row("eng-core").bounds().y).toBe(236);
+    expect(row("design-crit").bounds().y).toBe(270);
+    expect(row("claude").bounds().y).toBe(340);
+    expect(row("codex").bounds().y).toBe(374);
+    expect(row("scout").bounds().y).toBe(408);
+    expect(row("maya").bounds().y).toBe(478);
+    expect(row("jun").bounds().y).toBe(512);
+    expect(row("invite").bounds().y).toBe(546);
+    expect(row("requests").bounds().y).toBe(580);
 
     const head = view.$(
         '[data-testid="full"] [data-section-id="channels"] [data-happy2-ui="sidebar-section-head"]',
     );
     expect(head.bounds().height).toBe(24);
-    expect(head.bounds().y).toBe(172);
+    expect(head.bounds().y).toBe(176);
     const headLabel = view.$(
         '[data-testid="full"] [data-section-id="channels"] [data-happy2-ui="sidebar-section-label"]',
     );
@@ -308,7 +308,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     expect(headMetrics.font.lineHeight).toBe(24);
     expect(headMetrics.font.letterSpacing).toBeCloseTo(0.88, 3);
     expect(headLabel.computedStyles(["color", "text-transform"])).toEqual({
-        color: "rgb(85, 81, 95)",
+        color: "rgb(142, 142, 147)",
         "text-transform": "uppercase",
     });
 
@@ -348,9 +348,9 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     expect(
         active.computedStyles(["background-color", "border-radius", "color", "padding-left"]),
     ).toEqual({
-        "background-color": "rgb(36, 34, 43)",
+        "background-color": "rgb(240, 240, 242)",
         "border-radius": "6px",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "padding-left": "10px",
     });
     const activeLabel = view.$(
@@ -362,7 +362,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     expect(inactive.element.getAttribute("aria-current")).toBeNull();
     expect(inactive.computedStyles(["background-color", "color"])).toEqual({
         "background-color": "rgba(0, 0, 0, 0)",
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
     });
     const inactiveLabel = view.$(
         '[data-testid="full"] [data-item-id="launch-week"] [data-happy2-ui="sidebar-item-label"]',
@@ -378,7 +378,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
         '[data-testid="full"] [data-item-id="eng-core"] [data-happy2-ui="sidebar-item-label"]',
     );
     expect(unreadLabel.computedStyles(["color", "font-weight"])).toEqual({
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-weight": "700",
     });
     expect(
@@ -446,7 +446,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
         expect(Math.abs(centroid.x - 20), `${id} leading optical x`).toBeLessThanOrEqual(OPTICAL);
         expect(Math.abs(centroid.y - 16), `${id} leading optical y`).toBeLessThanOrEqual(OPTICAL);
     }
-    expect(leading("eng-core").computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(leading("eng-core").computedStyle("color")).toBe("rgb(142, 142, 147)");
 
     /* Person row: xs circle avatar with presence. */
     const personAvatar = view.$(
@@ -479,7 +479,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     expect(readyDot.bounds().width).toBe(8);
     expect(readyDot.bounds().height).toBe(8);
     expect(readyDot.computedStyles(["background-color", "border-radius"])).toEqual({
-        "background-color": "rgb(52, 211, 153)",
+        "background-color": "rgb(52, 199, 89)",
         "border-radius": "999px",
     });
     /* Status dot: symmetric disc dead-centered on the row midline. */
@@ -494,7 +494,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     const workingDot = view.$(
         '[data-testid="full"] [data-item-id="codex"] [data-happy2-ui="sidebar-item-status"]',
     );
-    expect(workingDot.computedStyle("background-color")).toBe("rgb(251, 191, 36)");
+    expect(workingDot.computedStyle("background-color")).toBe("rgb(255, 149, 0)");
     expect(workingDot.offsets().right).toBe(11);
     const workingDotInk = await rowInk(workingDot, row("codex"));
     expect(Math.abs(workingDotInk.y - 16), "working dot optical y").toBeLessThanOrEqual(OPTICAL);
@@ -505,7 +505,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     expect(workingLabel.element.textContent).toBe("working");
     expect(workingLabel.textMetrics().font.family).toBe("happy2 Mono, ui-monospace, monospace");
     expect(workingLabel.textMetrics().font.size).toBe(11);
-    expect(workingLabel.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(workingLabel.computedStyle("color")).toBe("rgb(142, 142, 147)");
     /*
      * "working" pulse mark: 11px mono ink on the row midline (measured 0.15
      * Blink/Gecko, -0.07 WebKit). Vertical-only: the lowercase word's
@@ -520,7 +520,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     const meta = (id: string) =>
         view.$(`[data-testid="full"] [data-item-id="${id}"] [data-happy2-ui="sidebar-item-meta"]`);
     expect(meta("my-issues").textMetrics().font.size).toBe(11);
-    expect(meta("my-issues").computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(meta("my-issues").computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(meta("my-issues").offsets().right).toBe(10);
     expect(meta("agent-runs").offsets().right).toBe(10);
     /* Two-digit meta "12": near-symmetric digit pair on the row midline. */
@@ -557,24 +557,24 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     const unreadBadge = view.$(
         '[data-testid="full"] [data-item-id="eng-core"] [data-happy2-ui="count-badge"]',
     );
-    expect(unreadBadge.computedStyle("background-color")).toBe("rgb(139, 124, 247)");
+    expect(unreadBadge.computedStyle("background-color")).toBe("rgb(0, 122, 255)");
     expect((await unreadBadge.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     /* Action row: muted plus row. */
-    expect(row("invite").computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(row("invite").computedStyle("color")).toBe("rgb(142, 142, 147)");
 
     /* ---- Footer ---------------------------------------------------------- */
 
     const footer = view.$('[data-testid="full"] [data-happy2-ui="sidebar-footer"]');
-    expect(footer.bounds().height).toBe(52);
+    expect(footer.bounds().height).toBe(56);
     expect(footer.offsets().bottom).toBe(0);
     expect(footer.computedStyles(["border-top-color", "border-top-width"])).toEqual({
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
     });
     /*
      * The footer is a free slot: the component centers the slot's line box in
-     * the 52px lane (box-symmetric top/bottom) and the ink must paint. The
+     * the 56px lane (box-symmetric top/bottom) and the ink must paint. The
      * fixture text "Sasha K." carries a baseline period, so its centroid sits
      * ~1.1px low of center identically in all three engines — the band pins
      * that engine agreement without forcing consumer content bias to zero.
@@ -584,7 +584,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     expect(Math.abs(footerUser.offsets().top - footerUser.offsets().bottom)).toBeLessThanOrEqual(1);
     const footerInk = await footerUser.visibleMetrics();
     expect(footerInk.pixelCount).toBeGreaterThan(0);
-    const footerDy = footerUser.bounds().y - footer.bounds().y + footerInk.center.y - 26;
+    const footerDy = footerUser.bounds().y - footer.bounds().y + footerInk.center.y - 28;
     expect(footerDy, "footer ink optical band").toBeGreaterThanOrEqual(0.6);
     expect(footerDy, "footer ink optical band").toBeLessThanOrEqual(1.6);
 
@@ -598,7 +598,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     /* ---- Constrained sidebar: fixed width, scrolling body, no footer. ----- */
 
     const overflow = view.$('[data-testid="overflow"]');
-    expect(overflow.bounds().width).toBe(288);
+    expect(overflow.bounds().width).toBe(360);
     expect(overflow.bounds().height).toBe(240);
     const overflowBody = view.$('[data-testid="overflow"] [data-happy2-ui="sidebar-body"]');
     expect(overflowBody.element.scrollHeight).toBeGreaterThan(overflowBody.element.clientHeight);
@@ -610,7 +610,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
             '[data-testid="overflow"] [data-happy2-ui="sidebar-section-head"]',
         ),
     ).toBeNull();
-    expect(view.$('[data-testid="overflow"] [data-item-id="row-0"]').bounds().y).toBe(60);
+    expect(view.$('[data-testid="overflow"] [data-item-id="row-0"]').bounds().y).toBe(64);
 
     window.scrollTo(0, 0);
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -786,7 +786,7 @@ it("keeps active row labels of every kind on the row midline", async () => {
     for (const [index, testCase] of cases.entries()) {
         const row = view.$(`[data-testid="state-${index}"] [data-item-id="${testCase.active}"]`);
         expect(row.element.getAttribute("aria-current")).toBe("page");
-        expect(row.computedStyle("background-color")).toBe("rgb(36, 34, 43)");
+        expect(row.computedStyle("background-color")).toBe("rgb(240, 240, 242)");
         const label = view.$(
             `[data-testid="state-${index}"] [data-item-id="${testCase.active}"] [data-happy2-ui="sidebar-item-label"]`,
         );

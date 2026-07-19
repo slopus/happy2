@@ -75,7 +75,7 @@ it("holds the source step geometry, keyboard radio selection, and the file-picke
         const [archive, setArchive] = useState<{ name: string; size: number }>();
         return (
             <div
-                style={{ width: "720px", height: "460px", background: "#17161c", display: "flex" }}
+                style={{ width: "720px", height: "460px", background: "#f5f5f5", display: "flex" }}
             >
                 <PluginInstallDialog
                     archive={archive}
@@ -191,7 +191,7 @@ it("shows deterministic preparation progress with cancellation and terminal fail
                     style={{
                         width: "720px",
                         height: "380px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -220,7 +220,7 @@ it("shows deterministic preparation progress with cancellation and terminal fail
                     style={{
                         width: "720px",
                         height: "380px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -244,7 +244,7 @@ it("shows deterministic preparation progress with cancellation and terminal fail
                     style={{
                         width: "720px",
                         height: "360px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -313,7 +313,7 @@ it("navigates the candidate listbox with the keyboard and chooses one candidate"
     const view = createRenderer().render(
         () => (
             <div
-                style={{ width: "720px", height: "460px", background: "#17161c", display: "flex" }}
+                style={{ width: "720px", height: "460px", background: "#f5f5f5", display: "flex" }}
             >
                 <PluginInstallDialog
                     data-testid="dialog"
@@ -370,7 +370,7 @@ it("previews the verified candidate, masks secrets, gates install, and surfaces 
                     style={{
                         width: "720px",
                         height: "660px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -394,7 +394,7 @@ it("previews the verified candidate, masks secrets, gates install, and surfaces 
                     style={{
                         width: "720px",
                         height: "660px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -418,7 +418,7 @@ it("previews the verified candidate, masks secrets, gates install, and surfaces 
                     style={{
                         width: "720px",
                         height: "620px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -439,7 +439,7 @@ it("previews the verified candidate, masks secrets, gates install, and surfaces 
                     style={{
                         width: "720px",
                         height: "660px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >

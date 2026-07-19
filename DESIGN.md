@@ -38,28 +38,36 @@ must not read the app's feature store or navigate by itself.
 
 ## Theme
 
-Happy (2) uses the "Relay" dark theme: violet-tinted near-black surfaces, solid
-light text, hairline borders, and a violet accent with a violet→pink brand
-gradient. The tokens live in `packages/happy2-ui/src/theme.css` and are the
-only source of color and typography in the system. Components must consume
-`var(--happy2-*)` custom properties; a raw hex value in component CSS is a defect.
+Happy (2) follows the original Happy app's native, neutral visual language. It
+uses the system appearance automatically: light mode has white and grouped
+near-white surfaces with black primary actions; dark mode has black and
+near-black surfaces with white primary actions. System blue communicates
+selection, links, and keyboard focus; system green, orange, and red carry
+success, warning, and destructive meaning. The tokens live in
+`packages/happy2-ui/src/theme.css` and are the only source of color and
+typography in the system. Components must consume `var(--happy2-*)` custom
+properties; a raw hex value in component CSS is a defect.
 
 Core values (see `theme.css` for the full set):
 
-| Token group | Values                                                                                |
-| ----------- | ------------------------------------------------------------------------------------- |
-| Surfaces    | chrome `#131217`, app `#17161c`, surface `#1c1b22`, raised `#24222b`, code `#141319`  |
-| Hairlines   | `rgb(255 255 255 / 0.07)`, strong `rgb(255 255 255 / 0.13)`                           |
-| Text        | `#edeaf2`, secondary `#a5a0b0`, muted `#757085`, faint `#55515f`                      |
-| Accent      | violet `#8b7cf7`, strong `#a89bff`, brand gradient violet→pink `#f472b6`              |
-| Semantics   | success mint `#34d399`, warning amber `#fbbf24`, danger `#f87171`, info `#60a5fa`     |
-| Type        | UI "happy2 Figtree" (Figtree variable), code "happy2 Mono" (JetBrains Mono variable)  |
-| Radii       | controls 6 px, macOS-matched content 8 px, cards 10 px, large shells 14 px, pills 999 |
+| Token group | Light / dark values |
+| ----------- | ------------------- |
+| Surfaces | chrome `#fff` / `#18171c`, app `#f5f5f5` / `#000`, surface `#fff` / `#1c1c1e`, raised `#f0f0f2` / `#2c2c2e`, code `#f6f8fa` / `#161b22` |
+| Hairlines | `#eaeaea` / `#38383a`, strong `#d1d1d6` / `#48484a` |
+| Text | `#000` / `#fff`, secondary and muted `#8e8e93` in both schemes |
+| Selection | blue `#007aff` / `#0a84ff`; soft blue fills use alpha over the current surface |
+| Primary action | black with white text / white with black text |
+| Semantics | green `#34c759` / `#32d74b`, orange `#ff9500` / `#ff9f0a`, red `#ff3b30` / `#ff453a` |
+| Type | UI "happy2 Figtree" (Figtree variable), code "happy2 Mono" (JetBrains Mono variable) |
+| Radii | controls 6 px, content 8 px, cards 10 px, large shells 14 px, pills 999 |
 
 Text colors are solid (not alpha) so rendering tests can assert exact `rgb()`
-values in every engine. Identity colors for avatars come from the named
-`--happy2-tone-*` gradient presets; product code selects a tone name and never
-passes raw CSS colors or utility classes for identity.
+values in every engine. The `prefers-color-scheme` media query is the runtime
+theme selector. `.happy2-theme-light` and `.happy2-theme-dark` exist only as
+deterministic blueprint/test overrides; product code must not own a separate
+theme toggle or duplicate theme tree. Identity colors for avatars come from the
+named `--happy2-tone-*` gradient presets; product code selects a tone name and
+never passes raw CSS colors or utility classes for identity.
 
 ## Grid and dimensions
 
@@ -75,14 +83,15 @@ Current reference dimensions are:
 
 | Element                   | Reference dimension             |
 | ------------------------- | ------------------------------- |
-| Design reference window   | 1024 × 704 px                   |
+| Design reference window   | 1280 × 800 px                   |
 | Electron minimum window   | 720 × 480 px                    |
-| App title/navigation row  | 38 px high                      |
-| Feature rail              | 76 px wide                      |
-| Standard sidebar          | 288 px wide                     |
-| Main content shell inset  | 0 top/left · 8 px right/bottom  |
-| Main content shell radius | 8 px (macOS window match)       |
-| Surface header row        | 52 px high                      |
+| App title/navigation row  | 56 px high                      |
+| Feature rail              | 64 px wide                      |
+| Standard sidebar          | `clamp(250px, 30vw, 360px)`     |
+| Inspector sidebar         | `clamp(250px, 30vw, 360px)`     |
+| Main content shell inset  | none; flat shared surfaces      |
+| Main content shell radius | 0 px; panels meet on hairlines  |
+| Surface header row        | 56 px high                      |
 | Section toolbar           | 48 px high                      |
 | Small button              | 28 px high                      |
 | Medium button             | 36 px high                      |
@@ -92,7 +101,7 @@ Current reference dimensions are:
 | Blueprint toolbar         | 42 px high                      |
 | Blueprint specimen grid   | 16 px minor / 80 px major       |
 
-The **surface header row** is the 52 px context strip at the top of a main
+The **surface header row** is the 56 px context strip at the top of a main
 surface or a side panel: `ChannelHeader`, `InfoPanel`, and `ThreadPanel` all use
 it so the chat header and its side panels line up on one baseline. The reusable
 `SURFACE_HEADER_HEIGHT` constant is the single source of truth; a panel that
@@ -101,8 +110,10 @@ composes `Toolbar` for its header passes this height. The bare `Toolbar` default
 settings sections), not at the top of a surface.
 
 These are defaults and existing contracts, not permission to make every layout
-fixed-size. Components may accept explicit numeric or percentage dimensions
-when their purpose requires them. Prefer integer CSS-pixel positions and sizes.
+fixed-size. The navigation and inspector use the same `30vw` clamp as the
+reference Happy desktop app rather than a fixed desktop-only width. Components
+may accept explicit numeric or percentage dimensions when their purpose requires
+them. Prefer integer CSS-pixel positions and sizes.
 At the required 2× device scale, important edges must land on physical pixel
 boundaries so one-pixel borders do not become blurry.
 
@@ -121,7 +132,7 @@ safe-area gutter. The default `center` placement is for dialogs and forms. The
 `top` placement is only for transient type-ahead surfaces, never forms; it uses
 an adaptive top gutter of
 `min(128px, max(48px, calc(100cqh - 552px)))` so the card sits 128 px from the
-top in the 1024 × 704 design reference and 48 px from the top at the actual
+top in the 1280 × 800 design reference and 48 px from the top at the actual
 720 × 480 Electron minimum. Application code composes `ModalOverlay` around a
 `Modal`, `Lightbox`, editor panel, or type-ahead instead of hand-rolling
 per-view scrims. Wire its `onDismiss` to close on a backdrop click; omit it for

@@ -62,10 +62,10 @@ async function paints(part: RenderedElement<Element>, name: string) {
 
 /* Badge fill + foreground per status (all Badge tokens, already tuned). */
 const statusBadge: Record<ModerationStatus, { background: string; color: string }> = {
-    open: { background: "rgba(251, 191, 36, 0.13)", color: "rgb(252, 211, 77)" },
-    reviewing: { background: "rgba(96, 165, 250, 0.13)", color: "rgb(96, 165, 250)" },
-    resolved: { background: "rgba(52, 211, 153, 0.13)", color: "rgb(110, 231, 183)" },
-    dismissed: { background: "rgba(255, 255, 255, 0.05)", color: "rgb(165, 160, 176)" },
+    open: { background: "rgba(255, 149, 0, 0.14)", color: "rgb(201, 52, 0)" },
+    reviewing: { background: "rgba(0, 122, 255, 0.14)", color: "rgb(0, 122, 255)" },
+    resolved: { background: "rgba(52, 199, 89, 0.14)", color: "rgb(36, 138, 61)" },
+    dismissed: { background: "rgb(245, 245, 245)", color: "rgb(142, 142, 147)" },
 };
 
 const q = (id: string, part?: string) =>
@@ -125,9 +125,9 @@ it("holds ModerationReportCard geometry, typography, status badge, parties, and 
             "row-gap",
         ]),
     ).toEqual({
-        "background-color": "rgb(28, 27, 34)",
+        "background-color": "rgb(255, 255, 255)",
         "border-radius": "10px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
         display: "flex",
@@ -160,9 +160,9 @@ it("holds ModerationReportCard geometry, typography, status badge, parties, and 
     expect(chip.bounds()).toMatchObject({ width: 36, height: 36 });
     expect(chip.offsets()).toMatchObject({ top: 0, left: 0 }); /* header aligns center, 36 == 36 */
     expect(chip.computedStyles(["background-color", "border-radius", "color"])).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-radius": "6px",
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
     });
     const chipIcon = view.$(
         `${q("mrc-full", "moderation-report-card-kind")} [data-happy2-ui="icon"]`,
@@ -178,7 +178,7 @@ it("holds ModerationReportCard geometry, typography, status badge, parties, and 
     const targetBlock = view.$(q("mrc-full", "moderation-report-card-target"));
     expect(targetBlock.offsets()).toMatchObject({ top: 0, left: 48 }); /* 36 chip + 12 gap */
     const label = view.$(q("mrc-full", "moderation-report-card-target-label"));
-    expect(label.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(label.computedStyle("color")).toBe("rgb(0, 0, 0)");
     expect(label.offsets()).toMatchObject({ top: 0, left: 0 });
     expect(label.textMetrics()).toMatchObject({
         font: {
@@ -191,7 +191,7 @@ it("holds ModerationReportCard geometry, typography, status badge, parties, and 
     });
     await paints(label, "target label");
     const sub = view.$(q("mrc-full", "moderation-report-card-target-sub"));
-    expect(sub.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(sub.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(sub.offsets()).toMatchObject({ top: 20, left: 0 }); /* directly below the 20px label */
     expect(sub.textMetrics()).toMatchObject({
         font: { lineHeight: 16, size: 13, weight: "500" },
@@ -223,7 +223,7 @@ it("holds ModerationReportCard geometry, typography, status badge, parties, and 
     /* ---- Reason well: inset fill, shield glyph optically centered -------- */
 
     expect(reason.computedStyles(["background-color", "border-radius", "padding"])).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-radius": "6px",
         padding: "8px 12px",
     });
@@ -236,7 +236,7 @@ it("holds ModerationReportCard geometry, typography, status badge, parties, and 
     expect(Math.abs(reasonGlyph.dx), "reason shield x centroid").toBeLessThanOrEqual(SYMMETRIC_TOL);
     expect(Math.abs(reasonGlyph.dy), "reason shield y centroid").toBeLessThanOrEqual(SYMMETRIC_TOL);
     const reasonText = view.$(q("mrc-full", "moderation-report-card-reason-text"));
-    expect(reasonText.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(reasonText.computedStyle("color")).toBe("rgb(0, 0, 0)");
     expect(reasonText.offsets()).toMatchObject({ left: 34 }); /* 12 pad + 14 icon + 8 gap */
     expect(reasonText.textMetrics()).toMatchObject({
         font: { lineHeight: 18, size: 13, weight: "600" },
@@ -260,7 +260,7 @@ it("holds ModerationReportCard geometry, typography, status badge, parties, and 
     const caption = view.$(
         `${q("mrc-full", "moderation-report-card-party")}[data-role="reporter"] [data-happy2-ui="moderation-report-card-party-caption"]`,
     );
-    expect(caption.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(caption.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(caption.textMetrics()).toMatchObject({
         font: { lineHeight: 16, size: 12, weight: "500" },
         text: "Reported by",
@@ -269,7 +269,7 @@ it("holds ModerationReportCard geometry, typography, status badge, parties, and 
     const partyName = view.$(
         `${q("mrc-full", "moderation-report-card-party")}[data-role="reporter"] [data-happy2-ui="moderation-report-card-party-name"]`,
     );
-    expect(partyName.computedStyle("color")).toBe("rgb(165, 160, 176)");
+    expect(partyName.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(partyName.textMetrics()).toMatchObject({
         font: { lineHeight: 16, size: 13, weight: "600" },
         text: "Ada Lovelace",
@@ -279,7 +279,7 @@ it("holds ModerationReportCard geometry, typography, status badge, parties, and 
     const time = view.$(q("mrc-full", "moderation-report-card-time"));
     expect(time.offsets().right, "timestamp right-pinned").toBeLessThanOrEqual(0.1);
     const timeLabel = view.$(q("mrc-full", "moderation-report-card-time-label"));
-    expect(timeLabel.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(timeLabel.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(timeLabel.textMetrics()).toMatchObject({
         font: { lineHeight: 16, size: 12, weight: "500" },
         text: "2m ago",
@@ -296,7 +296,7 @@ it("holds ModerationReportCard geometry, typography, status badge, parties, and 
             "padding-top",
         ]),
     ).toEqual({
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "justify-content": "flex-end",
         "padding-top": "12px",
@@ -395,7 +395,7 @@ it("holds ModerationReportCard status variants and content states", async () => 
     /* ---- Details state: paragraph paints; footer + assignee present ------ */
 
     const details = view.$(q("mrc-details", "moderation-report-card-details"));
-    expect(details.computedStyle("color")).toBe("rgb(165, 160, 176)");
+    expect(details.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(details.textMetrics()).toMatchObject({
         font: { lineHeight: 18, size: 13, weight: "400" },
     });

@@ -34,9 +34,9 @@ export type OnboardingScreenProps = {
 };
 /**
  * C-061 OnboardingScreen — the centered desktop setup card that replaces the
- * split auth panel for onboarding flows in the Relay dark theme.
+ * split auth panel for onboarding flows in Happy's system theme.
  *
- * The root fills the window (1024×704 minimum) with the shared onboarding
+ * The root fills the window (720×480 minimum) with the shared onboarding
  * background image (degrading to the window backdrop) plus a legibility scrim,
  * and centers a single card. The card stacks an optional brand mast, an
  * optional horizontal step rail, a content block (kicker, large Figtree title,

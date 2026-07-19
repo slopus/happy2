@@ -46,41 +46,41 @@ const toneStyles: Record<
     }
 > = {
     info: {
-        background: "rgba(96, 165, 250, 0.13)",
-        border: "rgb(96, 165, 250)",
-        icon: "rgb(96, 165, 250)",
+        background: "rgba(0, 122, 255, 0.14)",
+        border: "rgb(0, 122, 255)",
+        icon: "rgb(0, 122, 255)",
         iconName: "spark",
         title: "Heads up",
         message: "Retention policy updated.",
     },
     success: {
-        background: "rgba(52, 211, 153, 0.13)",
-        border: "rgb(52, 211, 153)",
-        icon: "rgb(52, 211, 153)",
+        background: "rgba(52, 199, 89, 0.14)",
+        border: "rgb(52, 199, 89)",
+        icon: "rgb(52, 199, 89)",
         iconName: "check-circle",
         title: "Backup complete",
         message: "Snapshot verified.",
     },
     warning: {
-        background: "rgba(251, 191, 36, 0.13)",
-        border: "rgb(251, 191, 36)",
-        icon: "rgb(251, 191, 36)",
+        background: "rgba(255, 149, 0, 0.14)",
+        border: "rgb(255, 149, 0)",
+        icon: "rgb(255, 149, 0)",
         iconName: "shield",
         title: "Guarded change",
         message: "Approval required.",
     },
     danger: {
-        background: "rgba(248, 113, 113, 0.13)",
-        border: "rgb(248, 113, 113)",
-        icon: "rgb(248, 113, 113)",
+        background: "rgba(255, 59, 48, 0.12)",
+        border: "rgb(255, 59, 48)",
+        icon: "rgb(255, 59, 48)",
         iconName: "bell",
         title: "Delivery failed",
         message: "Two webhooks retried.",
     },
     neutral: {
-        background: "rgba(255, 255, 255, 0.05)",
-        border: "rgba(255, 255, 255, 0.13)",
-        icon: "rgb(165, 160, 176)",
+        background: "rgb(245, 245, 245)",
+        border: "rgb(209, 209, 214)",
+        icon: "rgb(142, 142, 147)",
         iconName: "eye",
         title: "Read receipts",
         message: "Receipts are on.",
@@ -193,7 +193,7 @@ it("holds Banner tone tokens, geometry, typography, and leading-icon centering",
             weight: "600",
         });
         expect(titleMetrics.text, `${tone} title text`).toBe(spec.title);
-        expect(title.computedStyle("color"), `${tone} title color`).toBe("rgb(237, 234, 242)");
+        expect(title.computedStyle("color"), `${tone} title color`).toBe("rgb(0, 0, 0)");
         const messageMetrics = message.textMetrics();
         expect(messageMetrics.font, `${tone} message font`).toMatchObject({
             family: fontFamily,
@@ -202,7 +202,7 @@ it("holds Banner tone tokens, geometry, typography, and leading-icon centering",
             weight: "400",
         });
         expect(messageMetrics.text, `${tone} message text`).toBe(spec.message);
-        expect(message.computedStyle("color"), `${tone} message color`).toBe("rgb(165, 160, 176)");
+        expect(message.computedStyle("color"), `${tone} message color`).toBe("rgb(142, 142, 147)");
         // Message stacks directly under the title: 18px line box + 4px column gap.
         expect(message.bounds().y - title.bounds().y, `${tone} title/message stack`).toBe(22);
         expect((await title.visibleMetrics()).pixelCount, `${tone} title ink`).toBeGreaterThan(0);
@@ -229,7 +229,7 @@ it("holds Banner tone tokens, geometry, typography, and leading-icon centering",
     expect(dismiss.computedStyles(["background-color", "border-radius", "color"])).toEqual({
         "background-color": "rgba(0, 0, 0, 0)",
         "border-radius": "6px",
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
     });
     const dismissGlyph = view.$('[data-testid="tone-info"] [data-happy2-ui="banner-dismiss"] svg');
     expect(dismissGlyph.bounds()).toMatchObject({ width: 14, height: 14 });

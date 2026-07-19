@@ -107,7 +107,7 @@ it("holds AgentImagePanel layout, status mapping, the default marker, and row ac
     const view = createRenderer().render(
         () => (
             <div
-                style={{ width: "920px", height: "360px", background: "#17161c", display: "flex" }}
+                style={{ width: "920px", height: "360px", background: "#f5f5f5", display: "flex" }}
             >
                 <AgentImagePanel
                     data-testid="panel"
@@ -137,7 +137,7 @@ it("holds AgentImagePanel layout, status mapping, the default marker, and row ac
         ]),
     ).toEqual({
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         display: "flex",
         "flex-direction": "column",
         gap: "16px",
@@ -156,7 +156,7 @@ it("holds AgentImagePanel layout, status mapping, the default marker, and row ac
         weight: "600",
     });
     expect(view.$(".happy2-agent-image-panel__subtitle").computedStyle("color")).toBe(
-        "rgb(117, 112, 133)",
+        "rgb(142, 142, 147)",
     );
 
     // Header actions pin to the right edge and expose only New image — there is
@@ -170,10 +170,10 @@ it("holds AgentImagePanel layout, status mapping, the default marker, and row ac
 
     // Status column proves the status -> badge-variant mapping, with exact tokens.
     const statusExpectations: Array<[string, string, string, string]> = [
-        ["img-pending", "info", "rgba(96, 165, 250, 0.13)", "rgb(96, 165, 250)"],
-        ["img-building", "warning", "rgba(251, 191, 36, 0.13)", "rgb(252, 211, 77)"],
-        ["img-minimal", "success", "rgba(52, 211, 153, 0.13)", "rgb(110, 231, 183)"],
-        ["img-failed", "danger", "rgba(248, 113, 113, 0.13)", "rgb(252, 165, 165)"],
+        ["img-pending", "info", "rgba(0, 122, 255, 0.14)", "rgb(0, 122, 255)"],
+        ["img-building", "warning", "rgba(255, 149, 0, 0.14)", "rgb(201, 52, 0)"],
+        ["img-minimal", "success", "rgba(52, 199, 89, 0.14)", "rgb(36, 138, 61)"],
+        ["img-failed", "danger", "rgba(255, 59, 48, 0.12)", "rgb(215, 0, 21)"],
     ];
     for (const [id, variant, background, color] of statusExpectations) {
         const badge = view.$(statusBadge(id));
@@ -232,7 +232,7 @@ it("busy row actions disable while a mutation is in flight", async () => {
     const view = createRenderer().render(
         () => (
             <div
-                style={{ width: "920px", height: "220px", background: "#17161c", display: "flex" }}
+                style={{ width: "920px", height: "220px", background: "#f5f5f5", display: "flex" }}
             >
                 <AgentImagePanel
                     busyImageIds={["img-pending", "img-minimal"]}
@@ -264,7 +264,7 @@ it("shows build progress, the last log line, and opens a row on click", async ()
     const view = createRenderer().render(
         () => (
             <div
-                style={{ width: "920px", height: "260px", background: "#17161c", display: "flex" }}
+                style={{ width: "920px", height: "260px", background: "#f5f5f5", display: "flex" }}
             >
                 <AgentImagePanel
                     data-testid="panel"
@@ -288,7 +288,7 @@ it("shows build progress, the last log line, and opens a row on click", async ()
         0.6,
     );
     expect(fill.computedStyle("background-image")).toBe(
-        "linear-gradient(135deg, rgb(139, 124, 247), rgb(244, 114, 182))",
+        "linear-gradient(135deg, rgb(0, 0, 0), rgb(43, 172, 204))",
     );
     expect(
         view.$(`${statusCell("img-building")} .happy2-agent-image-panel__progress-value`).element
@@ -306,13 +306,13 @@ it("shows build progress, the last log line, and opens a row on click", async ()
     const buildingSub = view.$(`${nameCell("img-building")} .happy2-agent-image-panel__subline`);
     expect(buildingSub.element.textContent).toBe("#6 [4/4] RUN pip install --no-cache-dir");
     expect(buildingSub.element.getAttribute("data-tone")).toBe("muted");
-    expect(buildingSub.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(buildingSub.computedStyle("color")).toBe("rgb(142, 142, 147)");
     const failedSub = view.$(`${nameCell("img-failed")} .happy2-agent-image-panel__subline`);
     expect(failedSub.element.textContent).toBe(
         "package cuda-toolkit-12-4 has no installation candidate",
     );
     expect(failedSub.element.getAttribute("data-tone")).toBe("danger");
-    expect(failedSub.computedStyle("color")).toBe("rgb(248, 113, 113)");
+    expect(failedSub.computedStyle("color")).toBe("rgb(255, 59, 48)");
     // A ready row with no log line renders no subline.
     expect(
         view.$(nameCell("img-minimal")).element.querySelector(".happy2-agent-image-panel__subline"),
@@ -340,7 +340,7 @@ it("renders the create overlay with controlled inputs and submit gating", async 
                     style={{
                         width: "760px",
                         height: "460px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -364,7 +364,7 @@ it("renders the create overlay with controlled inputs and submit gating", async 
                     style={{
                         width: "760px",
                         height: "460px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -446,7 +446,7 @@ it("shows loading, error, and empty affordances", async () => {
                     style={{
                         width: "560px",
                         height: "200px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -461,7 +461,7 @@ it("shows loading, error, and empty affordances", async () => {
                     style={{
                         width: "560px",
                         height: "200px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -480,7 +480,7 @@ it("shows loading, error, and empty affordances", async () => {
                     style={{
                         width: "560px",
                         height: "220px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >

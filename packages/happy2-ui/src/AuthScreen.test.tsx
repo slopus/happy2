@@ -96,9 +96,9 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
             "overflow-y",
         ]),
     ).toEqual({
-        "background-color": "rgb(19, 18, 23)",
+        "background-color": "rgb(255, 255, 255)",
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         display: "flex",
         "font-family": fontFamily(),
         "overflow-x": "hidden",
@@ -130,7 +130,7 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
     ).toEqual({
         "background-color": "rgba(0, 0, 0, 0)",
         "background-size": "cover",
-        "border-right-color": "rgba(255, 255, 255, 0.07)",
+        "border-right-color": "rgb(234, 234, 234)",
         "border-right-width": "1px",
     });
 
@@ -148,7 +148,7 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
             "width",
         ]),
     ).toEqual({
-        "background-color": "rgb(23, 22, 28)",
+        "background-color": "rgb(245, 245, 245)",
         "box-sizing": "border-box",
         display: "flex",
         "flex-direction": "column",
@@ -177,7 +177,7 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
     expect(mark.computedStyle("background-image")).toContain("linear-gradient");
     /* Wordmark sits after the 28px mark + 12px gap. */
     expect(brandName.offsets().left).toBe(40);
-    expect(brandName.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(brandName.computedStyle("color")).toBe("rgb(0, 0, 0)");
     const nameMetrics = brandName.textMetrics();
     expect(nameMetrics.text).toBe("Relay");
     expect(nameMetrics.font).toMatchObject({
@@ -226,7 +226,7 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
             "text-transform",
         ]),
     ).toEqual({
-        color: "rgb(139, 124, 247)",
+        color: "rgb(0, 122, 255)",
         "font-size": "12px",
         "font-weight": "700",
         "letter-spacing": "0.96px",
@@ -239,7 +239,7 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
      * centering is proven by baseline + unclipped ink (not a centroid). */
     expect(title.element.tagName).toBe("H1");
     expect(title.height()).toBe(34);
-    expect(title.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(title.computedStyle("color")).toBe("rgb(0, 0, 0)");
     const titleMetrics = title.textMetrics();
     expect(titleMetrics.text).toBe("Sign in to Relay");
     expect(titleMetrics.font).toMatchObject({
@@ -257,7 +257,7 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
     /* Copy: secondary body, capped to a 320px measure. */
     expect(copy.width()).toBe(320);
     expect(copy.computedStyles(["color", "font-size", "font-weight", "line-height"])).toEqual({
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-size": "15px",
         "font-weight": "400",
         "line-height": "22px",
@@ -285,7 +285,7 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
     const footer = view.$('[data-happy2-ui="auth-footer"]');
     expect(footer.offsets()).toMatchObject({ left: 48, right: 48, bottom: 48 });
     expect(footer.computedStyles(["color", "font-size", "line-height"])).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-size": "13px",
         "line-height": "18px",
     });
@@ -376,9 +376,9 @@ it("holds AuthScreen loading, generated-image hero, custom mark, and minimal for
         ]),
     ).toEqual({
         "border-radius": "999px",
-        "border-top-color": "rgb(139, 124, 247)",
+        "border-top-color": "rgb(0, 122, 255)",
         "border-top-width": "2px",
-        "border-left-color": "rgba(255, 255, 255, 0.13)",
+        "border-left-color": "rgb(209, 209, 214)",
         "box-sizing": "border-box",
     });
     /* Static ring paints an unclipped, geometrically centered contour (the
@@ -407,7 +407,7 @@ it("holds AuthScreen loading, generated-image hero, custom mark, and minimal for
     expect(
         loadingLabel.computedStyles(["color", "font-size", "font-weight", "line-height"]),
     ).toEqual({
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-size": "14px",
         "font-weight": "500",
         "line-height": "20px",

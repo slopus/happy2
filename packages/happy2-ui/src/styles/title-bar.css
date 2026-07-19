@@ -1,10 +1,10 @@
 /*
- * TitleBar + SearchField — 38px draggable window chrome strip with a centered
- * 420px-max search well.
+ * TitleBar + SearchField — 56px native desktop header with a centered 420px
+ * search well.
  *
- * Contract: bar exactly 38px high (bottom hairline included), grid
+ * Contract: bar exactly 56px high (bottom hairline included), grid
  * [leading 1fr] [center max 420px] [trailing 1fr]; the whole bar is a drag
- * region, interactive parts opt out. SearchField: 26px, radius 6, inset bg,
+ * region, interactive parts opt out. SearchField: 32px, radius 6, inset bg,
  * hairline border, 14px search icon, 12px text, trailing KeyCap hint.
  */
 
@@ -39,11 +39,11 @@
     align-items: center;
     column-gap: 12px;
     width: 100%;
-    height: 38px;
+    height: 56px;
     margin: 0;
     /* Seamless chrome: no bottom hairline — the title bar and the rail read as
        one continuous frame, and the inset content card supplies the boundary.
-       The 38px lane centers the 26px search well on integer coordinates. */
+       The 56px lane centers the 32px search well on integer coordinates. */
     padding: 0 12px;
     background: transparent;
     color: var(--happy2-text);
@@ -121,7 +121,7 @@
     gap: 8px;
     width: 100%;
     min-width: 0;
-    height: 26px;
+    height: 32px;
     padding: 0 3px 0 8px;
     background: var(--happy2-bg-inset);
     border: 1px solid var(--happy2-border);
@@ -148,7 +148,7 @@
 .happy2-search-field__input {
     flex: 1 1 auto;
     min-width: 0;
-    height: 24px;
+    height: 30px;
     margin: 0;
     padding: 0;
     background: transparent;
@@ -158,7 +158,7 @@
     font-family: var(--happy2-font-ui);
     font-size: 12px;
     font-weight: 500;
-    line-height: 24px;
+    line-height: 30px;
     letter-spacing: 0;
     font-synthesis: none;
     caret-color: var(--happy2-accent);

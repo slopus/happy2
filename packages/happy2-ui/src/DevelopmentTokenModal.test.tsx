@@ -73,7 +73,7 @@ it("hands off one session-bound development token in a controlled modal", async 
     const description = view.$('[data-happy2-ui="development-token-modal-description"]');
     expect(description.computedStyles(["color", "font-size", "line-height", "margin-top"])).toEqual(
         {
-            color: "rgb(165, 160, 176)",
+            color: "rgb(142, 142, 147)",
             "font-size": "13px",
             "line-height": "20px",
             "margin-top": "0px",

@@ -1,4 +1,4 @@
-/* C-003 Button — Relay control. 28/36/44 contract heights, five variants. */
+/* C-003 Button — Happy control. 28/36/44 contract heights, five variants. */
 
 .happy2-button {
     display: inline-flex;
@@ -64,12 +64,12 @@
 }
 
 .happy2-button[data-variant="primary"] {
-    background: var(--happy2-accent);
-    color: var(--happy2-text-on-accent);
+    background: var(--happy2-action);
+    color: var(--happy2-action-text);
 }
 
 .happy2-button[data-variant="primary"]:hover:not(:disabled) {
-    background: var(--happy2-accent-strong);
+    background: var(--happy2-action-strong);
 }
 
 .happy2-button[data-variant="secondary"] {

@@ -23,21 +23,21 @@ const uiFont = "happy2 Figtree, system-ui, sans-serif";
 const monoFont = "happy2 Mono, ui-monospace, monospace";
 
 /* Fixed theme tokens resolved to the exact rgb()/rgba() each engine reports. */
-const TEXT = "rgb(237, 234, 242)";
-const SECONDARY = "rgb(165, 160, 176)";
-const MUTED = "rgb(117, 112, 133)";
-const SURFACE = "rgb(28, 27, 34)";
-const BORDER = "rgba(255, 255, 255, 0.07)";
-const ON_TRACK = "rgb(139, 124, 247)";
-const OFF_TRACK = "rgba(255, 255, 255, 0.05)";
-const SECONDARY_BTN = "rgb(36, 34, 43)";
+const TEXT = "rgb(0, 0, 0)";
+const SECONDARY = "rgb(142, 142, 147)";
+const MUTED = "rgb(142, 142, 147)";
+const SURFACE = "rgb(255, 255, 255)";
+const BORDER = "rgb(234, 234, 234)";
+const ON_TRACK = "rgb(0, 122, 255)";
+const OFF_TRACK = "rgb(245, 245, 245)";
+const SECONDARY_BTN = "rgb(240, 240, 242)";
 
 const badgeColors = {
-    info: { bg: "rgba(96, 165, 250, 0.13)", fg: "rgb(96, 165, 250)" },
-    accent: { bg: "rgba(139, 124, 247, 0.15)", fg: "rgb(168, 155, 255)" },
-    warning: { bg: "rgba(251, 191, 36, 0.13)", fg: "rgb(252, 211, 77)" },
-    success: { bg: "rgba(52, 211, 153, 0.13)", fg: "rgb(110, 231, 183)" },
-    danger: { bg: "rgba(248, 113, 113, 0.13)", fg: "rgb(252, 165, 165)" },
+    info: { bg: "rgba(0, 122, 255, 0.14)", fg: "rgb(0, 122, 255)" },
+    accent: { bg: "rgba(0, 122, 255, 0.14)", fg: "rgb(0, 122, 255)" },
+    warning: { bg: "rgba(255, 149, 0, 0.14)", fg: "rgb(201, 52, 0)" },
+    success: { bg: "rgba(52, 199, 89, 0.14)", fg: "rgb(36, 138, 61)" },
+    danger: { bg: "rgba(255, 59, 48, 0.12)", fg: "rgb(215, 0, 21)" },
 } as const;
 
 /*
@@ -373,7 +373,7 @@ it("holds AutomationCard layout, geometry, typography, badge colors, and states"
         banner.computedStyles(["background-color", "border-top-color", "border-radius"]),
     ).toEqual({
         "background-color": badgeColors.danger.bg,
-        "border-top-color": "rgb(248, 113, 113)",
+        "border-top-color": "rgb(255, 59, 48)",
         "border-radius": "10px",
     });
     const bannerMsg = b('[data-happy2-ui="banner-message"]');

@@ -7,7 +7,7 @@ import { MemberList, type MemberItem } from "./MemberList";
 import { ProfileCard, type ProfilePresence, type ProfileStatus } from "./ProfileCard";
 import { Toolbar } from "./Toolbar";
 /** Surface header row height shared with ChannelHeader and ThreadPanel. */
-export const SURFACE_HEADER_HEIGHT = 52;
+export const SURFACE_HEADER_HEIGHT = 56;
 export type InfoPanelProfile = {
     /** Stable product identity used by hosts to deep-link this profile surface. */
     id?: string;
@@ -47,7 +47,7 @@ export type InfoPanelProps = {
     memberRowMenu?: (member: MemberItem) => ReactNode;
 };
 /**
- * C-047 InfoPanel — the channel/user detail side panel. A 52px surface header
+ * C-047 InfoPanel — the channel/user detail side panel. A 56px surface header
  * (shared height with ChannelHeader and ThreadPanel), then a scrolling body:
  * an optional person ProfileCard or a read-only channel About block, a caller
  * body slot for editable details, and a labeled member roster. Props only — the

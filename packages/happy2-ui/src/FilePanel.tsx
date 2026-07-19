@@ -27,7 +27,7 @@ export type FilePanelProps = {
     note?: string;
 };
 /**
- * C-053 FilePanel — the workspace file-tree side panel. A 52px surface header
+ * C-053 FilePanel — the workspace file-tree side panel. A 56px surface header
  * (shared height with ChannelHeader / InfoPanel / ThreadPanel) with an optional
  * branch/revision subtitle and close button, then a scrolling FileTree body.
  * Props only — the app supplies the tree nodes and the selection/expansion

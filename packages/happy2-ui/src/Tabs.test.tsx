@@ -105,7 +105,7 @@ it("holds Tabs dimensions, typography, colors, and the active underline for ever
         ).toEqual({
             display: "flex",
             "box-sizing": "border-box",
-            "border-bottom-color": "rgba(255, 255, 255, 0.07)",
+            "border-bottom-color": "rgb(234, 234, 234)",
             "border-bottom-style": "solid",
             "border-bottom-width": "1px",
             "font-family": uiFont(),
@@ -144,7 +144,7 @@ it("holds Tabs dimensions, typography, colors, and the active underline for ever
                 "background-color": "rgba(0, 0, 0, 0)",
                 "border-top-width": "0px",
                 "box-sizing": "border-box",
-                color: active ? "rgb(237, 234, 242)" : "rgb(165, 160, 176)",
+                color: active ? "rgb(0, 0, 0)" : "rgb(142, 142, 147)",
                 cursor: "pointer",
                 display: "flex",
                 "font-family": uiFont(),
@@ -217,7 +217,7 @@ it("holds Tabs dimensions, typography, colors, and the active underline for ever
             `${size} underline drop`,
         ).toBeLessThanOrEqual(0.05);
         expect(underline.computedStyle("background-color"), `${size} underline color`).toBe(
-            "rgb(139, 124, 247)",
+            "rgb(0, 122, 255)",
         );
 
         // Idle tabs carry no underline element at all.

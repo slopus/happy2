@@ -18,7 +18,7 @@ it("confirms the destructive uninstall with its full blast radius, pending, and 
                     style={{
                         width: "560px",
                         height: "340px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -40,7 +40,7 @@ it("confirms the destructive uninstall with its full blast radius, pending, and 
                     style={{
                         width: "560px",
                         height: "340px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >
@@ -63,7 +63,7 @@ it("confirms the destructive uninstall with its full blast radius, pending, and 
                     style={{
                         width: "560px",
                         height: "400px",
-                        background: "#17161c",
+                        background: "#f5f5f5",
                         display: "flex",
                     }}
                 >

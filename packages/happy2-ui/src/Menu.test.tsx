@@ -80,12 +80,12 @@ it("holds Menu popover geometry, item rows, icon centroids, danger, and shortcut
             "display",
         ]),
     ).toEqual({
-        "background-color": "rgb(36, 34, 43)",
+        "background-color": "rgb(240, 240, 242)",
         "border-radius": "10px",
-        "border-top-color": "rgba(255, 255, 255, 0.13)",
+        "border-top-color": "rgb(209, 209, 214)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         display: "block",
     });
     expect((await menu.visibleMetrics()).pixelCount).toBeGreaterThan(0);
@@ -143,7 +143,7 @@ it("holds Menu popover geometry, item rows, icon centroids, danger, and shortcut
     const separator = view.$('[data-testid="actions"] [data-happy2-ui="menu-separator"]');
     expect(separator.element.getAttribute("role")).toBe("separator");
     expect(separator.bounds()).toMatchObject({ width: 206, height: 1, y: 132 });
-    expect(separator.computedStyle("background-color")).toBe("rgba(255, 255, 255, 0.07)");
+    expect(separator.computedStyle("background-color")).toBe("rgb(234, 234, 234)");
     expect(separator.computedStyles(["margin-top", "margin-bottom"])).toEqual({
         "margin-top": "5px",
         "margin-bottom": "5px",
@@ -164,7 +164,7 @@ it("holds Menu popover geometry, item rows, icon centroids, danger, and shortcut
         view
             .$('[data-testid="actions"] [data-item-id="copy"] [data-happy2-ui="menu-item-icon"]')
             .computedStyle("color"),
-    ).toBe("rgb(117, 112, 133)");
+    ).toBe("rgb(142, 142, 147)");
 
     /* Every glyph is a non-directional icon, so its ink centroid must land on
      * the slot center (8, 8) within the tuned 0.4px (contract ceiling 0.75). */
@@ -199,19 +199,19 @@ it("holds Menu popover geometry, item rows, icon centroids, danger, and shortcut
         );
     }
     /* Non-danger labels inherit the bright body text; the danger row is red. */
-    expect(label("copy").computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(label("copy").computedStyle("color")).toBe("rgb(0, 0, 0)");
 
     /* ---- Danger row ------------------------------------------------------ */
 
     const del = item("delete");
     expect(del.element.hasAttribute("data-danger")).toBe(true);
-    expect(del.computedStyle("color")).toBe("rgb(248, 113, 113)");
-    expect(label("delete").computedStyle("color")).toBe("rgb(248, 113, 113)");
+    expect(del.computedStyle("color")).toBe("rgb(255, 59, 48)");
+    expect(label("delete").computedStyle("color")).toBe("rgb(255, 59, 48)");
     expect(
         view
             .$('[data-testid="actions"] [data-item-id="delete"] [data-happy2-ui="menu-item-icon"]')
             .computedStyle("color"),
-    ).toBe("rgb(248, 113, 113)");
+    ).toBe("rgb(255, 59, 48)");
 
     /* ---- Shortcuts: KeyCap right-aligned in the row ---------------------- */
 
@@ -297,7 +297,7 @@ it("holds Menu section labels, disabled items, and text-only alignment", async (
         lineHeight: 24,
     });
     expect(sortBy.computedStyles(["color", "text-transform"])).toEqual({
-        color: "rgb(85, 81, 95)",
+        color: "rgb(142, 142, 147)",
         "text-transform": "uppercase",
     });
     /* Mono uppercase caps sit optically centered in the 24px label box.
@@ -339,7 +339,7 @@ it("holds Menu section labels, disabled items, and text-only alignment", async (
     expect(dupCap.offsets().right).toBe(10);
     /* Danger still paints red in a text-only menu. */
     expect(view.$('[data-testid="text"] [data-item-id="leave"]').computedStyle("color")).toBe(
-        "rgb(248, 113, 113)",
+        "rgb(255, 59, 48)",
     );
 
     /* ---- Interaction: enabled fires, disabled is inert ------------------- */

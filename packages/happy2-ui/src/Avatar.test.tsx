@@ -39,14 +39,14 @@ const SURFACE = { width: 280, height: 68, padding: 12 };
 const GAP = 8;
 
 const TONE_GRADIENTS: Record<ToneName, string> = {
-    violet: "linear-gradient(135deg, rgb(139, 124, 247), rgb(109, 40, 217))",
-    ember: "linear-gradient(135deg, rgb(251, 146, 60), rgb(225, 29, 72))",
-    mint: "linear-gradient(135deg, rgb(52, 211, 153), rgb(13, 148, 136))",
-    ocean: "linear-gradient(135deg, rgb(56, 189, 248), rgb(99, 102, 241))",
-    rose: "linear-gradient(135deg, rgb(251, 113, 133), rgb(192, 38, 211))",
-    amber: "linear-gradient(135deg, rgb(251, 191, 36), rgb(234, 88, 12))",
-    slate: "linear-gradient(135deg, rgb(148, 163, 184), rgb(71, 85, 105))",
-    brand: "linear-gradient(135deg, rgb(139, 124, 247), rgb(244, 114, 182))",
+    violet: "linear-gradient(135deg, rgb(0, 122, 255), rgb(88, 86, 214))",
+    ember: "linear-gradient(135deg, rgb(255, 149, 0), rgb(255, 59, 48))",
+    mint: "linear-gradient(135deg, rgb(52, 199, 89), rgb(48, 176, 199))",
+    ocean: "linear-gradient(135deg, rgb(43, 172, 204), rgb(0, 122, 255))",
+    rose: "linear-gradient(135deg, rgb(255, 107, 107), rgb(175, 82, 222))",
+    amber: "linear-gradient(135deg, rgb(255, 204, 0), rgb(255, 149, 0))",
+    slate: "linear-gradient(135deg, rgb(142, 142, 147), rgb(72, 72, 74))",
+    brand: "linear-gradient(135deg, rgb(0, 0, 0), rgb(43, 172, 204))",
 };
 
 const fontFamily = () =>
@@ -254,9 +254,9 @@ it("anchors the presence dot at every size", { timeout: 90_000 }, async () => {
             ]),
             `${id} presence styles`,
         ).toEqual({
-            "background-color": "rgb(52, 211, 153)",
+            "background-color": "rgb(52, 199, 89)",
             "border-radius": "999px",
-            "border-top-color": "rgb(23, 22, 28)",
+            "border-top-color": "rgb(245, 245, 245)",
             "border-top-style": "solid",
             "border-top-width": "2px",
             "box-sizing": "border-box",

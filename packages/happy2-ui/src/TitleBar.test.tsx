@@ -26,7 +26,7 @@ function userSelect(style: (property: string) => string) {
     return unprefixed === "" ? style("-webkit-user-select") : unprefixed;
 }
 
-it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () => {
+it("holds TitleBar geometry: 56px contract, grid lanes, drag chrome", async () => {
     await pinViewport();
     const view = createRenderer();
 
@@ -49,7 +49,7 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
                 }
             />
         ),
-        { width: 1360, height: 38 },
+        { width: 1360, height: 56 },
     );
     view.render(
         () => (
@@ -60,7 +60,7 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
                 trailing={<span data-testid="trail-mark">SK</span>}
             />
         ),
-        { width: 640, height: 38 },
+        { width: 640, height: 56 },
     );
     await view.ready();
 
@@ -70,7 +70,7 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
     const root = view.$('[data-happy2-ui="title-bar"]:not([data-window-controls])');
     expect(root.element).toBe(bar);
     expect(root.element.tagName).toBe("HEADER");
-    expect(root.bounds()).toEqual({ x: 0, y: 0, width: 1360, height: 38 });
+    expect(root.bounds()).toEqual({ x: 0, y: 0, width: 1360, height: 56 });
     expect(
         root.computedStyles([
             "background-color",
@@ -103,7 +103,7 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
            each engine's `line-height: normal` guess (Gecko floated it ~1.2px
            lower than Blink before this was pinned). */
         "font-size": "13px",
-        height: "38px",
+        height: "56px",
         "line-height": "16px",
         "padding-bottom": "0px",
         "padding-left": "12px",
@@ -118,12 +118,12 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
     const trailing = view.$(
         '[data-happy2-ui="title-bar"]:not([data-window-controls]) [data-happy2-ui="title-bar-trailing"]',
     );
-    expect(leading.bounds()).toEqual({ x: 12, y: 0, width: 446, height: 38 });
-    expect(trailing.bounds()).toEqual({ x: 902, y: 0, width: 446, height: 38 });
+    expect(leading.bounds()).toEqual({ x: 12, y: 0, width: 446, height: 56 });
+    expect(trailing.bounds()).toEqual({ x: 902, y: 0, width: 446, height: 56 });
 
     /* Bare slotted crumb text: the pinned 13px/16px line makes its box
        deterministic, and the lane centers that box exactly — 16px line in the
-       38px lane → y 11. "Acme Studio" is a word label (asymmetric ink), so
+       56px lane → y 20. "Acme Studio" is a word label (asymmetric ink), so
        line-box symmetry is asserted exactly and the ink centroid only at the
        0.75px audit ceiling. Raw true-2x dy: cr +0.17, ff +0.67, wk +0.62 —
        Gecko/WebKit snap the baseline ~0.5px below Blink inside the pinned
@@ -133,19 +133,19 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
        in Gecko). */
     const crumb = view.$('[data-testid="crumb"]');
     expect(crumb.bounds().height).toBe(16);
-    expect(crumb.bounds().y).toBe(11);
-    expect(crumb.offsets().top + crumb.bounds().height / 2).toBe(19); // lane center
+    expect(crumb.bounds().y).toBe(20);
+    expect(crumb.offsets().top + crumb.bounds().height / 2).toBe(28); // lane center
     const crumbInk = await crumb.visibleMetrics();
     expect(crumbInk.pixelCount).toBeGreaterThan(0);
     expect(
-        Math.abs(crumbInk.center.y + crumb.bounds().y - 19),
+        Math.abs(crumbInk.center.y + crumb.bounds().y - 28),
         "crumb ink optical y",
     ).toBeLessThanOrEqual(0.75);
 
     /* Trailing content right-aligns against the 12px edge padding. */
     const trailButton = view.$('[data-testid="trail-btn"]');
     expect(trailButton.bounds().x + trailButton.bounds().width).toBe(1348);
-    expect(trailButton.bounds().y).toBe(5); // (38 - 28) / 2 centered in the lane
+    expect(trailButton.bounds().y).toBe(14); // (56 - 28) / 2 centered in the lane
     expect((await trailButton.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     /* ---- Centered SearchField ----------------------------------------- */
@@ -153,7 +153,7 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
     const field = view.$(
         '[data-happy2-ui="title-bar"]:not([data-window-controls]) [data-happy2-ui="search-field"]',
     );
-    expect(field.bounds()).toEqual({ x: 470, y: 6, width: 420, height: 26 });
+    expect(field.bounds()).toEqual({ x: 470, y: 12, width: 420, height: 32 });
     const input = view.$(
         '[data-happy2-ui="title-bar"]:not([data-window-controls]) [data-happy2-ui="search-field-input"]',
     );
@@ -171,7 +171,7 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
     /* ---- Traffic-light inset variant ----------------------------------- */
 
     const insetRoot = view.$('[data-happy2-ui="title-bar"][data-window-controls]');
-    expect(insetRoot.bounds()).toEqual({ x: 0, y: 0, width: 640, height: 38 });
+    expect(insetRoot.bounds()).toEqual({ x: 0, y: 0, width: 640, height: 56 });
     expect(insetRoot.computedStyle("padding-left")).toBe("0px");
     /* 640 - 12 right padding - 24 gaps - 420 center = 184 → 92 per side. The
        flex lanes resolve to those widths (leading at x 0, trailing ending at the
@@ -190,7 +190,7 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
     expect(insetTrailing.bounds()).toMatchObject({ x: 536, width: 92 });
 
     const controls = view.$('[data-happy2-ui="title-bar-controls"]');
-    expect(controls.bounds()).toEqual({ x: 0, y: 0, width: 78, height: 38 });
+    expect(controls.bounds()).toEqual({ x: 0, y: 0, width: 78, height: 56 });
     expect(controls.element.getAttribute("aria-hidden")).toBe("true");
     if (server.browser === "chromium") {
         /* The reserved traffic-light strip must stay draggable. */
@@ -200,7 +200,7 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
     const insetField = view.$(
         '[data-happy2-ui="title-bar"][data-window-controls] [data-happy2-ui="search-field"]',
     );
-    expect(insetField.bounds()).toEqual({ x: 104, y: 6, width: 420, height: 26 });
+    expect(insetField.bounds()).toEqual({ x: 104, y: 12, width: 420, height: 32 });
 
     /* Bare slotted text centers in the inset trailing lane the same way.
        "SK" is all-caps ink (baseline to cap height), so its centroid rides
@@ -208,18 +208,18 @@ it("holds TitleBar geometry: 38px contract, grid lanes, drag chrome", async () =
        wk -0.19 — inside the audit ceiling in every engine. */
     const trailMark = view.$('[data-testid="trail-mark"]');
     expect(trailMark.bounds().height).toBe(16);
-    expect(trailMark.offsets().top + trailMark.bounds().height / 2).toBe(19);
+    expect(trailMark.offsets().top + trailMark.bounds().height / 2).toBe(28);
     const trailInk = await trailMark.visibleMetrics();
     expect(trailInk.pixelCount).toBeGreaterThan(0);
     expect(
-        Math.abs(trailInk.center.y + trailMark.bounds().y - 19),
+        Math.abs(trailInk.center.y + trailMark.bounds().y - 28),
         "trail mark ink optical y",
     ).toBeLessThanOrEqual(0.75);
 
     await view.screenshot("TitleBar.test");
 });
 
-it("holds a transparent 38px drag overlay for full-window authentication states", async () => {
+it("holds a transparent 56px drag overlay for full-window authentication states", async () => {
     await pinViewport();
     const view = createRenderer();
 
@@ -228,7 +228,7 @@ it("holds a transparent 38px drag overlay for full-window authentication states"
             <div
                 data-testid="auth-surface"
                 style={{
-                    background: "#17161c",
+                    background: "#f5f5f5",
                     height: "120px",
                     position: "relative",
                     width: "720px",
@@ -244,7 +244,7 @@ it("holds a transparent 38px drag overlay for full-window authentication states"
     const surface = view.$('[data-testid="auth-surface"]');
     const drag = view.$('[data-testid="auth-drag"]');
     expect(surface.bounds()).toEqual({ x: 0, y: 0, width: 720, height: 120 });
-    expect(drag.bounds()).toEqual({ x: 0, y: 0, width: 720, height: 38 });
+    expect(drag.bounds()).toEqual({ x: 0, y: 0, width: 720, height: 56 });
     expect(drag.element.getAttribute("aria-hidden")).toBe("true");
     expect(
         drag.computedStyles([
@@ -260,7 +260,7 @@ it("holds a transparent 38px drag overlay for full-window authentication states"
     ).toEqual({
         "background-color": "rgba(0, 0, 0, 0)",
         "box-sizing": "border-box",
-        height: "38px",
+        height: "56px",
         left: "0px",
         position: "absolute",
         top: "0px",
@@ -280,7 +280,7 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
     const view = createRenderer();
 
     const well = (width: number): Record<string, string> => ({
-        background: "#131217",
+        background: "#ffffff",
         boxSizing: "border-box",
         height: "100%",
         padding: "12px",
@@ -344,12 +344,12 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
             <div
                 style={{
                     alignItems: "flex-start",
-                    background: "#131217",
+                    background: "#ffffff",
                     boxSizing: "border-box",
                     display: "flex",
                     gap: "20px",
                     height: "100%",
-                    padding: "16px 12px 12px",
+                    padding: "19px 12px 12px",
                     width: "160px",
                 }}
             >
@@ -368,7 +368,7 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
     /* ---- Fixed-width field --------------------------------------------- */
 
     const field = view.$('[data-testid="fixed"] [data-happy2-ui="search-field"]');
-    expect(field.bounds()).toEqual({ x: 12, y: 12, width: 420, height: 26 });
+    expect(field.bounds()).toEqual({ x: 12, y: 12, width: 420, height: 32 });
     expect(
         field.computedStyles([
             "background-color",
@@ -384,30 +384,30 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
             "padding-right",
         ]),
     ).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-bottom-width": "1px",
         "border-radius": "6px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
         "column-gap": "8px",
         display: "flex",
-        height: "26px",
+        height: "32px",
         "padding-left": "8px",
         "padding-right": "3px",
     });
 
-    /* Leading 14px search icon: 9px in, optically on the 13px center line
-       and the 16px vertical (1 border + 8 pad + 14/2). Raw true-2x drift:
+    /* Leading 14px search icon: 9px in, optically on the 16px center line
+       and the 19px vertical (1 border + 8 pad + 14/2). Raw true-2x drift:
        cr (+0.04, +0.07), ff (+0.04, +0.07), wk (+0.04, +0.04) — no
        correction needed, so the tolerance stays at the audit ceiling. */
     const icon = view.$('[data-testid="fixed"] [data-happy2-ui="search-field-icon"]');
     const iconGlyph = view.$('[data-testid="fixed"] [data-happy2-ui="search-field-icon"] svg');
     expect(icon.bounds().x - field.bounds().x).toBe(9);
-    expect(icon.bounds().y - field.bounds().y).toBe(6);
+    expect(icon.bounds().y - field.bounds().y).toBe(9);
     expect(iconGlyph.bounds().width).toBe(14);
     expect(iconGlyph.bounds().height).toBe(14);
-    expect(icon.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(icon.computedStyle("color")).toBe("rgb(142, 142, 147)");
     const iconVisible = await iconGlyph.visibleMetrics();
     expect(iconVisible.pixelCount).toBeGreaterThan(0);
     expect(
@@ -415,16 +415,16 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
         "search icon optical x",
     ).toBeLessThanOrEqual(0.75);
     expect(
-        Math.abs(iconVisible.center.y + (iconGlyph.bounds().y - field.bounds().y) - 13),
+        Math.abs(iconVisible.center.y + (iconGlyph.bounds().y - field.bounds().y) - 16),
         "search icon optical y",
     ).toBeLessThanOrEqual(0.75);
 
-    /* Real input, 12px ui text on the 24px inner lane. */
+    /* Real input, 12px ui text on the 30px inner lane. */
     const input = view.$('[data-testid="fixed"] [data-happy2-ui="search-field-input"]');
     expect(input.element.tagName).toBe("INPUT");
     expect((input.element as HTMLInputElement).value).toBe("ENG-482");
-    expect(input.bounds().height).toBe(24);
-    expect(input.bounds().y - field.bounds().y).toBe(1); // 24px lane centered in 26
+    expect(input.bounds().height).toBe(30);
+    expect(input.bounds().y - field.bounds().y).toBe(1); // 30px lane centered in 32
     expect(input.bounds().x - field.bounds().x).toBe(31); // 1 + 8 + 14 + 8
     expect(
         input.computedStyles([
@@ -441,11 +441,11 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
     ).toEqual({
         "background-color": "rgba(0, 0, 0, 0)",
         "border-top-width": "0px",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         "font-size": "12px",
         "font-weight": "500",
         "letter-spacing": "normal",
-        "line-height": "24px",
+        "line-height": "30px",
         "padding-left": "0px",
         "padding-top": "0px",
     });
@@ -457,15 +457,15 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
     const inputVisible = await input.visibleMetrics();
     expect(inputVisible.pixelCount).toBeGreaterThan(0);
     expect(
-        Math.abs(inputVisible.center.y + (input.bounds().y - field.bounds().y) - 13),
+        Math.abs(inputVisible.center.y + (input.bounds().y - field.bounds().y) - 16),
         "value text optical y",
     ).toBeLessThanOrEqual(0.75);
 
     /* Trailing KeyCap hint: 18px cap, 5px from the right edge, cap box
-       centered on the field's 13px line. */
+       centered on the field's 16px line. */
     const cap = view.$('[data-testid="fixed"] [data-happy2-ui="key-cap"]');
     expect(cap.bounds().height).toBe(18);
-    expect(cap.bounds().y - field.bounds().y).toBe(4);
+    expect(cap.bounds().y - field.bounds().y).toBe(7);
     /* WebKit reports the cap's intrinsic width fractionally (4.999); the
        contract is the 5px inset, so round the measurement. */
     expect(
@@ -479,7 +479,7 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
        its glyph exactly where a standalone KeyCap at the same vertical
        phase paints it — SearchField adds zero drift of its own. Both cap
        line boxes are 18px, so raw centroids compare directly. Raw true-2x
-       in-field dy vs the 13px line (with Badge corrections zeroed):
+       in-field dy vs the 16px line (with Badge corrections zeroed):
        cr -0.78, ff +0.23, wk -0.16 — the chromium figure is Blink's mono
        baseline inside the 18px cap line, Badge's to correct. A 1.5px gross
        ceiling still catches catastrophic misplacement field-side. The
@@ -503,14 +503,14 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
         "key-cap glyph parity y vs standalone KeyCap",
     ).toBeLessThanOrEqual(0.4);
     expect(
-        Math.abs(capInk.center.y + (capLabel.bounds().y - field.bounds().y) - 13),
+        Math.abs(capInk.center.y + (capLabel.bounds().y - field.bounds().y) - 16),
         "key-cap glyph gross optical y",
     ).toBeLessThanOrEqual(1.5);
 
     /* ---- Fluid field, custom hint, painted placeholder ------------------ */
 
     const fluid = view.$('[data-testid="fluid"] [data-happy2-ui="search-field"]');
-    expect(fluid.bounds()).toEqual({ x: 12, y: 12, width: 236, height: 26 });
+    expect(fluid.bounds()).toEqual({ x: 12, y: 12, width: 236, height: 32 });
     const fluidCapLabel = view.$('[data-testid="fluid"] [data-happy2-ui="key-cap-label"]');
     expect(
         view
@@ -567,7 +567,7 @@ it("holds SearchField focus treatment and long-content truncation", async () => 
     const view = createRenderer();
 
     const well = (width: number): Record<string, string> => ({
-        background: "#131217",
+        background: "#ffffff",
         boxSizing: "border-box",
         height: "100%",
         padding: "12px",
@@ -620,7 +620,7 @@ it("holds SearchField focus treatment and long-content truncation", async () => 
     const field = view.$('[data-testid="focus"] [data-happy2-ui="search-field"]');
     const input = view.$('[data-testid="focus"] [data-happy2-ui="search-field-input"]');
     /* Resting hairline first… */
-    expect(field.computedStyle("border-top-color")).toBe("rgba(255, 255, 255, 0.07)");
+    expect(field.computedStyle("border-top-color")).toBe("rgb(234, 234, 234)");
     expect(field.computedStyle("outline-style")).toBe("none");
 
     (input.element as HTMLInputElement).focus();
@@ -640,28 +640,28 @@ it("holds SearchField focus treatment and long-content truncation", async () => 
             "outline-width",
         ]),
     ).toEqual({
-        "border-top-color": "rgba(255, 255, 255, 0.13)",
-        "outline-color": "rgb(168, 155, 255)",
+        "border-top-color": "rgb(209, 209, 214)",
+        "outline-color": "rgb(0, 122, 255)",
         "outline-offset": "1px",
         "outline-style": "solid",
         "outline-width": "2px",
     });
     /* The ring is paint-only: geometry must not shift. */
-    expect(field.bounds()).toEqual({ x: 12, y: 12, width: 420, height: 26 });
+    expect(field.bounds()).toEqual({ x: 12, y: 12, width: 420, height: 32 });
     expect((await input.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     await view.screenshot("SearchField.focus");
     (input.element as HTMLInputElement).blur();
     await new Promise<void>((resolve) => setTimeout(resolve, 250));
     expect(field.computedStyle("outline-style")).toBe("none");
-    expect(field.computedStyle("border-top-color")).toBe("rgba(255, 255, 255, 0.07)");
+    expect(field.computedStyle("border-top-color")).toBe("rgb(234, 234, 234)");
 
     /* ---- Long value truncates inside the 200px field --------------------- */
 
     const longField = view.$('[data-testid="long-value"] [data-happy2-ui="search-field"]');
     const longInput = view.$('[data-testid="long-value"] [data-happy2-ui="search-field-input"]');
     const longCap = view.$('[data-testid="long-value"] [data-happy2-ui="key-cap"]');
-    expect(longField.bounds()).toEqual({ x: 12, y: 12, width: 200, height: 26 });
+    expect(longField.bounds()).toEqual({ x: 12, y: 12, width: 200, height: 32 });
     expect(longInput.computedStyle("min-width")).toBe("0px");
     /* The overflow is real: layout clips the value instead of growing. */
     expect(longInput.element.scrollWidth).toBeGreaterThan(longInput.element.clientWidth);
@@ -681,8 +681,8 @@ it("holds SearchField focus treatment and long-content truncation", async () => 
 
     const phField = view.$('[data-testid="long-ph"] [data-happy2-ui="search-field"]');
     const phInput = view.$('[data-testid="long-ph"] [data-happy2-ui="search-field-input"]');
-    expect(phField.bounds()).toEqual({ x: 12, y: 12, width: 200, height: 26 });
-    expect(phInput.bounds().height).toBe(24);
+    expect(phField.bounds()).toEqual({ x: 12, y: 12, width: 200, height: 32 });
+    expect(phInput.bounds().height).toBe(30);
     expect(
         phInput.bounds().x + phInput.bounds().width,
         "input stays left of the key cap",
@@ -698,7 +698,7 @@ it("reports SearchField input and submit through callbacks", async () => {
     const submits: string[] = [];
     const view = createRenderer().render(
         () => (
-            <div style={{ background: "#131217", padding: "12px" }}>
+            <div style={{ background: "#ffffff", padding: "12px" }}>
                 <SearchField
                     onChange={(value) => changes.push(value)}
                     onSubmit={(value) => submits.push(value)}
@@ -731,7 +731,7 @@ it("opens as a read-only well through click and Enter/Space in opener mode", asy
     const changes: string[] = [];
     const view = createRenderer().render(
         () => (
-            <div style={{ background: "#131217", padding: "12px" }}>
+            <div style={{ background: "#ffffff", padding: "12px" }}>
                 <SearchField
                     onOpen={() => opens.push(1)}
                     placeholder="Search Happy (2)…"

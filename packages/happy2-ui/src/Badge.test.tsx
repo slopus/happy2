@@ -490,7 +490,7 @@ it(
                 <div
                     style={{
                         alignItems: "center",
-                        background: "#131217",
+                        background: "#ffffff",
                         display: "flex",
                         gap: "12px",
                         height: "100%",
@@ -657,7 +657,7 @@ it("holds Badge family geometry, colors, and behavior", async () => {
         () => (
             <div
                 style={{
-                    background: "#17161c",
+                    background: "#f5f5f5",
                     boxSizing: "border-box",
                     display: "flex",
                     flexDirection: "column",
@@ -709,13 +709,13 @@ it("holds Badge family geometry, colors, and behavior", async () => {
             color: string;
         }
     > = {
-        neutral: { background: "rgba(255, 255, 255, 0.05)", color: "rgb(165, 160, 176)" },
-        accent: { background: "rgba(139, 124, 247, 0.15)", color: "rgb(168, 155, 255)" },
-        success: { background: "rgba(52, 211, 153, 0.13)", color: "rgb(110, 231, 183)" },
-        warning: { background: "rgba(251, 191, 36, 0.13)", color: "rgb(252, 211, 77)" },
-        danger: { background: "rgba(248, 113, 113, 0.13)", color: "rgb(252, 165, 165)" },
-        info: { background: "rgba(96, 165, 250, 0.13)", color: "rgb(96, 165, 250)" },
-        outline: { background: "rgba(0, 0, 0, 0)", color: "rgb(165, 160, 176)" },
+        neutral: { background: "rgb(245, 245, 245)", color: "rgb(142, 142, 147)" },
+        accent: { background: "rgba(0, 122, 255, 0.14)", color: "rgb(0, 122, 255)" },
+        success: { background: "rgba(52, 199, 89, 0.14)", color: "rgb(36, 138, 61)" },
+        warning: { background: "rgba(255, 149, 0, 0.14)", color: "rgb(201, 52, 0)" },
+        danger: { background: "rgba(255, 59, 48, 0.12)", color: "rgb(215, 0, 21)" },
+        info: { background: "rgba(0, 122, 255, 0.14)", color: "rgb(0, 122, 255)" },
+        outline: { background: "rgba(0, 0, 0, 0)", color: "rgb(142, 142, 147)" },
     };
     for (const variant of BADGE_VARIANTS) {
         const badge = view.$(`.g-${variant}`);
@@ -760,7 +760,7 @@ it("holds Badge family geometry, colors, and behavior", async () => {
         ).toBe("-0.6px");
     }
     expect(view.$(".g-outline").computedStyles(["border-top-color", "border-top-width"])).toEqual({
-        "border-top-color": "rgba(255, 255, 255, 0.13)",
+        "border-top-color": "rgb(209, 209, 214)",
         "border-top-width": "1px",
     });
     expect(view.$(".g-default").element.getAttribute("data-variant")).toBe("neutral");
@@ -799,10 +799,9 @@ it("holds Badge family geometry, colors, and behavior", async () => {
             ]),
             id,
         ).toEqual({
-            "background-color":
-                tone === "accent" ? "rgb(139, 124, 247)" : "rgba(255, 255, 255, 0.05)",
+            "background-color": tone === "accent" ? "rgb(0, 122, 255)" : "rgb(245, 245, 245)",
             "border-radius": "999px",
-            color: tone === "accent" ? "rgb(255, 255, 255)" : "rgb(165, 160, 176)",
+            color: tone === "accent" ? "rgb(255, 255, 255)" : "rgb(142, 142, 147)",
             "font-family": mono,
             "font-size": "10.8px",
             "font-weight": "700",
@@ -833,9 +832,9 @@ it("holds Badge family geometry, colors, and behavior", async () => {
             "cursor",
         ]),
     ).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-radius": "999px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         cursor: "pointer",
     });
@@ -851,7 +850,7 @@ it("holds Badge family geometry, colors, and behavior", async () => {
                 "line-height",
             ]),
     ).toEqual({
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-family": mono,
         "font-size": "11px",
         "font-weight": "700",
@@ -870,12 +869,12 @@ it("holds Badge family geometry, colors, and behavior", async () => {
     const active = view.$(".g-chip-active");
     expect(active.element.getAttribute("aria-pressed")).toBe("true");
     expect(active.computedStyles(["background-color", "border-top-color"])).toEqual({
-        "background-color": "rgba(139, 124, 247, 0.15)",
-        "border-top-color": "rgb(139, 124, 247)",
+        "background-color": "rgba(0, 122, 255, 0.14)",
+        "border-top-color": "rgb(0, 122, 255)",
     });
     expect(
         view.$('.g-chip-active [data-happy2-ui="reaction-chip-count"]').computedStyle("color"),
-    ).toBe("rgb(168, 155, 255)");
+    ).toBe("rgb(0, 122, 255)");
     /* KeyCap: 18px mono hint. */
     for (const id of ["g-cap-short", "g-cap-long"]) {
         const cap = view.$(`.${id}`);
@@ -892,9 +891,9 @@ it("holds Badge family geometry, colors, and behavior", async () => {
             ]),
             id,
         ).toEqual({
-            "background-color": "rgba(255, 255, 255, 0.05)",
+            "background-color": "rgb(245, 245, 245)",
             "border-radius": "4px",
-            color: "rgb(165, 160, 176)",
+            color: "rgb(142, 142, 147)",
             "font-family": mono,
             "font-size": "10.8px",
             "font-weight": "500",

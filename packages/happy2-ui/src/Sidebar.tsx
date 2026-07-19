@@ -124,7 +124,7 @@ function SidebarRow(props: { active: boolean; item: SidebarItem; onSelect: (id: 
     );
 }
 /**
- * C-009 Sidebar — 288px navigation column on the chrome surface. Header with
+ * C-009 Sidebar — responsive native navigation column. Header with
  * workspace title, scrollable sectioned rows (views, channels, people, agents,
  * actions), actionable empty-section guidance, and an optional footer.
  */

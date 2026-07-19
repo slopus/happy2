@@ -12,7 +12,7 @@ const items: RailItem[] = [
 ];
 
 /* 1/2/3-digit badge counts, the fifth rail glyph (files), and a label long
- * enough to hit the 56px ellipsis clamp. */
+ * enough to hit the 48px ellipsis clamp. */
 const badgeItems: RailItem[] = [
     { badge: 5, icon: "chat", id: "one-digit", label: "Chat" },
     { badge: 64, icon: "tasks", id: "two-digit", label: "Tasks" },
@@ -111,7 +111,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
 
     /* Each surface pairs the contract fixture with a duplicate used for the
      * anchored optical captures. With no right hairline the rail centers its
-     * children on integer positions inside the full 76px lane, so both rails
+     * children on integer positions inside the full 64px lane, so both rails
      * already land on integer CSS pixels (no shim needed) and the captures are
      * exact. */
     view.render(
@@ -199,7 +199,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
 
     const rail = view.$('[data-testid="rail-main"]');
     expect(rail.element.tagName).toBe("NAV");
-    expect(rail.bounds()).toEqual({ x: 0, y: 0, width: 76, height: 420 });
+    expect(rail.bounds()).toEqual({ x: 0, y: 0, width: 64, height: 420 });
     expect(
         rail.computedStyles([
             "background-color",
@@ -224,32 +224,32 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
         "flex-direction": "column",
         "flex-grow": "0",
         "flex-shrink": "0",
-        "padding-bottom": "20px",
+        "padding-bottom": "16px",
         "padding-left": "0px",
         "padding-right": "0px",
-        "padding-top": "10px",
+        "padding-top": "12px",
     });
 
     /* The taller surface fills too: the rail is height-fluid. */
     expect(view.$('[data-testid="rail-custom"]').bounds()).toEqual({
         x: 0,
         y: 0,
-        width: 76,
+        width: 64,
         height: 560,
     });
 
-    /* The generated happy otter is the default 34px brand mark. It occupies
+    /* The generated happy otter is the default 32px brand mark. It occupies
      * the former R slot without restoring any text glyph. */
     const brandImage = view.$('[data-testid="rail-main"] [data-happy2-ui="rail-brand-image"]');
     const brandImageElement = brandImage.element as HTMLImageElement;
     await brandImageElement.decode();
     expect(brandImage.element.tagName).toBe("IMG");
-    expect(brandImage.bounds()).toEqual({ x: 21, y: 10, width: 34, height: 34 });
+    expect(brandImage.bounds()).toEqual({ x: 16, y: 12, width: 32, height: 32 });
     expect(brandImage.computedStyles(["display", "height", "object-fit", "width"])).toEqual({
         display: "block",
-        height: "34px",
+        height: "32px",
         "object-fit": "contain",
-        width: "34px",
+        width: "32px",
     });
     expect(brandImageElement.complete).toBe(true);
     expect(brandImageElement.naturalWidth).toBe(128);
@@ -267,22 +267,22 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
         34,
     );
     expect(view.$('[data-testid="rail-custom"] [data-testid="custom-brand"]').bounds()).toEqual({
-        x: 21,
-        y: 10,
+        x: 15,
+        y: 12,
         width: 34,
         height: 34,
     });
 
-    /* ---- Items: 60×52 buttons on the 4px rhythm -------------------------- */
+    /* ---- Items: 52×48 buttons on the 4px rhythm -------------------------- */
 
     const inbox = view.$('[data-testid="rail-main"] [data-item-id="inbox"]');
     const chat = view.$('[data-testid="rail-main"] [data-item-id="chat"]');
     const active = view.$('[data-testid="rail-main"] [data-item-id="agents"]');
 
     expect(inbox.element.tagName).toBe("BUTTON");
-    /* Items start after the 34px otter mark and its 12px gap. */
-    expect(inbox.bounds()).toEqual({ x: 8, y: 56, width: 60, height: 52 });
-    expect(chat.bounds()).toEqual({ x: 8, y: 112, width: 60, height: 52 });
+    /* Items start after the 32px otter mark and its 8px gap. */
+    expect(inbox.bounds()).toEqual({ x: 6, y: 52, width: 52, height: 48 });
+    expect(chat.bounds()).toEqual({ x: 6, y: 104, width: 52, height: 48 });
     expect(
         inbox.computedStyles([
             "background-color",
@@ -299,7 +299,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
         "border-radius": "8px",
         "border-top-width": "0px",
         "box-sizing": "border-box",
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         cursor: "pointer",
         display: "flex",
         "flex-direction": "column",
@@ -309,8 +309,8 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     expect(active.element.getAttribute("aria-current")).toBe("page");
     expect(inbox.element.getAttribute("aria-current")).toBeNull();
     expect(active.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(139, 124, 247, 0.15)",
-        color: "rgb(168, 155, 255)",
+        "background-color": "rgba(0, 122, 255, 0.14)",
+        color: "rgb(0, 122, 255)",
     });
     expect(
         view
@@ -318,7 +318,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
                 '[data-testid="rail-main"] [data-item-id="agents"] [data-happy2-ui="rail-item-label"]',
             )
             .computedStyle("color"),
-    ).toBe("rgb(237, 234, 242)");
+    ).toBe("rgb(0, 0, 0)");
 
     /* ---- Icon and label inside an item ------------------------------------ */
 
@@ -327,14 +327,14 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     );
     expect(chatIconBox.bounds().width).toBe(20);
     expect(chatIconBox.bounds().height).toBe(20);
-    /* Content column (20 icon + 4 gap + 12 label) centers in the 52px lane. */
-    expect(chatIconBox.bounds().x - chat.bounds().x).toBe(20);
-    expect(chatIconBox.bounds().y - chat.bounds().y).toBe(8);
+    /* Content column (20 icon + 4 gap + 12 label) centers in the 48px lane. */
+    expect(chatIconBox.bounds().x - chat.bounds().x).toBe(16);
+    expect(chatIconBox.bounds().y - chat.bounds().y).toBe(6);
 
     const chatIcon = view.$(
         '[data-testid="rail-main"] [data-item-id="chat"] [data-happy2-ui="icon"]',
     );
-    expect(chatIcon.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(chatIcon.computedStyle("color")).toBe("rgb(142, 142, 147)");
 
     /* Optical: every rail glyph, active and inactive, centroid vs the item
      * center — the icon row center sits exactly 8px above it. Raw drift
@@ -372,14 +372,14 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     expect(labelMetrics.font.weight).toBe("700");
     expect(labelMetrics.font.lineHeight).toBe(12);
     expect(labelMetrics.font.letterSpacing).toBeCloseTo(0.2, 3);
-    expect(chatLabel.bounds().y - chat.bounds().y).toBe(32);
+    expect(chatLabel.bounds().y - chat.bounds().y).toBe(30);
 
     /* Labels: word ink is inherently asymmetric (ascenders, descenders,
      * per-letter mass — "Agents" measures -0.5..-0.65 in every engine even
      * with the trailing letter-spacing bias cancelled), so the horizontal
      * centroid is asserted at the 0.75 contract and the vertical axis via
-     * line-box symmetry: the 12px line box sits 32px from the item top and
-     * 8px from its bottom, mirroring the icon's 8px top inset. */
+     * line-box symmetry: the 12px line box sits 30px from the item top and
+     * 8px from its bottom, mirroring the icon's 6px top inset. */
     for (const [railId, itemId, text] of [
         ["rail-m", "chat", "Chat"], // inactive
         ["rail-m", "agents", "Agents"], // active
@@ -391,7 +391,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
             `[data-testid="${railId}"] [data-item-id="${itemId}"] [data-happy2-ui="rail-item-label"]`,
         );
         expect(label.element.textContent).toBe(text);
-        expect(label.bounds().y - item.bounds().y).toBe(32);
+        expect(label.bounds().y - item.bounds().y).toBe(30);
         expect(label.bounds().height).toBe(12);
         const delta = await anchoredCenter(
             view,
@@ -404,20 +404,20 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
         ).toBeLessThanOrEqual(0.75);
     }
 
-    /* Long labels clamp to the 56px lane with an ellipsis, ink kept inside. */
+    /* Long labels clamp to the 48px lane with an ellipsis, ink kept inside. */
     const longLabel = view.$(
         '[data-testid="rail-badges"] [data-item-id="long-label"] [data-happy2-ui="rail-item-label"]',
     );
     expect(longLabel.computedStyle("text-overflow")).toBe("ellipsis");
-    expect(longLabel.bounds().width).toBe(56);
+    expect(longLabel.bounds().width).toBe(48);
     const longLabelVisible = await longLabel.visibleMetrics();
     expect(longLabelVisible.pixelCount).toBeGreaterThan(0);
-    expect(longLabelVisible.bounds.width).toBeLessThanOrEqual(56.5);
+    expect(longLabelVisible.bounds.width).toBeLessThanOrEqual(48.5);
 
     /* ---- Unread badge overlapping the icon top-right ----------------------- */
 
-    /* The badge anchors 13px right and 6px up from the icon box for every
-     * digit count; the pill keeps its 18px height and grows rightward only. */
+    /* The badge keeps a 4px inset from the icon's top-right edge for every
+     * digit count; the pill keeps its 18px height and grows leftward only. */
     const badgeWidths: number[] = [];
     for (const [itemId, text] of [
         ["one-digit", "5"],
@@ -430,8 +430,11 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
         const iconBox = view.$(
             `[data-testid="rail-badges"] [data-item-id="${itemId}"] [data-happy2-ui="rail-item-icon"]`,
         );
-        expect(badge.bounds().x - iconBox.bounds().x, `${text} badge x offset`).toBe(13);
-        expect(badge.bounds().y - iconBox.bounds().y, `${text} badge y offset`).toBe(-6);
+        expect(
+            iconBox.bounds().x + iconBox.bounds().width - (badge.bounds().x + badge.bounds().width),
+            `${text} badge right inset`,
+        ).toBe(4);
+        expect(badge.bounds().y - iconBox.bounds().y, `${text} badge top inset`).toBe(4);
         const count = view.$(
             `[data-testid="rail-badges"] [data-item-id="${itemId}"] [data-happy2-ui="count-badge"]`,
         );
@@ -451,8 +454,8 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     );
     expect(count12.element.textContent).toBe("12");
     expect(count12.computedStyles(["background-color", "border-radius", "color"])).toEqual({
-        "background-color": "rgb(139, 124, 247)",
-        "border-radius": "6px",
+        "background-color": "rgb(0, 122, 255)",
+        "border-radius": "4px",
         color: "rgb(255, 255, 255)",
     });
     expect(
@@ -465,19 +468,19 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
 
     const footer = view.$('[data-testid="rail-main"] [data-happy2-ui="rail-footer"]');
     const footerBounds = footer.bounds();
-    expect(footerBounds.y + footerBounds.height).toBe(420 - 20);
+    expect(footerBounds.y + footerBounds.height).toBe(420 - 16);
     const footerAction = view.$('[data-testid="rail-main"] [data-happy2-ui="rail-footer-action"]');
     expect(footerAction.element.tagName).toBe("BUTTON");
     expect(footerAction.element.getAttribute("aria-label")).toBe("Open profile");
-    expect(footerAction.bounds()).toEqual({ x: 20, y: 364, width: 36, height: 36 });
+    expect(footerAction.bounds()).toEqual({ x: 14, y: 368, width: 36, height: 36 });
     const footerAvatar = view.$('[data-testid="rail-main"] [data-happy2-ui="avatar"]');
     expect(footerAvatar.bounds().width).toBe(36);
     const avatarBounds = footerAvatar.bounds();
-    expect(avatarBounds.x).toBe(20);
-    expect(76 - avatarBounds.x - avatarBounds.width).toBe(20);
-    expect(420 - avatarBounds.y - avatarBounds.height).toBe(20);
+    expect(avatarBounds.x).toBe(14);
+    expect(64 - avatarBounds.x - avatarBounds.width).toBe(14);
+    expect(420 - avatarBounds.y - avatarBounds.height).toBe(16);
     const primary = view.$('[data-testid="rail-main"] [data-happy2-ui="rail-primary"]');
-    expect(primary.bounds()).toEqual({ x: 20, y: 314, width: 36, height: 36 });
+    expect(primary.bounds()).toEqual({ x: 14, y: 318, width: 36, height: 36 });
     expect(primary.bounds().width).toBe(footerAvatar.bounds().width);
     expect(primary.element.getAttribute("aria-haspopup")).toBe("menu");
     const footerVisible = await footerAvatar.visibleMetrics();

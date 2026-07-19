@@ -157,9 +157,9 @@ it("holds TextField sizes, typography, label, hint, and leading-icon geometry", 
             id,
         ).toEqual({
             "align-items": "center",
-            "background-color": "rgba(255, 255, 255, 0.05)",
+            "background-color": "rgb(245, 245, 245)",
             "border-radius": "6px",
-            "border-top-color": "rgba(255, 255, 255, 0.07)",
+            "border-top-color": "rgb(234, 234, 234)",
             "border-top-style": "solid",
             "border-top-width": "1px",
             "box-sizing": "border-box",
@@ -198,7 +198,7 @@ it("holds TextField sizes, typography, label, hint, and leading-icon geometry", 
         ).toEqual({
             "background-color": "rgba(0, 0, 0, 0)",
             "border-top-width": "0px",
-            color: "rgb(237, 234, 242)",
+            color: "rgb(0, 0, 0)",
             "font-size": `${spec.font}px`,
             "font-weight": "500",
             "line-height": `${spec.lane}px`,
@@ -228,7 +228,7 @@ it("holds TextField sizes, typography, label, hint, and leading-icon geometry", 
             id,
         ).toEqual({
             "align-items": "center",
-            color: "rgb(237, 234, 242)",
+            color: "rgb(0, 0, 0)",
             // inline-flex, blockified: the label is a flex item of the field root.
             display: "flex",
             "font-size": "13px",
@@ -246,18 +246,18 @@ it("holds TextField sizes, typography, label, hint, and leading-icon geometry", 
 
     // Placeholder paints in the muted token.
     const mediumInput = view.$('[data-testid="tf-medium"] [data-happy2-ui="text-field-input"]');
-    expect(getComputedStyle(mediumInput.element, "::placeholder").color).toBe("rgb(117, 112, 133)");
+    expect(getComputedStyle(mediumInput.element, "::placeholder").color).toBe("rgb(142, 142, 147)");
 
     // Required marker: danger token, actually painted.
     const required = view.$('[data-testid="tf-small"] [data-happy2-ui="text-field-required"]');
-    expect(required.computedStyle("color")).toBe("rgb(248, 113, 113)");
+    expect(required.computedStyle("color")).toBe("rgb(255, 59, 48)");
     expect((await required.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     // Hint message: muted token, correct hook + tone, painted.
     const hint = view.$('[data-testid="tf-small"] [data-happy2-ui="text-field-hint"]');
     expect(hint.element.getAttribute("data-tone")).toBe("hint");
     expect(hint.computedStyles(["color", "font-size", "line-height"])).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-size": "12px",
         "line-height": "16px",
     });
@@ -288,7 +288,7 @@ it("holds TextField sizes, typography, label, hint, and leading-icon geometry", 
         expect(control.height(), id).toBe(spec.height);
         expect(glyph.bounds().width, `${id} icon width`).toBe(spec.icon);
         expect(glyph.bounds().height, `${id} icon height`).toBe(spec.icon);
-        expect(iconBox.computedStyle("color"), `${id} icon color`).toBe("rgb(117, 112, 133)");
+        expect(iconBox.computedStyle("color"), `${id} icon color`).toBe("rgb(142, 142, 147)");
 
         // Icon box: hairline + padding in, vertically centered in the lane.
         expect(
@@ -391,7 +391,7 @@ it("holds TextField focus, error, disabled, textarea, width, and placeholder par
         () => (
             <div
                 style={{
-                    background: "#1c1b22",
+                    background: "#ffffff",
                     boxSizing: "border-box",
                     padding: "20px",
                     width: "360px",
@@ -431,7 +431,7 @@ it("holds TextField focus, error, disabled, textarea, width, and placeholder par
         '[data-testid="focus-field"] [data-happy2-ui="text-field-control"]',
     );
     const focusInput = view.$('[data-testid="focus-field"] [data-happy2-ui="text-field-input"]');
-    expect(focusControl.computedStyle("border-top-color")).toBe("rgba(255, 255, 255, 0.07)");
+    expect(focusControl.computedStyle("border-top-color")).toBe("rgb(234, 234, 234)");
     expect(focusControl.computedStyle("outline-style")).toBe("none");
     const restBounds = focusControl.bounds();
 
@@ -451,8 +451,8 @@ it("holds TextField focus, error, disabled, textarea, width, and placeholder par
             "outline-width",
         ]),
     ).toEqual({
-        "border-top-color": "rgba(255, 255, 255, 0.13)",
-        "outline-color": "rgb(168, 155, 255)",
+        "border-top-color": "rgb(209, 209, 214)",
+        "outline-color": "rgb(0, 122, 255)",
         "outline-offset": "1px",
         "outline-style": "solid",
         "outline-width": "2px",
@@ -466,7 +466,7 @@ it("holds TextField focus, error, disabled, textarea, width, and placeholder par
     (focusInput.element as HTMLInputElement).blur();
     await new Promise<void>((resolve) => setTimeout(resolve, 250));
     expect(focusControl.computedStyle("outline-style")).toBe("none");
-    expect(focusControl.computedStyle("border-top-color")).toBe("rgba(255, 255, 255, 0.07)");
+    expect(focusControl.computedStyle("border-top-color")).toBe("rgb(234, 234, 234)");
 
     /* ---- Error state ---------------------------------------------------- */
 
@@ -475,9 +475,9 @@ it("holds TextField focus, error, disabled, textarea, width, and placeholder par
     );
     const errorInput = view.$('[data-testid="error-field"] [data-happy2-ui="text-field-input"]');
     const errorMsg = view.$('[data-testid="error-field"] [data-happy2-ui="text-field-error"]');
-    expect(errorControl.computedStyle("border-top-color")).toBe("rgb(248, 113, 113)");
+    expect(errorControl.computedStyle("border-top-color")).toBe("rgb(255, 59, 48)");
     expect(errorMsg.element.getAttribute("data-tone")).toBe("error");
-    expect(errorMsg.computedStyle("color")).toBe("rgb(248, 113, 113)");
+    expect(errorMsg.computedStyle("color")).toBe("rgb(255, 59, 48)");
     expect(errorMsg.element.textContent).toBe("Enter a valid email address");
     expect(errorInput.element.getAttribute("aria-invalid")).toBe("true");
     expect(errorInput.element.getAttribute("aria-describedby")).toBe(errorMsg.element.id);
@@ -537,7 +537,7 @@ it("holds TextField focus, error, disabled, textarea, width, and placeholder par
     const parValControl = view.$('[data-testid="par-val"] [data-happy2-ui="text-field-control"]');
     expect(parPh.element.getAttribute("placeholder")).toBe("ORBIT-2048");
     expect((parVal.element as HTMLInputElement).value).toBe("ORBIT-2048");
-    expect(getComputedStyle(parPh.element, "::placeholder").color).toBe("rgb(117, 112, 133)");
+    expect(getComputedStyle(parPh.element, "::placeholder").color).toBe("rgb(142, 142, 147)");
 
     const phInk = await parPh.visibleMetrics();
     const valInk = await parVal.visibleMetrics();

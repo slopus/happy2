@@ -143,7 +143,7 @@ it("renders the controlled form with a stable external-submit link and calibrate
             "line-height",
         ]),
     ).toMatchObject({
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
         "font-size": "13px",
         "font-weight": "400",
         "line-height": "20px",
@@ -227,7 +227,7 @@ it("shows field errors and a server conflict while the linked submit is disabled
     const formError = view.$('[data-testid="da"] [data-happy2-ui="default-agent-error"]');
     expect(formError.element.getAttribute("role")).toBe("alert");
     expect(formError.element.textContent).toBe("The default agent username is already taken.");
-    expect(formError.computedStyle("color")).toBe("rgb(248, 113, 113)");
+    expect(formError.computedStyle("color")).toBe("rgb(255, 59, 48)");
     expect(formError.textMetrics().font).toMatchObject({ size: 13, weight: "400", lineHeight: 20 });
     expect((await formError.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 

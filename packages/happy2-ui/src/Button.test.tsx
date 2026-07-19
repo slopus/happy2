@@ -51,29 +51,29 @@ const variantStyles: Record<
     { background: string; borderColor: string; color: string }
 > = {
     primary: {
-        background: "rgb(139, 124, 247)",
+        background: "rgb(0, 0, 0)",
         borderColor: "rgba(0, 0, 0, 0)",
         color: "rgb(255, 255, 255)",
     },
     secondary: {
-        background: "rgb(36, 34, 43)",
-        borderColor: "rgba(255, 255, 255, 0.13)",
-        color: "rgb(237, 234, 242)",
+        background: "rgb(240, 240, 242)",
+        borderColor: "rgb(209, 209, 214)",
+        color: "rgb(0, 0, 0)",
     },
     ghost: {
         background: "rgba(0, 0, 0, 0)",
         borderColor: "rgba(0, 0, 0, 0)",
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
     },
     danger: {
-        background: "rgba(248, 113, 113, 0.13)",
+        background: "rgba(255, 59, 48, 0.12)",
         borderColor: "rgba(0, 0, 0, 0)",
-        color: "rgb(252, 165, 165)",
+        color: "rgb(215, 0, 21)",
     },
     success: {
-        background: "rgba(52, 211, 153, 0.13)",
+        background: "rgba(52, 199, 89, 0.14)",
         borderColor: "rgba(0, 0, 0, 0)",
-        color: "rgb(110, 231, 183)",
+        color: "rgb(36, 138, 61)",
     },
 };
 
@@ -273,7 +273,7 @@ it("holds Button dimensions, typography, and optical label centering for every s
     const full = view.$('[data-testid="button-full"]');
     expect(full.bounds()).toMatchObject({ width: 272, height: 36 });
     expect(full.computedStyles(["background-color", "color", "height", "padding"])).toEqual({
-        "background-color": "rgb(139, 124, 247)",
+        "background-color": "rgb(0, 0, 0)",
         color: "rgb(255, 255, 255)",
         height: "36px",
         padding: "0px 14px",

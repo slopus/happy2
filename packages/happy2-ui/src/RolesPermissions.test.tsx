@@ -28,7 +28,7 @@ it("holds role and permission administration geometry, markings, and action boun
 
     view.render(
         () => (
-            <div style={{ display: "flex", width: "520px", height: "100%", background: "#17161c" }}>
+            <div style={{ display: "flex", width: "520px", height: "100%", background: "#f5f5f5" }}>
                 <PermissionChecklist
                     data-testid="permissions"
                     onToggle={toggled}
@@ -41,7 +41,7 @@ it("holds role and permission administration geometry, markings, and action boun
     );
     view.render(
         () => (
-            <div style={{ display: "flex", width: "920px", height: "100%", background: "#17161c" }}>
+            <div style={{ display: "flex", width: "920px", height: "100%", background: "#f5f5f5" }}>
                 <RolesPanel
                     data-testid="roles"
                     onDeleteRole={deleted}
@@ -71,7 +71,7 @@ it("holds role and permission administration geometry, markings, and action boun
     );
     view.render(
         () => (
-            <div style={{ display: "flex", width: "560px", height: "100%", background: "#17161c" }}>
+            <div style={{ display: "flex", width: "560px", height: "100%", background: "#f5f5f5" }}>
                 <RoleEditor
                     builtin="member"
                     description="All server members"
@@ -88,7 +88,7 @@ it("holds role and permission administration geometry, markings, and action boun
     );
     view.render(
         () => (
-            <div style={{ display: "flex", width: "560px", height: "100%", background: "#17161c" }}>
+            <div style={{ display: "flex", width: "560px", height: "100%", background: "#f5f5f5" }}>
                 <MemberAccessPanel
                     assignedRoles={[
                         {

@@ -21,10 +21,10 @@ const fontFamily = () =>
  * danger — the identity contract the inventory calls out.
  */
 const DOT_COLORS: Record<Availability, string> = {
-    automatic: "rgb(117, 112, 133)", // --happy2-text-muted #757085
-    online: "rgb(52, 211, 153)", // --happy2-success  #34d399
-    away: "rgb(251, 191, 36)", // --happy2-warning  #fbbf24
-    dnd: "rgb(248, 113, 113)", // --happy2-danger   #f87171
+    automatic: "rgb(142, 142, 147)", // --happy2-text-muted #8e8e93
+    online: "rgb(52, 199, 89)", // --happy2-success  #34c759
+    away: "rgb(255, 149, 0)", // --happy2-warning  #ff9500
+    dnd: "rgb(255, 59, 48)", // --happy2-danger   #ff3b30
 };
 
 const AVAILABILITY: Availability[] = ["automatic", "online", "away", "dnd"];
@@ -124,12 +124,12 @@ it("holds StatusPicker card, availability dots, segmented layout, and status fie
         ]),
         "card",
     ).toEqual({
-        "background-color": "rgb(36, 34, 43)",
+        "background-color": "rgb(240, 240, 242)",
         "border-radius": "10px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
-        color: "rgb(237, 234, 242)",
+        color: "rgb(0, 0, 0)",
         display: "flex",
         "flex-direction": "column",
         "font-family": fontFamily(),
@@ -151,9 +151,9 @@ it("holds StatusPicker card, availability dots, segmented layout, and status fie
         ]),
         "track",
     ).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-radius": "6px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "box-sizing": "border-box",
         display: "flex",
         height: "36px",
@@ -201,7 +201,7 @@ it("holds StatusPicker card, availability dots, segmented layout, and status fie
     const onlineLabel = view.$(
         sp(' [data-availability="online"] [data-happy2-ui="status-picker-segment-label"]'),
     );
-    expect(onlineLabel.computedStyle("color"), "active color").toBe("rgb(237, 234, 242)");
+    expect(onlineLabel.computedStyle("color"), "active color").toBe("rgb(0, 0, 0)");
     expect(onlineLabel.textMetrics(), "active label typography").toMatchObject({
         font: {
             family: "happy2 Figtree, system-ui, sans-serif",
@@ -216,7 +216,7 @@ it("holds StatusPicker card, availability dots, segmented layout, and status fie
         const label = view.$(
             sp(` [data-availability="${value}"] [data-happy2-ui="status-picker-segment-label"]`),
         );
-        expect(label.computedStyle("color"), `${value} inactive color`).toBe("rgb(165, 160, 176)");
+        expect(label.computedStyle("color"), `${value} inactive color`).toBe("rgb(142, 142, 147)");
     }
 
     // Symmetric dot centroids on the three unselected segments (the selected
@@ -243,9 +243,9 @@ it("holds StatusPicker card, availability dots, segmented layout, and status fie
         pill.computedStyles(["background-color", "border-radius", "border-top-color", "position"]),
         "pill style",
     ).toEqual({
-        "background-color": "rgb(36, 34, 43)",
+        "background-color": "rgb(240, 240, 242)",
         "border-radius": "1px",
-        "border-top-color": "rgba(255, 255, 255, 0.13)",
+        "border-top-color": "rgb(209, 209, 214)",
         position: "absolute",
     });
 
@@ -262,7 +262,7 @@ it("holds StatusPicker card, availability dots, segmented layout, and status fie
         ]),
         "eyebrow",
     ).toEqual({
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         "font-size": "11px",
         "font-weight": "700",
         "letter-spacing": "0.66px",
@@ -285,9 +285,9 @@ it("holds StatusPicker card, availability dots, segmented layout, and status fie
         "field",
     ).toEqual({
         "align-items": "center",
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-radius": "6px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         display: "flex",
         height: "40px",
     });
@@ -301,7 +301,7 @@ it("holds StatusPicker card, availability dots, segmented layout, and status fie
 
     // Input typography + value.
     const input = view.$(sp(' [data-happy2-ui="status-picker-input"]'));
-    expect(input.computedStyle("color"), "input color").toBe("rgb(237, 234, 242)");
+    expect(input.computedStyle("color"), "input color").toBe("rgb(0, 0, 0)");
     expect(input.textMetrics(), "input typography").toMatchObject({
         font: {
             family: "happy2 Figtree, system-ui, sans-serif",
@@ -330,7 +330,7 @@ it("holds StatusPicker card, availability dots, segmented layout, and status fie
 
     // ---- Expiry meta ----------------------------------------------------
     const meta = view.$(sp(' [data-happy2-ui="status-picker-meta"]'));
-    expect(meta.computedStyle("color"), "meta color").toBe("rgb(117, 112, 133)");
+    expect(meta.computedStyle("color"), "meta color").toBe("rgb(142, 142, 147)");
     expect(
         view.$(sp(' [data-happy2-ui="status-picker-meta-icon"] [data-happy2-ui="icon"]')).bounds(),
         "meta icon box",
@@ -407,7 +407,7 @@ it("holds StatusPicker availability sweep and empty-status state", async () => {
             `${root} [data-availability="${value}"] [data-happy2-ui="status-picker-segment-label"]`,
         );
         expect(selectedLabel.computedStyle("color"), `${value} selected color`).toBe(
-            "rgb(237, 234, 242)",
+            "rgb(0, 0, 0)",
         );
         for (const other of AVAILABILITY) {
             if (other === value) continue;
@@ -415,7 +415,7 @@ it("holds StatusPicker availability sweep and empty-status state", async () => {
                 `${root} [data-availability="${other}"] [data-happy2-ui="status-picker-segment-label"]`,
             );
             expect(otherLabel.computedStyle("color"), `${value}/${other} inactive`).toBe(
-                "rgb(165, 160, 176)",
+                "rgb(142, 142, 147)",
             );
             // Every dot keeps its own identity color regardless of selection.
             const otherDot = view.$(

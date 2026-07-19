@@ -106,7 +106,7 @@ it("holds panel EmptyState geometry, medallion centering, and typography", async
     ).toEqual({
         "align-items": "center",
         "box-sizing": "border-box",
-        color: "rgb(117, 112, 133)",
+        color: "rgb(142, 142, 147)",
         display: "flex",
         "flex-direction": "column",
         "justify-content": "center",
@@ -131,12 +131,12 @@ it("holds panel EmptyState geometry, medallion centering, and typography", async
             "color",
         ]),
     ).toEqual({
-        "background-color": "rgba(255, 255, 255, 0.05)",
+        "background-color": "rgb(245, 245, 245)",
         "border-radius": "10px",
-        "border-top-color": "rgba(255, 255, 255, 0.07)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
-        color: "rgb(165, 160, 176)",
+        color: "rgb(142, 142, 147)",
     });
 
     /* Icon box centered in the medallion by integer inset (48 → 20 → 14). */
@@ -147,7 +147,7 @@ it("holds panel EmptyState geometry, medallion centering, and typography", async
     expect(icon.bounds().height).toBe(20);
     expect(icon.bounds().x - media.bounds().x, "icon box left inset").toBe(14);
     expect(icon.bounds().y - media.bounds().y, "icon box top inset").toBe(14);
-    expect(icon.computedStyle("stroke")).toBe("rgb(165, 160, 176)");
+    expect(icon.computedStyle("stroke")).toBe("rgb(142, 142, 147)");
     /* Balanced glyph: alpha centroid on the medallion center (24, 24). */
     const iconInk = await ink(icon, media, "panel medallion glyph");
     expect(Math.abs(iconInk.x - 24), "medallion glyph optical x").toBeLessThanOrEqual(ICON_TOL);
@@ -170,7 +170,7 @@ it("holds panel EmptyState geometry, medallion centering, and typography", async
         },
         text: "No messages yet",
     });
-    expect(title.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(title.computedStyle("color")).toBe("rgb(0, 0, 0)");
     expect(symmetry(title, root), "title horizontal centering").toBeLessThanOrEqual(0.5);
     expect((await title.visibleMetrics()).pixelCount, "title paints").toBeGreaterThan(0);
 
@@ -187,7 +187,7 @@ it("holds panel EmptyState geometry, medallion centering, and typography", async
     expect(description.textMetrics()).toMatchObject({
         font: { lineHeight: 18, size: 13, weight: "400" },
     });
-    expect(description.computedStyle("color")).toBe("rgb(117, 112, 133)");
+    expect(description.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(description.computedStyle("max-width")).toBe("320px");
     expect(symmetry(description, root), "description horizontal centering").toBeLessThanOrEqual(
         0.5,
@@ -208,8 +208,8 @@ it("holds panel EmptyState geometry, medallion centering, and typography", async
     expect(button.element.tagName).toBe("BUTTON");
     expect(button.height()).toBe(36);
     expect(button.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgb(36, 34, 43)",
-        color: "rgb(237, 234, 242)",
+        "background-color": "rgb(240, 240, 242)",
+        color: "rgb(0, 0, 0)",
     });
     expect(button.textMetrics().text).toBe("Start a conversation");
     expect((await button.visibleMetrics()).pixelCount, "button paints").toBeGreaterThan(0);
@@ -333,7 +333,7 @@ it("holds inline EmptyState sizing, rhythm, and action variants", async () => {
         font: { lineHeight: 18, size: 14, weight: "700" },
         text: "No followed threads",
     });
-    expect(title.computedStyle("color")).toBe("rgb(237, 234, 242)");
+    expect(title.computedStyle("color")).toBe("rgb(0, 0, 0)");
     expect(symmetry(title, root), "inline title centering").toBeLessThanOrEqual(0.5);
 
     const description = view.$(

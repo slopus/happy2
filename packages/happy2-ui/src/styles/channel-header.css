@@ -1,7 +1,7 @@
 /*
- * ChannelHeader — 52px context strip across the top of the main app surface.
+ * ChannelHeader — 56px context strip across the top of the main app surface.
  *
- * Contract: 52px high (border-bottom hairline inside the box), 16px x-padding,
+ * Contract: 56px high (border-bottom hairline inside the box), 16px x-padding,
  * transparent so it composes on --happy2-bg-app. Modeled on Slack: an optional
  * leading star toggle, a clickable channel icon + title, a truncating topic on
  * the left; a member-count pill, agent chip, actions slot, and overflow menu on
@@ -21,7 +21,7 @@
     align-items: center;
     gap: 12px;
     width: 100%;
-    height: 52px;
+    height: 56px;
     margin: 0;
     padding: 0 16px;
     border-bottom: 1px solid var(--happy2-border);
