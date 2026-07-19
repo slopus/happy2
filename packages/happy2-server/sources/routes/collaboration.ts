@@ -48,6 +48,7 @@ import { chatBookmarkCreate } from "../modules/chat/chatBookmarkCreate.js";
 import { channelUpdate } from "../modules/chat/channelUpdate.js";
 import { channelTopicUpdate } from "../modules/chat/channelTopicUpdate.js";
 import { channelSetArchived } from "../modules/chat/channelSetArchived.js";
+import { chatRequireManager } from "../modules/chat/chatRequireManager.js";
 import { channelPolicyUpdate } from "../modules/chat/channelPolicyUpdate.js";
 import { channelMemberSetRole } from "../modules/chat/channelMemberSetRole.js";
 import { channelMemberRemove } from "../modules/chat/channelMemberRemove.js";
@@ -469,13 +470,23 @@ export function registerCollaborationRoutes(
         app.post(
             `/v0/chats/:chatId/${path}`,
             authenticated(auth, async (request, _reply, userId) => {
+                const chatId = pathId(request, "chatId");
                 const body =
                     request.body === undefined || request.body === null
                         ? {}
                         : requestBody(request, ["reason"]);
+                // Always cross the abort boundary, even when clients report the
+                // chat idle; stale presence must not permit execution to outlive
+                // archival. No local turn is a harmless no-op.
+                if (archived) {
+                    // Authorize before touching execution; channelSetArchived
+                    // repeats this check transactionally after the await.
+                    await chatRequireManager(executor, userId, chatId);
+                    await agents?.abortChat(chatId);
+                }
                 const result = await channelSetArchived(executor, {
                     actorUserId: userId,
-                    chatId: pathId(request, "chatId"),
+                    chatId,
                     archived,
                     reason: has(body, "reason")
                         ? (nullableTrimmedString(body, "reason", 500) ?? undefined)

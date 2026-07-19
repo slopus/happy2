@@ -9,6 +9,7 @@ import { channelCreate } from "./chatActionsState.js";
 import { channelUpdate } from "./chatActionsState.js";
 import type { ChatActionContext } from "./chatActionsState.js";
 import { chatJoin } from "./chatActionsState.js";
+import { chatArchive, chatRestore } from "./chatActionsState.js";
 import { chatLeave } from "./chatActionsState.js";
 import { chatReadMark } from "./chatActionsState.js";
 import { chatStarSet } from "./chatActionsState.js";
@@ -51,6 +52,8 @@ describe("chat actions module", () => {
         await chatJoin(context, summary.id);
         await chatReadMark(context, summary.id, "message-1");
         await chatStarSet(context, summary.id, true);
+        await chatArchive(context, summary.id);
+        await chatRestore(context, summary.id);
         await agentEffortLoad(context, summary.id, "agent-1");
         await agentEffortChange(context, summary.id, "agent-1", "high");
         typingSet(context, summary.id, true);
@@ -64,6 +67,8 @@ describe("chat actions module", () => {
             "joinChat",
             "markChatRead",
             "setChatStar",
+            "archiveChannel",
+            "unarchiveChannel",
             "getAgentEffort",
             "changeAgentEffort",
             "setTyping",

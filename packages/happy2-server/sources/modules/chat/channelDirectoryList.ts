@@ -31,6 +31,7 @@ export async function channelDirectoryList(
         .where(
             and(
                 isNull(chats.deletedAt),
+                isNull(chats.archivedAt),
                 inArray(chats.kind, ["public_channel", "private_channel"]),
                 or(
                     and(eq(chats.kind, "public_channel"), eq(chats.isListed, 1)),

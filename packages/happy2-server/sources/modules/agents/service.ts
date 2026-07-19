@@ -162,6 +162,7 @@ interface AgentSecretChannelInput extends AgentSecretTargetInput {
     channelId: string;
 }
 interface ActiveAgentTurnStream {
+    chatId: string;
     controller: AbortController;
     output: AgentReplyStreamOutput;
     task: Promise<void>;
@@ -230,6 +231,21 @@ export class AgentService {
         private readonly pluginCapabilities: AgentPluginCapabilities | undefined,
         private readonly onError: (error: unknown) => void = () => undefined,
     ) {}
+
+    /**
+     * Best-effort, idempotent stop boundary for every locally owned turn in a chat.
+     * Callers await the stream tasks so no local tool output can race a subsequent
+     * chat lifecycle mutation. Durable turn terminalization remains transactional
+     * at that lifecycle boundary and also covers work leased by another process.
+     */
+    async abortChat(chatId: string): Promise<void> {
+        const streams = [...this.turnStreams.values()].filter((stream) => stream.chatId === chatId);
+        for (const stream of streams) {
+            stream.controller.abort();
+            stream.output.close();
+        }
+        await Promise.allSettled(streams.map((stream) => stream.task));
+    }
     async createAgent(input: { actorUserId: string; name: string; username: string }) {
         if (!(await agentUsernameIsAvailable(this.executor, input.username)))
             throw new CollaborationError("conflict", "Agent username is already taken");
@@ -1856,6 +1872,7 @@ export class AgentService {
                 }
             });
         this.turnStreams.set(input.userMessageId, {
+            chatId: input.chatId,
             controller,
             output,
             task,

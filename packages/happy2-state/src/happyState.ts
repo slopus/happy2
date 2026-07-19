@@ -188,7 +188,7 @@ import { channelUpdate, type ChannelUpdateInput } from "./modules/chat-actions/c
 import { chatJoin } from "./modules/chat-actions/chatActionsState.js";
 import { chatLeave } from "./modules/chat-actions/chatActionsState.js";
 import { chatReadMark } from "./modules/chat-actions/chatActionsState.js";
-import { chatStarSet } from "./modules/chat-actions/chatActionsState.js";
+import { chatArchive, chatRestore, chatStarSet } from "./modules/chat-actions/chatActionsState.js";
 import { directMessageCreate } from "./modules/chat-actions/chatActionsState.js";
 import { groupDirectMessageCreate } from "./modules/chat-actions/chatActionsState.js";
 import { typingSet } from "./modules/chat-actions/chatActionsState.js";
@@ -723,6 +723,14 @@ export class HappyState implements AsyncDisposable, Disposable {
 
     async chatStarSet(chatId: string, starred: boolean): Promise<void> {
         await chatStarSet(this.chatActionContext(), chatId, starred);
+    }
+
+    async chatArchive(chatId: string): Promise<void> {
+        await chatArchive(this.chatActionContext(), chatId);
+    }
+
+    async chatRestore(chatId: string): Promise<void> {
+        await chatRestore(this.chatActionContext(), chatId);
     }
 
     async chatLeave(chatId: string): Promise<void> {

@@ -9,6 +9,7 @@ export interface ChatChannelModelOptions {
     actions: ChatPageActions;
     onInfoOpen(): void;
     onLeave(): void;
+    onArchived(): void;
     onError(error: unknown): void;
 }
 export function chatChannelModelCreate(options: ChatChannelModelOptions) {
@@ -39,7 +40,22 @@ export function chatChannelModelCreate(options: ChatChannelModelOptions) {
             },
             ...(options.canEdit()
                 ? ([
-                      { icon: "settings", id: "edit", kind: "item", label: "Edit settings" },
+                      {
+                          icon: "settings" as const,
+                          id: "edit",
+                          kind: "item" as const,
+                          label: "Edit settings",
+                      },
+                      ...(chat && !chat.isMain
+                          ? [
+                                {
+                                    icon: "files" as const,
+                                    id: chat.archivedAt ? "restore" : "archive",
+                                    kind: "item" as const,
+                                    label: chat.archivedAt ? "Restore chat" : "Archive chat",
+                                },
+                            ]
+                          : []),
                   ] satisfies MenuItem[])
                 : []),
             ...(chat?.kind !== "dm" && chat?.membershipRole && !chat.isMain
@@ -60,6 +76,13 @@ export function chatChannelModelCreate(options: ChatChannelModelOptions) {
         if (id === "details" || id === "edit") options.onInfoOpen();
         if (id === "star") starToggle();
         if (id === "leave") void leave();
+        if (id === "archive")
+            void options.actions
+                .chatArchive(options.activeChatId())
+                .then(options.onArchived)
+                .catch(options.onError);
+        if (id === "restore")
+            void options.actions.chatRestore(options.activeChatId()).catch(options.onError);
     }
     return { join, menuItems, menuSelect, starred, starToggle };
 }
