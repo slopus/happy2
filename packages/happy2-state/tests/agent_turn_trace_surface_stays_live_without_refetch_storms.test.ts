@@ -1,7 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { happyStateCreate } from "../src/index.js";
-import { createFakeServer, jsonResponse } from "../src/testing/index.js";
+import { createFakeServer as createBareFakeServer, jsonResponse } from "../src/testing/index.js";
 import { agentTraceDetails, agentTraceSummary, chat, message } from "./fixtures.js";
+
+function createFakeServer() {
+    const server = createBareFakeServer();
+    server.respond(
+        "GET",
+        "/v0/drafts",
+        jsonResponse(200, { drafts: [], serverTime: new Date().toISOString() }),
+    );
+    return server;
+}
 
 const syncStateResponse = jsonResponse(200, {
     state: { protocolVersion: 1, generation: "g", sequence: "0" },

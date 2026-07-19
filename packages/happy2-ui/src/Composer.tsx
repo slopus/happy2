@@ -233,6 +233,8 @@ export type ComposerProps = {
     onContextRemove?: (id: string) => void;
     /** Called after an emoji is selected. Unicode emoji are also inserted into the draft. */
     onEmojiSelect?: (emoji: EmojiItem) => void;
+    /** Reports browser focus transitions of the editable text control. */
+    onFocusChange?: (focused: boolean) => void;
     /** Called when a mention is inserted from the picker. */
     onMentionSelect?: (mention: Mentionable) => void;
     mentions?: Mentionable[];
@@ -657,8 +659,12 @@ export function Composer(props: ComposerProps) {
                     data-happy2-ui="composer-textarea"
                     disabled={props.disabled}
                     readOnly={props.pending}
-                    onBlur={rememberSelection}
+                    onBlur={() => {
+                        rememberSelection();
+                        props.onFocusChange?.(false);
+                    }}
                     onClick={rememberSelection}
+                    onFocus={() => props.onFocusChange?.(true)}
                     onInput={onInput}
                     onKeyDown={onKeyDown}
                     onSelect={rememberSelection}

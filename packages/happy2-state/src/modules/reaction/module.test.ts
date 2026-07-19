@@ -22,6 +22,7 @@ describe("reaction module", () => {
             chatGet: () => chat,
             composerGet: () => undefined,
             chatPinsReconcile: vi.fn(),
+            draftTextUpdate: vi.fn(),
         } satisfies MessageActionContext;
         await reactionAdd(context, "chat-1", "message-1", { emoji: "👍" });
         await reactionRemove(context, "chat-1", "message-1", { customEmojiId: "emoji-1" });

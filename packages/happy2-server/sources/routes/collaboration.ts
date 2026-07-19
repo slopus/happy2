@@ -26,6 +26,8 @@ import { messageForward } from "../modules/message/messageForward.js";
 import { messageEdit } from "../modules/message/messageEdit.js";
 import { messageDelete } from "../modules/message/messageDelete.js";
 import { fileList } from "../modules/file/fileList.js";
+import { draftUpdate } from "../modules/draft/draftUpdate.js";
+import { draftList } from "../modules/draft/draftList.js";
 import { directMessageCreateGroup } from "../modules/chat/directMessageCreateGroup.js";
 import { directMessageCreate } from "../modules/chat/directMessageCreate.js";
 import { customEmojiList } from "../modules/emoji/customEmojiList.js";
@@ -101,6 +103,17 @@ export function registerCollaborationRoutes(
             emptyQuery(request);
             return {
                 chats: await chatList(executor, userId),
+            };
+        }),
+    );
+    app.get(
+        "/v0/drafts",
+        authenticated(auth, async (request, _reply, userId) => {
+            emptyQuery(request);
+            const drafts = await draftList(executor, userId);
+            return {
+                drafts,
+                serverTime: new Date().toISOString(),
             };
         }),
     );
@@ -737,6 +750,25 @@ export function registerCollaborationRoutes(
                 message: result.message,
                 sync: result.hint,
             });
+        }),
+    );
+    app.post(
+        "/v0/chats/:chatId/updateDraft",
+        authenticated(auth, async (request, _reply, userId) => {
+            const body = requestBody(request, ["text"]);
+            const text = draftText(body);
+            const result = await draftUpdate(executor, {
+                actorUserId: userId,
+                chatId: pathId(request, "chatId"),
+                text,
+            });
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: [userId],
+            });
+            return {
+                draft: result.draft,
+                sync: result.hint,
+            };
         }),
     );
     app.post(
@@ -1510,7 +1542,10 @@ async function publishHints(
         const topics = new Set<RealtimeTopic>();
         for (const chat of hint.chats) topics.add(realtimeTopics.chat(chat.chatId));
         for (const userId of audience.userIds ?? []) topics.add(realtimeTopics.user(userId));
-        if (audience.server || hint.areas.some((area) => area !== "preferences"))
+        if (
+            audience.server ||
+            hint.areas.some((area) => area !== "preferences" && area !== "drafts")
+        )
             topics.add(realtimeTopics.server);
         for (const topic of topics)
             publications.push({
@@ -1694,6 +1729,15 @@ function messageText(body: Record<string, unknown>, attachmentCount: number): st
         throw new InvalidRequest("text contains unsupported control characters");
     if (body.text.trim().length === 0 && attachmentCount === 0)
         throw new InvalidRequest("A message requires text or an attachment");
+    return body.text;
+}
+function draftText(body: Record<string, unknown>): string {
+    requireField(body, "text");
+    if (typeof body.text !== "string") throw new InvalidRequest("text must be a string");
+    if (body.text.length > MAX_MESSAGE_LENGTH)
+        throw new InvalidRequest(`text must be at most ${MAX_MESSAGE_LENGTH} characters`);
+    if (hasControlCharacters(body.text, true))
+        throw new InvalidRequest("text contains unsupported control characters");
     return body.text;
 }
 function optionalTokenField(body: Record<string, unknown>, key: string): string | undefined {

@@ -15,6 +15,7 @@ export interface MessageActionContext {
     chatGet(chatId: string): ChatStore | undefined;
     chatPinsReconcile(chatId: string): void;
     composerGet(scopeId: string): ComposerStore | undefined;
+    draftTextUpdate(scopeId: string, text: string): void;
 }
 
 /** Persists deletion and reconciles the server's deleted-message projection if materialized. */
@@ -72,6 +73,8 @@ export function messageSend(
     input: SendMessageInput,
     composerRevision?: number,
 ): void {
+    const submissionComposer =
+        composerRevision === undefined ? undefined : context.composerGet(chatId);
     const clientMutationId = input.clientMutationId ?? context.runtime.createId();
     const localId = `local:${clientMutationId}`;
     const chatStatus = context.chatGet(chatId)?.getState().status;
@@ -105,11 +108,20 @@ export function messageSend(
                             clientMutationId,
                         },
                     });
-                if (composerRevision !== undefined)
-                    context.composerGet(chatId)?.getState().composerInput({
+                if (composerRevision !== undefined && submissionComposer) {
+                    const before = submissionComposer.getState();
+                    submissionComposer.getState().composerInput({
                         type: "submissionConfirmed",
                         revision: composerRevision,
                     });
+                    if (
+                        before.submission.status === "pending" &&
+                        before.submission.revision === composerRevision &&
+                        before.revision === composerRevision &&
+                        submissionComposer.getState().text === ""
+                    )
+                        context.draftTextUpdate(chatId, "");
+                }
             } catch (error) {
                 const current = context
                     .chatGet(chatId)

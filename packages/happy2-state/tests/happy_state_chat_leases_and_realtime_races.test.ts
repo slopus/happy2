@@ -1,7 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { happyStateCreate } from "../src/index.js";
-import { createFakeServer, jsonResponse } from "../src/testing/index.js";
+import { createFakeServer as createBareFakeServer, jsonResponse } from "../src/testing/index.js";
 import { chat, message } from "./fixtures.js";
+
+function createFakeServer() {
+    const server = createBareFakeServer();
+    server.respond(
+        "GET",
+        "/v0/drafts",
+        jsonResponse(200, { drafts: [], serverTime: new Date().toISOString() }),
+    );
+    return server;
+}
 
 describe("HappyState chat leases and realtime races", () => {
     it("refetches effective permissions after a permissions sync hint", async () => {

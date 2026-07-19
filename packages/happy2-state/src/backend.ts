@@ -33,6 +33,7 @@ import type {
     CombinedOnboardingStatus,
     DataExportJob,
     DevelopmentTokenCredential,
+    DraftSummary,
     EffectivePermissions,
     IntegrationSummary,
     MemberPermissionDetail,
@@ -127,6 +128,7 @@ export const backendOperations = {
     chooseSetupRegistrationPolicy: post("/v0/setup/chooseRegistrationPolicy"),
 
     getChats: get("/v0/chats"),
+    getDrafts: get("/v0/drafts"),
     getChat: get("/v0/chats/:chatId"),
     getChatMembers: get("/v0/chats/:chatId/members"),
     getMessages: get("/v0/chats/:chatId/messages", ["beforeSequence", "afterSequence", "limit"]),
@@ -161,6 +163,7 @@ export const backendOperations = {
     updateChatNotificationPreferences: post("/v0/chats/:chatId/updateNotificationPreferences"),
     reorderStarredChats: post("/v0/chats/reorderStarred"),
     sendMessage: post("/v0/chats/:chatId/sendMessage"),
+    updateDraft: post("/v0/chats/:chatId/updateDraft"),
     sendThreadMessage: post("/v0/messages/:messageId/sendThreadMessage"),
     updateThreadSubscription: post("/v0/messages/:messageId/updateThreadSubscription"),
     markThreadRead: post("/v0/messages/:messageId/markThreadRead"),
@@ -389,6 +392,7 @@ type DerivedBackendInput<K extends BackendOperation> = (typeof backendOperations
     : never;
 
 export interface KnownBackendInputs {
+    updateDraft: { readonly chatId: string; readonly text: string };
     getWorkspaceFile: { readonly chatId: string; readonly path: string };
     writeWorkspaceFile: { readonly chatId: string } & WorkspaceFileWriteInput;
     deleteWorkspaceFile: {
@@ -895,6 +899,8 @@ export interface KnownBackendResults {
     };
     chooseSetupRegistrationPolicy: { readonly onboarding: CombinedOnboardingStatus };
     getChats: { readonly chats: readonly ChatSummary[] };
+    getDrafts: { readonly drafts: readonly DraftSummary[]; readonly serverTime: string };
+    updateDraft: { readonly draft: DraftSummary; readonly sync: unknown };
     getChat: { readonly chat: ChatSummary };
     getChatMembers: {
         readonly users: readonly UserSummary[];

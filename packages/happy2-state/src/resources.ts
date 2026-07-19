@@ -10,6 +10,14 @@ export interface ClientUser {
     readonly photoFileId?: string;
 }
 
+/** One user's durable last-write-wins composer text for a chat. */
+export interface DraftSummary {
+    readonly chatId: string;
+    readonly text: string;
+    readonly revision: string;
+    readonly updatedAt: string;
+}
+
 export interface AdminUserSummary extends UserSummary {
     readonly lastAccessAt?: string;
 }

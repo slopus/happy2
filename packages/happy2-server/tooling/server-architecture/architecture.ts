@@ -56,6 +56,7 @@ const ENTITY_PREFIXES: Record<string, readonly string[]> = {
         "user",
     ],
     "data-export": ["dataExport"],
+    draft: ["draft"],
     emoji: ["customEmoji"],
     file: ["file"],
     integration: ["apiCredential", "bot", "integration", "slashCommand", "user"],

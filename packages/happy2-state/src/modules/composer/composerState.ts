@@ -18,6 +18,10 @@ export interface ComposerSnapshot {
     readonly attachments: readonly ComposerAttachment[];
     readonly revision: number;
     readonly submission: ComposerSubmission;
+    /** Whether the editable text control currently owns browser focus. */
+    readonly focused: boolean;
+    /** Client time of the most recent keystroke, focus, or blur. */
+    readonly lastInteractionAt?: number;
     /**
      * Who the next send addresses. Undefined means this surface does not route
      * audience and the server keeps its own default (agent conversations).
@@ -29,6 +33,7 @@ export interface ComposerSnapshot {
 
 export type ComposerOutput =
     | { readonly type: "textUpdated"; readonly scopeId: string; readonly text: string }
+    | { readonly type: "focusUpdated"; readonly scopeId: string; readonly focused: boolean }
     | {
           readonly type: "attachmentAdded";
           readonly scopeId: string;
@@ -64,6 +69,7 @@ export type ComposerInput =
 
 export interface ComposerState extends ComposerSnapshot {
     textUpdate(text: string): void;
+    focusUpdate(focused: boolean): void;
     attachmentAdd(attachment: ComposerAttachment): void;
     attachmentRemove(attachmentId: string): void;
     audienceUpdate(audience: MessageAudience): void;
@@ -81,6 +87,7 @@ export interface ComposerStoreOptions {
     readonly attachments?: readonly ComposerAttachment[];
     readonly audience?: MessageAudience;
     readonly agentUserIds?: readonly string[];
+    readonly now?: () => number;
     readonly output?: (event: ComposerOutput) => void;
 }
 
@@ -90,20 +97,33 @@ export function composerStoreCreate(
     options: ComposerStoreOptions = {},
 ): ComposerStore {
     const output = options.output ?? (() => undefined);
+    const now = options.now ?? Date.now;
     return createStore<ComposerState>()((set, get) => ({
         scopeId,
         text: options.text ?? "",
         attachments: options.attachments?.map((attachment) => ({ ...attachment })) ?? [],
         revision: 0,
         submission: { status: "idle" },
+        focused: false,
         audience: options.audience,
         agentUserIds: [...(options.agentUserIds ?? [])],
 
         textUpdate(text): void {
             const previous = get();
             if (previous.text === text) return;
-            set({ text, revision: previous.revision + 1, submission: { status: "idle" } });
+            set({
+                text,
+                revision: previous.revision + 1,
+                submission: { status: "idle" },
+                lastInteractionAt: now(),
+            });
             output({ type: "textUpdated", scopeId, text });
+        },
+
+        focusUpdate(focused): void {
+            if (get().focused === focused) return;
+            set({ focused, lastInteractionAt: now() });
+            output({ type: "focusUpdated", scopeId, focused });
         },
 
         attachmentAdd(attachment): void {

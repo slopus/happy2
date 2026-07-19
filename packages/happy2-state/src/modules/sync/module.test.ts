@@ -1,8 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import { areaReconcile, type AreaReconcileContext } from "./syncState.js";
 import { happyStateCreate } from "../../happyState.js";
-import { createFakeServer, jsonResponse } from "../../testing/index.js";
+import { createFakeServer as createBareFakeServer, jsonResponse } from "../../testing/index.js";
 import { chat } from "../../../tests/fixtures.js";
+
+function createFakeServer() {
+    const server = createBareFakeServer();
+    server.respond(
+        "GET",
+        "/v0/drafts",
+        jsonResponse(200, { drafts: [], serverTime: new Date().toISOString() }),
+    );
+    return server;
+}
 
 describe("sync module", () => {
     it("routes every durable area to exactly one owner and exposes malformed/unknown areas", () => {
@@ -12,6 +22,7 @@ describe("sync module", () => {
             callsReconcile: vi.fn(),
             threadsReconcile: vi.fn(),
             notificationsReconcile: vi.fn(),
+            draftsReconcile: vi.fn(),
             agentImagesReconcile: vi.fn(),
             setupReconcile: vi.fn(),
             agentSecretsReconcile: vi.fn(),
@@ -28,6 +39,7 @@ describe("sync module", () => {
             "threads",
             "thread:message-1",
             "notifications",
+            "drafts",
             "agent-images",
             "setup",
             "user-onboarding",
@@ -45,6 +57,7 @@ describe("sync module", () => {
         expect(context.callsReconcile).toHaveBeenCalledTimes(2);
         expect(context.threadsReconcile).toHaveBeenCalledTimes(2);
         expect(context.notificationsReconcile).toHaveBeenCalledOnce();
+        expect(context.draftsReconcile).toHaveBeenCalledOnce();
         expect(context.agentImagesReconcile).toHaveBeenCalledOnce();
         // "agent-images" also reconciles setup (shared build progress) plus the
         // dedicated "setup" and "user-onboarding" areas: three calls total.

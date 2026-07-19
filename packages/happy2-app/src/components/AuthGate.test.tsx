@@ -84,6 +84,7 @@ const workspaceRoutes: Record<string, Handler> = {
     "GET /v0/sync/state": () =>
         json({ state: { generation: "1", sequence: "0" }, serverTime: expiresAt }),
     "GET /v0/chats": () => json({ chats: [] }),
+    "GET /v0/drafts": () => json({ drafts: [], serverTime: new Date().toISOString() }),
     "GET /v0/sync/events": () => hangingStream(),
     "GET /v0/setup": completeSetup,
     "GET /v0/setup/status": () =>

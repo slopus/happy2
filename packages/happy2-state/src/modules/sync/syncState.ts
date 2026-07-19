@@ -25,6 +25,7 @@ export interface AreaReconcileContext {
     callsReconcile(): void;
     threadsReconcile(): void;
     notificationsReconcile(): void;
+    draftsReconcile(): void;
     agentImagesReconcile(): void;
     setupReconcile(): void;
     agentSecretsReconcile(): void;
@@ -47,6 +48,7 @@ export function areaReconcile(context: AreaReconcileContext, area: string): void
     } else if (area === "calls" || area.startsWith("call:")) context.callsReconcile();
     else if (area === "threads" || area.startsWith("thread:")) context.threadsReconcile();
     else if (area === "notifications") context.notificationsReconcile();
+    else if (area === "drafts") context.draftsReconcile();
     else if (area === "agent-images") {
         // Base-image build progress reaches both the admin catalog and the
         // onboarding surface, so a durable image change reconciles each owner.

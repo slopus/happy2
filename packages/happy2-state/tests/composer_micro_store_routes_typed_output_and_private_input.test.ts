@@ -40,6 +40,30 @@ describe("composer micro-store boundaries", () => {
         expect("updateField" in composer).toBe(false);
     });
 
+    it("records focus, blur, and keystroke time without treating authoritative text as interaction", () => {
+        let now = 10;
+        const output = vi.fn();
+        const composer = composerStoreCreate("chat-1", { now: () => now, output });
+        composer.getState().focusUpdate(true);
+        now = 20;
+        composer.getState().focusUpdate(false);
+        now = 30;
+        composer.getState().textUpdate("local");
+        now = 40;
+        composer.getState().composerInput({ type: "textReconciled", text: "remote" });
+
+        expect(composer.getState()).toMatchObject({
+            focused: false,
+            lastInteractionAt: 30,
+            text: "remote",
+        });
+        expect(output.mock.calls.map(([event]) => event.type)).toEqual([
+            "focusUpdated",
+            "focusUpdated",
+            "textUpdated",
+        ]);
+    });
+
     it("applies authoritative input without re-emitting output", () => {
         const output = vi.fn();
         const binding = composerStoreCreate("chat-1", { output });
@@ -122,22 +146,14 @@ describe("composer micro-store boundaries", () => {
 
 describe("HappyState registry shell", () => {
     it("deduplicates keyed stores, routes output in the same call stack, and runs unconnected", () => {
-        const observed: string[] = [];
-        const state = happyStateCreate({
-            draftUpdated: ({ scopeId, text }) => observed.push(`${scopeId}:${text}`),
-        });
+        const state = happyStateCreate();
         const first = state.composer("chat-1");
         const second = state.composer("chat-1", { text: "ignored after materialization" });
 
         expect(second).toBe(first);
         const result = first.getState().textUpdate("draft");
         expect(result).toBeUndefined();
-        expect(observed).toEqual(["chat-1:draft"]);
         expect(first.getState().text).toBe("draft");
-
-        expect(state.draftUpdate("chat-1", "restored")).toBeUndefined();
-        expect(first.getState().text).toBe("restored");
-        expect(observed).toEqual(["chat-1:draft", "chat-1:restored"]);
 
         state.composerRelease("chat-1");
         first.getState().textUpdate("still acquired");
@@ -147,5 +163,10 @@ describe("HappyState registry shell", () => {
         expect(first.getState().text).toBe("detached store");
         expect(state.composer("chat-1")).not.toBe(first);
         state[Symbol.dispose]();
+    });
+
+    it("keeps sync startup a safe no-op without a transport", async () => {
+        await using state = happyStateCreate();
+        await expect(state.syncStart()).resolves.toBeUndefined();
     });
 });

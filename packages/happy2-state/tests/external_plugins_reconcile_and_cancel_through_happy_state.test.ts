@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { happyStateCreate, type SystemPluginSummary } from "../src/index.js";
-import { createFakeServer, jsonResponse, type FakeStreamController } from "../src/testing/index.js";
+import {
+    createFakeServer as createBareFakeServer,
+    jsonResponse,
+    type FakeStreamController,
+} from "../src/testing/index.js";
+
+function createFakeServer() {
+    const server = createBareFakeServer();
+    server.respond(
+        "GET",
+        "/v0/drafts",
+        jsonResponse(200, { drafts: [], serverTime: new Date().toISOString() }),
+    );
+    return server;
+}
 
 const image = {
     contentType: "image/png",

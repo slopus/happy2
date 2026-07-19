@@ -553,6 +553,23 @@ export const customEmojis = sqliteTable("custom_emojis", {
     promotedByUserId: text("promoted_by_user_id"),
 });
 
+export const drafts = sqliteTable(
+    "drafts",
+    {
+        userId: text("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        chatId: text("chat_id")
+            .notNull()
+            .references(() => chats.id, { onDelete: "cascade" }),
+        text: text("text").notNull().default(""),
+        syncSequence: integer("sync_sequence").notNull().default(0),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [primaryKey({ columns: [table.userId, table.chatId] })],
+);
+
 export const dataExportJobs = sqliteTable("data_export_jobs", {
     id: text("id").primaryKey().notNull(),
     requestedByUserId: text("requested_by_user_id"),
@@ -1455,6 +1472,7 @@ export const schema = {
     customEmojiRevisions,
     customEmojis,
     dataExportJobs,
+    drafts,
     fileAccessGrants,
     fileDerivatives,
     fileProcessingJobs,

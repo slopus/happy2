@@ -21,11 +21,7 @@ import {
     type ComposerStoreOptions,
 } from "./modules/composer/composerState.js";
 import type { ComposerOutput } from "./modules/composer/composerState.js";
-import {
-    draftUpdate,
-    type DraftActionContext,
-    type DraftUpdated,
-} from "./modules/draft/draftState.js";
+import { DraftCoordinator } from "./modules/draft/draftState.js";
 import { IdentityCatalog } from "./modules/identity/identityState.js";
 import { identitiesReconcile } from "./modules/identity/identityState.js";
 import { messageDelete } from "./modules/message/messageState.js";
@@ -219,7 +215,6 @@ export type HappyStateEvent =
 
 export interface HappyStateOptions extends StateRuntimeOptions {
     readonly event?: (event: HappyStateEvent) => void;
-    readonly draftUpdated?: (event: DraftUpdated) => void;
     readonly backgroundError?: (error: UserError) => void;
     readonly unknownSyncArea?: (area: string) => void;
     /** Authoritative permissions already returned by the session's `/v0/me` request. */
@@ -264,9 +259,9 @@ export class HappyState implements AsyncDisposable, Disposable {
     private readonly identities = new IdentityCatalog();
     private readonly sidebarChats: SidebarChatsProjector;
     private readonly runtime: StateRuntime;
+    private readonly drafts: DraftCoordinator;
     private readonly sync: SyncCoordinator;
-    private readonly context: DraftActionContext &
-        ChatOpenContext &
+    private readonly context: ChatOpenContext &
         WorkspaceOpenContext &
         WorkspaceFileOpenContext &
         ThreadOpenContext &
@@ -285,10 +280,12 @@ export class HappyState implements AsyncDisposable, Disposable {
             ...options,
             onBackgroundError: options.onBackgroundError ?? backgroundError,
         });
+        this.drafts = new DraftCoordinator({
+            runtime: this.runtime,
+            composerGet: (scopeId) => this.composers.get(scopeId),
+        });
         this.sidebarChats = new SidebarChatsProjector(this.runtime, this.identities);
         this.context = {
-            composerGet: (scopeId) => this.composers.get(scopeId),
-            draftUpdated: options.draftUpdated ?? (() => undefined),
             chatAcquire: (chatId) =>
                 this.chats.getOrCreate(chatId, () =>
                     chatStoreCreate(chatId, (event) => this.eventRoute(event)),
@@ -644,6 +641,8 @@ export class HappyState implements AsyncDisposable, Disposable {
             const remembered = this.composerAudiences.get(scopeId);
             return composerStoreCreate(scopeId, {
                 ...options,
+                text: options.text ?? this.drafts.textGet(scopeId),
+                now: options.now ?? this.runtime.now,
                 audience: remembered?.audience ?? options.audience,
                 agentUserIds: remembered?.agentUserIds ?? options.agentUserIds,
                 output: (event) => {
@@ -668,15 +667,11 @@ export class HappyState implements AsyncDisposable, Disposable {
     }
 
     async syncStart(): Promise<void> {
-        await syncStart(this.sync);
+        await Promise.all([syncStart(this.sync), this.drafts.load()]);
     }
 
     syncStop(): void {
         syncStop(this.sync);
-    }
-
-    draftUpdate(scopeId: string, text: string): void {
-        draftUpdate(this.context satisfies DraftActionContext, scopeId, text);
     }
 
     messageSend(chatId: string, input: SendMessageInput): void {
@@ -800,8 +795,13 @@ export class HappyState implements AsyncDisposable, Disposable {
     private eventHandle(event: HappyStateEvent): void {
         switch (event.type) {
             case "textUpdated":
-                draftUpdate(this.context, event.scopeId, event.text);
+                this.drafts.textUpdate(event.scopeId, event.text);
                 return;
+            case "focusUpdated": {
+                const text = this.composers.get(event.scopeId)?.getState().text;
+                if (text !== undefined) this.drafts.textTouch(event.scopeId, text);
+                return;
+            }
             case "attachmentAdded":
             case "attachmentRemoved":
                 return;
@@ -1259,6 +1259,7 @@ export class HappyState implements AsyncDisposable, Disposable {
                             }),
                         );
                 },
+                draftsReconcile: () => this.runtime.background(this.drafts.load()),
                 agentImagesReconcile: () => {
                     if (this.agentImagesBinding)
                         this.runtime.background(
@@ -1333,6 +1334,7 @@ export class HappyState implements AsyncDisposable, Disposable {
     }
 
     private resetReconcile(): void {
+        this.runtime.background(this.drafts.load());
         for (const [chatId] of this.chats.values()) this.chatLoad(chatId);
         for (const [chatId] of this.workspaces.values()) this.workspaceReconcile(chatId);
         for (const [, binding] of this.workspaceFiles.values()) {
@@ -1456,6 +1458,8 @@ export class HappyState implements AsyncDisposable, Disposable {
                 if (pins?.type === "loading" || pins?.type === "ready") this.chatPinsLoad(chatId);
             },
             composerGet: (scopeId: string) => this.composers.get(scopeId),
+            draftTextUpdate: (scopeId: string, text: string) =>
+                this.drafts.textUpdate(scopeId, text),
         };
     }
 

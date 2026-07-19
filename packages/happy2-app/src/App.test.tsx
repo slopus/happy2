@@ -1,13 +1,23 @@
 import { useReducer } from "react";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { happyStateCreate, type ChatSummary, type NotificationProjection } from "happy2-state";
-import { createFakeServer, jsonResponse } from "happy2-state/testing";
+import { createFakeServer as createBareFakeServer, jsonResponse } from "happy2-state/testing";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { App } from "./App";
 import { DesktopApp } from "./components/DesktopApp";
 import type { AuthSession } from "./components/AuthGate";
 import { desktopNavigationCreate } from "./navigation/desktopNavigationCreate";
 import { InboxView } from "./views/InboxView";
+
+function createFakeServer() {
+    const server = createBareFakeServer();
+    server.respond(
+        "GET",
+        "/v0/drafts",
+        jsonResponse(200, { drafts: [], serverTime: new Date().toISOString() }),
+    );
+    return server;
+}
 function railItem(container: HTMLElement, id: string): HTMLButtonElement {
     const item = container.querySelector<HTMLButtonElement>(
         `[data-happy2-ui="rail-item"][data-item-id="${id}"]`,

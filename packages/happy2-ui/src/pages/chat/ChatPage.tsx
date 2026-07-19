@@ -868,6 +868,9 @@ export function ChatPage(props: ChatPageProps) {
                     onContextRemove={(id) =>
                         props.composer?.getState().attachmentRemove(id.replace(/^file:/u, ""))
                     }
+                    onComposerFocusChange={(focused) =>
+                        props.composer?.getState().focusUpdate(focused)
+                    }
                     onFilesSelected={(files) => void uploadFiles(files)}
                     onInfoOpen={() => infoModel.open()}
                     onJoin={() => void channelModel.join()}

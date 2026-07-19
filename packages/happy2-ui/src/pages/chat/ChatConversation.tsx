@@ -42,6 +42,7 @@ export interface ChatConversationProps {
     onAudienceChange?(audience: AudienceValue): void;
     onContextRemove(id: string): void;
     onFilesSelected(files: FileList | null): void;
+    onComposerFocusChange(focused: boolean): void;
     onInfoOpen(): void;
     onJoin(): void;
     onMenuSelect(id: string): void;
@@ -172,6 +173,7 @@ export function ChatConversation(props: ChatConversationProps) {
                     onAttachFile={() => fileInput.current?.click()}
                     onAudienceChange={props.onAudienceChange}
                     onContextRemove={props.onContextRemove}
+                    onFocusChange={props.onComposerFocusChange}
                     onSend={props.onSend}
                     onValueChange={props.onValueChange}
                     pending={props.composerPending}

@@ -184,6 +184,49 @@ it("does not intercept Shift+Tab when the composer has no audience routing", asy
     expect(document.activeElement).not.toBe(textarea);
 });
 
+it("reports textarea focus and blur without replacing the controlled DOM node", async () => {
+    const transitions: boolean[] = [];
+    const view = createRenderer().render(
+        () => (
+            <div>
+                <HarnessWithFocus
+                    onFocusChange={(focused) => transitions.push(focused)}
+                    testid="composer-focus"
+                />
+                <button data-testid="after-composer" type="button">
+                    after
+                </button>
+            </div>
+        ),
+        { width: 620, height: 220, padding: 20 },
+    );
+    await view.ready();
+    const textarea = view.$('[data-testid="composer-focus"] [data-happy2-ui="composer-textarea"]')
+        .element as HTMLTextAreaElement;
+    await userEvent.click(textarea);
+    await userEvent.keyboard("local text");
+    expect(document.activeElement).toBe(textarea);
+    expect(
+        view.$('[data-testid="composer-focus"] [data-happy2-ui="composer-textarea"]').element,
+    ).toBe(textarea);
+    await userEvent.click(view.$('[data-testid="after-composer"]').element);
+    expect(transitions).toEqual([true, false]);
+    expect(textarea.value).toBe("local text");
+});
+
+function HarnessWithFocus(props: { onFocusChange(focused: boolean): void; testid: string }) {
+    const [value, setValue] = useState("");
+    return (
+        <Composer
+            data-testid={props.testid}
+            onFocusChange={props.onFocusChange}
+            onSend={() => undefined}
+            onValueChange={setValue}
+            value={value}
+        />
+    );
+}
+
 it("keeps the audience and capability actions inside a panel-constrained composer", async () => {
     const view = createRenderer().render(
         () => (

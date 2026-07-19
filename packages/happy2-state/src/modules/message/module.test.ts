@@ -27,12 +27,14 @@ describe("message module", () => {
             background: (task: Promise<void>) => pending.push(task),
         } as unknown as StateRuntime;
         const pins = vi.fn();
+        const draftTextUpdate = vi.fn();
         const context: MessageActionContext = {
             runtime,
             identities: new IdentityCatalog(),
             chatGet: () => chat,
             composerGet: () => composer,
             chatPinsReconcile: pins,
+            draftTextUpdate,
         };
         expect(messageSend(context, "chat-1", { text: "hello" }, revision)).toBeUndefined();
         expect(chat.getState().messages[0]).toMatchObject({
@@ -43,6 +45,7 @@ describe("message module", () => {
         await Promise.all(pending);
         expect(chat.getState().messages[0]).toMatchObject({ source: "server", delivery: "sent" });
         expect(composer.getState().text).toBe("");
+        expect(draftTextUpdate).toHaveBeenCalledWith("chat-1", "");
         await messageEdit(context, "chat-1", "message-1", "edited", 1);
         await messageDelete(context, "chat-1", "message-1");
         await messagePin(context, "chat-1", "message-1");
@@ -74,6 +77,7 @@ describe("message module", () => {
             chatGet: () => chat,
             composerGet: () => undefined,
             chatPinsReconcile: vi.fn(),
+            draftTextUpdate: vi.fn(),
         };
         messageSend(context, "chat-1", {
             text: "run it",
@@ -122,6 +126,7 @@ describe("message module", () => {
             chatGet: () => chat,
             composerGet: () => undefined,
             chatPinsReconcile: vi.fn(),
+            draftTextUpdate: vi.fn(),
         };
         messageSend(context, "chat-1", { text: "hello agent" });
         expect(chat.getState().messages[0]!.message).toMatchObject({
@@ -144,6 +149,7 @@ describe("message module", () => {
             chatGet: () => chat,
             composerGet: () => undefined,
             chatPinsReconcile: vi.fn(),
+            draftTextUpdate: vi.fn(),
         } satisfies MessageActionContext;
         messageSend(context, "chat-1", { text: "retry me" });
         await Promise.all(pending);
