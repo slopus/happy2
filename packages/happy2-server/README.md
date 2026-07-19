@@ -14,6 +14,10 @@ npx happy2-server --config ./happy2.toml
 # Published all-in-one web app and API on http://127.0.0.1:3000
 npx happy2
 
+# The same package can run only the backend or only the web gateway
+npx happy2 backend --config ./happy2.toml
+npx happy2 web --backend-url http://127.0.0.1:3001 --host 0.0.0.0 --port 3000
+
 # Install or remove automatic startup for the all-in-one app
 npx happy2 service start --config ./happy2.toml
 npx happy2 service stop
@@ -41,6 +45,21 @@ an internal reverse proxy. The web app therefore uses one origin for normal
 HTTP, uploads, and server-sent events. The configured `trusted_proxy_hops`
 continues to describe only proxies outside Happy (2); the private loopback hop is
 handled internally.
+
+`happy2 backend` starts the configured API directly without serving web assets.
+`happy2 web` starts only the bundled SPA and a same-origin `/v0` reverse proxy;
+it does not load a TOML file, open a database, or start Rig. Its backend must be
+an HTTP(S) origin supplied by `--backend-url` or `HAPPY2_BACKEND_URL`. The web
+listener can also be set with `--host`/`HAPPY2_WEB_HOST`,
+`--port`/`HAPPY2_WEB_PORT`, and
+`--trusted-proxy-hops`/`HAPPY2_WEB_TRUSTED_PROXY_HOPS`. The backend origin must
+not contain credentials, a path, a query, or a fragment.
+
+When the services are split, set the backend's `server.public_url` to the public
+web origin. If the backend is reachable only through the Happy web gateway, set
+its `server.trusted_proxy_hops` to `1`, because that gateway supplies one
+sanitized forwarding hop. Configure the web gateway's trusted hop count for the
+Ingress or load balancer in front of it.
 
 Without a TOML file, the package starts an `all`-role app on `127.0.0.1:3000`
 with SQLite, password authentication, and generated JWT/pepper
@@ -197,12 +216,43 @@ environment variable named by `database.auth_token_env`.
 Build the image from the repository root:
 
 ```sh
-docker build -f packages/happy2-server/Dockerfile -t slopus/happy2 .
+docker build -t slopus/happy2 .
 docker run --rm -p 3000:3000 -v "$PWD/happy2.toml:/app/happy2.toml:ro" slopus/happy2 --config /app/happy2.toml
 ```
 
 Mount a writable directory containing `happy2.toml` when using generated key
 material, because the adjacent `.env` file is the durable key store.
+
+The image contains the same three runtime modes as the `happy2` executable. For
+example, an independently deployed backend and web gateway can use:
+
+```sh
+docker run --rm -p 3001:3001 -v "$PWD/happy2.toml:/app/happy2.toml:ro" \
+  slopus/happy2 backend --config /app/happy2.toml
+docker run --rm -p 3000:3000 slopus/happy2 web \
+  --backend-url http://host.docker.internal:3001 --host 0.0.0.0
+```
+
+## Kubernetes deployment
+
+The top-level manifests follow the deployment layout used by Happy. Replace
+`{version}` in both workload files and `{public_url}` in the shared config, then
+apply the configuration, server, and web resources:
+
+```sh
+kubectl apply -f deploy/config.yaml
+kubectl apply -f deploy/happy2-server.yaml
+kubectl apply -f deploy/happy2-web.yaml
+```
+
+The server runs as a one-replica StatefulSet because its SQLite database, files,
+generated signing material, and plugin state share one `ReadWriteOnce` volume.
+The checked-in configuration disables local coding-agent execution because the
+pod does not receive a Docker or Podman sandbox provider. The stateless web
+Deployment runs three replicas. Each serves the bundled SPA and proxies `/v0`,
+including uploads and SSE, to the internal `happy2-server` Service. Add an
+Ingress for the `happy2-web` Service according to the cluster's ingress and TLS
+conventions.
 
 ## Authentication
 

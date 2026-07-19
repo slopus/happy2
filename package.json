@@ -17,7 +17,8 @@
     "packages/happy2-server/happy2.example.toml",
     "packages/happy2-server/README.md",
     "packages/happy2-server/PLUGINS.md",
-    "packages/happy2-server/Dockerfile"
+    "Dockerfile",
+    "deploy"
   ],
   "type": "module",
   "main": "./packages/happy2-server/dist/index.js",

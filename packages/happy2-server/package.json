@@ -12,8 +12,7 @@
         "plugins",
         "happy2.example.toml",
         "README.md",
-        "PLUGINS.md",
-        "Dockerfile"
+        "PLUGINS.md"
     ],
     "type": "module",
     "main": "./dist/index.js",

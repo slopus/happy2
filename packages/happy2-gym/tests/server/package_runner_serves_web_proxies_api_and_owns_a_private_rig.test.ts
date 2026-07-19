@@ -6,7 +6,10 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import {
     defaultConfig,
+    startBackendHappy2,
     startStandaloneHappy2,
+    startWebHappy2,
+    type RunningHappy2,
     type ServerConfig,
     type StandaloneHappy2,
 } from "happy2-server";
@@ -15,6 +18,54 @@ import { describe, expect, it } from "vitest";
 const execute = promisify(execFile);
 
 describe.sequential("the package runner", () => {
+    it("runs the backend and web gateway independently from the same package", async () => {
+        await withSigningEnvironment(async () => {
+            const fixture = await createFixture(false);
+            let backend: RunningHappy2 | undefined;
+            let web: RunningHappy2 | undefined;
+            try {
+                fixture.config.server.trustedProxyHops = 1;
+                backend = await startBackendHappy2(fixture.config, { logger: false });
+                web = await startWebHappy2({
+                    backendUrl: backend.url,
+                    host: "127.0.0.1",
+                    logger: false,
+                    port: 0,
+                    webRoot: fixture.webRoot,
+                });
+
+                const backendRoot = await fetch(backend.url);
+                expect(backendRoot.status).toBe(200);
+                expect(await backendRoot.json()).toEqual({ service: "happy2", status: "ok" });
+                expect((await fetch(`${backend.url}/assets/fixture.txt`)).status).toBe(404);
+
+                const webRoot = await fetch(web.url);
+                expect(webRoot.status).toBe(200);
+                expect(await webRoot.text()).toContain("Happy (2) packaged web fixture");
+                const methods = await fetch(`${web.url}/v0/auth/methods`);
+                expect(methods.status).toBe(200);
+                expect(await methods.json()).toEqual({
+                    role: "all",
+                    method: "password",
+                    devTokensEnabled: false,
+                    signupEnabled: true,
+                    registration: "bootstrap",
+                });
+
+                const token = await registerUser(web.url);
+                const upload = await uploadLargeFile(web.url, token);
+                expect(upload.status).toBe(201);
+                expect(((await upload.json()) as { file: { size: number } }).file.size).toBe(
+                    1_100_000,
+                );
+            } finally {
+                await web?.close();
+                await backend?.close();
+                await rm(fixture.directory, { force: true, recursive: true });
+            }
+        });
+    });
+
     it("serves the built SPA and streams the versioned server API through one origin", async () => {
         await withSigningEnvironment(async () => {
             const fixture = await createFixture(false);
@@ -164,6 +215,24 @@ async function registerUser(baseUrl: string): Promise<string> {
     });
     expect(profile.status).toBe(201);
     return temporaryToken;
+}
+
+async function uploadLargeFile(baseUrl: string, token: string): Promise<Response> {
+    const boundary = "happy2-package-runner-large-upload";
+    return fetch(`${baseUrl}/v0/files/upload`, {
+        method: "POST",
+        headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": `multipart/form-data; boundary=${boundary}`,
+        },
+        body: Buffer.concat([
+            Buffer.from(
+                `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="large.txt"\r\nContent-Type: text/plain\r\n\r\n`,
+            ),
+            Buffer.alloc(1_100_000, "x"),
+            Buffer.from(`\r\n--${boundary}--\r\n`),
+        ]),
+    });
 }
 
 async function stopRig(config: ServerConfig, rigDirectory: string): Promise<void> {

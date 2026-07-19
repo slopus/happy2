@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: happy2-web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: happy2-web
+  template:
+    metadata:
+      labels:
+        app: happy2-web
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: happy2-web
+          image: slopus/happy2:{version}
+          args:
+            - web
+          envFrom:
+            - configMapRef:
+                name: happy2-web-config
+          ports:
+            - containerPort: 3000
+              name: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: happy2-web
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: happy2-web
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: happy2-web
+spec:
+  selector:
+    app: happy2-web
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+  type: ClusterIP

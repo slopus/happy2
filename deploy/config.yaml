@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: happy2-web-config
+data:
+  HAPPY2_BACKEND_URL: http://happy2-server:3000
+  HAPPY2_WEB_HOST: 0.0.0.0
+  HAPPY2_WEB_PORT: "3000"
+  HAPPY2_WEB_TRUSTED_PROXY_HOPS: "1"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: happy2-server-config
+data:
+  happy2.toml: |
+    [server]
+    role = "all"
+    host = "0.0.0.0"
+    port = 3000
+    public_url = "{public_url}"
+    trusted_proxy_hops = 1
+
+    [database]
+    url = "file:/data/happy2.db"
+
+    [agents]
+    enabled = false
+    default_cwd = "/data/workspaces"
+
+    [files]
+    provider = "local"
+    directory = "/data/files"
+
+    [plugins]
+    directory = "/data/plugins"
+    host_api_host = "127.0.0.1"
+    host_api_port = 3001
+
+    [security]
+    integration_secret_env = "HAPPY2_INTEGRATION_SECRET"
+
+    [jwt]
+    issuer = "{public_url}"
+    audience = "happy2-desktop"
+    key_id = "kubernetes"
+    expiry_days = 30
+
+    [auth.password]
+    enabled = true
+
+    [auth.magic_link]
+    enabled = false
+
+    [auth.cloudflare_access]
+    enabled = false

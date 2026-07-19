@@ -1,19 +1,9 @@
-import { access } from "node:fs/promises";
-import { join } from "node:path";
-import Fastify, { type FastifyInstance } from "fastify";
-import proxy from "@fastify/http-proxy";
-import staticFiles from "@fastify/static";
-import { createClient } from "@libsql/client";
-import { TokenService } from "./modules/auth/tokens.js";
+import type { RunningHappy2 } from "./backend.js";
 import type { ServerConfig } from "./modules/config/type.js";
-import { serverSchemaMigrate } from "./modules/server/serverSchemaMigrate.js";
-import { buildServer } from "./server.js";
+import { startBackendHappy2 } from "./backend.js";
+import { startWebHappy2 } from "./web.js";
 
-export interface StandaloneHappy2 extends AsyncDisposable {
-    /** Actual bound public URL. This differs from config.server.publicUrl when port 0 is used. */
-    url: string;
-    close(): Promise<void>;
-}
+export type StandaloneHappy2 = RunningHappy2;
 
 export interface StandaloneOptions {
     logger?: boolean;
@@ -25,19 +15,9 @@ export async function startStandaloneHappy2(
     config: ServerConfig,
     options: StandaloneOptions = {},
 ): Promise<StandaloneHappy2> {
-    const webRoot = options.webRoot ?? join(import.meta.dirname, "web");
-    await access(join(webRoot, "index.html"));
-
-    const client = createClient({
-        url: config.database.url,
-        authToken: config.database.authTokenEnv
-            ? process.env[config.database.authTokenEnv]
-            : undefined,
-    });
-    let backend: FastifyInstance | undefined;
-    let gateway: FastifyInstance | undefined;
+    let backend: RunningHappy2 | undefined;
+    let web: RunningHappy2 | undefined;
     try {
-        await serverSchemaMigrate(client);
         const backendConfig: ServerConfig = {
             ...config,
             server: {
@@ -49,73 +29,36 @@ export async function startStandaloneHappy2(
                 trustedProxyHops: 1,
             },
         };
-        backend = await buildServer(backendConfig, {
-            client,
-            tokens: await TokenService.create(backendConfig),
-            logger: options.logger,
-        });
-        const backendUrl = await backend.listen({ host: "127.0.0.1", port: 0 });
-
-        gateway = Fastify({
+        backend = await startBackendHappy2(backendConfig, { logger: options.logger });
+        web = await startWebHappy2({
+            backendUrl: backend.url,
+            host: config.server.host,
             logger: options.logger ?? true,
-            trustProxy: config.server.trustedProxyHops,
+            port: config.server.port,
+            trustedProxyHops: config.server.trustedProxyHops,
+            webRoot: options.webRoot,
         });
-        await gateway.register(proxy, {
-            upstream: backendUrl,
-            prefix: "/v0",
-            rewritePrefix: "/v0",
-            httpMethods: ["GET", "POST"],
-            replyOptions: {
-                rewriteRequestHeaders: (request, headers) => ({
-                    ...headers,
-                    "x-forwarded-for": request.ip,
-                    "x-forwarded-host": request.host ?? "",
-                    "x-forwarded-proto": request.protocol,
-                }),
-            },
-        });
-        await gateway.register(staticFiles, {
-            root: webRoot,
-            wildcard: false,
-            index: "index.html",
-        });
-        gateway.setNotFoundHandler((request, reply) => {
-            if (
-                (request.method === "GET" || request.method === "HEAD") &&
-                !request.url.startsWith("/v0") &&
-                request.headers.accept?.includes("text/html")
-            ) {
-                return reply.type("text/html; charset=utf-8").sendFile("index.html");
-            }
-            return reply.code(404).send({ error: "not_found" });
-        });
-        const url = await gateway.listen({ host: config.server.host, port: config.server.port });
 
         let closed = false;
         const close = async () => {
             if (closed) return;
             closed = true;
             try {
-                await gateway?.close();
+                await web?.close();
             } finally {
-                try {
-                    await backend?.close();
-                } finally {
-                    client.close();
-                }
+                await backend?.close();
             }
         };
         return {
-            url,
+            url: web.url,
             close,
             async [Symbol.asyncDispose]() {
                 await close();
             },
         };
     } catch (error) {
-        await gateway?.close().catch(() => undefined);
+        await web?.close().catch(() => undefined);
         await backend?.close().catch(() => undefined);
-        client.close();
         throw error;
     }
 }

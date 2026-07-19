@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { parseArgs } from "node:util";
 import { daemonStart, daemonStop, daemonUsage, parseDaemonCommand } from "./daemon.js";
 import {
     isNpxInvocation,
@@ -9,6 +8,7 @@ import {
     systemServiceStop,
     systemServiceUsage,
 } from "./systemService.js";
+import { happy2Usage, parseHappy2Command } from "./runnerCommand.js";
 
 try {
     const arguments_ = process.argv.slice(2);
@@ -42,17 +42,35 @@ try {
             process.exitCode = 1;
         }
     } else {
-        const { values } = parseArgs({
-            args: arguments_,
-            options: { config: { type: "string" } },
-        });
-        const [{ loadRuntimeConfig }, { startStandaloneHappy2 }] = await Promise.all([
-            import("./modules/config/runtime.js"),
-            import("./standalone.js"),
-        ]);
-        const { config } = await loadRuntimeConfig(values.config ?? process.env.HAPPY2_CONFIG);
-        const running = await startStandaloneHappy2(config);
-        console.log(`Happy (2) is running at ${running.url}`);
+        const command = parseHappy2Command(arguments_);
+        if (command.kind === "help") {
+            console.log(happy2Usage());
+            process.exit(0);
+        }
+        if (command.kind === "invalid") {
+            console.error(`${command.message}\n\n${happy2Usage()}`);
+            process.exit(1);
+        }
+
+        let running;
+        if (command.kind === "web") {
+            const { startWebHappy2 } = await import("./web.js");
+            running = await startWebHappy2(command);
+            console.log(
+                `Happy (2) web is running at ${running.url} and proxying /v0 to ${command.backendUrl}`,
+            );
+        } else {
+            const { loadRuntimeConfig } = await import("./modules/config/runtime.js");
+            const { config } = await loadRuntimeConfig(command.configPath);
+            if (command.kind === "backend") {
+                const { startBackendHappy2 } = await import("./backend.js");
+                running = await startBackendHappy2(config);
+            } else {
+                const { startStandaloneHappy2 } = await import("./standalone.js");
+                running = await startStandaloneHappy2(config);
+            }
+            console.log(`Happy (2) ${command.kind} is running at ${running.url}`);
+        }
 
         let stopping = false;
         const stop = () => {

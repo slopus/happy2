@@ -3,7 +3,9 @@ export { supportedAuthMethods, type SupportedAuthMethods } from "./modules/auth/
 export { initializeManagedEnvironment } from "./modules/config/environment.js";
 export { defaultConfig } from "./modules/config/defaults.js";
 export { loadConfig, parseConfig } from "./modules/config/loader.js";
+export { startBackendHappy2, type RunningHappy2 } from "./backend.js";
 export { startStandaloneHappy2, type StandaloneHappy2 } from "./standalone.js";
+export { startWebHappy2, type WebOptions } from "./web.js";
 export type { ServerConfig } from "./modules/config/type.js";
 export type { RequestMetadata } from "./modules/auth/types.js";
 export type { User } from "./modules/user/types.js";
