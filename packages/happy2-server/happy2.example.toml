@@ -90,6 +90,12 @@ expiry_days = 30
 [auth.password]
 enabled = true
 
+# Allows an authenticated Settings session to create an opaque bearer token for
+# local web development. Every token inherits its backing session's expiry and
+# revocation; leave disabled on servers that do not need remote UI development.
+[auth.dev_tokens]
+enabled = false
+
 [auth.magic_link]
 enabled = false
 from = "Happy (2) <noreply@happy2.example.com>"

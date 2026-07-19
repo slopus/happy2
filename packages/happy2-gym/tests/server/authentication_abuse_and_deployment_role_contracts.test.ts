@@ -121,6 +121,7 @@ describe("authentication abuse protection and deployment role contracts", () => 
             expect((await authServer.get("/v0/auth/methods")).json()).toEqual({
                 role: "auth",
                 method: "password",
+                devTokensEnabled: false,
                 signupEnabled: true,
                 registration: "bootstrap",
             });
@@ -152,6 +153,7 @@ describe("authentication abuse protection and deployment role contracts", () => 
         expect((await apiServer.get("/v0/auth/methods")).json()).toEqual({
             role: "api",
             method: null,
+            devTokensEnabled: false,
             registration: "open",
         });
         expect((await apiServer.post("/v0/auth/password/register", {})).statusCode).toBe(404);

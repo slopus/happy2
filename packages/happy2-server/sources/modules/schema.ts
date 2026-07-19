@@ -108,6 +108,22 @@ export const authSessions = sqliteTable("auth_sessions", {
     revokedAt: text("revoked_at"),
 });
 
+export const authDevTokens = sqliteTable(
+    "auth_dev_tokens",
+    {
+        id: text("id").primaryKey().notNull(),
+        sessionId: text("session_id")
+            .notNull()
+            .references(() => authSessions.id, { onDelete: "cascade" }),
+        tokenHash: text("token_hash").notNull(),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [
+        uniqueIndex("auth_dev_tokens_token_hash_unique").on(table.tokenHash),
+        index("auth_dev_tokens_session_id_index").on(table.sessionId),
+    ],
+);
+
 export const automationRuns = sqliteTable("automation_runs", {
     id: text("id").primaryKey().notNull(),
     automationId: text("automation_id").notNull(),
@@ -1312,6 +1328,7 @@ export const schema = {
     agentSecretChannelAssignments,
     apiCredentials,
     auditLogEntries,
+    authDevTokens,
     authMagicLinks,
     authOidcStates,
     authSessionEvents,

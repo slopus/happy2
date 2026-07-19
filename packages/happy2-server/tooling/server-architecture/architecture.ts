@@ -40,7 +40,7 @@ const READ_ONLY_CLAIM =
 const ENTITY_PREFIXES: Record<string, readonly string[]> = {
     agent: ["agent", "rigEvent"],
     audit: ["audit"],
-    auth: ["account", "magicLink", "oidcState", "session"],
+    auth: ["account", "developmentToken", "magicLink", "oidcState", "session"],
     automation: ["automation"],
     backup: ["backup"],
     bot: ["bot"],

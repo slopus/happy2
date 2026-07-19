@@ -169,6 +169,13 @@
             "when": 1784421000000,
             "tag": "0023_roles_and_permissions",
             "breakpoints": true
+        },
+        {
+            "idx": 24,
+            "version": "6",
+            "when": 1784422000000,
+            "tag": "0024_session_bound_dev_tokens",
+            "breakpoints": true
         }
     ]
 }

@@ -44,6 +44,7 @@ describe.sequential("the package runner", () => {
                 expect(await methods.json()).toEqual({
                     role: "all",
                     method: "password",
+                    devTokensEnabled: false,
                     signupEnabled: true,
                     registration: "bootstrap",
                 });

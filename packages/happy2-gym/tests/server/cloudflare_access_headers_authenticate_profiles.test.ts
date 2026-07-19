@@ -33,6 +33,7 @@ describe("Cloudflare Access headers authenticate profiles", () => {
         await using server = await createGymServer({
             configure(config) {
                 config.auth.cloudflareAccess = { enabled: true, teamDomain, audience };
+                config.auth.devTokens.enabled = true;
             },
         });
         const assertion = accessAssertion(keys.privateKey as KeyObject, {
@@ -48,6 +49,7 @@ describe("Cloudflare Access headers authenticate profiles", () => {
         expect((await server.get("/v0/auth/methods")).json()).toEqual({
             role: "all",
             method: "cloudflare_access",
+            devTokensEnabled: true,
             registration: "bootstrap",
         });
         expect((await server.get("/v0/me")).statusCode).toBe(401);
@@ -61,13 +63,14 @@ describe("Cloudflare Access headers authenticate profiles", () => {
         expect(adminProfile.statusCode).toBe(201);
         expect(adminProfile.json().user.role).toBe("admin");
 
+        const memberExpiresAt = Math.floor(Date.now() / 1_000) + 300;
         const memberAssertion = accessAssertion(keys.privateKey as KeyObject, {
             iss: teamDomain,
             aud: [audience],
             type: "app",
             sub: "cloudflare-access-member-subject",
             email: "access.second@example.com",
-            exp: Math.floor(Date.now() / 1_000) + 300,
+            exp: memberExpiresAt,
         });
         const memberAccess = headerClient(server, memberAssertion);
         expect((await memberAccess.get("/v0/me")).statusCode).toBe(401);
@@ -96,6 +99,21 @@ describe("Cloudflare Access headers authenticate profiles", () => {
             authentication: "cloudflare_access",
             expiresAt: expect.any(String),
         });
+        const createdDevToken = await memberAccess.post("/v0/me/createDevToken");
+        expect(createdDevToken.statusCode).toBe(201);
+        expect(createdDevToken.json()).toMatchObject({
+            token: expect.stringMatching(/^happy2_dev_/),
+            sessionId: expect.any(String),
+            expiresAt: new Date(memberExpiresAt * 1_000).toISOString(),
+        });
+        const devToken = createdDevToken.json().token as string;
+        expect(
+            (
+                await server.get("/v0/me", {
+                    headers: { authorization: `Bearer ${devToken}` },
+                })
+            ).json().user,
+        ).toMatchObject({ id: userId });
         expect((await memberAccess.post("/v0/auth/refresh")).statusCode).toBe(401);
         expect((await memberAccess.post("/v0/auth/logout")).json()).toEqual({
             error: "cloudflare_access_manages_session",
@@ -119,6 +137,13 @@ describe("Cloudflare Access headers authenticate profiles", () => {
 
         expect((await access.post(`/v0/admin/users/${userId}/banUser`)).statusCode).toBe(200);
         expect((await memberAccess.get("/v0/me")).statusCode).toBe(401);
+        expect(
+            (
+                await server.get("/v0/me", {
+                    headers: { authorization: `Bearer ${devToken}` },
+                })
+            ).statusCode,
+        ).toBe(401);
     });
 });
 

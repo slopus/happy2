@@ -163,6 +163,7 @@ export function parseConfig(input: string): ServerConfig {
     const password = table(auth.password ?? {}, "auth.password");
     const magicLink = table(auth.magic_link ?? {}, "auth.magic_link");
     const cloudflareAccess = table(auth.cloudflare_access ?? {}, "auth.cloudflare_access");
+    const devTokens = table(auth.dev_tokens ?? {}, "auth.dev_tokens");
     const oidc = new Map<string, OidcProviderConfig>();
     for (const [id, value] of Object.entries(table(auth.oidc ?? {}, "auth.oidc"))) {
         const provider = table(value, `auth.oidc.${id}`);
@@ -331,6 +332,9 @@ export function parseConfig(input: string): ServerConfig {
                 enabled: cloudflareAccessEnabled,
                 teamDomain: normalizedCloudflareAccessTeamDomain,
                 audience: cloudflareAccessAudience,
+            },
+            devTokens: {
+                enabled: boolean(devTokens.enabled, "auth.dev_tokens.enabled"),
             },
         },
     };

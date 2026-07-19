@@ -29,11 +29,24 @@ redirect_path = "/v0/auth/oidc/example/callback"
 `);
         expect(config.auth.password.enabled).toBe(false);
         expect(config.auth.oidc.get("example")?.clientSecretEnv).toBe("OIDC_SECRET");
+        expect(config.auth.devTokens.enabled).toBe(false);
         expect(config.agents).toMatchObject({
             directory: join(process.cwd(), ".happy2", "rig"),
             defaultCwd: join(process.cwd(), ".happy2", "workspaces"),
         });
         expect(config.files.directory).toBe(join(process.cwd(), ".happy2", "files"));
+    });
+
+    it("loads dev tokens independently of the selected authentication mechanism", () => {
+        const config = parseConfig(`${base}
+[auth.password]
+enabled = true
+
+[auth.dev_tokens]
+enabled = true
+`);
+        expect(config.auth.password.enabled).toBe(true);
+        expect(config.auth.devTokens).toEqual({ enabled: true });
     });
 
     it("rejects more than one enabled authentication mechanism", () => {

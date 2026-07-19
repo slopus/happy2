@@ -72,6 +72,7 @@ export function defaultConfig(): ServerConfig {
             magicLink: { enabled: false },
             oidc: new Map(),
             cloudflareAccess: { enabled: false },
+            devTokens: { enabled: false },
         },
     };
 }

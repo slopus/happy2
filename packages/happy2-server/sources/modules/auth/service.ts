@@ -28,6 +28,8 @@ import { cloudflareAccessIdentity, type CloudflareAccessIdentity } from "./cloud
 import { authorizationUrl, exchangeCode } from "./oidc.js";
 import { TokenService } from "./tokens.js";
 import { accessTouchThrottle } from "./impl/accessTouchThrottle.js";
+import { developmentTokenCreate, type CreatedDevToken } from "./developmentTokenCreate.js";
+import { developmentTokenFindActive } from "./developmentTokenFindActive.js";
 type Body = Record<string, unknown>;
 export interface AuthenticatedAccount {
     accountId: string;
@@ -63,6 +65,15 @@ export class AuthService {
     async authenticateAccount(request: FastifyRequest): Promise<AuthenticatedAccount | undefined> {
         const token = bearerToken(request);
         if (token) {
+            if (this.config.auth.devTokens.enabled && token.startsWith("happy2_dev_")) {
+                const session = await developmentTokenFindActive(this.executor, token);
+                return session
+                    ? {
+                          session,
+                          accountId: session.accountId,
+                      }
+                    : undefined;
+            }
             try {
                 const claims = await this.tokens.verify(token);
                 const session = await sessionFindActive(this.executor, claims.sessionId);
@@ -260,6 +271,23 @@ export class AuthService {
                   )),
               }
             : undefined;
+    }
+    async createDevToken(request: FastifyRequest): Promise<CreatedDevToken | undefined> {
+        if (!this.config.auth.devTokens.enabled) return undefined;
+        const current = await this.authenticate(request);
+        if (!current) return undefined;
+        let session = current.session;
+        if (!session) {
+            const expiresAt = current.cloudflareAccess?.expiresAt;
+            if (!expiresAt) return undefined;
+            session = await sessionCreate(
+                this.executor,
+                current.accountId,
+                expiresAt,
+                requestMetadata(request),
+            );
+        }
+        return developmentTokenCreate(this.executor, session.id, requestMetadata(request));
     }
     async logout(request: FastifyRequest): Promise<boolean | "managed_by_cloudflare_access"> {
         const account = await this.authenticateAccount(request);

@@ -16,6 +16,7 @@ describe("configless defaults", () => {
         expect(config.agents.command).toContain("node_modules/@slopus/rig/dist/main.js");
         expect(config.auth.password).toEqual({ enabled: true });
         expect(config.auth.magicLink.enabled).toBe(false);
+        expect(config.auth.devTokens.enabled).toBe(false);
         expect(config.files).toMatchObject({
             provider: "local",
             directory: join(process.cwd(), ".happy2", "files"),

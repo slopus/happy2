@@ -39,6 +39,18 @@ export function registerAuthRoutes(
     });
     if (config.server.role === "api") return;
 
+    if (config.auth.devTokens.enabled) {
+        app.post("/v0/me/createDevToken", async (request, reply) => {
+            const result = await auth.createDevToken(request);
+            if (!result) return reply.code(401).send({ error: "unauthorized" });
+            return reply.code(201).send({
+                token: result.token,
+                sessionId: result.session.id,
+                expiresAt: result.session.expiresAt.toISOString(),
+            });
+        });
+    }
+
     if (config.auth.password.enabled) {
         app.post("/v0/auth/password/register", async (request, reply) => {
             try {

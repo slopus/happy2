@@ -26,6 +26,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
             expect((await server.get("/v0/auth/methods")).json()).toEqual({
                 role: "all",
                 method: "password",
+                devTokensEnabled: false,
                 signupEnabled: true,
                 registration: "bootstrap",
             });
@@ -157,6 +158,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
                 expect((await server.get("/v0/auth/methods")).json()).toEqual({
                     role: "all",
                     method: "password",
+                    devTokensEnabled: false,
                     signupEnabled: true,
                     registration: "bootstrap",
                 });
@@ -311,6 +313,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
                     expect((await server.get("/v0/auth/methods")).json()).toEqual({
                         role: "all",
                         method: "magic_link",
+                        devTokensEnabled: false,
                         registration: "open",
                     });
                     const request = await server.post("/v0/auth/magic-link/request", { email });
@@ -374,6 +377,7 @@ describe("authentication, profiles, sessions, and administrative accounts", () =
                 expect((await server.get("/v0/auth/methods")).json()).toEqual({
                     role: "all",
                     method: "oidc",
+                    devTokensEnabled: false,
                     oidcProvider: "gym",
                     registration: "bootstrap",
                 });

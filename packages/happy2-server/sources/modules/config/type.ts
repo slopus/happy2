@@ -81,5 +81,6 @@ export interface ServerConfig {
         magicLink: { enabled: boolean; from?: string; redirectUrl?: string };
         oidc: Map<string, OidcProviderConfig>;
         cloudflareAccess: CloudflareAccessConfig;
+        devTokens: { enabled: boolean };
     };
 }
