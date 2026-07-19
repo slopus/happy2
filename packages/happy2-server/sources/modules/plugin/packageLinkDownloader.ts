@@ -1,4 +1,5 @@
 import { request } from "node:https";
+import type { LookupFunction } from "node:net";
 import type { WebhookUrlPolicy } from "../integrations/ssrf.js";
 
 const MAX_ARCHIVE_BYTES = 20 * 1024 * 1024;
@@ -58,13 +59,16 @@ function downloadPinned(
     signal?: AbortSignal,
 ): Promise<{ body: Buffer; location?: string; statusCode: number }> {
     const url = new URL(input);
+    const lookup: LookupFunction = (_hostname, options, callback) => {
+        if (options.all) callback(null, [address]);
+        else callback(null, address.address, address.family);
+    };
     return new Promise((resolve, reject) => {
         const requestHandle = request(
             url,
             {
                 headers: { accept: "application/zip, application/octet-stream" },
-                lookup: (_hostname, _options, callback) =>
-                    callback(null, address.address, address.family),
+                lookup,
                 signal,
             },
             (response) => {
