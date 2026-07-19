@@ -49,6 +49,16 @@ Open [http://127.0.0.1:3000](http://127.0.0.1:3000) in your browser. Happy (2)
 stores its database, files, generated secrets, agent workspaces, and private Rig
 runtime under `.happy2` in the directory where you start it.
 
+Run it in the background without installing an operating-system service with:
+
+```sh
+npx happy2 daemon start
+npx happy2 daemon stop
+```
+
+The daemon stores `happy2.pid` and `happy2.log` under `./.happy2`. Stopping it
+terminates the daemon process tree and removes the PID file.
+
 Keep Happy (2) running across reboots with:
 
 ```sh

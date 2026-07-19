@@ -161,7 +161,7 @@ describe("automatic operating-system service", () => {
         });
         expect(host.userWrites[0]!.contents).toContain("User=ada");
         expect(host.userWrites[0]!.contents).toContain(
-            'WorkingDirectory="/home/ada/happy %% workspace"',
+            "WorkingDirectory=/home/ada/happy %% workspace",
         );
         expect(host.userWrites[0]!.contents).toContain(
             'ExecStart="/usr/bin/env" "npx" "--yes" "happy2"',
@@ -239,6 +239,8 @@ describe("automatic operating-system service", () => {
             username: "happy-user",
         });
         expect(unit).toContain('ExecStart="/node" "path with \\\\ and \\"quote\\""');
+        expect(unit).toContain("WorkingDirectory=/work");
+        expect(unit).not.toContain('WorkingDirectory="/work"');
         expect(() =>
             renderSystemdUnit({
                 arguments_: ["bad\nvalue"],
@@ -255,6 +257,22 @@ describe("automatic operating-system service", () => {
                 username: "bad user",
             }),
         ).toThrow("Cannot install a systemd service");
+        expect(() =>
+            renderSystemdUnit({
+                arguments_: ["node"],
+                cwd: "/work/ends-with-space ",
+                environment: {},
+                username: "ada",
+            }),
+        ).toThrow("cannot end with whitespace");
+        expect(() =>
+            renderSystemdUnit({
+                arguments_: ["node"],
+                cwd: "/work/ends-with-backslash\\",
+                environment: {},
+                username: "ada",
+            }),
+        ).toThrow("cannot end with a backslash");
     });
 
     it("documents start, stop, sudo, login, and boot behavior in CLI help", () => {

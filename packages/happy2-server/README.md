@@ -18,6 +18,10 @@ npx happy2
 npx happy2 service start --config ./happy2.toml
 npx happy2 service stop
 
+# Start or stop it as a background process in the current directory
+npx happy2 daemon start --config ./happy2.toml
+npx happy2 daemon stop
+
 # Development, with reload and no configuration file:
 pnpm dev:server
 
@@ -61,6 +65,13 @@ journal. The generated file remains in the current directory for inspection or
 reinstallation. `happy2 service stop` directly stops and removes the macOS LaunchAgent,
 while on Linux it prints the `sudo` commands that stop, disable, and remove the
 systemd unit.
+
+`happy2 daemon start` starts the all-in-one app in a detached process group and
+returns immediately. It writes `.happy2/happy2.pid` and appends output to
+`.happy2/happy2.log` in the current directory. `happy2 daemon stop` sends the
+whole process group a graceful termination signal, force-stops it if necessary,
+and removes the PID file. Unlike `service start`, daemon mode does not arrange
+automatic startup after a login or reboot.
 
 The service preserves the installation-time working directory, `PATH`, and
 optional `RIG_HOME`. When `--config` is supplied, its path is made

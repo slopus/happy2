@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { parseArgs } from "node:util";
+import { daemonStart, daemonStop, daemonUsage, parseDaemonCommand } from "./daemon.js";
 import {
     isNpxInvocation,
     parseSystemServiceCommand,
@@ -11,7 +12,21 @@ import {
 
 try {
     const arguments_ = process.argv.slice(2);
-    if (arguments_[0] === "service") {
+    if (arguments_[0] === "daemon") {
+        const command = parseDaemonCommand(arguments_.slice(1));
+        if (command.action === "help") {
+            console.log(daemonUsage());
+        } else if (command.action === "start") {
+            await daemonStart({
+                configPath: command.configPath ?? process.env.HAPPY2_CONFIG,
+            });
+        } else if (command.action === "stop") {
+            await daemonStop();
+        } else {
+            console.error(daemonUsage());
+            process.exitCode = 1;
+        }
+    } else if (arguments_[0] === "service") {
         const command = parseSystemServiceCommand(arguments_.slice(1));
         if (command.action === "help") {
             console.log(systemServiceUsage());

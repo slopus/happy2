@@ -281,6 +281,9 @@ export function renderSystemdUnit(input: {
     environment: Readonly<Record<string, string>>;
     username: string;
 }): string {
+    if (!isAbsolute(input.cwd)) {
+        throw new Error(`Systemd working directory must be absolute: ${input.cwd}`);
+    }
     const environment = Object.entries(input.environment)
         .map(([key, value]) => `Environment=${systemdQuote(`${key}=${value}`)}`)
         .join("\n");
@@ -292,7 +295,7 @@ After=network-online.target
 [Service]
 Type=simple
 User=${systemdValue(input.username)}
-WorkingDirectory=${systemdQuote(input.cwd)}
+WorkingDirectory=${systemdPathValue(input.cwd)}
 ExecStart=${input.arguments_.map(systemdQuote).join(" ")}
 ${environment ? `${environment}\n` : ""}Restart=always
 RestartSec=5
@@ -301,6 +304,19 @@ UMask=0077
 [Install]
 WantedBy=multi-user.target
 `;
+}
+
+function systemdPathValue(value: string): string {
+    if (value.includes("\n") || value.includes("\r") || value.includes("\0")) {
+        throw new Error("Service values cannot contain line breaks.");
+    }
+    if (/\s$/.test(value)) {
+        throw new Error("Systemd working directories cannot end with whitespace.");
+    }
+    if (value.endsWith("\\")) {
+        throw new Error("Systemd working directories cannot end with a backslash.");
+    }
+    return value.replaceAll("%", "%%");
 }
 
 function xmlEscape(value: string): string {
