@@ -4,6 +4,7 @@ import { supportedAuthMethods } from "../modules/auth/methods.js";
 import { AuthService } from "../modules/auth/service.js";
 import type { User } from "../modules/user/types.js";
 import type { DrizzleExecutor } from "../modules/drizzle.js";
+import { permissionGetEffective } from "../modules/permission/permissionGetEffective.js";
 import { setupGetRegistrationAvailability } from "../modules/setup/index.js";
 
 export function registerAuthRoutes(
@@ -36,6 +37,19 @@ export function registerAuthRoutes(
             sessionId: current.session.id,
             expiresAt: current.session.expiresAt.toISOString(),
         };
+    });
+    /* This intentionally has its own route rather than overloading `/v0/me`:
+       the web gateway calls it exactly once while turning a verified bearer into
+       its HttpOnly browser cookie. Its response is the initial authenticated
+       workspace identity, so a profile-less account remains unauthorized. */
+    app.get("/v0/auth/web/session", async (request, reply) => {
+        const current = await auth.authenticate(request);
+        return current
+            ? {
+                  user: current.user,
+                  permissions: await permissionGetEffective(executor, current.user.id),
+              }
+            : reply.code(401).send({ error: "unauthorized" });
     });
     if (config.server.role === "api") return;
 

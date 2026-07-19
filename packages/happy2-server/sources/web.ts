@@ -31,7 +31,7 @@ export async function startWebHappy2(options: WebOptions): Promise<RunningHappy2
     });
     try {
         gateway.get("/v0/auth/web/session", async (request, reply) => {
-            const response = await fetch(`${backendUrl}/v0/me`, {
+            const response = await fetch(`${backendUrl}/v0/auth/web/session`, {
                 headers: backendRequestHeaders(request),
             });
             const token = webAuthorizationToken(request.headers.authorization);

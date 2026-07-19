@@ -306,6 +306,7 @@ The repository uses pnpm 10.28 or later. For local development:
 ```sh
 pnpm install
 pnpm dev                                 # Server + web app
+pnpm web                                 # Token-gated preview against happy.bulkovo.com
 pnpm dev:desktop                         # Electron app
 pnpm dev:server                          # Server only
 pnpm --dir packages/happy2-gym test      # End-to-end tests

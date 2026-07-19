@@ -93,11 +93,12 @@ export function createServerClient(baseUrl: string) {
         ) => post<{ user: User }>("/v0/me/createProfile", profile, token),
         me: (token?: string) =>
             request<{ user: User; permissions: EffectivePermissions }>("/v0/me", {}, token),
-        /* The web gateway's cookie-establishment endpoint: the proxy forwards this
-           to the backend `/v0/me` and, on a successful Bearer verification, issues
-           the HttpOnly `happy2_auth_token` cookie. It is the only request that mints
-           the cookie — a direct `/v0/me` never does — so cookie deployments bootstrap
-           through here and then drop the bearer. The response shape matches `me`. */
+        /* The web gateway's cookie-establishment endpoint: its dedicated backend
+           route verifies the one-time Bearer and returns the initial user/permission
+           projection, after which the gateway issues the HttpOnly
+           `happy2_auth_token` cookie. It is the only request that mints the cookie —
+           a direct `/v0/me` never does — so web deployments bootstrap through here
+           and then drop the bearer. The response shape matches `me`. */
         webSession: (token?: string) =>
             request<{ user: User; permissions: EffectivePermissions }>(
                 "/v0/auth/web/session",

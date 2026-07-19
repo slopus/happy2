@@ -168,12 +168,21 @@ describe.sequential("the package runner", () => {
                     ).status,
                 ).toBe(200);
                 expect((await fetch(`${web.url}/not-a-route`)).status).toBe(404);
+                expect((await fetch(`${backend.url}/v0/auth/web/session`)).status).toBe(401);
                 const sessionToken = await registerUser(web.url);
                 const directSessionLookup = await fetch(`${web.url}/v0/me`, {
                     headers: { authorization: `Bearer ${sessionToken}` },
                 });
                 expect(directSessionLookup.status).toBe(200);
                 expect(directSessionLookup.headers.get("set-cookie")).toBeNull();
+                const backendSessionVerification = await fetch(
+                    `${backend.url}/v0/auth/web/session`,
+                    { headers: { authorization: `Bearer ${sessionToken}` } },
+                );
+                expect(backendSessionVerification.status).toBe(200);
+                expect(await backendSessionVerification.json()).toMatchObject({
+                    user: { username: "package_runner" },
+                });
                 const sessionVerified = await fetch(`${web.url}/v0/auth/web/session`, {
                     headers: { authorization: `Bearer ${sessionToken}` },
                 });

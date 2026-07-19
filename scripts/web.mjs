@@ -27,6 +27,9 @@ const child = spawn(
         env: {
             ...process.env,
             VITE_HAPPY2_SERVER_URL: endpoint,
+            // This standalone workspace preview is intentionally development-token
+            // gated. The full `pnpm dev` stack keeps its regular password auth flow.
+            VITE_HAPPY2_REQUIRE_DEVELOPMENT_TOKEN: "1",
         },
         stdio: "inherit",
     },
