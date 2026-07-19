@@ -23,6 +23,9 @@ import { pluginInstallationUpdateStatus } from "./pluginInstallationUpdateStatus
 import { pluginRemoveMissingBuiltins } from "./pluginRemoveMissingBuiltins.js";
 import { pluginMcpToolsReplace, type PluginMcpToolInput } from "./pluginMcpToolsReplace.js";
 import { pluginMcpToolsListReady } from "./pluginMcpToolsListReady.js";
+import { pluginSkillsListReady } from "./pluginSkillsListReady.js";
+import { pluginSkillsListInstalled } from "./pluginSkillsListInstalled.js";
+import type { PluginSkillSourceRecord } from "./impl/pluginSkillSource.js";
 import { pluginContainerInstanceAuthorize } from "./pluginContainerInstanceAuthorize.js";
 import { pluginContainerInstanceInvalidate } from "./pluginContainerInstanceInvalidate.js";
 import { pluginUninstall } from "./pluginUninstall.js";
@@ -50,6 +53,7 @@ import {
     type PluginPackage,
     type PreparedPluginSummary,
     type PluginRuntimeConfiguration,
+    type PluginSkillDefinition,
     type PluginUpdateCheck,
 } from "./types.js";
 
@@ -57,6 +61,7 @@ const HEALTH_TIMEOUT_MS = 15_000;
 const COMMAND_STARTUP_GRACE_MS = 250;
 const FUNCTION_EXECUTION_TIMEOUT_MS = 30_000;
 const MAX_RIG_PLUGIN_FUNCTIONS = 128;
+const MAX_RIG_PLUGIN_SKILLS = 128;
 const PREPARATION_TTL_MS = 15 * 60_000;
 
 interface PreparedPlugin {
@@ -407,6 +412,62 @@ export class PluginService {
         }));
     }
 
+    async listSkills(signal?: AbortSignal): Promise<readonly PluginSkillDefinition[]> {
+        const skills = this.skillSources(await pluginSkillsListReady(this.executor), signal);
+        if (skills.length > MAX_RIG_PLUGIN_SKILLS)
+            throw new PluginSkillCatalogError(
+                `Installed plugins expose ${skills.length} skills, exceeding Rig's ${MAX_RIG_PLUGIN_SKILLS}-skill limit`,
+            );
+        return skills.map(({ name, description }) => ({
+            name,
+            description,
+            location: "durable",
+        }));
+    }
+
+    async readSkill(
+        skill: PluginSkillDefinition,
+        signal?: AbortSignal,
+    ): Promise<PluginFunctionResult> {
+        try {
+            return await withOperationTimeout(
+                FUNCTION_EXECUTION_TIMEOUT_MS,
+                "Plugin skill read",
+                signal,
+                async (operationSignal) => {
+                    const sources = this.skillSources(
+                        await pluginSkillsListInstalled(this.executor),
+                        operationSignal,
+                    );
+                    const source = sources.find(({ name }) => name === skill.name);
+                    if (!source || source.description !== skill.description)
+                        throw new Error("The plugin no longer provides this durable skill");
+                    const loaded = await this.packages.readSkill(
+                        source.pluginId,
+                        source.packageDirectory,
+                        source.shortName,
+                        source.packageDigest,
+                        source.name,
+                        source.directory,
+                        operationSignal,
+                    );
+                    if (loaded.description !== skill.description)
+                        throw new Error("Installed plugin skill metadata no longer matches");
+                    return { status: "completed", output: loaded.source };
+                },
+            );
+        } catch (error) {
+            if (signal?.aborted) throw error;
+            return {
+                status: "failed",
+                error: {
+                    code: "plugin_skill_failed",
+                    message: errorMessage(error),
+                },
+            };
+        }
+    }
+
     async callFunction(
         functionName: string,
         args: unknown,
@@ -470,6 +531,23 @@ export class PluginService {
         });
         if (!result) throw new Error("The plugin does not expose MCP tools");
         return result;
+    }
+
+    private skillSources(
+        records: readonly PluginSkillSourceRecord[],
+        signal?: AbortSignal,
+    ): PluginSkillSourceRecord[] {
+        const names = new Map<string, string>();
+        for (const record of records) {
+            signal?.throwIfAborted();
+            const existing = names.get(record.name);
+            if (existing)
+                throw new PluginSkillCatalogError(
+                    `Installed plugins ${existing} and ${record.shortName} both provide skill ${record.name}`,
+                );
+            names.set(record.name, record.shortName);
+        }
+        return [...records];
     }
 
     async authorizeHost(token: string, permission: PluginHostPermission): Promise<string> {
@@ -969,6 +1047,8 @@ export class PluginService {
 }
 
 class PluginFunctionCatalogError extends Error {}
+
+class PluginSkillCatalogError extends Error {}
 
 function pluginFunctionName(installationId: string, toolName: string): string {
     const normalized = toolName

@@ -3,8 +3,9 @@
  *
  * Contract: fills its container, stacks a header row over a column of plugin
  * cards. Each card is a row: a fixed 40px icon slot, a flexible body (name,
- * version, capability badges, per-installation health), and a right-pinned
- * install action. The install dialog renders in a self-contained absolute
+ * version, capability badges, the exact name and description of each Agent
+ * Skill, per-installation health), and a right-pinned install action. The
+ * install dialog renders in a self-contained absolute
  * overlay so the panel owns its own scrim without a positioned ancestor.
  * Secret variable values are write-only and never rendered here.
  */
@@ -139,6 +140,53 @@
     align-items: center;
     gap: 6px;
     min-width: 0;
+}
+
+/* ---- Agent skills ------------------------------------------------------ */
+
+.happy2-plugin-catalog-panel__skills {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/*
+ * Each skill is a definition-style row: the exact name token beside its
+ * description, baseline-aligned so the mono name sits on the first line of
+ * prose. Both children may shrink (min-width: 0) so a valid 64-character skill
+ * name stays inside the card: the name is capped at half the row and wraps
+ * (overflow-wrap: anywhere) instead of overflowing, while the description keeps
+ * the remaining width. Short names sit at their content width, so the common
+ * case keeps the normal single-line horizontal layout.
+ */
+.happy2-plugin-catalog-panel__skill {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+}
+
+.happy2-plugin-catalog-panel__skill-name {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 50%;
+    overflow-wrap: anywhere;
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--happy2-accent);
+}
+
+.happy2-plugin-catalog-panel__skill-description {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--happy2-text-secondary);
 }
 
 .happy2-plugin-catalog-panel__installations {

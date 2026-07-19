@@ -174,18 +174,28 @@ export class PluginPackageStore {
         shortName: string,
         packageDigest: string,
     ): Promise<void> {
-        const [canonicalRoot, storedDirectory, actualDirectory] = await Promise.all([
-            realpath(this.root),
-            realpath(this.path(pluginId)),
-            realpath(recordedDirectory),
-        ]);
-        const expectedDirectory = resolve(canonicalRoot, pluginId);
-        if (storedDirectory !== expectedDirectory || actualDirectory !== expectedDirectory)
-            throw new Error("Installed plugin package is outside the plugin package store");
-        const source = await installedSource(actualDirectory, shortName);
-        const plugin = await pluginPackageLoadInstalled(actualDirectory, source, shortName);
-        if (plugin.packageDigest !== packageDigest)
-            throw new Error("Installed plugin package no longer matches its recorded digest");
+        await this.load(pluginId, recordedDirectory, shortName, packageDigest);
+    }
+
+    async readSkill(
+        pluginId: string,
+        recordedDirectory: string,
+        shortName: string,
+        packageDigest: string,
+        skillName: string,
+        skillDirectory: string,
+        signal?: AbortSignal,
+    ): Promise<{ description: string; source: string }> {
+        signal?.throwIfAborted();
+        const plugin = await this.load(pluginId, recordedDirectory, shortName, packageDigest);
+        const skill = plugin.skills.find(({ name }) => name === skillName);
+        if (!skill || skill.directory !== skillDirectory)
+            throw new Error(`Installed plugin does not provide skill ${skillName}`);
+        const source = await readFile(join(recordedDirectory, skill.directory, "SKILL.md"), {
+            encoding: "utf8",
+            signal,
+        });
+        return { description: skill.description, source };
     }
 
     async readImage(
@@ -208,6 +218,27 @@ export class PluginPackageStore {
         if (!destination.startsWith(`${root}${sep}`))
             throw new Error("Invalid plugin package path");
         return join(root, pluginId);
+    }
+
+    private async load(
+        pluginId: string,
+        recordedDirectory: string,
+        shortName: string,
+        packageDigest: string,
+    ): Promise<PluginPackage> {
+        const [canonicalRoot, storedDirectory, actualDirectory] = await Promise.all([
+            realpath(this.root),
+            realpath(this.path(pluginId)),
+            realpath(recordedDirectory),
+        ]);
+        const expectedDirectory = resolve(canonicalRoot, pluginId);
+        if (storedDirectory !== expectedDirectory || actualDirectory !== expectedDirectory)
+            throw new Error("Installed plugin package is outside the plugin package store");
+        const source = await installedSource(actualDirectory, shortName);
+        const plugin = await pluginPackageLoadInstalled(actualDirectory, source, shortName);
+        if (plugin.packageDigest !== packageDigest)
+            throw new Error("Installed plugin package no longer matches its recorded digest");
+        return plugin;
     }
 }
 

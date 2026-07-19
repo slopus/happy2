@@ -493,6 +493,71 @@ it("renders PluginsPage from its independent store and routes the typed install 
     ]);
 });
 
+it("filters the plugin catalog by skill name and description through PluginsPage", async () => {
+    const fixture = owned(pluginsStoreFixtureCreate());
+    const images = owned(agentImagesStoreFixtureCreate());
+    fixture.input({
+        type: "pluginsLoaded",
+        plugins: [
+            {
+                displayName: "Toolkit",
+                shortName: "toolkit",
+                description: "General project helpers.",
+                version: "1.0.0",
+                packageDigest: "digest-toolkit",
+                skills: [
+                    {
+                        name: "release-check",
+                        description: "Verify a release before shipping.",
+                        directory: "skills/release-check",
+                    },
+                ],
+                variables: [],
+            },
+            {
+                displayName: "Search",
+                shortName: "search",
+                description: "Finds code across the workspace.",
+                version: "1.0.0",
+                packageDigest: "digest-search",
+                skills: [],
+                variables: [],
+            },
+        ],
+    });
+    const view = createRenderer();
+    const page = (testId: string, query: string) => (
+        <div data-testid={testId} style={{ display: "flex", width: "760px" }}>
+            <PluginsPage
+                agentImagesStore={() => images.store}
+                query={query}
+                store={fixture.store}
+            />
+        </div>
+    );
+    view.render(() => page("by-name", "release-check"), { width: 760, height: 360 })
+        .render(() => page("by-description", "shipping"), { width: 760, height: 360 })
+        .render(() => page("by-plugin", "search"), { width: 760, height: 360 })
+        .render(() => page("no-match", "nonexistent-token"), { width: 760, height: 360 });
+    await view.ready();
+
+    const cards = (testId: string) =>
+        Array.from(
+            view
+                .$(`[data-testid="${testId}"]`)
+                .element.querySelectorAll("[data-plugin-short-name]"),
+            (node) => node.getAttribute("data-plugin-short-name"),
+        );
+    // An exact skill name matches only the package that provides it.
+    expect(cards("by-name")).toEqual(["toolkit"]);
+    // A term found only in a skill description also surfaces its package.
+    expect(cards("by-description")).toEqual(["toolkit"]);
+    // Existing plugin-field matching is preserved.
+    expect(cards("by-plugin")).toEqual(["search"]);
+    // A term in no plugin or skill field matches nothing.
+    expect(cards("no-match")).toEqual([]);
+});
+
 it("renders ActivityPage from NotificationsStore input", async () => {
     const fixture = owned(notificationsStoreFixtureCreate());
     fixture.input({ type: "notificationsLoading" });

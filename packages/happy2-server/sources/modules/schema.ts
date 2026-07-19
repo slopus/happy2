@@ -724,6 +724,19 @@ export const pluginInstallations = sqliteTable(
     (table) => [index("plugin_installations_plugin_id_index").on(table.pluginId)],
 );
 
+export const pluginSkills = sqliteTable(
+    "plugin_skills",
+    {
+        pluginId: text("plugin_id")
+            .notNull()
+            .references(() => plugins.id, { onDelete: "cascade" }),
+        name: text("name").notNull(),
+        description: text("description").notNull(),
+        directory: text("directory").notNull(),
+    },
+    (table) => [primaryKey({ columns: [table.pluginId, table.name] })],
+);
+
 export const pluginInstallationVariables = sqliteTable(
     "plugin_installation_variables",
     {
@@ -1376,6 +1389,7 @@ export const schema = {
     pluginInstallationVariables,
     pluginFunctionResults,
     pluginMcpTools,
+    pluginSkills,
     plugins,
     rateLimitBuckets,
     reactions,

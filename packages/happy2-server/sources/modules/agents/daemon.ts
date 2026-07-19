@@ -8,6 +8,7 @@ import type {
     ChangePermissionModeRequest,
     CreateSessionRequest,
     CreateSessionResponse,
+    DurableSkillDefinition,
     GetDaemonConfigResponse,
     HealthResponse,
     ListSecretsResponse,
@@ -373,12 +374,13 @@ export class RigDaemonClient {
         sessionId: string,
         text: string,
         externalTools: readonly ExternalToolDefinition[],
+        skills: readonly DurableSkillDefinition[],
         signal?: AbortSignal,
     ): Promise<{ eventId: string; runId: string }> {
         return this.connectedRequest<SubmitMessageResponse>(
             "POST",
             `/sessions/${encodeURIComponent(sessionId)}/messages`,
-            { text, externalTools } satisfies SubmitMessageRequest,
+            { text, externalTools, skills } satisfies SubmitMessageRequest,
             signal,
         );
     }

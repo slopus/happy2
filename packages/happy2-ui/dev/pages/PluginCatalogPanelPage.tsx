@@ -6,7 +6,12 @@ const hello: PluginCatalogEntry = {
     displayName: "Hello",
     description: "A minimal skills-only example plugin bundled with the server.",
     version: "1.0.0",
-    skills: [{ name: "hello", description: "Says hello." }],
+    skills: [
+        {
+            name: "hello",
+            description: "Greets the current user and confirms the plugin runtime is reachable.",
+        },
+    ],
     variables: [],
     installed: true,
     installations: [
@@ -54,8 +59,12 @@ const runner: PluginCatalogEntry = {
     description: "Runs project task automation through a stdio MCP in a selected container.",
     version: "0.4.2",
     skills: [
-        { name: "run-task", description: "Runs one task." },
-        { name: "list-tasks", description: "Lists tasks." },
+        {
+            name: "run-task",
+            description:
+                "Runs one named automation task in the container and streams its output back to the agent.",
+        },
+        { name: "list-tasks", description: "Lists every automation task the project defines." },
     ],
     mcp: { type: "stdio", container: "selection_required" },
     variables: [
@@ -66,6 +75,22 @@ const runner: PluginCatalogEntry = {
             kind: "secret",
         },
     ],
+    installed: false,
+    installations: [],
+};
+const longSkill: PluginCatalogEntry = {
+    shortName: "toolkit",
+    displayName: "Toolkit",
+    description: "Demonstrates the maximum 64-character skill name in a narrow card.",
+    version: "1.0.0",
+    skills: [
+        {
+            name: "a".repeat(64),
+            description:
+                "Runs a lengthy automation workflow that must stay readable beside a very long skill name.",
+        },
+    ],
+    variables: [],
     installed: false,
     installations: [],
 };
@@ -83,11 +108,11 @@ export function PluginCatalogPanelPage() {
     return (
         <ComponentPage
             number="C-066"
-            summary="Administrator plugin catalog: cards with a 40px icon slot, mono version, capability badges, per-installation health badges, and a controlled install dialog collecting declared variables (masked secrets) plus an optional ready container-image selection."
+            summary="Administrator plugin catalog: cards with a 40px icon slot, mono version, capability badges, an accent mono name and description for every Agent Skill the package provides, per-installation health badges, and a controlled install dialog collecting declared variables (masked secrets) plus an optional ready container-image selection."
             title="PluginCatalogPanel"
         >
             <Specimen
-                detail="card 16px padding · icon 40px radius 8 · name 14/600 · mono version 12px · status badges per installation"
+                detail="card 16px padding · icon 40px radius 8 · name 14/600 · mono version 12px · accent mono skill name + description rows · status badges per installation"
                 label="Catalog — installed, update available, and installable"
                 number="01"
                 stage="app"
@@ -118,6 +143,21 @@ export function PluginCatalogPanelPage() {
                     />
                 </div>
                 <DimensionRule label="880px · panel fills its container" />
+            </Specimen>
+
+            <Specimen
+                detail="360px card · a maximum 64-character skill name wraps within half the row while the description keeps the rest, clear of the install action"
+                label="Skills — long name in a constrained card"
+                number="01b"
+                stage="app"
+            >
+                <div style={{ display: "flex", width: "360px", minHeight: "220px" }}>
+                    <PluginCatalogPanel
+                        onOpenInstall={() => log("open toolkit")}
+                        plugins={[longSkill]}
+                    />
+                </div>
+                <DimensionRule label="360px · constrained catalog card" />
             </Specimen>
 
             <Specimen

@@ -72,8 +72,8 @@ const RUNNER: PluginCatalogEntry = {
     description: "Runs project automation through a stdio MCP in a selected container.",
     version: "0.4.2",
     skills: [
-        { name: "run-task", description: "Runs one task." },
-        { name: "list-tasks", description: "Lists tasks." },
+        { name: "run-task", description: "Runs one named automation task." },
+        { name: "list-tasks", description: "Lists every automation task the project defines." },
     ],
     mcp: { type: "stdio", container: "selection_required" },
     variables: [
@@ -84,6 +84,26 @@ const RUNNER: PluginCatalogEntry = {
             kind: "secret",
         },
     ],
+    installed: false,
+    installations: [],
+};
+
+// The server permits skill names up to 64 characters; use a single unbroken
+// maximum-length token as the worst case for a constrained catalog card.
+const LONG_SKILL_NAME = "a".repeat(64);
+const LONG_SKILL: PluginCatalogEntry = {
+    shortName: "toolkit",
+    displayName: "Toolkit",
+    description: "A package whose skill uses the maximum-length name.",
+    version: "1.0.0",
+    skills: [
+        {
+            name: LONG_SKILL_NAME,
+            description:
+                "Runs a lengthy automation workflow that must stay readable beside a very long skill name.",
+        },
+    ],
+    variables: [],
     installed: false,
     installations: [],
 };
@@ -200,6 +220,64 @@ it("holds PluginCatalogPanel layout, capability badges, installation health, and
     expect(capabilities("project-search")).toEqual(["MCP · remote"]);
     expect(capabilities("task-runner")).toEqual(["2 skills", "MCP · stdio"]);
 
+    // Agent Skills: every skill is discoverable by its exact name and
+    // description, in declared order — not only a count badge. The container and
+    // each row expose stable measurable markers that actually render.
+    expect(
+        view
+            .$(card("task-runner"))
+            .element.querySelector('[data-happy2-ui="plugin-catalog-skills"]'),
+        "skills container renders its stable marker",
+    ).not.toBeNull();
+    const skillRows = (shortName: string) =>
+        Array.from(
+            view
+                .$(card(shortName))
+                .element.querySelectorAll('[data-happy2-ui="plugin-catalog-skill"]'),
+        );
+    const skillPairs = (shortName: string) =>
+        skillRows(shortName).map((row) => [
+            row.querySelector('[data-happy2-ui="plugin-catalog-skill-name"]')!.textContent,
+            row.querySelector('[data-happy2-ui="plugin-catalog-skill-description"]')!.textContent,
+        ]);
+    expect(skillPairs("task-runner")).toEqual([
+        ["run-task", "Runs one named automation task."],
+        ["list-tasks", "Lists every automation task the project defines."],
+    ]);
+    expect(skillPairs("hello")).toEqual([["hello", "Says hello."]]);
+    expect(
+        view
+            .$(card("project-search"))
+            .element.querySelector('[data-happy2-ui="plugin-catalog-skills"]'),
+        "no skills list for a skill-less package",
+    ).toBeNull();
+
+    // Skill row contract: a baseline-aligned flex row, an accent mono name
+    // token at 12px, and 13px secondary-text description. Adjacent skill rows
+    // keep the declared 6px column gap.
+    const runTaskRow = view.$(`${card("task-runner")} [data-skill-name="run-task"]`);
+    expect(runTaskRow.computedStyles(["display", "align-items", "gap"])).toEqual({
+        display: "flex",
+        "align-items": "baseline",
+        gap: "8px",
+    });
+    const runTaskName = view.$(
+        `${card("task-runner")} [data-skill-name="run-task"] [data-happy2-ui="plugin-catalog-skill-name"]`,
+    );
+    expect(runTaskName.textMetrics().text).toBe("run-task");
+    expect(runTaskName.textMetrics().font.size).toBe(12);
+    expect(runTaskName.computedStyle("color")).toBe("rgb(139, 124, 247)");
+    expect(runTaskName.computedStyle("font-family")).toContain("happy2 Mono");
+    const runTaskDescription = view.$(
+        `${card("task-runner")} [data-skill-name="run-task"] [data-happy2-ui="plugin-catalog-skill-description"]`,
+    );
+    expect(runTaskDescription.textMetrics().font.size).toBe(13);
+    expect(runTaskDescription.computedStyle("color")).toBe("rgb(165, 160, 176)");
+    const rows = skillRows("task-runner");
+    const first = rows[0]!.getBoundingClientRect();
+    const second = rows[1]!.getBoundingClientRect();
+    expect(Math.round(second.top - first.bottom), "6px gap between skill rows").toBe(6);
+
     // Installations: one status badge per independent installation, with the
     // bounded diagnostic in the title attribute.
     const installations = view.$(`${card("hello")} .happy2-plugin-catalog-panel__installations`);
@@ -232,6 +310,73 @@ it("holds PluginCatalogPanel layout, capability badges, installation health, and
     expect(opened).toEqual(["task-runner", "hello"]);
 
     await view.screenshot("PluginCatalogPanel.test");
+}, 120_000);
+
+it("contains a maximum-length skill name inside a constrained catalog card", async () => {
+    const view = createRenderer().render(
+        () => (
+            // A deliberately narrow desktop catalog card stresses containment.
+            <div
+                style={{ width: "360px", height: "320px", background: "#17161c", display: "flex" }}
+            >
+                <PluginCatalogPanel
+                    data-testid="panel"
+                    onOpenInstall={() => undefined}
+                    plugins={[LONG_SKILL]}
+                />
+            </div>
+        ),
+        { width: 360, height: 320 },
+    );
+    await view.ready();
+
+    const cardRect = view.$(card("toolkit")).element.getBoundingClientRect();
+    const body = view
+        .$(`${card("toolkit")} .happy2-plugin-catalog-panel__body`)
+        .element.getBoundingClientRect();
+    const actions = view
+        .$(`${card("toolkit")} .happy2-plugin-catalog-panel__card-actions`)
+        .element.getBoundingClientRect();
+    const nameEl = view.$(
+        `${card("toolkit")} [data-happy2-ui="plugin-catalog-skill-name"]`,
+    ).element;
+    const descEl = view.$(
+        `${card("toolkit")} [data-happy2-ui="plugin-catalog-skill-description"]`,
+    ).element;
+    const nameRect = nameEl.getBoundingClientRect();
+    const descRect = descEl.getBoundingClientRect();
+
+    // The exact 64-character name is present in full and never overflows its
+    // box horizontally — it wraps instead of clipping.
+    expect(nameEl.textContent).toBe(LONG_SKILL_NAME);
+    expect(LONG_SKILL_NAME.length).toBe(64);
+    expect(nameEl.scrollWidth, "skill name never overflows horizontally").toBeLessThanOrEqual(
+        nameEl.clientWidth + 1,
+    );
+    expect(nameRect.height, "long name wraps to multiple 18px lines").toBeGreaterThanOrEqual(36);
+
+    // The card stays inside the constrained 360px container, and the name and
+    // description both paint within the card body.
+    expect(cardRect.width, "card stays within the constrained width").toBeLessThanOrEqual(360.5);
+    expect(nameRect.left).toBeGreaterThanOrEqual(body.left - 0.5);
+    expect(nameRect.right).toBeLessThanOrEqual(body.right + 0.5);
+    expect(descRect.left).toBeGreaterThanOrEqual(body.left - 0.5);
+    expect(descRect.right).toBeLessThanOrEqual(body.right + 0.5);
+
+    // The name is capped at half the row, so the description keeps at least the
+    // other half and stays readable.
+    expect(nameRect.width, "name capped at half the row").toBeLessThanOrEqual(body.width * 0.5 + 1);
+    expect(descRect.width, "description keeps a readable width").toBeGreaterThanOrEqual(
+        body.width * 0.5 - 10,
+    );
+    expect(descEl.textContent).toContain("must stay readable");
+
+    // The skills body never collides with the pinned install action.
+    expect(body.right, "skills body clears the install action").toBeLessThanOrEqual(
+        actions.left + 0.5,
+    );
+
+    await view.screenshot("PluginCatalogPanel.constrained.test");
 }, 120_000);
 
 it("disables the install action while an install is in flight", async () => {

@@ -68,7 +68,11 @@ import {
 } from "./daemon.js";
 import { BUILTIN_AGENT_IMAGES } from "./builtin-images.js";
 import type { AgentImageBuildUpdate, AgentSandboxRuntimeResolver } from "../sandbox/types.js";
-import type { PluginFunctionDefinition, PluginFunctionResult } from "../plugin/types.js";
+import type {
+    PluginFunctionDefinition,
+    PluginFunctionResult,
+    PluginSkillDefinition,
+} from "../plugin/types.js";
 import { pluginFunctionResultAcquire } from "../plugin/pluginFunctionResultAcquire.js";
 import { pluginFunctionResultComplete } from "../plugin/pluginFunctionResultComplete.js";
 import {
@@ -158,13 +162,15 @@ interface ActiveAgentActivity {
     tokenCounts: Map<string, number>;
     userMessageId: string;
 }
-interface AgentPluginFunctions {
+interface AgentPluginCapabilities {
     callFunction(
         functionName: string,
         args: unknown,
         signal?: AbortSignal,
     ): Promise<PluginFunctionResult>;
     listFunctions(signal?: AbortSignal): Promise<readonly PluginFunctionDefinition[]>;
+    listSkills(signal?: AbortSignal): Promise<readonly PluginSkillDefinition[]>;
+    readSkill(skill: PluginSkillDefinition, signal?: AbortSignal): Promise<PluginFunctionResult>;
 }
 export class AgentService {
     private readonly workerId = createId();
@@ -196,7 +202,7 @@ export class AgentService {
         private readonly daemon: RigDaemonClient,
         private readonly sandboxRuntime: AgentSandboxRuntimeResolver,
         private readonly defaultCwd: string,
-        private readonly pluginFunctions: AgentPluginFunctions | undefined,
+        private readonly pluginCapabilities: AgentPluginCapabilities | undefined,
         private readonly onError: (error: unknown) => void = () => undefined,
     ) {}
     async createAgent(input: { actorUserId: string; name: string; username: string }) {
@@ -1260,12 +1266,19 @@ export class AgentService {
         const event = entry.event;
         if (event.type === "external_tool_call_requested" && event.data.call) {
             const call = event.data.call;
-            const result = await this.executePluginFunctionCall(
-                event.sessionId,
-                call.id,
-                call.definition.name,
-                call.arguments,
-            );
+            const result = call.skill
+                ? await this.executePluginSkillRead(
+                      event.sessionId,
+                      call.id,
+                      call.definition.name,
+                      call.skill,
+                  )
+                : await this.executePluginFunctionCall(
+                      event.sessionId,
+                      call.id,
+                      call.definition.name,
+                      call.arguments,
+                  );
             await this.daemon.resolveExternalToolCall(
                 event.sessionId,
                 call.id,
@@ -1337,6 +1350,51 @@ export class AgentService {
         functionName: string,
         args: unknown,
     ): Promise<PluginFunctionResult> {
+        return this.executeDurablePluginCall(sessionId, callId, () =>
+            this.pluginCapabilities
+                ? this.pluginCapabilities.callFunction(functionName, args, this.shutdown.signal)
+                : Promise.resolve({
+                      status: "failed" as const,
+                      error: {
+                          code: "plugin_functions_unavailable",
+                          message: "Plugin functions are unavailable on this server",
+                      },
+                  }),
+        );
+    }
+
+    private async executePluginSkillRead(
+        sessionId: string,
+        callId: string,
+        functionName: string,
+        skill: PluginSkillDefinition,
+    ): Promise<PluginFunctionResult> {
+        return this.executeDurablePluginCall(sessionId, callId, () => {
+            if (functionName !== "read_skill")
+                return Promise.resolve({
+                    status: "failed" as const,
+                    error: {
+                        code: "plugin_skill_invalid",
+                        message: "Rig requested a durable skill through an unknown function",
+                    },
+                });
+            return this.pluginCapabilities
+                ? this.pluginCapabilities.readSkill(skill, this.shutdown.signal)
+                : Promise.resolve({
+                      status: "failed" as const,
+                      error: {
+                          code: "plugin_skills_unavailable",
+                          message: "Plugin skills are unavailable on this server",
+                      },
+                  });
+        });
+    }
+
+    private async executeDurablePluginCall(
+        sessionId: string,
+        callId: string,
+        execute: () => Promise<PluginFunctionResult>,
+    ): Promise<PluginFunctionResult> {
         const leaseToken = createId();
         for (;;) {
             this.shutdown.signal.throwIfAborted();
@@ -1359,15 +1417,7 @@ export class AgentService {
                 );
                 continue;
             }
-            const result = this.pluginFunctions
-                ? await this.pluginFunctions.callFunction(functionName, args, this.shutdown.signal)
-                : {
-                      status: "failed" as const,
-                      error: {
-                          code: "plugin_functions_unavailable",
-                          message: "Plugin functions are unavailable on this server",
-                      },
-                  };
+            const result = await execute();
             return pluginFunctionResultComplete(this.executor, {
                 callId,
                 leaseToken,
@@ -1485,8 +1535,10 @@ export class AgentService {
                           runId,
                       }),
             };
-        const externalTools =
-            (await this.pluginFunctions?.listFunctions(this.shutdown.signal)) ?? [];
+        const [externalTools, skills] = await Promise.all([
+            this.pluginCapabilities?.listFunctions(this.shutdown.signal) ?? [],
+            this.pluginCapabilities?.listSkills(this.shutdown.signal) ?? [],
+        ]);
         for (;;) {
             let submitted: {
                 eventId: string;
@@ -1497,6 +1549,7 @@ export class AgentService {
                     input.sessionId,
                     input.text,
                     externalTools,
+                    skills,
                     this.shutdown.signal,
                 );
             } catch (error) {

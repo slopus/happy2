@@ -65,6 +65,19 @@ describe("plugin package catalog", () => {
             store.verify("cmockplugin", snapshot, "search-tools", loaded.packageDigest),
         ).resolves.toBeUndefined();
         await expect(
+            store.readSkill(
+                "cmockplugin",
+                snapshot,
+                "search-tools",
+                loaded.packageDigest,
+                "project-search",
+                "skills/project-search",
+            ),
+        ).resolves.toEqual({
+            description: "Search the current project and its documentation.",
+            source: "---\nname: project-search\ndescription: Search the current project and its documentation.\n---\n\nSearch carefully.\n",
+        });
+        await expect(
             store.readImage(
                 "cmockplugin",
                 snapshot,

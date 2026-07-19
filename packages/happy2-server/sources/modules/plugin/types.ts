@@ -63,6 +63,12 @@ export interface PluginSkillSummary {
     directory: string;
 }
 
+export interface PluginSkillDefinition {
+    name: string;
+    description: string;
+    location: "durable";
+}
+
 export interface PluginImageMetadata {
     contentType: "image/png";
     size: number;

@@ -96,8 +96,9 @@ const statusVariants: Record<PluginInstallationStatus, BadgeVariant> = {
 /**
  * C-066 PluginCatalogPanel — the administrator surface for the server plugin
  * catalog: packages of Agent Skills and MCP servers bundled with the server.
- * Each card shows the package icon, version, skill and MCP capabilities, every
- * independent installation with its live health, and an Install action. The
+ * Each card shows the package icon, version, skill and MCP capability badges,
+ * the exact name and description of every Agent Skill the package provides,
+ * every independent installation with its live health, and an Install action. The
  * install dialog collects the manifest's declared variables (secret values are
  * write-only and masked) and, when a stdio manifest has no bundled container,
  * a ready container image selection. Presentational and fully controlled —
@@ -234,6 +235,34 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
                                                 />
                                             ) : null}
                                         </Box>
+                                        {plugin.skills.length > 0 ? (
+                                            <ul
+                                                className="happy2-plugin-catalog-panel__skills"
+                                                data-happy2-ui="plugin-catalog-skills"
+                                            >
+                                                {plugin.skills.map((skill) => (
+                                                    <li
+                                                        className="happy2-plugin-catalog-panel__skill"
+                                                        data-happy2-ui="plugin-catalog-skill"
+                                                        data-skill-name={skill.name}
+                                                        key={skill.name}
+                                                    >
+                                                        <span
+                                                            className="happy2-plugin-catalog-panel__skill-name"
+                                                            data-happy2-ui="plugin-catalog-skill-name"
+                                                        >
+                                                            {skill.name}
+                                                        </span>
+                                                        <span
+                                                            className="happy2-plugin-catalog-panel__skill-description"
+                                                            data-happy2-ui="plugin-catalog-skill-description"
+                                                        >
+                                                            {skill.description}
+                                                        </span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : null}
                                         {plugin.installations.length > 0 ? (
                                             <Box
                                                 className="happy2-plugin-catalog-panel__installations"

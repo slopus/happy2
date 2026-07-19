@@ -26,7 +26,12 @@ export function PluginsPage(props: PluginsPageProps) {
                         !needle ||
                         item.displayName.toLowerCase().includes(needle) ||
                         item.shortName.toLowerCase().includes(needle) ||
-                        item.description.toLowerCase().includes(needle),
+                        item.description.toLowerCase().includes(needle) ||
+                        item.skills.some(
+                            (skill) =>
+                                skill.name.toLowerCase().includes(needle) ||
+                                skill.description.toLowerCase().includes(needle),
+                        ),
                 );
                 const plugins = filtered.map((item) => entryProject(item, props.iconUrl));
                 const selectionNeeded = filtered.some(

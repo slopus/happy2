@@ -5,6 +5,7 @@ import {
     agentImages,
     pluginInstallations,
     pluginInstallationVariables,
+    pluginSkills,
     plugins,
 } from "../schema.js";
 import { userRequirePermission } from "../permission/userRequirePermission.js";
@@ -109,6 +110,15 @@ export async function pluginInstall(
                 imageChecksumSha256: input.plugin.image.checksumSha256,
                 installedByUserId: input.actorUserId,
             });
+            if (input.plugin.skills.length > 0)
+                await tx.insert(pluginSkills).values(
+                    input.plugin.skills.map((skill) => ({
+                        pluginId,
+                        name: skill.name,
+                        description: skill.description,
+                        directory: skill.directory,
+                    })),
+                );
             pluginCreated = true;
         }
 

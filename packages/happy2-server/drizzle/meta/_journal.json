@@ -176,6 +176,13 @@
             "when": 1784422000000,
             "tag": "0024_session_bound_dev_tokens",
             "breakpoints": true
+        },
+        {
+            "idx": 25,
+            "version": "6",
+            "when": 1784425000000,
+            "tag": "0025_plugin_skills",
+            "breakpoints": true
         }
     ]
 }

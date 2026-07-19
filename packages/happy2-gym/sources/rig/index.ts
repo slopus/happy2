@@ -95,13 +95,21 @@ export interface MockRigExternalToolCall {
     resolution?: Record<string, unknown>;
     runId: string;
     sessionId: string;
+    skill?: MockRigSkillDefinition;
     status: "pending" | "completed" | "failed";
+}
+
+export interface MockRigSkillDefinition {
+    description: string;
+    location: "durable";
+    name: string;
 }
 
 export interface MockRigRun {
     externalTools: readonly MockRigExternalToolDefinition[];
     runId: string;
     sessionId: string;
+    skills: readonly MockRigSkillDefinition[];
     text: string;
 }
 
@@ -208,6 +216,44 @@ export class MockRigDaemon implements AsyncDisposable {
             id,
             runId,
             sessionId: session.id,
+            status: "pending",
+        };
+        this.externalToolCalls.push(call);
+        this.append(session, "external_tool_call_requested", {
+            call: {
+                ...structuredClone(call),
+                batchId: `batch-${id}`,
+                consumed: false,
+                createdAt: Date.now(),
+                toolCallId: `tool-${id}`,
+                toolCallIndex: 0,
+            },
+        });
+        return id;
+    }
+
+    requestSkillCall(runId: string, skillName: string): string {
+        const { run, session } = this.requireRun(runId);
+        const skill = run.skills.find(({ name }) => name === skillName);
+        if (!skill) throw new Error(`Unknown mock Rig durable skill ${skillName}`);
+        const id = `external-call-${++this.externalToolCallSequence}`;
+        const call: MockRigExternalToolCall = {
+            arguments: { name: skill.name },
+            definition: {
+                name: "read_skill",
+                label: "Read skill",
+                description: `Read the complete SKILL.md for ${skill.name}.`,
+                parameters: {
+                    type: "object",
+                    properties: { name: { type: "string" } },
+                    required: ["name"],
+                    additionalProperties: false,
+                },
+            },
+            id,
+            runId,
+            sessionId: session.id,
+            skill: structuredClone(skill),
             status: "pending",
         };
         this.externalToolCalls.push(call);
@@ -471,7 +517,7 @@ export class MockRigDaemon implements AsyncDisposable {
                 },
                 durableGlobalEventQueue: this.durableGlobalEventQueue,
                 healthy: true,
-                identity: { version: "0.0.24" },
+                identity: { version: "0.0.25" },
                 ready: true,
                 status: "ready",
             });
@@ -698,6 +744,7 @@ export class MockRigDaemon implements AsyncDisposable {
             const externalTools = Array.isArray(body.externalTools)
                 ? body.externalTools.filter(isExternalToolDefinition)
                 : [];
+            const skills = Array.isArray(body.skills) ? body.skills.filter(isSkillDefinition) : [];
             const runId = `run-${++this.runSequence}`;
             const message: RigMessage = { role: "user", blocks: [{ type: "text", text }] };
             session.messages.push(message);
@@ -709,7 +756,7 @@ export class MockRigDaemon implements AsyncDisposable {
             });
             this.append(session, "run_started", { runId });
             this.submittedTexts.push(text);
-            this.submittedRuns.push({ externalTools, runId, sessionId: session.id, text });
+            this.submittedRuns.push({ externalTools, runId, sessionId: session.id, skills, text });
             const drop = this.dropSubmissionResponse;
             this.dropSubmissionResponse = false;
             if (drop) response.destroy();
@@ -1155,6 +1202,16 @@ function isExternalToolDefinition(value: unknown): value is MockRigExternalToolD
             typeof candidate.parameters === "object" &&
             !Array.isArray(candidate.parameters),
         )
+    );
+}
+
+function isSkillDefinition(value: unknown): value is MockRigSkillDefinition {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const candidate = value as Record<string, unknown>;
+    return (
+        typeof candidate.name === "string" &&
+        typeof candidate.description === "string" &&
+        candidate.location === "durable"
     );
 }
 
