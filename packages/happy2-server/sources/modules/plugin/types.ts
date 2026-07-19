@@ -101,6 +101,20 @@ export interface PluginInstallationSummary {
     readyAt?: string;
 }
 
+export interface PluginFunctionDefinition {
+    description: string;
+    label: string;
+    name: string;
+    parameters: Readonly<Record<string, unknown>>;
+}
+
+export type PluginFunctionResult =
+    | { status: "completed"; output?: unknown }
+    | {
+          status: "failed";
+          error: { code?: string; data?: unknown; message: string };
+      };
+
 export interface PluginCatalogItem {
     displayName: string;
     shortName: string;

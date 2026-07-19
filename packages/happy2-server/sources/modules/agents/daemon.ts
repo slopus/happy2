@@ -5,6 +5,7 @@ import { request as httpRequest } from "node:http";
 import type {
     AttachSecretRequest,
     ChangeEffortRequest,
+    ChangePermissionModeRequest,
     CreateSessionRequest,
     CreateSessionResponse,
     GetDaemonConfigResponse,
@@ -13,6 +14,8 @@ import type {
     ProtocolSession,
     RegisterSecretRequest,
     RegisterSecretResponse,
+    ResolveExternalToolCallRequest,
+    ResolveExternalToolCallResponse,
     SecretSummary,
     SubmitMessageRequest,
     SubmitMessageResponse,
@@ -20,6 +23,11 @@ import type {
     UnregisterSecretResponse,
     UpdateDaemonConfigRequest,
 } from "@slopus/rig/dist/protocol/index.js";
+import type {
+    ExternalToolCall,
+    ExternalToolCallResolution,
+    ExternalToolDefinition,
+} from "@slopus/rig/dist/external-tools/index.js";
 
 export interface RigDaemonConfig {
     directory: string;
@@ -79,6 +87,7 @@ export interface RigEvent {
     data: {
         errorMessage?: string;
         event?: RigAgentLoopEvent;
+        call?: ExternalToolCall;
         message?: RigMessage;
         runId?: string;
     };
@@ -133,7 +142,10 @@ export class RigDaemonClient {
                 cwd,
                 docker: { container: containerName, workingDirectory: "/workspace" },
                 ...(effort ? { effort } : {}),
-                permissionMode: "workspace_write",
+                // Rig's durable external functions intentionally require Full access. The
+                // agent remains bounded by Happy's dedicated OCI sandbox and cannot reach
+                // the plugin process directly; Happy owns and resolves every function call.
+                permissionMode: "full_access",
             } satisfies CreateSessionRequest,
             signal,
         );
@@ -159,6 +171,17 @@ export class RigDaemonClient {
             signal,
         );
         return sessionEffort(response.session);
+    }
+
+    async ensureFunctionPermission(sessionId: string, signal?: AbortSignal): Promise<void> {
+        const current = await this.session(sessionId, signal);
+        if (current.permissionMode === "full_access") return;
+        await this.connectedRequest(
+            "PATCH",
+            `/sessions/${encodeURIComponent(sessionId)}/permissions`,
+            { permissionMode: "full_access" } satisfies ChangePermissionModeRequest,
+            signal,
+        );
     }
 
     async listSecrets(signal?: AbortSignal): Promise<readonly RigSecretSummary[]> {
@@ -349,12 +372,27 @@ export class RigDaemonClient {
     async submitTurn(
         sessionId: string,
         text: string,
+        externalTools: readonly ExternalToolDefinition[],
         signal?: AbortSignal,
     ): Promise<{ eventId: string; runId: string }> {
         return this.connectedRequest<SubmitMessageResponse>(
             "POST",
             `/sessions/${encodeURIComponent(sessionId)}/messages`,
-            { text } satisfies SubmitMessageRequest,
+            { text, externalTools } satisfies SubmitMessageRequest,
+            signal,
+        );
+    }
+
+    async resolveExternalToolCall(
+        sessionId: string,
+        callId: string,
+        resolution: ExternalToolCallResolution,
+        signal?: AbortSignal,
+    ): Promise<ResolveExternalToolCallResponse> {
+        return this.connectedRequest<ResolveExternalToolCallResponse>(
+            "POST",
+            `/sessions/${encodeURIComponent(sessionId)}/external-tool-calls/${encodeURIComponent(callId)}`,
+            resolution satisfies ResolveExternalToolCallRequest,
             signal,
         );
     }

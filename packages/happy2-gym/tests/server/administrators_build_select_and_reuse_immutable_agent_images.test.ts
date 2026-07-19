@@ -144,7 +144,7 @@ describe("administrator-managed immutable agent images", () => {
                 container: container.containerName,
                 workingDirectory: "/workspace",
             },
-            permissionMode: "workspace_write",
+            permissionMode: "full_access",
         });
 
         const customDockerfile = "FROM ubuntu:24.04\nRUN echo custom-image\n";

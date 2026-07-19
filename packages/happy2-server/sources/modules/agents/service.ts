@@ -68,6 +68,9 @@ import {
 } from "./daemon.js";
 import { BUILTIN_AGENT_IMAGES } from "./builtin-images.js";
 import type { AgentImageBuildUpdate, AgentSandboxRuntimeResolver } from "../sandbox/types.js";
+import type { PluginFunctionDefinition, PluginFunctionResult } from "../plugin/types.js";
+import { pluginFunctionResultAcquire } from "../plugin/pluginFunctionResultAcquire.js";
+import { pluginFunctionResultComplete } from "../plugin/pluginFunctionResultComplete.js";
 import {
     setupBaseImageCompleteBuild,
     setupBaseImageFailBuild,
@@ -78,6 +81,8 @@ import {
 } from "../setup/index.js";
 const IGNORED_EVENT_CHECKPOINT_INTERVAL = 100;
 const EVENT_RETRY_INTERVAL_MS = 100;
+const PLUGIN_FUNCTION_LEASE_MS = 45_000;
+const PLUGIN_FUNCTION_WAIT_INTERVAL_MS = 1_000;
 const TYPING_TTL_MS = 30_000;
 const TYPING_RENEW_INTERVAL_MS = 20_000;
 const AGENT_ACTIVITY_TTL_MS = 10_000;
@@ -153,6 +158,14 @@ interface ActiveAgentActivity {
     tokenCounts: Map<string, number>;
     userMessageId: string;
 }
+interface AgentPluginFunctions {
+    callFunction(
+        functionName: string,
+        args: unknown,
+        signal?: AbortSignal,
+    ): Promise<PluginFunctionResult>;
+    listFunctions(signal?: AbortSignal): Promise<readonly PluginFunctionDefinition[]>;
+}
 export class AgentService {
     private readonly workerId = createId();
     private readonly bindingCreations = new Map<
@@ -183,6 +196,7 @@ export class AgentService {
         private readonly daemon: RigDaemonClient,
         private readonly sandboxRuntime: AgentSandboxRuntimeResolver,
         private readonly defaultCwd: string,
+        private readonly pluginFunctions: AgentPluginFunctions | undefined,
         private readonly onError: (error: unknown) => void = () => undefined,
     ) {}
     async createAgent(input: { actorUserId: string; name: string; username: string }) {
@@ -269,6 +283,7 @@ export class AgentService {
         for (const imageId of await agentImageListRequestedBuildIds(this.executor))
             this.queueImageBuild(imageId);
         await this.daemon.ensureGlobalEventQueue(this.shutdown.signal);
+        await this.reconcileFunctionPermissions();
         await this.reconcileAgentEfforts();
         await this.reconcileSecretBindings();
         this.queueTask = this.trackGlobalEvents().catch((error) => {
@@ -1119,6 +1134,18 @@ export class AgentService {
             );
         }
     }
+    private async reconcileFunctionPermissions(): Promise<void> {
+        const sessionIds = [
+            ...new Set(
+                (await agentEffortBindingList(this.executor)).map(({ sessionId }) => sessionId),
+            ),
+        ];
+        await Promise.all(
+            sessionIds.map((sessionId) =>
+                this.daemon.ensureFunctionPermission(sessionId, this.shutdown.signal),
+            ),
+        );
+    }
     private async reconcileSessionEffort(sessionId: string, effort: string): Promise<void> {
         const current = await this.daemon.effortConfiguration(sessionId, this.shutdown.signal);
         if (current.effort === effort) return;
@@ -1231,6 +1258,22 @@ export class AgentService {
     }
     private async applyGlobalEvent(entry: RigGlobalEvent): Promise<void> {
         const event = entry.event;
+        if (event.type === "external_tool_call_requested" && event.data.call) {
+            const call = event.data.call;
+            const result = await this.executePluginFunctionCall(
+                event.sessionId,
+                call.id,
+                call.definition.name,
+                call.arguments,
+            );
+            await this.daemon.resolveExternalToolCall(
+                event.sessionId,
+                call.id,
+                result,
+                this.shutdown.signal,
+            );
+            return;
+        }
         const runId = event.data.runId;
         if (event.type === "message_submitted" && runId) {
             const text = messageText(event.data.message);
@@ -1286,6 +1329,52 @@ export class AgentService {
             return;
         }
         throw new Error(`Rig run ${runId} finished before its session snapshot was complete.`);
+    }
+
+    private async executePluginFunctionCall(
+        sessionId: string,
+        callId: string,
+        functionName: string,
+        args: unknown,
+    ): Promise<PluginFunctionResult> {
+        const leaseToken = createId();
+        for (;;) {
+            this.shutdown.signal.throwIfAborted();
+            const now = Date.now();
+            const claim = await pluginFunctionResultAcquire(this.executor, {
+                callId,
+                leaseExpiresAt: now + PLUGIN_FUNCTION_LEASE_MS,
+                leaseToken,
+                now,
+                sessionId,
+            });
+            if (claim.kind === "replay") return claim.result;
+            if (claim.kind === "in_progress") {
+                await delay(
+                    Math.min(
+                        Math.max(claim.retryAt - now, EVENT_RETRY_INTERVAL_MS),
+                        PLUGIN_FUNCTION_WAIT_INTERVAL_MS,
+                    ),
+                    this.shutdown.signal,
+                );
+                continue;
+            }
+            const result = this.pluginFunctions
+                ? await this.pluginFunctions.callFunction(functionName, args, this.shutdown.signal)
+                : {
+                      status: "failed" as const,
+                      error: {
+                          code: "plugin_functions_unavailable",
+                          message: "Plugin functions are unavailable on this server",
+                      },
+                  };
+            return pluginFunctionResultComplete(this.executor, {
+                callId,
+                leaseToken,
+                result,
+                sessionId,
+            });
+        }
     }
     private startDrain(chatId: string): void {
         if (this.stopping || this.drains.has(chatId)) return;
@@ -1396,6 +1485,8 @@ export class AgentService {
                           runId,
                       }),
             };
+        const externalTools =
+            (await this.pluginFunctions?.listFunctions(this.shutdown.signal)) ?? [];
         for (;;) {
             let submitted: {
                 eventId: string;
@@ -1405,6 +1496,7 @@ export class AgentService {
                 submitted = await this.daemon.submitTurn(
                     input.sessionId,
                     input.text,
+                    externalTools,
                     this.shutdown.signal,
                 );
             } catch (error) {
@@ -2030,6 +2122,7 @@ class AgentImageBuildOutput {
     }
 }
 function isRelevantRigEvent(event: RigEvent): boolean {
+    if (event.type === "external_tool_call_requested" && event.data.call) return true;
     if (!event.data.runId) return false;
     return (
         event.type === "message_submitted" ||

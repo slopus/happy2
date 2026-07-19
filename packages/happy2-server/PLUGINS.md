@@ -11,9 +11,30 @@ of a catalog package creates one durable system-plugin record and one immutable
 package snapshot; later installations reuse that plugin identity and snapshot.
 Every installation has its own CUID2, variables, selected image, lifecycle, and
 dedicated container when it is a local stdio MCP. Remote MCP configuration is
-persisted and health-checked independently per installation. This feature does
-not yet inject installed skills or MCP configuration into Rig agent runs, and it
-does not yet implement upgrade, uninstall, marketplace download, or OAuth flows.
+persisted and health-checked independently per installation. Ready MCP
+installations expose their tools to Rig as durable external functions on every
+agent submission. Happy executes each durable call against the originating
+installation and resolves the result back into the paused Rig run. This feature
+does not yet inject installed skills, and it does not yet implement upgrade,
+uninstall, marketplace download, or OAuth flows.
+
+Tool discovery is bounded to 15 seconds per agent submission, and one MCP tool
+execution is bounded to 30 seconds so a stalled plugin cannot indefinitely block
+turn submission or Rig's global event consumer. Before execution, Happy claims a
+45-second database lease keyed by Rig session and call ID. Other server instances
+wait for that lease or replay its completed result instead of concurrently
+invoking the same tool. The first terminal outcome, including an MCP error or
+timeout, is persisted and reused for every later event delivery; Happy does not
+automatically retry an ambiguous failure because the first request may already
+have produced an external side effect. A process crash after the MCP side effect
+but before the outcome is committed can still cause one lease-expiry replay, so
+plugin tools with external side effects should themselves be idempotent.
+
+Rig sessions use Full access so durable external functions are executable without
+an unresolved permission prompt. Agent code still runs inside Happy's dedicated,
+restricted OCI sandbox; plugin processes remain isolated in their own containers,
+and only Happy crosses the boundary after matching the durable function identity
+to a ready installation.
 
 ## Package anatomy
 
@@ -85,9 +106,10 @@ environment variables.
 
 A package must contain at least one skill or an `mcp` definition.
 
-The bundled `hello` package is the minimal skills-only example. It declares no
+The bundled `hello` package is the minimal skill-plus-MCP example. It declares no
 variables or MCP authentication, so an administrator can install it with an
-empty POST body; each call still creates a separate installation.
+empty POST body; each call still creates a separate installation and bundled
+container.
 
 ## Stdio MCP with a bundled container
 
@@ -177,7 +199,9 @@ URL and templates are persisted; resolved secret headers are not.
 
 Remote MCP remains remote: Happy does not create a container or proxy its normal
 traffic. OAuth is intentionally unsupported. Authentication is limited to the
-custom static headers described above.
+custom static headers described above. Production remote requests are capped at
+1,000,000 bytes and responses at 256,000 bytes, matching the bounded webhook
+transport used for SSRF-safe address pinning.
 
 ## Installation and lifecycle
 

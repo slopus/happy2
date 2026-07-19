@@ -722,6 +722,21 @@ export const pluginInstallationVariables = sqliteTable(
     (table) => [primaryKey({ columns: [table.installationId, table.key] })],
 );
 
+export const pluginFunctionResults = sqliteTable(
+    "plugin_function_results",
+    {
+        sessionId: text("session_id").notNull(),
+        callId: text("call_id").notNull(),
+        status: text("status").notNull().default("in_progress"),
+        leaseToken: text("lease_token"),
+        lockedUntil: text("locked_until"),
+        resolutionJson: text("resolution_json"),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [primaryKey({ columns: [table.sessionId, table.callId] })],
+);
+
 export const messageAttachments = sqliteTable("message_attachments", {
     messageId: text("message_id").notNull(),
     fileId: text("file_id").notNull(),
@@ -1255,6 +1270,7 @@ export const schema = {
     oidcIdentities,
     pluginInstallations,
     pluginInstallationVariables,
+    pluginFunctionResults,
     plugins,
     rateLimitBuckets,
     reactions,

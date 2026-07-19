@@ -17,19 +17,26 @@ import { pluginGetImage } from "./pluginGetImage.js";
 import { pluginAuthorizeManagement } from "./pluginAuthorizeManagement.js";
 import { pluginInstallationGetRuntimeConfiguration } from "./pluginInstallationGetRuntimeConfiguration.js";
 import { pluginInstallationListIds } from "./pluginInstallationListIds.js";
+import { pluginInstallationListReadyMcpIds } from "./pluginInstallationListReadyMcpIds.js";
 import { pluginInstallationUpdateStatus } from "./pluginInstallationUpdateStatus.js";
 import { pluginRemoveMissingBuiltins } from "./pluginRemoveMissingBuiltins.js";
 import type { PluginCatalog } from "./catalog.js";
 import type { PluginPackageStore } from "./packageStore.js";
 import type { PluginMcpRuntime } from "./runtime.js";
 import type { PluginSecretProtector } from "./secrets.js";
+import { RemotePluginMcpTransport } from "./utils/remoteMcpTransport.js";
 import {
     PluginError,
+    type PluginFunctionDefinition,
+    type PluginFunctionResult,
     type PluginInstallationSummary,
     type PluginRuntimeConfiguration,
 } from "./types.js";
 
 const HEALTH_TIMEOUT_MS = 15_000;
+const FUNCTION_DISCOVERY_TIMEOUT_MS = 15_000;
+const FUNCTION_EXECUTION_TIMEOUT_MS = 30_000;
+const MAX_RIG_PLUGIN_FUNCTIONS = 128;
 
 /** Coordinates durable plugin installs with asynchronous container preparation, MCP health probes, restart recovery, and local connection creation. */
 export class PluginService {
@@ -151,6 +158,162 @@ export class PluginService {
         });
     }
 
+    async listFunctions(signal?: AbortSignal): Promise<readonly PluginFunctionDefinition[]> {
+        return withOperationTimeout(
+            FUNCTION_DISCOVERY_TIMEOUT_MS,
+            "Plugin MCP function discovery",
+            signal,
+            (operationSignal) => this.listFunctionsWithSignal(operationSignal),
+        );
+    }
+
+    private async listFunctionsWithSignal(
+        signal: AbortSignal,
+    ): Promise<readonly PluginFunctionDefinition[]> {
+        const installationIds = await pluginInstallationListReadyMcpIds(this.executor);
+        const functions: PluginFunctionDefinition[] = [];
+        for (const installationId of installationIds) {
+            try {
+                const discovered = await this.withClient(
+                    installationId,
+                    signal,
+                    async (client, configuration) => {
+                        const definitions: PluginFunctionDefinition[] = [];
+                        const seenCursors = new Set<string>();
+                        const remaining = MAX_RIG_PLUGIN_FUNCTIONS - functions.length;
+                        let pages = 0;
+                        let cursor: string | undefined;
+                        do {
+                            pages += 1;
+                            if (pages > MAX_RIG_PLUGIN_FUNCTIONS)
+                                throw new PluginFunctionCatalogError(
+                                    "Plugin MCP tool pagination exceeded the page limit",
+                                );
+                            const page = await client.listTools(
+                                cursor === undefined ? undefined : { cursor },
+                            );
+                            for (const tool of page.tools) {
+                                if (definitions.length >= remaining)
+                                    throw new PluginFunctionCatalogError(
+                                        `Installed plugins expose more than Rig's ${MAX_RIG_PLUGIN_FUNCTIONS}-function limit`,
+                                    );
+                                definitions.push({
+                                    description:
+                                        tool.description ??
+                                        `Runs ${tool.name} from the ${configuration.shortName} plugin.`,
+                                    label: `${configuration.shortName}: ${tool.title ?? tool.name}`,
+                                    name: pluginFunctionName(installationId, tool.name),
+                                    parameters: tool.inputSchema,
+                                });
+                            }
+                            if (page.nextCursor && seenCursors.has(page.nextCursor))
+                                throw new Error("Plugin MCP tool pagination repeated a cursor");
+                            if (page.nextCursor) seenCursors.add(page.nextCursor);
+                            cursor = page.nextCursor;
+                        } while (cursor !== undefined);
+                        return definitions;
+                    },
+                );
+                if (discovered) functions.push(...discovered);
+            } catch (error) {
+                if (signal.aborted) throw error;
+                if (error instanceof PluginFunctionCatalogError) throw error;
+                this.onError(error);
+            }
+        }
+        if (functions.length > MAX_RIG_PLUGIN_FUNCTIONS)
+            throw new Error(
+                `Installed plugins expose ${functions.length} MCP tools, exceeding Rig's ${MAX_RIG_PLUGIN_FUNCTIONS}-function limit`,
+            );
+        return functions;
+    }
+
+    async callFunction(
+        functionName: string,
+        args: unknown,
+        signal?: AbortSignal,
+    ): Promise<PluginFunctionResult> {
+        try {
+            return await withOperationTimeout(
+                FUNCTION_EXECUTION_TIMEOUT_MS,
+                "Plugin MCP function execution",
+                signal,
+                (operationSignal) =>
+                    this.callFunctionWithSignal(functionName, args, operationSignal),
+            );
+        } catch (error) {
+            if (signal?.aborted) throw error;
+            return {
+                status: "failed",
+                error: {
+                    code: "plugin_function_failed",
+                    message: errorMessage(error),
+                },
+            };
+        }
+    }
+
+    private async callFunctionWithSignal(
+        functionName: string,
+        args: unknown,
+        signal: AbortSignal,
+    ): Promise<PluginFunctionResult> {
+        const installationId = pluginFunctionInstallationId(functionName);
+        if (!installationId)
+            throw new Error(`Unknown plugin function ${JSON.stringify(functionName)}`);
+        const activation = this.activations.get(installationId);
+        if (activation) await activation.promise;
+        signal.throwIfAborted();
+        const ready = await pluginInstallationListReadyMcpIds(this.executor);
+        if (!ready.includes(installationId))
+            throw new Error("The plugin installation is not ready");
+        const result = await this.withClient(
+            installationId,
+            signal,
+            async (client, configuration) => {
+                const seenCursors = new Set<string>();
+                let pages = 0;
+                let cursor: string | undefined;
+                let toolName: string | undefined;
+                do {
+                    pages += 1;
+                    if (pages > MAX_RIG_PLUGIN_FUNCTIONS)
+                        throw new Error("Plugin MCP tool pagination exceeded the page limit");
+                    const page = await client.listTools(
+                        cursor === undefined ? undefined : { cursor },
+                    );
+                    toolName = page.tools.find(
+                        (tool) => pluginFunctionName(installationId, tool.name) === functionName,
+                    )?.name;
+                    if (page.nextCursor && seenCursors.has(page.nextCursor))
+                        throw new Error("Plugin MCP tool pagination repeated a cursor");
+                    if (page.nextCursor) seenCursors.add(page.nextCursor);
+                    cursor = page.nextCursor;
+                } while (!toolName && cursor !== undefined);
+                if (!toolName)
+                    throw new Error(
+                        `The ${configuration.shortName} plugin no longer exposes this function`,
+                    );
+                const result = await client.callTool({
+                    name: toolName,
+                    arguments: jsonArguments(args),
+                });
+                if (result.isError)
+                    return {
+                        status: "failed" as const,
+                        error: {
+                            code: "plugin_mcp_error",
+                            message: mcpErrorMessage(result.content),
+                            data: result,
+                        },
+                    };
+                return { status: "completed" as const, output: result };
+            },
+        );
+        if (!result) throw new Error("The plugin does not expose MCP tools");
+        return result;
+    }
+
     async close(): Promise<void> {
         this.closed = true;
         for (const { controller } of this.activations.values()) controller.abort();
@@ -170,6 +333,47 @@ export class PluginService {
             .catch((error) => this.onError(error))
             .finally(() => this.activations.delete(installationId));
         this.activations.set(installationId, { controller, promise });
+    }
+
+    private async withClient<T>(
+        installationId: string,
+        signal: AbortSignal | undefined,
+        action: (client: Client, configuration: PluginRuntimeConfiguration) => Promise<T>,
+    ): Promise<T | undefined> {
+        signal?.throwIfAborted();
+        const configuration = await pluginInstallationGetRuntimeConfiguration(
+            this.executor,
+            this.secrets,
+            installationId,
+        );
+        if (configuration.type === "skills_only") return undefined;
+        const transport =
+            configuration.type === "stdio"
+                ? await this.runtime.openLocal(
+                      {
+                          containerName: configuration.containerName,
+                          command: configuration.command,
+                          args: configuration.args,
+                          environment: configuration.environment,
+                      },
+                      signal,
+                  )
+                : new RemotePluginMcpTransport({
+                      headers: configuration.headers,
+                      installationId,
+                      remoteTransport: this.remoteTransport,
+                      signal,
+                      url: configuration.url,
+                      urlPolicy: this.urlPolicy,
+                  });
+        const client = new Client({ name: "happy2-plugin-functions", version: "1.0.0" });
+        try {
+            await client.connect(transport);
+            signal?.throwIfAborted();
+            return await action(client, configuration);
+        } finally {
+            await client.close().catch(() => transport.close());
+        }
     }
 
     private async runActivation(installationId: string, signal: AbortSignal): Promise<void> {
@@ -368,6 +572,48 @@ export class PluginService {
     }
 }
 
+class PluginFunctionCatalogError extends Error {}
+
+function pluginFunctionName(installationId: string, toolName: string): string {
+    const normalized = toolName
+        .normalize("NFKD")
+        .replace(/[^A-Za-z0-9_-]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 64);
+    const digest = createHash("sha256").update(toolName).digest("hex").slice(0, 16);
+    return `plugin_${installationId}_${normalized || "tool"}_${digest}`;
+}
+
+function pluginFunctionInstallationId(functionName: string): string | undefined {
+    const match = /^plugin_([a-z0-9]+)_/u.exec(functionName);
+    return match?.[1];
+}
+
+function jsonArguments(value: unknown): Record<string, unknown> {
+    return value && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
+}
+
+function mcpErrorMessage(content: unknown): string {
+    if (Array.isArray(content)) {
+        const text = content
+            .filter((block): block is { text: string; type: "text" } =>
+                Boolean(
+                    block &&
+                    typeof block === "object" &&
+                    (block as { type?: unknown }).type === "text" &&
+                    typeof (block as { text?: unknown }).text === "string",
+                ),
+            )
+            .map(({ text }) => text)
+            .join("\n")
+            .trim();
+        if (text) return text;
+    }
+    return "The plugin MCP tool returned an error";
+}
+
 function remoteJson(body: string): Record<string, unknown> | undefined {
     const direct = jsonRecord(body.trim());
     if (direct) return direct;
@@ -425,6 +671,50 @@ function withTimeout<T>(
             (error) => settle(() => reject(error)),
         );
     });
+}
+
+function withOperationTimeout<T>(
+    timeoutMs: number,
+    operation: string,
+    signal: AbortSignal | undefined,
+    action: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+    if (signal?.aborted) return Promise.reject(abortReason(signal));
+    const controller = new AbortController();
+    return new Promise<T>((resolve, reject) => {
+        let settled = false;
+        let timer: NodeJS.Timeout;
+        const settle = (callback: () => void) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            signal?.removeEventListener("abort", parentAborted);
+            callback();
+        };
+        const parentAborted = () => {
+            const reason = signal ? abortReason(signal) : abortError();
+            controller.abort(reason);
+            settle(() => reject(reason));
+        };
+        const timedOut = () => {
+            const error = new Error(`${operation} timed out`);
+            controller.abort(error);
+            settle(() => reject(error));
+        };
+        timer = setTimeout(timedOut, timeoutMs);
+        timer.unref();
+        signal?.addEventListener("abort", parentAborted, { once: true });
+        Promise.resolve()
+            .then(() => action(controller.signal))
+            .then(
+                (value) => settle(() => resolve(value)),
+                (error) => settle(() => reject(error)),
+            );
+    });
+}
+
+function abortReason(signal: AbortSignal): Error {
+    return signal.reason instanceof Error ? signal.reason : abortError();
 }
 
 function abortError(): Error {

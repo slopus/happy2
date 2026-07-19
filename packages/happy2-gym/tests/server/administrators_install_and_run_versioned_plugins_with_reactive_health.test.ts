@@ -30,7 +30,8 @@ describe("system plugin installation and MCP health", () => {
     });
 
     it("installs the bundled hello skill without plugin parameters", async () => {
-        await using server = await createGymServer();
+        const runtime = new MockPluginMcpRuntime();
+        await using server = await createGymServer({ pluginMcpRuntime: runtime });
         const admin = await server.createUser({ username: "hello_plugin_admin" });
 
         const catalog = await server.as(admin).get("/v0/admin/plugins");
@@ -51,10 +52,15 @@ describe("system plugin installation and MCP health", () => {
         expect(second.statusCode).toBe(202);
         expect(first.json().installation).toMatchObject({
             shortName: "hello",
-            status: "ready",
+            status: "preparing",
         });
         expect(second.json().installation.pluginId).toBe(first.json().installation.pluginId);
         expect(second.json().installation.id).not.toBe(first.json().installation.id);
+        await Promise.all([
+            waitForStatus(server, admin, first.json().installation.id as string, "ready"),
+            waitForStatus(server, admin, second.json().installation.id as string, "ready"),
+        ]);
+        expect(runtime.prepares).toHaveLength(2);
     });
 
     it("validates requirements, snapshots packages, runs stdio MCP over HTTP, reports broken configuration, and resumes after restart", async () => {

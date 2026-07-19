@@ -262,19 +262,6 @@ export async function buildServer(
                 );
             return provider;
         };
-        agentService =
-            services.agents ??
-            (config.agents.enabled
-                ? new AgentService(
-                      executor,
-                      livePubsub,
-                      new RigDaemonClient(config.agents),
-                      sandboxRuntime,
-                      config.agents.defaultCwd,
-                      (error) => app.log.error(error),
-                  )
-                : undefined);
-        registerSetupRoutes(app, auth, executor, livePubsub, sandboxProviderCatalog, agentService);
         webhookTransport = services.webhookTransport ?? new NodeWebhookTransport();
         const pluginCatalog =
             services.pluginCatalog ??
@@ -292,6 +279,20 @@ export async function buildServer(
             webhookTransport,
             (error) => app.log.error(error),
         );
+        agentService =
+            services.agents ??
+            (config.agents.enabled
+                ? new AgentService(
+                      executor,
+                      livePubsub,
+                      new RigDaemonClient(config.agents),
+                      sandboxRuntime,
+                      config.agents.defaultCwd,
+                      pluginService,
+                      (error) => app.log.error(error),
+                  )
+                : undefined);
+        registerSetupRoutes(app, auth, executor, livePubsub, sandboxProviderCatalog, agentService);
         pluginBridge = new PluginMcpHttpBridge(pluginService, (error) => app.log.error(error));
         fileStorage = services.fileStorage ?? new FileStorage(config, executor);
         workspaceService = new WorkspaceService(
@@ -341,8 +342,8 @@ export async function buildServer(
         registerSyncRoutes(app, auth, executor, livePubsub);
         registerWorkspaceRoutes(app, auth, workspaceService);
         try {
-            await agentService?.start();
             await pluginService.start();
+            await agentService?.start();
         } catch (error) {
             await Promise.allSettled([pluginService.close(), agentService?.close()]);
             throw error;

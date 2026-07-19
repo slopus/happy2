@@ -156,11 +156,13 @@ export interface WebhookTransportRequest {
     allowedAddresses: ReadonlyArray<{ address: string; family: 4 | 6 }>;
     body: string;
     headers: Readonly<Record<string, string>>;
+    method?: "DELETE" | "POST";
 }
 
 export interface WebhookTransportResponse {
     statusCode: number;
     body?: string;
+    headers?: Readonly<Record<string, string>>;
 }
 
 export interface WebhookTransport {

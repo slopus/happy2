@@ -69,6 +69,7 @@ interface MockSession {
     id: string;
     lastEventId?: string;
     messages: RigMessage[];
+    permissionMode: string;
     projectSecretIds: Set<string>;
     sessionSecretIds: Set<string>;
     status: string;
@@ -80,7 +81,25 @@ interface MockSecretRegistration {
     id: string;
 }
 
+export interface MockRigExternalToolDefinition {
+    description: string;
+    label?: string;
+    name: string;
+    parameters: Record<string, unknown>;
+}
+
+export interface MockRigExternalToolCall {
+    arguments: unknown;
+    definition: MockRigExternalToolDefinition;
+    id: string;
+    resolution?: Record<string, unknown>;
+    runId: string;
+    sessionId: string;
+    status: "pending" | "completed" | "failed";
+}
+
 export interface MockRigRun {
+    externalTools: readonly MockRigExternalToolDefinition[];
     runId: string;
     sessionId: string;
     text: string;
@@ -104,6 +123,7 @@ export class MockRigDaemon implements AsyncDisposable {
     readonly createdCwds: string[] = [];
     readonly createdSessions: MockRigSessionRequest[] = [];
     readonly effortChanges: Array<{ effort: string; sessionId: string }> = [];
+    readonly externalToolCalls: MockRigExternalToolCall[] = [];
     readonly submittedRuns: MockRigRun[] = [];
     readonly submittedTexts: string[] = [];
     readonly trimRequests: number[] = [];
@@ -124,6 +144,7 @@ export class MockRigDaemon implements AsyncDisposable {
     private readonly createEventId = createEventIdFactory();
     private globalEventDeliveryPaused = false;
     private globalCursor = 0;
+    private externalToolCallSequence = 0;
     private submissionsPaused = false;
     private readonly globalEvents: GlobalEvent[] = [];
     private readonly globalEventStreams = new Set<GlobalEventStream>();
@@ -174,6 +195,49 @@ export class MockRigDaemon implements AsyncDisposable {
 
     sessionEffort(sessionId: string): string {
         return this.requireSession(sessionId).effort;
+    }
+
+    requestExternalToolCall(runId: string, functionName: string, args: unknown): string {
+        const { run, session } = this.requireRun(runId);
+        const definition = run.externalTools.find(({ name }) => name === functionName);
+        if (!definition) throw new Error(`Unknown mock Rig external function ${functionName}`);
+        const id = `external-call-${++this.externalToolCallSequence}`;
+        const call: MockRigExternalToolCall = {
+            arguments: structuredClone(args),
+            definition: structuredClone(definition),
+            id,
+            runId,
+            sessionId: session.id,
+            status: "pending",
+        };
+        this.externalToolCalls.push(call);
+        this.append(session, "external_tool_call_requested", {
+            call: {
+                ...structuredClone(call),
+                batchId: `batch-${id}`,
+                consumed: false,
+                createdAt: Date.now(),
+                toolCallId: `tool-${id}`,
+                toolCallIndex: 0,
+            },
+        });
+        return id;
+    }
+
+    redeliverExternalToolCall(callId: string): void {
+        const call = this.externalToolCalls.find(({ id }) => id === callId);
+        if (!call) throw new Error(`Unknown mock Rig external call ${callId}`);
+        const session = this.requireSession(call.sessionId);
+        this.append(session, "external_tool_call_requested", {
+            call: {
+                ...structuredClone(call),
+                batchId: `batch-${call.id}`,
+                consumed: false,
+                createdAt: Date.now(),
+                toolCallId: `tool-${call.id}`,
+                toolCallIndex: 0,
+            },
+        });
     }
 
     dropNextSubmissionResponseAfterAccept(): void {
@@ -492,6 +556,10 @@ export class MockRigDaemon implements AsyncDisposable {
                 events: [],
                 id,
                 messages: [],
+                permissionMode:
+                    typeof body.permissionMode === "string"
+                        ? body.permissionMode
+                        : "workspace_write",
                 projectSecretIds: new Set(),
                 sessionSecretIds: new Set(
                     Array.isArray(body.secretIds)
@@ -553,8 +621,30 @@ export class MockRigDaemon implements AsyncDisposable {
                 return sendJson(response, 200, { session: snapshot(session) });
             }
         }
+        const externalToolCallMatch = url.pathname.match(
+            /^\/sessions\/([^/]+)\/external-tool-calls\/([^/]+)$/u,
+        );
+        if (request.method === "POST" && externalToolCallMatch) {
+            const sessionId = decodeURIComponent(externalToolCallMatch[1]!);
+            const callId = decodeURIComponent(externalToolCallMatch[2]!);
+            const session = this.sessions.get(sessionId);
+            const call = this.externalToolCalls.find(
+                (candidate) => candidate.id === callId && candidate.sessionId === sessionId,
+            );
+            if (!session || !call)
+                return sendJson(response, 404, { error: "External function call not found" });
+            const resolution = await jsonBody(request);
+            if (call.resolution)
+                return sendJson(response, 200, { accepted: false, call: structuredClone(call) });
+            call.resolution = structuredClone(resolution);
+            call.status = resolution.status === "completed" ? "completed" : "failed";
+            this.append(session, "external_tool_call_resolved", {
+                call: structuredClone(call),
+            });
+            return sendJson(response, 200, { accepted: true, call: structuredClone(call) });
+        }
         const match = url.pathname.match(
-            /^\/sessions\/([^/]+)(?:\/(messages|events|stream|effort))?$/u,
+            /^\/sessions\/([^/]+)(?:\/(messages|events|stream|effort|permissions))?$/u,
         );
         const session = match ? this.sessions.get(decodeURIComponent(match[1]!)) : undefined;
         if (!match || !session) return sendJson(response, 404, { error: "Session not found" });
@@ -589,12 +679,25 @@ export class MockRigDaemon implements AsyncDisposable {
             });
             return sendJson(response, 200, { session: snapshot(session) });
         }
+        if (request.method === "PATCH" && action === "permissions") {
+            const body = await jsonBody(request);
+            if (typeof body.permissionMode !== "string")
+                return sendJson(response, 400, { error: "Unsupported permission mode" });
+            session.permissionMode = body.permissionMode;
+            this.append(session, "permission_mode_changed", {
+                permissionMode: session.permissionMode,
+            });
+            return sendJson(response, 200, { session: snapshot(session) });
+        }
         if (request.method === "POST" && action === "messages") {
             this.submissionAttemptCount += 1;
             if (this.submissionsPaused)
                 return sendJson(response, 503, { error: "Submissions are temporarily paused" });
             const body = await jsonBody(request);
             const text = String(body.text);
+            const externalTools = Array.isArray(body.externalTools)
+                ? body.externalTools.filter(isExternalToolDefinition)
+                : [];
             const runId = `run-${++this.runSequence}`;
             const message: RigMessage = { role: "user", blocks: [{ type: "text", text }] };
             session.messages.push(message);
@@ -606,7 +709,7 @@ export class MockRigDaemon implements AsyncDisposable {
             });
             this.append(session, "run_started", { runId });
             this.submittedTexts.push(text);
-            this.submittedRuns.push({ runId, sessionId: session.id, text });
+            this.submittedRuns.push({ externalTools, runId, sessionId: session.id, text });
             const drop = this.dropSubmissionResponse;
             this.dropSubmissionResponse = false;
             if (drop) response.destroy();
@@ -1014,6 +1117,7 @@ function snapshot(session: MockSession) {
         effort: session.effort,
         id: session.id,
         modelId: MOCK_MODEL_ID,
+        permissionMode: session.permissionMode,
         models: [
             {
                 defaultThinkingLevel: "high",
@@ -1037,6 +1141,21 @@ function secretSummary(secret: MockSecretRegistration) {
         description: secret.description,
         environmentVariables: Object.keys(secret.environment),
     };
+}
+
+function isExternalToolDefinition(value: unknown): value is MockRigExternalToolDefinition {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const candidate = value as Record<string, unknown>;
+    return (
+        typeof candidate.name === "string" &&
+        typeof candidate.description === "string" &&
+        (candidate.label === undefined || typeof candidate.label === "string") &&
+        Boolean(
+            candidate.parameters &&
+            typeof candidate.parameters === "object" &&
+            !Array.isArray(candidate.parameters),
+        )
+    );
 }
 
 async function jsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {

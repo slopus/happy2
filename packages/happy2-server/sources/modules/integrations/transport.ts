@@ -66,7 +66,7 @@ export class NodeWebhookTransport implements WebhookTransport {
             "user-agent": this.userAgent,
         };
         const options: RequestOptions = {
-            method: "POST",
+            method: input.method ?? "POST",
             headers,
             lookup,
             // Prevent a pooled socket from carrying a later request to an address
@@ -119,6 +119,13 @@ export class NodeWebhookTransport implements WebhookTransport {
                         finish(undefined, {
                             statusCode: response.statusCode ?? 0,
                             body: Buffer.concat(chunks).toString("utf8"),
+                            ...(typeof response.headers["mcp-session-id"] === "string"
+                                ? {
+                                      headers: {
+                                          "mcp-session-id": response.headers["mcp-session-id"],
+                                      },
+                                  }
+                                : {}),
                         }),
                     );
                 },
