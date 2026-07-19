@@ -17,7 +17,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: happy2-web
-          image: {version}
+          image: docker.korshakov.com/happy2:{version}
           args:
             - web
           envFrom:
