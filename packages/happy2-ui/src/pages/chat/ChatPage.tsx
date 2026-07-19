@@ -393,6 +393,8 @@ export function ChatPage(props: ChatPageProps) {
         onLeave: () => props.actions.chatSelect("", "chat"),
         onError: showError,
     });
+    const conversationEntries = () =>
+        entries.filter((entry) => entry.conversationId === activeConversationId());
     const conversation: Conversation = (() => {
         const projection = activeProjection();
         const chat = activeChat();
@@ -436,12 +438,14 @@ export function ChatPage(props: ChatPageProps) {
                     chat.topic ??
                     (chat.kind === "dm"
                         ? `This conversation is between you and ${title}.`
-                        : "This channel is ready for its first message."),
+                        : chatSnapshot()?.status.type !== "ready" || chatSnapshot()?.hasMoreMessages
+                          ? `Showing the latest messages in #${chat.slug ?? title}.`
+                          : conversationEntries().some((entry) => entry.kind === "message")
+                            ? `This is the beginning of #${chat.slug ?? title}.`
+                            : "This channel is ready for its first message."),
             },
         };
     })();
-    const conversationEntries = () =>
-        entries.filter((entry) => entry.conversationId === activeConversationId());
     const mentionCandidates = () =>
         directoryUsers().map((person) => ({
             id: person.id,

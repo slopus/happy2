@@ -111,6 +111,63 @@ function chatPageActionsCreate(overrides: Partial<ChatPageActions> = {}): ChatPa
         ...overrides,
     };
 }
+async function chatIntroDescription(
+    selectedChat: ChatSummary,
+    messages: ChatMessageItem[],
+    hasMoreMessages: boolean,
+): Promise<string> {
+    const sidebar = sidebarStoreFixtureCreate();
+    const directory = directoryStoreFixtureCreate();
+    const chatSurface = chatStoreFixtureCreate(selectedChat.id);
+    const view = createRenderer();
+    try {
+        directory.input({ type: "directoryLoaded", users: [], channels: [] });
+        sidebar.input({
+            type: "sidebarLoaded",
+            chats: [
+                {
+                    chat: selectedChat,
+                    id: selectedChat.id,
+                    displayName: selectedChat.name!,
+                    participants: [],
+                },
+            ],
+            sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+        });
+        chatSurface.input({
+            type: "chatLoaded",
+            chat: selectedChat,
+            messages,
+            hasMoreMessages,
+        });
+        view.render(
+            () => (
+                <ChatPage
+                    actions={chatPageActionsCreate()}
+                    chat={chatSurface.store}
+                    directory={directory.store}
+                    navigation={{ chatId: selectedChat.id }}
+                    rail={<div>Rail</div>}
+                    search=""
+                    sidebar={sidebar.store}
+                    titleBar={<div>Title</div>}
+                    user={{ id: "user-1", firstName: "Ada" }}
+                />
+            ),
+            { width: 1200, height: 800 },
+        );
+        await view.ready();
+        return (
+            view.container.querySelector('[data-happy2-ui="message-list-intro-description"]')
+                ?.textContent ?? ""
+        );
+    } finally {
+        view.destroy();
+        sidebar[Symbol.dispose]();
+        directory[Symbol.dispose]();
+        chatSurface[Symbol.dispose]();
+    }
+}
 it("projects messages with stable entity ids for React keyed reconciliation", () => {
     const first = messageItem("message-1", "first");
     const second = messageItem("message-2", "second");
@@ -143,6 +200,67 @@ it("projects an effort change as a settings service notice", () => {
         icon: "settings",
         text: "@agent's reasoning effort changed to low",
     });
+});
+it("describes a topic-less channel with only notices as ready for its first message", async () => {
+    const notice = messageItem("message-1", "@agent's reasoning effort changed to low");
+    const description = await chatIntroDescription(
+        { ...chat, topic: undefined },
+        [
+            {
+                ...notice,
+                message: {
+                    ...notice.message,
+                    kind: "automated",
+                    service: {
+                        type: "agent_effort_changed",
+                        agentUserId: "agent-1",
+                        effort: "low",
+                    },
+                },
+            },
+        ],
+        false,
+    );
+
+    expect(description).toBe("This channel is ready for its first message.");
+});
+it("describes a topic-less channel with a message as the beginning", async () => {
+    const description = await chatIntroDescription(
+        { ...chat, topic: undefined },
+        [messageItem("message-1", "Hello")],
+        false,
+    );
+
+    expect(description).toBe("This is the beginning of #state-architecture.");
+});
+it("uses neutral intro copy when a topic-less channel has more history", async () => {
+    const description = await chatIntroDescription({ ...chat, topic: undefined }, [], true);
+
+    expect(description).toBe("Showing the latest messages in #state-architecture.");
+});
+it("shows an explicit channel topic for every history state", async () => {
+    const topic = "One coarse store per rendered surface";
+    const notice = messageItem("message-1", "@agent's reasoning effort changed to low");
+    const noticeItem: ChatMessageItem = {
+        ...notice,
+        message: {
+            ...notice.message,
+            kind: "automated",
+            service: {
+                type: "agent_effort_changed",
+                agentUserId: "agent-1",
+                effort: "low",
+            },
+        },
+    };
+
+    await expect(chatIntroDescription({ ...chat, topic }, [noticeItem], false)).resolves.toBe(
+        topic,
+    );
+    await expect(
+        chatIntroDescription({ ...chat, topic }, [messageItem("message-2", "Hello")], false),
+    ).resolves.toBe(topic);
+    await expect(chatIntroDescription({ ...chat, topic }, [], true)).resolves.toBe(topic);
 });
 it("updates one mounted message while preserving its open menu and sibling DOM", async () => {
     const first = messageItem("message-1", "first");
