@@ -21,7 +21,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: copy-config
-          image: slopus/happy2:{version}
+          image: {version}
           command:
             - sh
             - -c
