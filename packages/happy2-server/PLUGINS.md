@@ -144,8 +144,9 @@ the same dedicated installation container. Container variables are supplied to
 each configured process, not persisted in the image or container definition.
 
 `container.permissions` declares the exact host API capabilities a package may
-request. Permissions are grouped for presentation by API section: `chats:update`
-is a mutating permission in `chats`, while `plugins:list` is read-only and
+request. Permissions are grouped for presentation by API section:
+`channels:manage` is a mutating permission in `channels`, `chats:update` is a
+mutating permission in `chats`, while `plugins:list` is read-only and
 `plugins:install` and `plugins:uninstall` are mutating permissions in `plugins`.
 `plugins:request-install` and `plugins:request-uninstall` are also mutating
 permissions, but create chat-scoped human approvals instead of granting direct
@@ -163,9 +164,10 @@ Changing a grant invalidates the current runtime token and restarts the local
 container with a new token, so stale tokens cannot retain revoked access.
 
 The isolated plugin host listener provides `GET /plugins`, `POST /plugins/install`,
-and `POST /plugins/uninstall`. Each route requires its matching capability.
-Plugin-triggered installs must also choose a subset of the target package's
-declared permissions.
+`POST /plugins/uninstall`, `POST /channels/updateMembers`, and
+`POST /channels/createChannel`, alongside the chat-update route. Each route
+requires its matching capability. Plugin-triggered installs must also choose a
+subset of the target package's declared permissions.
 
 The bundled `hello` package is the minimal skill-plus-MCP example. The bundled
 `plugin-developer` package contributes a comprehensive Happy2 plugin-development
@@ -478,6 +480,15 @@ Remote endpoints are rechecked.
   listener. A container must present `HAPPY2_PLUGIN_API_TOKEN` and declare the
   corresponding host permission. The two mutation-request endpoints also
   require an active contextual agent-call token.
+- `POST /channels/updateMembers` adds or removes signed user capabilities from
+  the current chat. It requires `channels:manage`, rejects direct messages, and
+  applies the triggering user's ordinary channel-manager authorization.
+- `POST /channels/createChannel` creates a private channel owned by the
+  triggering user, adds signed user capabilities as initial members, and may
+  post either a people-only opening message or an agent-audience prompt that
+  starts the calling agent. It also requires `channels:manage` and accepts an
+  optional `idempotencyKey` so a retried local request replays the same channel
+  and opening message instead of creating duplicates.
 
 Container processes receive `HAPPY2_PLUGIN_API_URL` and
 `HAPPY2_PLUGIN_API_TOKEN`. The URL is always
@@ -521,19 +532,47 @@ request metadata:
     "_meta": {
         "happy2/chat": {
             "id": "current-chat-cuid2",
-            "token": "signed-chat-capability-jwt"
-        }
+            "token": "signed-chat-capability-jwt",
+            "triggeredByUserId": "sender-cuid2"
+        },
+        "happy2/users": [
+            {
+                "id": "sender-cuid2",
+                "username": "ada",
+                "firstName": "Ada",
+                "kind": "human",
+                "triggeredTurn": true,
+                "token": "signed-user-capability-jwt"
+            },
+            {
+                "id": "mentioned-user-cuid2",
+                "username": "grace",
+                "firstName": "Grace",
+                "kind": "human",
+                "triggeredTurn": false,
+                "token": "signed-user-capability-jwt"
+            }
+        ]
     }
 }
 ```
 
-The RS256 chat token has no expiration and is bound to both that chat and the
-specific plugin installation receiving the call. Plugin host chat actions also
-require the running installation's ordinary runtime token; presenting a chat
-token through another installation is rejected. Uninstalling or replacing an
-installation therefore prevents its old chat tokens from being used by a new
-installation. Chat IDs remain immutable and are supplied in metadata and API
-results for correlation, never accepted as mutation input.
+The user list contains the message sender that triggered the exact agent turn,
+followed by every concrete `@username` mention recorded on that message, with
+duplicates removed. Special mentions such as `@here` do not create user
+capabilities. Each RS256 user token has no expiration and is bound to the user
+and the receiving plugin installation. A plugin may persist it; Happy does not
+require or provide persistence by default. Host actions verify that the signed
+user and the supplied user ID match.
+
+The RS256 chat token also has no expiration. It is bound to that chat, the
+triggering actor, the executing agent, and the specific plugin installation
+receiving the call. Plugin host chat actions additionally require the running
+installation's ordinary runtime token; presenting a chat or user token through
+another installation is rejected. Uninstalling or replacing an installation
+therefore prevents its old capabilities from being used by a new installation.
+Chat IDs remain immutable and are supplied in metadata and API results for
+correlation, never accepted as mutation input.
 
 The bridge allows at most 128 simultaneous sessions server-wide and 16 per
 authenticated user. Idle sessions close after 15 minutes; inbound requests and

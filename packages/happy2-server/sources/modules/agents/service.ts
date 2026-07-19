@@ -79,9 +79,10 @@ import type { AgentImageBuildUpdate, AgentSandboxRuntimeResolver } from "../sand
 import type {
     PluginFunctionDefinition,
     PluginFunctionResult,
+    PluginCallContext,
     PluginSkillDefinition,
 } from "../plugin/types.js";
-import { agentChatGetIdBySession } from "../agent/agentChatGetIdBySession.js";
+import { agentTurnGetPluginContext } from "../agent/agentTurnGetPluginContext.js";
 import { pluginFunctionResultAcquire } from "../plugin/pluginFunctionResultAcquire.js";
 import { pluginFunctionResultComplete } from "../plugin/pluginFunctionResultComplete.js";
 import {
@@ -185,7 +186,7 @@ interface AgentPluginCapabilities {
     callFunction(
         functionName: string,
         args: unknown,
-        context: { chatId: string; sessionId: string; callId: string },
+        context: PluginCallContext,
         signal?: AbortSignal,
     ): Promise<PluginFunctionResult>;
     listFunctions(signal?: AbortSignal): Promise<readonly PluginFunctionDefinition[]>;
@@ -1299,6 +1300,7 @@ export class AgentService {
                   )
                 : await this.executePluginFunctionCall(
                       event.sessionId,
+                      call.runId,
                       call.id,
                       call.definition.name,
                       call.arguments,
@@ -1370,6 +1372,7 @@ export class AgentService {
 
     private async executePluginFunctionCall(
         sessionId: string,
+        runId: string,
         callId: string,
         functionName: string,
         args: unknown,
@@ -1383,19 +1386,19 @@ export class AgentService {
                         message: "Plugin functions are unavailable on this server",
                     },
                 };
-            const chatId = await agentChatGetIdBySession(this.executor, sessionId);
-            if (!chatId)
+            const context = await agentTurnGetPluginContext(this.executor, { sessionId, runId });
+            if (!context)
                 return {
                     status: "failed" as const,
                     error: {
                         code: "plugin_chat_unavailable",
-                        message: "The agent session is not bound to one current chat",
+                        message: "The plugin call is not bound to one current agent turn",
                     },
                 };
             return this.pluginCapabilities.callFunction(
                 functionName,
                 args,
-                { chatId, sessionId, callId },
+                { ...context, sessionId, callId },
                 this.shutdown.signal,
             );
         });

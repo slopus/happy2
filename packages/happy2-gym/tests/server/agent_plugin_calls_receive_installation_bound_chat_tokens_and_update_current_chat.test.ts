@@ -61,7 +61,9 @@ describe("agent plugin chat capabilities", () => {
         ).toBe(201);
         await waitFor(() => rig.submittedRuns.length === 1, "Rig submission");
         const run = rig.submittedRuns[0]!;
-        const tool = run.externalTools.find(({ name }) => name.startsWith(`plugin_${first}_`));
+        const tool = run.externalTools.find(({ name }) =>
+            name.includes(`plugin_${first}_chat_update_`),
+        );
         if (!tool) throw new Error("The first Chat Management tool was not submitted to Rig");
         const callId = rig.requestExternalToolCall(run.runId, tool.name, {
             title: "Boston release",
@@ -87,7 +89,16 @@ describe("agent plugin chat capabilities", () => {
                 "happy2/chat": {
                     id: chatId,
                     token: expect.any(String),
+                    triggeredByUserId: owner.id,
                 },
+                "happy2/users": [
+                    expect.objectContaining({
+                        id: owner.id,
+                        username: "plugin_chat_owner",
+                        triggeredTurn: true,
+                        token: expect.any(String),
+                    }),
+                ],
             },
         });
         expect(rig.externalToolCalls.find(({ id }) => id === callId)?.resolution).toMatchObject({
@@ -135,6 +146,243 @@ describe("agent plugin chat capabilities", () => {
         expect(spoofedId.statusCode).toBe(400);
         expect((await client.get(`/v0/chats/${chatId}`)).json().chat.name).toBe("Boston release");
     }, 30_000);
+
+    it("adds triggering and mentioned users to MCP metadata and creates or manages channels with explicit inference", async () => {
+        await using rig = await createMockRigDaemon();
+        rig.setAutomaticReply(undefined);
+        const runtime = new ChatManagementRuntime();
+        await using server = await createGymServer({
+            agentSandbox: new MockAgentSandboxRuntime(),
+            pluginMcpRuntime: runtime,
+            configure(config) {
+                config.agents.enabled = true;
+                config.agents.socketPath = rig.socketPath;
+                config.agents.tokenPath = rig.tokenPath;
+                config.agents.defaultCwd = rig.workspaceRoot;
+            },
+        });
+        let persistedUsers: ReferencedUser[] | undefined;
+        let mismatchedUserTokenResult:
+            | { statusCode: number; body: Record<string, unknown> }
+            | undefined;
+        let replayedPeopleResult: { statusCode: number; body: Record<string, unknown> } | undefined;
+        runtime.action = async ({ call, chatToken, runtimeToken }) => {
+            const users =
+                call.name === "channel_members_update" && persistedUsers
+                    ? persistedUsers
+                    : referencedUsers(call);
+            const request =
+                call.name === "channel_members_update"
+                    ? {
+                          path: "/channels/updateMembers",
+                          body: {
+                              add: selectCapabilities(call.arguments.addUsers, users),
+                              remove: selectCapabilities(call.arguments.removeUsers, users),
+                          },
+                      }
+                    : {
+                          path: "/channels/createChannel",
+                          body: {
+                              ...call.arguments,
+                              idempotencyKey: `gym-${String(call.arguments.name)
+                                  .toLowerCase()
+                                  .replace(/[^a-z0-9]+/g, "-")}`,
+                              members: selectCapabilities(call.arguments.members, users),
+                          },
+                      };
+            const response = await server.pluginHost().post(request.path, request.body, {
+                headers: {
+                    authorization: `Bearer ${runtimeToken}`,
+                    "x-happy2-chat-token": chatToken,
+                },
+            });
+            if (
+                call.name === "channel_create" &&
+                (call.arguments.initialMessage as { audience?: string } | undefined)?.audience ===
+                    "people"
+            ) {
+                const mismatched = await server.pluginHost().post(
+                    "/channels/updateMembers",
+                    {
+                        add: [{ id: users[1]!.id, token: users[2]!.token }],
+                        remove: [],
+                    },
+                    {
+                        headers: {
+                            authorization: `Bearer ${runtimeToken}`,
+                            "x-happy2-chat-token": chatToken,
+                        },
+                    },
+                );
+                mismatchedUserTokenResult = {
+                    statusCode: mismatched.statusCode,
+                    body: mismatched.json(),
+                };
+                const replayed = await server.pluginHost().post(request.path, request.body, {
+                    headers: {
+                        authorization: `Bearer ${runtimeToken}`,
+                        "x-happy2-chat-token": chatToken,
+                    },
+                });
+                replayedPeopleResult = {
+                    statusCode: replayed.statusCode,
+                    body: replayed.json(),
+                };
+            }
+            return { statusCode: response.statusCode, body: response.json() };
+        };
+        const owner = await server.createUser({
+            username: "channel_capability_owner",
+            firstName: "Owner",
+        });
+        const friend = await server.createUser({ username: "feature_friend", firstName: "Friend" });
+        const reviewer = await server.createUser({
+            username: "feature_reviewer",
+            firstName: "Reviewer",
+        });
+        const client = server.as(owner);
+        const installationId = await install(client);
+        const originChatId = await createAgent(client);
+        expect(
+            (
+                await client.post(`/v0/chats/${originChatId}/sendMessage`, {
+                    text: "Create feature channels with @feature_friend and @feature_reviewer.",
+                    clientMutationId: "channel-capability-turn",
+                })
+            ).statusCode,
+        ).toBe(201);
+        await waitFor(() => rig.submittedRuns.length === 1, "origin Rig submission");
+        const originRun = rig.submittedRuns[0]!;
+        const createTool = originRun.externalTools.find(({ name }) =>
+            name.includes(`plugin_${installationId}_channel_create_`),
+        );
+        const membersTool = originRun.externalTools.find(({ name }) =>
+            name.includes(`plugin_${installationId}_channel_members_update_`),
+        );
+        if (!createTool || !membersTool)
+            throw new Error("Chat Management channel tools were not submitted to Rig");
+
+        const peopleInput = {
+            name: "Feature briefing",
+            description: "Context for the feature without starting an agent.",
+            members: ["@feature_friend"],
+            initialMessage: {
+                audience: "people",
+                text: "Background for @feature_friend and @feature_reviewer; no action yet.",
+            },
+        };
+        const peopleCallId = rig.requestExternalToolCall(
+            originRun.runId,
+            createTool.name,
+            peopleInput,
+        );
+        await waitFor(
+            () => rig.externalToolCalls.find(({ id }) => id === peopleCallId)?.status !== "pending",
+            "people channel creation",
+        );
+        const peopleCall = runtime.calls.find(({ name }) => name === "channel_create");
+        if (!peopleCall) throw new Error("People channel creation was not received by the plugin");
+        expect(referencedUsers(peopleCall)).toEqual([
+            expect.objectContaining({
+                id: owner.id,
+                username: "channel_capability_owner",
+                triggeredTurn: true,
+                token: expect.any(String),
+            }),
+            expect.objectContaining({
+                id: friend.id,
+                username: "feature_friend",
+                triggeredTurn: false,
+                token: expect.any(String),
+            }),
+            expect.objectContaining({
+                id: reviewer.id,
+                username: "feature_reviewer",
+                triggeredTurn: false,
+                token: expect.any(String),
+            }),
+        ]);
+        persistedUsers = referencedUsers(peopleCall);
+        expect(mismatchedUserTokenResult?.statusCode).toBe(403);
+        expect(mismatchedUserTokenResult?.body.message).toContain("another user");
+        const peopleResolution = completedOutput(peopleCallId, rig);
+        const peopleChatId = (peopleResolution.chat as { id: string }).id;
+        expect(replayedPeopleResult?.statusCode).toBe(201);
+        expect((replayedPeopleResult?.body.chat as { id: string }).id).toBe(peopleChatId);
+        expect(rig.submittedRuns).toHaveLength(1);
+        expect(
+            (await client.get(`/v0/chats/${peopleChatId}/messages`))
+                .json()
+                .messages.filter(
+                    ({ text }: { text: string }) =>
+                        text ===
+                        "Background for @feature_friend and @feature_reviewer; no action yet.",
+                ),
+        ).toEqual([
+            expect.objectContaining({
+                audience: "people",
+                text: "Background for @feature_friend and @feature_reviewer; no action yet.",
+            }),
+        ]);
+        expect((await server.as(friend).get(`/v0/chats/${peopleChatId}`)).statusCode).toBe(200);
+        expect((await server.as(reviewer).get(`/v0/chats/${peopleChatId}`)).statusCode).toBe(404);
+
+        const dmMembershipCallId = rig.requestExternalToolCall(originRun.runId, membersTool.name, {
+            addUsers: ["feature_friend"],
+        });
+        await waitFor(
+            () =>
+                rig.externalToolCalls.find(({ id }) => id === dmMembershipCallId)?.status !==
+                "pending",
+            "direct-message membership rejection",
+        );
+        expect(
+            rig.externalToolCalls.find(({ id }) => id === dmMembershipCallId)?.resolution,
+        ).toMatchObject({
+            status: "failed",
+            error: { message: expect.stringContaining("Direct-message") },
+        });
+
+        const agentCallId = rig.requestExternalToolCall(originRun.runId, createTool.name, {
+            name: "Feature implementation",
+            members: ["feature_friend"],
+            initialMessage: {
+                audience: "agents",
+                text: "Implement the feature with @feature_friend and ask @feature_reviewer for review.",
+            },
+        });
+        await waitFor(
+            () => rig.externalToolCalls.find(({ id }) => id === agentCallId)?.status !== "pending",
+            "agent channel creation",
+        );
+        const agentResolution = completedOutput(agentCallId, rig);
+        const agentChatId = (agentResolution.chat as { id: string }).id;
+        await waitFor(() => rig.submittedRuns.length === 2, "new channel agent turn");
+        const channelRun = rig.submittedRuns[1]!;
+        const channelMembersTool = channelRun.externalTools.find(({ name }) =>
+            name.includes(`plugin_${installationId}_channel_members_update_`),
+        );
+        if (!channelMembersTool) throw new Error("New channel did not receive membership tool");
+        const updateCallId = rig.requestExternalToolCall(
+            channelRun.runId,
+            channelMembersTool.name,
+            {
+                addUsers: ["@feature_reviewer"],
+                removeUsers: ["@feature_friend"],
+            },
+        );
+        await waitFor(
+            () => rig.externalToolCalls.find(({ id }) => id === updateCallId)?.status !== "pending",
+            "new channel membership update",
+        );
+        expect(completedOutput(updateCallId, rig)).toMatchObject({
+            chatId: agentChatId,
+            addedUserIds: [reviewer.id],
+            removedUserIds: [friend.id],
+        });
+        expect((await server.as(friend).get(`/v0/chats/${agentChatId}`)).statusCode).toBe(404);
+        expect((await server.as(reviewer).get(`/v0/chats/${agentChatId}`)).statusCode).toBe(200);
+    }, 30_000);
 });
 
 type ChatCall = {
@@ -154,6 +402,11 @@ class ChatManagementRuntime implements PluginMcpRuntime {
         runtimeToken: string;
         chatToken: string;
         input: Record<string, unknown>;
+    }) => Promise<{ statusCode: number; body: Record<string, unknown> }>;
+    action?: (input: {
+        runtimeToken: string;
+        chatToken: string;
+        call: ChatCall;
     }) => Promise<{ statusCode: number; body: Record<string, unknown> }>;
 
     async prepareLocal(input: PluginLocalPrepareInput) {
@@ -214,28 +467,46 @@ class ChatManagementRuntime implements PluginMcpRuntime {
                                     additionalProperties: false,
                                 },
                             },
+                            {
+                                name: "channel_members_update",
+                                title: "Add or remove channel members",
+                                description: "Adds or removes users from the current channel.",
+                                inputSchema: { type: "object", additionalProperties: false },
+                            },
+                            {
+                                name: "channel_create",
+                                title: "Create a channel",
+                                description: "Creates a channel with an optional initial message.",
+                                inputSchema: { type: "object", additionalProperties: false },
+                            },
                         ],
                     };
                 } else if (message.method === "tools/call") {
                     const call = structuredClone(message.params) as ChatCall;
                     this.calls.push(call);
-                    const update = this.update;
-                    if (!update) throw new Error("Plugin host update callback is unavailable");
-                    const response = await update({
-                        runtimeToken,
-                        chatToken: chatMeta(call).token,
-                        input: call.arguments,
-                    });
+                    const response =
+                        call.name === "chat_update"
+                            ? await this.update?.({
+                                  runtimeToken,
+                                  chatToken: chatMeta(call).token,
+                                  input: call.arguments,
+                              })
+                            : await this.action?.({
+                                  runtimeToken,
+                                  chatToken: chatMeta(call).token,
+                                  call,
+                              });
+                    if (!response) throw new Error("Plugin host callback is unavailable");
                     result =
-                        response.statusCode === 200
+                        response.statusCode >= 200 && response.statusCode < 300
                             ? {
                                   content: [
                                       {
                                           type: "text",
-                                          text: `Updated chat ${String(response.body.chat && (response.body.chat as { id?: unknown }).id)}.`,
+                                          text: "Chat Management action completed.",
                                       },
                                   ],
-                                  structuredContent: { chat: response.body.chat },
+                                  structuredContent: response.body,
                               }
                             : {
                                   isError: true,
@@ -289,17 +560,59 @@ function chatMeta(call: ChatCall): { id: string; token: string } {
     return { id: meta.id, token: meta.token };
 }
 
+type ReferencedUser = {
+    id: string;
+    username: string;
+    token: string;
+    triggeredTurn: boolean;
+};
+
+function referencedUsers(call: ChatCall): ReferencedUser[] {
+    const value = call._meta?.["happy2/users"];
+    if (!Array.isArray(value)) throw new Error("Referenced-user metadata was not supplied");
+    return value as ReferencedUser[];
+}
+
+function selectCapabilities(value: unknown, users: ReferencedUser[]) {
+    if (value === undefined) return [];
+    if (!Array.isArray(value)) throw new Error("User selectors must be an array");
+    return value.map((selector) => {
+        if (typeof selector !== "string") throw new Error("User selector must be a string");
+        const normalized = selector.replace(/^@/, "").toLowerCase();
+        const user = users.find(({ id, username }) => id === selector || username === normalized);
+        if (!user) throw new Error(`Referenced user ${selector} was not found`);
+        return { id: user.id, token: user.token };
+    });
+}
+
+function completedOutput(
+    callId: string,
+    rig: Awaited<ReturnType<typeof createMockRigDaemon>>,
+): Record<string, unknown> {
+    const call = rig.externalToolCalls.find(({ id }) => id === callId);
+    if (call?.status !== "completed" || call.resolution?.status !== "completed")
+        throw new Error(`Tool call failed: ${JSON.stringify(call?.resolution)}`);
+    const output = call.resolution.output as { structuredContent?: unknown };
+    if (!output.structuredContent || typeof output.structuredContent !== "object")
+        throw new Error("Tool call did not return structured content");
+    return output.structuredContent as Record<string, unknown>;
+}
+
 async function install(client: GymRequestClient): Promise<string> {
     const installed = await client.post("/v0/admin/plugins/chat-management/installPlugin", {
-        permissions: ["chats:update"],
+        permissions: ["chats:update", "channels:manage"],
     });
     expect(installed.statusCode).toBe(202);
     const installationId = installed.json().installation.id as string;
     await waitFor(async () => {
         const catalog = await client.get("/v0/admin/plugins");
-        return catalog
-            .json()
-            .plugins.flatMap(
+        const body = catalog.json();
+        if (!Array.isArray(body.plugins))
+            throw new Error(
+                `Plugin catalog failed (${catalog.statusCode}): ${JSON.stringify(body)}`,
+            );
+        return body.plugins
+            .flatMap(
                 (plugin: {
                     systemPlugin?: { installations?: Array<{ id: string; status: string }> };
                 }) => plugin.systemPlugin?.installations ?? [],

@@ -18,4 +18,23 @@ describe("installedManifest", () => {
             ),
         ).toThrow("Installed plugin manifest is unreadable");
     });
+
+    it("accepts the channel-management host capability", () => {
+        expect(
+            installedManifest(
+                JSON.stringify({
+                    schemaVersion: 1,
+                    version: "1.0.0",
+                    displayName: "Channels",
+                    shortName: "channels",
+                    description: "Manages channels",
+                    variables: [],
+                    container: {
+                        args: [],
+                        permissions: ["channels:manage"],
+                    },
+                }),
+            ).container?.permissions,
+        ).toEqual(["channels:manage"]);
+    });
 });

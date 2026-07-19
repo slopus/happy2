@@ -21,6 +21,12 @@ export interface PluginRuntimeClaims {
 export interface PluginChatClaims {
     installationId: string;
     chatId: string;
+    actorUserId: string;
+    agentUserId: string;
+}
+export interface PluginUserClaims {
+    installationId: string;
+    userId: string;
 }
 export interface TokenKeyPair {
     privateKey?: string;
@@ -166,7 +172,11 @@ export class TokenService {
 
     async issuePluginChatToken(claims: PluginChatClaims): Promise<string> {
         if (!this.privateKey) throw new Error("This server has no JWT signing key");
-        return new SignJWT({ cht: claims.chatId })
+        return new SignJWT({
+            cht: claims.chatId,
+            act: claims.actorUserId,
+            agt: claims.agentUserId,
+        })
             .setProtectedHeader({
                 alg: "RS256",
                 kid: this.config.jwt.keyId,
@@ -186,9 +196,47 @@ export class TokenService {
             algorithms: ["RS256"],
             typ: "happy2-plugin-chat",
         });
-        if (typeof payload.sub !== "string" || typeof payload.cht !== "string")
+        if (
+            typeof payload.sub !== "string" ||
+            typeof payload.cht !== "string" ||
+            typeof payload.act !== "string" ||
+            typeof payload.agt !== "string"
+        )
             throw new Error("JWT has invalid plugin chat claims");
-        return { installationId: payload.sub, chatId: payload.cht };
+        return {
+            installationId: payload.sub,
+            chatId: payload.cht,
+            actorUserId: payload.act,
+            agentUserId: payload.agt,
+        };
+    }
+
+    async issuePluginUserToken(claims: PluginUserClaims): Promise<string> {
+        if (!this.privateKey) throw new Error("This server has no JWT signing key");
+        return new SignJWT()
+            .setProtectedHeader({
+                alg: "RS256",
+                kid: this.config.jwt.keyId,
+                typ: "happy2-plugin-user",
+            })
+            .setIssuer(this.config.jwt.issuer)
+            .setAudience(`${this.config.jwt.audience}/plugin-user`)
+            .setSubject(claims.installationId)
+            .setIssuedAt()
+            .setJti(claims.userId)
+            .sign(this.privateKey);
+    }
+
+    async verifyPluginUserToken(token: string): Promise<PluginUserClaims> {
+        const { payload } = await jwtVerify(token, this.publicKey, {
+            issuer: this.config.jwt.issuer,
+            audience: `${this.config.jwt.audience}/plugin-user`,
+            algorithms: ["RS256"],
+            typ: "happy2-plugin-user",
+        });
+        if (typeof payload.sub !== "string" || typeof payload.jti !== "string")
+            throw new Error("JWT has invalid plugin user claims");
+        return { installationId: payload.sub, userId: payload.jti };
     }
 }
 

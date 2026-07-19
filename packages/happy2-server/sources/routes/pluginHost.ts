@@ -3,10 +3,12 @@ import type { DrizzleExecutor } from "../modules/drizzle.js";
 import { pluginInstallationListForHost } from "../modules/plugin/pluginInstallationListForHost.js";
 import type { PluginService } from "../modules/plugin/service.js";
 import { CollaborationError } from "../modules/chat/types.js";
+import type { AgentService } from "../modules/agents/index.js";
 import {
     PluginError,
     pluginHostPermissions,
     type PluginHostPermission,
+    type PluginUserCapability,
 } from "../modules/plugin/types.js";
 
 /** Builds the capability-only HTTP surface exposed to local plugin containers. */
@@ -14,6 +16,7 @@ export function createPluginHostApi(
     executor: DrizzleExecutor,
     plugins: PluginService,
     logger: boolean,
+    agents?: Pick<AgentService, "prepareTurns" | "startTurn">,
 ): FastifyInstance {
     const app = Fastify({ logger });
     app.get("/plugins", async (request, reply) => {
@@ -66,6 +69,19 @@ export function createPluginHostApi(
             throw error;
         }
     });
+    app.post("/channels/updateMembers", async (request, reply) => {
+        try {
+            return await plugins.channelMembersUpdate(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                channelMembersUpdateInput(request.body),
+            );
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
     app.post("/plugins/uninstall", async (request, reply) => {
         try {
             const { installationId: actorInstallationId } = await plugins.authorizeHost(
@@ -85,7 +101,6 @@ export function createPluginHostApi(
             throw error;
         }
     });
-
     app.post("/plugin-install-requests", async (request, reply) => {
         try {
             const claims = await plugins.authorizeHost(
@@ -137,6 +152,21 @@ export function createPluginHostApi(
                 ...(reason ? { reason } : {}),
             });
             return reply.code(202).send({ approval });
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/channels/createChannel", async (request, reply) => {
+        try {
+            const result = await plugins.channelCreate(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                channelCreateInput(request.body),
+                agents,
+            );
+            return reply.code(201).send(result);
         } catch (error) {
             const response = handled(reply, error);
             if (response) return response;
@@ -261,19 +291,163 @@ function object(value: unknown, name: string): Record<string, unknown> {
     return value as Record<string, unknown>;
 }
 
+function channelMembersUpdateInput(value: unknown): {
+    add: PluginUserCapability[];
+    remove: PluginUserCapability[];
+} {
+    const body = bodyRecord(value);
+    onlyBodyKeys(body, ["add", "remove"]);
+    const add = userCapabilities(body.add, "add");
+    const remove = userCapabilities(body.remove, "remove");
+    if (!add.length && !remove.length)
+        throw new PluginHostRequestError("At least one user must be added or removed");
+    const addIds = new Set(add.map(({ id }) => id));
+    if (remove.some(({ id }) => addIds.has(id)))
+        throw new PluginHostRequestError("A user cannot be both added and removed");
+    return { add, remove };
+}
+
+function channelCreateInput(value: unknown): {
+    name: string;
+    description?: string;
+    idempotencyKey?: string;
+    members: PluginUserCapability[];
+    initialMessage?: { audience: "agents" | "people"; text: string };
+} {
+    const body = bodyRecord(value);
+    onlyBodyKeys(body, ["name", "description", "idempotencyKey", "members", "initialMessage"]);
+    const name = requiredTrimmedString(body.name, "name", 100);
+    let description: string | undefined;
+    if (body.description !== undefined)
+        description = requiredTrimmedString(body.description, "description", 500);
+    const members = userCapabilities(body.members, "members");
+    const idempotencyKey =
+        body.idempotencyKey === undefined
+            ? undefined
+            : requiredToken(body.idempotencyKey, "idempotencyKey", 128);
+    let initialMessage: { audience: "agents" | "people"; text: string } | undefined;
+    if (body.initialMessage !== undefined) {
+        const message = bodyRecord(body.initialMessage, "initialMessage");
+        onlyBodyKeys(message, ["audience", "text"], "initialMessage");
+        if (message.audience !== "agents" && message.audience !== "people")
+            throw new PluginHostRequestError("initialMessage.audience must be agents or people");
+        initialMessage = {
+            audience: message.audience,
+            text: requiredMessageText(message.text),
+        };
+    }
+    return {
+        name,
+        ...(description ? { description } : {}),
+        ...(idempotencyKey ? { idempotencyKey } : {}),
+        members,
+        ...(initialMessage ? { initialMessage } : {}),
+    };
+}
+
+function userCapabilities(value: unknown, name: string): PluginUserCapability[] {
+    if (value === undefined) return [];
+    if (!Array.isArray(value) || value.length > 100)
+        throw new PluginHostRequestError(`${name} must be an array of at most 100 users`);
+    const result = value.map((entry, index) => {
+        const capability = bodyRecord(entry, `${name}[${index}]`);
+        onlyBodyKeys(capability, ["id", "token"], `${name}[${index}]`);
+        return {
+            id: requiredToken(capability.id, `${name}[${index}].id`, 128),
+            token: requiredToken(capability.token, `${name}[${index}].token`, 4_096),
+        };
+    });
+    if (new Set(result.map(({ id }) => id)).size !== result.length)
+        throw new PluginHostRequestError(`${name} contains a duplicate user`);
+    return result;
+}
+
+function bodyRecord(value: unknown, name = "Request body"): Record<string, unknown> {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+        throw new PluginHostRequestError(`${name} must be an object`);
+    return value as Record<string, unknown>;
+}
+
 function only(value: Record<string, unknown>, allowed: readonly string[]): void {
     const unexpected = Object.keys(value).find((key) => !allowed.includes(key));
     if (unexpected) throw new PluginHostRequestError(`Unexpected request field ${unexpected}`);
 }
 
+function onlyBodyKeys(
+    body: Record<string, unknown>,
+    allowed: readonly string[],
+    name = "Request body",
+): void {
+    if (Object.keys(body).some((key) => !allowed.includes(key)))
+        throw new PluginHostRequestError(`${name} contains an unknown field`);
+}
+
+function requiredTrimmedString(value: unknown, name: string, maximum: number): string {
+    if (typeof value !== "string") throw new PluginHostRequestError(`${name} must be a string`);
+    const normalized = value.trim();
+    if (!normalized || normalized.length > maximum || hasControlCharacters(normalized))
+        throw new PluginHostRequestError(`${name} must contain 1-${maximum} characters`);
+    return normalized;
+}
+
+function requiredMessageText(value: unknown): string {
+    if (typeof value !== "string")
+        throw new PluginHostRequestError("initialMessage.text must be a string");
+    if (value.length > 40_000)
+        throw new PluginHostRequestError(
+            "initialMessage.text must contain at most 40000 characters",
+        );
+    if (!value.trim() || hasControlCharacters(value, true))
+        throw new PluginHostRequestError(
+            "initialMessage.text is empty or contains unsupported characters",
+        );
+    return value;
+}
+
+function hasControlCharacters(value: string, allowLineBreaks = false): boolean {
+    for (const character of value) {
+        const code = character.charCodeAt(0);
+        if (code === 127 || (code < 32 && !(allowLineBreaks && (code === 9 || code === 10))))
+            return true;
+    }
+    return false;
+}
+
+function requiredToken(value: unknown, name: string, maximum: number): string {
+    if (typeof value !== "string" || !value || value.length > maximum)
+        throw new PluginHostRequestError(`${name} must contain 1-${maximum} characters`);
+    return value;
+}
+
 function handled(reply: FastifyReply, error: unknown) {
     if (error instanceof PluginError)
         return reply
-            .code(error.code === "not_found" ? 404 : error.code === "forbidden" ? 403 : 400)
-            .send({ error: error.code, message: error.message });
+            .code(
+                error.code === "not_found"
+                    ? 404
+                    : error.code === "forbidden"
+                      ? 403
+                      : error.code === "not_ready"
+                        ? 503
+                        : error.code === "conflict"
+                          ? 409
+                          : 400,
+            )
+            .send({
+                error: error.code,
+                message: error.message,
+            });
     if (error instanceof CollaborationError)
         return reply
-            .code(error.code === "not_found" ? 404 : error.code === "forbidden" ? 403 : 400)
+            .code(
+                error.code === "not_found"
+                    ? 404
+                    : error.code === "forbidden"
+                      ? 403
+                      : error.code === "conflict"
+                        ? 409
+                        : 400,
+            )
             .send({ error: error.code, message: error.message });
     if (error instanceof PluginHostRequestError)
         return reply.code(400).send({ error: "invalid_request", message: error.message });

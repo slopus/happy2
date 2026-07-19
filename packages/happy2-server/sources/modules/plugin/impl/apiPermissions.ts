@@ -6,6 +6,13 @@ import {
 } from "../types.js";
 
 const definitions = {
+    "channels:manage": {
+        id: "channels:manage",
+        displayName: "Manage channels",
+        description: "Create channels and add or remove channel members.",
+        section: "channels",
+        access: "mutations",
+    },
     "chats:update": {
         id: "chats:update",
         displayName: "Update current chat",
@@ -67,6 +74,7 @@ export function pluginApiPermissionSections(
     const requested = permissions.map((permission) => definitions[permission]);
     return (
         [
+            { id: "channels", displayName: "Channels" },
             { id: "chats", displayName: "Chats" },
             { id: "plugins", displayName: "Plugins" },
         ] as const

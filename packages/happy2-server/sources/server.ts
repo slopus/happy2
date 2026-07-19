@@ -306,14 +306,6 @@ export async function buildServer(
             services.pluginArchiveDownloader ?? new NodePluginArchiveDownloader(webhookUrlPolicy),
             (error) => app.log.error(error),
         );
-        pluginHostApi = createPluginHostApi(executor, pluginService, supplied?.logger ?? true);
-        pluginHostApis.set(app, pluginHostApi);
-        app.addHook("onListen", async () => {
-            await pluginHostApi!.listen({
-                host: config.plugins.hostApiHost,
-                port: config.plugins.hostApiPort,
-            });
-        });
         agentService =
             services.agents ??
             (config.agents.enabled
@@ -327,6 +319,19 @@ export async function buildServer(
                       (error) => app.log.error(error),
                   )
                 : undefined);
+        pluginHostApi = createPluginHostApi(
+            executor,
+            pluginService,
+            supplied?.logger ?? true,
+            agentService,
+        );
+        pluginHostApis.set(app, pluginHostApi);
+        app.addHook("onListen", async () => {
+            await pluginHostApi!.listen({
+                host: config.plugins.hostApiHost,
+                port: config.plugins.hostApiPort,
+            });
+        });
         registerSetupRoutes(app, auth, executor, livePubsub, sandboxProviderCatalog, agentService);
         pluginBridge = new PluginMcpHttpBridge(pluginService, (error) => app.log.error(error));
         fileStorage = services.fileStorage ?? new FileStorage(config, executor);

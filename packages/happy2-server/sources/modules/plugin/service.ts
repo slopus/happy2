@@ -12,6 +12,9 @@ import type { WebhookUrlPolicy } from "../integrations/ssrf.js";
 import type { WebhookTransport } from "../integrations/types.js";
 import type { TokenService } from "../auth/tokens.js";
 import { chatUpdateMetadata, type ChatMetadataSummary } from "../chat/chatUpdateMetadata.js";
+import { channelCreateWithMembers } from "../chat/channelCreateWithMembers.js";
+import { channelMembersUpdate } from "../chat/channelMembersUpdate.js";
+import { messageSend } from "../message/messageSend.js";
 import { pluginInstall } from "./pluginInstall.js";
 import { pluginFindBySource } from "./pluginFindBySource.js";
 import { pluginGetSource } from "./pluginGetSource.js";
@@ -69,6 +72,7 @@ import {
     type PluginFunctionDefinition,
     type PluginFunctionResult,
     type PluginAgentCallContext,
+    type PluginCallContext,
     type PluginHostPermission,
     type PluginInstallationSummary,
     type PluginPackage,
@@ -76,6 +80,7 @@ import {
     type PluginManagementRequestSummary,
     type PluginRuntimeConfiguration,
     type PluginSkillDefinition,
+    type PluginUserCapability,
     type PluginUpdateCheck,
 } from "./types.js";
 
@@ -86,6 +91,16 @@ const MAX_RIG_PLUGIN_FUNCTIONS = 128;
 const MAX_RIG_PLUGIN_SKILLS = 128;
 const PREPARATION_TTL_MS = 15 * 60_000;
 const PLUGIN_CHAT_META_KEY = "happy2/chat";
+const PLUGIN_USERS_META_KEY = "happy2/users";
+
+interface PluginAgentRuntime {
+    prepareTurns(input: {
+        actorUserId: string;
+        agentUserIds: readonly string[];
+        chatId: string;
+    }): Promise<Array<{ agentUserId: string; sessionId: string }>>;
+    startTurn(chatId: string): void;
+}
 
 interface PreparedPlugin {
     actorUserId: string;
@@ -853,7 +868,7 @@ export class PluginService {
     async callFunction(
         functionName: string,
         args: unknown,
-        context: { chatId: string; sessionId: string; callId: string },
+        context: PluginCallContext,
         signal?: AbortSignal,
     ): Promise<PluginFunctionResult> {
         try {
@@ -890,7 +905,7 @@ export class PluginService {
     private async callFunctionWithSignal(
         functionName: string,
         args: unknown,
-        context: { chatId: string },
+        context: PluginCallContext,
         agentCall: PluginAgentCallContext,
         signal: AbortSignal,
     ): Promise<PluginFunctionResult> {
@@ -912,7 +927,18 @@ export class PluginService {
         const chatToken = await this.tokens.issuePluginChatToken({
             installationId,
             chatId: context.chatId,
+            actorUserId: context.triggeredByUserId,
+            agentUserId: context.agentUserId,
         });
+        const referencedUsers = await Promise.all(
+            context.users.map(async (user) => ({
+                ...user,
+                token: await this.tokens.issuePluginUserToken({
+                    installationId,
+                    userId: user.id,
+                }),
+            })),
+        );
         const result = await this.withClient(installationId, signal, agentCall, async (client) => {
             const result = await client.callTool({
                 name: cached.name,
@@ -921,7 +947,9 @@ export class PluginService {
                     [PLUGIN_CHAT_META_KEY]: {
                         id: context.chatId,
                         token: chatToken,
+                        triggeredByUserId: context.triggeredByUserId,
                     },
+                    [PLUGIN_USERS_META_KEY]: referencedUsers,
                 },
             });
             if (result.isError)
@@ -1016,15 +1044,7 @@ export class PluginService {
         chatToken: string,
         input: { title?: string; description?: string | null },
     ): Promise<{ chat: ChatMetadataSummary; sync: MutationHint }> {
-        const { installationId } = await this.authorizeHost(runtimeToken, "chats:update");
-        let claims: Awaited<ReturnType<TokenService["verifyPluginChatToken"]>>;
-        try {
-            claims = await this.tokens.verifyPluginChatToken(chatToken);
-        } catch {
-            throw new PluginError("forbidden", "Plugin chat token is invalid");
-        }
-        if (claims.installationId !== installationId)
-            throw new PluginError("forbidden", "Plugin chat token belongs to another installation");
+        const claims = await this.authorizeChat(runtimeToken, chatToken, "chats:update");
         const result = await chatUpdateMetadata(this.executor, {
             chatId: claims.chatId,
             ...input,
@@ -1038,6 +1058,155 @@ export class PluginService {
                 if (publication.status === "rejected") this.onError(publication.reason);
         });
         return { chat: result.chat, sync: result.hint };
+    }
+
+    async channelMembersUpdate(
+        runtimeToken: string,
+        chatToken: string,
+        input: { add: readonly PluginUserCapability[]; remove: readonly PluginUserCapability[] },
+    ): Promise<{
+        addedUserIds: string[];
+        chatId: string;
+        removedUserIds: string[];
+        sync: MutationHint[];
+    }> {
+        const claims = await this.authorizeChat(runtimeToken, chatToken, "channels:manage");
+        const [addUserIds, removeUserIds] = await Promise.all([
+            this.authorizeUsers(claims.installationId, input.add),
+            this.authorizeUsers(claims.installationId, input.remove),
+        ]);
+        const result = await channelMembersUpdate(this.executor, {
+            actorUserId: claims.actorUserId,
+            chatId: claims.chatId,
+            addUserIds,
+            removeUserIds,
+        });
+        await this.publishHints(result.hints, [...addUserIds, ...removeUserIds]);
+        return {
+            chatId: claims.chatId,
+            addedUserIds: addUserIds,
+            removedUserIds: removeUserIds,
+            sync: result.hints,
+        };
+    }
+
+    async channelCreate(
+        runtimeToken: string,
+        chatToken: string,
+        input: {
+            name: string;
+            description?: string;
+            idempotencyKey?: string;
+            members: readonly PluginUserCapability[];
+            initialMessage?: { audience: "agents" | "people"; text: string };
+        },
+        agents?: PluginAgentRuntime,
+    ) {
+        const claims = await this.authorizeChat(runtimeToken, chatToken, "channels:manage");
+        const memberUserIds = await this.authorizeUsers(claims.installationId, input.members);
+        const clientMutationId = input.idempotencyKey
+            ? `${claims.installationId}:${input.idempotencyKey}`
+            : undefined;
+        if (input.initialMessage?.audience === "agents" && !agents)
+            throw new PluginError("not_ready", "AI agents are not enabled on this server");
+        const created = await channelCreateWithMembers(this.executor, {
+            actorUserId: claims.actorUserId,
+            name: input.name,
+            slug: pluginChannelSlug(input.name),
+            topic: input.description,
+            memberUserIds,
+            clientMutationId,
+            ...(input.initialMessage?.audience === "agents"
+                ? { defaultAgentUserId: claims.agentUserId }
+                : {}),
+        });
+        const hints = [...created.hints];
+        let initialMessage;
+        if (input.initialMessage) {
+            const agentTurns =
+                input.initialMessage.audience === "agents"
+                    ? await agents!.prepareTurns({
+                          actorUserId: claims.actorUserId,
+                          agentUserIds: [],
+                          chatId: created.chat.id,
+                      })
+                    : [];
+            const sent = await messageSend(this.executor, {
+                actorUserId: claims.actorUserId,
+                chatId: created.chat.id,
+                text: input.initialMessage.text,
+                audience: input.initialMessage.audience,
+                agentTurns,
+                clientMutationId,
+            });
+            initialMessage = sent.message;
+            hints.push(sent.hint);
+            if (agentTurns.length) agents!.startTurn(created.chat.id);
+        }
+        await this.publishHints(hints, [claims.actorUserId, ...memberUserIds]);
+        return {
+            chat: created.chat,
+            ...(initialMessage ? { initialMessage } : {}),
+            sync: hints,
+        };
+    }
+
+    private async authorizeChat(
+        runtimeToken: string,
+        chatToken: string,
+        permission: PluginHostPermission,
+    ) {
+        const { installationId } = await this.authorizeHost(runtimeToken, permission);
+        let claims: Awaited<ReturnType<TokenService["verifyPluginChatToken"]>>;
+        try {
+            claims = await this.tokens.verifyPluginChatToken(chatToken);
+        } catch {
+            throw new PluginError("forbidden", "Plugin chat token is invalid");
+        }
+        if (claims.installationId !== installationId)
+            throw new PluginError("forbidden", "Plugin chat token belongs to another installation");
+        return claims;
+    }
+
+    private async authorizeUsers(
+        installationId: string,
+        capabilities: readonly PluginUserCapability[],
+    ): Promise<string[]> {
+        return Promise.all(
+            capabilities.map(async (capability) => {
+                let claims: Awaited<ReturnType<TokenService["verifyPluginUserToken"]>>;
+                try {
+                    claims = await this.tokens.verifyPluginUserToken(capability.token);
+                } catch {
+                    throw new PluginError("forbidden", "Plugin user token is invalid");
+                }
+                if (claims.installationId !== installationId)
+                    throw new PluginError(
+                        "forbidden",
+                        "Plugin user token belongs to another installation",
+                    );
+                if (claims.userId !== capability.id)
+                    throw new PluginError("forbidden", "Plugin user token belongs to another user");
+                return claims.userId;
+            }),
+        );
+    }
+
+    private async publishHints(hints: readonly MutationHint[], userIds: readonly string[]) {
+        const publications: Promise<void>[] = [];
+        for (const hint of hints) {
+            const event = { type: "sync" as const, ...hint };
+            const topics = new Set([
+                realtimeTopics.server,
+                ...hint.chats.map(({ chatId }) => realtimeTopics.chat(chatId)),
+                ...userIds.map((userId) => realtimeTopics.user(userId)),
+            ]);
+            for (const topic of topics) publications.push(this.pubsub.publish(topic, event));
+        }
+        await Promise.allSettled(publications).then((results) => {
+            for (const result of results)
+                if (result.status === "rejected") this.onError(result.reason);
+        });
     }
 
     async close(): Promise<void> {
@@ -1529,6 +1698,18 @@ function pluginFunctionName(installationId: string, toolName: string): string {
         .slice(0, 64);
     const digest = createHash("sha256").update(toolName).digest("hex").slice(0, 16);
     return `plugin_${installationId}_${normalized || "tool"}_${digest}`;
+}
+
+function pluginChannelSlug(name: string): string {
+    const suffix = createId();
+    const base = name
+        .normalize("NFKD")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 63 - suffix.length)
+        .replace(/-+$/g, "");
+    return `${base || "channel"}-${suffix}`;
 }
 
 function pluginFunctionInstallationId(functionName: string): string | undefined {

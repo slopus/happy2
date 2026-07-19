@@ -39,14 +39,39 @@ describe("plugin runtime capability tokens", () => {
         const token = await tokens.issuePluginChatToken({
             installationId: "chat-management-installation",
             chatId: "current-chat",
+            actorUserId: "requesting-user",
+            agentUserId: "working-agent",
         });
 
         expect(decodeJwt(token)).not.toHaveProperty("exp");
         await expect(tokens.verifyPluginChatToken(token)).resolves.toEqual({
             installationId: "chat-management-installation",
             chatId: "current-chat",
+            actorUserId: "requesting-user",
+            agentUserId: "working-agent",
         });
         await expect(tokens.verifyPluginRuntimeToken(token)).rejects.toThrow();
+    });
+
+    it("issues non-expiring user capabilities bound to one plugin installation", async () => {
+        const config = defaultConfig();
+        const keys = generateKeyPairSync("rsa", {
+            modulusLength: 2048,
+            publicKeyEncoding: { type: "spki", format: "pem" },
+            privateKeyEncoding: { type: "pkcs8", format: "pem" },
+        });
+        const tokens = await TokenService.create(config, keys);
+        const token = await tokens.issuePluginUserToken({
+            installationId: "chat-management-installation",
+            userId: "referenced-user",
+        });
+
+        expect(decodeJwt(token)).not.toHaveProperty("exp");
+        await expect(tokens.verifyPluginUserToken(token)).resolves.toEqual({
+            installationId: "chat-management-installation",
+            userId: "referenced-user",
+        });
+        await expect(tokens.verifyPluginChatToken(token)).rejects.toThrow();
     });
 
     it("round-trips the bounded agent-call context separately from a user session", async () => {

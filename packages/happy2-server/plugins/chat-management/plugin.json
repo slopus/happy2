@@ -1,13 +1,13 @@
 {
     "schemaVersion": 1,
-    "version": "1.0.0",
+    "version": "1.1.0",
     "displayName": "Chat Management",
     "shortName": "chat-management",
-    "description": "Lets an agent update the title and description of its current chat.",
+    "description": "Lets an agent update its current chat, manage channel members, and create new channels with an initial people or agent message.",
     "variables": [],
     "container": {
         "dockerfile": "container/Dockerfile",
-        "permissions": ["chats:update"]
+        "permissions": ["chats:update", "channels:manage"]
     },
     "mcp": {
         "type": "stdio",

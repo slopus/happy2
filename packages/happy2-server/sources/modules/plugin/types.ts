@@ -30,6 +30,7 @@ export interface PluginRemoteMcp {
 export type PluginMcp = PluginStdioMcp | PluginRemoteMcp;
 
 export type PluginHostPermission =
+    | "channels:manage"
     | "chats:update"
     | "plugins:list"
     | "plugins:install"
@@ -37,6 +38,7 @@ export type PluginHostPermission =
     | "plugins:request-install"
     | "plugins:request-uninstall";
 export const pluginHostPermissions: readonly PluginHostPermission[] = [
+    "channels:manage",
     "chats:update",
     "plugins:list",
     "plugins:install",
@@ -52,12 +54,11 @@ export interface PluginApiPermissionDefinition {
 }
 
 export interface PluginApiPermissionSection {
-    id: "chats" | "plugins";
+    id: "channels" | "chats" | "plugins";
     displayName: string;
     readOnly: PluginApiPermissionDefinition[];
     mutations: PluginApiPermissionDefinition[];
 }
-
 export interface PluginContainer {
     dockerfile?: string;
     command?: string;
@@ -205,6 +206,29 @@ export interface PluginManagementRequestSummary {
     resolvedByUserId?: string;
     installationId?: string;
     lastError?: string;
+}
+
+export interface PluginReferencedUser {
+    id: string;
+    username: string;
+    firstName: string;
+    lastName?: string;
+    kind: "human" | "agent";
+    triggeredTurn: boolean;
+}
+
+export interface PluginCallContext {
+    agentUserId: string;
+    callId: string;
+    chatId: string;
+    sessionId: string;
+    triggeredByUserId: string;
+    users: readonly PluginReferencedUser[];
+}
+
+export interface PluginUserCapability {
+    id: string;
+    token: string;
 }
 
 export type PluginFunctionResult =

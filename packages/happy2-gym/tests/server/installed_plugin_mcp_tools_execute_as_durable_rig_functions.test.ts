@@ -73,7 +73,16 @@ describe("installed plugin MCP tools in agent runs", () => {
                     "happy2/chat": {
                         id: chatId,
                         token: expect.any(String),
+                        triggeredByUserId: owner.id,
                     },
+                    "happy2/users": [
+                        expect.objectContaining({
+                            id: owner.id,
+                            username: "plugin_function_owner",
+                            triggeredTurn: true,
+                            token: expect.any(String),
+                        }),
+                    ],
                 },
             },
         ]);
