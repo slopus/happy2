@@ -186,10 +186,12 @@ it("caps a taller-than-window card inside the gutter so its body scrolls, not th
      * it reads as a floating dialog rather than a full-height panel. */
     expect(Math.abs(topGap - bottomGap)).toBeLessThanOrEqual(0.5);
     expect(topGap).toBeGreaterThan(36);
-    /* Capped at 88% of the safe box (460 - 48 = 412): a clear slice stays free. */
+    /* Capped 80px under the safe box (460 - 48 = 412 → 332): a clear slice
+     * stays free, and the resolved height is a whole pixel for an integer
+     * window so the card's hairlines land on physical pixels at 2×. */
     const safeBox = overlayBounds.height - 48;
-    expect(dialogBounds.height).toBeLessThanOrEqual(safeBox * 0.88 + 1);
-    expect(dialogBounds.height).toBeGreaterThan(safeBox * 0.88 - 2);
+    expect(dialogBounds.height).toBe(safeBox - 80);
+    expect(Number.isInteger(dialogBounds.height)).toBe(true);
     /* ---- The body scrolls; the header/footer stay pinned and unclipped ---- */
     const bodyEl = body.element as HTMLElement;
     /* Overflowing content lives in the body's scroll region, not off-window. */

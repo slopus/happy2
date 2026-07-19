@@ -27,24 +27,18 @@ export function chatChannelModelCreate(options: ChatChannelModelOptions) {
         const id = options.activeChatId();
         if (id) void options.actions.chatStarSet(id, !starred()).catch(options.onError);
     }
+    // Details and starring have dedicated header buttons beside the menu, so
+    // the menu holds only the actions with no other affordance; an empty list
+    // means the host should not render a menu at all.
     function menuItems(): MenuItem[] {
         const chat = options.activeChat();
-        return [
-            { icon: "eye", id: "details", kind: "item", label: "View details" },
-            {
-                icon: "star",
-                id: "star",
-                kind: "item",
-                label: starred() ? "Unstar" : "Star channel",
-            },
-            ...(options.canEdit()
-                ? ([
-                      { icon: "settings", id: "edit", kind: "item", label: "Edit settings" },
-                  ] satisfies MenuItem[])
-                : []),
-            ...(chat?.kind !== "dm" && chat?.membershipRole && !chat.isMain
-                ? ([
-                      { kind: "separator" },
+        const edit: MenuItem[] = options.canEdit()
+            ? [{ icon: "settings", id: "edit", kind: "item", label: "Edit settings" }]
+            : [];
+        const leave: MenuItem[] =
+            chat?.kind !== "dm" && chat?.membershipRole && !chat.isMain
+                ? [
+                      ...(edit.length ? ([{ kind: "separator" }] satisfies MenuItem[]) : []),
                       {
                           danger: true,
                           icon: "close",
@@ -52,9 +46,9 @@ export function chatChannelModelCreate(options: ChatChannelModelOptions) {
                           kind: "item",
                           label: "Leave channel",
                       },
-                  ] satisfies MenuItem[])
-                : []),
-        ];
+                  ]
+                : [];
+        return [...edit, ...leave];
     }
     function menuSelect(id: string) {
         if (id === "details" || id === "edit") options.onInfoOpen();

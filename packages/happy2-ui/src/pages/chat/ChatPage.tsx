@@ -935,7 +935,11 @@ export function ChatPage(props: ChatPageProps) {
                         activeChat() &&
                         !activeChat()?.membershipRole,
                     )}
-                    menuItems={activeConversationId() ? channelModel.menuItems() : undefined}
+                    menuItems={
+                        activeConversationId() && channelModel.menuItems().length > 0
+                            ? channelModel.menuItems()
+                            : undefined
+                    }
                     messageEntries={[
                         ...conversationEntries().map((entry, index, list) =>
                             renderEntry(entry, index, list),

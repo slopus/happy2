@@ -55,16 +55,19 @@
  * definite 24px-gutter content box. Cards that host themselves directly
  * (Lightbox, the editor panel) bound their own height and are untouched.
  *
- * A tall card is capped at min(88%, 760px) of that box, never the full height:
- * it always keeps a clear margin above and below so it reads as a floating
- * dialog rather than a full-height panel, and its own body (overflow:auto)
- * scrolls the overflow while the header and footer stay pinned. A short card
- * is left at its content height and centered.
+ * A tall card is capped at min(calc(100% - 80px), 760px) of that box, never
+ * the full height: it always keeps at least a 40px clear margin above and
+ * below inside the gutter box, so it reads as a floating dialog rather than
+ * a full-height panel, and its own body (overflow:auto) scrolls the overflow
+ * while the header and footer stay pinned. A short card is left at its
+ * content height and centered. The clearance form (rather than a percentage)
+ * keeps every resolved height on whole CSS pixels for integer window sizes,
+ * so the card's 1px hairlines land on physical pixels at 2×.
  */
 .happy2-modal-overlay > .happy2-modal {
     display: contents;
 }
 
 .happy2-modal-overlay > .happy2-modal > .happy2-modal__dialog {
-    max-height: min(88%, 760px);
+    max-height: min(calc(100% - 80px), 760px);
 }

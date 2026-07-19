@@ -44,11 +44,14 @@ export function DesktopFileOverlay(props: DesktopFileOverlayProps) {
                     snapshot.files.find((candidate) => candidate.id === props.fileId);
                 return (
                     <ModalOverlay onDismiss={props.onClose}>
+                        {/* The attachment row below carries the filename (it is the
+                            download affordance), so the title names only the kind —
+                            no duplicated filename in one small card. */}
                         <Modal
                             icon="doc"
                             onClose={props.onClose}
                             size="large"
-                            title={file()?.originalName ?? "File"}
+                            title={kindTitle(file()?.kind)}
                         >
                             {downloadError ? (
                                 <Banner tone="danger" title="Download failed">
@@ -71,6 +74,18 @@ export function DesktopFileOverlay(props: DesktopFileOverlayProps) {
             }}
         </StoreSurface>
     );
+}
+function kindTitle(kind?: string): string {
+    switch (kind) {
+        case "photo":
+            return "Photo";
+        case "video":
+            return "Video";
+        case "gif":
+            return "GIF";
+        default:
+            return "File";
+    }
 }
 function formatBytes(size: number): string {
     if (size < 1024) return `${size} B`;

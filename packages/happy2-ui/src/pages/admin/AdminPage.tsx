@@ -230,11 +230,11 @@ function adminPageContent(
                                         description={
                                             needle
                                                 ? "Try a different search term."
-                                                : `The server returned no ${tab()}.`
+                                                : `Workspace ${tab()} will appear here.`
                                         }
                                         icon="search"
                                         size="inline"
-                                        title={needle ? "No matches" : "Nothing here"}
+                                        title={needle ? "No matches" : `No ${tab()} yet`}
                                     />
                                 }
                                 rows={rows}
