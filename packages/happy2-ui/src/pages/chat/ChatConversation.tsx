@@ -1,7 +1,6 @@
 import { useRef, type ReactNode } from "react";
-import type { AgentActivityState, DeepReadonly, DirectoryUserProjection } from "happy2-state";
+import type { AgentActivityState, DeepReadonly } from "happy2-state";
 import {
-    AgentActivityIndicator,
     AgentActivityStrip,
     Box,
     Button,
@@ -16,7 +15,7 @@ import {
 } from "./ChatPageComponents.js";
 import type { TerminalSnapshot } from "happy2-state";
 import type { AudienceValue } from "../../AudienceToggle.js";
-import { emojiItems, identityInitials, toneFor, type Conversation } from "./chatPageModels.js";
+import { emojiItems, type Conversation } from "./chatPageModels.js";
 export interface ChatConversationProps {
     conversation: Conversation;
     activeConversationId: string;
@@ -27,7 +26,6 @@ export interface ChatConversationProps {
     messageEntries: ReactNode;
     activities: readonly DeepReadonly<AgentActivityState>[];
     activityNow: number;
-    directoryUsers: readonly DeepReadonly<DirectoryUserProjection>[];
     contextItems: ContextItem[];
     composerAgentOptions?: ComposerAgent[];
     composerAudience?: AudienceValue;
@@ -125,36 +123,6 @@ export function ChatConversation(props: ChatConversationProps) {
                     padding: "0 20px 16px",
                 }}
             >
-                {props.activities.length > 0 ? (
-                    <Box
-                        style={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: "8px",
-                        }}
-                    >
-                        {props.activities.map((activity) => {
-                            const actor = () =>
-                                props.directoryUsers.find(
-                                    (person) => person.id === activity.agentUserId,
-                                );
-                            return (
-                                <AgentActivityIndicator
-                                    elapsedSeconds={Math.max(
-                                        0,
-                                        Math.floor((props.activityNow - activity.startedAt) / 1000),
-                                    )}
-                                    initials={actor() ? identityInitials(actor()!) : "AI"}
-                                    key={`${activity.agentUserId}-${activity.startedAt}`}
-                                    name={actor()?.displayName ?? "Agent"}
-                                    phase={activity.phase}
-                                    tokenCount={activity.tokenCount}
-                                    tone={toneFor(activity.agentUserId)}
-                                />
-                            );
-                        })}
-                    </Box>
-                ) : null}
                 {props.activities.length > 0 ? (
                     <AgentActivityStrip
                         now={props.activityNow}

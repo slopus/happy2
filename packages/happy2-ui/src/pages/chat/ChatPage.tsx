@@ -879,7 +879,6 @@ export function ChatPage(props: ChatPageProps) {
                     terminalHeight={terminalHeight}
                     contextItems={composerContext}
                     conversation={conversation}
-                    directoryUsers={directoryUsers()}
                     joinVisible={Boolean(
                         activeChat()?.kind !== "dm" &&
                         activeChat() &&

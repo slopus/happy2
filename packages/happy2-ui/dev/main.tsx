@@ -2,7 +2,6 @@ import { Fragment, useLayoutEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import "../src/index";
 import "./workbench.css";
-import { AgentActivityIndicatorPage } from "./pages/AgentActivityIndicatorPage";
 import { AgentActivityStripPage } from "./pages/AgentActivityStripPage";
 import { AgentDeskPage } from "./pages/AgentDeskPage";
 import { AgentTracePanelPage } from "./pages/AgentTracePanelPage";
@@ -184,12 +183,6 @@ const components: BlueprintPage[] = [
     },
     { id: "fade", label: "Fade", number: "C-057", page: FadePage },
     { id: "modal-overlay", label: "Modal overlay", number: "C-058", page: ModalOverlayPage },
-    {
-        id: "agent-activity-indicator",
-        label: "Agent activity indicator",
-        number: "C-059",
-        page: AgentActivityIndicatorPage,
-    },
     { id: "command-palette", label: "Command palette", number: "C-060", page: CommandPalettePage },
     {
         id: "onboarding-screen",

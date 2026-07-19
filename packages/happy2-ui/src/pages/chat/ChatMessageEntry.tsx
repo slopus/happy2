@@ -61,7 +61,14 @@ export function ChatMessageEntry(props: ChatMessageEntryProps): ReactNode {
         >
             {entry.agentTrace ? (
                 <AgentTraceRow
-                    detail={entry.agentTrace.latest?.detail}
+                    // A running response streams into the message body directly
+                    // above this row, so echoing its text here only duplicates
+                    // the message; every other kind carries genuinely new info.
+                    detail={
+                        entry.agentTrace.latest?.kind === "response"
+                            ? undefined
+                            : entry.agentTrace.latest?.detail
+                    }
                     entryCount={entry.agentTrace.entryCount}
                     kind={entry.agentTrace.latest?.kind}
                     onOpen={props.onTraceSelect ? () => props.onTraceSelect!(entry) : undefined}

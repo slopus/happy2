@@ -209,15 +209,13 @@ it("holds AgentTraceRow geometry, states, icon mapping, and click behavior", asy
         "text-overflow": "ellipsis",
         "white-space": "nowrap",
     });
-    const count = view.$('[data-testid="tr-running"] [data-happy2-ui="agent-trace-row-count"]');
-    expect(count.element.textContent).toBe("12");
-    expect(count.computedStyles(["color", "font-family", "font-variant-numeric"])).toEqual({
-        color: "rgb(117, 112, 133)",
-        "font-family": monoFamily(),
-        "font-variant-numeric": "lining-nums tabular-nums",
-    });
-    /* Count pinned to the trailing edge: 8px padding + the 1px border. */
-    expect(Math.abs(count.offsets().right - 9)).toBeLessThanOrEqual(0.5);
+    /* Running rows carry no counter: the churning number was pure noise while
+     * the turn streams; the step count appears once the row settles. */
+    expect(
+        view.container.querySelector(
+            '[data-testid="tr-running"] [data-happy2-ui="agent-trace-row-count"]',
+        ),
+    ).toBeNull();
 
     /* ---- Declared 8px gaps between adjacent children ---------------------- */
 
@@ -226,23 +224,17 @@ it("holds AgentTraceRow geometry, states, icon mapping, and click behavior", asy
     expect(icon.bounds().x - (dot.bounds().x + dot.bounds().width)).toBeCloseTo(8, 1);
     expect(title.bounds().x - (icon.bounds().x + icon.bounds().width)).toBeCloseTo(8, 1);
     expect(detail.bounds().x - (title.bounds().x + title.bounds().width)).toBeCloseTo(8, 1);
-    /* Without a detail, the remaining title→count pair keeps at least the gap
-     * (the count's auto margin pins it right). */
-    const subagentTitle = view.$(
-        '[data-testid="tr-subagent"] [data-happy2-ui="agent-trace-row-title"]',
-    );
-    const subagentCount = view.$(
-        '[data-testid="tr-subagent"] [data-happy2-ui="agent-trace-row-count"]',
-    );
+    /* A running row without a detail renders only dot, glyph, and title. */
     expect(
         view.container.querySelector(
             '[data-testid="tr-subagent"] [data-happy2-ui="agent-trace-row-detail"]',
         ),
     ).toBeNull();
     expect(
-        subagentCount.bounds().x - (subagentTitle.bounds().x + subagentTitle.bounds().width),
-    ).toBeGreaterThanOrEqual(8);
-    expect(Math.abs(subagentCount.offsets().right - 9)).toBeLessThanOrEqual(0.5);
+        view.container.querySelector(
+            '[data-testid="tr-subagent"] [data-happy2-ui="agent-trace-row-count"]',
+        ),
+    ).toBeNull();
 
     /* ---- Settled rows: View trace link with step count -------------------- */
 
@@ -286,11 +278,11 @@ it("holds AgentTraceRow geometry, states, icon mapping, and click behavior", asy
     expect(narrowDetail.element.scrollWidth, "narrow detail truncates").toBeGreaterThan(
         narrowDetail.element.clientWidth,
     );
-    const narrowCount = view.$(
-        '[data-testid="tr-narrow"] [data-happy2-ui="agent-trace-row-count"]',
-    );
-    expect(narrowCount.element.textContent).toBe("23");
-    expect(Math.abs(narrowCount.offsets().right - 9)).toBeLessThanOrEqual(0.5);
+    expect(
+        view.container.querySelector(
+            '[data-testid="tr-narrow"] [data-happy2-ui="agent-trace-row-count"]',
+        ),
+    ).toBeNull();
 
     await view.screenshot("AgentTraceRow.test");
 }, 120_000);

@@ -39,12 +39,13 @@ export function agentTraceKindIcon(kind: AgentTraceRowKind): IconName {
 }
 /**
  * C-067 AgentTraceRow — a compact, single-line 28px button row rendered inside
- * an assistant message. While the turn runs it shows the latest activity: a
- * static accent dot (no animation), the kind glyph, a title, mono detail, and
- * the entry count. Once the turn completes or fails it reads as a "View trace"
- * link row with the step count. Clicking fires `onOpen`; `aria-expanded`
- * reflects whether the trace panel currently shows this turn. Props only — no
- * local state, timers, or animation.
+ * an assistant message. While the turn runs it shows only the latest activity:
+ * a static accent dot (no animation), the kind glyph, a title, and mono detail
+ * when that detail is not already visible elsewhere — no counter churn. Once
+ * the turn completes or fails it reads as a "View trace" link row with the
+ * step count. Clicking fires `onOpen`; `aria-expanded` reflects whether the
+ * trace panel currently shows this turn. Props only — no local state, timers,
+ * or animation.
  */
 export function AgentTraceRow(props: AgentTraceRowProps) {
     const [local] = partitionComponentProps(props, [
@@ -100,9 +101,14 @@ export function AgentTraceRow(props: AgentTraceRowProps) {
                     {local.detail}
                 </span>
             ) : null}
-            <span className="happy2-agent-trace-row__count" data-happy2-ui="agent-trace-row-count">
-                {running() ? String(local.entryCount) : `${local.entryCount} steps`}
-            </span>
+            {running() ? null : (
+                <span
+                    className="happy2-agent-trace-row__count"
+                    data-happy2-ui="agent-trace-row-count"
+                >
+                    {`${local.entryCount} steps`}
+                </span>
+            )}
         </button>
     );
 }

@@ -48,18 +48,6 @@
     padding: 8px 10px 0;
 }
 
-.happy2-composer__agents-label {
-    margin-right: 2px;
-    color: var(--happy2-text-faint);
-    font-family: var(--happy2-font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 24px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-
 /*
  * The 24px chip holds a 20px xs agent avatar (radius 6). A 1px border plus
  * 1px padding gives a uniform 2px border-box inset on the avatar side, so the

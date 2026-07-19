@@ -551,14 +551,11 @@ export function Composer(props: ComposerProps) {
                     />
                 </div>
             ) : null}
+            {/* The active Agents audience toggle below already names this mode,
+                so the row carries only the recipient chips and the add action —
+                no repeated "To agents" caption. */}
             {audienceEnabled() && props.audience === "agents" ? (
                 <div className="happy2-composer__agents" data-happy2-ui="composer-agents">
-                    <span
-                        className="happy2-composer__agents-label"
-                        data-happy2-ui="composer-agents-label"
-                    >
-                        To agents
-                    </span>
                     {props.defaultAgent ? (
                         <span
                             className="happy2-composer__agent-chip"

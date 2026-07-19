@@ -1278,13 +1278,11 @@ it("projects live subagents and terminals into the strip with stable row identit
     expect(composerRect.height).toBeGreaterThan(0);
     expect(document.activeElement).toBe(textarea);
 
-    // The production footer column owns the sibling spacing: the pills row,
-    // the capped strip, and the composer keep the declared 8px gaps.
-    const pillsRow = maxStrip.previousElementSibling!;
-    expect(pillsRow.querySelector('[data-happy2-ui="agent-activity"]')).not.toBeNull();
-    expect(
-        maxStrip.getBoundingClientRect().top - pillsRow.getBoundingClientRect().bottom,
-    ).toBeCloseTo(8, 1);
+    // The production footer column owns the sibling spacing: the capped strip
+    // and the composer keep the declared 8px gap, and no per-agent typing pill
+    // row precedes the strip (that signal lives in the composer hint and the
+    // in-message trace row).
+    expect(view.container.querySelector('[data-happy2-ui="agent-activity"]')).toBeNull();
     const composerCard = view.container.querySelector<HTMLElement>('[data-happy2-ui="composer"]')!;
     expect(
         composerCard.getBoundingClientRect().top - maxStrip.getBoundingClientRect().bottom,

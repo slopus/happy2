@@ -1,4 +1,3 @@
-export { AgentActivityIndicator } from "../../AgentActivityIndicator.js";
 export {
     AgentActivityStrip,
     type AgentActivityStripSubagent,
