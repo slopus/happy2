@@ -30,7 +30,9 @@
     },
     "devDependencies": {
         "@fontsource-variable/jetbrains-mono": "^5.2.8",
+        "@slopus/ghostty-web": "0.1.0",
         "@types/node": "^26.1.1",
+        "@types/ws": "^8.18.1",
         "@types/yazl": "^3.3.1",
         "@vitest/browser-playwright": "^4.1.10",
         "@vitest/coverage-v8": "^4.1.10",
@@ -41,6 +43,7 @@
         "typescript": "^7.0.2",
         "vite": "^8.1.4",
         "vitest": "^4.1.10",
+        "ws": "^8.21.1",
         "yazl": "^3.3.1"
     },
     "engines": {

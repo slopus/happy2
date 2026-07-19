@@ -1,10 +1,14 @@
 import { access } from "node:fs/promises";
 import { join } from "node:path";
-import Fastify from "fastify";
+import Fastify, { type FastifyRequest } from "fastify";
 import proxy from "@fastify/http-proxy";
 import staticFiles from "@fastify/static";
+import type { ClientOptions } from "ws";
 import type { RunningHappy2 } from "./backend.js";
 import { authenticationCookieName } from "./modules/auth/metadata.js";
+
+const MAX_TERMINAL_WIRE_BYTES = 4 * 1024 * 1024 + 20;
+const TERMINAL_AUTH_PROTOCOL_PREFIX = "happy2-auth.";
 
 export interface WebOptions {
     backendUrl: string;
@@ -45,6 +49,16 @@ export async function startWebHappy2(options: WebOptions): Promise<RunningHappy2
             prefix: "/v0",
             rewritePrefix: "/v0",
             httpMethods: ["GET", "POST"],
+            websocket: true,
+            wsServerOptions: {
+                maxPayload: MAX_TERMINAL_WIRE_BYTES,
+                perMessageDeflate: false,
+            },
+            wsClientOptions: {
+                maxPayload: MAX_TERMINAL_WIRE_BYTES,
+                perMessageDeflate: false,
+                rewriteRequestHeaders: terminalProxyRequestHeaders,
+            } as ClientOptions,
             replyOptions: {
                 rewriteRequestHeaders: (request, headers) => {
                     const forwarded = { ...headers };
@@ -129,6 +143,32 @@ function authenticationCookie(token: string, secure: boolean): string {
         "Max-Age=34560000",
         ...(secure ? ["Secure"] : []),
     ].join("; ");
+}
+
+function terminalProxyRequestHeaders(
+    headers: NonNullable<ClientOptions["headers"]>,
+    request: FastifyRequest,
+): NonNullable<ClientOptions["headers"]> {
+    const bearer = terminalBearerProtocol(request.headers["sec-websocket-protocol"]);
+    return {
+        ...headers,
+        ...(typeof request.headers.authorization === "string"
+            ? { authorization: request.headers.authorization }
+            : {}),
+        ...(typeof request.headers["cf-access-jwt-assertion"] === "string"
+            ? { "cf-access-jwt-assertion": request.headers["cf-access-jwt-assertion"] }
+            : {}),
+        ...(bearer ? { authorization: `Bearer ${bearer}` } : {}),
+    };
+}
+
+function terminalBearerProtocol(value: string | string[] | undefined): string | undefined {
+    const text = Array.isArray(value) ? value.join(",") : value;
+    return (text ?? "")
+        .split(",")
+        .map((protocol) => protocol.trim())
+        .find((protocol) => protocol.startsWith(TERMINAL_AUTH_PROTOCOL_PREFIX))
+        ?.slice(TERMINAL_AUTH_PROTOCOL_PREFIX.length);
 }
 
 function normalizedBackendUrl(value: string): string {

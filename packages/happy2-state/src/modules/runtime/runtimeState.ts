@@ -8,8 +8,15 @@ import {
     backendOperationSupportsIdempotency,
     executeBackendOperation,
 } from "../../backend.js";
-import { type ClientTransport, type HttpStreamEvent, TransportError } from "../../transport.js";
+import {
+    type ClientTransport,
+    type HttpStreamEvent,
+    type TerminalConnection,
+    type TerminalConnectTarget,
+    TransportError,
+} from "../../transport.js";
 import { UserError } from "../../types.js";
+import type { TerminalDriver, TerminalDriverCreate } from "../terminal/terminalState.js";
 
 export interface OperationStreamObserver {
     /** One named server-sent event with its parsed JSON payload. */
@@ -33,12 +40,19 @@ export interface StateRuntimeOptions {
     readonly now?: () => number;
     readonly sleep?: (milliseconds: number) => Promise<void>;
     readonly onBackgroundError?: (error: UserError) => void;
+    /**
+     * Creates the driver that owns one terminal's binary protocol client,
+     * emulation, and reconnect loop. Application code supplies it; a terminal
+     * surface cannot open without it.
+     */
+    readonly terminalDriverCreate?: TerminalDriverCreate;
 }
 
 /** Owns transport retry/idempotency and background-work lifetime without owning render state. */
 export class StateRuntime implements AsyncDisposable {
     readonly createId: () => string;
     readonly now: () => number;
+    private readonly driverCreate?: TerminalDriverCreate;
     private readonly transport?: ClientTransport;
     private readonly attempts: number;
     private readonly delayMs: NonNullable<StateRetryPolicy["delayMs"]>;
@@ -56,6 +70,7 @@ export class StateRuntime implements AsyncDisposable {
         this.delayMs = options.retry?.delayMs ?? ((attempt) => 100 * 2 ** (attempt - 1));
         this.createId = options.createId ?? defaultId;
         this.now = options.now ?? Date.now;
+        this.driverCreate = options.terminalDriverCreate;
         this.sleep = options.sleep ?? defaultSleep;
         this.onBackgroundError = options.onBackgroundError ?? (() => undefined);
     }
@@ -70,6 +85,19 @@ export class StateRuntime implements AsyncDisposable {
 
     transportGet(): ClientTransport | undefined {
         return this.stopped ? undefined : this.transport;
+    }
+
+    /** Opens an authenticated binary channel to one authorized terminal. */
+    terminalConnect(target: TerminalConnectTarget): TerminalConnection {
+        this.assertActive();
+        return this.requireTransport().connectTerminal(target);
+    }
+
+    /** Builds the application-supplied driver that runs one terminal's protocol. */
+    terminalDriverCreate(options: Parameters<TerminalDriverCreate>[0]): TerminalDriver {
+        this.assertActive();
+        if (!this.driverCreate) throw new UserError("This client cannot open terminals.");
+        return this.driverCreate(options);
     }
 
     async operation<K extends BackendOperation>(

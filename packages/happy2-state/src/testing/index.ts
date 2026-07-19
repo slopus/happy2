@@ -7,6 +7,8 @@ export {
     type FakeServerEvents,
     type FakeStreamController,
     type FakeStreamHandler,
+    type FakeTerminalController,
+    type FakeTerminalHandler,
     type RecordedRequest,
 } from "./fake-server.js";
 export {

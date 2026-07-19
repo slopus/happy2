@@ -4,7 +4,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PassThrough } from "node:stream";
+import { PassThrough, type Duplex } from "node:stream";
+import { createWebSocketStream, WebSocketServer } from "ws";
+import { RemoteTerminalProtocolServer, type RemoteTerminalGridState } from "@slopus/ghostty-web";
 import type {
     AgentSandboxCreateInput,
     AgentSandboxRuntime,
@@ -56,17 +58,11 @@ interface SessionEventStream {
     sessionId: string;
 }
 
-interface TerminalEventStream {
-    response: ServerResponse;
-    sessionId: string;
-    terminalId: string;
-}
-
 interface MockTerminal {
     cols: number;
     exitCode: number | null;
     id: string;
-    revision: number;
+    protocol: RemoteTerminalProtocolServer;
     rows: number;
     status: "exited" | "running";
     text: string;
@@ -192,8 +188,8 @@ export class MockRigDaemon implements AsyncDisposable {
     globalEventReadCount = 0;
     globalStreamRequestCount = 0;
     sessionEventRequestCount = 0;
-    terminalStreamCount = 0;
-    terminalStreamDisconnectCount = 0;
+    terminalAttachmentCount = 0;
+    terminalAttachmentDisconnectCount = 0;
     sessionStreamRequestCount = 0;
     submissionAttemptCount = 0;
     private automaticReply: string | undefined = "All tests are passing.";
@@ -211,11 +207,12 @@ export class MockRigDaemon implements AsyncDisposable {
     private readonly secrets = new Map<string, MockSecretRegistration>();
     private server = createServer();
     private nextSessionStreamStatus?: number;
+    private nextTerminalAttachmentStatus?: number;
     private sessionEventDeliveryPaused = false;
     private readonly sessionEventStreams = new Set<SessionEventStream>();
     private readonly sessions = new Map<string, MockSession>();
     private readonly sockets = new Set<Socket>();
-    private readonly terminalEventStreams = new Set<TerminalEventStream>();
+    private terminalWebSockets?: WebSocketServer;
     private token = "test-token";
     private tokenSequence = 0;
     private trimmedThrough = 0;
@@ -592,6 +589,10 @@ export class MockRigDaemon implements AsyncDisposable {
         for (const stream of this.sessionEventStreams) stream.response.destroy();
     }
 
+    rejectNextTerminalAttachment(status = 409): void {
+        this.nextTerminalAttachmentStatus = status;
+    }
+
     /** Restarts the Unix HTTP listener without losing sessions or queued events. */
     async restart(): Promise<void> {
         await this.stopServer();
@@ -615,6 +616,45 @@ export class MockRigDaemon implements AsyncDisposable {
                 else response.destroy(error instanceof Error ? error : undefined);
             });
         });
+        this.terminalWebSockets = new WebSocketServer({
+            noServer: true,
+            maxPayload: 4 * 1024 * 1024 + 20,
+            perMessageDeflate: false,
+        });
+        this.server.on("upgrade", (request, socket, head) => {
+            const match = new URL(request.url ?? "/", "http://rig.invalid").pathname.match(
+                /^\/sessions\/([^/]+)\/terminals\/([^/]+)\/attach$/u,
+            );
+            if (request.headers.authorization !== `Bearer ${this.token}`) {
+                rejectWebSocketUpgrade(socket, 401, "Unauthorized");
+                return;
+            }
+            const sessionId = match ? decodeURIComponent(match[1]!) : undefined;
+            const terminalId = match ? decodeURIComponent(match[2]!) : undefined;
+            const terminal =
+                sessionId && terminalId
+                    ? this.sessions.get(sessionId)?.terminals.get(terminalId)
+                    : undefined;
+            if (!terminal) {
+                rejectWebSocketUpgrade(socket, 404, "Not Found");
+                return;
+            }
+            if (this.nextTerminalAttachmentStatus !== undefined) {
+                const status = this.nextTerminalAttachmentStatus;
+                this.nextTerminalAttachmentStatus = undefined;
+                rejectWebSocketUpgrade(socket, status, "Rejected");
+                return;
+            }
+            this.terminalWebSockets!.handleUpgrade(request, socket, head, (webSocket) => {
+                this.terminalAttachmentCount += 1;
+                const stream = createWebSocketStream(webSocket, { allowHalfOpen: false });
+                const detach = terminal.protocol.attach(stream);
+                stream.once("close", () => {
+                    detach();
+                    this.terminalAttachmentDisconnectCount += 1;
+                });
+            });
+        });
         this.server.on("connection", (socket) => {
             this.sockets.add(socket);
             socket.once("close", () => this.sockets.delete(socket));
@@ -626,6 +666,8 @@ export class MockRigDaemon implements AsyncDisposable {
     }
 
     private async stopServer(): Promise<void> {
+        for (const client of this.terminalWebSockets?.clients ?? []) client.terminate();
+        this.terminalWebSockets = undefined;
         for (const socket of this.sockets) socket.destroy();
         if (!this.server.listening) return;
         await new Promise<void>((resolve, reject) =>
@@ -654,7 +696,7 @@ export class MockRigDaemon implements AsyncDisposable {
                 },
                 durableGlobalEventQueue: this.durableGlobalEventQueue,
                 healthy: true,
-                identity: { version: "0.0.25" },
+                identity: { version: "0.0.27" },
                 ready: true,
                 status: "ready",
             });
@@ -839,24 +881,23 @@ export class MockRigDaemon implements AsyncDisposable {
         if (terminalsMatch) {
             const session = this.sessions.get(decodeURIComponent(terminalsMatch[1]!));
             if (!session) return sendJson(response, 404, { error: "Session not found" });
+            if (request.method === "GET")
+                return sendJson(response, 200, {
+                    terminals: [...session.terminals.values()].map(terminalSummary),
+                });
             if (request.method === "POST") {
                 const body = await jsonBody(request);
-                const terminal: MockTerminal = {
-                    cols: Number(body.cols ?? 80),
-                    exitCode: null,
-                    id: `terminal-${session.terminals.size + 1}`,
-                    revision: 0,
-                    rows: Number(body.rows ?? 24),
-                    status: "running",
-                    text: "",
-                };
+                const terminal = this.createTerminal(
+                    session.id,
+                    `terminal-${session.terminals.size + 1}`,
+                    Number(body.cols ?? 80),
+                    Number(body.rows ?? 24),
+                );
                 session.terminals.set(terminal.id, terminal);
-                return sendJson(response, 201, { terminal: terminalFrame(terminal) });
+                return sendJson(response, 201, { terminal: terminalSummary(terminal) });
             }
         }
-        const terminalMatch = url.pathname.match(
-            /^\/sessions\/([^/]+)\/terminals\/([^/]+)(?:\/(input|stream))?$/u,
-        );
+        const terminalMatch = url.pathname.match(/^\/sessions\/([^/]+)\/terminals\/([^/]+)$/u);
         if (terminalMatch) {
             const sessionId = decodeURIComponent(terminalMatch[1]!);
             const terminalId = decodeURIComponent(terminalMatch[2]!);
@@ -864,65 +905,16 @@ export class MockRigDaemon implements AsyncDisposable {
             const terminal = session?.terminals.get(terminalId);
             if (!session || !terminal)
                 return sendJson(response, 404, { error: "Terminal not found" });
-            const action = terminalMatch[3];
-            if (request.method === "GET" && action === undefined)
-                return sendJson(response, 200, { terminal: terminalFrame(terminal) });
-            if (request.method === "PATCH" && action === undefined) {
+            if (request.method === "PATCH") {
                 const body = await jsonBody(request);
-                terminal.cols = Number(body.cols);
-                terminal.rows = Number(body.rows);
-                terminal.revision += 1;
-                this.terminalResizes.push({
-                    cols: terminal.cols,
-                    rows: terminal.rows,
-                    sessionId,
-                    terminalId,
-                });
-                this.flushTerminalStreams(sessionId, terminalId);
-                return sendJson(response, 200, { terminal: terminalFrame(terminal) });
+                await terminal.protocol.resize(Number(body.cols), Number(body.rows));
+                return sendJson(response, 200, { terminal: terminalSummary(terminal) });
             }
-            if (request.method === "POST" && action === "input") {
-                if (terminal.status === "exited")
-                    return sendJson(response, 409, { error: "The terminal has exited." });
-                const body = await jsonBody(request);
-                const data = String(body.data ?? "");
-                this.terminalInputs.push({ data, sessionId, terminalId });
-                terminal.text += data;
-                terminal.revision += 1;
-                this.flushTerminalStreams(sessionId, terminalId);
-                return sendJson(response, 200, { accepted: true });
-            }
-            if (request.method === "DELETE" && action === undefined) {
+            if (request.method === "DELETE") {
                 terminal.status = "exited";
                 terminal.exitCode = 0;
-                terminal.revision += 1;
-                this.flushTerminalStreams(sessionId, terminalId);
-                return sendJson(response, 200, { terminal: terminalFrame(terminal) });
-            }
-            if (request.method === "GET" && action === "stream") {
-                const afterText = url.searchParams.get("after");
-                const after = afterText === null ? undefined : Number(afterText);
-                if (
-                    after !== undefined &&
-                    (!Number.isSafeInteger(after) || after > terminal.revision)
-                )
-                    return sendJson(response, 409, { error: "Terminal revision is unavailable" });
-                response.writeHead(200, {
-                    "cache-control": "no-cache, no-transform",
-                    connection: "keep-alive",
-                    "content-type": "text/event-stream; charset=utf-8",
-                });
-                response.write(": connected\n\n");
-                this.terminalStreamCount += 1;
-                const stream = { response, sessionId, terminalId };
-                this.terminalEventStreams.add(stream);
-                if (after === undefined || terminal.revision > after)
-                    writeSseFrame(response, `data: ${JSON.stringify(terminalFrame(terminal))}\n\n`);
-                response.once("close", () => {
-                    if (this.terminalEventStreams.delete(stream))
-                        this.terminalStreamDisconnectCount += 1;
-                });
-                return;
+                terminal.protocol.publishExit(0);
+                return sendJson(response, 200, { terminal: terminalSummary(terminal) });
             }
         }
         const match = url.pathname.match(
@@ -1117,14 +1109,47 @@ export class MockRigDaemon implements AsyncDisposable {
         }
     }
 
-    private flushTerminalStreams(sessionId: string, terminalId: string): void {
-        const terminal = this.sessions.get(sessionId)?.terminals.get(terminalId);
-        if (!terminal) return;
-        for (const stream of this.terminalEventStreams) {
-            if (stream.sessionId !== sessionId || stream.terminalId !== terminalId) continue;
-            writeSseFrame(stream.response, `data: ${JSON.stringify(terminalFrame(terminal))}\n\n`);
-            if (terminal.status === "exited") stream.response.end();
-        }
+    private createTerminal(
+        sessionId: string,
+        terminalId: string,
+        cols: number,
+        rows: number,
+    ): MockTerminal {
+        const terminal = {
+            cols,
+            exitCode: null,
+            id: terminalId,
+            rows,
+            status: "running",
+            text: "",
+        } as Omit<MockTerminal, "protocol"> & { protocol?: RemoteTerminalProtocolServer };
+        const protocol = new RemoteTerminalProtocolServer({
+            initialCols: cols,
+            initialRows: rows,
+            onInput: (data) => {
+                if (terminal.status === "exited") throw new Error("The terminal has exited.");
+                const text = Buffer.from(data).toString("utf8");
+                this.terminalInputs.push({ data: text, sessionId, terminalId });
+                terminal.text += text;
+                protocol.publishUpdate(data, terminalGrid(terminal));
+            },
+            onResize: (nextCols, nextRows) => {
+                terminal.cols = nextCols;
+                terminal.rows = nextRows;
+                this.terminalResizes.push({
+                    cols: nextCols,
+                    rows: nextRows,
+                    sessionId,
+                    terminalId,
+                });
+            },
+        });
+        terminal.protocol = protocol;
+        protocol.publishGrid({
+            ...terminalGrid(terminal),
+            coversOutputOffset: 0,
+        });
+        return terminal as MockTerminal;
     }
 
     private async trimGlobalEvents(
@@ -1430,51 +1455,48 @@ function snapshot(session: MockSession) {
     };
 }
 
-function terminalFrame(terminal: MockTerminal) {
-    const defaultColor = { kind: "palette" as const, index: 7 };
-    const style = {
-        background: null,
-        blink: false,
-        bold: false,
-        dim: false,
-        foreground: null,
-        invisible: false,
-        inverse: false,
-        italic: false,
-        overline: false,
-        strikethrough: false,
-        underline: "none" as const,
-        underlineColor: null,
+function terminalSummary(terminal: MockTerminal) {
+    return {
+        cols: terminal.cols,
+        epoch: terminal.protocol.epoch,
+        exitCode: terminal.exitCode,
+        id: terminal.id,
+        rows: terminal.rows,
+        status: terminal.status,
     };
+}
+
+function terminalGrid(
+    terminal: Pick<MockTerminal, "cols" | "rows" | "status" | "text">,
+): Omit<RemoteTerminalGridState, "coversOutputOffset" | "revision"> {
     return {
         cols: terminal.cols,
         cursor: {
-            blinking: true,
-            shape: "block" as const,
             visible: terminal.status === "running",
             x: terminal.text.length,
             y: 0,
         },
-        cursorColor: null,
-        defaultBackground: { kind: "palette" as const, index: 0 },
-        defaultForeground: defaultColor,
-        exitCode: terminal.exitCode,
-        id: terminal.id,
-        palette: [{ kind: "palette" as const, index: 0 }, defaultColor],
-        revision: terminal.revision,
+        palette: [],
         rows: terminal.text
             ? [
                   {
-                      cells: [{ style, text: terminal.text, width: 1 as const, x: 0 }],
+                      cells: [{ styleId: 0, text: terminal.text, width: 1, x: 0 }],
                       wrapped: false,
                   },
               ]
             : [],
         startRow: 0,
-        status: terminal.status,
+        styles: [{}],
         title: "Gym terminal",
         totalRows: terminal.rows,
     };
+}
+
+function rejectWebSocketUpgrade(socket: Duplex, statusCode: number, statusText: string): void {
+    socket.end(
+        `HTTP/1.1 ${statusCode} ${statusText}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`,
+        () => socket.destroy(),
+    );
 }
 
 function secretSummary(secret: MockSecretRegistration) {

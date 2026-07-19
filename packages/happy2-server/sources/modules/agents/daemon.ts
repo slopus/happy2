@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { chmod, mkdir, readFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
+import type { Duplex } from "node:stream";
+import WebSocket, { createWebSocketStream } from "ws";
 
 import type {
     AttachSecretRequest,
@@ -33,10 +35,11 @@ import type {
 } from "@slopus/rig/dist/external-tools/index.js";
 import type {
     CreateRemoteTerminalRequest,
-    RemoteTerminalFrame,
     RemoteTerminalResponse,
-    ResizeRemoteTerminalRequest,
+    RemoteTerminalSummary,
 } from "@slopus/rig/dist/terminal/index.js";
+
+const MAX_TERMINAL_WIRE_BYTES = 4 * 1024 * 1024 + 20;
 
 export interface RigDaemonConfig {
     directory: string;
@@ -254,9 +257,9 @@ export class RigDaemonClient {
         sessionId: string,
         dimensions: CreateRemoteTerminalRequest,
         signal?: AbortSignal,
-    ): Promise<RemoteTerminalFrame> {
+    ): Promise<RemoteTerminalSummary> {
         await this.ensureReady();
-        if (this.daemonVersion && rigVersionBefore(this.daemonVersion, "0.0.25"))
+        if (this.daemonVersion && rigVersionBefore(this.daemonVersion, "0.0.27"))
             await this.reloadDaemon(signal);
         const response = await this.connectedRequest<RemoteTerminalResponse>(
             "POST",
@@ -267,54 +270,26 @@ export class RigDaemonClient {
         return response.terminal;
     }
 
-    async getRemoteTerminal(
-        sessionId: string,
-        terminalId: string,
-        signal?: AbortSignal,
-    ): Promise<RemoteTerminalFrame> {
-        const response = await this.connectedRequest<RemoteTerminalResponse>(
-            "GET",
-            remoteTerminalPath(sessionId, terminalId),
-            undefined,
-            signal,
-        );
-        return response.terminal;
-    }
-
-    async resizeRemoteTerminal(
-        sessionId: string,
-        terminalId: string,
-        dimensions: ResizeRemoteTerminalRequest,
-        signal?: AbortSignal,
-    ): Promise<RemoteTerminalFrame> {
-        const response = await this.connectedRequest<RemoteTerminalResponse>(
-            "PATCH",
-            remoteTerminalPath(sessionId, terminalId),
-            dimensions,
-            signal,
-        );
-        return response.terminal;
-    }
-
-    async writeRemoteTerminal(
-        sessionId: string,
-        terminalId: string,
-        data: string,
-        signal?: AbortSignal,
-    ): Promise<void> {
-        await this.connectedRequest(
-            "POST",
-            `${remoteTerminalPath(sessionId, terminalId)}/input`,
-            { data },
-            signal,
-        );
+    async attachRemoteTerminal(sessionId: string, terminalId: string): Promise<Duplex> {
+        await this.ensureReady();
+        if (!this.token) throw new RigTransportError("Rig daemon token is unavailable.");
+        try {
+            return await connectRigTerminalWebSocket({
+                path: `${remoteTerminalPath(sessionId, terminalId)}/attach`,
+                socketPath: this.config.socketPath,
+                token: this.token,
+            });
+        } catch (error) {
+            if (error instanceof RigHttpError) throw error;
+            throw asTransportError(error);
+        }
     }
 
     async stopRemoteTerminal(
         sessionId: string,
         terminalId: string,
         signal?: AbortSignal,
-    ): Promise<RemoteTerminalFrame> {
+    ): Promise<RemoteTerminalSummary> {
         const response = await this.connectedRequest<RemoteTerminalResponse>(
             "DELETE",
             remoteTerminalPath(sessionId, terminalId),
@@ -322,18 +297,6 @@ export class RigDaemonClient {
             signal,
         );
         return response.terminal;
-    }
-
-    async watchRemoteTerminal(
-        sessionId: string,
-        terminalId: string,
-        after: number | undefined,
-        onFrame: (frame: RemoteTerminalFrame) => Promise<void>,
-        signal?: AbortSignal,
-    ): Promise<void> {
-        const path = `${remoteTerminalPath(sessionId, terminalId)}/stream${after === undefined ? "" : `?after=${after}`}`;
-        await this.ensureReady();
-        await this.remoteTerminalStream(path, onFrame, signal);
     }
 
     async reconcileSessionSecrets(
@@ -855,54 +818,6 @@ export class RigDaemonClient {
             request.end();
         });
     }
-
-    private remoteTerminalStream(
-        path: string,
-        onFrame: (frame: RemoteTerminalFrame) => Promise<void>,
-        signal?: AbortSignal,
-    ): Promise<void> {
-        if (!this.token)
-            return Promise.reject(new RigTransportError("Rig daemon token is unavailable."));
-        if (signal?.aborted) return Promise.resolve();
-        return new Promise<void>((resolve, reject) => {
-            const request = httpRequest(
-                {
-                    socketPath: this.config.socketPath,
-                    method: "GET",
-                    path,
-                    headers: {
-                        accept: "text/event-stream",
-                        authorization: `Bearer ${this.token}`,
-                    },
-                },
-                (response) => {
-                    if ((response.statusCode ?? 500) >= 400) {
-                        response.resume();
-                        reject(
-                            new RigHttpError(
-                                response.statusCode ?? 500,
-                                "Rig terminal stream failed.",
-                            ),
-                        );
-                        return;
-                    }
-                    response.setEncoding("utf8");
-                    void consumeRemoteTerminalStream(response, onFrame, signal).then(
-                        resolve,
-                        reject,
-                    );
-                },
-            );
-            const abort = () => request.destroy(shutdownError());
-            signal?.addEventListener("abort", abort, { once: true });
-            request.once("close", () => signal?.removeEventListener("abort", abort));
-            request.on("error", (error) => {
-                if (signal?.aborted) resolve();
-                else reject(asTransportError(error));
-            });
-            request.end();
-        });
-    }
 }
 
 function rigVersionBefore(version: string, minimum: string): boolean {
@@ -919,30 +834,39 @@ function remoteTerminalPath(sessionId: string, terminalId: string): string {
     return `/sessions/${encodeURIComponent(sessionId)}/terminals/${encodeURIComponent(terminalId)}`;
 }
 
-async function consumeRemoteTerminalStream(
-    response: NodeJS.ReadableStream & AsyncIterable<Buffer | string>,
-    onFrame: (frame: RemoteTerminalFrame) => Promise<void>,
-    signal?: AbortSignal,
-): Promise<void> {
-    let buffer = "";
-    for await (const chunk of response) {
-        if (signal?.aborted) return;
-        buffer += chunk.toString();
-        for (;;) {
-            const boundary = buffer.indexOf("\n\n");
-            if (boundary < 0) break;
-            const event = buffer.slice(0, boundary);
-            buffer = buffer.slice(boundary + 2);
-            if (event.startsWith(":")) continue;
-            const data = event
-                .split("\n")
-                .filter((line) => line.startsWith("data:"))
-                .map((line) => line.slice(5).trimStart())
-                .join("\n");
-            if (!data) continue;
-            await onFrame(JSON.parse(data) as RemoteTerminalFrame);
-        }
-    }
+function connectRigTerminalWebSocket(options: {
+    path: string;
+    socketPath: string;
+    token: string;
+}): Promise<Duplex> {
+    return new Promise((resolve, reject) => {
+        const webSocket = new WebSocket(`ws+unix://${options.socketPath}:${options.path}`, {
+            handshakeTimeout: 10_000,
+            headers: { authorization: `Bearer ${options.token}` },
+            maxPayload: MAX_TERMINAL_WIRE_BYTES,
+            perMessageDeflate: false,
+        });
+        let settled = false;
+        const fail = (error: Error) => {
+            if (settled) return;
+            settled = true;
+            webSocket.terminate();
+            reject(error);
+        };
+        const unexpected = (_request: unknown, response: import("node:http").IncomingMessage) => {
+            response.resume();
+            fail(new RigHttpError(response.statusCode ?? 500, "Rig terminal attachment failed."));
+        };
+        webSocket.once("error", fail);
+        webSocket.once("unexpected-response", unexpected);
+        webSocket.once("open", () => {
+            if (settled) return;
+            settled = true;
+            webSocket.off("error", fail);
+            webSocket.off("unexpected-response", unexpected);
+            resolve(createWebSocketStream(webSocket, { allowHalfOpen: false }));
+        });
+    });
 }
 
 async function consumeGlobalEventStream(

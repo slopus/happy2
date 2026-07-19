@@ -55,7 +55,8 @@ import { createId } from "@paralleldrive/cuid2";
 import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { RemoteTerminalFrame } from "@slopus/rig/dist/terminal/index.js";
+import type { Duplex } from "node:stream";
+import type { RemoteTerminalSummary } from "@slopus/rig/dist/terminal/index.js";
 import type {
     AgentTurnBackgroundTerminalSummary,
     AgentTurnSubagentSummary,
@@ -392,7 +393,7 @@ export class AgentService {
         chatId: string;
         cols: number;
         rows: number;
-    }): Promise<{ terminal: RemoteTerminalFrame }> {
+    }): Promise<{ terminal: RemoteTerminalSummary }> {
         const sessionId = await this.authorizedTerminalSession(input);
         return {
             terminal: await this.daemon.createRemoteTerminal(
@@ -402,61 +403,21 @@ export class AgentService {
             ),
         };
     }
-    async getTerminal(input: {
+    async attachTerminal(input: {
         actorUserId: string;
         agentUserId: string;
         chatId: string;
         terminalId: string;
-    }): Promise<{ terminal: RemoteTerminalFrame }> {
+    }): Promise<Duplex> {
         const sessionId = await this.authorizedTerminalSession(input);
-        return {
-            terminal: await this.daemon.getRemoteTerminal(
-                sessionId,
-                input.terminalId,
-                this.shutdown.signal,
-            ),
-        };
-    }
-    async resizeTerminal(input: {
-        actorUserId: string;
-        agentUserId: string;
-        chatId: string;
-        terminalId: string;
-        cols: number;
-        rows: number;
-    }): Promise<{ terminal: RemoteTerminalFrame }> {
-        const sessionId = await this.authorizedTerminalSession(input);
-        return {
-            terminal: await this.daemon.resizeRemoteTerminal(
-                sessionId,
-                input.terminalId,
-                { cols: input.cols, rows: input.rows },
-                this.shutdown.signal,
-            ),
-        };
-    }
-    async writeTerminal(input: {
-        actorUserId: string;
-        agentUserId: string;
-        chatId: string;
-        terminalId: string;
-        data: string;
-    }): Promise<{ accepted: true }> {
-        const sessionId = await this.authorizedTerminalSession(input);
-        await this.daemon.writeRemoteTerminal(
-            sessionId,
-            input.terminalId,
-            input.data,
-            this.shutdown.signal,
-        );
-        return { accepted: true };
+        return this.daemon.attachRemoteTerminal(sessionId, input.terminalId);
     }
     async stopTerminal(input: {
         actorUserId: string;
         agentUserId: string;
         chatId: string;
         terminalId: string;
-    }): Promise<{ terminal: RemoteTerminalFrame }> {
+    }): Promise<{ terminal: RemoteTerminalSummary }> {
         const sessionId = await this.authorizedTerminalSession(input);
         return {
             terminal: await this.daemon.stopRemoteTerminal(
@@ -465,26 +426,6 @@ export class AgentService {
                 this.shutdown.signal,
             ),
         };
-    }
-    async watchTerminal(
-        input: {
-            actorUserId: string;
-            agentUserId: string;
-            chatId: string;
-            terminalId: string;
-            after?: number;
-        },
-        onFrame: (frame: RemoteTerminalFrame) => Promise<void>,
-        signal: AbortSignal,
-    ): Promise<void> {
-        const sessionId = await this.authorizedTerminalSession(input);
-        await this.daemon.watchRemoteTerminal(
-            sessionId,
-            input.terminalId,
-            input.after,
-            onFrame,
-            signal,
-        );
     }
     private async authorizedTerminalSession(input: {
         actorUserId: string;

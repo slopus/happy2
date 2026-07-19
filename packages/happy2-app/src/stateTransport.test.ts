@@ -185,4 +185,101 @@ describe("authenticated happy2-state transport", () => {
         expect(fetchMock.mock.calls[0]?.[0]).toBe("/v0/chats/chat-1");
         expect(fetchMock.mock.calls[0]?.[1].headers.authorization).toBeUndefined();
     });
+
+    it("opens a same-origin terminal WebSocket with encoded ids and auth subprotocol", () => {
+        vi.stubGlobal("WebSocket", FakeWebSocket);
+        const target = { chatId: "chat 1", agentUserId: "a/b", terminalId: "t#1" };
+        createAuthenticatedTransport("/", "secret").connectTerminal(target);
+
+        const socket = FakeWebSocket.instances.at(-1)!;
+        const expected = new URL(
+            `/v0/chats/${encodeURIComponent(target.chatId)}/agents/${encodeURIComponent(
+                target.agentUserId,
+            )}/terminals/${encodeURIComponent(target.terminalId)}/attach`,
+            window.location.href,
+        );
+        expected.protocol = expected.protocol === "https:" ? "wss:" : "ws:";
+        expect(socket.url).toBe(expected.toString());
+        expect(socket.url.startsWith("ws://")).toBe(true);
+        expect(socket.url).toContain("/v0/chats/chat%201/agents/a%2Fb/terminals/t%231/attach");
+        expect(socket.protocols).toEqual(["happy2-terminal.v1", "happy2-auth.secret"]);
+    });
+
+    it("omits the auth subprotocol when there is no bearer token", () => {
+        vi.stubGlobal("WebSocket", FakeWebSocket);
+        createAuthenticatedTransport("/").connectTerminal({
+            chatId: "c",
+            agentUserId: "a",
+            terminalId: "t",
+        });
+        expect(FakeWebSocket.instances.at(-1)!.protocols).toEqual(["happy2-terminal.v1"]);
+    });
+
+    it("uses wss for an absolute https deployment base", () => {
+        vi.stubGlobal("WebSocket", FakeWebSocket);
+        createAuthenticatedTransport("https://api.example.com").connectTerminal({
+            chatId: "c",
+            agentUserId: "a",
+            terminalId: "t",
+        });
+        expect(FakeWebSocket.instances.at(-1)!.url).toBe(
+            "wss://api.example.com/v0/chats/c/agents/a/terminals/t/attach",
+        );
+    });
+
+    it("surfaces a destroy error to listeners once, before close", () => {
+        vi.stubGlobal("WebSocket", FakeWebSocket);
+        const connection = createAuthenticatedTransport("/", "t").connectTerminal({
+            chatId: "c",
+            agentUserId: "a",
+            terminalId: "t",
+        });
+        const order: string[] = [];
+        let received: Error | undefined;
+        connection.once("error", (error) => {
+            order.push("error");
+            received = error;
+        });
+        connection.once("close", () => order.push("close"));
+
+        const failure = new Error("decode failed");
+        connection.destroy(failure);
+        expect(received).toBe(failure);
+        expect(order).toEqual(["error", "close"]);
+        expect(connection.destroyed).toBe(true);
+
+        // One-shot: a second destroy emits nothing further.
+        connection.destroy(new Error("again"));
+        expect(order).toEqual(["error", "close"]);
+    });
 });
+
+class FakeWebSocket {
+    static readonly OPEN = 1;
+    static instances: FakeWebSocket[] = [];
+    url: string;
+    protocols: string | string[] | undefined;
+    binaryType = "blob";
+    readyState = 1;
+    onopen: (() => void) | null = null;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    onerror: (() => void) | null = null;
+    onclose: (() => void) | null = null;
+    closedFlag = false;
+
+    constructor(url: string, protocols?: string | string[]) {
+        this.url = url;
+        this.protocols = protocols;
+        FakeWebSocket.instances.push(this);
+    }
+
+    send(): void {
+        // Outbound frames are irrelevant to these URL/lifecycle assertions.
+    }
+
+    close(): void {
+        if (this.closedFlag) return;
+        this.closedFlag = true;
+        this.onclose?.();
+    }
+}

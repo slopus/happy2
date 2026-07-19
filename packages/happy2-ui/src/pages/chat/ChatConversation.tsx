@@ -166,7 +166,8 @@ export function ChatConversation(props: ChatConversationProps) {
             {props.terminal ? (
                 <TerminalPanel
                     error={props.terminal.error?.message}
-                    frame={props.terminal.frame}
+                    exitCode={props.terminal.exitCode}
+                    grid={props.terminal.grid}
                     height={props.terminalHeight}
                     onClose={props.onTerminalClose}
                     onHeightChange={props.onTerminalHeightChange}

@@ -6,10 +6,12 @@ export {
     type HttpStreamEvent,
     type HttpStreamObserver,
     type RealtimeObserver,
+    type TerminalConnection,
+    type TerminalConnectTarget,
 } from "./transport.js";
 export * from "./types.js";
 export * from "./resources.js";
-export type { TerminalFrame, TerminalIdentity } from "./backend.js";
+export type { TerminalSummary, TerminalIdentity } from "./backend.js";
 export {
     HappyState,
     happyStateCreate,
@@ -143,7 +145,15 @@ export type {
 } from "./modules/calls/callsState.js";
 export type { ChannelUpdateInput } from "./modules/chat-actions/chatActionsState.js";
 export type {
+    TerminalCellSnapshot,
+    TerminalCursorSnapshot,
+    TerminalDriver,
+    TerminalDriverCreate,
+    TerminalDriverStatus,
+    TerminalGridSnapshot,
     TerminalHandle,
+    TerminalReplica,
+    TerminalRowSnapshot,
     TerminalSnapshot,
     TerminalState,
     TerminalStore,

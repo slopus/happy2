@@ -1,6 +1,7 @@
 import babel from "@rolldown/plugin-babel";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { nodePolyfills } from "vite-plugin-node-polyfills";
 import { defineConfig, loadEnv, type ProxyOptions } from "vite";
 
 /** Cookie the backend accepts for every browser authentication, matching the web gateway. */
@@ -48,14 +49,25 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), "");
     const backendUrl = env.VITE_HAPPY2_SERVER_URL ?? "http://127.0.0.1:3000";
     return {
-        plugins: [tailwindcss(), react(), babel({ presets: [reactCompilerPreset()] })],
+        plugins: [
+            // The Rig terminal protocol (@slopus/ghostty-web) decodes compressed wire
+            // frames with node:zlib and node Buffer; these polyfills make them real in
+            // the browser instead of empty externals that would throw at runtime.
+            nodePolyfills({
+                include: ["buffer", "zlib", "crypto", "stream", "util"],
+                globals: { Buffer: true },
+            }),
+            tailwindcss(),
+            react(),
+            babel({ presets: [reactCompilerPreset()] }),
+        ],
         server: {
             proxy: {
                 "/v0/auth/web/session": {
                     ...developmentTokenProxy(backendUrl),
                     rewrite: (path) => path.replace("/v0/auth/web/session", "/v0/me"),
                 },
-                "/v0": { target: backendUrl, changeOrigin: true },
+                "/v0": { target: backendUrl, changeOrigin: true, ws: true },
             },
         },
     };

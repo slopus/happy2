@@ -1,3 +1,4 @@
+import WebSocket from "ws";
 import type {
     ClientTransport,
     HttpRequest,
@@ -5,9 +6,14 @@ import type {
     HttpStreamObserver,
     RealtimeEvent,
     RealtimeObserver,
+    TerminalConnection,
+    TerminalConnectTarget,
 } from "happy2-state";
 import { TransportError } from "happy2-state";
 import type { GymServer, GymUser } from "../server/index.js";
+
+const TERMINAL_PROTOCOL = "happy2-terminal.v1";
+const MAX_TERMINAL_WIRE_BYTES = 4 * 1024 * 1024 + 20;
 
 export interface GymStateTransport extends ClientTransport {
     /** Resolves after the state model's event stream receives its ready frame. */
@@ -211,8 +217,108 @@ class GymStateTransportModel implements GymStateTransport {
         };
     }
 
+    connectTerminal(target: TerminalConnectTarget): TerminalConnection {
+        // Node can set headers on a WebSocket, so the gym keeps its Bearer-header
+        // authentication; the base subprotocol is still required by the server.
+        const url = new URL(
+            `/v0/chats/${encodeURIComponent(target.chatId)}/agents/${encodeURIComponent(
+                target.agentUserId,
+            )}/terminals/${encodeURIComponent(target.terminalId)}/attach`,
+            this.baseUrl,
+        );
+        url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+        const socket = new WebSocket(url.toString(), [TERMINAL_PROTOCOL], {
+            headers: { authorization: `Bearer ${this.token}` },
+            maxPayload: MAX_TERMINAL_WIRE_BYTES,
+            perMessageDeflate: false,
+        });
+        return new GymTerminalConnection(socket);
+    }
+
     whenConnected(): Promise<void> {
         return this.connected.promise;
+    }
+}
+
+/**
+ * Wraps a Node `ws` socket as happy2-state's neutral terminal byte channel:
+ * outbound frames buffer until open, inbound frames buffer while paused for
+ * backpressure, and a `destroy(error)` surfaces the error once before close.
+ */
+class GymTerminalConnection implements TerminalConnection {
+    private readonly dataListeners = new Set<(chunk: Uint8Array) => void>();
+    private readonly closeListeners = new Set<() => void>();
+    private readonly errorListeners = new Set<(error: Error) => void>();
+    private readonly outbound: Uint8Array[] = [];
+    private readonly inbound: Uint8Array[] = [];
+    private paused = false;
+    private opened = false;
+    private closedFlag = false;
+
+    constructor(private readonly socket: WebSocket) {
+        socket.binaryType = "nodebuffer";
+        socket.on("open", () => {
+            this.opened = true;
+            for (const chunk of this.outbound.splice(0)) socket.send(chunk);
+        });
+        socket.on("message", (data: Buffer) => {
+            const chunk = new Uint8Array(data);
+            if (this.paused) this.inbound.push(chunk);
+            else for (const listener of this.dataListeners) listener(chunk);
+        });
+        socket.on("error", (error: Error) => {
+            const listeners = [...this.errorListeners];
+            this.errorListeners.clear();
+            for (const listener of listeners) listener(error);
+        });
+        socket.on("close", () => {
+            this.closedFlag = true;
+            const listeners = [...this.closeListeners];
+            this.closeListeners.clear();
+            for (const listener of listeners) listener();
+        });
+    }
+
+    on(_event: "data", listener: (chunk: Uint8Array) => void): void {
+        this.dataListeners.add(listener);
+    }
+
+    once(event: "error", listener: (error: Error) => void): void;
+    once(event: "close", listener: () => void): void;
+    once(event: "error" | "close", listener: ((error: Error) => void) & (() => void)): void {
+        if (event === "error") this.errorListeners.add(listener);
+        else this.closeListeners.add(listener);
+    }
+
+    write(chunk: Uint8Array): void {
+        if (this.closedFlag) return;
+        if (this.opened && this.socket.readyState === WebSocket.OPEN) this.socket.send(chunk);
+        else this.outbound.push(chunk);
+    }
+
+    pause(): void {
+        this.paused = true;
+    }
+
+    resume(): void {
+        this.paused = false;
+        for (const chunk of this.inbound.splice(0))
+            for (const listener of this.dataListeners) listener(chunk);
+    }
+
+    destroy(error?: Error): void {
+        if (this.closedFlag) return;
+        this.closedFlag = true;
+        if (error) {
+            const listeners = [...this.errorListeners];
+            this.errorListeners.clear();
+            for (const listener of listeners) listener(error);
+        }
+        this.socket.terminate();
+    }
+
+    get destroyed(): boolean {
+        return this.closedFlag;
     }
 }
 

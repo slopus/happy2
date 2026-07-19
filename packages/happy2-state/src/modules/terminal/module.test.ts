@@ -1,96 +1,239 @@
 import { describe, expect, it } from "vitest";
-import { createFakeServer, jsonResponse, type FakeStreamController } from "../../testing/index.js";
+import { createFakeServer, jsonResponse } from "../../testing/index.js";
 import { StateRuntime } from "../runtime/runtimeState.js";
 import { terminalOpen } from "./terminalState.js";
+import type {
+    TerminalDriver,
+    TerminalDriverCreate,
+    TerminalGridSnapshot,
+    TerminalReplica,
+} from "./terminalState.js";
+
+const summary = {
+    id: "terminal-1",
+    epoch: "epoch-1",
+    status: "running" as const,
+    exitCode: null,
+    cols: 80,
+    rows: 24,
+};
+
+function grid(text: string): TerminalGridSnapshot {
+    return {
+        cols: 80,
+        rows: 24,
+        title: "Terminal",
+        cursor: { x: text.length, y: 0, visible: true },
+        lines: [
+            {
+                cells: [
+                    {
+                        x: 0,
+                        text,
+                        width: 1,
+                        bold: false,
+                        dim: false,
+                        italic: false,
+                        underline: false,
+                        inverse: false,
+                        strikethrough: false,
+                        foreground: null,
+                        background: null,
+                    },
+                ],
+            },
+        ],
+    };
+}
+
+/** A programmable driver capturing intents and exposing its replica to the test. */
+interface FakeDriver extends TerminalDriver {
+    readonly initialSize: { cols: number; rows: number };
+    readonly writes: readonly string[];
+    readonly resizes: readonly { cols: number; rows: number }[];
+    readonly reconnects: number;
+    readonly closed: boolean;
+    readonly replica: TerminalReplica;
+    readonly connect: () => void;
+}
+
+function fakeDriverCreate(): { create: TerminalDriverCreate; driver: () => FakeDriver } {
+    let built: FakeDriver | undefined;
+    const create: TerminalDriverCreate = (options) => {
+        const writes: string[] = [];
+        const resizes: { cols: number; rows: number }[] = [];
+        let reconnects = 0;
+        let closed = false;
+        const driver: FakeDriver = {
+            initialSize: { cols: options.cols, rows: options.rows },
+            writes,
+            resizes,
+            get reconnects() {
+                return reconnects;
+            },
+            get closed() {
+                return closed;
+            },
+            replica: options.replica,
+            connect: () => options.connect(),
+            write: (data) => writes.push(data),
+            resize: (cols, rows) => resizes.push({ cols, rows }),
+            reconnect: () => {
+                reconnects += 1;
+            },
+            close: () => {
+                closed = true;
+            },
+        };
+        built = driver;
+        return driver;
+    };
+    return {
+        create,
+        driver: () => {
+            if (!built) throw new Error("Driver was not created.");
+            return built;
+        },
+    };
+}
 
 describe("terminal surface", () => {
-    it("creates, streams, writes, resizes, stops, and cancels on disposal", async () => {
+    it("creates, drives input output resize reconnect exit and stops on close", async () => {
         const server = createFakeServer();
-        const frame = {
-            id: "terminal-1",
-            revision: 0,
-            status: "running" as const,
-            exitCode: null,
-            cols: 80,
-            totalRows: 24,
-            title: "Terminal",
-            cursor: null,
-            rows: [],
-        };
-        server.route("POST", /createTerminal$/u, () => jsonResponse(201, { terminal: frame }));
-        server.route("POST", /writeTerminal$/u, () => jsonResponse(200, { accepted: true }));
-        server.route("POST", /resizeTerminal$/u, () =>
-            jsonResponse(200, { terminal: { ...frame, cols: 100, totalRows: 30 } }),
-        );
+        server.route("POST", /createTerminal$/u, () => jsonResponse(201, { terminal: summary }));
         server.route("POST", /stopTerminal$/u, () =>
-            jsonResponse(200, { terminal: { ...frame, status: "exited", exitCode: 0 } }),
+            jsonResponse(200, { terminal: { ...summary, status: "exited", exitCode: 0 } }),
         );
-        let stream!: FakeStreamController;
-        server.streamRoute("GET", /\/stream\?after=0$/u, (_request, controller) => {
-            stream = controller;
+        const { create, driver } = fakeDriverCreate();
+        const runtime = new StateRuntime({
+            transport: server.transport,
+            retry: { attempts: 1 },
+            terminalDriverCreate: create,
         });
-        const runtime = new StateRuntime({ transport: server.transport, retry: { attempts: 1 } });
         const terminal = terminalOpen(runtime, "chat-1", "agent-1");
         await runtime.whenIdle();
-        expect(terminal.getState()).toMatchObject({ status: "connecting", frame });
-        stream.event("frame", { ...frame, revision: 1, title: "Ready" });
-        expect(terminal.getState()).toMatchObject({ status: "connected", frame: { revision: 1 } });
+
+        // The driver's connect factory opens an authenticated channel to the terminal.
+        driver().connect();
+        expect(server.terminalConnects).toEqual([
+            { chatId: "chat-1", agentUserId: "agent-1", terminalId: "terminal-1" },
+        ]);
+
+        driver().replica.statusUpdate("connected");
+        expect(terminal.getState().status).toBe("connected");
+
         terminal.getState().terminalWrite("pwd\r");
+        expect(driver().writes).toEqual(["pwd\r"]);
+
+        driver().replica.gridUpdate(grid("ready"));
+        expect(terminal.getState().grid).toEqual(grid("ready"));
+
         terminal.getState().terminalResize(100, 30);
+        expect(driver().resizes).toEqual([{ cols: 100, rows: 30 }]);
+
+        driver().replica.statusUpdate("disconnected");
+        expect(terminal.getState().status).toBe("disconnected");
+        terminal.getState().terminalReconnect();
+        expect(driver().reconnects).toBe(1);
+
         terminal.getState().terminalClose();
         await runtime.whenIdle();
-        expect(server.requests.map((request) => request.path)).toEqual(
-            expect.arrayContaining([
-                expect.stringMatching(/writeTerminal$/u),
-                expect.stringMatching(/resizeTerminal$/u),
-                expect.stringMatching(/stopTerminal$/u),
-            ]),
+        expect(driver().closed).toBe(true);
+        expect(server.requests.some((request) => request.path.endsWith("/stopTerminal"))).toBe(
+            true,
         );
+
         terminal[Symbol.dispose]();
-        expect(stream.aborted).toBe(true);
     });
 
-    it("deduplicates equal sizes and coalesces resize bursts", async () => {
+    it("buffers input written before the driver exists and flushes it once created", async () => {
         const server = createFakeServer();
-        const frame = {
-            id: "terminal-1",
-            revision: 0,
-            status: "running" as const,
-            exitCode: null,
-            cols: 80,
-            totalRows: 24,
-            title: "Terminal",
-            cursor: null,
-            rows: [],
-        };
-        server.route("POST", /createTerminal$/u, () => jsonResponse(201, { terminal: frame }));
-        let releaseFirst!: () => void;
-        let resizeCount = 0;
-        server.route("POST", /resizeTerminal$/u, async () => {
-            resizeCount += 1;
-            if (resizeCount === 1) await new Promise<void>((resolve) => (releaseFirst = resolve));
-            return jsonResponse(200, { terminal: frame });
+        let release!: () => void;
+        server.route("POST", /createTerminal$/u, async () => {
+            await new Promise<void>((resolve) => (release = resolve));
+            return jsonResponse(201, { terminal: summary });
         });
-        server.streamRoute("GET", /\/stream\?after=0$/u, () => undefined);
-        const runtime = new StateRuntime({ transport: server.transport, retry: { attempts: 1 } });
+        server.route("POST", /stopTerminal$/u, () => jsonResponse(200, { terminal: summary }));
+        const { create, driver } = fakeDriverCreate();
+        const runtime = new StateRuntime({
+            transport: server.transport,
+            retry: { attempts: 1 },
+            terminalDriverCreate: create,
+        });
+        const terminal = terminalOpen(runtime, "chat-1", "agent-1");
+        terminal.getState().terminalWrite("early\r");
+        release();
+        await runtime.whenIdle();
+        expect(driver().writes).toEqual(["early\r"]);
+        terminal[Symbol.dispose]();
+    });
+
+    it("replays a resize that arrived while create was in flight", async () => {
+        const server = createFakeServer();
+        let release!: () => void;
+        server.route("POST", /createTerminal$/u, async () => {
+            await new Promise<void>((resolve) => (release = resolve));
+            // The PTY is created at the originally requested 80x24.
+            return jsonResponse(201, { terminal: summary });
+        });
+        server.route("POST", /stopTerminal$/u, () => jsonResponse(200, { terminal: summary }));
+        const { create, driver } = fakeDriverCreate();
+        const runtime = new StateRuntime({
+            transport: server.transport,
+            retry: { attempts: 1 },
+            terminalDriverCreate: create,
+        });
+        const terminal = terminalOpen(runtime, "chat-1", "agent-1");
+        // Resize before the create response arrives.
+        terminal.getState().terminalResize(120, 40);
+        release();
+        await runtime.whenIdle();
+        // The driver is seeded from the actual PTY size, and the pre-create
+        // resize is replayed so it is not collapsed to a no-op.
+        expect(driver().initialSize).toEqual({ cols: 80, rows: 24 });
+        expect(driver().resizes).toContainEqual({ cols: 120, rows: 40 });
+        terminal[Symbol.dispose]();
+    });
+
+    it("never attaches when closed before create completes", async () => {
+        const server = createFakeServer();
+        let release!: () => void;
+        server.route("POST", /createTerminal$/u, async () => {
+            await new Promise<void>((resolve) => (release = resolve));
+            return jsonResponse(201, { terminal: summary });
+        });
+        server.route("POST", /stopTerminal$/u, () => jsonResponse(200, { terminal: summary }));
+        const { create, driver } = fakeDriverCreate();
+        const runtime = new StateRuntime({
+            transport: server.transport,
+            retry: { attempts: 1 },
+            terminalDriverCreate: create,
+        });
+        const terminal = terminalOpen(runtime, "chat-1", "agent-1");
+        // Close while create is still in flight; the close intent must win.
+        terminal.getState().terminalClose();
+        release();
+        await runtime.whenIdle();
+        expect(() => driver()).toThrow();
+        expect(server.requests.some((request) => request.path.endsWith("/stopTerminal"))).toBe(
+            true,
+        );
+        terminal[Symbol.dispose]();
+    });
+
+    it("exits without stopping and reports create failures", async () => {
+        const server = createFakeServer();
+        server.respond("POST", /createTerminal$/u, jsonResponse(500, { error: "boom" }));
+        const { create } = fakeDriverCreate();
+        const runtime = new StateRuntime({
+            transport: server.transport,
+            retry: { attempts: 1 },
+            terminalDriverCreate: create,
+        });
         const terminal = terminalOpen(runtime, "chat-1", "agent-1");
         await runtime.whenIdle();
-
-        terminal.getState().terminalResize(80, 24);
-        terminal.getState().terminalResize(100, 30);
-        terminal.getState().terminalResize(101, 31);
-        terminal.getState().terminalResize(101, 31);
-        terminal.getState().terminalResize(102, 32);
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-        expect(resizeCount).toBe(1);
-        releaseFirst();
-        await runtime.whenIdle();
-
-        const resizeRequests = server.requests.filter((request) =>
-            request.path.endsWith("/resizeTerminal"),
-        );
-        expect(resizeRequests).toHaveLength(2);
-        expect(resizeRequests[1]!.body).toEqual({ cols: 102, rows: 32 });
+        expect(terminal.getState().status).toBe("error");
+        expect(terminal.getState().error).toBeDefined();
         terminal[Symbol.dispose]();
     });
 });

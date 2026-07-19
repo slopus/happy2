@@ -1,11 +1,13 @@
-import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
-import type { TerminalFrame } from "happy2-state";
+import { useLayoutEffect, useRef, type CSSProperties, type KeyboardEvent } from "react";
+import type { TerminalCellSnapshot, TerminalGridSnapshot } from "happy2-state";
 import { Button } from "./Button";
 
 export interface TerminalPanelProps {
-    frame?: TerminalFrame;
+    /** The current renderable grid, once output or recovery has arrived. */
+    grid?: TerminalGridSnapshot;
     status: "connecting" | "connected" | "disconnected" | "exited" | "error";
     error?: string;
+    exitCode?: number | null;
     height: number;
     onClose(): void;
     onHeightChange(height: number): void;
@@ -14,17 +16,27 @@ export interface TerminalPanelProps {
     onResize(cols: number, rows: number): void;
 }
 
+// One authoritative cell geometry, shared by layout, the cursor overlay, and the
+// size derivation. The width is exactly one advance of the bundled JetBrains
+// Mono at 14px (0.6em), so a column in CSS `ch` and this pixel value agree.
+const CELL_WIDTH = 8.4;
+const CELL_HEIGHT = 18;
+const ROWS_PADDING_LEFT = 12;
+const ROWS_PADDING_TOP = 8;
+// The theme default terminal colors, used when an inverse cell has no explicit color.
+const DEFAULT_FOREGROUND = "var(--happy2-text)";
+const DEFAULT_BACKGROUND = "var(--happy2-bg-code)";
+
 export function TerminalPanel(props: TerminalPanelProps) {
     const onResize = props.onResize;
     const screen = useRef<HTMLDivElement>(null);
     const input = useRef<HTMLTextAreaElement>(null);
     const drag = useRef<{ startHeight: number; startY: number } | undefined>(undefined);
-    // With no frame to show, a dead session is a one-line notice: the header
-    // (status + Reconnect + close) is the whole panel, with no empty screen
-    // area pushing the conversation around. Once output exists it stays
+    // With nothing to show, a dead session collapses to its header line so it
+    // does not push the conversation around; once output exists it stays
     // visible through disconnects for context.
     const collapsed =
-        !props.frame &&
+        !props.grid &&
         (props.status === "error" || props.status === "disconnected" || props.status === "exited");
     useLayoutEffect(() => {
         input.current?.focus();
@@ -32,8 +44,8 @@ export function TerminalPanel(props: TerminalPanelProps) {
         if (!element) return;
         const observer = new ResizeObserver(([entry]) => {
             if (!entry) return;
-            const cols = Math.max(1, Math.floor(entry.contentRect.width / 8.4));
-            const rows = Math.max(1, Math.floor(entry.contentRect.height / 18));
+            const cols = Math.max(1, Math.floor(entry.contentRect.width / CELL_WIDTH));
+            const rows = Math.max(1, Math.floor(entry.contentRect.height / CELL_HEIGHT));
             onResize(cols, rows);
         });
         observer.observe(element);
@@ -63,12 +75,21 @@ export function TerminalPanel(props: TerminalPanelProps) {
         drag.current = { startHeight: props.height, startY: event.clientY };
         event.currentTarget.setPointerCapture(event.pointerId);
     }
+    const cursor = props.grid?.cursor;
     return (
         <section
             className="happy2-terminal-panel"
             data-collapsed={collapsed ? "" : undefined}
             data-happy2-ui="terminal-panel"
-            style={collapsed ? undefined : { height: `${props.height}px` }}
+            style={
+                collapsed
+                    ? undefined
+                    : ({
+                          height: `${props.height}px`,
+                          "--happy2-terminal-cell-width": `${CELL_WIDTH}px`,
+                          "--happy2-terminal-cell-height": `${CELL_HEIGHT}px`,
+                      } as CSSProperties)
+            }
         >
             {collapsed ? null : (
                 <div
@@ -86,7 +107,9 @@ export function TerminalPanel(props: TerminalPanelProps) {
                 />
             )}
             <header className="happy2-terminal-panel__header">
-                <span className="happy2-terminal-panel__title">Terminal</span>
+                <span className="happy2-terminal-panel__title" data-happy2-ui="terminal-title">
+                    {props.grid?.title || "Terminal"}
+                </span>
                 <span className="happy2-terminal-panel__status">{statusLabel(props)}</span>
                 <div className="happy2-terminal-panel__actions">
                     {props.status === "disconnected" || props.status === "error" ? (
@@ -116,22 +139,36 @@ export function TerminalPanel(props: TerminalPanelProps) {
                     onPointerDown={() => input.current?.focus()}
                     ref={screen}
                 >
-                    <div className="happy2-terminal-panel__rows">
-                        {props.frame?.rows.map((row, rowIndex) => (
+                    <div className="happy2-terminal-panel__rows" data-happy2-ui="terminal-rows">
+                        {props.grid?.lines.map((row, rowIndex) => (
                             <div className="happy2-terminal-panel__row" key={rowIndex}>
-                                {row.cells.map((cell, index) => (
+                                {layoutRow(row.cells).map(({ cell, gap }, index) => (
                                     <span
                                         className="happy2-terminal-panel__cell"
+                                        data-inverse={cell.inverse ? "" : undefined}
                                         key={`${cell.x}:${index}`}
-                                        style={{
-                                            marginLeft: index === 0 ? `${cell.x}ch` : undefined,
-                                        }}
+                                        style={cellStyle(cell, gap)}
                                     >
-                                        {cell.text}
+                                        {cell.text || " "}
                                     </span>
                                 ))}
                             </div>
                         ))}
+                        {cursor?.visible ? (
+                            <div
+                                aria-hidden
+                                className="happy2-terminal-panel__cursor"
+                                data-happy2-ui="terminal-cursor"
+                                style={{
+                                    // Offset by the rows wrapper padding so cell
+                                    // coordinates align with painted glyphs.
+                                    left: `calc(${ROWS_PADDING_LEFT}px + ${cursor.x}ch)`,
+                                    top: `${ROWS_PADDING_TOP + cursor.y * CELL_HEIGHT}px`,
+                                    width: "1ch",
+                                    height: `${CELL_HEIGHT}px`,
+                                }}
+                            />
+                        ) : null}
                     </div>
                     <textarea
                         aria-label="Terminal input"
@@ -149,8 +186,51 @@ export function TerminalPanel(props: TerminalPanelProps) {
     );
 }
 
+/**
+ * Assigns each sparse cell the column gap from the previous cell's right edge,
+ * so cells land on their declared columns and wide cells reserve two columns.
+ */
+function layoutRow(
+    cells: readonly TerminalCellSnapshot[],
+): readonly { cell: TerminalCellSnapshot; gap: number }[] {
+    let previousEnd = 0;
+    return cells.map((cell) => {
+        const gap = Math.max(0, cell.x - previousEnd);
+        previousEnd = cell.x + cell.width;
+        return { cell, gap };
+    });
+}
+
+function cellStyle(cell: TerminalCellSnapshot, gap: number): CSSProperties {
+    // Inverse swaps foreground and background, falling back to theme defaults so
+    // the swap is visible even when the cell carries no explicit colors.
+    const foreground = cell.inverse
+        ? (cell.background ?? DEFAULT_BACKGROUND)
+        : (cell.foreground ?? undefined);
+    const background = cell.inverse
+        ? (cell.foreground ?? DEFAULT_FOREGROUND)
+        : (cell.background ?? undefined);
+    return {
+        marginLeft: gap > 0 ? `${gap}ch` : undefined,
+        width: `${cell.width}ch`,
+        color: foreground,
+        background,
+        fontWeight: cell.bold ? 600 : undefined,
+        fontStyle: cell.italic ? "italic" : undefined,
+        opacity: cell.dim ? 0.6 : undefined,
+        textDecorationLine: underlineDecoration(cell),
+    };
+}
+
+function underlineDecoration(cell: TerminalCellSnapshot): string | undefined {
+    const parts = [cell.underline ? "underline" : "", cell.strikethrough ? "line-through" : ""]
+        .filter(Boolean)
+        .join(" ");
+    return parts || undefined;
+}
+
 function statusLabel(props: TerminalPanelProps): string {
     if (props.error) return props.error;
-    if (props.status === "exited") return `Exited ${props.frame?.exitCode ?? ""}`.trim();
+    if (props.status === "exited") return `Exited ${props.exitCode ?? ""}`.trim();
     return props.status[0]!.toUpperCase() + props.status.slice(1);
 }

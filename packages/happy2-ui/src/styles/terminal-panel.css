@@ -81,6 +81,7 @@
 }
 
 .happy2-terminal-panel__rows {
+    position: relative;
     display: flex;
     flex-direction: column;
     min-width: max-content;
@@ -90,12 +91,23 @@
 .happy2-terminal-panel__row {
     display: flex;
     flex: none;
-    height: 18px;
+    height: var(--happy2-terminal-cell-height, 18px);
     white-space: pre;
 }
 
+/* Each cell reserves exactly its declared column width so sparse and wide cells
+ * land on the right columns; glyph ink may exceed the box without shifting flow. */
 .happy2-terminal-panel__cell {
+    flex: none;
     white-space: pre;
+}
+
+/* The cursor is an overlay positioned in cell coordinates, outside text flow. */
+.happy2-terminal-panel__cursor {
+    position: absolute;
+    background: var(--happy2-accent);
+    opacity: 0.65;
+    pointer-events: none;
 }
 
 .happy2-terminal-panel__input {

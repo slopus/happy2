@@ -26,6 +26,9 @@ describe("settings module", () => {
             },
             requestStream: () => () => undefined,
             subscribe: () => () => undefined,
+            connectTerminal: () => {
+                throw new Error("Terminal connections are not used in this test.");
+            },
         };
         const runtime = new StateRuntime({ transport });
 
@@ -67,6 +70,9 @@ describe("settings module", () => {
             },
             requestStream: () => () => undefined,
             subscribe: () => () => undefined,
+            connectTerminal: () => {
+                throw new Error("Terminal connections are not used in this test.");
+            },
         };
         const runtime = new StateRuntime({ transport });
 

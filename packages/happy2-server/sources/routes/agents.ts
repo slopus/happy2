@@ -1,4 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { IncomingMessage } from "node:http";
+import type { Duplex } from "node:stream";
+import { createWebSocketStream, WebSocketServer } from "ws";
 import { RigHttpError, type AgentService } from "../modules/agents/index.js";
 import type { AuthService } from "../modules/auth/service.js";
 import { CollaborationError } from "../modules/chat/types.js";
@@ -10,9 +13,11 @@ const MAX_SECRET_DESCRIPTION_LENGTH = 1_000;
 const MAX_SECRET_ENVIRONMENT_BYTES = 512 * 1024;
 const MAX_SECRET_ENVIRONMENT_VARIABLES = 128;
 const MAX_AGENT_EFFORT_LENGTH = 32;
-const MAX_TERMINAL_INPUT_BYTES = 64 * 1024;
 const MAX_TERMINAL_COLUMNS = 500;
-const MAX_TERMINAL_ROWS = 300;
+const MAX_TERMINAL_ROWS = 200;
+const MAX_TERMINAL_WIRE_BYTES = 4 * 1024 * 1024 + 20;
+const TERMINAL_PROTOCOL = "happy2-terminal.v1";
+const TERMINAL_AUTH_PROTOCOL_PREFIX = "happy2-auth.";
 const SECRET_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const ENVIRONMENT_VARIABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 
@@ -21,6 +26,7 @@ export function registerAgentRoutes(
     auth: AuthService,
     agents: AgentService,
 ): void {
+    registerTerminalWebSocket(app, auth, agents);
     app.post(
         "/v0/chats/:chatId/agents/:agentUserId/terminals/createTerminal",
         authenticated(auth, async (request, reply, actorUserId) => {
@@ -36,50 +42,6 @@ export function registerAgentRoutes(
         }),
     );
 
-    app.get(
-        "/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId",
-        authenticated(auth, async (request, _reply, actorUserId) => {
-            emptyQuery(request);
-            return agents.getTerminal({
-                actorUserId,
-                agentUserId: pathId(request, "agentUserId"),
-                chatId: pathId(request, "chatId"),
-                terminalId: pathId(request, "terminalId"),
-            });
-        }),
-    );
-
-    app.post(
-        "/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId/resizeTerminal",
-        authenticated(auth, async (request, _reply, actorUserId) => {
-            const body = requestBody(request, ["cols", "rows"]);
-            return agents.resizeTerminal({
-                actorUserId,
-                agentUserId: pathId(request, "agentUserId"),
-                chatId: pathId(request, "chatId"),
-                terminalId: pathId(request, "terminalId"),
-                cols: terminalDimension(body, "cols", MAX_TERMINAL_COLUMNS),
-                rows: terminalDimension(body, "rows", MAX_TERMINAL_ROWS),
-            });
-        }),
-    );
-
-    app.post(
-        "/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId/writeTerminal",
-        { bodyLimit: MAX_TERMINAL_INPUT_BYTES + 1_024 },
-        authenticated(auth, async (request, _reply, actorUserId) => {
-            const body = requestBody(request, ["data"]);
-            const data = terminalInput(body);
-            return agents.writeTerminal({
-                actorUserId,
-                agentUserId: pathId(request, "agentUserId"),
-                chatId: pathId(request, "chatId"),
-                terminalId: pathId(request, "terminalId"),
-                data,
-            });
-        }),
-    );
-
     app.post(
         "/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId/stopTerminal",
         authenticated(auth, async (request, _reply, actorUserId) => {
@@ -90,60 +52,6 @@ export function registerAgentRoutes(
                 chatId: pathId(request, "chatId"),
                 terminalId: pathId(request, "terminalId"),
             });
-        }),
-    );
-
-    app.get(
-        "/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId/stream",
-        authenticated(auth, async (request, reply, actorUserId) => {
-            const query = request.query as Record<string, unknown>;
-            const unexpected = Object.keys(query ?? {}).find((key) => key !== "after");
-            if (unexpected) throw new InvalidRequest(`Unexpected query parameter: ${unexpected}`);
-            const after = terminalRevision(query?.after);
-            const agentUserId = pathId(request, "agentUserId");
-            const chatId = pathId(request, "chatId");
-            const terminalId = pathId(request, "terminalId");
-            await agents.getTerminal({
-                actorUserId,
-                agentUserId,
-                chatId,
-                terminalId,
-            });
-            const controller = new AbortController();
-            const abort = () => controller.abort();
-            request.raw.once("aborted", abort);
-            reply.raw.once("close", abort);
-            reply.hijack();
-            reply.raw.statusCode = 200;
-            reply.raw.setHeader("content-type", "text/event-stream; charset=utf-8");
-            reply.raw.setHeader("cache-control", "private, no-cache, no-transform");
-            reply.raw.setHeader("x-accel-buffering", "no");
-            reply.raw.flushHeaders();
-            try {
-                await agents.watchTerminal(
-                    {
-                        actorUserId,
-                        agentUserId,
-                        chatId,
-                        terminalId,
-                        after,
-                    },
-                    async (frame) => {
-                        if (reply.raw.destroyed || reply.raw.writableEnded) return;
-                        if (
-                            !reply.raw.write(
-                                `id: ${frame.revision}\nevent: frame\ndata: ${JSON.stringify(frame)}\n\n`,
-                            )
-                        )
-                            await new Promise<void>((resolve) => reply.raw.once("drain", resolve));
-                    },
-                    controller.signal,
-                );
-            } finally {
-                request.raw.removeListener("aborted", abort);
-                reply.raw.removeListener("close", abort);
-                if (!reply.raw.destroyed && !reply.raw.writableEnded) reply.raw.end();
-            }
         }),
     );
 
@@ -321,6 +229,149 @@ export function registerAgentRoutes(
     );
 }
 
+interface TerminalWebSocketRoute {
+    agentUserId: string;
+    chatId: string;
+    terminalId: string;
+}
+
+function registerTerminalWebSocket(
+    app: FastifyInstance,
+    auth: AuthService,
+    agents: AgentService,
+): void {
+    const webSockets = new WebSocketServer({
+        noServer: true,
+        maxPayload: MAX_TERMINAL_WIRE_BYTES,
+        perMessageDeflate: false,
+        // The upgrade handler validates this before handing the socket to ws.
+        handleProtocols: () => TERMINAL_PROTOCOL,
+    });
+    const upgrade = (request: IncomingMessage, socket: Duplex, head: Buffer) => {
+        const route = terminalWebSocketRoute(request.url);
+        if (!route) return;
+        void (async () => {
+            const protocols = requestedWebSocketProtocols(
+                request.headers["sec-websocket-protocol"] as string | undefined,
+            );
+            if (!protocols.includes(TERMINAL_PROTOCOL)) {
+                rejectUpgrade(socket, 400, "Bad Request");
+                return;
+            }
+            const bearer = protocols
+                .find((protocol) => protocol.startsWith(TERMINAL_AUTH_PROTOCOL_PREFIX))
+                ?.slice(TERMINAL_AUTH_PROTOCOL_PREFIX.length);
+            const current = await auth.authenticate({
+                headers: {
+                    ...request.headers,
+                    ...(bearer ? { authorization: `Bearer ${bearer}` } : {}),
+                },
+            });
+            if (!current) {
+                rejectUpgrade(socket, 401, "Unauthorized");
+                return;
+            }
+            let upstream: Duplex;
+            try {
+                upstream = await agents.attachTerminal({
+                    actorUserId: current.user.id,
+                    ...route,
+                });
+            } catch (error) {
+                const status = terminalUpgradeErrorStatus(error);
+                if (status >= 500) app.log.error(error);
+                rejectUpgrade(socket, status, upgradeStatusText(status));
+                return;
+            }
+            if (socket.destroyed) {
+                upstream.destroy();
+                return;
+            }
+            webSockets.handleUpgrade(request, socket, head, (webSocket) => {
+                const browser = createWebSocketStream(webSocket, { allowHalfOpen: false });
+                webSocket.once("close", () => upstream.destroy());
+                webSocket.once("error", () => upstream.destroy());
+                browser.once("error", () => upstream.destroy());
+                upstream.once("close", () => browser.destroy());
+                upstream.once("error", () => browser.destroy());
+                browser.pipe(upstream);
+                upstream.pipe(browser);
+            });
+        })().catch((error: unknown) => {
+            app.log.error(error);
+            rejectUpgrade(socket, 500, "Internal Server Error");
+        });
+    };
+    app.server.on("upgrade", upgrade);
+    app.addHook("onClose", async () => {
+        app.server.off("upgrade", upgrade);
+        for (const client of webSockets.clients) client.terminate();
+    });
+}
+
+function terminalWebSocketRoute(
+    requestUrl: string | undefined,
+): TerminalWebSocketRoute | undefined {
+    try {
+        const url = new URL(requestUrl ?? "/", "http://happy2.invalid");
+        if (url.search) return undefined;
+        const parts = url.pathname.split("/").filter(Boolean);
+        if (
+            parts.length !== 8 ||
+            parts[0] !== "v0" ||
+            parts[1] !== "chats" ||
+            parts[3] !== "agents" ||
+            parts[5] !== "terminals" ||
+            parts[7] !== "attach"
+        )
+            return undefined;
+        const [chatId, agentUserId, terminalId] = [parts[2], parts[4], parts[6]].map((value) =>
+            decodeURIComponent(value!),
+        );
+        if (
+            !chatId ||
+            !agentUserId ||
+            !terminalId ||
+            [chatId, agentUserId, terminalId].some((value) => value.length > MAX_ID_LENGTH)
+        )
+            return undefined;
+        return { chatId, agentUserId, terminalId };
+    } catch {
+        return undefined;
+    }
+}
+
+function requestedWebSocketProtocols(value: string | undefined): string[] {
+    return (value ?? "")
+        .split(",")
+        .map((protocol) => protocol.trim())
+        .filter(Boolean);
+}
+
+function terminalUpgradeErrorStatus(error: unknown): number {
+    if (error instanceof CollaborationError) return collaborationStatus(error.code);
+    if (error instanceof RigHttpError && [400, 404, 409].includes(error.status))
+        return error.status;
+    return 502;
+}
+
+function upgradeStatusText(status: number): string {
+    if (status === 400) return "Bad Request";
+    if (status === 401) return "Unauthorized";
+    if (status === 403) return "Forbidden";
+    if (status === 404) return "Not Found";
+    if (status === 409) return "Conflict";
+    return "Bad Gateway";
+}
+
+function rejectUpgrade(socket: Duplex, statusCode: number, statusText: string): void {
+    if (socket.destroyed) return;
+    socket.end(
+        `HTTP/1.1 ${statusCode} ${statusText}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`,
+        () => socket.destroy(),
+    );
+}
+
 type AuthenticatedHandler = (
     request: FastifyRequest,
     reply: FastifyReply,
@@ -418,23 +469,6 @@ function terminalDimension(body: Record<string, unknown>, key: string, maximum: 
     if (!Number.isSafeInteger(value) || (value as number) < 1 || (value as number) > maximum)
         throw new InvalidRequest(`${key} must be an integer between 1 and ${maximum}`);
     return value as number;
-}
-
-function terminalInput(body: Record<string, unknown>): string {
-    const value = body.data;
-    if (typeof value !== "string" || Buffer.byteLength(value, "utf8") > MAX_TERMINAL_INPUT_BYTES)
-        throw new InvalidRequest("data must be text no larger than 64 KiB");
-    return value;
-}
-
-function terminalRevision(value: unknown): number | undefined {
-    if (value === undefined) return undefined;
-    if (typeof value !== "string" || !/^\d+$/u.test(value))
-        throw new InvalidRequest("after must be a non-negative integer");
-    const revision = Number(value);
-    if (!Number.isSafeInteger(revision))
-        throw new InvalidRequest("after must be a non-negative integer");
-    return revision;
 }
 
 function secretEnvironment(body: Record<string, unknown>): Record<string, string> {

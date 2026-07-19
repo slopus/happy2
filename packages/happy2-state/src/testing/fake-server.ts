@@ -4,6 +4,8 @@ import type {
     HttpResponse,
     HttpStreamObserver,
     RealtimeObserver,
+    TerminalConnection,
+    TerminalConnectTarget,
 } from "../transport.js";
 import { TransportError } from "../transport.js";
 import type {
@@ -44,6 +46,24 @@ export interface RecordedRequest extends HttpRequest {
     readonly requestNumber: number;
 }
 
+/** The terminal side of one in-memory attach, driven directly by a test. */
+export interface FakeTerminalController {
+    readonly target: TerminalConnectTarget;
+    /** Every outbound frame the client has written to this channel, in order. */
+    readonly written: readonly Uint8Array[];
+    /** Delivers one inbound frame to the client (buffered while it is paused). */
+    emit(chunk: Uint8Array): void;
+    /** Closes the channel normally. */
+    close(): void;
+    /** Breaks the channel with an error. */
+    error(error?: Error): void;
+    /** True once either side tore the channel down. */
+    readonly destroyed: boolean;
+}
+
+/** Receives each authenticated terminal attach as a directly driven controller. */
+export type FakeTerminalHandler = (controller: FakeTerminalController) => void;
+
 export interface FakeServerEvents {
     emit(event: RealtimeEvent): void;
     sync(input: {
@@ -83,7 +103,11 @@ export interface FakeServerEvents {
 export interface FakeServer {
     readonly transport: ClientTransport;
     readonly requests: readonly RecordedRequest[];
+    /** Every terminal attach target the client has opened, in order. */
+    readonly terminalConnects: readonly TerminalConnectTarget[];
     readonly events: FakeServerEvents;
+    /** Registers the handler that receives each terminal attach byte channel. */
+    terminalRoute(handler: FakeTerminalHandler): void;
     route(
         method: HttpRequest["method"],
         matcher: FakeRouteMatcher,
@@ -137,6 +161,8 @@ class FakeServerModel implements FakeServer {
     private readonly failures: Array<Route & { readonly error: unknown }> = [];
     private readonly observers = new Set<RealtimeObserver>();
     private readonly recorded: RecordedRequest[] = [];
+    private readonly terminalTargets: TerminalConnectTarget[] = [];
+    private terminalHandler?: FakeTerminalHandler;
     private closed = false;
 
     readonly transport: ClientTransport = {
@@ -250,6 +276,66 @@ class FakeServerModel implements FakeServer {
             this.observers.add(observer);
             return () => this.observers.delete(observer);
         },
+        connectTerminal: (target: TerminalConnectTarget): TerminalConnection => {
+            this.terminalTargets.push({ ...target });
+            const dataListeners = new Set<(chunk: Uint8Array) => void>();
+            const closeListeners = new Set<() => void>();
+            const errorListeners = new Set<(error: Error) => void>();
+            const written: Uint8Array[] = [];
+            const inbound: Uint8Array[] = [];
+            let paused = false;
+            let destroyed = false;
+            const deliver = (chunk: Uint8Array) => {
+                if (paused) inbound.push(chunk);
+                else for (const listener of dataListeners) listener(chunk);
+            };
+            const tearDown = (error?: Error) => {
+                if (destroyed) return;
+                destroyed = true;
+                if (error) for (const listener of errorListeners) listener(error);
+                for (const listener of closeListeners) listener();
+            };
+            const connection: TerminalConnection = {
+                on: (_event, listener) => {
+                    dataListeners.add(listener);
+                },
+                once: (event, listener) => {
+                    if (event === "error") errorListeners.add(listener as (error: Error) => void);
+                    else closeListeners.add(listener as () => void);
+                },
+                write: (chunk) => {
+                    if (!destroyed) written.push(chunk);
+                },
+                pause: () => {
+                    paused = true;
+                },
+                resume: () => {
+                    paused = false;
+                    for (const chunk of inbound.splice(0)) deliver(chunk);
+                },
+                destroy: () => tearDown(),
+                get destroyed() {
+                    return destroyed;
+                },
+            };
+            if (this.closed || !this.terminalHandler) {
+                queueMicrotask(() => tearDown(new TransportError("Fake terminal is unavailable.")));
+                return connection;
+            }
+            this.terminalHandler({
+                target,
+                get written() {
+                    return written;
+                },
+                emit: (chunk) => deliver(chunk),
+                close: () => tearDown(),
+                error: (error = new TransportError("Fake terminal failed.")) => tearDown(error),
+                get destroyed() {
+                    return destroyed;
+                },
+            });
+            return connection;
+        },
     };
 
     readonly events: FakeServerEvents = {
@@ -304,6 +390,14 @@ class FakeServerModel implements FakeServer {
 
     get requests(): readonly RecordedRequest[] {
         return this.recorded;
+    }
+
+    get terminalConnects(): readonly TerminalConnectTarget[] {
+        return this.terminalTargets;
+    }
+
+    terminalRoute(handler: FakeTerminalHandler): void {
+        this.terminalHandler = handler;
     }
 
     route(

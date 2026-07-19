@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import type { FastifyRequest } from "fastify";
 import type { CloudflareAccessConfig } from "../config/type.js";
+import type { AuthenticationRequest } from "./metadata.js";
 
 export interface CloudflareAccessIdentity {
     subject: string;
@@ -17,7 +17,7 @@ const keySets = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
  * be forwarded.
  */
 export async function cloudflareAccessIdentity(
-    request: FastifyRequest,
+    request: AuthenticationRequest,
     config: CloudflareAccessConfig,
 ): Promise<CloudflareAccessIdentity | undefined> {
     if (!config.enabled || !config.teamDomain || !config.audience) return undefined;
