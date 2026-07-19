@@ -10,6 +10,8 @@
  */
 
 .happy2-modal-overlay {
+    /* Programmatic fallback focus target; the scrim itself never shows a ring. */
+    outline: none;
     position: fixed;
     inset: 0;
     z-index: var(--happy2-z-overlay);

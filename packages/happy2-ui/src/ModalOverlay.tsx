@@ -1,5 +1,5 @@
 import { partitionComponentProps } from "./componentProps";
-import { type CSSProperties, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
 export type ModalOverlayProps = {
     className?: string;
     "data-testid"?: string;
@@ -18,6 +18,8 @@ export type ModalOverlayProps = {
      */
     placement?: "center" | "top";
 };
+const FOCUSABLE =
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 /**
  * C-058 ModalOverlay — the single backdrop every modal-class surface sits on.
  *
@@ -27,6 +29,11 @@ export type ModalOverlayProps = {
  * gutter. The default placement centers dialogs and forms; `top` anchors a
  * transient type-ahead below an adaptive top gutter. Clicking the dim outside
  * the card calls `onDismiss` when wired; clicks inside the card never dismiss.
+ *
+ * The overlay owns modal focus: on mount it moves focus to the hosted card's
+ * first focusable control (unless the card already focused itself, as the
+ * command palette does), so Escape works immediately without a preceding
+ * click; on unmount it hands focus back to the control that opened it.
  */
 export function ModalOverlay(props: ModalOverlayProps) {
     const [local, rest] = partitionComponentProps(props, [
@@ -36,6 +43,24 @@ export function ModalOverlay(props: ModalOverlayProps) {
         "onDismiss",
         "placement",
     ]);
+    const overlayEl = useRef<HTMLDivElement>(null);
+    // Imperative focus handoff at the overlay's lifetime boundary: there is no
+    // declarative way to move browser focus into the dialog on open and back to
+    // the invoking control on close.
+    useLayoutEffect(() => {
+        const overlay = overlayEl.current;
+        if (!overlay) return;
+        const invoker = document.activeElement as HTMLElement | null;
+        // A hosted card may have claimed focus in its own mount effect (child
+        // effects run first); only fill the gap when focus is still outside.
+        if (!overlay.contains(document.activeElement)) {
+            const target = overlay.querySelector<HTMLElement>(FOCUSABLE) ?? overlay;
+            target.focus();
+        }
+        return () => {
+            if (invoker && invoker.isConnected && invoker !== document.body) invoker.focus();
+        };
+    }, []);
     return (
         <div
             {...rest}
@@ -55,7 +80,9 @@ export function ModalOverlay(props: ModalOverlayProps) {
             onKeyDown={(event) => {
                 if (event.key === "Escape") local.onDismiss?.();
             }}
+            ref={overlayEl}
             style={local.style}
+            tabIndex={-1}
         >
             {local.placement === "top" ? (
                 <div

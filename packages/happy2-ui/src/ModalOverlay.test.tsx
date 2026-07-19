@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 import "./theme.css";
@@ -367,3 +367,64 @@ it("anchors top placement at the 1024x704 design reference", async () => {
 
     await view.screenshot("ModalOverlay.top.reference.test");
 }, 120000);
+
+function FocusHarness(props: { onDismiss(): void; selfFocusing?: boolean }): ReactNode {
+    const [open, setOpen] = useState(false);
+    return (
+        <WindowFrame>
+            <button data-testid="opener" onClick={() => setOpen(true)} type="button">
+                Open
+            </button>
+            {open ? (
+                <ModalOverlay
+                    onDismiss={() => {
+                        props.onDismiss();
+                        setOpen(false);
+                    }}
+                >
+                    <Modal onClose={() => setOpen(false)} title="Focus contract">
+                        <input
+                            autoFocus={props.selfFocusing ? true : undefined}
+                            data-testid="field"
+                            type="text"
+                        />
+                    </Modal>
+                </ModalOverlay>
+            ) : null}
+        </WindowFrame>
+    );
+}
+
+it("moves focus into the dialog on open, closes on Escape without a click, and restores the opener", async () => {
+    let dismissed = 0;
+    const view = createRenderer().render(
+        () => <FocusHarness onDismiss={() => (dismissed += 1)} />,
+        { width: 760, height: 500, padding: 20 },
+    );
+    await view.ready();
+    const opener = view.$('[data-testid="opener"]').element as HTMLButtonElement;
+    // Open via keyboard: WebKit blurs buttons on pointer click, so keyboard
+    // activation is the path where an invoker exists to restore in all three
+    // engines (pointer users put focus back with their next click anyway).
+    opener.focus();
+    await userEvent.keyboard("{Enter}");
+    // Focus lands on the dialog's first focusable control at open, so keyboard
+    // dismissal works immediately — no preparatory click inside the card.
+    const overlay = view.container.querySelector('[data-happy2-ui="modal-overlay"]')!;
+    expect(overlay.contains(document.activeElement)).toBe(true);
+    await userEvent.keyboard("{Escape}");
+    expect(dismissed).toBe(1);
+    expect(view.container.querySelector('[data-happy2-ui="modal-overlay"]')).toBeNull();
+    // Closing hands focus back to the control that opened the dialog.
+    expect(document.activeElement).toBe(opener);
+});
+
+it("does not steal focus from a card that already focused itself", async () => {
+    const view = createRenderer().render(
+        () => <FocusHarness onDismiss={() => undefined} selfFocusing />,
+        { width: 760, height: 500, padding: 20 },
+    );
+    await view.ready();
+    await userEvent.click(view.$('[data-testid="opener"]').element);
+    expect(document.activeElement).toBe(view.$('[data-testid="field"]').element);
+});
