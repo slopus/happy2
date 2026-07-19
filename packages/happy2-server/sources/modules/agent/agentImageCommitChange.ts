@@ -14,10 +14,10 @@ import { userSelection } from "../chat/userSelection.js";
 import { chatAppendAudit } from "../chat/chatAppendAudit.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequirePermission } from "../permission/userRequirePermission.js";
 
 /**
- * Applies an administrator-approved image change to the agent's users identity and any affected agentRigBindings.
+ * Applies an assignImagesToChats-authorized change to the agent's users identity and affected agentRigBindings.
  * The shared commit keeps future runs, synchronized clients, and the audit trail aligned on the same effective image.
  */
 export async function agentImageCommitChange(
@@ -41,7 +41,7 @@ export async function agentImageCommitChange(
     sync?: MutationHint;
 }> {
     return withTransaction(executor, async (tx) => {
-        await userRequireServerAdmin(tx, input.actorUserId);
+        await userRequirePermission(tx, input.actorUserId, "assignImagesToChats");
         const [agent] = await tx
             .select(userSelection)
             .from(users)

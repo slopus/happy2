@@ -10,6 +10,8 @@ export type SelectOption = {
     disabled?: boolean;
 };
 export type SelectProps = {
+    /** Accessible name for the native control when no visible `label` is shown. */
+    "aria-label"?: string;
     className?: string;
     "data-testid"?: string;
     style?: CSSProperties;
@@ -43,6 +45,7 @@ const chevronSizes: Record<SelectSize, 14 | 16> = {
  */
 export function Select(props: SelectProps) {
     const [local] = partitionComponentProps(props, [
+        "aria-label",
         "className",
         "data-testid",
         "style",
@@ -115,7 +118,7 @@ export function Select(props: SelectProps) {
                     <Icon name="chevron-down" size={chevronSizes[size()]} />
                 </span>
                 <select
-                    aria-label={local.label}
+                    aria-label={local["aria-label"] ?? local.label}
                     className="happy2-select__native"
                     data-happy2-ui="select-native"
                     disabled={local.disabled}

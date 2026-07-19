@@ -607,7 +607,7 @@ export class AgentService {
         secret: AgentSecretSummary;
         sync: MutationHint;
     }> {
-        await agentSecretAuthorizeManagement(this.executor, input.actorUserId);
+        await agentSecretAuthorizeManagement(this.executor, input.actorUserId, "manageSecrets");
         const secret = await this.daemon.registerSecret(
             {
                 id: input.id,
@@ -644,7 +644,7 @@ export class AgentService {
         removed: boolean;
         sync: MutationHint;
     }> {
-        await agentSecretAuthorizeManagement(this.executor, input.actorUserId);
+        await agentSecretAuthorizeManagement(this.executor, input.actorUserId, "manageSecrets");
         const sync = await agentSecretAssignmentDelete(this.executor, input);
         let removed: boolean;
         try {
@@ -1157,7 +1157,7 @@ export class AgentService {
         await this.daemon.changeEffort(sessionId, effort, this.shutdown.signal);
     }
     private async requireAgentSecret(actorUserId: string, secretId: string): Promise<void> {
-        await agentSecretAuthorizeManagement(this.executor, actorUserId);
+        await agentSecretAuthorizeManagement(this.executor, actorUserId, "assignSecrets");
         const secrets = await this.daemon.listSecrets(this.shutdown.signal);
         if (!secrets.some((secret) => secret.id === secretId))
             throw new CollaborationError("not_found", "Agent secret was not found");

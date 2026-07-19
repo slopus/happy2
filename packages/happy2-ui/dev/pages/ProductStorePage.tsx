@@ -4,6 +4,7 @@ import {
     agentImagesStoreFixtureCreate,
     agentSecretsStoreFixtureCreate,
     pluginsStoreFixtureCreate,
+    rolesStoreFixtureCreate,
     callsStoreFixtureCreate,
     filesStoreFixtureCreate,
     notificationsStoreFixtureCreate,
@@ -172,16 +173,22 @@ function SearchPageSpecimen() {
     );
 }
 function AdminPageSpecimen() {
-    const [{ fixture, images, secrets, plugins }] = useState(() => {
+    const [{ fixture, images, secrets, plugins, roles }] = useState(() => {
         const fixture = adminStoreFixtureCreate();
         const images = agentImagesStoreFixtureCreate();
         const secrets = agentSecretsStoreFixtureCreate();
         const plugins = pluginsStoreFixtureCreate();
+        const roles = rolesStoreFixtureCreate();
         fixture.input({ type: "usersLoaded", users: [] });
         images.input({ type: "imagesLoaded", images: [] });
         secrets.input({ type: "secretsLoaded", secrets: [], agents: [], channels: [] });
         plugins.input({ type: "pluginsLoaded", plugins: [] });
-        return { fixture, images, secrets, plugins };
+        roles.input({
+            type: "catalogLoaded",
+            catalog: { permissions: [], roles: [] },
+        });
+        roles.input({ type: "membersLoaded", members: [] });
+        return { fixture, images, secrets, plugins, roles };
     });
     const [section, setSection] = useState<AdminPageSection>("users");
     useLayoutEffect(
@@ -190,8 +197,9 @@ function AdminPageSpecimen() {
             images[Symbol.dispose]();
             secrets[Symbol.dispose]();
             plugins[Symbol.dispose]();
+            roles[Symbol.dispose]();
         },
-        [fixture, images, secrets, plugins],
+        [fixture, images, secrets, plugins, roles],
     );
     return frame(
         "P-009",
@@ -203,7 +211,8 @@ function AdminPageSpecimen() {
             agentSecretsStore={() => secrets.store}
             onSectionChange={setSection}
             pluginsStore={() => plugins.store}
-            store={fixture.store}
+            rolesStore={() => roles.store}
+            store={() => fixture.store}
         />,
     );
 }

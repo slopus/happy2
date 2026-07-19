@@ -82,6 +82,7 @@ import { registerSetupRoutes } from "./routes/setup.js";
 import { registerWorkspaceRoutes } from "./routes/workspace.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
 import { createPluginHostApi } from "./routes/pluginHost.js";
+import { registerPermissionRoutes } from "./routes/permissions.js";
 
 const pluginHostApis = new WeakMap<FastifyInstance, FastifyInstance>();
 
@@ -366,6 +367,7 @@ export async function buildServer(
             },
         });
         registerPluginRoutes(app, auth, executor, pluginCatalog, pluginService, pluginBridge);
+        registerPermissionRoutes(app, auth, executor, livePubsub);
         registerSyncRoutes(app, auth, executor, livePubsub);
         registerWorkspaceRoutes(app, auth, workspaceService);
         try {

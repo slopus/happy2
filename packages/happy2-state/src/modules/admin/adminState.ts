@@ -13,67 +13,92 @@ export interface AdminActionContext {
     readonly admin: AdminStore;
 }
 
-const generations = new WeakMap<AdminStore, number>();
+const generations = new WeakMap<AdminStore, Map<AdminSection, number>>();
+const allSections: readonly AdminSection[] = ["users", "reports", "automations", "integrations"];
 
-/** Loads every admin resource independently so one forbidden or failed area does not blank the screen. */
-export async function adminLoad(context: AdminActionContext): Promise<void> {
-    const generation = (generations.get(context.admin) ?? 0) + 1;
-    generations.set(context.admin, generation);
-    const current = (): boolean => generations.get(context.admin) === generation;
-    context.admin.getState().adminInput({ type: "adminLoading" });
-    await Promise.all([
-        settle(
-            context.runtime.operation("getAdminUsers"),
-            (value) => {
-                if (current())
-                    context.admin
-                        .getState()
-                        .adminInput({ type: "usersLoaded", users: value.users });
-            },
-            (error) => {
-                if (current()) context.admin.getState().adminInput({ type: "usersFailed", error });
-            },
-        ),
-        settle(
-            context.runtime.operation("getReports", { limit: 100 }),
-            (value) => {
-                if (current())
-                    context.admin
-                        .getState()
-                        .adminInput({ type: "reportsLoaded", reports: value.reports });
-            },
-            (error) => {
-                if (current())
-                    context.admin.getState().adminInput({ type: "reportsFailed", error });
-            },
-        ),
-        settle(
-            context.runtime.operation("getAutomations"),
-            (value) =>
-                current() &&
-                context.admin.getState().adminInput({
-                    type: "automationsLoaded",
-                    automations: value.automations,
-                }),
-            (error) => {
-                if (current())
-                    context.admin.getState().adminInput({ type: "automationsFailed", error });
-            },
-        ),
-        settle(
-            context.runtime.operation("getIntegrations"),
-            (value) =>
-                current() &&
-                context.admin.getState().adminInput({
-                    type: "integrationsLoaded",
-                    integrations: value.integrations,
-                }),
-            (error) => {
-                if (current())
-                    context.admin.getState().adminInput({ type: "integrationsFailed", error });
-            },
-        ),
-    ]);
+/** Loads only the requested legacy admin resources so narrow grants never probe unrelated privileged endpoints. */
+export async function adminLoad(
+    context: AdminActionContext,
+    sections: readonly AdminSection[] = allSections,
+): Promise<void> {
+    const storeGenerations = generations.get(context.admin) ?? new Map<AdminSection, number>();
+    generations.set(context.admin, storeGenerations);
+    const requestGenerations = new Map(
+        sections.map((section) => {
+            const generation = (storeGenerations.get(section) ?? 0) + 1;
+            storeGenerations.set(section, generation);
+            return [section, generation] as const;
+        }),
+    );
+    const current = (section: AdminSection): boolean =>
+        storeGenerations.get(section) === requestGenerations.get(section);
+    context.admin.getState().adminInput({ type: "adminLoading", sections });
+    const tasks: Promise<void>[] = [];
+    if (sections.includes("users"))
+        tasks.push(
+            settle(
+                context.runtime.operation("getAdminUsers"),
+                (value) => {
+                    if (current("users"))
+                        context.admin
+                            .getState()
+                            .adminInput({ type: "usersLoaded", users: value.users });
+                },
+                (error) => {
+                    if (current("users"))
+                        context.admin.getState().adminInput({ type: "usersFailed", error });
+                },
+            ),
+        );
+    if (sections.includes("reports"))
+        tasks.push(
+            settle(
+                context.runtime.operation("getReports", { limit: 100 }),
+                (value) => {
+                    if (current("reports"))
+                        context.admin
+                            .getState()
+                            .adminInput({ type: "reportsLoaded", reports: value.reports });
+                },
+                (error) => {
+                    if (current("reports"))
+                        context.admin.getState().adminInput({ type: "reportsFailed", error });
+                },
+            ),
+        );
+    if (sections.includes("automations"))
+        tasks.push(
+            settle(
+                context.runtime.operation("getAutomations"),
+                (value) =>
+                    current("automations") &&
+                    context.admin.getState().adminInput({
+                        type: "automationsLoaded",
+                        automations: value.automations,
+                    }),
+                (error) => {
+                    if (current("automations"))
+                        context.admin.getState().adminInput({ type: "automationsFailed", error });
+                },
+            ),
+        );
+    if (sections.includes("integrations"))
+        tasks.push(
+            settle(
+                context.runtime.operation("getIntegrations"),
+                (value) =>
+                    current("integrations") &&
+                    context.admin.getState().adminInput({
+                        type: "integrationsLoaded",
+                        integrations: value.integrations,
+                    }),
+                (error) => {
+                    if (current("integrations"))
+                        context.admin.getState().adminInput({ type: "integrationsFailed", error });
+                },
+            ),
+        );
+    await Promise.all(tasks);
 }
 
 async function settle<Value>(
@@ -98,13 +123,24 @@ export function adminStoreCreate(): AdminStore {
         adminInput(event): void {
             set((snapshot) => {
                 switch (event.type) {
-                    case "adminLoading":
+                    case "adminLoading": {
+                        const sections = event.sections ?? allSections;
                         return {
-                            users: { type: "loading" },
-                            reports: { type: "loading" },
-                            automations: { type: "loading" },
-                            integrations: { type: "loading" },
+                            ...snapshot,
+                            ...(sections.includes("users")
+                                ? { users: { type: "loading" } as const }
+                                : {}),
+                            ...(sections.includes("reports")
+                                ? { reports: { type: "loading" } as const }
+                                : {}),
+                            ...(sections.includes("automations")
+                                ? { automations: { type: "loading" } as const }
+                                : {}),
+                            ...(sections.includes("integrations")
+                                ? { integrations: { type: "loading" } as const }
+                                : {}),
                         };
+                    }
                     case "usersLoaded":
                         return { ...snapshot, users: { type: "ready", value: event.users } };
                     case "usersFailed":
@@ -141,7 +177,7 @@ export interface AdminSnapshot {
 }
 
 export type AdminInput =
-    | { readonly type: "adminLoading" }
+    | { readonly type: "adminLoading"; readonly sections?: readonly AdminSection[] }
     | { readonly type: "usersLoaded"; readonly users: readonly AdminUserSummary[] }
     | { readonly type: "usersFailed"; readonly error: import("../../types.js").UserError }
     | { readonly type: "reportsLoaded"; readonly reports: readonly ModerationReport[] }
@@ -156,3 +192,5 @@ export interface AdminState extends AdminSnapshot {
 }
 
 export type AdminStore = StoreApi<AdminState>;
+
+export type AdminSection = "users" | "reports" | "automations" | "integrations";

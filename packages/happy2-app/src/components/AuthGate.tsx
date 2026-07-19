@@ -129,18 +129,20 @@ export function AuthGate(props: AuthGateProps) {
             return;
         }
         update({ loadingMessage: "Loading your profile.", mode: "loading" });
-        const nextState = happyStateCreate({
-            transport: createAuthenticatedTransport(props.serverUrl, value),
-        });
+        let nextState: HappyState | undefined;
         try {
             const response = await client.me(value);
+            nextState = happyStateCreate({
+                initialPermissions: response.permissions,
+                transport: createAuthenticatedTransport(props.serverUrl, value),
+            });
             await nextState.syncStart();
             const profile = await loadAvatar(response.user, nextState);
             stateRef.current?.[Symbol.dispose]();
             stateRef.current = nextState;
             update({ state: nextState, user: profile, mode: "ready" });
         } catch (reason) {
-            nextState[Symbol.dispose]();
+            nextState?.[Symbol.dispose]();
             if (!(reason instanceof ServerError) || reason.status !== 401) throw reason;
             if (value && allowRefresh) {
                 try {

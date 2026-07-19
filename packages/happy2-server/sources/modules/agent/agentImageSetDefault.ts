@@ -12,10 +12,10 @@ import { asAgentImage } from "./impl/asAgentImage.js";
 import { chatAppendAudit } from "../chat/chatAppendAudit.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequirePermission } from "../permission/userRequirePermission.js";
 
 /**
- * Selects a ready image in agentImageSettings as the server default after administrator authorization.
+ * Selects a ready image in agentImageSettings as the server default after manageImages authorization.
  * Coupling the setting with sync and audit records prevents clients from seeing an unexplained default-image change.
  */
 export async function agentImageSetDefault(
@@ -29,7 +29,7 @@ export async function agentImageSetDefault(
     image: AgentImageSummary;
 }> {
     return withTransaction(executor, async (tx) => {
-        await userRequireServerAdmin(tx, input.actorUserId);
+        await userRequirePermission(tx, input.actorUserId, "manageImages");
         const [image] = await tx
             .select(agentImageSelection)
             .from(agentImages)

@@ -55,6 +55,46 @@ beforeEach(() => {
     history.replaceState(null, "", "/chats");
 });
 describe("persistent desktop routing", () => {
+    it("opens the first administration section granted by effective permissions", async () => {
+        const state = happyStateCreate({
+            initialPermissions: { allowed: ["managePlugins"], owner: false },
+        });
+        const navigation = desktopNavigationCreate();
+        onTestFinished(() => {
+            navigation[Symbol.dispose]();
+            state[Symbol.dispose]();
+        });
+        const screen = render(
+            <DesktopSessionFixture navigation={navigation} sessionReady={() => {}} state={state} />,
+        );
+        const administration = await screen.findByRole("button", { name: "Administration" });
+        fireEvent.click(administration);
+        await waitFor(() => {
+            expect(location.pathname).toBe("/admin/plugins");
+            expect(screen.container.textContent).toContain("Plugins");
+        });
+        expect(screen.queryByRole("tab", { name: "Users" })).toBeNull();
+        expect(screen.queryByRole("tab", { name: "Roles" })).toBeNull();
+    });
+
+    it("denies a direct administration route when no effective permission grants a section", async () => {
+        history.replaceState(null, "", "/admin/roles");
+        const state = happyStateCreate({
+            initialPermissions: { allowed: ["managePlugins"], owner: false },
+        });
+        const navigation = desktopNavigationCreate();
+        onTestFinished(() => {
+            navigation[Symbol.dispose]();
+            state[Symbol.dispose]();
+        });
+        const screen = render(
+            <DesktopSessionFixture navigation={navigation} sessionReady={() => {}} state={state} />,
+        );
+        expect(await screen.findByText("Administration unavailable")).toBeTruthy();
+        expect(screen.queryByText("New role")).toBeNull();
+        expect(screen.queryByRole("button", { name: "Administration" })).toBeNull();
+    });
+
     it("routes every rail destination through the URL-owned desktop model", async () => {
         const screen = render(<App />);
         await waitFor(() =>

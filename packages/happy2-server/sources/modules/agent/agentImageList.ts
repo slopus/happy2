@@ -5,10 +5,10 @@ import { agentImages, agentImageSettings } from "../schema.js";
 
 import { asAgentImage } from "./impl/asAgentImage.js";
 import { eq } from "drizzle-orm";
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequireAnyPermission } from "../permission/userRequireAnyPermission.js";
 /**
- * Lists agent images in creation order and the optional configured default after requiring server-administrator access.
- * Reading settings and definitions as one response gives management clients the exact selection context without exposing internal images.
+ * Lists agent images and the configured default to a caller allowed to manage images, assign them to chats, or select a runtime for plugin installation.
+ * Reading summaries as one response gives each authorized selection surface exact context without granting image mutation authority.
  */
 export async function agentImageList(
     executor: DrizzleExecutor,
@@ -17,7 +17,11 @@ export async function agentImageList(
     defaultImageId?: string;
     images: AgentImageSummary[];
 }> {
-    await userRequireServerAdmin(executor, actorUserId);
+    await userRequireAnyPermission(executor, actorUserId, [
+        "manageImages",
+        "assignImagesToChats",
+        "managePlugins",
+    ]);
     const [settings, images] = await Promise.all([
         executor
             .select({

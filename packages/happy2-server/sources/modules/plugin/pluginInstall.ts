@@ -7,7 +7,7 @@ import {
     pluginInstallationVariables,
     plugins,
 } from "../schema.js";
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequirePermission } from "../permission/userRequirePermission.js";
 import { chatAppendAudit } from "../chat/chatAppendAudit.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
@@ -55,7 +55,7 @@ export async function pluginInstall(
     pluginId: string;
 }> {
     return withTransaction(executor, async (tx) => {
-        await userRequireServerAdmin(tx, input.actorUserId);
+        await userRequirePermission(tx, input.actorUserId, "managePlugins");
         const [existing] = await tx
             .select({
                 id: plugins.id,

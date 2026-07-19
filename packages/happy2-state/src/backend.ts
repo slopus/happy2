@@ -31,14 +31,18 @@ import type {
     ClientUser,
     CombinedOnboardingStatus,
     DataExportJob,
+    EffectivePermissions,
     IntegrationSummary,
+    MemberPermissionDetail,
     MessageRevision,
     ModerationAction,
     ModerationReport,
     NotificationPreferences,
+    Permission,
     PluginCatalogItem,
     PluginInstallationSummary,
     PublicServerSetupStatus,
+    RoleSummary,
     SandboxProviderDiscovery,
     SandboxProviderStatus,
     SetupBaseImageSelection,
@@ -190,6 +194,14 @@ export const backendOperations = {
     createCustomEmoji: post("/v0/customEmoji/createCustomEmoji"),
     deleteCustomEmoji: post("/v0/customEmoji/:emojiId/deleteCustomEmoji"),
     getServer: get("/v0/server"),
+    getRoles: get("/v0/admin/roles"),
+    createRole: post("/v0/admin/roles/createRole"),
+    updateRole: post("/v0/admin/roles/:roleId/updateRole"),
+    deleteRole: post("/v0/admin/roles/:roleId/deleteRole"),
+    getUserPermissions: get("/v0/admin/users/:userId/permissions"),
+    updateUserPermissions: post("/v0/admin/users/:userId/updatePermissions"),
+    assignUserRole: post("/v0/admin/users/:userId/assignRole"),
+    unassignUserRole: post("/v0/admin/users/:userId/unassignRole"),
     getAdminUsers: get("/v0/admin/users"),
     updateAdminUser: post("/v0/admin/users/:userId/updateUser"),
     banUser: post("/v0/admin/users/:userId/banUser"),
@@ -503,6 +515,24 @@ export interface KnownBackendInputs {
         readonly title?: string | null;
         readonly role?: "member" | "admin";
     };
+    createRole: {
+        readonly name: string;
+        readonly description?: string;
+        readonly permissions: readonly Permission[];
+    };
+    updateRole: {
+        readonly roleId: string;
+        readonly name?: string;
+        readonly description?: string | null;
+        readonly permissions?: readonly Permission[];
+    };
+    deleteRole: { readonly roleId: string };
+    updateUserPermissions: {
+        readonly userId: string;
+        readonly permissions: readonly Permission[];
+    };
+    assignUserRole: { readonly userId: string; readonly roleId: string };
+    unassignUserRole: { readonly userId: string; readonly roleId: string };
     banUser: { readonly userId: string };
     unbanUser: { readonly userId: string };
     deleteUser: { readonly userId: string };
@@ -779,7 +809,7 @@ export type BackendOperationInput<K extends BackendOperation> = K extends keyof 
 export interface KnownBackendResults {
     getServiceStatus: { readonly service: "happy2"; readonly status: "ok" };
     getHealth: { readonly status: "ok" };
-    getMe: { readonly user: ClientUser };
+    getMe: { readonly user: ClientUser; readonly permissions: EffectivePermissions };
     updateProfile: { readonly user: ClientUser };
     uploadAvatarFile: { readonly file: UploadedFile };
     updateAvatar: { readonly user: ClientUser };
@@ -862,6 +892,17 @@ export interface KnownBackendResults {
     getFiles: { readonly files: readonly FileSummary[]; readonly nextCursor?: string };
     getAdminUsers: { readonly users: readonly AdminUserSummary[] };
     updateAdminUser: { readonly user: AdminUserSummary; readonly sync?: unknown };
+    getRoles: {
+        readonly permissions: readonly Permission[];
+        readonly roles: readonly RoleSummary[];
+    };
+    createRole: { readonly role: RoleSummary; readonly sync?: unknown };
+    updateRole: { readonly sync?: unknown };
+    deleteRole: { readonly sync?: unknown };
+    getUserPermissions: { readonly permissions: MemberPermissionDetail };
+    updateUserPermissions: { readonly sync?: unknown };
+    assignUserRole: { readonly sync?: unknown };
+    unassignUserRole: { readonly sync?: unknown };
     getCalls: { readonly calls: readonly CallSummary[] };
     getCall: { readonly call: CallSummary };
     getMessageRevisions: { readonly revisions: readonly MessageRevision[] };

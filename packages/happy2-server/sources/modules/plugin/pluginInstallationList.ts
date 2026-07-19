@@ -1,20 +1,20 @@
 import type { DrizzleExecutor } from "../drizzle.js";
 import { eq } from "drizzle-orm";
 import { pluginInstallations, plugins } from "../schema.js";
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequirePermission } from "../permission/userRequirePermission.js";
 import type { PluginInstallationSummary } from "./types.js";
 import { pluginInstallationSelection } from "./impl/installationSelection.js";
 import { asPluginInstallation } from "./impl/asInstallation.js";
 
 /**
- * Lists durable system plugin installations and their latest lifecycle state for an active server administrator.
+ * Lists durable plugin installations and their lifecycle state after requiring managePlugins permission.
  * This read-only action does not mutate durable state and centralizes authorization before installation health is joined into the catalog.
  */
 export async function pluginInstallationList(
     executor: DrizzleExecutor,
     actorUserId: string,
 ): Promise<PluginInstallationSummary[]> {
-    await userRequireServerAdmin(executor, actorUserId);
+    await userRequirePermission(executor, actorUserId, "managePlugins");
     const rows = await executor
         .select(pluginInstallationSelection)
         .from(pluginInstallations)

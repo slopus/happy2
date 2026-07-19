@@ -11,10 +11,10 @@ import { asAgentImage } from "./impl/asAgentImage.js";
 import { chatAppendAudit } from "../chat/chatAppendAudit.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequirePermission } from "../permission/userRequirePermission.js";
 
 /**
- * Queues an administrator-selected agentImages definition for a fresh build and resets its prior terminal output.
+ * Queues a manageImages-authorized agentImages definition for a fresh build and resets its prior terminal output.
  * Recording the lifecycle transition with its audit and sync evidence gives workers and clients one authoritative build request.
  */
 export async function agentImageRequestBuild(
@@ -28,7 +28,7 @@ export async function agentImageRequestBuild(
     image: AgentImageSummary;
 }> {
     return withTransaction(executor, async (tx) => {
-        await userRequireServerAdmin(tx, input.actorUserId);
+        await userRequirePermission(tx, input.actorUserId, "manageImages");
         const [current] = await tx
             .select({
                 status: agentImages.status,

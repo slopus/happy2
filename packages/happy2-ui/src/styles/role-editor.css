@@ -1,0 +1,63 @@
+/*
+ * RoleEditor — form body for creating or editing one role.
+ *
+ * Contract: a flex column on the 4px grid: optional built-in marking, stacked
+ * name and description FormRows, the permission allow-list under its own
+ * heading, and a trailing error banner slot.
+ */
+
+.happy2-role-editor,
+.happy2-role-editor * {
+    box-sizing: border-box;
+}
+
+.happy2-role-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-role-editor__builtin {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-sm);
+    background: var(--happy2-bg-inset);
+}
+
+.happy2-role-editor__builtin-note {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-role-editor__permissions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.happy2-role-editor__permissions-head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.happy2-role-editor__permissions-label {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+    color: var(--happy2-text);
+}
+
+.happy2-role-editor__permissions-note {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+}

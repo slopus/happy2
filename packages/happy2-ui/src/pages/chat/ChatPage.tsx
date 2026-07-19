@@ -81,6 +81,8 @@ export type ChatPageProps = {
     };
     rail: ReactNode;
     titleBar: ReactNode;
+    /** Shows the administration entry when effective permissions expose a section. */
+    canOpenAdmin?: boolean;
 };
 export type ChatPageConversationKind = "chat" | "channel";
 export type ChatPagePanel =
@@ -587,7 +589,7 @@ export function ChatPage(props: ChatPageProps) {
                     <Sidebar
                         activeItemId={activeConversationId()}
                         footer={
-                            isServerAdmin() ? (
+                            props.canOpenAdmin ? (
                                 <Button
                                     className="happy2-chat-page__admin-link"
                                     fullWidth

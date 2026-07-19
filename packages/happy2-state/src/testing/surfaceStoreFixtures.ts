@@ -16,6 +16,13 @@ import type {
 } from "../modules/agent-secrets/agentSecretsState.js";
 import { pluginsStoreCreate } from "../modules/plugins/pluginsState.js";
 import type { PluginsInput, PluginsOutput, PluginsStore } from "../modules/plugins/pluginsState.js";
+import { permissionsStoreCreate } from "../modules/permissions/permissionsState.js";
+import type {
+    PermissionsInput,
+    PermissionsStore,
+} from "../modules/permissions/permissionsState.js";
+import { rolesStoreCreate } from "../modules/roles/rolesState.js";
+import type { RolesInput, RolesOutput, RolesStore } from "../modules/roles/rolesState.js";
 import { callsStoreCreate } from "../modules/calls/callsState.js";
 import type { CallsInput, CallsOutput, CallsStore } from "../modules/calls/callsState.js";
 import { chatStoreCreate } from "../modules/chat/chatState.js";
@@ -109,6 +116,21 @@ export function directoryStoreFixtureCreate(): SurfaceStoreFixture<DirectoryStor
 export function adminStoreFixtureCreate(): SurfaceStoreFixture<AdminStore, AdminInput> {
     const store = adminStoreCreate();
     return fixtureCreate(store, (event) => store.getState().adminInput(event));
+}
+
+export function permissionsStoreFixtureCreate(): SurfaceStoreFixture<
+    PermissionsStore,
+    PermissionsInput
+> {
+    const store = permissionsStoreCreate();
+    return fixtureCreate(store, (event) => store.getState().permissionsInput(event));
+}
+
+export function rolesStoreFixtureCreate(
+    output: (event: RolesOutput) => void = () => undefined,
+): SurfaceStoreFixture<RolesStore, RolesInput> {
+    const store = rolesStoreCreate(output);
+    return fixtureCreate(store, (event) => store.getState().rolesInput(event));
 }
 
 export function setupStoreFixtureCreate(

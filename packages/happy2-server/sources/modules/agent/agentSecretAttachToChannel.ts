@@ -8,10 +8,10 @@ import { areaHint } from "../chat/areaHint.js";
 import { chatAppendAudit } from "../chat/chatAppendAudit.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequirePermission } from "../permission/userRequirePermission.js";
 
 /**
- * Grants a secret identifier to an existing channel through agentSecretChannelAssignments after validating server-administrator authority and channel eligibility.
+ * Grants a secret to an eligible channel through agentSecretChannelAssignments after requiring assignSecrets permission.
  * The assignment, audit entry, and sync event commit together so the resulting credential exposure is never silent or partially reported.
  */
 export async function agentSecretAttachToChannel(
@@ -23,7 +23,7 @@ export async function agentSecretAttachToChannel(
     },
 ): Promise<MutationHint | undefined> {
     return withTransaction(executor, async (tx) => {
-        await userRequireServerAdmin(tx, input.actorUserId);
+        await userRequirePermission(tx, input.actorUserId, "assignSecrets");
         const [channel] = await tx
             .select({
                 id: chats.id,

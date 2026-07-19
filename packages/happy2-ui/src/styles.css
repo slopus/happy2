@@ -64,3 +64,8 @@
 @import "./styles/setup-option-card.css";
 @import "./styles/default-agent-modal.css";
 @import "./styles/build-progress-panel.css";
+@import "./styles/permission-checklist.css";
+@import "./styles/roles-panel.css";
+@import "./styles/role-editor.css";
+@import "./styles/member-access-panel.css";
+@import "./styles/roles-page.css";

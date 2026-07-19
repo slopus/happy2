@@ -286,6 +286,24 @@ export {
     type ChatPageProps,
     type ChatPageUser,
 } from "./pages/chat/ChatPage";
+export {
+    PermissionChecklist,
+    type PermissionChecklistOption,
+    type PermissionChecklistProps,
+} from "./PermissionChecklist";
+export {
+    type RoleBuiltinKind,
+    type RoleListItem,
+    RolesPanel,
+    type RolesPanelProps,
+} from "./RolesPanel";
+export { RoleEditor, type RoleEditorProps } from "./RoleEditor";
+export {
+    MemberAccessPanel,
+    type MemberAccessPanelProps,
+    type MemberAccessRoleItem,
+} from "./MemberAccessPanel";
+export { RolesPage, type RolesPageProps } from "./pages/admin/RolesPage";
 export { AgentImagesPage, type AgentImagesPageProps } from "./pages/admin/AgentImagesPage";
 export { AgentSecretsPage, type AgentSecretsPageProps } from "./pages/admin/AgentSecretsPage";
 export { PluginsPage, type PluginsPageProps } from "./pages/admin/PluginsPage";

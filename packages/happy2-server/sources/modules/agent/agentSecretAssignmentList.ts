@@ -2,16 +2,16 @@ import { type AgentSecretAssignment } from "./impl/agentSecretAssignment.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 import { agentSecretAgentAssignments, agentSecretChannelAssignments } from "../schema.js";
 
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequireAnyPermission } from "../permission/userRequireAnyPermission.js";
 /**
- * Groups all direct-agent and channel secret assignments by secret identifier for an active server administrator.
+ * Groups secret assignments for a caller allowed to manage secrets or assign them to agents and channels.
  * Sorting both source rows and the merged result gives management clients stable agent and channel membership lists for each secret.
  */
 export async function agentSecretAssignmentList(
     executor: DrizzleExecutor,
     actorUserId: string,
 ): Promise<AgentSecretAssignment[]> {
-    await userRequireServerAdmin(executor, actorUserId);
+    await userRequireAnyPermission(executor, actorUserId, ["manageSecrets", "assignSecrets"]);
     const [agentRows, channelRows] = await Promise.all([
         executor
             .select({

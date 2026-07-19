@@ -9,7 +9,7 @@ import { optionalText } from "../chat/optionalText.js";
 import { text } from "../chat/text.js";
 import { userSelection } from "../chat/userSelection.js";
 
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequirePermission } from "../permission/userRequirePermission.js";
 /**
  * Lists all human and agent records with account status and latest session activity for a server administrator.
  * The server-admin check is part of this projection because it intentionally includes banned and deleted accounts hidden from ordinary directories.
@@ -27,7 +27,7 @@ export async function userAdministrationList(
         }
     >
 > {
-    await userRequireServerAdmin(executor, actorUserId);
+    await userRequirePermission(executor, actorUserId, "viewAllMembers");
     const result = await executor
         .select({
             ...userSelection,

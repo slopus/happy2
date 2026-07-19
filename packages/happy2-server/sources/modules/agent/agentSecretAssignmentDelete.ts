@@ -7,10 +7,10 @@ import { eq } from "drizzle-orm";
 import { chatAppendAudit } from "../chat/chatAppendAudit.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequirePermission } from "../permission/userRequirePermission.js";
 
 /**
- * Removes every agentSecretAgentAssignments or agentSecretChannelAssignments row identified by an administrator-owned assignment.
+ * Removes all agentSecretAgentAssignments and agentSecretChannelAssignments for one secret after requiring manageSecrets permission.
  * Deleting the assignment alongside sync and audit evidence makes secret access disappear as one reviewable authorization change.
  */
 export async function agentSecretAssignmentDelete(
@@ -21,7 +21,7 @@ export async function agentSecretAssignmentDelete(
     },
 ): Promise<MutationHint> {
     return withTransaction(executor, async (tx) => {
-        await userRequireServerAdmin(tx, input.actorUserId);
+        await userRequirePermission(tx, input.actorUserId, "manageSecrets");
         await tx
             .delete(agentSecretAgentAssignments)
             .where(eq(agentSecretAgentAssignments.secretId, input.secretId));

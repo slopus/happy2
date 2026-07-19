@@ -189,6 +189,7 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
     view.render(
         () => (
             <ChatPage
+                canOpenAdmin
                 rail={<div>Rail</div>}
                 search=""
                 actions={actions}

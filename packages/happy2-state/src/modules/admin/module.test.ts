@@ -5,6 +5,22 @@ import { adminLoad } from "./adminState.js";
 import { adminStoreCreate } from "./adminState.js";
 
 describe("admin module", () => {
+    it("loads one requested section without probing unrelated privileged endpoints", async () => {
+        const server = createFakeServer();
+        server.respond("GET", "/v0/admin/users", jsonResponse(200, { users: [] }));
+        const runtime = new StateRuntime({ transport: server.transport });
+        const admin = adminStoreCreate();
+        await adminLoad({ runtime, admin }, ["users"]);
+        expect(admin.getState()).toMatchObject({
+            users: { type: "ready", value: [] },
+            reports: { type: "unloaded" },
+            automations: { type: "unloaded" },
+            integrations: { type: "unloaded" },
+        });
+        expect(server.requests.map(({ path }) => path)).toEqual(["/v0/admin/users"]);
+        runtime.stop();
+    });
+
     it("settles every resource independently and ignores an older overlapping load", async () => {
         const server = createFakeServer();
         server.respond("GET", "/v0/admin/users", jsonResponse(403, { error: "forbidden" }));

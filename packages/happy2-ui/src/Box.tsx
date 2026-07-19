@@ -19,7 +19,12 @@ export function Box(props: BoxProps) {
         <div
             {...rest}
             className={["happy2-box", local.className].filter(Boolean).join(" ")}
-            data-happy2-ui="box"
+            /* A composing component's explicit part marker must survive so its
+               measurable parts stay addressable; plain boxes keep the generic
+               marker. */
+            data-happy2-ui={
+                ((rest as Record<string, unknown>)["data-happy2-ui"] as string | undefined) ?? "box"
+            }
             style={{
                 ...local.style,
                 ...(local.height === undefined ? {} : { height: toCssDimension(local.height) }),

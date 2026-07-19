@@ -7,10 +7,10 @@ import { areaHint } from "../chat/areaHint.js";
 import { chatAppendAudit } from "../chat/chatAppendAudit.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequirePermission } from "../permission/userRequirePermission.js";
 
 /**
- * Revokes a direct agent secret grant by deleting its agentSecretAgentAssignments row under administrator authorization.
+ * Revokes a direct grant by deleting agentSecretAgentAssignments after requiring assignSecrets permission.
  * Publishing revocation and audit evidence in the same commit ensures future runs cannot retain a grant clients still believe exists.
  */
 export async function agentSecretDetachFromAgent(
@@ -22,7 +22,7 @@ export async function agentSecretDetachFromAgent(
     },
 ): Promise<MutationHint | undefined> {
     return withTransaction(executor, async (tx) => {
-        await userRequireServerAdmin(tx, input.actorUserId);
+        await userRequirePermission(tx, input.actorUserId, "assignSecrets");
         const removed = await tx
             .delete(agentSecretAgentAssignments)
             .where(

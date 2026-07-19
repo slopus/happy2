@@ -937,6 +937,39 @@ export const rateLimitBuckets = sqliteTable("rate_limit_buckets", {
     updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
 });
 
+export const roles = sqliteTable(
+    "roles",
+    {
+        id: text("id").primaryKey().notNull(),
+        name: text("name").notNull(),
+        description: text("description"),
+        builtinKind: text("builtin_kind"),
+        createdByUserId: text("created_by_user_id").references(() => users.id, {
+            onDelete: "set null",
+        }),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [
+        uniqueIndex("roles_name_unique").on(table.name),
+        uniqueIndex("roles_builtin_kind_unique").on(table.builtinKind),
+    ],
+);
+// Migration 0023 additionally gives roles.name NOCASE collation, constrains both role enum
+// columns, makes the built-in index partial, and installs triggers that preserve built-in markers.
+
+export const rolePermissions = sqliteTable(
+    "role_permissions",
+    {
+        roleId: text("role_id")
+            .notNull()
+            .references(() => roles.id, { onDelete: "cascade" }),
+        permission: text("permission").notNull(),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [primaryKey({ columns: [table.roleId, table.permission] })],
+);
+
 export const reactions = sqliteTable("reactions", {
     messageId: text("message_id").notNull(),
     userId: text("user_id").notNull(),
@@ -1172,6 +1205,41 @@ export const userPresenceSettings = sqliteTable("user_presence_settings", {
     updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
 });
 
+export const userPermissions = sqliteTable(
+    "user_permissions",
+    {
+        userId: text("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        permission: text("permission").notNull(),
+        grantedByUserId: text("granted_by_user_id").references(() => users.id, {
+            onDelete: "set null",
+        }),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [primaryKey({ columns: [table.userId, table.permission] })],
+);
+
+export const userRoles = sqliteTable(
+    "user_roles",
+    {
+        userId: text("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        roleId: text("role_id")
+            .notNull()
+            .references(() => roles.id, { onDelete: "cascade" }),
+        assignedByUserId: text("assigned_by_user_id").references(() => users.id, {
+            onDelete: "set null",
+        }),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [
+        primaryKey({ columns: [table.userId, table.roleId] }),
+        index("user_roles_role_id_index").on(table.roleId),
+    ],
+);
+
 export const userStorageQuotas = sqliteTable("user_storage_quotas", {
     userId: text("user_id").primaryKey().notNull(),
     quotaBytes: integer("quota_bytes"),
@@ -1296,6 +1364,8 @@ export const schema = {
     reactions,
     retentionRuns,
     rigEventSyncState,
+    rolePermissions,
+    roles,
     scheduledMessageAttachments,
     scheduledMessages,
     searchIndexState,
@@ -1311,7 +1381,9 @@ export const schema = {
     userChatPreferences,
     userNotificationPreferences,
     userOnboardingSteps,
+    userPermissions,
     userPresenceSettings,
+    userRoles,
     userStorageQuotas,
     users,
     webhookDeliveries,

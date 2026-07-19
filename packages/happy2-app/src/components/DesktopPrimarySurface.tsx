@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { AppShell, type AdminPageSection, type FilesPageFilter } from "happy2-ui";
+import { AppShell, EmptyState, type AdminPageSection, type FilesPageFilter } from "happy2-ui";
 import type { HappyState } from "happy2-state";
 import type { AuthSession } from "./AuthGate";
 import type { DesktopNavigation, DesktopRoute } from "../navigation/desktopRouteTypes";
@@ -25,6 +25,11 @@ export interface DesktopPrimarySurfaceProps {
     session?: AuthSession;
     state: HappyState;
     titleBar: ReactNode;
+    adminSections: readonly AdminPageSection[];
+    canManageImages: boolean;
+    canManageSecrets: boolean;
+    canAssignSecrets: boolean;
+    canViewRoleMembers: boolean;
 }
 /** Selects one primary desktop surface; overlays are deliberately hosted by its parent. */
 export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
@@ -32,6 +37,10 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
     const adminPrimary = () => {
         const value = primary();
         return value.kind === "admin" ? value : undefined;
+    };
+    const adminSectionAllowed = () => {
+        const value = adminPrimary();
+        return Boolean(value && props.adminSections.includes(value.section));
     };
     const onboardingPrimary = () => {
         const value = primary();
@@ -44,6 +53,8 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
     );
     return primary().kind === "conversation" ? (
         <ChatView
+            adminStartSection={props.adminSections[0] ?? "users"}
+            canOpenAdmin={props.adminSections.length > 0}
             createRequest={props.createRequest}
             navigation={props.navigation}
             platform={props.platform}
@@ -87,18 +98,31 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
         shell(<CallsView state={props.state} />)
     ) : adminPrimary() ? (
         shell(
-            <AdminView
-                onSectionChange={(section: AdminPageSection) =>
-                    props.navigation.navigate({
-                        ...props.route,
-                        primary: { kind: "admin", section },
-                        panel: undefined,
-                        overlay: undefined,
-                    })
-                }
-                section={adminPrimary()?.section ?? "users"}
-                state={props.state}
-            />,
+            adminSectionAllowed() ? (
+                <AdminView
+                    canAssignSecrets={props.canAssignSecrets}
+                    canManageImages={props.canManageImages}
+                    canManageSecrets={props.canManageSecrets}
+                    canViewRoleMembers={props.canViewRoleMembers}
+                    onSectionChange={(section: AdminPageSection) =>
+                        props.navigation.navigate({
+                            ...props.route,
+                            primary: { kind: "admin", section },
+                            panel: undefined,
+                            overlay: undefined,
+                        })
+                    }
+                    section={adminPrimary()?.section ?? props.adminSections[0] ?? "users"}
+                    sections={props.adminSections}
+                    state={props.state}
+                />
+            ) : (
+                <EmptyState
+                    description="Your current roles do not grant access to this administration section."
+                    icon="shield"
+                    title="Administration unavailable"
+                />
+            ),
         )
     ) : primary().kind === "settings" ? (
         shell(<SettingsView session={props.session} state={props.state} />)

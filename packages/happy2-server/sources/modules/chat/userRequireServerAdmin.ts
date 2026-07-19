@@ -1,11 +1,11 @@
 import { CollaborationError } from "./types.js";
 import { type DrizzleExecutor } from "../drizzle.js";
-import { accounts, users } from "../schema.js";
-import { and, eq, isNull } from "drizzle-orm";
+import { accounts, roles, serverSetupState, userRoles, users } from "../schema.js";
+import { and, eq, isNull, or } from "drizzle-orm";
 
 /**
- * Requires an administrator profile backed by an active, unbanned, non-deleted account.
- * Keeping account eligibility beside the role check ensures a retained admin flag cannot authorize requests after account revocation.
+ * Requires the durable owner or a member of the built-in administrator role backed by an active account.
+ * The immutable built-in marker, rather than the role's editable name or legacy user label, remains the generic administration boundary.
  */
 export async function userRequireServerAdmin(
     executor: DrizzleExecutor,
@@ -17,10 +17,17 @@ export async function userRequireServerAdmin(
         })
         .from(users)
         .innerJoin(accounts, eq(accounts.id, users.accountId))
+        .innerJoin(serverSetupState, eq(serverSetupState.id, 1))
+        .leftJoin(userRoles, eq(userRoles.userId, users.id))
+        .leftJoin(roles, eq(roles.id, userRoles.roleId))
         .where(
             and(
                 eq(users.id, userId),
-                eq(users.role, "admin"),
+                eq(users.kind, "human"),
+                or(
+                    eq(serverSetupState.bootstrapAdminUserId, userId),
+                    eq(roles.builtinKind, "admin"),
+                ),
                 isNull(users.deletedAt),
                 isNull(accounts.bannedAt),
                 isNull(accounts.deletedAt),

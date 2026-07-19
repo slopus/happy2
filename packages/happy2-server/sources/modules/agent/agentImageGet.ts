@@ -6,9 +6,9 @@ import { agentImages } from "../schema.js";
 import { eq } from "drizzle-orm";
 import { asAgentImageDetails } from "./impl/asAgentImageDetails.js";
 
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequireAnyPermission } from "../permission/userRequireAnyPermission.js";
 /**
- * Returns full details for an agent image after requiring an active server administrator.
+ * Returns full details for an agent image to a caller allowed to manage images or assign them to chats.
  * Hiding internal images and inaccessible identifiers as not-found keeps build configuration separate from runtime-owned definitions.
  */
 export async function agentImageGet(
@@ -16,7 +16,7 @@ export async function agentImageGet(
     actorUserId: string,
     imageId: string,
 ): Promise<AgentImageDetails> {
-    await userRequireServerAdmin(executor, actorUserId);
+    await userRequireAnyPermission(executor, actorUserId, ["manageImages", "assignImagesToChats"]);
     const [image] = await executor
         .select(agentImageDetailsSelection)
         .from(agentImages)

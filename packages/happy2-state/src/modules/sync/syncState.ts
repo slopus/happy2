@@ -28,6 +28,7 @@ export interface AreaReconcileContext {
     setupReconcile(): void;
     agentSecretsReconcile(): void;
     pluginsReconcile(): void;
+    permissionsReconcile(): void;
     identitiesReconcile(): void;
     unknownArea(area: string): void;
 }
@@ -53,6 +54,7 @@ export function areaReconcile(context: AreaReconcileContext, area: string): void
     } else if (area === "setup" || area === "user-onboarding") context.setupReconcile();
     else if (area === "agent-secrets") context.agentSecretsReconcile();
     else if (area === "plugins") context.pluginsReconcile();
+    else if (area === "permissions") context.permissionsReconcile();
     else if (area === "users" || area === "profile") context.identitiesReconcile();
     else context.unknownArea(area);
 }

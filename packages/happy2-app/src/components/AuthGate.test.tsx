@@ -169,7 +169,10 @@ describe("AuthGate password onboarding", () => {
             "POST /v0/auth/password/login": () =>
                 json({ token: "active-token", expiresAt, profileRequired: false }),
             "GET /v0/me": () =>
-                json({ user: { id: "u_ada", firstName: "Ada", username: "ada", kind: "human" } }),
+                json({
+                    user: { id: "u_ada", firstName: "Ada", username: "ada", kind: "human" },
+                    permissions: { allowed: [], owner: false },
+                }),
         });
         vi.stubGlobal("fetch", fetchMock);
         stubLocalStorage();
@@ -180,7 +183,9 @@ describe("AuthGate password onboarding", () => {
         // Reaching the workspace proves the active profile resolved normally.
         expect(await screen.findByLabelText("Ada — online")).toBeTruthy();
         const meCalls = callsTo(fetchMock, "GET", "/v0/me");
-        expect(meCalls).toHaveLength(1);
+        // Authentication seeds permissions immediately, then product state
+        // closes the pre-realtime race with one authoritative refetch.
+        expect(meCalls).toHaveLength(2);
         expect(authHeader(meCalls[0]![1] ?? {})).toBe("Bearer active-token");
     });
 

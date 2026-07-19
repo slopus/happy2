@@ -87,7 +87,11 @@ import {
 import { directoryLoad } from "./modules/directory/directoryState.js";
 import { directoryStoreCreate, type DirectoryStore } from "./modules/directory/directoryState.js";
 import { adminLoad } from "./modules/admin/adminState.js";
-import { adminStoreCreate, type AdminStore } from "./modules/admin/adminState.js";
+import {
+    adminStoreCreate,
+    type AdminSection,
+    type AdminStore,
+} from "./modules/admin/adminState.js";
 import {
     agentImagesLoad,
     agentImagesOutputRoute,
@@ -110,6 +114,13 @@ import {
     agentSecretsOutputRoute,
 } from "./modules/agent-secrets/agentSecretsState.js";
 import { pluginsLoad, pluginsOutputRoute } from "./modules/plugins/pluginsState.js";
+import {
+    permissionsLoad,
+    permissionsStoreCreate,
+    type PermissionsStore,
+} from "./modules/permissions/permissionsState.js";
+import { rolesLoad, rolesOutputRoute } from "./modules/roles/rolesState.js";
+import { rolesStoreCreate, type RolesOutput, type RolesStore } from "./modules/roles/rolesState.js";
 import {
     pluginsStoreCreate,
     type PluginsOutput,
@@ -162,6 +173,7 @@ import { directMessageCreate } from "./modules/chat-actions/chatActionsState.js"
 import { groupDirectMessageCreate } from "./modules/chat-actions/chatActionsState.js";
 import { typingSet } from "./modules/chat-actions/chatActionsState.js";
 import { areaReconcile as areaReconcileAction } from "./modules/sync/syncState.js";
+import type { EffectivePermissions } from "./resources.js";
 
 export type HappyStateEvent =
     | ComposerOutput
@@ -178,6 +190,7 @@ export type HappyStateEvent =
     | AgentImagesOutput
     | AgentSecretsOutput
     | PluginsOutput
+    | RolesOutput
     | SetupOutput;
 
 export interface HappyStateOptions extends StateRuntimeOptions {
@@ -185,6 +198,8 @@ export interface HappyStateOptions extends StateRuntimeOptions {
     readonly draftUpdated?: (event: DraftUpdated) => void;
     readonly backgroundError?: (error: UserError) => void;
     readonly unknownSyncArea?: (area: string) => void;
+    /** Authoritative permissions already returned by the session's `/v0/me` request. */
+    readonly initialPermissions?: EffectivePermissions;
 }
 
 /**
@@ -207,10 +222,14 @@ export class HappyState implements AsyncDisposable, Disposable {
     private searchBinding?: SearchStore;
     private directoryBinding?: DirectoryStore;
     private adminBinding?: AdminStore;
+    private readonly adminSections = new Set<AdminSection>();
     private setupBinding?: SetupStore;
     private agentImagesBinding?: AgentImagesStore;
     private agentSecretsBinding?: AgentSecretsStore;
     private pluginsBinding?: PluginsStore;
+    private permissionsBinding?: PermissionsStore;
+    private initialPermissions?: EffectivePermissions;
+    private rolesBinding?: RolesStore;
     private notificationsBinding?: NotificationsStore;
     private threadsBinding?: ThreadsStore;
     private callsBinding?: CallsStore;
@@ -234,6 +253,7 @@ export class HappyState implements AsyncDisposable, Disposable {
             options.backgroundError ?? options.onBackgroundError ?? (() => undefined);
         this.eventListener = options.event ?? (() => undefined);
         this.unknownSyncArea = options.unknownSyncArea ?? (() => undefined);
+        this.initialPermissions = options.initialPermissions;
         this.runtime = new StateRuntime({
             ...options,
             onBackgroundError: options.onBackgroundError ?? backgroundError,
@@ -322,14 +342,19 @@ export class HappyState implements AsyncDisposable, Disposable {
         return this.directoryBinding;
     }
 
-    admin(): AdminStore {
+    admin(section?: AdminSection): AdminStore {
+        const requested = section
+            ? [section]
+            : (["users", "reports", "automations", "integrations"] as const);
+        const missing = requested.filter((value) => !this.adminSections.has(value));
+        for (const value of missing) this.adminSections.add(value);
         if (!this.adminBinding) {
             this.adminBinding = adminStoreCreate();
-            if (this.runtime.connected)
-                this.runtime.background(
-                    adminLoad({ runtime: this.runtime, admin: this.adminBinding }),
-                );
         }
+        if (this.runtime.connected && missing.length)
+            this.runtime.background(
+                adminLoad({ runtime: this.runtime, admin: this.adminBinding }, missing),
+            );
         return this.adminBinding;
     }
 
@@ -415,6 +440,41 @@ export class HappyState implements AsyncDisposable, Disposable {
     /** Downloads one catalog package icon PNG through the authenticated transport. */
     async pluginIconDownload(shortName: string): Promise<ArrayBuffer> {
         return this.runtime.operation("downloadPluginIcon", { shortName });
+    }
+
+    permissions(): PermissionsStore {
+        if (!this.permissionsBinding) {
+            const initial = this.initialPermissions;
+            this.initialPermissions = undefined;
+            this.permissionsBinding = permissionsStoreCreate(initial);
+            // Even a seeded `/v0/me` projection is re-read after sync startup:
+            // without a sync-sequence on that response, a permission mutation
+            // between authentication and realtime subscription could otherwise
+            // leave the seed stale until the next unrelated change.
+            if (this.runtime.connected)
+                this.runtime.background(
+                    permissionsLoad({
+                        runtime: this.runtime,
+                        permissions: this.permissionsBinding,
+                    }),
+                );
+        }
+        return this.permissionsBinding;
+    }
+
+    roles(): RolesStore {
+        if (!this.rolesBinding) {
+            this.rolesBinding = rolesStoreCreate((event) => this.eventRoute(event));
+            if (this.runtime.connected)
+                this.runtime.background(
+                    rolesLoad({
+                        runtime: this.runtime,
+                        identities: this.identities,
+                        roles: this.rolesBinding,
+                    }),
+                );
+        }
+        return this.rolesBinding;
     }
 
     threadOpen(rootMessageId: string): ThreadHandle {
@@ -812,6 +872,25 @@ export class HappyState implements AsyncDisposable, Disposable {
                         ),
                     );
                 return;
+            case "roleCreateSubmitted":
+            case "roleUpdateSubmitted":
+            case "roleDeleteSubmitted":
+            case "memberSelected":
+            case "memberPermissionsSubmitted":
+            case "memberRoleAssignSubmitted":
+            case "memberRoleUnassignSubmitted":
+                if (this.rolesBinding)
+                    this.backgroundIfConnected(() =>
+                        rolesOutputRoute(
+                            {
+                                runtime: this.runtime,
+                                identities: this.identities,
+                                roles: this.rolesBinding!,
+                            },
+                            event,
+                        ),
+                    );
+                return;
             case "pluginInstallSubmitted":
                 if (this.pluginsBinding)
                     this.backgroundIfConnected(() =>
@@ -1019,6 +1098,7 @@ export class HappyState implements AsyncDisposable, Disposable {
                             pluginsLoad({ runtime: this.runtime, plugins: this.pluginsBinding }),
                         );
                 },
+                permissionsReconcile: () => this.permissionsReconcile(),
                 identitiesReconcile: () =>
                     this.runtime.background(
                         identitiesReconcile({
@@ -1092,8 +1172,12 @@ export class HappyState implements AsyncDisposable, Disposable {
                     directory: this.directoryBinding,
                 }),
             );
-        if (this.adminBinding)
-            this.runtime.background(adminLoad({ runtime: this.runtime, admin: this.adminBinding }));
+        if (this.adminBinding && this.adminSections.size)
+            this.runtime.background(
+                adminLoad({ runtime: this.runtime, admin: this.adminBinding }, [
+                    ...this.adminSections,
+                ]),
+            );
         if (this.agentImagesBinding)
             this.runtime.background(
                 agentImagesLoad({ runtime: this.runtime, images: this.agentImagesBinding }),
@@ -1114,6 +1198,8 @@ export class HappyState implements AsyncDisposable, Disposable {
             this.runtime.background(
                 pluginsLoad({ runtime: this.runtime, plugins: this.pluginsBinding }),
             );
+        // The reset above already reloads every requested admin section.
+        this.permissionsReconcile(false);
         if (this.threadsBinding)
             this.runtime.background(
                 threadsLoad({
@@ -1139,6 +1225,32 @@ export class HappyState implements AsyncDisposable, Disposable {
                 }),
             );
         if (this.settingsCoordinator) this.runtime.background(this.settingsCoordinator.reload());
+    }
+
+    /**
+     * Refreshes the current-user grants and any retained roles surface after a
+     * permissions hint or reset. A permissions mutation may also rewrite the
+     * durable admin marker projected by the administration user list, so a
+     * retained users section refetches too unless the caller already reloads
+     * every requested admin section itself.
+     */
+    private permissionsReconcile(adminUsers = true): void {
+        if (this.permissionsBinding)
+            this.runtime.background(
+                permissionsLoad({ runtime: this.runtime, permissions: this.permissionsBinding }),
+            );
+        if (this.rolesBinding)
+            this.runtime.background(
+                rolesLoad({
+                    runtime: this.runtime,
+                    identities: this.identities,
+                    roles: this.rolesBinding,
+                }),
+            );
+        if (adminUsers && this.adminBinding && this.adminSections.has("users"))
+            this.runtime.background(
+                adminLoad({ runtime: this.runtime, admin: this.adminBinding }, ["users"]),
+            );
     }
 
     private messageContext() {

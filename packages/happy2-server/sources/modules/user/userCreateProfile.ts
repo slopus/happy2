@@ -4,13 +4,15 @@ import { RegistrationClosedError } from "../auth/errors.js";
 
 import {
     accounts,
+    roles,
     serverSetupState,
     serverSetupSteps,
     syncEvents,
     userOnboardingSteps,
+    userRoles,
     users,
 } from "../schema.js";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { asUser } from "./impl/asUser.js";
 import { createId } from "@paralleldrive/cuid2";
 
@@ -154,6 +156,28 @@ export async function userCreateProfile(
                 })
                 .where(eq(serverSetupSteps.step, "bootstrap_administrator"));
         }
+        const builtinRoles = await tx
+            .select({ id: roles.id, kind: roles.builtinKind })
+            .from(roles)
+            .where(
+                bootstrapClaimed || (options.provisioned && !existingProvisionedUser)
+                    ? isNotNull(roles.builtinKind)
+                    : eq(roles.builtinKind, "member"),
+            );
+        const assignedRoles = builtinRoles.filter(
+            ({ kind }) =>
+                kind === "member" ||
+                ((bootstrapClaimed || (options.provisioned && !existingProvisionedUser)) &&
+                    kind === "admin"),
+        );
+        if (assignedRoles.length)
+            await tx.insert(userRoles).values(
+                assignedRoles.map(({ id: roleId }) => ({
+                    userId: id,
+                    roleId,
+                    assignedByUserId: bootstrapClaimed ? id : null,
+                })),
+            );
         const [activation] = await tx
             .update(accounts)
             .set({

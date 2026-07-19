@@ -63,6 +63,7 @@ const ENTITY_PREFIXES: Record<string, readonly string[]> = {
     moderation: ["accountBan", "moderation"],
     notification: ["chatNotification", "notification"],
     operations: ["audit", "syncEvent", "user"],
+    permission: ["permission", "role", "user"],
     plugin: ["plugin"],
     presence: ["presence"],
     request: ["idempotency"],

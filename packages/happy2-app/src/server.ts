@@ -1,3 +1,5 @@
+import type { EffectivePermissions } from "happy2-state";
+
 export type AuthMethod = "password" | "magic_link" | "oidc" | "cloudflare_access" | null;
 export type User = {
     id: string;
@@ -88,7 +90,8 @@ export function createServerClient(baseUrl: string) {
             profile: Omit<User, "id" | "photoFileId" | "avatarUrl" | "kind">,
             token?: string,
         ) => post<{ user: User }>("/v0/me/createProfile", profile, token),
-        me: (token?: string) => request<{ user: User }>("/v0/me", {}, token),
+        me: (token?: string) =>
+            request<{ user: User; permissions: EffectivePermissions }>("/v0/me", {}, token),
         refresh: (token: string) => post<AuthToken>("/v0/auth/refresh", undefined, token),
         logout: (token: string) => post<void>("/v0/auth/logout", undefined, token),
     };

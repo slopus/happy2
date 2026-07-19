@@ -1,0 +1,61 @@
+/*
+ * PermissionChecklist — a closed allow-list editor.
+ *
+ * Contract: a flex column of capability rows on the 4px grid. Each row leads
+ * with the 18px Checkbox aligned to the first text line (label line-height is
+ * 18px, matching the box) and follows with a name over a muted description.
+ * The whole text block is a <label> bound to the checkbox input, so clicking
+ * either half toggles.
+ */
+
+.happy2-permission-checklist,
+.happy2-permission-checklist * {
+    box-sizing: border-box;
+}
+
+.happy2-permission-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-permission-checklist__row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+}
+
+.happy2-permission-checklist__checkbox {
+    flex: none;
+}
+
+.happy2-permission-checklist__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.happy2-permission-checklist__row:has(.happy2-checkbox[data-disabled])
+    .happy2-permission-checklist__text {
+    cursor: default;
+}
+
+.happy2-permission-checklist__label {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+    color: var(--happy2-text);
+}
+
+.happy2-permission-checklist__description {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+}

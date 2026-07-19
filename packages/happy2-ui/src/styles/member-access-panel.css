@@ -1,0 +1,147 @@
+/*
+ * MemberAccessPanel — the body of one member's access detail dialog.
+ *
+ * Contract: three labelled sections — effective access badges (with an owner
+ * allow-all marking), held roles as removable rows with a trailing assign
+ * picker, and the direct-grant allow-list. Sits inside a Modal that carries the
+ * member's name as its title.
+ */
+
+.happy2-member-access-panel,
+.happy2-member-access-panel * {
+    box-sizing: border-box;
+}
+
+.happy2-member-access-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Sections --------------------------------------------------------- */
+
+.happy2-member-access-panel__section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.happy2-member-access-panel__section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.happy2-member-access-panel__section-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.72px;
+    text-transform: uppercase;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-member-access-panel__section-count {
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- Effective access -------------------------------------------------- */
+
+.happy2-member-access-panel__owner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    background: var(--happy2-accent-soft);
+}
+
+.happy2-member-access-panel__owner-note {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-member-access-panel__effective {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+/* ---- Roles ------------------------------------------------------------- */
+
+.happy2-member-access-panel__roles {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.happy2-member-access-panel__role {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    background: var(--happy2-bg-inset);
+}
+
+.happy2-member-access-panel__role-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-member-access-panel__role-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: auto;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+    color: var(--happy2-text);
+}
+
+.happy2-member-access-panel__role-remove {
+    flex: none;
+}
+
+/* ---- Notes and empties -------------------------------------------------- */
+
+.happy2-member-access-panel__note {
+    margin: 0;
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.happy2-member-access-panel__loading {
+    margin: 0;
+    color: var(--happy2-text-muted);
+    font-size: 13px;
+    line-height: 18px;
+}
+
+.happy2-member-access-panel__empty {
+    margin: 0;
+    padding: 12px 14px;
+    border: 1px dashed var(--happy2-border-strong);
+    border-radius: var(--happy2-radius-md);
+    color: var(--happy2-text-muted);
+    font-size: 13px;
+    line-height: 18px;
+}

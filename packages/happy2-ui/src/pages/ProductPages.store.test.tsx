@@ -3,6 +3,7 @@ import {
     agentImagesStoreFixtureCreate,
     agentSecretsStoreFixtureCreate,
     pluginsStoreFixtureCreate,
+    rolesStoreFixtureCreate,
     callsStoreFixtureCreate,
     directoryStoreFixtureCreate,
     filesStoreFixtureCreate,
@@ -19,6 +20,7 @@ import { AdminPage } from "./admin/AdminPage";
 import { AgentImagesPage } from "./admin/AgentImagesPage";
 import { AgentSecretsPage } from "./admin/AgentSecretsPage";
 import { PluginsPage } from "./admin/PluginsPage";
+import { RolesPage } from "./admin/RolesPage";
 import { CallsPage } from "./calls/CallsPage";
 import { FilesPage } from "./files/FilesPage";
 import { HomePage } from "./home/HomePage";
@@ -69,6 +71,7 @@ it("renders AdminPage without materializing optional admin subpages", async () =
     const images = owned(agentImagesStoreFixtureCreate());
     const secrets = owned(agentSecretsStoreFixtureCreate());
     const plugins = owned(pluginsStoreFixtureCreate());
+    const roles = owned(rolesStoreFixtureCreate());
     admin.input({ type: "adminLoading" });
     let imageAccesses = 0;
     let secretAccesses = 0;
@@ -91,7 +94,8 @@ it("renders AdminPage without materializing optional admin subpages", async () =
                     pluginAccesses += 1;
                     return plugins.store;
                 }}
-                store={admin.store}
+                rolesStore={() => roles.store}
+                store={() => admin.store}
             />
         ),
         { width: 1024, height: 704 },
@@ -99,6 +103,231 @@ it("renders AdminPage without materializing optional admin subpages", async () =
     await view.ready();
     expect(view.container.textContent).toContain("Admin");
     expect([imageAccesses, secretAccesses, pluginAccesses]).toEqual([0, 0, 0]);
+});
+
+it("renders a permission-scoped admin subpage without materializing the legacy admin store", async () => {
+    const admin = owned(adminStoreFixtureCreate());
+    const images = owned(agentImagesStoreFixtureCreate());
+    const secrets = owned(agentSecretsStoreFixtureCreate());
+    const plugins = owned(pluginsStoreFixtureCreate());
+    const roles = owned(rolesStoreFixtureCreate());
+    images.input({ type: "imagesLoaded", images: [] });
+    let adminAccesses = 0;
+    const view = createRenderer();
+    view.render(
+        () => (
+            <AdminPage
+                activeSection="images"
+                agentImagesStore={() => images.store}
+                agentSecretsStore={() => secrets.store}
+                canManageImages={false}
+                onSectionChange={() => undefined}
+                pluginsStore={() => plugins.store}
+                rolesStore={() => roles.store}
+                sections={["images"]}
+                store={() => {
+                    adminAccesses += 1;
+                    return admin.store;
+                }}
+            />
+        ),
+        { width: 1024, height: 704 },
+    );
+    await view.ready();
+    expect(view.container.textContent).toContain("Agent images");
+    expect(
+        Array.from(view.container.querySelectorAll("button")).some(
+            (button) => button.textContent?.trim() === "New image",
+        ),
+    ).toBe(false);
+    expect(adminAccesses).toBe(0);
+});
+
+function roleCatalog(supportName: string) {
+    return {
+        permissions: ["manageSecrets", "viewAllMembers", "manageAdminRoles"],
+        roles: [
+            {
+                id: "role-admins",
+                name: "Admins",
+                builtin: "admin",
+                permissions: ["manageSecrets", "viewAllMembers"],
+                userIds: ["user-1"],
+            },
+            {
+                id: "role-members",
+                name: "Members",
+                builtin: "member",
+                permissions: [],
+                userIds: ["user-1", "user-2"],
+            },
+            {
+                id: "role-support",
+                name: supportName,
+                description: "Handles requests",
+                builtin: null,
+                permissions: ["viewAllMembers"],
+                userIds: [],
+            },
+        ],
+    } as const;
+}
+
+const roleMembers = [
+    { id: "user-1", displayName: "Olive Owner", username: "olive", kind: "human" },
+    { id: "user-2", displayName: "Mia Member", username: "mia", kind: "human" },
+] as const;
+
+it("keeps RolesPage role-row identity, focus, and the open editor across authoritative catalog updates", async () => {
+    const outputs: string[] = [];
+    const fixture = owned(rolesStoreFixtureCreate((event) => outputs.push(event.type)));
+    fixture.input({ type: "catalogLoaded", catalog: roleCatalog("Support") });
+    fixture.input({ type: "membersLoaded", members: roleMembers });
+    const view = createRenderer();
+    view.render(
+        () => (
+            <div style={{ display: "flex", height: "100%" }}>
+                <RolesPage store={fixture.store} />
+            </div>
+        ),
+        { width: 1024, height: 704 },
+    );
+    await view.ready();
+
+    const rolesPanel = view.container.querySelector('[data-happy2-ui="roles-panel"]')!;
+    expect(rolesPanel.querySelectorAll("[data-row-id]")).toHaveLength(3);
+    const adminRow = rolesPanel.querySelector<HTMLElement>('[data-row-id="role-admins"]')!;
+    const supportRow = rolesPanel.querySelector<HTMLElement>('[data-row-id="role-support"]')!;
+    const deleteButton = supportRow.querySelector<HTMLButtonElement>(
+        '[data-happy2-ui="data-table-actions"] button',
+    )!;
+    deleteButton.focus();
+    expect(document.activeElement).toBe(deleteButton);
+
+    fixture.input({ type: "catalogLoaded", catalog: roleCatalog("Support EMEA") });
+    await vi.waitFor(() => expect(supportRow.textContent).toContain("Support EMEA"));
+    expect(rolesPanel.querySelectorAll("[data-row-id]")).toHaveLength(3);
+    expect(rolesPanel.querySelector('[data-row-id="role-admins"]')).toBe(adminRow);
+    expect(rolesPanel.querySelector('[data-row-id="role-support"]')).toBe(supportRow);
+    expect(supportRow.querySelector('[data-happy2-ui="data-table-actions"] button')).toBe(
+        deleteButton,
+    );
+    expect(document.activeElement).toBe(deleteButton);
+
+    supportRow.click();
+    const editor = await vi.waitFor(() => {
+        const value = view.container.querySelector('[data-happy2-ui="role-editor"]');
+        expect(value).toBeTruthy();
+        return value!;
+    });
+    expect(editor.querySelectorAll('[data-happy2-ui="permission-row"]')).toHaveLength(3);
+    const nameInput = editor.querySelector<HTMLInputElement>("input")!;
+    expect(nameInput.value).toBe("Support EMEA");
+    nameInput.focus();
+    nameInput.value = "Support Global";
+    nameInput.dispatchEvent(new Event("input", { bubbles: true }));
+    const draftRow = editor.querySelector<HTMLElement>('[data-permission-id="manageSecrets"]')!;
+    const draftInput = draftRow.querySelector<HTMLInputElement>("input")!;
+    expect(draftInput.checked).toBe(false);
+
+    fixture.input({ type: "catalogLoaded", catalog: roleCatalog("Support") });
+    await vi.waitFor(() => expect(supportRow.textContent).not.toContain("Support EMEA"));
+    expect(view.container.querySelector('[data-happy2-ui="role-editor"]')).toBe(editor);
+    expect(editor.querySelector("input")).toBe(nameInput);
+    expect(nameInput.value).toBe("Support Global");
+    expect(document.activeElement).toBe(nameInput);
+    expect(editor.querySelectorAll('[data-happy2-ui="permission-row"]')).toHaveLength(3);
+    expect(editor.querySelector('[data-permission-id="manageSecrets"]')).toBe(draftRow);
+
+    draftInput.click();
+    await vi.waitFor(() => expect(draftInput.checked).toBe(true));
+    expect(editor.querySelector('[data-permission-id="manageSecrets"]')).toBe(draftRow);
+    expect(draftRow.querySelector("input")).toBe(draftInput);
+    expect(outputs).not.toContain("roleUpdateSubmitted");
+});
+
+it("keeps MemberAccessPanel rows, focus, and the open dialog across local and authoritative detail updates", async () => {
+    const outputs: { type: string; permissions?: readonly string[] }[] = [];
+    const fixture = owned(
+        rolesStoreFixtureCreate((event) =>
+            outputs.push(event as { type: string; permissions?: readonly string[] }),
+        ),
+    );
+    fixture.input({ type: "catalogLoaded", catalog: roleCatalog("Support") });
+    fixture.input({ type: "membersLoaded", members: roleMembers });
+    const view = createRenderer();
+    view.render(
+        () => (
+            <div style={{ display: "flex", height: "100%" }}>
+                <RolesPage store={fixture.store} />
+            </div>
+        ),
+        { width: 1024, height: 704 },
+    );
+    await view.ready();
+
+    const membersTable = view.container.querySelector('[data-happy2-ui="roles-page-members"]')!;
+    expect(membersTable.querySelectorAll("[data-row-id]")).toHaveLength(2);
+    membersTable.querySelector<HTMLElement>('[data-row-id="user-2"]')!.click();
+    const panel = await vi.waitFor(() => {
+        const value = view.container.querySelector('[data-happy2-ui="member-access-panel"]');
+        expect(value).toBeTruthy();
+        return value!;
+    });
+    expect(panel.textContent).toContain("Loading access…");
+
+    fixture.input({
+        type: "memberDetailLoaded",
+        userId: "user-2",
+        detail: {
+            direct: ["manageSecrets"],
+            roleIds: ["role-members"],
+            effective: { allowed: ["manageSecrets"], owner: false },
+        },
+    });
+    await vi.waitFor(() =>
+        expect(panel.querySelectorAll('[data-happy2-ui="permission-row"]')).toHaveLength(3),
+    );
+    const assignedRoleRow = panel.querySelector<HTMLElement>('[data-role-id="role-members"]')!;
+    const grantRow = panel.querySelector<HTMLElement>('[data-permission-id="viewAllMembers"]')!;
+    const grantInput = grantRow.querySelector<HTMLInputElement>("input")!;
+    const picker = panel.querySelector<HTMLSelectElement>('[data-happy2-ui="select-native"]')!;
+    expect(picker.getAttribute("aria-label")).toBe("Assign a role");
+    grantInput.focus();
+    expect(document.activeElement).toBe(grantInput);
+    grantInput.click();
+    expect(outputs.at(-1)).toMatchObject({
+        type: "memberPermissionsSubmitted",
+        permissions: ["manageSecrets", "viewAllMembers"],
+    });
+
+    fixture.input({
+        type: "memberDetailLoaded",
+        userId: "user-2",
+        detail: {
+            direct: ["manageSecrets", "viewAllMembers"],
+            roleIds: ["role-members"],
+            effective: { allowed: ["manageSecrets", "viewAllMembers"], owner: false },
+        },
+    });
+    await vi.waitFor(() => expect(grantInput.checked).toBe(true));
+    expect(view.container.querySelector('[data-happy2-ui="member-access-panel"]')).toBe(panel);
+    expect(panel.querySelectorAll('[data-happy2-ui="permission-row"]')).toHaveLength(3);
+    expect(panel.querySelector('[data-permission-id="viewAllMembers"]')).toBe(grantRow);
+    expect(grantRow.querySelector("input")).toBe(grantInput);
+    expect(panel.querySelector('[data-role-id="role-members"]')).toBe(assignedRoleRow);
+    expect(document.activeElement).toBe(grantInput);
+
+    fixture.input({
+        type: "roleActionFailed",
+        error: new UserError("The owner must remain an administrator"),
+    });
+    await vi.waitFor(() =>
+        expect(panel.textContent).toContain("The owner must remain an administrator"),
+    );
+    expect(panel.querySelector('[data-permission-id="viewAllMembers"]')).toBe(grantRow);
+    expect(panel.querySelector('[data-role-id="role-members"]')).toBe(assignedRoleRow);
+    expect(document.activeElement).toBe(grantInput);
 });
 
 it("renders AgentImagesPage from its independent store", async () => {

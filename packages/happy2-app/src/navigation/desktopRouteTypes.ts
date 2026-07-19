@@ -7,7 +7,8 @@ export type DesktopAdminSection =
     | "integrations"
     | "images"
     | "secrets"
-    | "plugins";
+    | "plugins"
+    | "roles";
 
 export type DesktopSettingsSection = "profile" | "notifications" | "account" | "appearance";
 

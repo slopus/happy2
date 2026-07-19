@@ -4,6 +4,7 @@ import { fileFind } from "../modules/file/fileFind.js";
 import { fileFindUploadedBy } from "../modules/file/fileFindUploadedBy.js";
 import type { StoredFile } from "../modules/file/types.js";
 import { userSetPhoto } from "../modules/user/userSetPhoto.js";
+import { permissionGetEffective } from "../modules/permission/permissionGetEffective.js";
 import { type DrizzleExecutor } from "../modules/drizzle.js";
 import type { FastifyBaseLogger, FastifyInstance, FastifyReply } from "fastify";
 import type { AuthService } from "../modules/auth/service.js";
@@ -36,6 +37,7 @@ export function registerFileRoutes(
         return current
             ? {
                   user: current.user,
+                  permissions: await permissionGetEffective(executor, current.user.id),
               }
             : reply.code(401).send({
                   error: "unauthorized",

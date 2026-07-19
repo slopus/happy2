@@ -1,6 +1,14 @@
 import { useLayoutEffect, useReducer } from "react";
-import { Avatar, Rail, TitleBar, type RailItem, type SearchResultType } from "happy2-ui";
-import type { HappyState } from "happy2-state";
+import {
+    Avatar,
+    Rail,
+    StoreSurface,
+    TitleBar,
+    type AdminPageSection,
+    type RailItem,
+    type SearchResultType,
+} from "happy2-ui";
+import { permissionAllowed, type HappyState, type PermissionsSnapshot } from "happy2-state";
 import type { AuthSession } from "./AuthGate";
 import { DesktopOverlaySurface } from "./DesktopOverlaySurface";
 import { DesktopPrimarySurface } from "./DesktopPrimarySurface";
@@ -178,26 +186,54 @@ export function DesktopApp(props: DesktopAppProps) {
         />
     );
     return (
-        <>
-            <DesktopPrimarySurface
-                createRequest={createRequest}
-                navigation={props.navigation}
-                platform={props.platform}
-                rail={rail()}
-                route={route}
-                search={search()}
-                session={props.session}
-                state={props.state}
-                titleBar={titleBar()}
-            />
-            <DesktopOverlaySurface
-                navigation={props.navigation}
-                onSearchQueryChange={searchChange}
-                onSearchSelect={searchSelect}
-                route={route}
-                session={props.session}
-                state={props.state}
-            />
-        </>
+        <StoreSurface store={props.state.permissions()}>
+            {(permissions) => {
+                const allowed = (permission: Parameters<typeof permissionAllowed>[1]) =>
+                    permissionAllowed(permissions, permission);
+                const adminSections = adminSectionsProject(permissions);
+                return (
+                    <>
+                        <DesktopPrimarySurface
+                            adminSections={adminSections}
+                            canAssignSecrets={allowed("assignSecrets")}
+                            canManageImages={allowed("manageImages")}
+                            canManageSecrets={allowed("manageSecrets")}
+                            canViewRoleMembers={allowed("manageAdminRoles")}
+                            createRequest={createRequest}
+                            navigation={props.navigation}
+                            platform={props.platform}
+                            rail={rail()}
+                            route={route}
+                            search={search()}
+                            session={props.session}
+                            state={props.state}
+                            titleBar={titleBar()}
+                        />
+                        <DesktopOverlaySurface
+                            navigation={props.navigation}
+                            onSearchQueryChange={searchChange}
+                            onSearchSelect={searchSelect}
+                            route={route}
+                            session={props.session}
+                            state={props.state}
+                        />
+                    </>
+                );
+            }}
+        </StoreSurface>
     );
+}
+
+function adminSectionsProject(snapshot: PermissionsSnapshot): readonly AdminPageSection[] {
+    const owner = snapshot.permissions.type === "ready" && snapshot.permissions.value.owner;
+    const allowed = (permission: Parameters<typeof permissionAllowed>[1]) =>
+        permissionAllowed(snapshot, permission);
+    const sections: AdminPageSection[] = [];
+    if (allowed("viewAllMembers")) sections.push("users");
+    if (owner) sections.push("reports", "automations", "integrations");
+    if (allowed("manageImages") || allowed("assignImagesToChats")) sections.push("images");
+    if (allowed("manageSecrets") || allowed("assignSecrets")) sections.push("secrets");
+    if (allowed("managePlugins")) sections.push("plugins");
+    if (allowed("manageAdminRoles")) sections.push("roles");
+    return sections;
 }

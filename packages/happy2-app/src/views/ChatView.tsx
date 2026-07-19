@@ -1,6 +1,7 @@
 import { useLayoutEffect, useReducer, useRef, type ReactNode } from "react";
 import {
     ChatPage,
+    type AdminPageSection,
     type ChatPageActions,
     type ChatPageNavigation,
     type ChatPagePanel,
@@ -28,6 +29,8 @@ export type ChatViewProps = {
     search: string;
     rail: ReactNode;
     titleBar: ReactNode;
+    canOpenAdmin: boolean;
+    adminStartSection: AdminPageSection;
 };
 type ChatResources = {
     chat?: ChatHandle;
@@ -159,7 +162,7 @@ export function ChatView(props: ChatViewProps) {
         adminOpen() {
             props.navigation.navigate({
                 ...props.route,
-                primary: { kind: "admin", section: "users" },
+                primary: { kind: "admin", section: props.adminStartSection },
                 panel: undefined,
                 overlay: undefined,
             });
@@ -239,6 +242,7 @@ export function ChatView(props: ChatViewProps) {
     return (
         <ChatPage
             actions={actions}
+            canOpenAdmin={props.canOpenAdmin}
             chat={resources.chat}
             composer={resources.composer}
             createRequest={props.createRequest}

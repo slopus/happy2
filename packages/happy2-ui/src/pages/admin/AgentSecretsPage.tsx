@@ -8,6 +8,10 @@ import { StoreSurface } from "../../StoreSurface";
 export interface AgentSecretsPageProps {
     store: AgentSecretsStore;
     query?: string;
+    /** Allows creating and deleting secret definitions. */
+    canManage?: boolean;
+    /** Allows attaching and detaching existing secrets. */
+    canAssign?: boolean;
 }
 const emptyVariable = (): AgentSecretDraftVariable => ({ name: "", value: "" });
 /** Complete write-only secret metadata and binding page backed by AgentSecretsStore. */
@@ -91,10 +95,14 @@ export function AgentSecretsPage(props: AgentSecretsPageProps) {
                                 setDraftVariables((current) => [...current, emptyVariable()])
                             }
                             onCloseCreate={() => setCreateOpen(false)}
-                            onDeleteSecret={(id) => {
-                                store.secretDelete(id);
-                                if (detailId === id) setDetailId(undefined);
-                            }}
+                            onDeleteSecret={
+                                props.canManage === false
+                                    ? undefined
+                                    : (id) => {
+                                          store.secretDelete(id);
+                                          if (detailId === id) setDetailId(undefined);
+                                      }
+                            }
                             onDismissActionError={() => setDismissedError(snapshot.actionError)}
                             onDraftDescriptionChange={setDraftDescription}
                             onDraftIdChange={setDraftId}
@@ -107,12 +115,16 @@ export function AgentSecretsPage(props: AgentSecretsPageProps) {
                                     ),
                                 )
                             }
-                            onOpenCreate={() => {
-                                setDraftId("");
-                                setDraftDescription("");
-                                setDraftVariables([emptyVariable()]);
-                                setCreateOpen(true);
-                            }}
+                            onOpenCreate={
+                                props.canManage === false
+                                    ? undefined
+                                    : () => {
+                                          setDraftId("");
+                                          setDraftDescription("");
+                                          setDraftVariables([emptyVariable()]);
+                                          setCreateOpen(true);
+                                      }
+                            }
                             onRemoveDraftVariable={(index) =>
                                 setDraftVariables((current) =>
                                     current.length <= 1
@@ -169,17 +181,29 @@ export function AgentSecretsPage(props: AgentSecretsPageProps) {
                                               channels={channelBindings}
                                               environmentVariables={secret.environmentVariables}
                                               error={actionError}
-                                              onAttachAgent={(id) =>
-                                                  store.secretAgentAttach(secret.id, id)
+                                              onAttachAgent={
+                                                  props.canAssign === false
+                                                      ? undefined
+                                                      : (id) =>
+                                                            store.secretAgentAttach(secret.id, id)
                                               }
-                                              onAttachChannel={(id) =>
-                                                  store.secretChannelAttach(secret.id, id)
+                                              onAttachChannel={
+                                                  props.canAssign === false
+                                                      ? undefined
+                                                      : (id) =>
+                                                            store.secretChannelAttach(secret.id, id)
                                               }
-                                              onDetachAgent={(id) =>
-                                                  store.secretAgentDetach(secret.id, id)
+                                              onDetachAgent={
+                                                  props.canAssign === false
+                                                      ? undefined
+                                                      : (id) =>
+                                                            store.secretAgentDetach(secret.id, id)
                                               }
-                                              onDetachChannel={(id) =>
-                                                  store.secretChannelDetach(secret.id, id)
+                                              onDetachChannel={
+                                                  props.canAssign === false
+                                                      ? undefined
+                                                      : (id) =>
+                                                            store.secretChannelDetach(secret.id, id)
                                               }
                                               onDismissError={() =>
                                                   setDismissedError(snapshot.actionError)

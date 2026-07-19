@@ -13,10 +13,10 @@ import { text } from "../chat/text.js";
 import { chatAppendAudit } from "../chat/chatAppendAudit.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequirePermission } from "../permission/userRequirePermission.js";
 
 /**
- * Creates an administrator-owned agentImages definition with validated build inputs and an initial lifecycle state.
+ * Creates a manageImages-authorized agentImages definition with validated build inputs and an initial lifecycle state.
  * Emitting its sync and audit records in the same transaction makes the new definition discoverable only as an authorized operation.
  */
 export async function agentImageCreate(
@@ -33,7 +33,7 @@ export async function agentImageCreate(
     image: AgentImageSummary;
 }> {
     return withTransaction(executor, async (tx) => {
-        await userRequireServerAdmin(tx, input.actorUserId);
+        await userRequirePermission(tx, input.actorUserId, "manageImages");
         let created: Record<string, unknown>;
         try {
             [created] = await tx

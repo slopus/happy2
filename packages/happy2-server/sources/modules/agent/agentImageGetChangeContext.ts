@@ -9,9 +9,9 @@ import { asUser } from "../chat/asUser.js";
 import { optionalText } from "../chat/optionalText.js";
 import { userSelection } from "../chat/userSelection.js";
 
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequirePermission } from "../permission/userRequirePermission.js";
 /**
- * Validates an administrator-requested image change against a live agent, a ready target image, all Rig bindings, and unfinished turns.
+ * Validates an assignImagesToChats-authorized change against a live agent, a ready image, all Rig bindings, and unfinished turns.
  * Rejecting a different image while work is pending prevents the later mutation from switching the execution substrate beneath an active turn.
  */
 export async function agentImageGetChangeContext(
@@ -36,7 +36,7 @@ export async function agentImageGetChangeContext(
     };
     user: UserSummary;
 }> {
-    await userRequireServerAdmin(executor, input.actorUserId);
+    await userRequirePermission(executor, input.actorUserId, "assignImagesToChats");
     const [agent, image, bindings, unfinished] = await Promise.all([
         executor
             .select(userSelection)

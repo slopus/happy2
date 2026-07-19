@@ -6,12 +6,12 @@ import { areaHint } from "../chat/areaHint.js";
 import { asUser } from "../chat/asUser.js";
 
 import { userSelection } from "../chat/userSelection.js";
-import { users } from "../schema.js";
+import { roles, serverSetupState, userRoles, users } from "../schema.js";
 import { chatAppendAudit } from "../chat/chatAppendAudit.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
-import { userRequireActive } from "../chat/userRequireActive.js";
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequireActiveHuman } from "../chat/userRequireActiveHuman.js";
+import { userRequirePermission } from "../permission/userRequirePermission.js";
 
 /**
  * Changes administrator-managed users role, title, or account policy fields after validating both actor and target identities.
@@ -30,10 +30,18 @@ export async function userAdministrationUpdate(
     hint: MutationHint;
 }> {
     return withTransaction(executor, async (tx) => {
-        await userRequireServerAdmin(tx, input.actorUserId);
-        await userRequireActive(tx, input.userId);
+        await userRequirePermission(tx, input.actorUserId, "manageAdminRoles");
+        await userRequireActiveHuman(tx, input.userId);
         if (input.actorUserId === input.userId && input.role === "member")
             throw new CollaborationError("invalid", "An admin cannot demote themselves");
+        if (input.role === "member") {
+            const [setup] = await tx
+                .select({ ownerUserId: serverSetupState.bootstrapAdminUserId })
+                .from(serverSetupState)
+                .where(eq(serverSetupState.id, 1));
+            if (setup?.ownerUserId === input.userId)
+                throw new CollaborationError("invalid", "The owner must remain an administrator");
+        }
         const sequence = await syncSequenceNext(tx);
         await tx
             .update(users)
@@ -51,12 +59,45 @@ export async function userAdministrationUpdate(
                 syncSequence: sequence,
             })
             .where(and(eq(users.id, input.userId), isNull(users.deletedAt)));
+        if (input.role !== undefined) {
+            const [builtinRole] = await tx
+                .select({ id: roles.id })
+                .from(roles)
+                .where(eq(roles.builtinKind, "admin"));
+            if (!builtinRole) throw new Error("Built-in administrator role is missing");
+            if (input.role === "admin")
+                await tx
+                    .insert(userRoles)
+                    .values({
+                        userId: input.userId,
+                        roleId: builtinRole.id,
+                        assignedByUserId: input.actorUserId,
+                    })
+                    .onConflictDoNothing();
+            else
+                await tx
+                    .delete(userRoles)
+                    .where(
+                        and(
+                            eq(userRoles.userId, input.userId),
+                            eq(userRoles.roleId, builtinRole.id),
+                        ),
+                    );
+        }
         await syncEventInsert(tx, {
             sequence,
             kind: "user.updated",
             entityId: input.userId,
             actorUserId: input.actorUserId,
         });
+        if (input.role !== undefined)
+            await syncEventInsert(tx, {
+                sequence,
+                kind: "permissions.changed",
+                entityId: input.userId,
+                actorUserId: input.actorUserId,
+                targetUserId: input.userId,
+            });
         await chatAppendAudit(tx, {
             actorUserId: input.actorUserId,
             action: "user.administration_updated",
@@ -71,7 +112,14 @@ export async function userAdministrationUpdate(
         if (!user) throw new Error("Updated user is missing");
         return {
             user: asUser(user),
-            hint: areaHint(sequence, "users"),
+            hint:
+                input.role === undefined
+                    ? areaHint(sequence, "users")
+                    : {
+                          sequence: String(sequence),
+                          chats: [],
+                          areas: ["users", "permissions"],
+                      },
         };
     });
 }

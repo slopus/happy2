@@ -4,6 +4,130 @@ import { createFakeServer, jsonResponse } from "../src/testing/index.js";
 import { chat, message } from "./fixtures.js";
 
 describe("HappyState chat leases and realtime races", () => {
+    it("refetches effective permissions after a permissions sync hint", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/sync/state",
+            jsonResponse(200, {
+                state: { protocolVersion: 1, generation: "g", sequence: "0" },
+                serverTime: "now",
+            }),
+        );
+        server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+        server.respond(
+            "POST",
+            "/v0/sync/getDifference",
+            jsonResponse(200, {
+                kind: "empty",
+                changedChats: [],
+                removedChatIds: [],
+                areas: ["permissions"],
+                state: { protocolVersion: 1, generation: "g", sequence: "1" },
+                targetState: { protocolVersion: 1, generation: "g", sequence: "1" },
+            }),
+        );
+        server.respond(
+            "GET",
+            "/v0/me",
+            jsonResponse(200, {
+                user: { id: "user-1", username: "me", firstName: "Me" },
+                permissions: { allowed: [], owner: false },
+            }),
+            jsonResponse(200, {
+                user: { id: "user-1", username: "me", firstName: "Me" },
+                permissions: { allowed: ["managePlugins"], owner: false },
+            }),
+        );
+        using state = happyStateCreate({
+            initialPermissions: { allowed: [], owner: false },
+            transport: server.transport,
+        });
+        const permissions = state.permissions();
+        await state.whenIdle();
+        await state.syncStart();
+        expect(permissions.getState().permissions).toMatchObject({
+            type: "ready",
+            value: { allowed: [] },
+        });
+        server.events.sync({ sequence: "1" });
+        await state.whenIdle();
+        expect(permissions.getState().permissions).toMatchObject({
+            type: "ready",
+            value: { allowed: ["managePlugins"] },
+        });
+        expect(server.requests.filter(({ path }) => path === "/v0/me")).toHaveLength(2);
+    });
+
+    it("refetches the retained administration user list after a permissions sync hint", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/sync/state",
+            jsonResponse(200, {
+                state: { protocolVersion: 1, generation: "g", sequence: "0" },
+                serverTime: "now",
+            }),
+        );
+        server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+        server.respond(
+            "POST",
+            "/v0/sync/getDifference",
+            jsonResponse(200, {
+                kind: "empty",
+                changedChats: [],
+                removedChatIds: [],
+                areas: ["permissions"],
+                state: { protocolVersion: 1, generation: "g", sequence: "1" },
+                targetState: { protocolVersion: 1, generation: "g", sequence: "1" },
+            }),
+        );
+        server.respond(
+            "GET",
+            "/v0/admin/users",
+            jsonResponse(200, {
+                users: [
+                    {
+                        id: "user-2",
+                        username: "mia",
+                        firstName: "Mia",
+                        role: "member",
+                        kind: "human",
+                    },
+                ],
+            }),
+            jsonResponse(200, {
+                users: [
+                    {
+                        id: "user-2",
+                        username: "mia",
+                        firstName: "Mia",
+                        role: "admin",
+                        kind: "human",
+                    },
+                ],
+            }),
+        );
+        using state = happyStateCreate({
+            initialPermissions: { allowed: [], owner: true },
+            transport: server.transport,
+        });
+        const admin = state.admin("users");
+        await state.whenIdle();
+        await state.syncStart();
+        expect(admin.getState().users).toMatchObject({
+            type: "ready",
+            value: [{ id: "user-2", role: "member" }],
+        });
+        server.events.sync({ sequence: "1" });
+        await state.whenIdle();
+        expect(admin.getState().users).toMatchObject({
+            type: "ready",
+            value: [{ id: "user-2", role: "admin" }],
+        });
+        expect(server.requests.filter(({ path }) => path === "/v0/admin/users")).toHaveLength(2);
+    });
+
     it("subscribes before initial load and consumes a hint received during it", async () => {
         const server = createFakeServer();
         let releaseState!: () => void;

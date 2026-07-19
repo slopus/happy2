@@ -1,0 +1,59 @@
+/*
+ * RolesPage — product roles-and-grants administration page.
+ *
+ * Contract: page-level text treatments for the member-access section heading
+ * and the member table cells. Layout is owned inline by the page's flex
+ * columns; reusable chrome lives in RolesPanel/MemberAccessPanel.
+ */
+
+.happy2-roles-page,
+.happy2-roles-page * {
+    box-sizing: border-box;
+}
+
+.happy2-roles-page__members-title {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+}
+
+.happy2-roles-page__members-subtitle {
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-ui);
+}
+
+.happy2-roles-page__member {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.happy2-roles-page__member-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.happy2-roles-page__member-username {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-roles-page__member-roles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}

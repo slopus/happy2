@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { DrizzleExecutor } from "../drizzle.js";
 import { plugins } from "../schema.js";
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequirePermission } from "../permission/userRequirePermission.js";
 import { PluginError } from "./types.js";
 
 export interface StoredPluginImage {
@@ -16,7 +16,7 @@ export interface StoredPluginImage {
 }
 
 /**
- * Returns the private filesystem locator and public response metadata for one persisted plugin image after administrator authorization.
+ * Returns one plugin image's private locator and public metadata after requiring managePlugins permission.
  * This read-only boundary does not mutate durable state and prevents routes from reading package paths without a durable plugin record.
  */
 export async function pluginGetImage(
@@ -24,7 +24,7 @@ export async function pluginGetImage(
     actorUserId: string,
     pluginId: string,
 ): Promise<StoredPluginImage> {
-    await userRequireServerAdmin(executor, actorUserId);
+    await userRequirePermission(executor, actorUserId, "managePlugins");
     const [row] = await executor
         .select({
             pluginId: plugins.id,

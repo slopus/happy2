@@ -17,6 +17,7 @@ const adminSections = new Set<DesktopAdminSection>([
     "images",
     "secrets",
     "plugins",
+    "roles",
 ]);
 const settingsSections = new Set<DesktopSettingsSection>([
     "profile",

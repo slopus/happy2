@@ -25,6 +25,10 @@ import { CommandPalettePage } from "./pages/CommandPalettePage";
 import { ChatStorePage } from "./pages/ChatStorePage";
 import { AudienceTogglePage } from "./pages/AudienceTogglePage";
 import { PluginCatalogPanelPage } from "./pages/PluginCatalogPanelPage";
+import { PermissionChecklistPage } from "./pages/PermissionChecklistPage";
+import { RolesPanelPage } from "./pages/RolesPanelPage";
+import { RoleEditorPage } from "./pages/RoleEditorPage";
+import { MemberAccessPanelPage } from "./pages/MemberAccessPanelPage";
 import { ComposerPage } from "./pages/ComposerPage";
 import { DataTablePage } from "./pages/DataTablePage";
 import { DiffSnippetPage } from "./pages/DiffSnippetPage";
@@ -213,6 +217,20 @@ const components: BlueprintPage[] = [
         label: "Plugin catalog panel",
         number: "C-066",
         page: PluginCatalogPanelPage,
+    },
+    {
+        id: "permission-checklist",
+        label: "Permission checklist",
+        number: "C-067",
+        page: PermissionChecklistPage,
+    },
+    { id: "roles-panel", label: "Roles panel", number: "C-068", page: RolesPanelPage },
+    { id: "role-editor", label: "Role editor", number: "C-069", page: RoleEditorPage },
+    {
+        id: "member-access-panel",
+        label: "Member access panel",
+        number: "C-070",
+        page: MemberAccessPanelPage,
     },
 ];
 const fullScreens: BlueprintPage[] = [

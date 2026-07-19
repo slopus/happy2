@@ -8,6 +8,8 @@ import { StoreSurface } from "../../StoreSurface";
 export interface AgentImagesPageProps {
     store: AgentImagesStore;
     query?: string;
+    /** Allows image creation, builds, and default-image changes. */
+    canManage?: boolean;
 }
 /** Complete agent-image administration page backed by one AgentImagesStore. */
 export function AgentImagesPage(props: AgentImagesPageProps) {
@@ -86,21 +88,27 @@ export function AgentImagesPage(props: AgentImagesPageProps) {
                                 snapshot.images.type === "loading" ||
                                 snapshot.images.type === "unloaded"
                             }
-                            onBuildImage={store.imageBuild}
+                            onBuildImage={props.canManage === false ? undefined : store.imageBuild}
                             onCloseCreate={() => setCreateOpen(false)}
                             onDismissActionError={() => setDismissedError(snapshot.actionError)}
                             onDraftDockerfileChange={setDraftDockerfile}
                             onDraftNameChange={setDraftName}
-                            onOpenCreate={() => {
-                                setDraftName("");
-                                setDraftDockerfile("");
-                                setCreateOpen(true);
-                            }}
+                            onOpenCreate={
+                                props.canManage === false
+                                    ? undefined
+                                    : () => {
+                                          setDraftName("");
+                                          setDraftDockerfile("");
+                                          setCreateOpen(true);
+                                      }
+                            }
                             onSelectImage={(id) => {
                                 setDetailOpen(true);
                                 store.imageSelect(id);
                             }}
-                            onSetDefaultImage={store.defaultImageSet}
+                            onSetDefaultImage={
+                                props.canManage === false ? undefined : store.defaultImageSet
+                            }
                             onSubmitCreate={() => {
                                 const name = draftName.trim();
                                 const dockerfile = draftDockerfile;

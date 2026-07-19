@@ -195,6 +195,7 @@ export async function withGymServer<T>(run: (server: GymServer) => Promise<T>): 
 class GymServerInstance implements GymServer {
     private closed = false;
     private userSequence = 0;
+    private listeningUrl?: string;
 
     constructor(
         private app: FastifyInstance,
@@ -319,7 +320,8 @@ class GymServerInstance implements GymServer {
 
     async listen(): Promise<string> {
         this.assertOpen();
-        return this.app.listen({ host: "127.0.0.1", port: 0 });
+        this.listeningUrl ??= await this.app.listen({ host: "127.0.0.1", port: 0 });
+        return this.listeningUrl;
     }
 
     private async completeSetupImageFixture(
@@ -362,6 +364,7 @@ class GymServerInstance implements GymServer {
     ): Promise<void> {
         this.assertOpen();
         await this.app.close();
+        this.listeningUrl = undefined;
         await options.beforeStart?.();
         if (options.pluginCatalog) this.pluginCatalog = options.pluginCatalog;
         this.tokens = await TokenService.create(this.config, this.tokenKeys);

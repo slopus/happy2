@@ -147,6 +147,8 @@ export async function syncGetDifference(
         else if (kind.startsWith("bot.")) areas.add("bots");
         else if (kind.startsWith("integration.")) areas.add("integrations");
         else if (kind.startsWith("plugin.")) areas.add("plugins");
+        else if (kind.startsWith("permissions.") || kind.startsWith("role."))
+            areas.add("permissions");
         else if (kind.startsWith("presence.")) areas.add("presence");
         else if (kind.startsWith("user.")) areas.add("users");
         else if (kind.startsWith("emoji.")) areas.add("emoji");

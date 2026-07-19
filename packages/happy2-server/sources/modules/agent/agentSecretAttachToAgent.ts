@@ -8,10 +8,10 @@ import { areaHint } from "../chat/areaHint.js";
 import { chatAppendAudit } from "../chat/chatAppendAudit.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
-import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { userRequirePermission } from "../permission/userRequirePermission.js";
 
 /**
- * Grants an agent access to a secret by inserting the unique agentSecretAgentAssignments relationship after administrator checks.
+ * Grants an agent access by inserting agentSecretAgentAssignments after requiring assignSecrets permission.
  * Keeping the grant, audit entry, and sync event together prevents silent expansion of an agent's runtime credentials.
  */
 export async function agentSecretAttachToAgent(
@@ -23,7 +23,7 @@ export async function agentSecretAttachToAgent(
     },
 ): Promise<MutationHint | undefined> {
     return withTransaction(executor, async (tx) => {
-        await userRequireServerAdmin(tx, input.actorUserId);
+        await userRequirePermission(tx, input.actorUserId, "assignSecrets");
         const [agent] = await tx
             .select({
                 id: users.id,

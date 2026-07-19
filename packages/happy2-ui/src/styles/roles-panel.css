@@ -1,0 +1,119 @@
+/*
+ * RolesPanel — administrator surface for server roles.
+ *
+ * Contract: fills its container, stacks a header row (title + new) over a
+ * DataTable of roles with permission-badge previews, member counts, and the
+ * immutable built-in marking. Row cells stay on the 4px grid; overflowing
+ * permission lists collapse into a mono "+N" counter.
+ */
+
+.happy2-roles-panel,
+.happy2-roles-panel * {
+    box-sizing: border-box;
+}
+
+.happy2-roles-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0%;
+    min-height: 0;
+    gap: 16px;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Header ----------------------------------------------------------- */
+
+.happy2-roles-panel__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+}
+
+.happy2-roles-panel__heading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.happy2-roles-panel__title {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+    color: var(--happy2-text);
+}
+
+.happy2-roles-panel__subtitle {
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-roles-panel__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+/* ---- Rows ------------------------------------------------------------- */
+
+.happy2-roles-panel__role {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.happy2-roles-panel__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.happy2-roles-panel__description {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-roles-panel__access {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.happy2-roles-panel__overflow {
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.happy2-roles-panel__none {
+    color: var(--happy2-text-muted);
+}
+
+.happy2-roles-panel__members {
+    font-variant-numeric: tabular-nums;
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-roles-panel__row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}

@@ -162,6 +162,13 @@
             "when": 1784420000000,
             "tag": "0022_plugin_container_runtime_tools",
             "breakpoints": true
+        },
+        {
+            "idx": 23,
+            "version": "6",
+            "when": 1784421000000,
+            "tag": "0023_roles_and_permissions",
+            "breakpoints": true
         }
     ]
 }

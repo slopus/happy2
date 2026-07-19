@@ -14,6 +14,35 @@ export interface AdminUserSummary extends UserSummary {
     readonly lastAccessAt?: string;
 }
 
+export type Permission =
+    | "manageSecrets"
+    | "assignSecrets"
+    | "manageImages"
+    | "assignImagesToChats"
+    | "managePlugins"
+    | "viewAllMembers"
+    | "manageAdminRoles";
+
+export interface EffectivePermissions {
+    readonly allowed: readonly Permission[];
+    readonly owner: boolean;
+}
+
+export interface RoleSummary {
+    readonly id: string;
+    readonly name: string;
+    readonly description?: string;
+    readonly builtin: "admin" | "member" | null;
+    readonly permissions: readonly Permission[];
+    readonly userIds: readonly string[];
+}
+
+export interface MemberPermissionDetail {
+    readonly direct: readonly Permission[];
+    readonly roleIds: readonly string[];
+    readonly effective: EffectivePermissions;
+}
+
 export type SearchResultSummary =
     | { readonly type: "message"; readonly score: number; readonly message: MessageSummary }
     | { readonly type: "channel"; readonly score: number; readonly channel: ChatSummary }

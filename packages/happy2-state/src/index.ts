@@ -73,7 +73,7 @@ export type {
     DirectoryStore,
     DirectoryUserProjection,
 } from "./modules/directory/directoryState.js";
-export type { AdminSnapshot, AdminStore } from "./modules/admin/adminState.js";
+export type { AdminSection, AdminSnapshot, AdminStore } from "./modules/admin/adminState.js";
 export type {
     AgentImagesSnapshot,
     AgentImagesStore,
@@ -89,6 +89,12 @@ export type {
     AgentSecretsStore,
 } from "./modules/agent-secrets/agentSecretsState.js";
 export type { PluginsSnapshot, PluginsStore } from "./modules/plugins/pluginsState.js";
+export {
+    permissionAllowed,
+    type PermissionsSnapshot,
+    type PermissionsStore,
+} from "./modules/permissions/permissionsState.js";
+export type { RolesCatalog, RolesSnapshot, RolesStore } from "./modules/roles/rolesState.js";
 export type { ThreadHandle, ThreadSnapshot, ThreadStore } from "./modules/thread/threadState.js";
 export type {
     ThreadsSnapshot,
