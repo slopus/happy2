@@ -191,9 +191,10 @@ it("keeps the development-token row absent when disabled and localizes creation 
     Array.from(failed.container.querySelectorAll<HTMLButtonElement>("button"))
         .find((button) => button.textContent?.trim() === "Create development token")!
         .click();
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    expect(
-        failed.container.querySelector('[data-testid="development-token-error"]')?.textContent,
-    ).toContain("Issuance denied");
+    await vi.waitFor(() =>
+        expect(
+            failed.container.querySelector('[data-testid="development-token-error"]')?.textContent,
+        ).toContain("Issuance denied"),
+    );
     expect(failed.container.querySelector('[data-testid="development-token-modal"]')).toBeNull();
 });
