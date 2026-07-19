@@ -2,6 +2,7 @@ import { useRef, type ReactNode } from "react";
 import type { AgentActivityState, DeepReadonly, DirectoryUserProjection } from "happy2-state";
 import {
     AgentActivityIndicator,
+    AgentActivityStrip,
     Box,
     Button,
     ChannelHeader,
@@ -93,67 +94,93 @@ export function ChatConversation(props: ChatConversationProps) {
             <MessageList intro={props.conversation.intro} virtualize>
                 {props.messageEntries}
             </MessageList>
-            {props.activities.length > 0 ? (
-                <Box
-                    style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "8px",
-                        margin: "0 20px 8px",
-                    }}
-                >
-                    {props.activities.map((activity) => {
-                        const actor = () =>
-                            props.directoryUsers.find(
-                                (person) => person.id === activity.agentUserId,
+            <Box
+                style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                    padding: "0 20px 16px",
+                }}
+            >
+                {props.activities.length > 0 ? (
+                    <Box
+                        style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "8px",
+                        }}
+                    >
+                        {props.activities.map((activity) => {
+                            const actor = () =>
+                                props.directoryUsers.find(
+                                    (person) => person.id === activity.agentUserId,
+                                );
+                            return (
+                                <AgentActivityIndicator
+                                    elapsedSeconds={Math.max(
+                                        0,
+                                        Math.floor((props.activityNow - activity.startedAt) / 1000),
+                                    )}
+                                    initials={actor() ? identityInitials(actor()!) : "AI"}
+                                    key={`${activity.agentUserId}-${activity.startedAt}`}
+                                    name={actor()?.displayName ?? "Agent"}
+                                    phase={activity.phase}
+                                    tokenCount={activity.tokenCount}
+                                    tone={toneFor(activity.agentUserId)}
+                                />
                             );
-                        return (
-                            <AgentActivityIndicator
-                                elapsedSeconds={Math.max(
-                                    0,
-                                    Math.floor((props.activityNow - activity.startedAt) / 1000),
-                                )}
-                                initials={actor() ? identityInitials(actor()!) : "AI"}
-                                key={`${activity.agentUserId}-${activity.startedAt}`}
-                                name={actor()?.displayName ?? "Agent"}
-                                phase={activity.phase}
-                                tokenCount={activity.tokenCount}
-                                tone={toneFor(activity.agentUserId)}
-                            />
-                        );
-                    })}
-                </Box>
-            ) : null}
-            <input
-                hidden
-                multiple
-                onChange={(event) => props.onFilesSelected(event.currentTarget.files)}
-                ref={fileInput}
-                type="file"
-            />
-            <Composer
-                agentOptions={props.composerAgentOptions}
-                audience={props.composerAudience}
-                contextItems={props.contextItems}
-                defaultAgent={props.composerDefaultAgent}
-                disabled={props.composerDisabled}
-                emoji={emojiItems}
-                hint={props.composerHint}
-                mentions={props.composerMentions}
-                onAgentAdd={props.onAgentAdd}
-                onAgentRemove={props.onAgentRemove}
-                onAttachFile={() => fileInput.current?.click()}
-                onAudienceChange={props.onAudienceChange}
-                onContextRemove={props.onContextRemove}
-                onSend={props.onSend}
-                onValueChange={props.onValueChange}
-                pending={props.composerPending}
-                placeholder={props.conversation.composerPlaceholder}
-                selectedAgentIds={props.composerSelectedAgentIds}
-                sendEnabled={props.composerSendEnabled}
-                style={{ margin: "0 20px 16px" }}
-                value={props.composerValue}
-            />
+                        })}
+                    </Box>
+                ) : null}
+                {props.activities.length > 0 ? (
+                    <AgentActivityStrip
+                        now={props.activityNow}
+                        // Rig subagent/terminal ids are only unique per agent, so
+                        // two concurrently active agents need namespaced row keys.
+                        subagents={props.activities.flatMap((activity) =>
+                            activity.subagents.map((subagent) => ({
+                                ...subagent,
+                                id: `${activity.agentUserId}:${subagent.id}`,
+                            })),
+                        )}
+                        terminals={props.activities.flatMap((activity) =>
+                            activity.backgroundTerminals.map((terminal) => ({
+                                ...terminal,
+                                id: `${activity.agentUserId}:${terminal.id}`,
+                            })),
+                        )}
+                    />
+                ) : null}
+                <input
+                    hidden
+                    multiple
+                    onChange={(event) => props.onFilesSelected(event.currentTarget.files)}
+                    ref={fileInput}
+                    type="file"
+                />
+                <Composer
+                    agentOptions={props.composerAgentOptions}
+                    audience={props.composerAudience}
+                    contextItems={props.contextItems}
+                    defaultAgent={props.composerDefaultAgent}
+                    disabled={props.composerDisabled}
+                    emoji={emojiItems}
+                    hint={props.composerHint}
+                    mentions={props.composerMentions}
+                    onAgentAdd={props.onAgentAdd}
+                    onAgentRemove={props.onAgentRemove}
+                    onAttachFile={() => fileInput.current?.click()}
+                    onAudienceChange={props.onAudienceChange}
+                    onContextRemove={props.onContextRemove}
+                    onSend={props.onSend}
+                    onValueChange={props.onValueChange}
+                    pending={props.composerPending}
+                    placeholder={props.conversation.composerPlaceholder}
+                    selectedAgentIds={props.composerSelectedAgentIds}
+                    sendEnabled={props.composerSendEnabled}
+                    value={props.composerValue}
+                />
+            </Box>
         </>
     );
 }

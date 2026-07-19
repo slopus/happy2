@@ -85,6 +85,81 @@ export interface ReactionSummary {
     readonly userIds: readonly string[];
 }
 
+export type AgentTurnTraceKind =
+    | "reasoning"
+    | "response"
+    | "tool"
+    | "subagent"
+    | "terminal"
+    | "status";
+
+export type AgentTurnTraceEntryStatus = "running" | "complete" | "failed";
+
+export type AgentTurnStatus = "pending" | "running" | "complete" | "failed";
+
+/** The live public projection of one Rig subagent belonging to a turn. */
+export interface AgentTurnSubagentSummary {
+    readonly id: string;
+    readonly depth: number;
+    readonly description: string;
+    readonly status:
+        | "idle"
+        | "queued"
+        | "running"
+        | "completed"
+        | "aborted"
+        | "suspended"
+        | "error";
+    readonly latestText?: string;
+    readonly startedAt: number;
+    readonly totalTokens: number;
+}
+
+/** The live public projection of one background terminal belonging to a turn. */
+export interface AgentTurnBackgroundTerminalSummary {
+    readonly id: string;
+    readonly command: string;
+    readonly cwd: string;
+    readonly startedAt: number;
+}
+
+/** One durable, coalesced span in an agent turn's execution history. */
+export interface AgentTurnTraceEntrySummary {
+    readonly id: string;
+    readonly kind: AgentTurnTraceKind;
+    readonly title: string;
+    readonly detail?: string;
+    readonly status: AgentTurnTraceEntryStatus;
+    readonly occurredAt: number;
+    readonly completedAt?: number;
+}
+
+/** The latest meaningful activity of a turn, carried on its assistant message. */
+export interface AgentTurnTraceLatest {
+    readonly kind: AgentTurnTraceKind;
+    readonly title: string;
+    readonly detail?: string;
+    readonly occurredAt: number;
+}
+
+/** The compact trace projection attached to an assistant message. */
+export interface AgentTurnTraceSummary {
+    readonly turnId: string;
+    readonly agentUserId: string;
+    readonly status: AgentTurnStatus;
+    readonly startedAt?: string;
+    readonly completedAt?: string;
+    readonly latest?: AgentTurnTraceLatest;
+    readonly entryCount: number;
+    readonly subagents: readonly AgentTurnSubagentSummary[];
+    readonly backgroundTerminals: readonly AgentTurnBackgroundTerminalSummary[];
+}
+
+/** The complete ordered execution history behind one assistant message. */
+export interface AgentTurnTraceDetails extends AgentTurnTraceSummary {
+    readonly entries: readonly AgentTurnTraceEntrySummary[];
+}
+
 export interface MessageSummary {
     readonly id: string;
     readonly chatId: string;
@@ -107,6 +182,7 @@ export interface MessageSummary {
         readonly userId: string;
     };
     readonly generationStatus?: "streaming" | "complete" | "failed";
+    readonly agentTrace?: AgentTurnTraceSummary;
     readonly quotedMessage?: {
         readonly id: string;
         readonly senderUserId?: string;
@@ -345,6 +421,8 @@ export type RealtimeEvent =
           readonly tokenCount: number;
           readonly startedAt: number;
           readonly occurredAt: number;
+          readonly subagents: readonly AgentTurnSubagentSummary[];
+          readonly backgroundTerminals: readonly AgentTurnBackgroundTerminalSummary[];
           readonly expiresAt?: number;
       }
     | {
@@ -416,6 +494,8 @@ export interface AgentActivityState {
     readonly phase: AgentActivityPhase;
     readonly tokenCount: number;
     readonly startedAt: number;
+    readonly subagents: readonly AgentTurnSubagentSummary[];
+    readonly backgroundTerminals: readonly AgentTurnBackgroundTerminalSummary[];
     readonly expiresAt: number;
 }
 

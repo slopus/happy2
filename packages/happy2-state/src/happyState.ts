@@ -1,4 +1,13 @@
 import { StoreRegistry } from "./kernel/storeRegistry.js";
+import {
+    agentTraceLoad,
+    agentTraceOpen,
+    agentTraceReconcile,
+    agentTraceStoreCreate,
+    type AgentTraceHandle,
+    type AgentTraceOpenContext,
+    type AgentTraceStore,
+} from "./modules/agent-trace/agentTraceState.js";
 import { chatLoad } from "./modules/chat/chatState.js";
 import { chatMembersLoad } from "./modules/chat/chatState.js";
 import { chatPinsLoad } from "./modules/chat/chatState.js";
@@ -76,6 +85,7 @@ import type {
     CreateAgentInput,
     CreateChannelInput,
     MessageAudience,
+    MessageSummary,
     SendMessageInput,
     UserError,
 } from "./types.js";
@@ -218,6 +228,7 @@ export class HappyState implements AsyncDisposable, Disposable {
     private readonly workspaces = new StoreRegistry<string, WorkspaceStore>();
     private readonly workspaceFiles = new StoreRegistry<string, WorkspaceFileStore>();
     private readonly threadSurfaces = new StoreRegistry<string, ThreadStore>();
+    private readonly agentTraces = new StoreRegistry<string, AgentTraceStore>();
     private readonly sidebarBinding = sidebarStoreCreate();
     private filesBinding?: FilesStore;
     private searchBinding?: SearchStore;
@@ -244,7 +255,8 @@ export class HappyState implements AsyncDisposable, Disposable {
         ChatOpenContext &
         WorkspaceOpenContext &
         WorkspaceFileOpenContext &
-        ThreadOpenContext;
+        ThreadOpenContext &
+        AgentTraceOpenContext;
     private disposed = false;
     private readonly unknownSyncArea: (area: string) => void;
     private readonly eventListener: (event: HappyStateEvent) => void;
@@ -288,6 +300,10 @@ export class HappyState implements AsyncDisposable, Disposable {
                 ),
             threadRelease: (rootMessageId) => this.threadSurfaces.release(rootMessageId),
             threadLoad: (rootMessageId) => this.threadLoad(rootMessageId),
+            agentTraceAcquire: (messageId) =>
+                this.agentTraces.getOrCreate(messageId, () => agentTraceStoreCreate(messageId)),
+            agentTraceRelease: (messageId) => this.agentTraces.release(messageId),
+            agentTraceLoad: (messageId) => this.agentTraceLoad(messageId),
         };
         this.sync = new SyncCoordinator({
             runtime: this.runtime,
@@ -298,6 +314,8 @@ export class HappyState implements AsyncDisposable, Disposable {
             callsGet: () => this.callsBinding,
             chatGet: (chatId) => this.chats.get(chatId),
             chatsGet: () => this.chatEntries(),
+            agentTraceReconcile: (message) => this.agentTraceReconcile(message),
+            agentTracesInvalidate: () => this.agentTracesReload(),
             areaReconcile: (area) => this.areaReconcile(area),
             resetReconcile: () => this.resetReconcile(),
             backgroundError,
@@ -480,6 +498,10 @@ export class HappyState implements AsyncDisposable, Disposable {
 
     threadOpen(rootMessageId: string): ThreadHandle {
         return threadOpen(this.context, rootMessageId);
+    }
+
+    agentTraceOpen(messageId: string): AgentTraceHandle {
+        return agentTraceOpen(this.context, messageId);
     }
 
     threads(): ThreadsStore {
@@ -713,6 +735,7 @@ export class HappyState implements AsyncDisposable, Disposable {
         this.composers.dispose();
         this.composerAudiences.clear();
         this.threadSurfaces.dispose();
+        this.agentTraces.dispose();
         this.settingsCoordinator?.[Symbol.dispose]();
         this.identities.clear();
         this.sidebarChats.clear();
@@ -972,6 +995,41 @@ export class HappyState implements AsyncDisposable, Disposable {
         );
     }
 
+    private agentTraceLoad(messageId: string): void {
+        this.runtime.background(
+            agentTraceLoad(
+                {
+                    runtime: this.runtime,
+                    agentTraceGet: (id) => this.agentTraces.get(id),
+                },
+                messageId,
+            ),
+        );
+    }
+
+    private agentTraceReconcile(message: MessageSummary): void {
+        agentTraceReconcile(
+            {
+                runtime: this.runtime,
+                agentTraceGet: (id) => this.agentTraces.get(id),
+                agentTraceLoad: (id) => this.agentTraceLoad(id),
+            },
+            message.id,
+            message.agentTrace,
+        );
+    }
+
+    /**
+     * Revalidates every materialized trace surface after a reconcile path that
+     * bypasses per-message differences (chat reset, full resynchronization, or
+     * chat removal), so an open panel cannot keep rendering stale or
+     * access-revoked details from cache; a revoked or deleted trace fails its
+     * refetch and surfaces the error state instead.
+     */
+    private agentTracesReload(): void {
+        for (const [messageId] of this.agentTraces.values()) this.agentTraceLoad(messageId);
+    }
+
     private composerAudienceRemember(scopeId: string): void {
         const snapshot = this.composers.get(scopeId)?.getState();
         if (!snapshot?.audience) return;
@@ -1040,7 +1098,10 @@ export class HappyState implements AsyncDisposable, Disposable {
     private areaReconcile(area: string): void {
         areaReconcileAction(
             {
-                chatReconcile: (chatId) => this.chatLoad(chatId),
+                chatReconcile: (chatId) => {
+                    this.chatLoad(chatId);
+                    this.agentTracesReload();
+                },
                 workspaceReconcile: (chatId) => this.workspaceReconcile(chatId),
                 callsReconcile: () => {
                     if (this.callsBinding)
@@ -1153,6 +1214,7 @@ export class HappyState implements AsyncDisposable, Disposable {
             this.workspaceFileLoad(chatId, path);
         }
         for (const [rootMessageId] of this.threadSurfaces.values()) this.threadLoad(rootMessageId);
+        this.agentTracesReload();
         const files = this.filesBinding;
         if (files && files.getState().status.type !== "unloaded")
             this.runtime.background(filesLoad({ runtime: this.runtime, files }));

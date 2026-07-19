@@ -1,6 +1,12 @@
 import { type ReactNode } from "react";
 import type { InfoPanelProfile, MenuItem, MessageImage } from "./ChatPageComponents.js";
-import { DayDivider, FileAttachment, Message, SystemNotice } from "./ChatPageComponents.js";
+import {
+    AgentTraceRow,
+    DayDivider,
+    FileAttachment,
+    Message,
+    SystemNotice,
+} from "./ChatPageComponents.js";
 import { emojiItems, type LiveThreadMessage, type WorkspaceEntry } from "./chatPageModels.js";
 export interface ChatMessageEntryProps {
     entry: WorkspaceEntry;
@@ -16,11 +22,13 @@ export interface ChatMessageEntryProps {
         size: string;
         onOpen: () => void;
     }>;
+    traceOpen?: boolean;
     onProfileOpen(profile: InfoPanelProfile): void;
     onImageOpen(message: LiveThreadMessage, imageId: string): void;
     onMenuSelect(message: LiveThreadMessage, action: string): void;
     onReactionSelect(message: LiveThreadMessage, emoji: string): void;
     onReplySelect(message: LiveThreadMessage): void;
+    onTraceSelect?(message: LiveThreadMessage): void;
 }
 export function ChatMessageEntry(props: ChatMessageEntryProps): ReactNode {
     const entry = props.entry;
@@ -51,6 +59,19 @@ export function ChatMessageEntry(props: ChatMessageEntryProps): ReactNode {
             time={entry.time}
             tone={entry.tone}
         >
+            {entry.agentTrace ? (
+                <AgentTraceRow
+                    detail={entry.agentTrace.latest?.detail}
+                    entryCount={entry.agentTrace.entryCount}
+                    kind={entry.agentTrace.latest?.kind}
+                    onOpen={props.onTraceSelect ? () => props.onTraceSelect!(entry) : undefined}
+                    open={props.traceOpen}
+                    status={
+                        entry.agentTrace.status === "pending" ? "running" : entry.agentTrace.status
+                    }
+                    title={entry.agentTrace.latest?.title}
+                />
+            ) : null}
             {props.files.map((file) => (
                 <FileAttachment
                     aria-label={`Download ${file.name}`}

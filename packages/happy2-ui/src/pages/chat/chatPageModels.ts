@@ -1,4 +1,5 @@
 import type {
+    AgentTurnTraceSummary,
     ChatMessageItem,
     ChatMessageProjection,
     DeepReadonly,
@@ -51,6 +52,7 @@ export type LiveThreadMessage = ThreadMessage & {
     senderId?: string;
     photoFileId?: string;
     delivery?: "sending" | "sent" | "failed";
+    agentTrace?: DeepReadonly<AgentTurnTraceSummary>;
 };
 type ThreadNotice = {
     kind: "notice";
@@ -155,6 +157,7 @@ function messageEntry(item: DeepReadonly<ChatMessageItem>): LiveThreadMessage {
         tone: sender ? toneFor(sender.id) : "brand",
         agent: message.kind === "automated",
         generationStatus: deleted ? undefined : message.generationStatus,
+        agentTrace: deleted ? undefined : message.agentTrace,
         time: messageTime(message.createdAt),
         gutterTime: compactTime(message.createdAt),
         body: deleted ? "Message deleted" : message.text,

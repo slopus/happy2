@@ -1,6 +1,12 @@
 import type { ClientTransport, HttpRequest, HttpResponse, RealtimeObserver } from "../transport.js";
 import { TransportError } from "../transport.js";
-import type { AgentActivityPhase, PresenceSnapshot, RealtimeEvent } from "../types.js";
+import type {
+    AgentActivityPhase,
+    AgentTurnBackgroundTerminalSummary,
+    AgentTurnSubagentSummary,
+    PresenceSnapshot,
+    RealtimeEvent,
+} from "../types.js";
 
 export type FakeRouteMatcher = string | RegExp | ((path: string) => boolean);
 export type FakeRouteHandler = (
@@ -35,6 +41,8 @@ export interface FakeServerEvents {
         tokenCount: number;
         startedAt: number;
         occurredAt?: number;
+        subagents?: readonly AgentTurnSubagentSummary[];
+        backgroundTerminals?: readonly AgentTurnBackgroundTerminalSummary[];
         expiresAt?: number;
     }): void;
     presence(input: {
@@ -142,6 +150,8 @@ class FakeServerModel implements FakeServer {
             tokenCount,
             startedAt,
             occurredAt = Date.now(),
+            subagents = [],
+            backgroundTerminals = [],
             expiresAt,
         }) => {
             this.events.emit({
@@ -154,6 +164,8 @@ class FakeServerModel implements FakeServer {
                 tokenCount,
                 startedAt,
                 occurredAt,
+                subagents,
+                backgroundTerminals,
                 expiresAt,
             });
         },

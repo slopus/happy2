@@ -72,6 +72,8 @@ describe("chat module", () => {
                     phase: "thinking",
                     tokenCount: 1,
                     startedAt: 0,
+                    subagents: [],
+                    backgroundTerminals: [],
                     expiresAt: 10,
                 },
             ],

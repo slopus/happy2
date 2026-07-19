@@ -1,4 +1,11 @@
 export { AgentActivityIndicator } from "../../AgentActivityIndicator.js";
+export {
+    AgentActivityStrip,
+    type AgentActivityStripSubagent,
+    type AgentActivityStripTerminal,
+} from "../../AgentActivityStrip.js";
+export { AgentTracePanel, type AgentTracePanelEntry } from "../../AgentTracePanel.js";
+export { AgentTraceRow } from "../../AgentTraceRow.js";
 export { AppShell } from "../../AppShell.js";
 export { Banner } from "../../Banner.js";
 export { Box } from "../../Box.js";

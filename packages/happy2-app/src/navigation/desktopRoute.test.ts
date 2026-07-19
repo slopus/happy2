@@ -16,6 +16,14 @@ describe("desktop route model", () => {
             },
         ],
         [
+            "/chats/chat-1/trace/message-9",
+            {
+                primary: { kind: "conversation", conversationKind: "chat", chatId: "chat-1" },
+                panel: { kind: "trace", messageId: "message-9" },
+                files,
+            },
+        ],
+        [
             "/channels/product/profile/user-2",
             {
                 primary: {

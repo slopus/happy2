@@ -1,6 +1,7 @@
 import { ApiResponseError } from "./api.js";
 import type { ClientTransport, HttpRequest } from "./transport.js";
 import type {
+    AgentTurnTraceDetails,
     CallSummary,
     ChatBookmarkSummary,
     ChatPinSummary,
@@ -132,6 +133,7 @@ export const backendOperations = {
     deleteWorkspaceFile: post("/v0/chats/:chatId/workspace/deleteFile"),
     getMessage: get("/v0/messages/:messageId"),
     getThread: get("/v0/messages/:messageId/thread", ["beforeSequence", "afterSequence", "limit"]),
+    getMessageAgentTrace: get("/v0/messages/:messageId/agentTrace"),
     getThreads: get("/v0/threads", ["before", "unreadOnly", "limit"]),
     getNotifications: get("/v0/notifications", ["before", "unreadOnly", "limit"]),
     markNotificationsRead: post("/v0/notifications/markRead"),
@@ -874,6 +876,7 @@ export interface KnownBackendResults {
     };
     getMessage: { readonly message: MessageSummary };
     getThread: MessagePage & { readonly root: MessageSummary };
+    getMessageAgentTrace: { readonly trace: AgentTurnTraceDetails };
     getThreads: { readonly threads: readonly ThreadSummary[]; readonly nextCursor?: string };
     getNotifications: {
         readonly notifications: readonly NotificationSummary[];

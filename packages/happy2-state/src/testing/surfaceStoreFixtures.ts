@@ -6,6 +6,8 @@ import type {
     AgentImagesOutput,
     AgentImagesStore,
 } from "../modules/agent-images/agentImagesState.js";
+import { agentTraceStoreCreate } from "../modules/agent-trace/agentTraceState.js";
+import type { AgentTraceInput, AgentTraceStore } from "../modules/agent-trace/agentTraceState.js";
 import { setupStoreCreate } from "../modules/setup/setupState.js";
 import type { SetupInput, SetupOutput, SetupStore } from "../modules/setup/setupState.js";
 import { agentSecretsStoreCreate } from "../modules/agent-secrets/agentSecretsState.js";
@@ -173,6 +175,13 @@ export function threadsStoreFixtureCreate(
 ): SurfaceStoreFixture<ThreadsStore, ThreadsInput> {
     const store = threadsStoreCreate(output);
     return fixtureCreate(store, (event) => store.getState().threadsInput(event));
+}
+
+export function agentTraceStoreFixtureCreate(
+    messageId: string,
+): SurfaceStoreFixture<AgentTraceStore, AgentTraceInput> {
+    const store = agentTraceStoreCreate(messageId);
+    return fixtureCreate(store, (event) => store.getState().agentTraceInput(event));
 }
 
 export function threadStoreFixtureCreate(

@@ -6,7 +6,26 @@ export {
     type AgentActivityIndicatorProps,
     type AgentActivityPhase,
 } from "./AgentActivityIndicator";
+export {
+    AgentActivityStrip,
+    type AgentActivityStripProps,
+    type AgentActivityStripSubagent,
+    type AgentActivityStripSubagentStatus,
+    type AgentActivityStripTerminal,
+} from "./AgentActivityStrip";
 export { AgentDesk, type AgentDeskProps, type DeskListItem, type DeskRun } from "./AgentDesk";
+export {
+    AgentTracePanel,
+    type AgentTracePanelEntry,
+    type AgentTracePanelProps,
+    type AgentTracePanelStatus,
+} from "./AgentTracePanel";
+export {
+    AgentTraceRow,
+    type AgentTraceRowKind,
+    type AgentTraceRowProps,
+    type AgentTraceRowStatus,
+} from "./AgentTraceRow";
 export { AgentImageDetail, type AgentImageDetailProps } from "./AgentImageDetail";
 export {
     AgentImagePanel,

@@ -97,6 +97,11 @@ export {
 export type { RolesCatalog, RolesSnapshot, RolesStore } from "./modules/roles/rolesState.js";
 export type { ThreadHandle, ThreadSnapshot, ThreadStore } from "./modules/thread/threadState.js";
 export type {
+    AgentTraceHandle,
+    AgentTraceSnapshot,
+    AgentTraceStore,
+} from "./modules/agent-trace/agentTraceState.js";
+export type {
     ThreadsSnapshot,
     ThreadsStore,
     ThreadSummaryProjection,

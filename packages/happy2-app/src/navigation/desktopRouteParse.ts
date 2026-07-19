@@ -110,6 +110,7 @@ function panelParse(
     const kind = segments[2];
     const id = segments[3];
     if (kind === "thread" && id) return { kind: "thread", rootMessageId: id };
+    if (kind === "trace" && id) return { kind: "trace", messageId: id };
     if (kind === "profile" && id) return { kind: "profile", userId: id };
     return undefined;
 }

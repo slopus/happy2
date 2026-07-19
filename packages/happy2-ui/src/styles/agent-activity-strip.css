@@ -1,0 +1,152 @@
+/*
+ * C-066 AgentActivityStrip — dense, TUI-like live strip above the chat
+ * composer while an agent turn runs.
+ *
+ * A hairline-bordered card on the code surface holding one 24px flex row per
+ * active subagent and per background terminal, stacked in a flex column that
+ * owns the 4px row gap. Subagent rows: 5px status dot, UI-font description,
+ * mono latest output, and a right-pinned mono meta (token total + elapsed).
+ * Terminal rows: terminal glyph, mono command, muted cwd, elapsed. All text
+ * truncates with a plain ellipsis; no timers or animation.
+ *
+ * The card is capped at 144px (five 24px rows plus the wrapper padding) with
+ * an internal full-bleed scrollport, so a maximum valid payload (32 subagents
+ * plus 32 terminals per agent) can never displace the composer below it.
+ * Spacing lives on the inner rows wrapper; the scrollport itself has no
+ * margin or padding.
+ */
+
+.happy2-agent-activity-strip,
+.happy2-agent-activity-strip * {
+    box-sizing: border-box;
+}
+
+.happy2-agent-activity-strip {
+    display: flex;
+    flex-direction: column;
+    max-height: 144px;
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-sm);
+    background: var(--happy2-bg-code);
+    font-family: var(--happy2-font-mono);
+    font-synthesis: none;
+}
+
+.happy2-agent-activity-strip__scrollport {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+}
+
+.happy2-agent-activity-strip__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px 8px;
+}
+
+.happy2-agent-activity-strip__subagent,
+.happy2-agent-activity-strip__terminal {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 8px;
+    height: 24px;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+/* ---- Subagent row ----------------------------------------------------- */
+
+.happy2-agent-activity-strip__dot {
+    flex: none;
+    width: 5px;
+    height: 5px;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-text-muted);
+}
+
+.happy2-agent-activity-strip__subagent[data-status="running"] .happy2-agent-activity-strip__dot {
+    background: var(--happy2-accent);
+}
+
+.happy2-agent-activity-strip__subagent[data-status="completed"] .happy2-agent-activity-strip__dot {
+    background: var(--happy2-success);
+}
+
+.happy2-agent-activity-strip__subagent[data-status="error"] .happy2-agent-activity-strip__dot,
+.happy2-agent-activity-strip__subagent[data-status="aborted"] .happy2-agent-activity-strip__dot {
+    background: var(--happy2-danger);
+}
+
+.happy2-agent-activity-strip__description {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--happy2-font-ui);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    color: var(--happy2-text);
+}
+
+.happy2-agent-activity-strip__latest {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+}
+
+/* ---- Terminal row ------------------------------------------------------ */
+
+.happy2-agent-activity-strip__terminal-icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-agent-activity-strip__command {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+    color: var(--happy2-text);
+}
+
+.happy2-agent-activity-strip__cwd {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+}
+
+/* ---- Right-pinned mono meta -------------------------------------------- */
+
+.happy2-agent-activity-strip__meta {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 8px;
+    margin-inline-start: auto;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+    font-variant-numeric: lining-nums tabular-nums;
+    color: var(--happy2-text-muted);
+}

@@ -7,6 +7,7 @@ import {
     type ChatPagePanel,
 } from "happy2-ui";
 import type {
+    AgentTraceHandle,
     ChatHandle,
     ComposerStore,
     HappyState,
@@ -36,11 +37,13 @@ type ChatResources = {
     chat?: ChatHandle;
     composer?: ComposerStore;
     thread?: ThreadHandle;
+    trace?: AgentTraceHandle;
     workspace?: WorkspaceHandle;
     workspaceFile?: WorkspaceFileHandle;
     chatId?: string;
     conversationKind?: "chat" | "channel";
     threadId?: string;
+    traceMessageId?: string;
     workspaceChatId?: string;
     workspaceFileKey?: string;
 };
@@ -60,6 +63,8 @@ export function ChatView(props: ChatViewProps) {
     const nextConversationKind = conversation?.conversationKind;
     const nextThreadId =
         props.route.panel?.kind === "thread" ? props.route.panel.rootMessageId : undefined;
+    const nextTraceMessageId =
+        props.route.panel?.kind === "trace" ? props.route.panel.messageId : undefined;
     const nextWorkspaceChatId =
         props.route.panel?.kind === "workspace" || workspaceFileRoute ? nextChatId : undefined;
     const nextWorkspaceFileKey =
@@ -79,6 +84,7 @@ export function ChatView(props: ChatViewProps) {
         };
         if (next.chatId !== nextChatId || next.conversationKind !== nextConversationKind) {
             next.thread?.[Symbol.dispose]();
+            next.trace?.[Symbol.dispose]();
             next.workspaceFile?.[Symbol.dispose]();
             next.workspace?.[Symbol.dispose]();
             next.chat?.[Symbol.dispose]();
@@ -106,6 +112,13 @@ export function ChatView(props: ChatViewProps) {
             replace({
                 threadId: nextThreadId,
                 thread: nextThreadId ? state.threadOpen(nextThreadId) : undefined,
+            });
+        }
+        if (next.traceMessageId !== nextTraceMessageId) {
+            next.trace?.[Symbol.dispose]();
+            replace({
+                traceMessageId: nextTraceMessageId,
+                trace: nextTraceMessageId ? state.agentTraceOpen(nextTraceMessageId) : undefined,
             });
         }
         if (next.workspaceChatId !== nextWorkspaceChatId) {
@@ -139,6 +152,7 @@ export function ChatView(props: ChatViewProps) {
         nextChatId,
         nextConversationKind,
         nextThreadId,
+        nextTraceMessageId,
         nextWorkspaceChatId,
         nextWorkspaceFileKey,
         workspaceFileRoute,
@@ -147,6 +161,7 @@ export function ChatView(props: ChatViewProps) {
         () => () => {
             const current = resourcesRef.current;
             current.thread?.[Symbol.dispose]();
+            current.trace?.[Symbol.dispose]();
             current.workspaceFile?.[Symbol.dispose]();
             current.workspace?.[Symbol.dispose]();
             current.chat?.[Symbol.dispose]();
@@ -187,6 +202,8 @@ export function ChatView(props: ChatViewProps) {
         panelClose: () => props.navigation.close("panel"),
         threadOpen: (rootMessageId) => panelOpen({ kind: "thread", rootMessageId }),
         threadClose: () => props.navigation.close("panel"),
+        traceOpen: (messageId) => panelOpen({ kind: "trace", messageId }),
+        traceClose: () => props.navigation.close("panel"),
         workspaceOpen: () => panelOpen({ kind: "workspace" }),
         workspaceClose: () => props.navigation.close("panel"),
         workspaceFileOpen(nextChatId, path) {
@@ -252,6 +269,7 @@ export function ChatView(props: ChatViewProps) {
             search={props.search}
             sidebar={state.sidebar()}
             thread={resources.thread}
+            trace={resources.trace}
             titleBar={props.titleBar}
             user={props.session?.user ?? { id: "local-user", firstName: "Happy" }}
             workspace={resources.workspace}

@@ -1,6 +1,13 @@
+import "../../styles.css";
 import { useState } from "react";
-import type { ChatMessageItem, ChatSummary } from "happy2-state";
+import type {
+    AgentTurnTraceDetails,
+    AgentTurnTraceSummary,
+    ChatMessageItem,
+    ChatSummary,
+} from "happy2-state";
 import {
+    agentTraceStoreFixtureCreate,
     chatStoreFixtureCreate,
     composerStoreFixtureCreate,
     directoryStoreFixtureCreate,
@@ -71,6 +78,8 @@ function chatPageActionsCreate(overrides: Partial<ChatPageActions> = {}): ChatPa
         panelClose: () => undefined,
         threadOpen: () => undefined,
         threadClose: () => undefined,
+        traceOpen: () => undefined,
+        traceClose: () => undefined,
         workspaceOpen: () => undefined,
         workspaceClose: () => undefined,
         workspaceFileOpen: () => undefined,
@@ -629,6 +638,428 @@ it("edits an own message through the desktop-safe dialog with its current revisi
     await nextFrame();
     expect(messageEdit).toHaveBeenCalledExactlyOnceWith(chat.id, "message-7", "Updated body", 7);
     await expect.poll(() => view.container.textContent).not.toContain("Edit message");
+});
+
+function traceSummary(overrides: Partial<AgentTurnTraceSummary> = {}): AgentTurnTraceSummary {
+    return {
+        turnId: "message-1",
+        agentUserId: "agent-1",
+        status: "running",
+        startedAt: "2026-07-17T12:00:01.000Z",
+        latest: { kind: "reasoning", title: "Reasoning", detail: "Checking", occurredAt: 1 },
+        entryCount: 1,
+        subagents: [],
+        backgroundTerminals: [],
+        ...overrides,
+    };
+}
+
+function traceEntry(
+    id: string,
+    title: string,
+    occurredAt: number,
+): AgentTurnTraceDetails["entries"][number] {
+    return { id, kind: "reasoning", title, status: "complete", occurredAt };
+}
+
+function assistantItem(trace: AgentTurnTraceSummary, text = ""): ChatMessageItem {
+    const base = messageItem("message-2", text);
+    return {
+        ...base,
+        message: {
+            ...base.message,
+            kind: "automated",
+            generationStatus: trace.status === "complete" ? "complete" : "streaming",
+            agentTrace: trace,
+        },
+    };
+}
+
+function subscriptionCounter(store: { subscribe(listener: () => void): () => void }): () => number {
+    let active = 0;
+    const original = store.subscribe.bind(store);
+    store.subscribe = (listener) => {
+        active += 1;
+        const unsubscribe = original(listener);
+        return () => {
+            active -= 1;
+            unsubscribe();
+        };
+    };
+    return () => active;
+}
+
+it("opens a live trace panel from the message row and keeps DOM identity across updates", async () => {
+    const sidebar = sidebarStoreFixtureCreate();
+    const directory = directoryStoreFixtureCreate();
+    const chatSurface = chatStoreFixtureCreate(chat.id);
+    const trace = agentTraceStoreFixtureCreate("message-2");
+    onTestFinished(() => {
+        sidebar[Symbol.dispose]();
+        directory[Symbol.dispose]();
+        chatSurface[Symbol.dispose]();
+        trace[Symbol.dispose]();
+    });
+    const chatSubscriptions = subscriptionCounter(chatSurface.store);
+    const traceSubscriptions = subscriptionCounter(trace.store);
+    directory.input({
+        type: "directoryLoaded",
+        users: [
+            {
+                id: "agent-1",
+                displayName: "Rig Agent",
+                username: "rig_agent",
+                kind: "agent",
+                role: "member",
+                presence: "online",
+            },
+        ],
+        channels: [],
+    });
+    sidebar.input({
+        type: "sidebarLoaded",
+        chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
+        sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+    });
+    chatSurface.input({
+        type: "chatLoaded",
+        chat,
+        messages: [messageItem("message-1", "Please inspect"), assistantItem(traceSummary())],
+        hasMoreMessages: false,
+    });
+    const traceOpen = vi.fn();
+    const traceClose = vi.fn();
+    const view = createRenderer();
+    let panelSet!: (panel: ChatPageNavigation["panel"]) => void;
+    view.render(
+        () => {
+            const [panel, setPanel] = useState<ChatPageNavigation["panel"]>(undefined);
+            panelSet = setPanel;
+            return (
+                <ChatPage
+                    actions={chatPageActionsCreate({
+                        traceOpen: (messageId) => {
+                            traceOpen(messageId);
+                            setPanel({ kind: "trace", messageId });
+                        },
+                        traceClose: () => {
+                            traceClose();
+                            setPanel(undefined);
+                        },
+                    })}
+                    chat={chatSurface.store}
+                    directory={directory.store}
+                    navigation={{ chatId: chat.id, panel }}
+                    rail={<div>Rail</div>}
+                    search=""
+                    sidebar={sidebar.store}
+                    titleBar={<div>Title</div>}
+                    trace={trace.store}
+                    user={{ id: "user-1", firstName: "Ada" }}
+                />
+            );
+        },
+        { width: 1200, height: 800 },
+    );
+    await view.ready();
+
+    const row = view.container.querySelector<HTMLButtonElement>(
+        '[data-happy2-ui="agent-trace-row"]',
+    )!;
+    expect(row).not.toBeNull();
+    expect(row.dataset.status).toBe("running");
+    expect(row.textContent).toContain("Reasoning");
+    expect(row.getAttribute("aria-expanded")).toBe("false");
+    const messageRoot = row.closest('[data-happy2-ui="message"]')!;
+
+    row.focus();
+    row.click();
+    await nextFrame();
+    expect(traceOpen).toHaveBeenCalledExactlyOnceWith("message-2");
+    const panel = view.container.querySelector('[data-happy2-ui="agent-trace-panel"]')!;
+    expect(panel).not.toBeNull();
+    expect(
+        panel
+            .querySelector('[data-happy2-ui="agent-trace-panel-state"]')
+            ?.getAttribute("data-state"),
+    ).toBe("loading");
+
+    trace.input({
+        type: "agentTraceLoaded",
+        trace: {
+            ...traceSummary({ entryCount: 2 }),
+            entries: [
+                traceEntry("entry-1", "Turn started", 1),
+                traceEntry("entry-2", "Reasoning", 2),
+            ],
+        },
+    });
+    await nextFrame();
+    const entries = view.container.querySelectorAll('[data-happy2-ui="agent-trace-panel-entry"]');
+    expect(entries).toHaveLength(2);
+    const firstEntry = entries[0]!;
+    expect(view.container.querySelector('[data-happy2-ui="agent-trace-panel"]')).toBe(panel);
+
+    // A streaming tick updates the message and trace summary without replacing
+    // the message row, the open panel, its entry DOM, or the focused control.
+    chatSurface.input({
+        type: "messageUpserted",
+        item: assistantItem(
+            traceSummary({
+                entryCount: 3,
+                latest: { kind: "tool", title: "Running tests", occurredAt: 3 },
+            }),
+            "Partial reply",
+        ),
+    });
+    await nextFrame();
+    expect(view.container.querySelector('[data-happy2-ui="agent-trace-row"]')).toBe(row);
+    expect(row.closest('[data-happy2-ui="message"]')).toBe(messageRoot);
+    expect(row.textContent).toContain("Running tests");
+    expect(row.getAttribute("aria-expanded")).toBe("true");
+    expect(document.activeElement).toBe(row);
+    expect(view.container.querySelector('[data-happy2-ui="agent-trace-panel"]')).toBe(panel);
+
+    trace.input({
+        type: "agentTraceLoaded",
+        trace: {
+            ...traceSummary({
+                entryCount: 3,
+                latest: { kind: "tool", title: "Running tests", occurredAt: 3 },
+            }),
+            entries: [
+                traceEntry("entry-1", "Turn started", 1),
+                traceEntry("entry-2", "Reasoning", 2),
+                traceEntry("entry-3", "Running tests", 3),
+            ],
+        },
+    });
+    await nextFrame();
+    const updatedEntries = view.container.querySelectorAll(
+        '[data-happy2-ui="agent-trace-panel-entry"]',
+    );
+    expect(updatedEntries).toHaveLength(3);
+    expect(updatedEntries[0]).toBe(firstEntry);
+
+    // Completion settles the durable reply in place and turns the activity row
+    // into the persisted-trace link while the open panel stays mounted.
+    chatSurface.input({
+        type: "messageUpserted",
+        item: assistantItem(
+            traceSummary({
+                status: "complete",
+                entryCount: 4,
+                latest: { kind: "status", title: "Turn completed", occurredAt: 4 },
+            }),
+            "All done.",
+        ),
+    });
+    await nextFrame();
+    expect(view.container.querySelector('[data-happy2-ui="agent-trace-row"]')).toBe(row);
+    expect(row.dataset.status).toBe("complete");
+    expect(row.textContent).toContain("View trace");
+    expect(messageRoot.textContent).toContain("All done.");
+    expect(view.container.querySelector('[data-happy2-ui="agent-trace-panel"]')).toBe(panel);
+
+    const closeButton = panel.querySelector<HTMLButtonElement>('[aria-label="Close trace"]')!;
+    closeButton.click();
+    await nextFrame();
+    expect(traceClose).toHaveBeenCalledOnce();
+    expect(view.container.querySelector('[data-happy2-ui="agent-trace-panel"]')).toBeNull();
+    panelSet({ kind: "trace", messageId: "message-2" });
+    await nextFrame();
+    expect(view.container.querySelector('[data-happy2-ui="agent-trace-panel"]')).not.toBeNull();
+
+    expect(chatSubscriptions()).toBeGreaterThan(0);
+    expect(traceSubscriptions()).toBeGreaterThan(0);
+    view.destroy();
+    expect(chatSubscriptions()).toBe(0);
+    expect(traceSubscriptions()).toBe(0);
+});
+
+it("projects live subagents and terminals into the strip with stable row identity", async () => {
+    const sidebar = sidebarStoreFixtureCreate();
+    const directory = directoryStoreFixtureCreate();
+    const chatSurface = chatStoreFixtureCreate(chat.id);
+    const composer = composerStoreFixtureCreate(chat.id);
+    onTestFinished(() => {
+        sidebar[Symbol.dispose]();
+        directory[Symbol.dispose]();
+        chatSurface[Symbol.dispose]();
+        composer[Symbol.dispose]();
+    });
+    directory.input({ type: "directoryLoaded", users: [], channels: [] });
+    sidebar.input({
+        type: "sidebarLoaded",
+        chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
+        sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+    });
+    chatSurface.input({ type: "chatLoaded", chat, messages: [], hasMoreMessages: false });
+    const view = createRenderer();
+    view.render(
+        () => (
+            <ChatPage
+                actions={chatPageActionsCreate()}
+                chat={chatSurface.store}
+                composer={composer}
+                directory={directory.store}
+                navigation={{ chatId: chat.id }}
+                rail={<div>Rail</div>}
+                search=""
+                sidebar={sidebar.store}
+                titleBar={<div>Title</div>}
+                user={{ id: "user-1", firstName: "Ada" }}
+            />
+        ),
+        { width: 1200, height: 800 },
+    );
+    await view.ready();
+    expect(view.container.querySelector('[data-happy2-ui="agent-activity-strip"]')).toBeNull();
+
+    // The composer keeps its DOM node, focus, value, and selection across
+    // strip mount, live updates, and unmount.
+    composer.getState().textUpdate("draft while the agent works");
+    await nextFrame();
+    const textarea = view.container.querySelector<HTMLTextAreaElement>("textarea")!;
+    textarea.focus();
+    textarea.setSelectionRange(6, 11);
+
+    const activity = (latestText: string, totalTokens: number) => ({
+        chatId: chat.id,
+        agentUserId: "agent-1",
+        turnId: "message-1",
+        phase: "thinking" as const,
+        tokenCount: totalTokens,
+        startedAt: Date.now() - 65_000,
+        subagents: [
+            {
+                id: "subagent-1",
+                depth: 1,
+                description: "Review server tests",
+                status: "running" as const,
+                latestText,
+                startedAt: Date.now() - 5_000,
+                totalTokens,
+            },
+        ],
+        backgroundTerminals: [
+            {
+                id: "7",
+                command: "pnpm test --watch",
+                cwd: "/workspace",
+                startedAt: Date.now() - 3_000,
+            },
+        ],
+        expiresAt: Date.now() + 15_000,
+    });
+    chatSurface.input({
+        type: "agentActivityReconciled",
+        agentActivity: [activity("Reading the gym harness", 64)],
+    });
+    await nextFrame();
+    const strip = view.container.querySelector('[data-happy2-ui="agent-activity-strip"]')!;
+    expect(strip).not.toBeNull();
+    const subagentRow = strip.querySelector('[data-happy2-ui="agent-activity-strip-subagent"]')!;
+    const terminalRow = strip.querySelector('[data-happy2-ui="agent-activity-strip-terminal"]')!;
+    expect(subagentRow.textContent).toContain("Review server tests");
+    expect(subagentRow.textContent).toContain("Reading the gym harness");
+    expect(terminalRow.textContent).toContain("pnpm test --watch");
+
+    expect(document.activeElement).toBe(textarea);
+
+    chatSurface.input({
+        type: "agentActivityReconciled",
+        agentActivity: [activity("No issues found", 80)],
+    });
+    await nextFrame();
+    expect(strip.querySelector('[data-happy2-ui="agent-activity-strip-subagent"]')).toBe(
+        subagentRow,
+    );
+    expect(strip.querySelector('[data-happy2-ui="agent-activity-strip-terminal"]')).toBe(
+        terminalRow,
+    );
+    expect(subagentRow.textContent).toContain("No issues found");
+    expect(view.container.querySelector("textarea")).toBe(textarea);
+    expect(document.activeElement).toBe(textarea);
+    expect(textarea.value).toBe("draft while the agent works");
+    expect(textarea.selectionStart).toBe(6);
+    expect(textarea.selectionEnd).toBe(11);
+
+    // A maximum valid payload (32 subagents + 32 terminals) keeps the strip at
+    // its 144px cap, scrolls internally, and never displaces the composer.
+    const maxActivity = (latestText: string) => ({
+        ...activity(latestText, 64),
+        subagents: Array.from({ length: 32 }, (_, index) => ({
+            id: `subagent-${index}`,
+            depth: 1,
+            description: `Subagent task ${index}`,
+            status: "running" as const,
+            latestText,
+            startedAt: Date.now() - 5_000,
+            totalTokens: index * 10,
+        })),
+        backgroundTerminals: Array.from({ length: 32 }, (_, index) => ({
+            id: `${index}`,
+            command: `pnpm run job-${index}`,
+            cwd: `/workspace/job-${index}`,
+            startedAt: Date.now() - 3_000,
+        })),
+    });
+    chatSurface.input({
+        type: "agentActivityReconciled",
+        agentActivity: [maxActivity("starting")],
+    });
+    await nextFrame();
+    const maxStrip = view.container.querySelector<HTMLElement>(
+        '[data-happy2-ui="agent-activity-strip"]',
+    )!;
+    expect(maxStrip.getBoundingClientRect().height).toBe(144);
+    const surfaceRect = maxStrip.closest("[data-gym-surface]")!.getBoundingClientRect();
+    const composerRect = textarea.getBoundingClientRect();
+    expect(composerRect.bottom).toBeLessThanOrEqual(surfaceRect.bottom);
+    expect(composerRect.height).toBeGreaterThan(0);
+    expect(document.activeElement).toBe(textarea);
+
+    // The production footer column owns the sibling spacing: the pills row,
+    // the capped strip, and the composer keep the declared 8px gaps.
+    const pillsRow = maxStrip.previousElementSibling!;
+    expect(pillsRow.querySelector('[data-happy2-ui="agent-activity"]')).not.toBeNull();
+    expect(
+        maxStrip.getBoundingClientRect().top - pillsRow.getBoundingClientRect().bottom,
+    ).toBeCloseTo(8, 1);
+    const composerCard = view.container.querySelector<HTMLElement>('[data-happy2-ui="composer"]')!;
+    expect(
+        composerCard.getBoundingClientRect().top - maxStrip.getBoundingClientRect().bottom,
+    ).toBeCloseTo(8, 1);
+
+    // Scrolling the strip and then receiving a live update keeps the scroll
+    // offset and the row DOM identity.
+    const port = maxStrip.querySelector<HTMLElement>(
+        '[data-happy2-ui="agent-activity-strip-scrollport"]',
+    )!;
+    expect(port.scrollHeight).toBeGreaterThan(port.clientHeight);
+    port.scrollTop = 200;
+    const firstMaxRow = maxStrip.querySelector('[data-happy2-ui="agent-activity-strip-subagent"]')!;
+    chatSurface.input({
+        type: "agentActivityReconciled",
+        agentActivity: [maxActivity("still working")],
+    });
+    await nextFrame();
+    expect(view.container.querySelector('[data-happy2-ui="agent-activity-strip-subagent"]')).toBe(
+        firstMaxRow,
+    );
+    expect(firstMaxRow.textContent).toContain("still working");
+    expect(port.scrollTop).toBe(200);
+    expect(document.activeElement).toBe(textarea);
+
+    chatSurface.input({ type: "agentActivityReconciled", agentActivity: [] });
+    await nextFrame();
+    expect(view.container.querySelector('[data-happy2-ui="agent-activity-strip"]')).toBeNull();
+    expect(view.container.querySelector("textarea")).toBe(textarea);
+    expect(document.activeElement).toBe(textarea);
+    expect(textarea.value).toBe("draft while the agent works");
+    expect(textarea.selectionStart).toBe(6);
+    expect(textarea.selectionEnd).toBe(11);
 });
 
 async function nextFrame(): Promise<void> {

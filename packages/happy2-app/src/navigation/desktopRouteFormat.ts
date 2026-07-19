@@ -9,6 +9,8 @@ export function desktopRouteFormat(route: DesktopRoute): string {
     if (route.panel && route.primary.kind === "conversation" && route.primary.chatId) {
         if (route.panel.kind === "thread")
             path += `/thread/${encodeURIComponent(route.panel.rootMessageId)}`;
+        else if (route.panel.kind === "trace")
+            path += `/trace/${encodeURIComponent(route.panel.messageId)}`;
         else if (route.panel.kind === "profile")
             path += `/profile/${encodeURIComponent(route.panel.userId)}`;
         else search.set("inspector", route.panel.kind);

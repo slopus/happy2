@@ -51,6 +51,8 @@ const passiveActions: ChatPageActions = {
     panelClose: () => undefined,
     threadOpen: () => undefined,
     threadClose: () => undefined,
+    traceOpen: () => undefined,
+    traceClose: () => undefined,
     workspaceOpen: () => undefined,
     workspaceClose: () => undefined,
     workspaceFileOpen: () => undefined,
@@ -140,6 +142,9 @@ export function ChatStorePage() {
                 panel: { kind: "thread", rootMessageId },
             })),
         threadClose: () => setNavigation((value) => ({ ...value, panel: undefined })),
+        traceOpen: (messageId) =>
+            setNavigation((value) => ({ ...value, panel: { kind: "trace", messageId } })),
+        traceClose: () => setNavigation((value) => ({ ...value, panel: undefined })),
         workspaceOpen: () => setNavigation((value) => ({ ...value, panel: { kind: "workspace" } })),
         workspaceClose: () => setNavigation((value) => ({ ...value, panel: undefined })),
         workspaceFileOpen: (_chatId, path) =>

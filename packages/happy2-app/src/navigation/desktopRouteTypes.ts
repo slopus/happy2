@@ -44,6 +44,7 @@ export type DesktopPanelRoute =
     | { readonly kind: "info" }
     | { readonly kind: "profile"; readonly userId: string }
     | { readonly kind: "thread"; readonly rootMessageId: string }
+    | { readonly kind: "trace"; readonly messageId: string }
     | { readonly kind: "workspace" };
 
 export type DesktopOverlayRoute =

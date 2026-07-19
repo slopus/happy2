@@ -1,0 +1,108 @@
+/*
+ * C-067 AgentTraceRow — compact single-line activity row inside an assistant
+ * message.
+ *
+ * One full-width 28px flex button row with a hairline border: a static 5px
+ * status dot, an optional kind glyph, a UI-font title, mono detail that
+ * truncates through the flexible middle, and a right-pinned mono entry count.
+ * Complete/failed turns read as an accent "View trace" link row. No animation;
+ * hover is a flat fill so screenshots stay deterministic.
+ */
+
+.happy2-agent-trace-row,
+.happy2-agent-trace-row * {
+    box-sizing: border-box;
+}
+
+.happy2-agent-trace-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 28px;
+    margin: 0;
+    padding: 0 8px;
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-sm);
+    background: transparent;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    color: var(--happy2-text);
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.happy2-agent-trace-row:hover {
+    background: var(--happy2-bg-hover);
+}
+
+.happy2-agent-trace-row:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 1px;
+}
+
+.happy2-agent-trace-row__dot {
+    flex: none;
+    width: 5px;
+    height: 5px;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-accent);
+}
+
+.happy2-agent-trace-row[data-status="complete"] .happy2-agent-trace-row__dot {
+    background: var(--happy2-success);
+}
+
+.happy2-agent-trace-row[data-status="failed"] .happy2-agent-trace-row__dot {
+    background: var(--happy2-danger);
+}
+
+.happy2-agent-trace-row__icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-agent-trace-row__title {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    color: var(--happy2-text);
+}
+
+/* The settled row reads as a link to the trace panel. */
+.happy2-agent-trace-row[data-status="complete"] .happy2-agent-trace-row__title,
+.happy2-agent-trace-row[data-status="failed"] .happy2-agent-trace-row__title {
+    color: var(--happy2-accent-strong);
+}
+
+.happy2-agent-trace-row__detail {
+    /* Zero flex basis: the detail absorbs only the leftover space, so the
+     * title keeps its natural width and the detail truncates first. */
+    flex: 1 1 0%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-agent-trace-row__count {
+    flex: none;
+    margin-inline-start: auto;
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+    font-variant-numeric: lining-nums tabular-nums;
+    color: var(--happy2-text-muted);
+}

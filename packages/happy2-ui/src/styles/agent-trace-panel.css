@@ -1,0 +1,157 @@
+/*
+ * C-068 AgentTracePanel — right-sidebar activity trace for one agent turn.
+ *
+ * A column that fills the panel region: a 52px surface header (shared with
+ * ChannelHeader / InfoPanel / ThreadPanel) with title, step count, status
+ * badge, and close, then a full-bleed scrollport body. The scrollport owns no
+ * spacing; the inner entries wrapper owns the 12px inset and the 12px row gap.
+ * Entry rows: 5px status dot and kind glyph in 16px first-line lanes, a
+ * title + mono detail column, and a right-pinned mono UTC timestamp.
+ */
+
+.happy2-agent-trace-panel,
+.happy2-agent-trace-panel__body,
+.happy2-agent-trace-panel__entries,
+.happy2-agent-trace-panel__entry,
+.happy2-agent-trace-panel__entry * {
+    box-sizing: border-box;
+}
+
+.happy2-agent-trace-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    color: var(--happy2-text);
+}
+
+.happy2-agent-trace-panel__header {
+    flex: none;
+}
+
+/* Scrollport: edge-to-edge, no margin/padding/gap of its own. */
+.happy2-agent-trace-panel__body {
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* Inner content wrapper owns the 12px inset and the 12px entry gap. */
+.happy2-agent-trace-panel__entries {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+}
+
+/* Centered loading / error / empty state fills the scrollport. */
+.happy2-agent-trace-panel__state {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-agent-trace-panel__state[data-state="error"] {
+    color: var(--happy2-danger);
+}
+
+/* ---- Entry rows -------------------------------------------------------- */
+
+.happy2-agent-trace-panel__entry {
+    display: flex;
+    align-items: flex-start;
+    flex: none;
+    gap: 8px;
+    min-width: 0;
+}
+
+/* 16px lane matches the title line box so the dot centers on the first line. */
+.happy2-agent-trace-panel__entry-dot-lane {
+    display: flex;
+    align-items: center;
+    flex: none;
+    height: 16px;
+}
+
+.happy2-agent-trace-panel__entry-dot {
+    flex: none;
+    width: 5px;
+    height: 5px;
+    border-radius: var(--happy2-radius-pill);
+    background: var(--happy2-text-muted);
+}
+
+.happy2-agent-trace-panel__entry[data-status="running"] .happy2-agent-trace-panel__entry-dot {
+    background: var(--happy2-accent);
+}
+
+.happy2-agent-trace-panel__entry[data-status="complete"] .happy2-agent-trace-panel__entry-dot {
+    background: var(--happy2-success);
+}
+
+.happy2-agent-trace-panel__entry[data-status="failed"] .happy2-agent-trace-panel__entry-dot {
+    background: var(--happy2-danger);
+}
+
+.happy2-agent-trace-panel__entry-icon {
+    display: flex;
+    align-items: center;
+    flex: none;
+    height: 16px;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-agent-trace-panel__entry-main {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.happy2-agent-trace-panel__entry-title {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    color: var(--happy2-text);
+}
+
+.happy2-agent-trace-panel__entry-detail {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 14px;
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-agent-trace-panel__entry-time {
+    flex: none;
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+    font-variant-numeric: lining-nums tabular-nums;
+    color: var(--happy2-text-muted);
+}

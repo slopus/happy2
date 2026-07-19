@@ -1,6 +1,7 @@
 import { type DifferenceResponse, Happy2Api } from "../../api.js";
 import {
     type AgentActivityState,
+    type MessageSummary,
     type PresenceSnapshot,
     type RealtimeEvent,
     type SyncState,
@@ -67,6 +68,8 @@ export interface SyncCoordinatorContext extends SidebarLoadContext {
     callsGet(): CallsStore | undefined;
     chatGet(chatId: string): ChatStore | undefined;
     chatsGet(): Iterable<readonly [string, ChatStore]>;
+    agentTraceReconcile(message: MessageSummary): void;
+    agentTracesInvalidate(): void;
     areaReconcile(area: string): void;
     resetReconcile(): void;
     backgroundError(error: UserError): void;
@@ -237,6 +240,9 @@ export class SyncCoordinator {
                 removedChatIds: difference.removedChatIds,
                 sync: difference.state,
             });
+            // Losing a chat revokes access to its traces; open panels must
+            // revalidate through the GET instead of keeping cached details.
+            if (difference.removedChatIds.length > 0) this.context.agentTracesInvalidate();
             for (const chat of difference.changedChats) {
                 const binding = this.context.chatGet(chat.id);
                 if (!binding) continue;
@@ -284,6 +290,7 @@ export class SyncCoordinator {
                 type: "messageUpserted",
                 item: messageItemProject(this.context.identities, message),
             });
+            this.context.agentTraceReconcile(message);
         }
     }
 
@@ -342,6 +349,8 @@ export class SyncCoordinator {
                 phase: event.phase,
                 tokenCount: event.tokenCount,
                 startedAt: event.startedAt,
+                subagents: event.subagents,
+                backgroundTerminals: event.backgroundTerminals,
                 expiresAt,
             });
             this.agentTimers.set(

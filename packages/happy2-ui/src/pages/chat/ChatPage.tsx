@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
+    AgentTracePanel,
     AppShell,
     Button,
     Lightbox,
@@ -9,6 +10,7 @@ import {
 } from "./ChatPageComponents.js";
 import type {
     AgentActivityState,
+    AgentTraceStore,
     ChatSummary,
     ChatStore,
     ComposerStore,
@@ -70,6 +72,7 @@ export type ChatPageProps = {
     chat?: ChatStore;
     composer?: ComposerStore;
     thread?: ThreadStore;
+    trace?: AgentTraceStore;
     workspace?: WorkspaceStore;
     workspaceFile?: WorkspaceFileStore;
     actions: ChatPageActions;
@@ -98,6 +101,10 @@ export type ChatPagePanel =
           readonly rootMessageId: string;
       }
     | {
+          readonly kind: "trace";
+          readonly messageId: string;
+      }
+    | {
           readonly kind: "workspace";
       };
 export interface ChatPageNavigation {
@@ -113,6 +120,8 @@ export interface ChatPageActions {
     panelClose(): void;
     threadOpen(rootMessageId: string): void;
     threadClose(): void;
+    traceOpen(messageId: string): void;
+    traceClose(): void;
     workspaceOpen(chatId: string): void;
     workspaceClose(): void;
     workspaceFileOpen(chatId: string, path: string): void;
@@ -144,11 +153,13 @@ export function ChatPage(props: ChatPageProps) {
     const chatState = useOptionalStoreSnapshot(props.chat);
     const composerState = useOptionalStoreSnapshot(props.composer);
     const threadState = useOptionalStoreSnapshot(props.thread);
+    const traceState = useOptionalStoreSnapshot(props.trace);
     const sidebarSnapshot = () => sidebarState;
     const directorySnapshot = () => directoryState;
     const chatSnapshot = () => chatState;
     const composerSnapshot = () => composerState;
     const threadSnapshot = () => threadState;
+    const traceSnapshot = () => traceState;
     const [threadDraftState, setThreadDraftState] = useState<{
         rootMessageId?: string;
         text: string;
@@ -196,9 +207,10 @@ export function ChatPage(props: ChatPageProps) {
     function setThreadDraft(value: string) {
         setThreadDraftState({ rootMessageId: activeThreadRootId(), text: value });
     }
-    const panelMode = (): "info" | "thread" | "files" | undefined => {
+    const panelMode = (): "info" | "thread" | "trace" | "files" | undefined => {
         const panel = activePanel();
         if (panel?.kind === "thread") return "thread";
+        if (panel?.kind === "trace") return "trace";
         if (panel?.kind === "info" || panel?.kind === "profile") return "info";
         return panel?.kind === "workspace" ? "files" : undefined;
     };
@@ -470,6 +482,21 @@ export function ChatPage(props: ChatPageProps) {
     };
     const activeAgentActivity = (): readonly DeepReadonly<AgentActivityState>[] =>
         chatSnapshot()?.agentActivity ?? [];
+    const activeTraceMessageId = () => {
+        const panel = activePanel();
+        return panel?.kind === "trace" ? panel.messageId : undefined;
+    };
+    const traceDetails = () => {
+        const snapshot = traceSnapshot();
+        return snapshot?.trace.type === "ready" ? snapshot.trace.value : undefined;
+    };
+    const traceAgentName = () => {
+        const details = traceDetails();
+        const person = details
+            ? directoryUsers().find((candidate) => candidate.id === details.agentUserId)
+            : undefined;
+        return person ? `${person.displayName} activity` : "Agent activity";
+    };
     function selectConversation(id: string, replace = false) {
         pendingSelection.current = undefined;
         const projection = sidebarChats().find((candidate) => candidate.id === id);
@@ -630,6 +657,20 @@ export function ChatPage(props: ChatPageProps) {
                                 renderEntry(entry, index, threadEntries),
                             )}
                         </ChatThreadPanel>
+                    ) : panelMode() === "trace" ? (
+                        ((trace) => (
+                            <AgentTracePanel
+                                entries={traceDetails()?.entries ?? []}
+                                entryCount={traceDetails()?.entryCount ?? 0}
+                                error={trace?.type === "error" ? trace.error.message : undefined}
+                                loading={
+                                    !trace || (trace.type !== "ready" && trace.type !== "error")
+                                }
+                                onClose={props.actions.traceClose}
+                                status={traceDetails()?.status ?? "pending"}
+                                title={traceAgentName()}
+                            />
+                        ))(traceSnapshot()?.trace)
                     ) : panelMode() === "info" ? (
                         <ChatInfoPanel
                             about={conversation.topic}
@@ -877,6 +918,8 @@ export function ChatPage(props: ChatPageProps) {
                     void messageActions.reactionToggle(message, emoji)
                 }
                 onReplySelect={openThread}
+                onTraceSelect={(message) => props.actions.traceOpen(message.id)}
+                traceOpen={message ? activeTraceMessageId() === message.id : false}
             />
         );
     }

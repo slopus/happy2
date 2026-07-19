@@ -1,4 +1,9 @@
-import type { ChatSummary, MessageSummary } from "../src/index";
+import type {
+    AgentTurnTraceDetails,
+    AgentTurnTraceSummary,
+    ChatSummary,
+    MessageSummary,
+} from "../src/index";
 
 export function chat(overrides: Partial<ChatSummary> = {}): ChatSummary {
     return {
@@ -26,6 +31,40 @@ export function chat(overrides: Partial<ChatSummary> = {}): ChatSummary {
         notificationLevel: "all",
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",
+        ...overrides,
+    };
+}
+
+export function agentTraceSummary(
+    overrides: Partial<AgentTurnTraceSummary> = {},
+): AgentTurnTraceSummary {
+    return {
+        turnId: "turn-1",
+        agentUserId: "agent-1",
+        status: "running",
+        startedAt: "2026-01-01T00:00:01.000Z",
+        latest: { kind: "status", title: "Turn started", occurredAt: 1 },
+        entryCount: 1,
+        subagents: [],
+        backgroundTerminals: [],
+        ...overrides,
+    };
+}
+
+export function agentTraceDetails(
+    overrides: Partial<AgentTurnTraceDetails> = {},
+): AgentTurnTraceDetails {
+    return {
+        ...agentTraceSummary(),
+        entries: [
+            {
+                id: "entry-1",
+                kind: "status",
+                title: "Turn started",
+                status: "complete",
+                occurredAt: 1,
+            },
+        ],
         ...overrides,
     };
 }
