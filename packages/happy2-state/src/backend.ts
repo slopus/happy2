@@ -42,6 +42,7 @@ import type {
     NotificationPreferences,
     Permission,
     PluginCatalogItem,
+    PluginHostPermission,
     PluginInstallationSummary,
     SystemPluginSummary,
     PublicServerSetupStatus,
@@ -224,6 +225,9 @@ export const backendOperations = {
     setDefaultAgentImage: post("/v0/admin/agentImages/:imageId/setDefaultImage"),
     getPluginCatalog: get("/v0/admin/plugins"),
     installPlugin: post("/v0/admin/plugins/:shortName/installPlugin"),
+    updatePluginPermissions: post(
+        "/v0/admin/pluginInstallations/:installationId/updatePermissions",
+    ),
     downloadPluginIcon: get("/v0/admin/plugins/:shortName/icon"),
     getSystemPlugins: get("/v0/admin/systemPlugins"),
     downloadSystemPluginImage: get("/v0/admin/systemPlugins/:pluginId/image"),
@@ -574,6 +578,7 @@ export interface KnownBackendInputs {
     installPlugin: {
         readonly shortName: string;
         readonly variables?: Readonly<Record<string, string>>;
+        readonly permissions?: readonly PluginHostPermission[];
         readonly containerImageId?: string;
     };
     preparePluginUpload: { readonly body: unknown };
@@ -583,10 +588,15 @@ export interface KnownBackendInputs {
     installPreparedPlugin: {
         readonly preparedToken: string;
         readonly variables?: Readonly<Record<string, string>>;
+        readonly permissions?: readonly PluginHostPermission[];
         readonly containerImageId?: string;
     };
     checkPluginUpdate: { readonly pluginId: string };
     uninstallPlugin: { readonly pluginId: string };
+    updatePluginPermissions: {
+        readonly installationId: string;
+        readonly permissions: readonly PluginHostPermission[];
+    };
     createAgentSecret: {
         readonly id: string;
         readonly description: string;
@@ -961,6 +971,7 @@ export interface KnownBackendResults {
     };
     getPluginCatalog: { readonly plugins: readonly PluginCatalogItem[] };
     installPlugin: { readonly installation: PluginInstallationSummary };
+    updatePluginPermissions: { readonly installation: PluginInstallationSummary };
     downloadPluginIcon: ArrayBuffer;
     getSystemPlugins: { readonly plugins: readonly SystemPluginSummary[] };
     downloadSystemPluginImage: ArrayBuffer;

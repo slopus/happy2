@@ -8,7 +8,7 @@ import { createId } from "@paralleldrive/cuid2";
 export async function chatAppendAudit(
     tx: DrizzleTransaction,
     input: {
-        actorUserId: string;
+        actorUserId?: string;
         action: string;
         targetType: string;
         targetId?: string;

@@ -19,12 +19,14 @@ import {
     PluginError,
     type PluginInstallationSummary,
     type PluginManifest,
+    type PluginHostPermission,
     type PluginPackage,
 } from "./types.js";
 import { pluginInstallationSelection } from "./impl/installationSelection.js";
 import { asPluginInstallation } from "./impl/asInstallation.js";
 import { installedManifest } from "./impl/installedManifest.js";
 import { effectiveContainer } from "./impl/effectiveContainer.js";
+import { pluginPermissionsValidate } from "./impl/apiPermissions.js";
 
 const MAX_VARIABLE_BYTES = 64 * 1024;
 
@@ -42,11 +44,13 @@ export async function pluginInstall(
     executor: DrizzleExecutor,
     secretProtector: PluginSecretProtector,
     input: {
-        actorUserId: string;
+        actorUserId?: string;
+        actorInstallationId?: string;
         installationId: string;
         plugin: PluginPackage;
         candidate?: PluginPackageCandidate;
         variables: Readonly<Record<string, string>>;
+        permissions: readonly PluginHostPermission[];
         containerImageId?: string;
     },
 ): Promise<{
@@ -56,7 +60,9 @@ export async function pluginInstall(
     pluginId: string;
 }> {
     return withTransaction(executor, async (tx) => {
-        await userRequirePermission(tx, input.actorUserId, "managePlugins");
+        if (input.actorUserId) await userRequirePermission(tx, input.actorUserId, "managePlugins");
+        else if (!input.actorInstallationId)
+            throw new PluginError("forbidden", "Plugin installation authority is required");
         const [existing] = await tx
             .select({
                 id: plugins.id,
@@ -125,6 +131,10 @@ export async function pluginInstall(
         const definitions = manifest.variables;
         const mcp = manifest.mcp;
         const localContainer = effectiveContainer(manifest);
+        const grantedPermissions = pluginPermissionsValidate(
+            input.permissions,
+            localContainer?.permissions ?? [],
+        );
         validateVariables(definitions, input.variables);
         const selectionRequired = Boolean(localContainer && !localContainer.dockerfile);
         if (selectionRequired && !input.containerImageId)
@@ -165,6 +175,7 @@ export async function pluginInstall(
                 pluginId,
                 containerImageId: input.containerImageId,
                 containerName: localContainer ? `happy2-plugin-${id}` : null,
+                grantedPermissionsJson: JSON.stringify(grantedPermissions),
                 status,
                 statusDetail: hasRuntime
                     ? "Plugin runtime is queued for preparation."
@@ -196,12 +207,14 @@ export async function pluginInstall(
             targetType: "plugin_installation",
             targetId: id,
             after: {
+                actorInstallationId: input.actorInstallationId,
                 pluginId,
                 shortName: manifest.shortName,
                 version: manifest.version,
                 mcpType: mcp?.type,
                 container: Boolean(localContainer),
-                containerPermissions: localContainer?.permissions ?? [],
+                declaredPermissions: localContainer?.permissions ?? [],
+                grantedPermissions,
                 variableKeys: definitions.map(({ key }) => key),
                 containerImageId: input.containerImageId,
             },

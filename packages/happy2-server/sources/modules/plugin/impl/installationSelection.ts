@@ -8,6 +8,7 @@ export const pluginInstallationSelection = {
     sourceReference: plugins.sourceReference,
     sourceVersion: plugins.sourceVersion,
     packageDigest: plugins.packageDigest,
+    grantedPermissionsJson: pluginInstallations.grantedPermissionsJson,
     containerImageId: pluginInstallations.containerImageId,
     status: pluginInstallations.status,
     statusDetail: pluginInstallations.statusDetail,

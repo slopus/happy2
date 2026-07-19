@@ -1,4 +1,9 @@
-import { PluginError, type PluginManifest } from "../types.js";
+import {
+    PluginError,
+    pluginHostPermissions,
+    type PluginHostPermission,
+    type PluginManifest,
+} from "../types.js";
 
 export function installedManifest(source: string): PluginManifest {
     let value: unknown;
@@ -32,8 +37,11 @@ function container(value: unknown): boolean {
         value.args.every((argument) => typeof argument === "string") &&
         Array.isArray(value.permissions) &&
         value.permissions.every(
-            (permission) => permission === "chats:update" || permission === "plugins:list",
-        )
+            (permission) =>
+                typeof permission === "string" &&
+                pluginHostPermissions.includes(permission as PluginHostPermission),
+        ) &&
+        new Set(value.permissions).size === value.permissions.length
     );
 }
 

@@ -3,6 +3,7 @@ import type {
     AgentImagesSnapshot,
     AgentImagesStore,
     PluginCatalogItem,
+    PluginHostPermission,
     PluginInstallSnapshot,
     PluginInstallStore,
     PluginsSnapshot,
@@ -15,6 +16,7 @@ import { ModalOverlay } from "../../ModalOverlay";
 import {
     PluginCatalogPanel,
     type PluginCatalogEntry,
+    type PluginPermissionSection,
     type PluginUpdateBadge,
 } from "../../PluginCatalogPanel";
 import {
@@ -52,9 +54,12 @@ export function PluginsPage(props: PluginsPageProps) {
     const [installOpen, setInstallOpen] = useState<string>();
     const [draftValues, setDraftValues] = useState<Readonly<Record<string, string>>>({});
     const [draftContainerImageId, setDraftContainerImageId] = useState<string>();
+    const [draftPermissions, setDraftPermissions] = useState<readonly string[]>([]);
+    const [permissionsOpen, setPermissionsOpen] = useState<string>();
     const [externalOpen, setExternalOpen] = useState(false);
     const [externalValues, setExternalValues] = useState<Readonly<Record<string, string>>>({});
     const [externalImageId, setExternalImageId] = useState<string>();
+    const [externalPermissions, setExternalPermissions] = useState<readonly string[]>([]);
     const [uninstallPluginId, setUninstallPluginId] = useState<string>();
     // Mount/unmount of this page is the visibility boundary for automatic
     // update checks: the ref cleanup stops all background check work the
@@ -92,6 +97,9 @@ export function PluginsPage(props: PluginsPageProps) {
                 const catalogError =
                     snapshot.catalog.type === "error" ? snapshot.catalog.error.message : undefined;
                 const openItem = filtered.find((item) => item.shortName === installOpen);
+                const permissionsItem = plugins.find((item) =>
+                    item.installations.some((installation) => installation.id === permissionsOpen),
+                );
                 const selectionNeeded = filtered.some(
                     (item) => item.mcp?.container === "selection_required",
                 );
@@ -105,6 +113,7 @@ export function PluginsPage(props: PluginsPageProps) {
                         busyShortNames={snapshot.installing}
                         containerImageOptions={imageOptions}
                         draftContainerImageId={draftContainerImageId}
+                        draftPermissions={draftPermissions}
                         draftValues={draftValues}
                         error={catalogError}
                         installOpen={installOpen}
@@ -113,8 +122,14 @@ export function PluginsPage(props: PluginsPageProps) {
                             snapshot.catalog.type === "unloaded"
                         }
                         onCloseInstall={() => setInstallOpen(undefined)}
+                        onClosePermissions={() => setPermissionsOpen(undefined)}
                         onDismissActionError={() => setDismissedError(snapshot.actionError)}
                         onDraftContainerImageChange={setDraftContainerImageId}
+                        onDraftPermissionToggle={(permissionId, checked) =>
+                            setDraftPermissions((current) =>
+                                permissionToggle(current, permissionId, checked),
+                            )
+                        }
                         onDraftValueChange={(key, value) =>
                             setDraftValues((current) => ({ ...current, [key]: value }))
                         }
@@ -122,29 +137,51 @@ export function PluginsPage(props: PluginsPageProps) {
                             props.installStore().getState().flowReset();
                             setExternalValues({});
                             setExternalImageId(undefined);
+                            setExternalPermissions([]);
                             setExternalOpen(true);
                         }}
                         onOpenInstall={(shortName) => {
                             setDraftValues({});
                             setDraftContainerImageId(undefined);
+                            setDraftPermissions([]);
+                            setPermissionsOpen(undefined);
                             setInstallOpen(shortName);
+                        }}
+                        onOpenPermissions={(installationId) => {
+                            const installation = plugins
+                                .flatMap((item) => item.installations)
+                                .find((candidate) => candidate.id === installationId);
+                            setDraftPermissions(installation?.grantedPermissions ?? []);
+                            setInstallOpen(undefined);
+                            setPermissionsOpen(installationId);
                         }}
                         onSubmitInstall={() => {
                             if (!openItem) return;
                             store.pluginInstall(
                                 openItem.shortName,
                                 draftValues,
+                                grantedFrom(openItem.apiPermissions ?? [], draftPermissions),
                                 openItem.mcp?.container === "selection_required"
                                     ? draftContainerImageId
                                     : undefined,
                             );
                             setInstallOpen(undefined);
                         }}
+                        onSubmitPermissions={() => {
+                            if (!permissionsOpen || !permissionsItem) return;
+                            store.pluginPermissionsUpdate(
+                                permissionsOpen,
+                                grantedFrom(permissionsItem.apiPermissions ?? [], draftPermissions),
+                            );
+                            setPermissionsOpen(undefined);
+                        }}
                         onUninstall={(pluginId) => {
                             setDismissedError(snapshot.actionError);
                             setUninstallPluginId(pluginId);
                         }}
                         plugins={plugins}
+                        permissionsBusyInstallationIds={snapshot.updatingPermissions}
+                        permissionsOpen={permissionsOpen}
                         subtitle="Bundled packages plus plugins installed from uploads, ZIP URLs, and GitHub."
                         uninstallingPluginIds={snapshot.uninstalling}
                     />
@@ -167,6 +204,7 @@ export function PluginsPage(props: PluginsPageProps) {
                                     if (flow.step.step === "installed") return null;
                                     const close = () => {
                                         flowStore.flowReset();
+                                        setExternalPermissions([]);
                                         setExternalOpen(false);
                                     };
                                     const installing = flow.step.step === "installing";
@@ -188,6 +226,7 @@ export function PluginsPage(props: PluginsPageProps) {
                                                 }
                                                 containerImageOptions={imageOptions}
                                                 draftContainerImageId={externalImageId}
+                                                draftPermissions={externalPermissions}
                                                 draftValues={externalValues}
                                                 installError={flow.installError?.message}
                                                 notice={flow.notice}
@@ -199,15 +238,26 @@ export function PluginsPage(props: PluginsPageProps) {
                                                 onCandidateChoose={(id) => {
                                                     setExternalValues({});
                                                     setExternalImageId(undefined);
+                                                    setExternalPermissions([]);
                                                     flowStore.candidateChoose(id);
                                                 }}
                                                 onCandidateListReturn={() => {
                                                     setExternalValues({});
                                                     setExternalImageId(undefined);
+                                                    setExternalPermissions([]);
                                                     flowStore.candidateListReturn();
                                                 }}
                                                 onClose={close}
                                                 onDraftContainerImageChange={setExternalImageId}
+                                                onDraftPermissionToggle={(permissionId, checked) =>
+                                                    setExternalPermissions((current) =>
+                                                        permissionToggle(
+                                                            current,
+                                                            permissionId,
+                                                            checked,
+                                                        ),
+                                                    )
+                                                }
                                                 onDraftValueChange={(key, value) =>
                                                     setExternalValues((current) => ({
                                                         ...current,
@@ -217,6 +267,12 @@ export function PluginsPage(props: PluginsPageProps) {
                                                 onInstall={() =>
                                                     flowStore.installSubmit(
                                                         externalValues,
+                                                        grantedFrom(
+                                                            flow.step.step === "configure"
+                                                                ? flow.step.candidate.apiPermissions
+                                                                : [],
+                                                            externalPermissions,
+                                                        ),
                                                         externalImageId,
                                                     )
                                                 }
@@ -317,6 +373,7 @@ function candidateProject(
             description: variable.description,
             kind: variable.kind,
         })),
+        apiPermissions: candidate.apiPermissions,
         mcp: candidate.mcp,
         thumbhash: candidate.image.thumbhash,
     };
@@ -413,6 +470,7 @@ function catalogEntry(
             description: variable.description,
             kind: variable.kind,
         })),
+        apiPermissions: item.apiPermissions,
         installed: Boolean(item.systemPlugin),
         installedVersion:
             item.systemPlugin && item.systemPlugin.sourceVersion !== item.version
@@ -424,6 +482,7 @@ function catalogEntry(
             version: installation.sourceVersion,
             status: installation.status,
             detail: installation.lastError ?? installation.statusDetail,
+            grantedPermissions: installation.grantedPermissions,
         })),
         pluginId: item.systemPlugin?.id,
         sourceLabel:
@@ -453,16 +512,41 @@ function externalEntry(
             description: variable.description,
             kind: variable.kind,
         })),
+        apiPermissions: plugin.apiPermissions,
         installed: true,
         installations: plugin.installations.map((installation) => ({
             id: installation.id,
             version: installation.sourceVersion,
             status: installation.status,
             detail: installation.lastError ?? installation.statusDetail,
+            grantedPermissions: installation.grantedPermissions,
         })),
         pluginId: plugin.id,
         sourceLabel: sourceKindLabels[plugin.sourceKind],
         installable: false,
         updateCheck: updateBadge(plugin.id, updateChecks),
     };
+}
+
+function permissionToggle(
+    current: readonly string[],
+    permissionId: string,
+    checked: boolean,
+): readonly string[] {
+    if (checked) return current.includes(permissionId) ? current : [...current, permissionId];
+    return current.filter((id) => id !== permissionId);
+}
+
+function grantedFrom(
+    sections: readonly PluginPermissionSection[],
+    selected: readonly string[],
+): readonly PluginHostPermission[] {
+    const declared = new Set(
+        sections.flatMap((section) =>
+            [...section.readOnly, ...section.mutations].map((permission) => permission.id),
+        ),
+    );
+    return selected.filter((permission): permission is PluginHostPermission =>
+        declared.has(permission as PluginHostPermission),
+    );
 }

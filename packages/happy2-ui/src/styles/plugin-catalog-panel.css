@@ -4,9 +4,9 @@
  * Contract: fills its container, stacks a header row over a column of plugin
  * cards. Each card is a row: a fixed 40px icon slot, a flexible body (name,
  * version, capability badges, the exact name and description of each Agent
- * Skill, per-installation health), and a right-pinned install action. The
- * install dialog renders in a self-contained absolute
- * overlay so the panel owns its own scrim without a positioned ancestor.
+ * Skill, per-installation health and a permissions editor), and a right-pinned
+ * install action. The install and permission
+ * dialogs are hosted by the shared ModalOverlay, not a hand-rolled scrim.
  * Secret variable values are write-only and never rendered here.
  */
 
@@ -207,6 +207,12 @@
 }
 
 .happy2-plugin-catalog-panel__installation {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.happy2-plugin-catalog-panel__installation-health {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -228,18 +234,7 @@
     margin-left: auto;
 }
 
-/* ---- Install overlay --------------------------------------------------- */
-
-.happy2-plugin-catalog-panel__overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    background: rgb(0 0 0 / 0.48);
-    z-index: 30;
-}
+/* ---- Install / permission dialogs -------------------------------------- */
 
 .happy2-plugin-catalog-panel__modal-actions {
     display: flex;
@@ -262,5 +257,86 @@
 .happy2-plugin-catalog-panel__form-note {
     font-size: 13px;
     line-height: 18px;
+    color: var(--happy2-text-muted);
+}
+
+/* ---- Permission checklist ---------------------------------------------- */
+
+.happy2-plugin-catalog-panel__permission-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.happy2-plugin-catalog-panel__permission-heading {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 18px;
+    color: var(--happy2-text);
+}
+
+.happy2-plugin-catalog-panel__permission-intro {
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-plugin-catalog-panel__permissions {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.happy2-plugin-catalog-panel__permission-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.happy2-plugin-catalog-panel__permission-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-plugin-catalog-panel__permission-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.happy2-plugin-catalog-panel__permission-group-label {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-plugin-catalog-panel__permission {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.happy2-plugin-catalog-panel__permission-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.happy2-plugin-catalog-panel__permission-name {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+    color: var(--happy2-text);
+}
+
+.happy2-plugin-catalog-panel__permission-description {
+    font-size: 12px;
+    line-height: 16px;
     color: var(--happy2-text-muted);
 }

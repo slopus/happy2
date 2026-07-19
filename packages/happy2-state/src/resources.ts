@@ -294,6 +294,32 @@ export interface PluginVariableDefinition {
     readonly kind: PluginVariableKind;
 }
 
+/** The closed set of host API capabilities a plugin may be granted against this server. */
+export type PluginHostPermission =
+    | "chats:update"
+    | "plugins:list"
+    | "plugins:install"
+    | "plugins:uninstall";
+
+/** One grantable capability inside an API permission section, split by access class on the section. */
+export interface PluginApiPermissionDefinition {
+    readonly id: PluginHostPermission;
+    readonly displayName: string;
+    readonly description: string;
+}
+
+/**
+ * The permissions a package declares, grouped for presentation: `readOnly`
+ * capabilities never change durable state, `mutations` do. Only declared
+ * capabilities appear, so an empty section list means the package requests none.
+ */
+export interface PluginApiPermissionSection {
+    readonly id: "chats" | "plugins";
+    readonly displayName: string;
+    readonly readOnly: readonly PluginApiPermissionDefinition[];
+    readonly mutations: readonly PluginApiPermissionDefinition[];
+}
+
 export interface PluginSkillSummary {
     readonly name: string;
     readonly description: string;
@@ -320,6 +346,8 @@ export interface PluginInstallationSummary {
     readonly shortName: string;
     readonly sourceVersion: string;
     readonly packageDigest: string;
+    /** The host API capabilities currently granted to this installation. */
+    readonly grantedPermissions: readonly PluginHostPermission[];
     readonly status: PluginInstallationStatus;
     readonly statusDetail?: string;
     readonly lastError?: string;
@@ -342,6 +370,8 @@ export interface SystemPluginSummary {
     readonly packageDigest: string;
     readonly variables: readonly PluginVariableDefinition[];
     readonly mcp?: PluginMcpRequirement;
+    /** The host API capabilities this package declares and an administrator may grant. */
+    readonly apiPermissions: readonly PluginApiPermissionSection[];
     readonly image: PluginImageSummary;
     readonly installedByUserId?: string;
     readonly installedAt: string;
@@ -359,6 +389,8 @@ export interface PluginCatalogItem {
     readonly skills: readonly PluginSkillSummary[];
     readonly mcp?: PluginMcpRequirement;
     readonly variables: readonly PluginVariableDefinition[];
+    /** The host API capabilities this package declares and an administrator may grant. */
+    readonly apiPermissions: readonly PluginApiPermissionSection[];
     readonly systemPlugin?: SystemPluginSummary;
 }
 
@@ -388,6 +420,7 @@ export interface PreparedPluginSummary {
     readonly skills: readonly { readonly name: string; readonly description: string }[];
     readonly variables: readonly PluginVariableDefinition[];
     readonly mcp?: PluginMcpRequirement;
+    readonly apiPermissions: readonly PluginApiPermissionSection[];
     readonly image: PluginImageSummary;
 }
 

@@ -4,10 +4,12 @@ import { Badge, type BadgeVariant } from "./Badge";
 import { Banner } from "./Banner";
 import { Box } from "./Box";
 import { Button } from "./Button";
+import { Checkbox } from "./Checkbox";
 import { EmptyState } from "./EmptyState";
 import { FormRow } from "./FormRow";
 import { Icon } from "./Icon";
 import { Modal } from "./Modal";
+import { ModalOverlay } from "./ModalOverlay";
 import { Select, type SelectOption } from "./Select";
 import { TextField } from "./TextField";
 export type PluginInstallationStatus =
@@ -23,6 +25,8 @@ export type PluginInstallationItem = {
     status: PluginInstallationStatus;
     /** Optional bounded diagnostic text (statusDetail or lastError). */
     detail?: string;
+    /** Host permission ids currently granted to this installation. */
+    grantedPermissions?: readonly string[];
 };
 export type PluginVariableField = {
     key: string;
@@ -30,6 +34,17 @@ export type PluginVariableField = {
     description: string;
     /** Secret values render masked and are write-only. */
     kind: "secret" | "text";
+};
+export type PluginPermissionDefinition = {
+    id: string;
+    displayName: string;
+    description: string;
+};
+export type PluginPermissionSection = {
+    id: string;
+    displayName: string;
+    readOnly: readonly PluginPermissionDefinition[];
+    mutations: readonly PluginPermissionDefinition[];
 };
 export type PluginUpdateBadge =
     | { status: "checking"; detail?: string }
@@ -48,6 +63,8 @@ export type PluginCatalogEntry = {
     skills: readonly { name: string; description: string }[];
     mcp?: { type: "remote" | "stdio"; container: "bundled" | "selection_required" | "none" };
     variables: readonly PluginVariableField[];
+    /** Host permissions the package declares and an administrator may grant. */
+    apiPermissions?: readonly PluginPermissionSection[];
     /** True once a durable system plugin exists for this package. */
     installed: boolean;
     /** The immutable installed version when it differs from the catalog. */
@@ -72,6 +89,8 @@ export type PluginCatalogPanelProps = {
     plugins: readonly PluginCatalogEntry[];
     /** Short names with an in-flight install request; their button disables. */
     busyShortNames?: readonly string[];
+    /** Installation ids with an in-flight permission update; their controls disable. */
+    permissionsBusyInstallationIds?: readonly string[];
     /** First load has not resolved yet. */
     loading?: boolean;
     /** Fatal load error; replaces the list with a banner. */
@@ -87,11 +106,19 @@ export type PluginCatalogPanelProps = {
     /** Ready container images offered when the manifest requires a selection. */
     containerImageOptions?: readonly SelectOption[];
     draftContainerImageId?: string;
+    /** Currently checked permission ids for whichever dialog is open. */
+    draftPermissions?: readonly string[];
     onOpenInstall?: (shortName: string) => void;
     onCloseInstall?: () => void;
     onDraftValueChange?: (key: string, value: string) => void;
     onDraftContainerImageChange?: (imageId: string) => void;
+    onDraftPermissionToggle?: (permissionId: string, checked: boolean) => void;
     onSubmitInstall?: () => void;
+    /** Installation id whose permission editor is open. */
+    permissionsOpen?: string;
+    onOpenPermissions?: (installationId: string) => void;
+    onClosePermissions?: () => void;
+    onSubmitPermissions?: () => void;
     /** Renders the "Install plugin" entry point for external packages in the header. */
     onOpenExternalInstall?: () => void;
     /** Plugin IDs with an in-flight uninstall; their action disables. */
@@ -113,6 +140,81 @@ const statusVariants: Record<PluginInstallationStatus, BadgeVariant> = {
     broken_configuration: "danger",
     failed: "danger",
 };
+const INSTALL_PERMISSIONS_INTRO =
+    "Grant only the host capabilities this installation needs. Every permission is optional.";
+const NO_PERMISSIONS_NOTE = "This plugin does not request any host permissions.";
+function permissionCount(sections: readonly PluginPermissionSection[]): number {
+    return sections.reduce(
+        (total, section) => total + section.readOnly.length + section.mutations.length,
+        0,
+    );
+}
+function permissionGroups(section: PluginPermissionSection) {
+    return [
+        { access: "read-only", label: "Read only", definitions: section.readOnly },
+        { access: "mutations", label: "Can make changes", definitions: section.mutations },
+    ].filter((group) => group.definitions.length > 0);
+}
+/** Renders declared host capabilities grouped by section and access class. */
+export function PluginPermissionFieldset(props: {
+    sections: readonly PluginPermissionSection[];
+    selected: readonly string[];
+    disabled?: boolean;
+    emptyNote?: string;
+    onToggle?: (permissionId: string, checked: boolean) => void;
+}) {
+    if (permissionCount(props.sections) === 0)
+        return (
+            <span className="happy2-plugin-catalog-panel__form-note">
+                {props.emptyNote ?? NO_PERMISSIONS_NOTE}
+            </span>
+        );
+    return (
+        <Box className="happy2-plugin-catalog-panel__permissions">
+            {props.sections.map((section) => (
+                <Box className="happy2-plugin-catalog-panel__permission-section" key={section.id}>
+                    <span className="happy2-plugin-catalog-panel__permission-section-title">
+                        {section.displayName}
+                    </span>
+                    {permissionGroups(section).map((group) => (
+                        <Box
+                            className="happy2-plugin-catalog-panel__permission-group"
+                            key={group.access}
+                        >
+                            <span className="happy2-plugin-catalog-panel__permission-group-label">
+                                {group.label}
+                            </span>
+                            {group.definitions.map((definition) => (
+                                <Box
+                                    className="happy2-plugin-catalog-panel__permission"
+                                    data-permission-id={definition.id}
+                                    key={definition.id}
+                                >
+                                    <Checkbox
+                                        aria-label={definition.displayName}
+                                        checked={props.selected.includes(definition.id)}
+                                        disabled={props.disabled}
+                                        onChange={(checked) =>
+                                            props.onToggle?.(definition.id, checked)
+                                        }
+                                    />
+                                    <Box className="happy2-plugin-catalog-panel__permission-text">
+                                        <span className="happy2-plugin-catalog-panel__permission-name">
+                                            {definition.displayName}
+                                        </span>
+                                        <span className="happy2-plugin-catalog-panel__permission-description">
+                                            {definition.description}
+                                        </span>
+                                    </Box>
+                                </Box>
+                            ))}
+                        </Box>
+                    ))}
+                </Box>
+            ))}
+        </Box>
+    );
+}
 function updateCheckLabel(check: PluginUpdateBadge): string {
     if (check.status === "checking") return "Checking for update…";
     if (check.status === "failed") return "Update check failed";
@@ -143,6 +245,7 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
         "subtitle",
         "plugins",
         "busyShortNames",
+        "permissionsBusyInstallationIds",
         "loading",
         "error",
         "actionError",
@@ -151,11 +254,17 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
         "draftValues",
         "containerImageOptions",
         "draftContainerImageId",
+        "draftPermissions",
         "onOpenInstall",
         "onCloseInstall",
         "onDraftValueChange",
         "onDraftContainerImageChange",
+        "onDraftPermissionToggle",
         "onSubmitInstall",
+        "permissionsOpen",
+        "onOpenPermissions",
+        "onClosePermissions",
+        "onSubmitPermissions",
         "onOpenExternalInstall",
         "uninstallingPluginIds",
         "onUninstall",
@@ -164,12 +273,22 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
     const busy = (shortName: string) => local.busyShortNames?.includes(shortName) ?? false;
     const open = local.plugins.find((plugin) => plugin.shortName === local.installOpen);
     const values = local.draftValues ?? {};
+    const selected = local.draftPermissions ?? [];
     const selectionRequired = open?.mcp?.container === "selection_required";
     const canSubmit = () =>
         Boolean(open) &&
         !busy(open!.shortName) &&
         open!.variables.every((variable) => (values[variable.key] ?? "") !== "") &&
         (!selectionRequired || Boolean(local.draftContainerImageId));
+    const permissionsTarget = local.permissionsOpen
+        ? local.plugins.flatMap((plugin) =>
+              plugin.installations
+                  .filter((installation) => installation.id === local.permissionsOpen)
+                  .map((installation) => ({ plugin, installation })),
+          )[0]
+        : undefined;
+    const permissionsBusy = (installationId: string) =>
+        local.permissionsBusyInstallationIds?.includes(installationId) ?? false;
     return (
         <Box
             {...rest}
@@ -339,24 +458,52 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
                                                 data-happy2-ui="plugin-catalog-installations"
                                             >
                                                 {plugin.installations.map((installation) => (
-                                                    <span
+                                                    <Box
                                                         className="happy2-plugin-catalog-panel__installation"
                                                         data-installation-id={installation.id}
                                                         key={installation.id}
-                                                        title={installation.detail}
                                                     >
-                                                        <Badge
-                                                            label={
-                                                                statusLabels[installation.status]
-                                                            }
-                                                            variant={
-                                                                statusVariants[installation.status]
-                                                            }
-                                                        />
-                                                        <span className="happy2-plugin-catalog-panel__installation-version">
-                                                            v{installation.version}
+                                                        <span
+                                                            className="happy2-plugin-catalog-panel__installation-health"
+                                                            title={installation.detail}
+                                                        >
+                                                            <Badge
+                                                                label={
+                                                                    statusLabels[
+                                                                        installation.status
+                                                                    ]
+                                                                }
+                                                                variant={
+                                                                    statusVariants[
+                                                                        installation.status
+                                                                    ]
+                                                                }
+                                                            />
+                                                            <span className="happy2-plugin-catalog-panel__installation-version">
+                                                                v{installation.version}
+                                                            </span>
                                                         </span>
-                                                    </span>
+                                                        {local.onOpenPermissions ? (
+                                                            <Button
+                                                                disabled={permissionsBusy(
+                                                                    installation.id,
+                                                                )}
+                                                                icon="shield"
+                                                                onClick={() =>
+                                                                    local.onOpenPermissions?.(
+                                                                        installation.id,
+                                                                    )
+                                                                }
+                                                                size="small"
+                                                                variant="ghost"
+                                                            >
+                                                                {(installation.grantedPermissions
+                                                                    ?.length ?? 0) > 0
+                                                                    ? `Permissions · ${installation.grantedPermissions!.length}`
+                                                                    : "Permissions"}
+                                                            </Button>
+                                                        ) : null}
+                                                    </Box>
                                                 ))}
                                             </Box>
                                         ) : null}
@@ -427,102 +574,162 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
 
             {open
                 ? ((plugin) => (
-                      <Box
-                          className="happy2-plugin-catalog-panel__overlay"
-                          data-happy2-ui="plugin-catalog-panel-overlay"
-                          onClick={() => local.onCloseInstall?.()}
+                      <ModalOverlay
+                          data-testid="plugin-catalog-install-overlay"
+                          onDismiss={() => local.onCloseInstall?.()}
                       >
-                          <Box onClick={(event) => event.stopPropagation()}>
-                              <Modal
-                                  footer={
-                                      <Box className="happy2-plugin-catalog-panel__modal-actions">
-                                          <Button
-                                              onClick={() => local.onCloseInstall?.()}
-                                              variant="ghost"
-                                          >
-                                              Cancel
-                                          </Button>
-                                          <Button
-                                              disabled={!canSubmit()}
-                                              icon="plus"
-                                              onClick={() => local.onSubmitInstall?.()}
-                                          >
-                                              {busy(plugin.shortName)
-                                                  ? "Installing…"
-                                                  : "Install plugin"}
-                                          </Button>
-                                      </Box>
-                                  }
-                                  icon="braces"
-                                  onClose={() => local.onCloseInstall?.()}
-                                  size="medium"
-                                  title={`Install ${plugin.displayName}`}
-                              >
-                                  <Box className="happy2-plugin-catalog-panel__form">
-                                      <span className="happy2-plugin-catalog-panel__form-summary">
-                                          {plugin.description}
-                                      </span>
-                                      {plugin.variables.map((variable) => (
-                                          <FormRow
-                                              control={
-                                                  <TextField
-                                                      fullWidth
-                                                      onValueChange={(value) =>
-                                                          local.onDraftValueChange?.(
-                                                              variable.key,
-                                                              value,
-                                                          )
-                                                      }
-                                                      placeholder={variable.key}
-                                                      type={
-                                                          variable.kind === "secret"
-                                                              ? "password"
-                                                              : "text"
-                                                      }
-                                                      value={values[variable.key] ?? ""}
-                                                  />
-                                              }
-                                              description={
-                                                  variable.kind === "secret"
-                                                      ? `${variable.description} Sent once and never shown again.`
-                                                      : variable.description
-                                              }
-                                              key={variable.key}
-                                              label={variable.displayName}
-                                              layout="stacked"
-                                          />
-                                      ))}
-                                      {selectionRequired ? (
-                                          <FormRow
-                                              control={
-                                                  <Select
-                                                      fullWidth
-                                                      onValueChange={(value) =>
-                                                          local.onDraftContainerImageChange?.(value)
-                                                      }
-                                                      options={[
-                                                          ...(local.containerImageOptions ?? []),
-                                                      ]}
-                                                      placeholder="Choose a ready image"
-                                                      value={local.draftContainerImageId}
-                                                  />
-                                              }
-                                              description="This stdio plugin runs inside a dedicated container created from a ready agent image."
-                                              label="Container image"
-                                              layout="stacked"
-                                          />
-                                      ) : null}
-                                      {plugin.variables.length === 0 && !selectionRequired ? (
-                                          <span className="happy2-plugin-catalog-panel__form-note">
-                                              This package needs no configuration. Installing it
-                                              creates a new independent installation.
-                                          </span>
-                                      ) : null}
+                          <Modal
+                              footer={
+                                  <Box className="happy2-plugin-catalog-panel__modal-actions">
+                                      <Button
+                                          onClick={() => local.onCloseInstall?.()}
+                                          variant="ghost"
+                                      >
+                                          Cancel
+                                      </Button>
+                                      <Button
+                                          disabled={!canSubmit()}
+                                          icon="plus"
+                                          onClick={() => local.onSubmitInstall?.()}
+                                      >
+                                          {busy(plugin.shortName)
+                                              ? "Installing…"
+                                              : "Install plugin"}
+                                      </Button>
                                   </Box>
-                              </Modal>
-                          </Box>
-                      </Box>
+                              }
+                              icon="braces"
+                              onClose={() => local.onCloseInstall?.()}
+                              size="medium"
+                              title={`Install ${plugin.displayName}`}
+                          >
+                              <Box className="happy2-plugin-catalog-panel__form">
+                                  <span className="happy2-plugin-catalog-panel__form-summary">
+                                      {plugin.description}
+                                  </span>
+                                  {plugin.variables.map((variable) => (
+                                      <FormRow
+                                          control={
+                                              <TextField
+                                                  fullWidth
+                                                  onValueChange={(value) =>
+                                                      local.onDraftValueChange?.(
+                                                          variable.key,
+                                                          value,
+                                                      )
+                                                  }
+                                                  placeholder={variable.key}
+                                                  type={
+                                                      variable.kind === "secret"
+                                                          ? "password"
+                                                          : "text"
+                                                  }
+                                                  value={values[variable.key] ?? ""}
+                                              />
+                                          }
+                                          description={
+                                              variable.kind === "secret"
+                                                  ? `${variable.description} Sent once and never shown again.`
+                                                  : variable.description
+                                          }
+                                          key={variable.key}
+                                          label={variable.displayName}
+                                          layout="stacked"
+                                      />
+                                  ))}
+                                  {selectionRequired ? (
+                                      <FormRow
+                                          control={
+                                              <Select
+                                                  fullWidth
+                                                  onValueChange={(value) =>
+                                                      local.onDraftContainerImageChange?.(value)
+                                                  }
+                                                  options={[...(local.containerImageOptions ?? [])]}
+                                                  placeholder="Choose a ready image"
+                                                  value={local.draftContainerImageId}
+                                              />
+                                          }
+                                          description="This stdio plugin runs inside a dedicated container created from a ready agent image."
+                                          label="Container image"
+                                          layout="stacked"
+                                      />
+                                  ) : null}
+                                  {permissionCount(plugin.apiPermissions ?? []) > 0 ? (
+                                      <Box className="happy2-plugin-catalog-panel__permission-block">
+                                          <span className="happy2-plugin-catalog-panel__permission-heading">
+                                              Permissions
+                                          </span>
+                                          <span className="happy2-plugin-catalog-panel__permission-intro">
+                                              {INSTALL_PERMISSIONS_INTRO}
+                                          </span>
+                                          <PluginPermissionFieldset
+                                              disabled={busy(plugin.shortName)}
+                                              onToggle={local.onDraftPermissionToggle}
+                                              sections={plugin.apiPermissions ?? []}
+                                              selected={selected}
+                                          />
+                                      </Box>
+                                  ) : null}
+                                  {plugin.variables.length === 0 &&
+                                  !selectionRequired &&
+                                  permissionCount(plugin.apiPermissions ?? []) === 0 ? (
+                                      <span className="happy2-plugin-catalog-panel__form-note">
+                                          This package needs no configuration. Installing it creates
+                                          a new independent installation.
+                                      </span>
+                                  ) : null}
+                              </Box>
+                          </Modal>
+                      </ModalOverlay>
                   ))(open)
+                : null}
+
+            {permissionsTarget
+                ? ((target) => (
+                      <ModalOverlay
+                          data-testid="plugin-catalog-permissions-overlay"
+                          onDismiss={() => local.onClosePermissions?.()}
+                      >
+                          <Modal
+                              footer={
+                                  <Box className="happy2-plugin-catalog-panel__modal-actions">
+                                      <Button
+                                          onClick={() => local.onClosePermissions?.()}
+                                          variant="ghost"
+                                      >
+                                          Cancel
+                                      </Button>
+                                      <Button
+                                          disabled={permissionsBusy(target.installation.id)}
+                                          icon="check"
+                                          onClick={() => local.onSubmitPermissions?.()}
+                                      >
+                                          {permissionsBusy(target.installation.id)
+                                              ? "Saving…"
+                                              : "Save permissions"}
+                                      </Button>
+                                  </Box>
+                              }
+                              icon="shield"
+                              onClose={() => local.onClosePermissions?.()}
+                              size="medium"
+                              title={`${target.plugin.displayName} permissions`}
+                          >
+                              <Box className="happy2-plugin-catalog-panel__form">
+                                  <span className="happy2-plugin-catalog-panel__form-summary">
+                                      {`These permissions apply to installation v${target.installation.version}. Changes restart it with the new grant set.`}
+                                  </span>
+                                  <PluginPermissionFieldset
+                                      disabled={permissionsBusy(target.installation.id)}
+                                      onToggle={local.onDraftPermissionToggle}
+                                      sections={target.plugin.apiPermissions ?? []}
+                                      selected={selected}
+                                  />
+                              </Box>
+                          </Modal>
+                      </ModalOverlay>
+                  ))(permissionsTarget)
                 : null}
         </Box>
     );

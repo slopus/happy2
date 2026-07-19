@@ -4,6 +4,7 @@ import { pluginInstallationList } from "./pluginInstallationList.js";
 import { pluginList } from "./pluginList.js";
 import type { PluginCatalogItem } from "./types.js";
 import { effectiveContainer } from "./impl/effectiveContainer.js";
+import { pluginApiPermissionSections } from "./impl/apiPermissions.js";
 
 /**
  * Projects the validated built-in catalog together with administrator-visible installation health and update availability.
@@ -44,7 +45,6 @@ export async function pluginCatalogList(
                         ? ("bundled" as const)
                         : ("selection_required" as const),
                     command: Boolean(catalogContainer.command),
-                    permissions: catalogContainer.permissions,
                 }
               : undefined;
         return {
@@ -56,6 +56,9 @@ export async function pluginCatalogList(
             iconUrl: `/v0/admin/plugins/${plugin.manifest.shortName}/icon`,
             skills: plugin.skills,
             variables: systemPlugin?.variables ?? plugin.manifest.variables,
+            apiPermissions:
+                systemPlugin?.apiPermissions ??
+                pluginApiPermissionSections(catalogContainer?.permissions ?? []),
             ...(mcp ? { mcp } : {}),
             ...(container ? { container } : {}),
             ...(systemPlugin

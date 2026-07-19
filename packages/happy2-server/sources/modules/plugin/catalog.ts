@@ -15,6 +15,7 @@ import type {
     PluginContainer,
     PluginHostPermission,
 } from "./types.js";
+import { pluginHostPermissions } from "./types.js";
 
 const MAX_PACKAGE_FILES = 1_000;
 const MAX_PACKAGE_BYTES = 20 * 1024 * 1024;
@@ -43,8 +44,6 @@ const RESERVED_REMOTE_HEADERS = new Set([
     "upgrade",
     "user-agent",
 ]);
-const HOST_PERMISSIONS = new Set<PluginHostPermission>(["chats:update", "plugins:list"]);
-
 /** Immutable lookup over validated plugin packages supplied by the built-in catalog. */
 export class PluginCatalog {
     private readonly packages: ReadonlyMap<string, PluginPackage>;
@@ -290,12 +289,12 @@ function container(value: unknown, label: string): PluginContainer {
     if (!command && record.args !== undefined)
         throw new Error(`${label}: container.args requires container.command`);
     const rawPermissions = record.permissions ?? [];
-    if (!Array.isArray(rawPermissions) || rawPermissions.length > HOST_PERMISSIONS.size)
+    if (!Array.isArray(rawPermissions) || rawPermissions.length > pluginHostPermissions.length)
         throw new Error(`${label}: container.permissions is invalid`);
     const permissions: PluginHostPermission[] = [];
     for (const [index, raw] of rawPermissions.entries()) {
         const permission = string(raw, `container.permissions[${index}]`, 100);
-        if (!HOST_PERMISSIONS.has(permission as PluginHostPermission))
+        if (!pluginHostPermissions.includes(permission as PluginHostPermission))
             throw new Error(`${label}: unknown container permission ${permission}`);
         if (permissions.includes(permission as PluginHostPermission))
             throw new Error(`${label}: duplicate container permission ${permission}`);

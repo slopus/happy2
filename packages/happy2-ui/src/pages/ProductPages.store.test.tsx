@@ -357,6 +357,32 @@ it("renders AgentSecretsPage from its independent store", async () => {
     expect(view.container.textContent).toContain("Loading");
 });
 
+const PLUGIN_PERMISSIONS = [
+    {
+        id: "plugins" as const,
+        displayName: "Plugins",
+        readOnly: [
+            {
+                id: "plugins:list" as const,
+                displayName: "View plugins",
+                description: "View installed plugins and their current status.",
+            },
+        ],
+        mutations: [
+            {
+                id: "plugins:install" as const,
+                displayName: "Install plugins",
+                description: "Install another plugin and choose the permissions granted to it.",
+            },
+            {
+                id: "plugins:uninstall" as const,
+                displayName: "Uninstall plugins",
+                description: "Stop and uninstall an existing plugin installation.",
+            },
+        ],
+    },
+];
+
 it("renders PluginsPage from its independent store and routes the typed install intent", async () => {
     const outputs: unknown[] = [];
     const fixture = owned(pluginsStoreFixtureCreate((event) => outputs.push(event)));
@@ -400,6 +426,7 @@ it("renders PluginsPage from its independent store and routes the typed install 
                         kind: "secret",
                     },
                 ],
+                apiPermissions: PLUGIN_PERMISSIONS,
             },
         ],
     });
@@ -435,6 +462,7 @@ it("renders PluginsPage from its independent store and routes the typed install 
                         kind: "secret",
                     },
                 ],
+                apiPermissions: PLUGIN_PERMISSIONS,
                 systemPlugin: {
                     id: "plugin-1",
                     displayName: "Project Search",
@@ -445,6 +473,7 @@ it("renders PluginsPage from its independent store and routes the typed install 
                     sourceVersion: "2.1.0",
                     packageDigest: "digest-1",
                     variables: [],
+                    apiPermissions: PLUGIN_PERMISSIONS,
                     image: {
                         contentType: "image/png",
                         size: 10,
@@ -463,6 +492,7 @@ it("renders PluginsPage from its independent store and routes the typed install 
                             shortName: "project-search",
                             sourceVersion: "2.1.0",
                             packageDigest: "digest-1",
+                            grantedPermissions: ["plugins:list"],
                             status: "ready",
                             installedAt: "2026-01-01T00:00:00.000Z",
                             updatedAt: "2026-01-01T00:00:00.000Z",
@@ -504,6 +534,122 @@ it("renders PluginsPage from its independent store and routes the typed install 
             type: "pluginInstallSubmitted",
             shortName: "project-search",
             variables: { PROJECT_API_TOKEN: "token-value" },
+            permissions: [],
+        },
+    ]);
+});
+
+it("keeps an open permission dialog across reconciliation and routes the typed permission update", async () => {
+    const outputs: unknown[] = [];
+    const fixture = owned(pluginsStoreFixtureCreate((event) => outputs.push(event)));
+    const install = owned(pluginInstallStoreFixtureCreate());
+    const images = owned(agentImagesStoreFixtureCreate());
+    const installed = (status: "ready" | "starting") => ({
+        displayName: "Project Search",
+        shortName: "project-search",
+        description: "Searches source code and project documentation.",
+        version: "2.1.0",
+        packageDigest: "digest-1",
+        skills: [],
+        mcp: { type: "remote" as const, container: "none" as const },
+        variables: [],
+        apiPermissions: PLUGIN_PERMISSIONS,
+        systemPlugin: {
+            id: "plugin-1",
+            displayName: "Project Search",
+            shortName: "project-search",
+            description: "Searches source code and project documentation.",
+            sourceKind: "builtin" as const,
+            sourceReference: "project-search",
+            sourceVersion: "2.1.0",
+            packageDigest: "digest-1",
+            variables: [],
+            apiPermissions: PLUGIN_PERMISSIONS,
+            image: {
+                contentType: "image/png" as const,
+                size: 10,
+                width: 1024,
+                height: 1024,
+                thumbhash: "hash",
+                checksumSha256: "checksum",
+            },
+            installedAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            updateAvailable: false,
+            installations: [
+                {
+                    id: "ins-1",
+                    pluginId: "plugin-1",
+                    shortName: "project-search",
+                    sourceVersion: "2.1.0",
+                    packageDigest: "digest-1",
+                    grantedPermissions: ["plugins:list"] as const,
+                    status,
+                    installedAt: "2026-01-01T00:00:00.000Z",
+                    updatedAt: "2026-01-01T00:00:00.000Z",
+                },
+            ],
+        },
+    });
+    fixture.input({ type: "pluginsLoaded", plugins: [installed("ready")] });
+    const view = createRenderer();
+    view.render(
+        () => (
+            <PluginsPage
+                agentImagesStore={() => images.store}
+                installStore={() => install.store}
+                store={fixture.store}
+            />
+        ),
+        {
+            width: 1024,
+            height: 704,
+        },
+    );
+    await view.ready();
+
+    // Open the installation's permission editor; its current grant is checked.
+    view.container
+        .querySelector<HTMLButtonElement>('[data-installation-id="ins-1"] button')!
+        .click();
+    await view.ready();
+    const control = (permissionId: string) =>
+        view.container.querySelector<HTMLInputElement>(
+            `[data-permission-id="${permissionId}"] [data-happy2-ui="checkbox-control"]`,
+        )!;
+    expect(control("plugins:list").checked).toBe(true);
+    expect(control("plugins:install").checked).toBe(false);
+    const mutateBefore = control("plugins:install");
+    mutateBefore.focus();
+    expect(document.activeElement).toBe(mutateBefore);
+
+    // A realtime-hinted reconcile must keep the open dialog, the focused
+    // checkbox's DOM identity, and its focus intact.
+    fixture.input({ type: "pluginsLoading" });
+    await view.ready();
+    fixture.input({ type: "pluginsLoaded", plugins: [installed("starting")] });
+    await view.ready();
+    const mutateAfter = control("plugins:install");
+    expect(mutateAfter, "focused checkbox DOM identity survives reconciliation").toBe(mutateBefore);
+    expect(document.activeElement, "focus survives reconciliation").toBe(mutateBefore);
+    expect(control("plugins:list").checked, "seeded grant survives reconciliation").toBe(true);
+
+    // Toggle a mutation on and save: exactly one typed permission-update intent
+    // in declared order.
+    mutateAfter.click();
+    await view.ready();
+    const save = Array.from(
+        view.container.querySelectorAll<HTMLButtonElement>(
+            '[data-happy2-ui="modal-footer"] button',
+        ),
+    ).find((button) => button.textContent?.includes("Save permissions"))!;
+    save.click();
+    expect(outputs).toEqual([
+        { type: "pluginUpdateChecksStarted" },
+        {
+            type: "pluginPermissionsUpdateSubmitted",
+            installationId: "ins-1",
+            permissions: ["plugins:list", "plugins:install"],
         },
     ]);
 });
@@ -529,6 +675,7 @@ it("filters the plugin catalog by skill name and description through PluginsPage
                     },
                 ],
                 variables: [],
+                apiPermissions: [],
             },
             {
                 displayName: "Search",
@@ -538,6 +685,7 @@ it("filters the plugin catalog by skill name and description through PluginsPage
                 packageDigest: "digest-search",
                 skills: [],
                 variables: [],
+                apiPermissions: [],
             },
         ],
     });

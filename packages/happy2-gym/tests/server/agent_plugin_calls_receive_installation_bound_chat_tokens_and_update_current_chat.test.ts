@@ -290,7 +290,9 @@ function chatMeta(call: ChatCall): { id: string; token: string } {
 }
 
 async function install(client: GymRequestClient): Promise<string> {
-    const installed = await client.post("/v0/admin/plugins/chat-management/installPlugin");
+    const installed = await client.post("/v0/admin/plugins/chat-management/installPlugin", {
+        permissions: ["chats:update"],
+    });
     expect(installed.statusCode).toBe(202);
     const installationId = installed.json().installation.id as string;
     await waitFor(async () => {

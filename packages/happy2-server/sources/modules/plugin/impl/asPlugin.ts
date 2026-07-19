@@ -1,6 +1,7 @@
 import type { PluginSourceKind, SystemPluginSummary } from "../types.js";
 import { installedManifest } from "./installedManifest.js";
 import { effectiveContainer } from "./effectiveContainer.js";
+import { pluginApiPermissionSections } from "./apiPermissions.js";
 
 export function asSystemPlugin(row: Record<string, unknown>): SystemPluginSummary {
     const sourceKind = requiredString(row.sourceKind, "plugin source kind");
@@ -22,6 +23,7 @@ export function asSystemPlugin(row: Record<string, unknown>): SystemPluginSummar
         sourceVersion: requiredString(row.sourceVersion, "plugin source version"),
         packageDigest: requiredString(row.packageDigest, "plugin package digest"),
         variables: manifest.variables,
+        apiPermissions: pluginApiPermissionSections(localContainer?.permissions ?? []),
         ...(mcp
             ? {
                   mcp: {
@@ -42,7 +44,6 @@ export function asSystemPlugin(row: Record<string, unknown>): SystemPluginSummar
                           ? ("bundled" as const)
                           : ("selection_required" as const),
                       command: Boolean(localContainer.command),
-                      permissions: localContainer.permissions,
                   },
               }
             : {}),

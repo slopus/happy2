@@ -22,6 +22,7 @@ function systemPlugin(overrides: Partial<SystemPluginSummary> = {}): SystemPlugi
         sourceVersion: "1.0.0",
         packageDigest: "digest-1",
         variables: [],
+        apiPermissions: [],
         image,
         installedAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",
@@ -37,6 +38,7 @@ const installation = {
     shortName: "linked-tools",
     sourceVersion: "1.0.0",
     packageDigest: "digest-1",
+    grantedPermissions: [],
     status: "preparing" as const,
     installedAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -54,6 +56,7 @@ const candidate = {
     description: "Tools linked from a ZIP URL.",
     skills: [],
     variables: [],
+    apiPermissions: [],
     image,
 };
 
@@ -159,7 +162,7 @@ describe("external plugins reconcile and cancel through HappyState", () => {
         install.getState().prepareSubmit();
         await state.whenIdle();
         expect(install.getState().step).toMatchObject({ step: "configure" });
-        install.getState().installSubmit({});
+        install.getState().installSubmit({}, []);
         await state.whenIdle();
         expect(install.getState().step).toMatchObject({
             step: "installed",

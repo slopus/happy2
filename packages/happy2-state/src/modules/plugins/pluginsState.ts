@@ -1,6 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
     type PluginCatalogItem,
+    type PluginHostPermission,
     type PluginInstallationSummary,
     type PluginPrepareProgress,
     type PluginUpdateCheck,
@@ -71,10 +72,10 @@ export async function pluginsLoad(context: PluginsActionContext): Promise<void> 
 
 /**
  * Routes one typed plugins-surface intent to its durable server action: catalog
- * installs, system-plugin uninstalls, and the automatic update-check watch that
- * runs only while the plugin-management surface is visible. Every durable
- * mutation reconciles the whole surface afterwards so installations and health
- * stay authoritative.
+ * installs, permission replacements, system-plugin uninstalls, and the automatic
+ * update-check watch that runs only while the plugin-management surface is visible.
+ * Every durable mutation reconciles the whole surface afterwards so installations,
+ * grants, and health stay authoritative.
  */
 export async function pluginsOutputRoute(
     context: PluginsActionContext,
@@ -86,6 +87,7 @@ export async function pluginsOutputRoute(
                 const result = await context.runtime.operation("installPlugin", {
                     shortName: event.shortName,
                     ...(Object.keys(event.variables).length ? { variables: event.variables } : {}),
+                    ...(event.permissions.length ? { permissions: event.permissions } : {}),
                     ...(event.containerImageId ? { containerImageId: event.containerImageId } : {}),
                 });
                 context.plugins.getState().pluginsInput({
@@ -98,6 +100,26 @@ export async function pluginsOutputRoute(
                 context.plugins.getState().pluginsInput({
                     type: "pluginInstallFailed",
                     shortName: event.shortName,
+                    error: userError(error),
+                });
+            }
+            return;
+        }
+        case "pluginPermissionsUpdateSubmitted": {
+            try {
+                const result = await context.runtime.operation("updatePluginPermissions", {
+                    installationId: event.installationId,
+                    permissions: event.permissions,
+                });
+                context.plugins.getState().pluginsInput({
+                    type: "pluginPermissionsUpdated",
+                    installation: result.installation,
+                });
+                await pluginsLoad(context);
+            } catch (error) {
+                context.plugins.getState().pluginsInput({
+                    type: "pluginPermissionsUpdateFailed",
+                    installationId: event.installationId,
                     error: userError(error),
                 });
             }
@@ -278,9 +300,10 @@ export function pluginsStoreCreate(
         systemPlugins: { type: "unloaded" },
         installing: [],
         uninstalling: [],
+        updatingPermissions: [],
         updateChecksActive: false,
         updateChecks: new Map(),
-        pluginInstall(shortName, variables, containerImageId): void {
+        pluginInstall(shortName, variables, permissions, containerImageId): void {
             set((snapshot) => ({
                 ...snapshot,
                 installing: snapshot.installing.includes(shortName)
@@ -292,7 +315,21 @@ export function pluginsStoreCreate(
                 type: "pluginInstallSubmitted",
                 shortName,
                 variables,
+                permissions: [...permissions],
                 ...(containerImageId ? { containerImageId } : {}),
+            });
+        },
+        pluginPermissionsUpdate(installationId, permissions): void {
+            if (get().updatingPermissions.includes(installationId)) return;
+            set((snapshot) => ({
+                ...snapshot,
+                updatingPermissions: [...snapshot.updatingPermissions, installationId],
+                actionError: undefined,
+            }));
+            output({
+                type: "pluginPermissionsUpdateSubmitted",
+                installationId,
+                permissions: [...permissions],
             });
         },
         pluginUninstall(pluginId): void {
@@ -372,6 +409,27 @@ export function pluginsStoreCreate(
                             ),
                             catalog: installationUpsert(snapshot.catalog, event.installation),
                             actionError: undefined,
+                        };
+                    case "pluginPermissionsUpdated":
+                        return {
+                            ...snapshot,
+                            updatingPermissions: snapshot.updatingPermissions.filter(
+                                (installationId) => installationId !== event.installation.id,
+                            ),
+                            catalog: installationUpsert(snapshot.catalog, event.installation),
+                            systemPlugins: systemInstallationUpsert(
+                                snapshot.systemPlugins,
+                                event.installation,
+                            ),
+                            actionError: undefined,
+                        };
+                    case "pluginPermissionsUpdateFailed":
+                        return {
+                            ...snapshot,
+                            updatingPermissions: snapshot.updatingPermissions.filter(
+                                (installationId) => installationId !== event.installationId,
+                            ),
+                            actionError: event.error,
                         };
                     case "pluginUninstalled":
                         return {
@@ -477,6 +535,26 @@ function systemPluginRemove(
     };
 }
 
+function systemInstallationUpsert(
+    plugins: Loadable<readonly SystemPluginSummary[]>,
+    installation: PluginInstallationSummary,
+): Loadable<readonly SystemPluginSummary[]> {
+    if (plugins.type !== "ready") return plugins;
+    return {
+        type: "ready",
+        value: plugins.value.map((plugin) =>
+            plugin.id !== installation.pluginId
+                ? plugin
+                : {
+                      ...plugin,
+                      installations: plugin.installations.map((candidate) =>
+                          candidate.id === installation.id ? installation : candidate,
+                      ),
+                  },
+        ),
+    };
+}
+
 function mapSet(
     map: ReadonlyMap<string, PluginUpdateCheckState>,
     key: string,
@@ -520,6 +598,8 @@ export interface PluginsSnapshot {
     readonly installing: readonly string[];
     /** System plugin IDs whose uninstall request is still in flight. */
     readonly uninstalling: readonly string[];
+    /** Installation IDs whose permission replacement is still in flight. */
+    readonly updatingPermissions: readonly string[];
     /** True while the plugin-management surface is visible and automatic update checks run. */
     readonly updateChecksActive: boolean;
     /** The latest automatic remote update check per system plugin ID. */
@@ -532,7 +612,13 @@ export type PluginsOutput =
           readonly type: "pluginInstallSubmitted";
           readonly shortName: string;
           readonly variables: Readonly<Record<string, string>>;
+          readonly permissions: readonly PluginHostPermission[];
           readonly containerImageId?: string;
+      }
+    | {
+          readonly type: "pluginPermissionsUpdateSubmitted";
+          readonly installationId: string;
+          readonly permissions: readonly PluginHostPermission[];
       }
     | { readonly type: "pluginUninstallSubmitted"; readonly pluginId: string }
     | { readonly type: "pluginUpdateChecksStarted" }
@@ -556,6 +642,15 @@ export type PluginsInput =
     | {
           readonly type: "pluginInstallFailed";
           readonly shortName: string;
+          readonly error: UserError;
+      }
+    | {
+          readonly type: "pluginPermissionsUpdated";
+          readonly installation: PluginInstallationSummary;
+      }
+    | {
+          readonly type: "pluginPermissionsUpdateFailed";
+          readonly installationId: string;
           readonly error: UserError;
       }
     | { readonly type: "pluginUninstalled"; readonly pluginId: string }
@@ -585,7 +680,12 @@ export interface PluginsState extends PluginsSnapshot {
     pluginInstall(
         shortName: string,
         variables: Readonly<Record<string, string>>,
+        permissions: readonly PluginHostPermission[],
         containerImageId?: string,
+    ): void;
+    pluginPermissionsUpdate(
+        installationId: string,
+        permissions: readonly PluginHostPermission[],
     ): void;
     pluginUninstall(pluginId: string): void;
     /** The plugin-management surface became visible; automatic update checks may run. */

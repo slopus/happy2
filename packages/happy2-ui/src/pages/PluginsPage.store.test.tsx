@@ -35,6 +35,7 @@ function systemPlugin(overrides: Partial<SystemPluginSummary> = {}): SystemPlugi
         sourceVersion: "1.0.0",
         packageDigest: "digest-1",
         variables: [],
+        apiPermissions: [],
         image,
         installedAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",
@@ -46,6 +47,7 @@ function systemPlugin(overrides: Partial<SystemPluginSummary> = {}): SystemPlugi
                 shortName: "repo-tools",
                 sourceVersion: "1.0.0",
                 packageDigest: "digest-1",
+                grantedPermissions: [],
                 status: "ready",
                 installedAt: "2026-01-01T00:00:00.000Z",
                 updatedAt: "2026-01-01T00:00:00.000Z",
@@ -68,6 +70,7 @@ function candidate(overrides: Partial<PreparedPluginSummary> = {}): PreparedPlug
         description: "Tools linked from a ZIP URL.",
         skills: [],
         variables: [],
+        apiPermissions: [],
         image,
         ...overrides,
     };
@@ -241,6 +244,7 @@ it("projects a system plugin represented by the catalog once and keeps uninstall
                 packageDigest: linked.packageDigest,
                 skills: [],
                 variables: linked.variables,
+                apiPermissions: linked.apiPermissions,
                 systemPlugin: linked,
             },
         ],
@@ -390,6 +394,20 @@ it("walks the external install flow with preserved dialog identity, focus, and t
                     },
                 ],
                 mcp: { type: "stdio", container: "selection_required" },
+                apiPermissions: [
+                    {
+                        id: "plugins",
+                        displayName: "Plugins",
+                        readOnly: [
+                            {
+                                id: "plugins:list",
+                                displayName: "View plugins",
+                                description: "View installed plugins and their current status.",
+                            },
+                        ],
+                        mutations: [],
+                    },
+                ],
             }),
         ],
     });
@@ -405,6 +423,12 @@ it("walks the external install flow with preserved dialog identity, focus, and t
     select.value = "img-1";
     select.dispatchEvent(new Event("change", { bubbles: true }));
     await view.ready();
+    dialog
+        .querySelector<HTMLInputElement>(
+            '[data-permission-id="plugins:list"] [data-happy2-ui="checkbox-control"]',
+        )!
+        .click();
+    await view.ready();
     const submit = view.container.querySelector<HTMLButtonElement>(
         '[data-testid="plugin-install-submit"]',
     )!;
@@ -416,6 +440,7 @@ it("walks the external install flow with preserved dialog identity, focus, and t
         type: "pluginInstallPreparedSubmitted",
         preparedToken: "token-1",
         variables: { API_TOKEN: "secret value" },
+        permissions: ["plugins:list"],
         containerImageId: "img-1",
     });
     expect(install.store.getState().step).toMatchObject({ step: "installing" });
@@ -435,6 +460,7 @@ it("walks the external install flow with preserved dialog identity, focus, and t
             shortName: "linked-tools",
             sourceVersion: "2.0.0",
             packageDigest: "digest-9",
+            grantedPermissions: [],
             status: "preparing",
             installedAt: "2026-01-02T00:00:00.000Z",
             updatedAt: "2026-01-02T00:00:00.000Z",

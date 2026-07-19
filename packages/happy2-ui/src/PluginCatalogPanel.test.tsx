@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { type ReactNode } from "react";
 import { server } from "vitest/browser";
 import "./theme.css";
 import "./styles/icon.css";
@@ -6,12 +7,18 @@ import "./styles/button.css";
 import "./styles/badge.css";
 import "./styles/banner.css";
 import "./styles/empty-state.css";
+import "./styles/checkbox.css";
 import "./styles/modal.css";
+import "./styles/modal-overlay.css";
 import "./styles/text-field.css";
 import "./styles/form-row.css";
 import "./styles/select.css";
 import "./styles/plugin-catalog-panel.css";
-import { PluginCatalogPanel, type PluginCatalogEntry } from "./PluginCatalogPanel";
+import {
+    PluginCatalogPanel,
+    type PluginCatalogEntry,
+    type PluginPermissionSection,
+} from "./PluginCatalogPanel";
 import { createRenderer } from "./testing";
 
 type Engine = "chromium" | "firefox" | "webkit";
@@ -23,6 +30,54 @@ const uiFamily = () =>
         ? "happy2 Figtree, system-ui, sans-serif"
         : '"happy2 Figtree", system-ui, sans-serif';
 
+const PERMISSIONS: readonly PluginPermissionSection[] = [
+    {
+        id: "plugins",
+        displayName: "Plugins",
+        readOnly: [
+            {
+                id: "plugins:list",
+                displayName: "View plugins",
+                description: "View installed plugins and their current status.",
+            },
+        ],
+        mutations: [
+            {
+                id: "plugins:install",
+                displayName: "Install plugins",
+                description: "Install another plugin and choose the permissions granted to it.",
+            },
+            {
+                id: "plugins:uninstall",
+                displayName: "Uninstall plugins",
+                description: "Stop and uninstall an existing plugin installation.",
+            },
+        ],
+    },
+];
+
+/*
+ * ModalOverlay is `position: fixed`; a transformed wrapper establishes a
+ * containing block so each dialog specimen stays bounded and screenshot-safe.
+ */
+function Frame(props: { children: ReactNode; width?: number; height?: number }) {
+    return (
+        <div
+            style={{
+                position: "relative",
+                width: `${props.width ?? 760}px`,
+                height: `${props.height ?? 560}px`,
+                overflow: "hidden",
+                transform: "translateZ(0)",
+                background: "#17161c",
+                display: "flex",
+            }}
+        >
+            {props.children}
+        </div>
+    );
+}
+
 const HELLO: PluginCatalogEntry = {
     shortName: "hello",
     displayName: "Hello",
@@ -30,10 +85,11 @@ const HELLO: PluginCatalogEntry = {
     version: "1.0.0",
     skills: [{ name: "hello", description: "Says hello." }],
     variables: [],
+    apiPermissions: [],
     installed: true,
     installations: [
-        { id: "ins-1", version: "1.0.0", status: "ready" },
-        { id: "ins-2", version: "1.0.0", status: "preparing" },
+        { id: "ins-1", version: "1.0.0", status: "ready", grantedPermissions: [] },
+        { id: "ins-2", version: "1.0.0", status: "preparing", grantedPermissions: [] },
     ],
 };
 
@@ -58,11 +114,18 @@ const PROJECT_SEARCH: PluginCatalogEntry = {
             kind: "text",
         },
     ],
+    apiPermissions: PERMISSIONS,
     installed: true,
     installedVersion: "2.0.0",
     updateAvailable: true,
     installations: [
-        { id: "ins-3", version: "2.0.0", status: "failed", detail: "MCP initialize timed out." },
+        {
+            id: "ins-3",
+            version: "2.0.0",
+            status: "failed",
+            detail: "MCP initialize timed out.",
+            grantedPermissions: ["plugins:list", "plugins:install"],
+        },
     ],
 };
 
@@ -84,6 +147,7 @@ const RUNNER: PluginCatalogEntry = {
             kind: "secret",
         },
     ],
+    apiPermissions: PERMISSIONS,
     installed: false,
     installations: [],
 };
@@ -104,6 +168,7 @@ const LONG_SKILL: PluginCatalogEntry = {
         },
     ],
     variables: [],
+    apiPermissions: [],
     installed: false,
     installations: [],
 };
@@ -279,7 +344,7 @@ it("holds PluginCatalogPanel layout, capability badges, installation health, and
     expect(Math.round(second.top - first.bottom), "6px gap between skill rows").toBe(6);
 
     // Installations: one status badge per independent installation, with the
-    // bounded diagnostic in the title attribute.
+    // bounded diagnostic in the health span's title attribute.
     const installations = view.$(`${card("hello")} .happy2-plugin-catalog-panel__installations`);
     expect(
         Array.from(
@@ -288,7 +353,11 @@ it("holds PluginCatalogPanel layout, capability badges, installation health, and
         ),
     ).toEqual(["Ready", "Preparing"]);
     const failed = view.$(`${card("project-search")} [data-installation-id="ins-3"]`);
-    expect(failed.element.getAttribute("title")).toBe("MCP initialize timed out.");
+    expect(
+        failed.element
+            .querySelector(".happy2-plugin-catalog-panel__installation-health")!
+            .getAttribute("title"),
+    ).toBe("MCP initialize timed out.");
     expect(
         failed.element.querySelector('[data-happy2-ui="badge"]')!.getAttribute("data-variant"),
     ).toBe("danger");
@@ -405,103 +474,86 @@ it("disables the install action while an install is in flight", async () => {
     expect(button("task-runner").disabled, "idle install enabled").toBe(false);
 }, 120_000);
 
-it("renders the install overlay with masked variables, image selection, and submit gating", async () => {
+it("renders the install dialog with masked variables, image selection, grouped permissions, and submit gating", async () => {
     const closed: number[] = [];
     const submitted: number[] = [];
     const changes: [string, string][] = [];
     const images: string[] = [];
+    const permissionToggles: [string, boolean][] = [];
     const view = createRenderer()
         .render(
             () => (
-                <div
-                    style={{
-                        width: "760px",
-                        height: "560px",
-                        background: "#17161c",
-                        display: "flex",
-                    }}
-                >
+                <Frame>
                     <PluginCatalogPanel
                         containerImageOptions={[
                             { value: "img-1", label: "daycare-full" },
                             { value: "img-2", label: "daycare-minimal" },
                         ]}
                         data-testid="empty-draft"
+                        draftPermissions={[]}
                         draftValues={{}}
                         installOpen="task-runner"
                         onCloseInstall={() => closed.push(1)}
                         onDraftContainerImageChange={(value) => images.push(value)}
+                        onDraftPermissionToggle={(id, checked) =>
+                            permissionToggles.push([id, checked])
+                        }
                         onDraftValueChange={(key, value) => changes.push([key, value])}
                         onSubmitInstall={() => submitted.push(1)}
                         plugins={[RUNNER]}
                     />
-                </div>
+                </Frame>
             ),
             { width: 760, height: 560, padding: 0 },
         )
         .render(
             () => (
-                <div
-                    style={{
-                        width: "760px",
-                        height: "560px",
-                        background: "#17161c",
-                        display: "flex",
-                    }}
-                >
+                <Frame>
                     <PluginCatalogPanel
                         containerImageOptions={[{ value: "img-1", label: "daycare-full" }]}
                         data-testid="filled-draft"
                         draftContainerImageId="img-1"
+                        draftPermissions={["plugins:list"]}
                         draftValues={{ RUNNER_TOKEN: "secret-value" }}
                         installOpen="task-runner"
                         onSubmitInstall={() => submitted.push(2)}
                         plugins={[RUNNER]}
                     />
-                </div>
+                </Frame>
             ),
             { width: 760, height: 560, padding: 0 },
         )
         .render(
             () => (
-                <div
-                    style={{
-                        width: "760px",
-                        height: "460px",
-                        background: "#17161c",
-                        display: "flex",
-                    }}
-                >
+                <Frame height={460}>
                     <PluginCatalogPanel
                         data-testid="no-config"
                         installOpen="hello"
                         onSubmitInstall={() => submitted.push(3)}
                         plugins={[HELLO]}
                     />
-                </div>
+                </Frame>
             ),
             { width: 760, height: 460, padding: 0 },
         );
     await view.ready();
 
-    // The overlay is a self-contained absolute scrim over the panel.
-    const overlay = view.$('[data-testid="empty-draft"] .happy2-plugin-catalog-panel__overlay');
+    // The dialog is hosted by the shared ModalOverlay (fixed, dimmed scrim).
+    const overlay = view.$('[data-testid="empty-draft"] [data-happy2-ui="modal-overlay"]');
     expect(
         overlay.computedStyles(["position", "display", "align-items", "justify-content"]),
     ).toEqual({
-        position: "absolute",
+        position: "fixed",
         display: "flex",
         "align-items": "center",
         "justify-content": "center",
     });
-    const overlayOffsets = overlay.offsets();
-    expect(
-        [overlayOffsets.top, overlayOffsets.right, overlayOffsets.bottom, overlayOffsets.left],
-        "overlay covers the panel",
-    ).toEqual([0, 0, 0, 0]);
+    expect(overlay.computedStyle("background-color")).toBe("rgba(0, 0, 0, 0.6)");
+    // Contained by the transformed Frame, the overlay covers it exactly.
+    expect(overlay.bounds()).toMatchObject({ width: 760, height: 560 });
 
     // Empty draft: the secret value field is masked, the image select empty,
-    // and submit gated on both.
+    // and submit gated on the required variable and container image.
     const secretInput = view
         .$('[data-testid="empty-draft"]')
         .element.querySelector<HTMLInputElement>("input")!;
@@ -518,13 +570,36 @@ it("renders the install overlay with masked variables, image selection, and subm
     select.dispatchEvent(new Event("change", { bubbles: true }));
     expect(images.at(-1)).toBe("img-2");
 
-    // Filled draft: value and image mirror the props; submit enables and fires.
+    // Permissions are grouped by access class with a checkbox each; nothing is
+    // preselected for a fresh install draft, and toggling emits one intent.
+    const groupLabels = Array.from(
+        view
+            .$('[data-testid="empty-draft"] .happy2-plugin-catalog-panel__permissions')
+            .element.querySelectorAll(".happy2-plugin-catalog-panel__permission-group-label"),
+        (node) => node.textContent,
+    );
+    expect(groupLabels).toEqual(["Read only", "Can make changes"]);
+    const permissionRow = (testId: string, permissionId: string) =>
+        view.$(
+            `[data-testid="${testId}"] [data-permission-id="${permissionId}"] [data-happy2-ui="checkbox-control"]`,
+        ).element as HTMLInputElement;
+    expect(permissionRow("empty-draft", "plugins:list").checked).toBe(false);
+    expect(permissionRow("empty-draft", "plugins:install").checked).toBe(false);
+    permissionRow("empty-draft", "plugins:install").click();
+    expect(permissionToggles.at(-1)).toEqual(["plugins:install", true]);
+    // Install is never blocked by permissions: submit is gated only on variables.
+    expect(modalSubmit(view, "empty-draft").disabled, "permissions never block install").toBe(true);
+
+    // Filled draft: value, image, and a preselected permission mirror the props;
+    // submit enables and fires.
+    expect(permissionRow("filled-draft", "plugins:list").checked).toBe(true);
     const filledSubmit = modalSubmit(view, "filled-draft");
     expect(filledSubmit.disabled, "submit enabled with a full draft").toBe(false);
     filledSubmit.click();
     expect(submitted).toEqual([2]);
 
-    // A no-configuration package explains itself and submits immediately.
+    // A no-configuration package (no variables, container, or permissions)
+    // explains itself and submits immediately.
     expect(
         view.$('[data-testid="no-config"] .happy2-plugin-catalog-panel__form-note').element
             .textContent,
@@ -544,6 +619,93 @@ it("renders the install overlay with masked variables, image selection, and subm
     expect(closed).toEqual([1]);
 
     await view.screenshot("PluginCatalogPanel.install.test");
+}, 120_000);
+
+it("edits an installation grant set through an accessible permissions dialog", async () => {
+    const opened: string[] = [];
+    const toggles: [string, boolean][] = [];
+    const saved: number[] = [];
+    const closed: number[] = [];
+    const view = createRenderer()
+        .render(
+            () => (
+                <Frame height={320}>
+                    <PluginCatalogPanel
+                        data-testid="cards"
+                        onOpenPermissions={(id) => opened.push(id)}
+                        plugins={[PROJECT_SEARCH]}
+                    />
+                </Frame>
+            ),
+            { width: 760, height: 320, padding: 0 },
+        )
+        .render(
+            () => (
+                <Frame>
+                    <PluginCatalogPanel
+                        data-testid="editing"
+                        draftPermissions={["plugins:list", "plugins:install"]}
+                        onClosePermissions={() => closed.push(1)}
+                        onDraftPermissionToggle={(id, checked) => toggles.push([id, checked])}
+                        onSubmitPermissions={() => saved.push(1)}
+                        permissionsOpen="ins-3"
+                        plugins={[PROJECT_SEARCH]}
+                    />
+                </Frame>
+            ),
+            { width: 760, height: 560, padding: 0 },
+        )
+        .render(
+            () => (
+                <Frame>
+                    <PluginCatalogPanel
+                        data-testid="saving"
+                        draftPermissions={["plugins:list"]}
+                        onSubmitPermissions={() => saved.push(2)}
+                        permissionsBusyInstallationIds={["ins-3"]}
+                        permissionsOpen="ins-3"
+                        plugins={[PROJECT_SEARCH]}
+                    />
+                </Frame>
+            ),
+            { width: 760, height: 560, padding: 0 },
+        );
+    await view.ready();
+
+    // Each installation exposes an accessible Permissions action keyed by id,
+    // labelled with its current grant count.
+    const trigger = view
+        .$('[data-testid="cards"] [data-installation-id="ins-3"]')
+        .element.querySelector<HTMLButtonElement>("button")!;
+    expect(trigger.textContent).toContain("Permissions · 2");
+    trigger.click();
+    expect(opened).toEqual(["ins-3"]);
+
+    // The editor dialog pre-checks the current grant set and reflects toggles.
+    const control = (testId: string, permissionId: string) =>
+        view.$(
+            `[data-testid="${testId}"] [data-permission-id="${permissionId}"] [data-happy2-ui="checkbox-control"]`,
+        ).element as HTMLInputElement;
+    expect(control("editing", "plugins:list").checked).toBe(true);
+    expect(control("editing", "plugins:install").checked).toBe(true);
+    expect(control("editing", "plugins:uninstall").checked).toBe(false);
+    control("editing", "plugins:uninstall").click();
+    expect(toggles.at(-1)).toEqual(["plugins:uninstall", true]);
+
+    // Save fires the typed submit; cancel closes.
+    const save = modalFooterButton(view, "editing", "Save permissions");
+    expect(save.disabled).toBe(false);
+    save.click();
+    expect(saved).toEqual([1]);
+    modalFooterButton(view, "editing", "Cancel").click();
+    expect(closed).toEqual([1]);
+
+    // While a save is in flight the checkboxes and save action lock.
+    expect(control("saving", "plugins:list").disabled, "in-flight checkbox disabled").toBe(true);
+    const savingButton = modalFooterButton(view, "saving", "Saving…");
+    expect(savingButton.disabled, "in-flight save disabled").toBe(true);
+
+    await view.screenshot("PluginCatalogPanel.permissions.test");
 }, 120_000);
 
 it("shows loading, error, and empty affordances", async () => {

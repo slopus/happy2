@@ -30,7 +30,7 @@ describe("plugin catalog across happy2-state and the real server", () => {
         // preparation continues asynchronously, so the installation streams
         // through the lifecycle to ready via realtime hints while the ready
         // catalog stays on screen the whole time.
-        plugins.getState().pluginInstall("hello", {});
+        plugins.getState().pluginInstall("hello", {}, []);
         await state.whenIdle();
         expect(plugins.getState().installing).toEqual([]);
         expect(plugins.getState().actionError).toBeUndefined();

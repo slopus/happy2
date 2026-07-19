@@ -10,6 +10,7 @@ import type { PluginSecretProtector } from "./secrets.js";
 import { PluginError, type PluginRuntimeConfiguration } from "./types.js";
 import { installedManifest } from "./impl/installedManifest.js";
 import { effectiveContainer } from "./impl/effectiveContainer.js";
+import { pluginPermissionsParse, pluginPermissionsValidate } from "./impl/apiPermissions.js";
 
 /**
  * Resolves one installed manifest into its private runtime configuration, revealing encrypted values only for process environment or remote header materialization.
@@ -30,6 +31,7 @@ export async function pluginInstallationGetRuntimeConfiguration(
             packageDirectory: plugins.packageDirectory,
             containerName: pluginInstallations.containerName,
             containerInstanceId: pluginInstallations.containerInstanceId,
+            grantedPermissionsJson: pluginInstallations.grantedPermissionsJson,
             containerImageId: pluginInstallations.containerImageId,
             selectedImageTag: agentImages.dockerTag,
             selectedImageStatus: agentImages.status,
@@ -149,6 +151,9 @@ export async function pluginInstallationGetRuntimeConfiguration(
         containerInstanceId: row.containerInstanceId ?? undefined,
         imageTag,
         ...(localContainer.dockerfile ? { bundledDockerfile: localContainer.dockerfile } : {}),
-        permissions: localContainer.permissions,
+        permissions: pluginPermissionsValidate(
+            pluginPermissionsParse(row.grantedPermissionsJson),
+            localContainer.permissions,
+        ),
     };
 }

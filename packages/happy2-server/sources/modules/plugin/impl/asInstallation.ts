@@ -3,6 +3,7 @@ import type {
     PluginInstallationSummary,
     PluginSourceKind,
 } from "../types.js";
+import { pluginPermissionsParse } from "./apiPermissions.js";
 
 const statuses: readonly PluginInstallationStatus[] = [
     "preparing",
@@ -27,6 +28,9 @@ export function asPluginInstallation(row: Record<string, unknown>): PluginInstal
         sourceReference: requiredString(row.sourceReference, "plugin source reference"),
         sourceVersion: requiredString(row.sourceVersion, "plugin source version"),
         packageDigest: requiredString(row.packageDigest, "plugin package digest"),
+        grantedPermissions: pluginPermissionsParse(
+            requiredString(row.grantedPermissionsJson, "plugin granted permissions"),
+        ),
         status: status as PluginInstallationStatus,
         ...(optionalString(row.statusDetail)
             ? { statusDetail: optionalString(row.statusDetail) }

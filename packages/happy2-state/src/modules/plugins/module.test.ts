@@ -15,6 +15,7 @@ const catalogItem = {
     description: "A minimal skills-only plugin.",
     version: "1.0.0",
     packageDigest: "digest-1",
+    grantedPermissions: [],
     skills: [{ name: "hello", description: "Says hello.", directory: "hello" }],
     variables: [],
 };
@@ -42,6 +43,7 @@ function systemPlugin(overrides: Partial<SystemPluginSummary> = {}): SystemPlugi
         sourceVersion: "1.0.0",
         packageDigest: "digest-1",
         variables: [],
+        apiPermissions: [],
         image: {
             contentType: "image/png",
             size: 10,
@@ -126,7 +128,7 @@ describe("plugins module", () => {
         // stay on screen instead of flashing back to a loading state.
         binding.getState().pluginsInput({ type: "pluginsLoading" });
         expect(binding.getState().catalog.type).toBe("ready");
-        binding.getState().pluginInstall("hello", { API_TOKEN: "secret value" });
+        binding.getState().pluginInstall("hello", { API_TOKEN: "secret value" }, []);
         expect(binding.getState().installing).toEqual(["hello"]);
         await Promise.all(routed);
         const snapshot = binding.getState();
@@ -156,10 +158,121 @@ describe("plugins module", () => {
         binding = pluginsStoreCreate((event) =>
             routed.push(pluginsOutputRoute({ runtime, plugins: binding }, event)),
         );
-        binding.getState().pluginInstall("hello", {});
+        binding.getState().pluginInstall("hello", {}, []);
         await Promise.all(routed);
         const install = server.requests.find((request) => request.method === "POST");
         expect(install?.body).toEqual({});
+        runtime.stop();
+    });
+
+    it("sends the granted permission subset with the install request", async () => {
+        const server = createFakeServer();
+        server.respond("GET", "/v0/admin/plugins", jsonResponse(200, { plugins: [catalogItem] }));
+        server.respond(
+            "POST",
+            "/v0/admin/plugins/hello/installPlugin",
+            jsonResponse(202, { installation }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport });
+        let binding: ReturnType<typeof pluginsStoreCreate>;
+        const routed: Promise<void>[] = [];
+        binding = pluginsStoreCreate((event) =>
+            routed.push(pluginsOutputRoute({ runtime, plugins: binding }, event)),
+        );
+        binding.getState().pluginInstall("hello", {}, ["plugins:list", "plugins:install"]);
+        await Promise.all(routed);
+        const install = server.requests.find((request) => request.method === "POST");
+        expect(install?.body).toEqual({ permissions: ["plugins:list", "plugins:install"] });
+        runtime.stop();
+    });
+
+    it("replaces one installation grant set and reconciles the durable catalog", async () => {
+        const granted = { ...installation, grantedPermissions: ["plugins:list"] };
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/admin/plugins",
+            jsonResponse(200, {
+                plugins: [
+                    {
+                        ...catalogItem,
+                        systemPlugin: {
+                            id: "plugin-1",
+                            displayName: "Hello",
+                            shortName: "hello",
+                            description: "A minimal skills-only plugin.",
+                            sourceVersion: "1.0.0",
+                            packageDigest: "digest-1",
+                            variables: [],
+                            image: {
+                                contentType: "image/png",
+                                size: 10,
+                                width: 1024,
+                                height: 1024,
+                                thumbhash: "hash",
+                                checksumSha256: "checksum",
+                            },
+                            installedAt: "2026-01-01T00:00:00.000Z",
+                            updatedAt: "2026-01-01T00:00:00.000Z",
+                            updateAvailable: false,
+                            installations: [granted],
+                        },
+                    },
+                ],
+            }),
+        );
+        server.respond(
+            "POST",
+            "/v0/admin/pluginInstallations/installation-1/updatePermissions",
+            jsonResponse(202, { installation: granted }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport });
+        let binding: ReturnType<typeof pluginsStoreCreate>;
+        const routed: Promise<void>[] = [];
+        binding = pluginsStoreCreate((event) =>
+            routed.push(pluginsOutputRoute({ runtime, plugins: binding }, event)),
+        );
+        await pluginsLoad({ runtime, plugins: binding });
+        binding.getState().pluginPermissionsUpdate("installation-1", ["plugins:list"]);
+        expect(binding.getState().updatingPermissions).toEqual(["installation-1"]);
+        await Promise.all(routed);
+        const snapshot = binding.getState();
+        expect(snapshot.updatingPermissions).toEqual([]);
+        expect(snapshot.catalog).toMatchObject({
+            type: "ready",
+            value: [
+                {
+                    systemPlugin: {
+                        installations: [
+                            { id: "installation-1", grantedPermissions: ["plugins:list"] },
+                        ],
+                    },
+                },
+            ],
+        });
+        const update = server.requests.find((request) => request.method === "POST");
+        expect(update?.path).toBe("/v0/admin/pluginInstallations/installation-1/updatePermissions");
+        expect(update?.body).toEqual({ permissions: ["plugins:list"] });
+        runtime.stop();
+    });
+
+    it("surfaces a failed permission update and clears the pending installation flag", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "POST",
+            "/v0/admin/pluginInstallations/installation-1/updatePermissions",
+            jsonResponse(403, { error: "forbidden", message: "Only administrators may do that." }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport });
+        let binding: ReturnType<typeof pluginsStoreCreate>;
+        const routed: Promise<void>[] = [];
+        binding = pluginsStoreCreate((event) =>
+            routed.push(pluginsOutputRoute({ runtime, plugins: binding }, event)),
+        );
+        binding.getState().pluginPermissionsUpdate("installation-1", []);
+        await Promise.all(routed);
+        expect(binding.getState().updatingPermissions).toEqual([]);
+        expect(binding.getState().actionError?.message).toBe("Only administrators may do that.");
         runtime.stop();
     });
 
@@ -181,7 +294,7 @@ describe("plugins module", () => {
             routed.push(pluginsOutputRoute({ runtime, plugins: binding }, event)),
         );
         await pluginsLoad({ runtime, plugins: binding });
-        binding.getState().pluginInstall("hello", {});
+        binding.getState().pluginInstall("hello", {}, []);
         await Promise.all(routed);
         expect(binding.getState().installing).toEqual([]);
         expect(binding.getState().actionError?.message).toBe("PROJECT_API_TOKEN is required.");
@@ -196,12 +309,13 @@ describe("plugins module", () => {
             shortName: "hello",
             error: new Error("bad") as never,
         });
-        binding.getState().pluginInstall("hello", {});
+        binding.getState().pluginInstall("hello", {}, []);
         expect(binding.getState().actionError).toBeUndefined();
         expect(output).toHaveBeenCalledWith({
             type: "pluginInstallSubmitted",
             shortName: "hello",
             variables: {},
+            permissions: [],
         });
     });
 

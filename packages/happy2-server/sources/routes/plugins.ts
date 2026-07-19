@@ -11,7 +11,11 @@ import { pluginList } from "../modules/plugin/pluginList.js";
 import { pluginMcpToolsList } from "../modules/plugin/pluginMcpToolsList.js";
 import { pluginAuthorizeManagement } from "../modules/plugin/pluginAuthorizeManagement.js";
 import type { PluginService } from "../modules/plugin/service.js";
-import { PluginError } from "../modules/plugin/types.js";
+import {
+    PluginError,
+    pluginHostPermissions,
+    type PluginHostPermission,
+} from "../modules/plugin/types.js";
 import { CollaborationError } from "../modules/chat/types.js";
 
 const SHORT_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -88,11 +92,12 @@ export function registerPluginRoutes(
         if (!actorUserId) return;
         try {
             const body = request.body === undefined ? {} : object(request.body, "Request body");
-            only(body, ["variables", "containerImageId"]);
+            only(body, ["variables", "containerImageId", "permissions"]);
             const installation = await plugins.install({
                 actorUserId,
                 shortName: pathShortName(request),
                 variables: variables(body.variables),
+                permissions: permissions(body.permissions),
                 ...(body.containerImageId === undefined
                     ? {}
                     : { containerImageId: identifier(body.containerImageId, "containerImageId") }),
@@ -102,6 +107,45 @@ export function registerPluginRoutes(
             return handled(reply, error) ?? Promise.reject(error);
         }
     });
+
+    app.post(
+        "/v0/admin/pluginInstallations/:installationId/updatePermissions",
+        async (request, reply) => {
+            const actorUserId = await actor(auth, request, reply);
+            if (!actorUserId) return;
+            try {
+                const body = object(request.body, "Request body");
+                only(body, ["permissions"]);
+                const installation = await plugins.updatePermissions({
+                    actorUserId,
+                    installationId: pathIdentifier(request, "installationId"),
+                    permissions: permissions(body.permissions),
+                });
+                return reply.code(202).send({ installation });
+            } catch (error) {
+                return handled(reply, error) ?? Promise.reject(error);
+            }
+        },
+    );
+
+    app.post(
+        "/v0/admin/pluginInstallations/:installationId/uninstallPlugin",
+        async (request, reply) => {
+            const actorUserId = await actor(auth, request, reply);
+            if (!actorUserId) return;
+            try {
+                const body = request.body === undefined ? {} : object(request.body, "Request body");
+                only(body, []);
+                await plugins.uninstallInstallation({
+                    actorUserId,
+                    installationId: pathIdentifier(request, "installationId"),
+                });
+                return { uninstalled: true };
+            } catch (error) {
+                return handled(reply, error) ?? Promise.reject(error);
+            }
+        },
+    );
 
     app.get("/v0/admin/pluginInstallations/:installationId/mcpTools", async (request, reply) => {
         const actorUserId = await actor(auth, request, reply);
@@ -168,13 +212,14 @@ export function registerPluginRoutes(
         if (!actorUserId) return;
         try {
             const body = object(request.body, "Request body");
-            only(body, ["preparedToken", "variables", "containerImageId"]);
+            only(body, ["preparedToken", "variables", "permissions", "containerImageId"]);
             if (typeof body.preparedToken !== "string" || body.preparedToken.length > 256)
                 throw new RequestError("preparedToken is invalid");
             const installation = await plugins.installPrepared({
                 actorUserId,
                 preparedToken: body.preparedToken,
                 variables: variables(body.variables),
+                permissions: permissions(body.permissions),
                 ...(body.containerImageId === undefined
                     ? {}
                     : { containerImageId: identifier(body.containerImageId, "containerImageId") }),
@@ -317,6 +362,24 @@ function identifier(value: unknown, name: string): string {
     if (typeof value !== "string" || !value || value.length > 128 || /\s/.test(value))
         throw new RequestError(`${name} must be a valid identifier`);
     return value;
+}
+
+function permissions(value: unknown): PluginHostPermission[] {
+    if (value === undefined) return [];
+    if (!Array.isArray(value) || value.length > pluginHostPermissions.length)
+        throw new RequestError("permissions must be an array");
+    const result: PluginHostPermission[] = [];
+    for (const permission of value) {
+        if (
+            typeof permission !== "string" ||
+            !pluginHostPermissions.includes(permission as PluginHostPermission)
+        )
+            throw new RequestError("permissions contains an unknown plugin permission");
+        if (result.includes(permission as PluginHostPermission))
+            throw new RequestError(`permissions contains duplicate ${permission}`);
+        result.push(permission as PluginHostPermission);
+    }
+    return result;
 }
 
 function object(value: unknown, name: string): Record<string, unknown> {

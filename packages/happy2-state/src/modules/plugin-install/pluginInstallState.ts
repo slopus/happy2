@@ -1,5 +1,6 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
+    type PluginHostPermission,
     type PluginInstallationSummary,
     type PluginPrepareProgress,
     type PreparedPluginSummary,
@@ -70,6 +71,7 @@ export type PluginInstallOutput =
           readonly type: "pluginInstallPreparedSubmitted";
           readonly preparedToken: string;
           readonly variables: Readonly<Record<string, string>>;
+          readonly permissions: readonly PluginHostPermission[];
           readonly containerImageId?: string;
       };
 
@@ -110,7 +112,11 @@ export interface PluginInstallState extends PluginInstallSnapshot {
      * (including secrets) exist only transiently inside the typed output event
      * and are never written to this snapshot.
      */
-    installSubmit(variables: Readonly<Record<string, string>>, containerImageId?: string): void;
+    installSubmit(
+        variables: Readonly<Record<string, string>>,
+        permissions: readonly PluginHostPermission[],
+        containerImageId?: string,
+    ): void;
     /** Clears the whole flow back to the source step; used when the dialog opens. */
     flowReset(): void;
     pluginInstallInput(event: PluginInstallInput): void;
@@ -234,7 +240,7 @@ export function pluginInstallStoreCreate(
                 installError: undefined,
             }));
         },
-        installSubmit(variables, containerImageId): void {
+        installSubmit(variables, permissions, containerImageId): void {
             const snapshot = get();
             if (snapshot.step.step !== "configure") return;
             const candidate = snapshot.step.candidate;
@@ -255,6 +261,7 @@ export function pluginInstallStoreCreate(
                 type: "pluginInstallPreparedSubmitted",
                 preparedToken: candidate.preparedToken,
                 variables,
+                permissions: [...permissions],
                 ...(containerImageId ? { containerImageId } : {}),
             });
         },
@@ -365,6 +372,7 @@ export async function pluginInstallOutputRoute(
                 const result = await context.runtime.operation("installPreparedPlugin", {
                     preparedToken: event.preparedToken,
                     ...(Object.keys(event.variables).length ? { variables: event.variables } : {}),
+                    ...(event.permissions.length ? { permissions: event.permissions } : {}),
                     ...(event.containerImageId ? { containerImageId: event.containerImageId } : {}),
                 });
                 context.install.getState().pluginInstallInput({

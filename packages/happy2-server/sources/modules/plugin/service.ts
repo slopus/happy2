@@ -21,11 +21,16 @@ import { pluginInstallationGetRuntimeConfiguration } from "./pluginInstallationG
 import { pluginInstallationListIds } from "./pluginInstallationListIds.js";
 import { pluginInstallationListReadyMcpIds } from "./pluginInstallationListReadyMcpIds.js";
 import { pluginInstallationUpdateStatus } from "./pluginInstallationUpdateStatus.js";
+import { pluginInstallationPermissionsUpdate } from "./pluginInstallationPermissionsUpdate.js";
+import { pluginInstallationUninstall } from "./pluginInstallationUninstall.js";
+import { pluginInstallationGetContainerName } from "./pluginInstallationGetContainerName.js";
 import { pluginRemoveMissingBuiltins } from "./pluginRemoveMissingBuiltins.js";
 import { pluginMcpToolsReplace, type PluginMcpToolInput } from "./pluginMcpToolsReplace.js";
 import { pluginMcpToolsListReady } from "./pluginMcpToolsListReady.js";
 import { pluginSkillsListReady } from "./pluginSkillsListReady.js";
 import { pluginSkillsListInstalled } from "./pluginSkillsListInstalled.js";
+import { pluginApiPermissionSections } from "./impl/apiPermissions.js";
+import { effectiveContainer } from "./impl/effectiveContainer.js";
 import type { PluginSkillSourceRecord } from "./impl/pluginSkillSource.js";
 import { pluginContainerInstanceAuthorize } from "./pluginContainerInstanceAuthorize.js";
 import { pluginContainerInstanceInvalidate } from "./pluginContainerInstanceInvalidate.js";
@@ -121,12 +126,16 @@ export class PluginService {
     }
 
     async install(input: {
-        actorUserId: string;
+        actorUserId?: string;
+        actorInstallationId?: string;
         shortName: string;
         variables: Readonly<Record<string, string>>;
+        permissions: readonly PluginHostPermission[];
         containerImageId?: string;
     }): Promise<PluginInstallationSummary> {
-        await pluginAuthorizeManagement(this.executor, input.actorUserId);
+        if (input.actorUserId) await pluginAuthorizeManagement(this.executor, input.actorUserId);
+        else if (!input.actorInstallationId)
+            throw new PluginError("forbidden", "Plugin installation authority is required");
         const plugin = this.catalog.get(input.shortName);
         if (!plugin) throw new PluginError("not_found", "Built-in plugin was not found");
         const installationId = createId();
@@ -143,10 +152,12 @@ export class PluginService {
         try {
             result = await pluginInstall(this.executor, this.secrets, {
                 actorUserId: input.actorUserId,
+                actorInstallationId: input.actorInstallationId,
                 installationId,
                 plugin,
                 candidate,
                 variables: input.variables,
+                permissions: input.permissions,
                 containerImageId: input.containerImageId,
             });
         } catch (error) {
@@ -213,6 +224,7 @@ export class PluginService {
         actorUserId: string;
         preparedToken: string;
         variables: Readonly<Record<string, string>>;
+        permissions: readonly PluginHostPermission[];
         containerImageId?: string;
     }): Promise<PluginInstallationSummary> {
         await pluginAuthorizeManagement(this.executor, input.actorUserId);
@@ -244,6 +256,7 @@ export class PluginService {
                     plugin: prepared.plugin,
                     candidate,
                     variables: input.variables,
+                    permissions: input.permissions,
                     containerImageId: input.containerImageId,
                 });
             } catch (error) {
@@ -353,6 +366,44 @@ export class PluginService {
                 packageDigest: remotePackage.packageDigest,
             },
         };
+    }
+
+    async updatePermissions(input: {
+        actorUserId: string;
+        installationId: string;
+        permissions: readonly PluginHostPermission[];
+    }): Promise<PluginInstallationSummary> {
+        const result = await pluginInstallationPermissionsUpdate(this.executor, input);
+        if (!result.changed) return result.installation;
+        if (result.hint) await this.publish(result.hint).catch(this.onError);
+        await this.stopActivation(input.installationId);
+        if (result.containerName)
+            await this.runtime.removeLocal(result.containerName).catch(this.onError);
+        this.activate(input.installationId);
+        return result.installation;
+    }
+
+    async uninstallInstallation(input: {
+        installationId: string;
+        actorUserId?: string;
+        actorInstallationId?: string;
+    }): Promise<void> {
+        if (input.actorUserId) await pluginAuthorizeManagement(this.executor, input.actorUserId);
+        else if (!input.actorInstallationId)
+            throw new PluginError("forbidden", "Plugin installation authority is required");
+        const containerName = await pluginInstallationGetContainerName(
+            this.executor,
+            input.installationId,
+        );
+        await this.stopActivation(input.installationId);
+        try {
+            if (containerName) await this.runtime.removeLocal(containerName);
+            const result = await pluginInstallationUninstall(this.executor, input);
+            await this.publish(result.hint).catch(this.onError);
+        } catch (error) {
+            this.activate(input.installationId);
+            throw error;
+        }
     }
 
     async image(
@@ -725,6 +776,13 @@ export class PluginService {
         this.activations.set(installationId, { controller, promise });
     }
 
+    private async stopActivation(installationId: string): Promise<void> {
+        const activation = this.activations.get(installationId);
+        activation?.controller.abort();
+        if (activation) await activation.promise;
+        this.closeCommand(installationId);
+    }
+
     private async withClient<T>(
         installationId: string,
         signal: AbortSignal | undefined,
@@ -901,9 +959,9 @@ export class PluginService {
                     this.commandHandles.delete(installationId);
                 commandHandle.close();
             }
-            if (signal.aborted && this.closed) return;
             if (preparedContainerName)
                 await this.runtime.removeLocal(preparedContainerName).catch(this.onError);
+            if (signal.aborted) return;
             const broken = error instanceof PluginError && error.code === "broken_configuration";
             await this.status(
                 installationId,
@@ -1277,6 +1335,9 @@ function preparedSummary(
         description: plugin.manifest.description,
         skills: plugin.skills.map(({ name, description }) => ({ name, description })),
         variables: plugin.manifest.variables,
+        apiPermissions: pluginApiPermissionSections(
+            effectiveContainer(plugin.manifest)?.permissions ?? [],
+        ),
         ...(mcp
             ? {
                   mcp: {

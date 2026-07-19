@@ -44,7 +44,7 @@ describe("external plugins across happy2-state and the real server", () => {
         // Installing the chosen candidate consumes its prepared token durably and
         // reconciles the plugin surface without a manual refresh.
         install.getState().candidateChoose(chooseStep.candidates[0]!.preparedToken);
-        install.getState().installSubmit({});
+        install.getState().installSubmit({}, []);
         await state.whenIdle();
         const installedStep = install.getState().step;
         if (installedStep.step !== "installed")
@@ -123,7 +123,7 @@ describe("external plugins across happy2-state and the real server", () => {
             skills: [{ name: "uploaded-tools" }],
         });
 
-        install.getState().installSubmit({});
+        install.getState().installSubmit({}, []);
         await state.whenIdle();
         expect(install.getState().step).toMatchObject({
             step: "installed",

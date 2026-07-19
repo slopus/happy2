@@ -8,7 +8,11 @@ import { Button } from "./Button";
 import { FormRow } from "./FormRow";
 import { Icon, type IconName } from "./Icon";
 import { Modal } from "./Modal";
-import { type PluginVariableField } from "./PluginCatalogPanel";
+import {
+    PluginPermissionFieldset,
+    type PluginPermissionSection,
+    type PluginVariableField,
+} from "./PluginCatalogPanel";
 import { Select, type SelectOption } from "./Select";
 import { TextField } from "./TextField";
 export type PluginInstallDialogSourceKind = "upload" | "zip_url" | "github";
@@ -30,6 +34,7 @@ export type PluginInstallDialogCandidate = {
     sourceReference: string;
     skills: readonly { name: string; description: string }[];
     variables: readonly PluginVariableField[];
+    apiPermissions?: readonly PluginPermissionSection[];
     mcp?: { type: "remote" | "stdio"; container: "bundled" | "selection_required" | "none" };
     /** Base64 thumbhash of the verified package icon; the PNG itself stays server-side until install. */
     thumbhash?: string;
@@ -62,6 +67,7 @@ export type PluginInstallDialogProps = {
     /** Ready container images offered when the manifest requires a selection. */
     containerImageOptions?: readonly SelectOption[];
     draftContainerImageId?: string;
+    draftPermissions?: readonly string[];
     onSourceKindChange?: (kind: PluginInstallDialogSourceKind) => void;
     onUrlChange?: (value: string) => void;
     onArchiveSelect?: (file: File) => void;
@@ -73,6 +79,7 @@ export type PluginInstallDialogProps = {
     onCandidateListReturn?: () => void;
     onDraftValueChange?: (key: string, value: string) => void;
     onDraftContainerImageChange?: (imageId: string) => void;
+    onDraftPermissionToggle?: (permissionId: string, checked: boolean) => void;
     onInstall?: () => void;
     onClose?: () => void;
 };
@@ -131,6 +138,7 @@ export function PluginInstallDialog(props: PluginInstallDialogProps) {
         "draftValues",
         "containerImageOptions",
         "draftContainerImageId",
+        "draftPermissions",
         "onSourceKindChange",
         "onUrlChange",
         "onArchiveSelect",
@@ -142,6 +150,7 @@ export function PluginInstallDialog(props: PluginInstallDialogProps) {
         "onCandidateListReturn",
         "onDraftValueChange",
         "onDraftContainerImageChange",
+        "onDraftPermissionToggle",
         "onInstall",
         "onClose",
     ]);
@@ -176,10 +185,12 @@ export function PluginInstallDialog(props: PluginInstallDialogProps) {
                         candidate={step.candidate}
                         containerImageOptions={local.containerImageOptions}
                         draftContainerImageId={local.draftContainerImageId}
+                        draftPermissions={local.draftPermissions}
                         draftValues={local.draftValues}
                         installError={local.installError}
                         installing={step.step === "installing"}
                         onDraftContainerImageChange={local.onDraftContainerImageChange}
+                        onDraftPermissionToggle={local.onDraftPermissionToggle}
                         onDraftValueChange={local.onDraftValueChange}
                     />
                 ) : null}
@@ -208,6 +219,7 @@ type LocalProps = Pick<
     | "draftValues"
     | "containerImageOptions"
     | "draftContainerImageId"
+    | "draftPermissions"
     | "onSourceKindChange"
     | "onUrlChange"
     | "onArchiveSelect"
@@ -219,6 +231,7 @@ type LocalProps = Pick<
     | "onCandidateListReturn"
     | "onDraftValueChange"
     | "onDraftContainerImageChange"
+    | "onDraftPermissionToggle"
     | "onInstall"
     | "onClose"
 >;
@@ -562,8 +575,10 @@ function ConfigureStep(props: {
     draftValues?: Readonly<Record<string, string>>;
     containerImageOptions?: readonly SelectOption[];
     draftContainerImageId?: string;
+    draftPermissions?: readonly string[];
     onDraftValueChange?: (key: string, value: string) => void;
     onDraftContainerImageChange?: (imageId: string) => void;
+    onDraftPermissionToggle?: (permissionId: string, checked: boolean) => void;
 }) {
     const candidate = props.candidate;
     const values = props.draftValues ?? {};
@@ -683,12 +698,29 @@ function ConfigureStep(props: {
                         />
                     ) : null}
                 </Box>
-            ) : (
+            ) : (candidate.apiPermissions?.length ?? 0) === 0 ? (
                 <span className="happy2-plugin-install-dialog__hint">
                     This package needs no configuration. Installing it creates a new independent
                     installation.
                 </span>
-            )}
+            ) : null}
+            {(candidate.apiPermissions?.length ?? 0) > 0 ? (
+                <Box className="happy2-plugin-catalog-panel__permission-block">
+                    <span className="happy2-plugin-catalog-panel__permission-heading">
+                        Permissions
+                    </span>
+                    <span className="happy2-plugin-catalog-panel__permission-intro">
+                        Grant only the host capabilities this installation needs. Every permission
+                        is optional.
+                    </span>
+                    <PluginPermissionFieldset
+                        disabled={props.installing}
+                        onToggle={props.onDraftPermissionToggle}
+                        sections={candidate.apiPermissions ?? []}
+                        selected={props.draftPermissions ?? []}
+                    />
+                </Box>
+            ) : null}
         </Box>
     );
 }

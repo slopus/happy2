@@ -40,7 +40,7 @@ describe("container plugin commands, durable MCP tools, and host capabilities", 
                 dockerfile: "container/Dockerfile",
                 command: "/plugin/worker",
                 args: ["--serve"],
-                permissions: ["plugins:list"],
+                permissions: ["plugins:list", "plugins:install", "plugins:uninstall"],
             },
         });
         await writePlugin(root, "runtime-isolated", {
@@ -85,10 +85,14 @@ describe("container plugin commands, durable MCP tools, and host capabilities", 
 
         const reader = await server
             .as(admin)
-            .post("/v0/admin/plugins/runtime-reader/installPlugin");
+            .post("/v0/admin/plugins/runtime-reader/installPlugin", {
+                permissions: ["plugins:list"],
+            });
         const adoptedReader = await server
             .as(admin)
-            .post("/v0/admin/plugins/runtime-reader/installPlugin");
+            .post("/v0/admin/plugins/runtime-reader/installPlugin", {
+                permissions: ["plugins:list"],
+            });
         const isolated = await server
             .as(admin)
             .post("/v0/admin/plugins/runtime-isolated/installPlugin");
@@ -107,6 +111,47 @@ describe("container plugin commands, durable MCP tools, and host capabilities", 
             waitForStatus(server, admin, isolatedId, "ready"),
             waitForStatus(server, admin, toolsId, "ready"),
         ]);
+
+        const catalog = await server.as(admin).get("/v0/admin/plugins");
+        expect(catalog.statusCode).toBe(200);
+        expect(
+            catalog
+                .json()
+                .plugins.find(
+                    (plugin: { shortName: string }) => plugin.shortName === "runtime-reader",
+                ),
+        ).toMatchObject({
+            apiPermissions: [
+                {
+                    id: "plugins",
+                    displayName: "Plugins",
+                    readOnly: [
+                        {
+                            id: "plugins:list",
+                            displayName: "View plugins",
+                        },
+                    ],
+                    mutations: [
+                        {
+                            id: "plugins:install",
+                            displayName: "Install plugins",
+                        },
+                        {
+                            id: "plugins:uninstall",
+                            displayName: "Uninstall plugins",
+                        },
+                    ],
+                },
+            ],
+            systemPlugin: {
+                installations: expect.arrayContaining([
+                    expect.objectContaining({
+                        id: readerId,
+                        grantedPermissions: ["plugins:list"],
+                    }),
+                ]),
+            },
+        });
 
         expect(runtime.prepares).toEqual(
             expect.arrayContaining([
@@ -178,6 +223,18 @@ describe("container plugin commands, durable MCP tools, and host capabilities", 
                 expect.objectContaining({ id: toolsId, shortName: "runtime-tools" }),
             ]),
         });
+        expect(
+            (
+                await server.pluginHost().post(
+                    "/plugins/install",
+                    {
+                        shortName: "runtime-isolated",
+                        permissions: [],
+                    },
+                    { headers: { authorization: `Bearer ${readerToken}` } },
+                )
+            ).statusCode,
+        ).toBe(403);
         const isolatedToken = runtime.starts.find(({ containerName }) =>
             containerName.endsWith(isolatedId),
         )!.environment.HAPPY2_PLUGIN_API_TOKEN!;
@@ -186,6 +243,107 @@ describe("container plugin commands, durable MCP tools, and host capabilities", 
                 await server.pluginHost().get("/plugins", {
                     headers: { authorization: `Bearer ${isolatedToken}` },
                 })
+            ).statusCode,
+        ).toBe(403);
+
+        const permissionUpdate = await server
+            .as(admin)
+            .post(`/v0/admin/pluginInstallations/${readerId}/updatePermissions`, {
+                permissions: ["plugins:list", "plugins:install", "plugins:uninstall"],
+            });
+        expect(permissionUpdate.statusCode).toBe(202);
+        expect(permissionUpdate.json().installation).toMatchObject({
+            id: readerId,
+            grantedPermissions: ["plugins:list", "plugins:install", "plugins:uninstall"],
+            status: "preparing",
+        });
+        await waitForStatus(server, admin, readerId, "ready");
+        expect(
+            (
+                await server.pluginHost().get("/plugins", {
+                    headers: { authorization: `Bearer ${readerToken}` },
+                })
+            ).statusCode,
+        ).toBe(403);
+        const updatedReaderToken = runtime.starts
+            .filter(({ containerName }) => containerName.endsWith(readerId))
+            .at(-1)!.environment.HAPPY2_PLUGIN_API_TOKEN!;
+        expect(
+            (
+                await server
+                    .pluginHost()
+                    .post(
+                        "/plugins/install",
+                        { shortName: "runtime-isolated", permissions: ["plugins:list"] },
+                        { headers: { authorization: `Bearer ${updatedReaderToken}` } },
+                    )
+            ).statusCode,
+        ).toBe(400);
+        const installedByPlugin = await server
+            .pluginHost()
+            .post(
+                "/plugins/install",
+                { shortName: "runtime-isolated", permissions: [] },
+                { headers: { authorization: `Bearer ${updatedReaderToken}` } },
+            );
+        expect(installedByPlugin.statusCode).toBe(202);
+        const installedByPluginId = installedByPlugin.json().installation.id as string;
+        await waitForStatus(server, admin, installedByPluginId, "ready");
+        const uninstalledByPlugin = await server
+            .pluginHost()
+            .post(
+                "/plugins/uninstall",
+                { installationId: installedByPluginId },
+                { headers: { authorization: `Bearer ${updatedReaderToken}` } },
+            );
+        expect(uninstalledByPlugin.statusCode).toBe(200);
+        expect(uninstalledByPlugin.json()).toEqual({ uninstalled: true });
+        expect(runtime.removals).toContain(`happy2-plugin-${installedByPluginId}`);
+        expect(
+            (
+                await server
+                    .as(member)
+                    .post(`/v0/admin/pluginInstallations/${adoptedReaderId}/updatePermissions`, {
+                        permissions: [],
+                    })
+            ).statusCode,
+        ).toBe(403);
+        expect(
+            (
+                await server
+                    .as(member)
+                    .post(`/v0/admin/pluginInstallations/${adoptedReaderId}/uninstallPlugin`)
+            ).statusCode,
+        ).toBe(403);
+        expect(
+            (
+                await server
+                    .as(admin)
+                    .post(`/v0/admin/pluginInstallations/${isolatedId}/updatePermissions`, {
+                        permissions: ["plugins:list"],
+                    })
+            ).statusCode,
+        ).toBe(400);
+
+        const permissionRevoke = await server
+            .as(admin)
+            .post(`/v0/admin/pluginInstallations/${readerId}/updatePermissions`, {
+                permissions: ["plugins:list"],
+            });
+        expect(permissionRevoke.statusCode).toBe(202);
+        await waitForStatus(server, admin, readerId, "ready");
+        const restrictedAgainToken = runtime.starts
+            .filter(({ containerName }) => containerName.endsWith(readerId))
+            .at(-1)!.environment.HAPPY2_PLUGIN_API_TOKEN!;
+        expect(
+            (
+                await server
+                    .pluginHost()
+                    .post(
+                        "/plugins/uninstall",
+                        { installationId: adoptedReaderId },
+                        { headers: { authorization: `Bearer ${restrictedAgainToken}` } },
+                    )
             ).statusCode,
         ).toBe(403);
         expect(
@@ -216,7 +374,7 @@ describe("container plugin commands, durable MCP tools, and host capabilities", 
         expect(
             (
                 await server.pluginHost().get("/plugins", {
-                    headers: { authorization: `Bearer ${readerToken}` },
+                    headers: { authorization: `Bearer ${restrictedAgainToken}` },
                 })
             ).statusCode,
         ).toBe(200);
@@ -226,7 +384,7 @@ describe("container plugin commands, durable MCP tools, and host capabilities", 
         expect(
             (
                 await server.pluginHost().get("/plugins", {
-                    headers: { authorization: `Bearer ${readerToken}` },
+                    headers: { authorization: `Bearer ${restrictedAgainToken}` },
                 })
             ).statusCode,
         ).toBe(200);
@@ -244,7 +402,7 @@ describe("container plugin commands, durable MCP tools, and host capabilities", 
         expect(
             (
                 await server.pluginHost().get("/plugins", {
-                    headers: { authorization: `Bearer ${readerToken}` },
+                    headers: { authorization: `Bearer ${restrictedAgainToken}` },
                 })
             ).statusCode,
         ).toBe(403);

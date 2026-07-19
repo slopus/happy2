@@ -949,6 +949,7 @@ export class HappyState implements AsyncDisposable, Disposable {
             case "pluginInstallSubmitted":
             case "pluginUninstallSubmitted":
             case "pluginUpdateChecksStarted":
+            case "pluginPermissionsUpdateSubmitted":
                 if (this.pluginsBinding)
                     this.backgroundIfConnected(() =>
                         pluginsOutputRoute(

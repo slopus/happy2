@@ -5,7 +5,9 @@ server, or any useful combination of those pieces. Administrators can install a
 built-in package, upload one ZIP, download one ZIP over HTTPS, or import a GitHub
 repository. Catalog discovery, verified preparation, durable system plugins,
 immutable package/image snapshots, writable installation data, and independent
-runtime installations remain separate boundaries.
+runtime installations remain separate boundaries. Individual runtime
+installations can be uninstalled without removing the reusable system-plugin
+snapshot.
 
 Plugin management is system-wide and administrator-only. The first installation
 of a catalog package creates one durable system-plugin record and one immutable
@@ -117,7 +119,7 @@ administrator can choose one.
         "dockerfile": "container/Dockerfile",
         "command": "/plugin/bin/indexer",
         "args": ["--watch"],
-        "permissions": ["plugins:list"]
+        "permissions": ["plugins:list", "plugins:install", "plugins:uninstall"]
     }
 }
 ```
@@ -137,9 +139,25 @@ otherwise it is required. A command and stdio MCP run alongside each other in
 the same dedicated installation container. Container variables are supplied to
 each configured process, not persisted in the image or container definition.
 
-`container.permissions` is an exact allowlist of host API capabilities. The
-currently supported permission is `plugins:list`. Unknown and duplicate
-permissions are rejected when the package is loaded.
+`container.permissions` declares the exact host API capabilities a package may
+request. Permissions are grouped for presentation by API section: `chats:update`
+is a mutating permission in `chats`, while `plugins:list` is read-only and
+`plugins:install` and `plugins:uninstall` are mutating permissions in `plugins`.
+Unknown and duplicate declarations are rejected when the package is loaded.
+
+Declarations are not grants. Each install request may include a `permissions`
+array containing any subset of the manifest declaration; omitted permissions
+default to an empty grant. Installation responses expose `grantedPermissions`,
+while catalog permission metadata is returned in `apiPermissions` sections with
+separate `readOnly` and `mutations` arrays. Administrators can replace the grant
+later with `POST /v0/admin/pluginInstallations/:installationId/updatePermissions`.
+Changing a grant invalidates the current runtime token and restarts the local
+container with a new token, so stale tokens cannot retain revoked access.
+
+The isolated plugin host listener provides `GET /plugins`, `POST /plugins/install`,
+and `POST /plugins/uninstall`. Each route requires its matching capability.
+Plugin-triggered installs must also choose a subset of the target package's
+declared permissions.
 
 The bundled `hello` package is the minimal skill-plus-MCP example. It declares no
 variables or MCP authentication, so an administrator can install it with an
@@ -398,7 +416,7 @@ expose the host to an untrusted LAN should firewall
 service.
 
 The token is an RS256 capability containing the installation ID, a random CUID2
-container-incarnation ID, and the exact manifest permissions. Token bytes are
+container-incarnation ID, and the installation's exact granted permissions. Token bytes are
 never stored. The incarnation ID is stored in `plugin_installations` and also
 attached to the OCI container as `dev.happy2.plugin-instance`. On each request,
 Happy verifies the signature, matches the incarnation against the ready database
@@ -454,7 +472,7 @@ persist the filesystem storage key, content type, byte size, width, height,
 thumbhash, and SHA-256 checksum.
 
 `plugin_installations` records a separate CUID2 and foreign key to `plugins`,
-plus that instance's container/image choice, lifecycle state, error detail,
+plus that instance's container/image choice, granted API permissions, lifecycle state, error detail,
 installer, tool-sync timestamp, and timestamps. `plugin_mcp_tools` contains the
 last complete MCP discovery keyed by installation and tool name.
 `plugin_installation_variables` records each declared

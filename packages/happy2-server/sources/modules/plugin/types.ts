@@ -29,7 +29,30 @@ export interface PluginRemoteMcp {
 
 export type PluginMcp = PluginStdioMcp | PluginRemoteMcp;
 
-export type PluginHostPermission = "chats:update" | "plugins:list";
+export type PluginHostPermission =
+    | "chats:update"
+    | "plugins:list"
+    | "plugins:install"
+    | "plugins:uninstall";
+export const pluginHostPermissions: readonly PluginHostPermission[] = [
+    "chats:update",
+    "plugins:list",
+    "plugins:install",
+    "plugins:uninstall",
+];
+
+export interface PluginApiPermissionDefinition {
+    id: PluginHostPermission;
+    displayName: string;
+    description: string;
+}
+
+export interface PluginApiPermissionSection {
+    id: "chats" | "plugins";
+    displayName: string;
+    readOnly: PluginApiPermissionDefinition[];
+    mutations: PluginApiPermissionDefinition[];
+}
 
 export interface PluginContainer {
     dockerfile?: string;
@@ -105,8 +128,8 @@ export interface SystemPluginSummary {
     container?: {
         image: "bundled" | "selection_required";
         command: boolean;
-        permissions: PluginHostPermission[];
     };
+    apiPermissions: PluginApiPermissionSection[];
     image: PluginImageMetadata & { url: string };
     installedByUserId?: string;
     installedAt: string;
@@ -121,6 +144,7 @@ export interface PluginInstallationSummary {
     sourceReference: string;
     sourceVersion: string;
     packageDigest: string;
+    grantedPermissions: PluginHostPermission[];
     status: PluginInstallationStatus;
     statusDetail?: string;
     lastError?: string;
@@ -160,8 +184,8 @@ export interface PluginCatalogItem {
     container?: {
         image: "bundled" | "selection_required";
         command: boolean;
-        permissions: PluginHostPermission[];
     };
+    apiPermissions: PluginApiPermissionSection[];
     variables: PluginVariableDefinition[];
     systemPlugin?: SystemPluginSummary & {
         updateAvailable: boolean;
@@ -192,6 +216,7 @@ export interface PreparedPluginSummary {
     description: string;
     skills: Array<Pick<PluginSkillSummary, "name" | "description">>;
     variables: PluginVariableDefinition[];
+    apiPermissions: PluginApiPermissionSection[];
     mcp?: {
         type: "remote" | "stdio";
         container: "bundled" | "selection_required" | "none";

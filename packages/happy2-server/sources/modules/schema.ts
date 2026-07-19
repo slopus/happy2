@@ -754,6 +754,7 @@ export const pluginInstallations = sqliteTable(
         runtimeImageTag: text("runtime_image_tag"),
         containerName: text("container_name"),
         containerInstanceId: text("container_instance_id"),
+        grantedPermissionsJson: text("granted_permissions_json").notNull().default("[]"),
         status: text("status").notNull().default("preparing"),
         statusDetail: text("status_detail"),
         lastError: text("last_error"),

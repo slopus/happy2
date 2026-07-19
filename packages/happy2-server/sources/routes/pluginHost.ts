@@ -1,9 +1,13 @@
-import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import type { DrizzleExecutor } from "../modules/drizzle.js";
 import { pluginInstallationListForHost } from "../modules/plugin/pluginInstallationListForHost.js";
 import type { PluginService } from "../modules/plugin/service.js";
-import { PluginError } from "../modules/plugin/types.js";
 import { CollaborationError } from "../modules/chat/types.js";
+import {
+    PluginError,
+    pluginHostPermissions,
+    type PluginHostPermission,
+} from "../modules/plugin/types.js";
 
 /** Builds the capability-only HTTP surface exposed to local plugin containers. */
 export function createPluginHostApi(
@@ -35,6 +39,49 @@ export function createPluginHostApi(
                 requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
                 chatUpdateInput(request.body),
             );
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/plugins/install", async (request, reply) => {
+        try {
+            const actorInstallationId = await plugins.authorizeHost(
+                bearerToken(request),
+                "plugins:install",
+            );
+            const body = object(request.body, "Request body");
+            only(body, ["shortName", "variables", "containerImageId", "permissions"]);
+            const installation = await plugins.install({
+                actorInstallationId,
+                shortName: shortName(body.shortName),
+                variables: variables(body.variables),
+                permissions: permissions(body.permissions),
+                ...(body.containerImageId === undefined
+                    ? {}
+                    : { containerImageId: identifier(body.containerImageId, "containerImageId") }),
+            });
+            return reply.code(202).send({ installation });
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/plugins/uninstall", async (request, reply) => {
+        try {
+            const actorInstallationId = await plugins.authorizeHost(
+                bearerToken(request),
+                "plugins:uninstall",
+            );
+            const body = object(request.body, "Request body");
+            only(body, ["installationId"]);
+            await plugins.uninstallInstallation({
+                actorInstallationId,
+                installationId: identifier(body.installationId, "installationId"),
+            });
+            return { uninstalled: true };
         } catch (error) {
             const response = handled(reply, error);
             if (response) return response;
@@ -99,12 +146,67 @@ function chatUpdateInput(value: unknown): { title?: string; description?: string
     };
 }
 
-function handled(reply: import("fastify").FastifyReply, error: unknown) {
+function shortName(value: unknown): string {
+    if (typeof value !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value))
+        throw new PluginHostRequestError("shortName is invalid");
+    return value;
+}
+
+function identifier(value: unknown, name: string): string {
+    if (typeof value !== "string" || !value || value.length > 128 || /\s/.test(value))
+        throw new PluginHostRequestError(`${name} must be a valid identifier`);
+    return value;
+}
+
+function variables(value: unknown): Record<string, string> {
+    const record = value === undefined ? {} : object(value, "variables");
+    if (Object.keys(record).length > 64)
+        throw new PluginHostRequestError("variables has too many entries");
+    const result: Record<string, string> = {};
+    for (const [key, item] of Object.entries(record)) {
+        if (!/^[A-Z_][A-Z0-9_]*$/.test(key) || typeof item !== "string")
+            throw new PluginHostRequestError(
+                "variables must map environment keys to string values",
+            );
+        result[key] = item;
+    }
+    return result;
+}
+
+function permissions(value: unknown): PluginHostPermission[] {
+    if (value === undefined) return [];
+    if (!Array.isArray(value) || value.length > pluginHostPermissions.length)
+        throw new PluginHostRequestError("permissions must be an array");
+    const result: PluginHostPermission[] = [];
+    for (const permission of value) {
+        if (
+            typeof permission !== "string" ||
+            !pluginHostPermissions.includes(permission as PluginHostPermission)
+        )
+            throw new PluginHostRequestError("permissions contains an unknown plugin permission");
+        if (result.includes(permission as PluginHostPermission))
+            throw new PluginHostRequestError(`permissions contains duplicate ${permission}`);
+        result.push(permission as PluginHostPermission);
+    }
+    return result;
+}
+
+function object(value: unknown, name: string): Record<string, unknown> {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+        throw new PluginHostRequestError(`${name} must be an object`);
+    return value as Record<string, unknown>;
+}
+
+function only(value: Record<string, unknown>, allowed: readonly string[]): void {
+    const unexpected = Object.keys(value).find((key) => !allowed.includes(key));
+    if (unexpected) throw new PluginHostRequestError(`Unexpected request field ${unexpected}`);
+}
+
+function handled(reply: FastifyReply, error: unknown) {
     if (error instanceof PluginError)
-        return reply.code(error.code === "not_found" ? 404 : 403).send({
-            error: error.code,
-            message: error.message,
-        });
+        return reply
+            .code(error.code === "not_found" ? 404 : error.code === "forbidden" ? 403 : 400)
+            .send({ error: error.code, message: error.message });
     if (error instanceof CollaborationError)
         return reply
             .code(error.code === "not_found" ? 404 : error.code === "forbidden" ? 403 : 400)

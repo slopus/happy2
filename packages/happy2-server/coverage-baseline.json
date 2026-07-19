@@ -1,59 +1,59 @@
 {
     "schemaVersion": 1,
-    "sourceFiles": 608,
+    "sourceFiles": 656,
     "thresholds": {
         "unit": {
             "statements": {
-                "covered": 4801,
-                "total": 12831
+                "covered": 5256,
+                "total": 15114
             },
             "branches": {
-                "covered": 2819,
-                "total": 9041
+                "covered": 3133,
+                "total": 10875
             },
             "functions": {
-                "covered": 909,
-                "total": 2323
+                "covered": 1000,
+                "total": 2767
             },
             "lines": {
-                "covered": 4587,
-                "total": 11521
+                "covered": 5016,
+                "total": 13586
             }
         },
         "gym": {
             "statements": {
-                "covered": 9354,
-                "total": 12831
+                "covered": 10953,
+                "total": 15114
             },
             "branches": {
-                "covered": 5699,
-                "total": 9041
+                "covered": 6844,
+                "total": 10875
             },
             "functions": {
-                "covered": 1873,
-                "total": 2323
+                "covered": 2226,
+                "total": 2767
             },
             "lines": {
-                "covered": 8819,
-                "total": 11521
+                "covered": 10336,
+                "total": 13586
             }
         },
         "combined": {
             "statements": {
-                "covered": 10465,
-                "total": 12831
+                "covered": 12238,
+                "total": 15114
             },
             "branches": {
-                "covered": 6448,
-                "total": 9041
+                "covered": 7708,
+                "total": 10875
             },
             "functions": {
-                "covered": 2080,
-                "total": 2323
+                "covered": 2463,
+                "total": 2767
             },
             "lines": {
-                "covered": 9848,
-                "total": 11521
+                "covered": 11527,
+                "total": 13586
             }
         }
     }

@@ -197,6 +197,13 @@
             "when": 1784427000000,
             "tag": "0027_chat_agent_effort",
             "breakpoints": true
+        },
+        {
+            "idx": 28,
+            "version": "6",
+            "when": 1784430000000,
+            "tag": "0028_plugin_api_permissions",
+            "breakpoints": true
         }
     ]
 }

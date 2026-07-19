@@ -30,6 +30,7 @@ function candidate(overrides: Partial<PreparedPluginSummary> = {}): PreparedPlug
         description: "Tools linked from a ZIP URL.",
         skills: [{ name: "lint", description: "Lints the project." }],
         variables: [],
+        apiPermissions: [],
         image,
         ...overrides,
     };
@@ -41,6 +42,7 @@ const installation = {
     shortName: "linked-tools",
     sourceVersion: "1.0.0",
     packageDigest: "digest-1",
+    grantedPermissions: [],
     status: "preparing",
     installedAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -330,11 +332,11 @@ describe("plugin install flow module", () => {
         await Promise.all(routed);
         expect(binding.getState().step).toMatchObject({ step: "configure" });
         // Both the declared variable and the container image gate submission.
-        binding.getState().installSubmit({});
+        binding.getState().installSubmit({}, []);
         expect(binding.getState().step).toMatchObject({ step: "configure" });
-        binding.getState().installSubmit({ API_TOKEN: "secret value" });
+        binding.getState().installSubmit({ API_TOKEN: "secret value" }, []);
         expect(binding.getState().step).toMatchObject({ step: "configure" });
-        binding.getState().installSubmit({ API_TOKEN: "secret value" }, "image-1");
+        binding.getState().installSubmit({ API_TOKEN: "secret value" }, [], "image-1");
         expect(binding.getState().step).toMatchObject({ step: "installing" });
         await Promise.all(routed);
         expect(binding.getState().step).toMatchObject({
@@ -376,7 +378,7 @@ describe("plugin install flow module", () => {
         binding.getState().sourceUrlUpdate("https://example.com/plugin.zip");
         binding.getState().prepareSubmit();
         await Promise.all(routed);
-        binding.getState().installSubmit({});
+        binding.getState().installSubmit({}, []);
         await Promise.all(routed);
         expect(binding.getState().step).toEqual({ step: "source" });
         expect(binding.getState().notice).toContain("expired");
@@ -419,7 +421,7 @@ describe("plugin install flow module", () => {
         binding.getState().prepareSubmit();
         await Promise.all(routed);
         binding.getState().candidateChoose("token-2");
-        binding.getState().installSubmit({});
+        binding.getState().installSubmit({}, []);
         await Promise.all(routed);
         expect(binding.getState().step).toMatchObject({
             step: "configure",
@@ -433,7 +435,7 @@ describe("plugin install flow module", () => {
             candidates: [{ preparedToken: "token-1" }, { preparedToken: "token-2" }],
         });
         binding.getState().candidateChoose("token-2");
-        binding.getState().installSubmit({});
+        binding.getState().installSubmit({}, []);
         expect(binding.getState().installError).toBeUndefined();
         await Promise.all(routed);
         expect(binding.getState().step).toMatchObject({ step: "installed" });
