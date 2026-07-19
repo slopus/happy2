@@ -395,6 +395,33 @@ export function ChatPage(props: ChatPageProps) {
     });
     const conversationEntries = () =>
         entries.filter((entry) => entry.conversationId === activeConversationId());
+    const channelAgents = () => {
+        const members = chatSnapshot()?.members;
+        return members?.type === "ready"
+            ? members.value.filter((person) => person.kind === "agent")
+            : [];
+    };
+    const composerAgent = (id: string) => {
+        const person =
+            directoryUsers().find((candidate) => candidate.id === id) ??
+            channelAgents().find((candidate) => candidate.id === id);
+        return person
+            ? {
+                  id: person.id,
+                  initials: identityInitials(person),
+                  name: person.displayName,
+                  tone: toneFor(person.id),
+              }
+            : undefined;
+    };
+    const audienceRoutingActive = () =>
+        activeChat() !== undefined &&
+        activeChat()?.kind !== "dm" &&
+        composerSnapshot()?.audience !== undefined;
+    const composerDefaultAgent = () => {
+        const id = activeChat()?.defaultAgentUserId;
+        return id ? composerAgent(id) : undefined;
+    };
     const conversation: Conversation = (() => {
         const projection = activeProjection();
         const chat = activeChat();
@@ -425,8 +452,16 @@ export function ChatPage(props: ChatPageProps) {
                         ? "Private AI coding agent"
                         : "Direct message"
                     : undefined),
+            // In Agents mode the whole input addresses the channel's agent, so
+            // the placeholder names the recipient instead of the channel.
             composerPlaceholder:
-                chat.kind === "dm" ? `Message ${title}` : `Message #${chat.slug ?? title}`,
+                chat.kind === "dm"
+                    ? `Message ${title}`
+                    : audienceRoutingActive() &&
+                        composerSnapshot()?.audience === "agents" &&
+                        composerDefaultAgent()
+                      ? `Message ${composerDefaultAgent()!.name}`
+                      : `Message #${chat.slug ?? title}`,
             memberCount,
             members: projection.participants.slice(0, 4).map((person) => ({
                 initials: identityInitials(person),
@@ -454,33 +489,6 @@ export function ChatPage(props: ChatPageProps) {
             tone: toneFor(person.id),
         }));
     const directoryAgents = () => directoryUsers().filter((person) => person.kind === "agent");
-    const channelAgents = () => {
-        const members = chatSnapshot()?.members;
-        return members?.type === "ready"
-            ? members.value.filter((person) => person.kind === "agent")
-            : [];
-    };
-    const composerAgent = (id: string) => {
-        const person =
-            directoryUsers().find((candidate) => candidate.id === id) ??
-            channelAgents().find((candidate) => candidate.id === id);
-        return person
-            ? {
-                  id: person.id,
-                  initials: identityInitials(person),
-                  name: person.displayName,
-                  tone: toneFor(person.id),
-              }
-            : undefined;
-    };
-    const audienceRoutingActive = () =>
-        activeChat() !== undefined &&
-        activeChat()?.kind !== "dm" &&
-        composerSnapshot()?.audience !== undefined;
-    const composerDefaultAgent = () => {
-        const id = activeChat()?.defaultAgentUserId;
-        return id ? composerAgent(id) : undefined;
-    };
     const messageAudienceLabel = (message: LiveThreadMessage): string | undefined => {
         if (activeChat()?.kind === "dm") return undefined;
         const server = message.serverMessage;
@@ -844,32 +852,14 @@ export function ChatPage(props: ChatPageProps) {
                     activities={activeAgentActivity()}
                     activityNow={activityNow}
                     busy={busy()}
-                    composerAgentOptions={
-                        audienceRoutingActive()
-                            ? channelAgents().map((person) => ({
-                                  id: person.id,
-                                  initials: identityInitials(person),
-                                  name: person.displayName,
-                                  tone: toneFor(person.id),
-                              }))
-                            : undefined
-                    }
                     composerAudience={
                         audienceRoutingActive() ? composerSnapshot()?.audience : undefined
-                    }
-                    composerDefaultAgent={
-                        audienceRoutingActive() ? composerDefaultAgent() : undefined
                     }
                     composerCompactHint={liveComposerCompactHint()}
                     composerDisabled={!activeConversationId()}
                     composerHint={liveComposerHint()}
                     composerMentions={mentionCandidates()}
                     composerPending={composerSnapshot()?.submission.status === "pending" || busy()}
-                    composerSelectedAgentIds={
-                        audienceRoutingActive()
-                            ? [...(composerSnapshot()?.agentUserIds ?? [])]
-                            : undefined
-                    }
                     composerSendEnabled={
                         draft().trim().length > 0 || pendingAttachments().length > 0
                     }
@@ -891,8 +881,6 @@ export function ChatPage(props: ChatPageProps) {
                         ),
                         ...pluginRequestEntries(),
                     ]}
-                    onAgentAdd={(agentId) => props.composer?.getState().agentUserAdd(agentId)}
-                    onAgentRemove={(agentId) => props.composer?.getState().agentUserRemove(agentId)}
                     onAudienceChange={(audience) =>
                         props.composer?.getState().audienceUpdate(audience)
                     }

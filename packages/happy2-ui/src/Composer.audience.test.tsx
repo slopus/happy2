@@ -10,15 +10,10 @@ import "./styles/icon.css";
 import "./styles/menu.css";
 import "./styles/segmented-control.css";
 import "./styles/audience-toggle.css";
-import { Composer, type ComposerAgent, type Mentionable } from "./Composer";
+import { Composer, type Mentionable } from "./Composer";
 import type { AudienceValue } from "./AudienceToggle";
 import { createRenderer } from "./testing";
 
-const defaultAgent: ComposerAgent = { id: "happy", initials: "HP", name: "Happy", tone: "violet" };
-const agentOptions: ComposerAgent[] = [
-    { id: "codex", initials: "CX", name: "Codex", tone: "mint" },
-    { id: "claude", initials: "CL", name: "Claude", tone: "violet" },
-];
 const mentions: Mentionable[] = [
     { id: "codex", initials: "CX", name: "Codex", tone: "mint" },
     { id: "ada", initials: "AL", name: "Ada", tone: "amber" },
@@ -33,24 +28,18 @@ function Harness(props: {
 }) {
     const [value, setValue] = useState("");
     const [audience, setAudience] = useState<AudienceValue | undefined>(props.audience);
-    const [selected, setSelected] = useState<string[]>([]);
     return (
         <Composer
-            agentOptions={agentOptions}
             audience={audience}
             data-testid={props.testid}
-            defaultAgent={defaultAgent}
             emoji={props.withEmoji ? [{ char: "✅", id: "check", name: "check" }] : undefined}
             mentions={props.withMentions ? mentions : undefined}
-            onAgentAdd={(id) => setSelected((current) => [...current, id])}
-            onAgentRemove={(id) => setSelected((current) => current.filter((item) => item !== id))}
             onAudienceChange={(next) => {
                 props.onAudienceChange?.(next);
                 setAudience(next);
             }}
             onSend={() => {}}
             onValueChange={setValue}
-            selectedAgentIds={selected}
             value={value}
         />
     );
@@ -76,34 +65,35 @@ it("flips the audience on Shift+Tab, keeps focus, draft, and textarea identity",
         view.container
             .querySelector('[data-testid="composer-shift-tab"] [data-happy2-ui="audience-toggle"]')
             ?.getAttribute("data-value");
-    const agentsRow = () =>
-        view.container.querySelector(
-            '[data-testid="composer-shift-tab"] [data-happy2-ui="composer-agents"]',
-        );
+    const card = () => view.$('[data-testid="composer-shift-tab"]').element as HTMLElement;
     await userEvent.click(textarea);
     await userEvent.keyboard("hello team");
     expect(toggleValue()).toBe("people");
-    expect(agentsRow()).toBeNull();
+    expect(card().hasAttribute("data-agents")).toBe(false);
     await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
     expect(changes).toEqual(["agents"]);
     expect(toggleValue()).toBe("agents");
-    // The agents row appears; the textarea keeps its DOM node, focus, and draft.
-    expect(agentsRow()).not.toBeNull();
+    // Agents mode marks the whole card; the textarea keeps its DOM node,
+    // focus, and draft. No chip row is added above the input.
+    expect(card().hasAttribute("data-agents")).toBe(true);
+    expect(
+        view.container.querySelector(
+            '[data-testid="composer-shift-tab"] [data-happy2-ui="composer-agents"]',
+        ),
+    ).toBeNull();
     const currentTextarea = view.$(
         '[data-testid="composer-shift-tab"] [data-happy2-ui="composer-textarea"]',
     ).element;
     expect(currentTextarea).toBe(textarea);
     expect(document.activeElement).toBe(textarea);
     expect(textarea.value).toBe("hello team");
-    // The default agent is visible without typing any mention.
-    expect(
-        view.container.querySelector(
-            '[data-testid="composer-shift-tab"] [data-happy2-ui="composer-agent-chip"][data-default]',
-        )?.textContent,
-    ).toContain("Happy");
+    // While typing to agents, the frame resolves to the full accent hairline
+    // (allow the card's 120ms border transition to finish before sampling).
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(getComputedStyle(card()).borderTopColor).toBe("rgb(139, 124, 247)");
     await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
     expect(changes).toEqual(["agents", "people"]);
-    expect(agentsRow()).toBeNull();
+    expect(card().hasAttribute("data-agents")).toBe(false);
     expect(document.activeElement).toBe(textarea);
     // A composing (IME) Shift+Tab is never intercepted.
     textarea.dispatchEvent(
@@ -265,53 +255,38 @@ it("keeps the audience and capability actions inside a panel-constrained compose
     await view.screenshot("Composer.compact-audience.test");
 });
 
-it("adds and removes additional agents through the picker while keeping chip identity", async () => {
+it("marks Agents mode with a quiet accent frame instead of a chip row", async () => {
     const view = createRenderer().render(
         () => <Harness audience="agents" testid="composer-agents" />,
         { width: 620, height: 320, padding: 20 },
     );
     await view.ready();
-    const chip = (id: string) =>
-        view.container.querySelector(
-            `[data-testid="composer-agents"] [data-happy2-ui="composer-agent-chip"][data-agent-id="${id}"]`,
-        );
-    const addButton = () =>
-        view.container.querySelector<HTMLButtonElement>(
-            '[data-testid="composer-agents"] [aria-label="Add agent"]',
-        )!;
-    const menuItems = () =>
-        Array.from(
-            view.container.querySelectorAll<HTMLButtonElement>(
-                '[data-testid="composer-agents"] [data-happy2-ui="composer-agent-popover"] [role="menuitem"]',
-            ),
-        );
-    expect(chip("happy")).not.toBeNull();
-    await userEvent.click(addButton());
-    expect(menuItems().map((item) => item.textContent)).toEqual(["Codex", "Claude"]);
-    await userEvent.click(menuItems()[0]!);
-    expect(chip("codex")).not.toBeNull();
-    const codexChip = chip("codex");
-    await userEvent.click(addButton());
-    expect(menuItems().map((item) => item.textContent)).toEqual(["Claude"]);
-    await userEvent.click(menuItems()[0]!);
-    expect(chip("claude")).not.toBeNull();
-    // Adding Claude must not replace Codex's chip DOM node.
-    expect(chip("codex")).toBe(codexChip);
-    // The picker hides once every option is selected.
-    expect(
-        view.container.querySelector('[data-testid="composer-agents"] [aria-label="Add agent"]'),
-    ).toBeNull();
-    const removeCodex = codexChip!.querySelector<HTMLButtonElement>(
-        '[data-happy2-ui="composer-agent-remove"]',
-    )!;
-    await userEvent.click(removeCodex);
-    expect(chip("codex")).toBeNull();
-    expect(chip("claude")).not.toBeNull();
-    expect(chip("happy")).not.toBeNull();
+    const card = view.$('[data-testid="composer-agents"]');
+    const cardEl = card.element as HTMLElement;
+    // The whole input is the signal: agents mode adds no rows, labels, chips,
+    // or pickers — only the accent-tinted hairline on the card itself.
+    expect(cardEl.hasAttribute("data-agents")).toBe(true);
+    expect(view.container.querySelector('[data-happy2-ui="composer-agents"]')).toBeNull();
+    expect(view.container.querySelector('[data-happy2-ui="composer-agent-chip"]')).toBeNull();
+    expect(view.container.querySelector('[aria-label="Add agent"]')).toBeNull();
+    // At rest the tint stays quiet (accent at 15% over the card).
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgba(139, 124, 247, 0.15)");
+    // Focus resolves the frame to the full accent, then back on blur.
+    const textarea = view.$('[data-testid="composer-agents"] [data-happy2-ui="composer-textarea"]')
+        .element as HTMLTextAreaElement;
+    // Programmatic focus keeps this deterministic across engines; pointer
+    // focus timing is covered by the Shift+Tab case above.
+    textarea.focus();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgb(139, 124, 247)");
+    textarea.blur();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgba(139, 124, 247, 0.15)");
     await view.screenshot("Composer.agents.test");
 });
 
-it("keeps only one agent, mention, or emoji picker open", async () => {
+it("keeps only one mention or emoji picker open", async () => {
     const view = createRenderer().render(
         () => (
             <Harness audience="agents" testid="composer-exclusive-pickers" withEmoji withMentions />
@@ -319,45 +294,27 @@ it("keeps only one agent, mention, or emoji picker open", async () => {
         { width: 620, height: 320, padding: 20 },
     );
     await view.ready();
-    const agentPicker = () =>
+    const mentionPopover = () =>
         view.container.querySelector(
-            '[data-testid="composer-exclusive-pickers"] [data-happy2-ui="composer-agent-popover"]',
+            '[data-testid="composer-exclusive-pickers"] [data-happy2-ui="composer-popover"]',
         );
-    await userEvent.click(
-        view.container.querySelector<HTMLButtonElement>(
-            '[data-testid="composer-exclusive-pickers"] [aria-label="Add agent"]',
-        )!,
-    );
-    expect(agentPicker()).not.toBeNull();
+    const emojiPopover = () =>
+        view.container.querySelector(
+            '[data-testid="composer-exclusive-pickers"] [data-happy2-ui="composer-emoji-popover"]',
+        );
     view.container
         .querySelector<HTMLButtonElement>(
             '[data-testid="composer-exclusive-pickers"] [aria-label="Mention someone"]',
         )!
         .click();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    expect(agentPicker()).toBeNull();
-    expect(
-        view.container.querySelector(
-            '[data-testid="composer-exclusive-pickers"] [data-happy2-ui="composer-popover"]',
-        ),
-    ).not.toBeNull();
-    view.container
-        .querySelector<HTMLButtonElement>(
-            '[data-testid="composer-exclusive-pickers"] [aria-label="Add agent"]',
-        )!
-        .click();
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    expect(agentPicker()).not.toBeNull();
+    expect(mentionPopover()).not.toBeNull();
     view.container
         .querySelector<HTMLButtonElement>(
             '[data-testid="composer-exclusive-pickers"] [aria-label="Add emoji"]',
         )!
         .click();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    expect(agentPicker()).toBeNull();
-    expect(
-        view.container.querySelector(
-            '[data-testid="composer-exclusive-pickers"] [data-happy2-ui="composer-emoji-popover"]',
-        ),
-    ).not.toBeNull();
+    expect(mentionPopover()).toBeNull();
+    expect(emojiPopover()).not.toBeNull();
 });

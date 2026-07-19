@@ -102,7 +102,6 @@ export { ChannelHeader, type ChannelHeaderProps, type ChannelMember } from "./Ch
 export { AudienceToggle, type AudienceToggleProps, type AudienceValue } from "./AudienceToggle";
 export {
     Composer,
-    type ComposerAgent,
     type ComposerProps,
     ContextChips,
     type ContextChipsProps,

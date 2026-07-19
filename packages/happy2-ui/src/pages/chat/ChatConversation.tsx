@@ -8,7 +8,6 @@ import {
     Composer,
     MessageList,
     TerminalPanel,
-    type ComposerAgent,
     type ContextItem,
     type Mentionable,
     type MenuItem,
@@ -27,19 +26,14 @@ export interface ChatConversationProps {
     activities: readonly DeepReadonly<AgentActivityState>[];
     activityNow: number;
     contextItems: ContextItem[];
-    composerAgentOptions?: ComposerAgent[];
     composerAudience?: AudienceValue;
-    composerDefaultAgent?: ComposerAgent;
     composerCompactHint: string;
     composerDisabled: boolean;
     composerHint: string;
     composerMentions: Mentionable[];
     composerPending: boolean;
-    composerSelectedAgentIds?: string[];
     composerSendEnabled: boolean;
     composerValue: string;
-    onAgentAdd?(agentId: string): void;
-    onAgentRemove?(agentId: string): void;
     onAudienceChange?(audience: AudienceValue): void;
     onContextRemove(id: string): void;
     onFilesSelected(files: FileList | null): void;
@@ -150,17 +144,13 @@ export function ChatConversation(props: ChatConversationProps) {
                     type="file"
                 />
                 <Composer
-                    agentOptions={props.composerAgentOptions}
                     audience={props.composerAudience}
                     contextItems={props.contextItems}
-                    defaultAgent={props.composerDefaultAgent}
                     disabled={props.composerDisabled}
                     emoji={emojiItems}
                     compactHint={props.composerCompactHint}
                     hint={props.composerHint}
                     mentions={props.composerMentions}
-                    onAgentAdd={props.onAgentAdd}
-                    onAgentRemove={props.onAgentRemove}
                     onAttachFile={() => fileInput.current?.click()}
                     onAudienceChange={props.onAudienceChange}
                     onContextRemove={props.onContextRemove}
@@ -169,7 +159,6 @@ export function ChatConversation(props: ChatConversationProps) {
                     onValueChange={props.onValueChange}
                     pending={props.composerPending}
                     placeholder={props.conversation.composerPlaceholder}
-                    selectedAgentIds={props.composerSelectedAgentIds}
                     sendEnabled={props.composerSendEnabled}
                     value={props.composerValue}
                 />

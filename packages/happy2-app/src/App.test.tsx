@@ -586,12 +586,21 @@ describe("persistent desktop routing", () => {
                     .chats.find(({ id }) => id === "chat-1")?.chat.defaultAgentUserId,
             ).toBe("agent-1"),
         );
+        // Agents mode carries no chip row: the composer frame itself marks the
+        // mode and the placeholder names the default agent.
         await waitFor(() =>
             expect(
-                screen.container.querySelector(
-                    '[data-happy2-ui="composer-agent-chip"][data-default]',
-                )?.textContent,
-            ).toContain("Happy"),
+                screen.container
+                    .querySelector('[data-happy2-ui="composer"]')
+                    ?.hasAttribute("data-agents"),
+            ).toBe(true),
+        );
+        await waitFor(() =>
+            expect(
+                screen.container.querySelector<HTMLTextAreaElement>(
+                    '[data-happy2-ui="composer-textarea"]',
+                )?.placeholder,
+            ).toBe("Message Happy"),
         );
         expect(chatPrimarySurface(screen.container)).toBe(primary);
         expect(

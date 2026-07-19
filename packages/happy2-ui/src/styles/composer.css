@@ -35,101 +35,23 @@
     border-color: var(--happy2-border-strong);
 }
 
+/*
+ * Agents mode addresses the chat's agent with the whole input, so the card
+ * itself carries the signal: a quiet accent-tinted hairline at rest that
+ * resolves to the full accent while typing. No chips, labels, or extra rows —
+ * the mode reads from the frame and the recipient-named placeholder.
+ */
+.happy2-composer[data-agents] {
+    border-color: var(--happy2-accent-soft);
+}
+
+.happy2-composer[data-agents]:focus-within {
+    border-color: var(--happy2-accent);
+}
+
 .happy2-composer__context {
     display: flex;
     padding: 8px 10px 0;
-}
-
-.happy2-composer__agents {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 10px 0;
-}
-
-/*
- * The 24px chip holds a 20px xs agent avatar (radius 6). A 1px border plus
- * 1px padding gives a uniform 2px border-box inset on the avatar side, so the
- * chip's 8px corners stay parallel curves over the avatar's 6px corners.
- */
-.happy2-composer__agent-chip {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    gap: 6px;
-    height: 24px;
-    padding: 0 8px 0 1px;
-    background: var(--happy2-bg-inset);
-    border: 1px solid var(--happy2-border);
-    border-radius: 8px;
-}
-
-.happy2-composer__agent-chip[data-default] {
-    border-color: var(--happy2-accent-soft);
-    background: var(--happy2-accent-soft);
-}
-
-.happy2-composer__agent-name {
-    color: var(--happy2-text-secondary);
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 22px;
-    white-space: nowrap;
-}
-
-.happy2-composer__agent-chip[data-default] .happy2-composer__agent-name {
-    color: var(--happy2-text);
-}
-
-.happy2-composer__agent-remove {
-    display: flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    width: 14px;
-    height: 14px;
-    /* No negative right margin: a 9px inset keeps the 4px-radius button
-     * outside the chip's 8px corner field, so the corners stay independent. */
-    margin: 0 0 0 -1px;
-    padding: 0;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--happy2-text-muted);
-    cursor: pointer;
-    appearance: none;
-    transition:
-        background-color 120ms ease,
-        color 120ms ease;
-}
-
-.happy2-composer__agent-remove:hover {
-    background: var(--happy2-bg-hover);
-    color: var(--happy2-text);
-}
-
-.happy2-composer__agent-remove:disabled {
-    cursor: not-allowed;
-    opacity: 0.48;
-}
-
-.happy2-composer__agent-remove:focus-visible {
-    outline: var(--happy2-focus-ring);
-    outline-offset: 1px;
-}
-
-.happy2-composer__agent-add {
-    position: relative;
-    display: inline-flex;
-    flex: none;
-}
-
-.happy2-composer__agent-popover {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: 20;
 }
 
 .happy2-composer__input {

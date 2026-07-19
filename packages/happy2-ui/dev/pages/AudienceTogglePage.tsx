@@ -1,14 +1,8 @@
 import { useState } from "react";
 import { AudienceToggle, type AudienceValue } from "../../src/AudienceToggle";
-import { Composer, type ComposerAgent } from "../../src/Composer";
+import { Composer } from "../../src/Composer";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
 
-const DEFAULT_AGENT: ComposerAgent = { id: "happy", initials: "HP", name: "Happy", tone: "violet" };
-const AGENT_OPTIONS: ComposerAgent[] = [
-    { id: "codex", initials: "CX", name: "Codex", tone: "mint" },
-    { id: "claude", initials: "CL", name: "Claude", tone: "violet" },
-    { id: "triage", initials: "TR", name: "Triage", tone: "amber" },
-];
 const noop = () => {};
 
 function LiveToggle() {
@@ -19,20 +13,14 @@ function LiveToggle() {
 function LiveComposer() {
     const [value, setValue] = useState("");
     const [audience, setAudience] = useState<AudienceValue>("agents");
-    const [selected, setSelected] = useState<string[]>(["codex"]);
     return (
         <Composer
-            agentOptions={AGENT_OPTIONS}
             audience={audience}
-            defaultAgent={DEFAULT_AGENT}
             hint="Enter to send · Shift+Tab to switch audience"
-            onAgentAdd={(id) => setSelected((current) => [...current, id])}
-            onAgentRemove={(id) => setSelected((current) => current.filter((item) => item !== id))}
             onAudienceChange={setAudience}
             onSend={noop}
             onValueChange={setValue}
-            placeholder="Message #launch-week"
-            selectedAgentIds={selected}
+            placeholder={audience === "agents" ? "Message Happy" : "Message #launch-week"}
             value={value}
         />
     );
@@ -42,7 +30,7 @@ export function AudienceTogglePage() {
     return (
         <ComponentPage
             number="C-065"
-            summary="People/Agents message-destination switch for the composer. Shift+Tab in the composer flips it; Agents mode reveals the default agent and an additional-agent picker."
+            summary="People/Agents message-destination switch for the composer. Shift+Tab in the composer flips it; Agents mode tints the whole composer frame with the accent and names the agent in the placeholder."
             title="Audience toggle"
         >
             <div className="specimen-grid specimen-grid--sizes">
