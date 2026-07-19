@@ -4,7 +4,7 @@ import { agentImageSelection } from "./impl/agentImageSelection.js";
 import { agentImages, agentImageSettings } from "../schema.js";
 
 import { asAgentImage } from "./impl/asAgentImage.js";
-import { eq } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 import { userRequireAnyPermission } from "../permission/userRequireAnyPermission.js";
 /**
  * Lists agent images and the configured default to a caller allowed to manage images, assign them to chats, or select a runtime for plugin installation.
@@ -33,6 +33,7 @@ export async function agentImageList(
         executor
             .select(agentImageSelection)
             .from(agentImages)
+            .where(isNull(agentImages.deletedAt))
             .orderBy(agentImages.createdAt, agentImages.id),
     ]);
     return {

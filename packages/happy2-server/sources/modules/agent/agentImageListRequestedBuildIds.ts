@@ -1,6 +1,6 @@
 import { type DrizzleExecutor } from "../drizzle.js";
 import { agentImages } from "../schema.js";
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 
 /**
  * Lists images with requested pending work or any in-progress build, ordered by request and creation time.
@@ -16,6 +16,7 @@ export async function agentImageListRequestedBuildIds(
         .from(agentImages)
         .where(
             and(
+                isNull(agentImages.deletedAt),
                 or(
                     and(
                         eq(agentImages.status, "pending"),

@@ -14,6 +14,7 @@ export const gymSequentialTestFiles = [
     "tests/server/concurrent_bootstrap_registration_allows_exactly_one_account.test.ts",
     "tests/server/fresh_server_onboarding_resumes_and_controls_registration.test.ts",
     "tests/server/package_runner_serves_web_proxies_api_and_owns_a_private_rig.test.ts",
+    "tests/server/plugins_manage_agent_environments_and_reprovision_chat_containers.test.ts",
     "tests/state/agent_turns_reconcile_through_the_real_server_and_rig_queue.test.ts",
     "tests/state/channel_composer_audience_and_default_agent_cross_the_real_state_boundary.test.ts",
     "tests/state/setup_onboarding_crosses_the_real_state_and_server_boundary.test.ts",

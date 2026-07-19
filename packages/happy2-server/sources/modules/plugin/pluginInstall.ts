@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { DrizzleExecutor } from "../drizzle.js";
 import { withTransaction } from "../drizzle.js";
 import {
@@ -167,6 +167,7 @@ export async function pluginInstall(
                     and(
                         eq(agentImages.id, input.containerImageId),
                         eq(agentImages.status, "ready"),
+                        isNull(agentImages.deletedAt),
                     ),
                 )
                 .limit(1);

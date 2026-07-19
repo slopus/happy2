@@ -124,6 +124,9 @@ Variable keys use environment-variable syntax. Each installation must provide ev
 
 Supported local host permissions:
 
+- `environments:read`: list agent environments and read one immutable Dockerfile.
+- `environments:manage`: create an agent environment and select a ready default.
+- `environments:deactivate`: deactivate an unused custom agent environment without deleting its retained manifest or Dockerfile.
 - `plugins:list`: read non-secret installed-plugin identity and health.
 - `plugins:request-install`: during a contextual agent tool call, stage a linked ZIP and create a durable approval in that exact chat.
 - `plugins:request-uninstall`: during a contextual agent tool call, create a durable approval to remove one exact installation.

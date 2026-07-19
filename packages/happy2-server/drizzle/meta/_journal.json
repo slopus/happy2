@@ -218,6 +218,13 @@
             "when": 1784437200000,
             "tag": "0030_personal_synced_drafts",
             "breakpoints": true
+        },
+        {
+            "idx": 31,
+            "version": "6",
+            "when": 1784444400000,
+            "tag": "0031_agent_image_deactivation",
+            "breakpoints": true
         }
     ]
 }

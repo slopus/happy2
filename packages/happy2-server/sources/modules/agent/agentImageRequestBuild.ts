@@ -4,7 +4,7 @@ import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 
 import { agentImageSelection } from "./impl/agentImageSelection.js";
 import { agentImages } from "../schema.js";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { areaHint } from "../chat/areaHint.js";
 import { asAgentImage } from "./impl/asAgentImage.js";
 
@@ -34,7 +34,7 @@ export async function agentImageRequestBuild(
                 status: agentImages.status,
             })
             .from(agentImages)
-            .where(eq(agentImages.id, input.imageId))
+            .where(and(eq(agentImages.id, input.imageId), isNull(agentImages.deletedAt)))
             .limit(1);
         if (!current) throw new CollaborationError("not_found", "Agent image was not found");
         if (current.status === "ready")
@@ -59,7 +59,7 @@ export async function agentImageRequestBuild(
                 leaseExpiresAt: null,
                 updatedAt: sql`CURRENT_TIMESTAMP`,
             })
-            .where(eq(agentImages.id, input.imageId))
+            .where(and(eq(agentImages.id, input.imageId), isNull(agentImages.deletedAt)))
             .returning(agentImageSelection);
         if (!image) throw new Error("Agent image build was not requested");
         await chatAppendAudit(tx, {

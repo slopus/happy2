@@ -41,6 +41,7 @@ export async function agentDefaultCreate(
                         eq(agentImageSettings.id, 1),
                         eq(agentImages.id, input.imageId),
                         eq(agentImages.status, "ready"),
+                        isNull(agentImages.deletedAt),
                         sql`${agentImages.dockerImageId} IS NOT NULL`,
                     ),
                 )

@@ -35,6 +35,7 @@ export async function agentChatGetContext(
                 eq(chatMembers.chatId, chatId),
                 isNull(chatMembers.leftAt),
                 isNull(users.deletedAt),
+                isNull(agentImages.deletedAt),
                 eq(users.kind, "agent"),
                 requestedAgentUserId ? eq(users.id, requestedAgentUserId) : undefined,
             ),

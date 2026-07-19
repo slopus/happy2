@@ -32,6 +32,9 @@ export type PluginMcp = PluginStdioMcp | PluginRemoteMcp;
 export type PluginHostPermission =
     | "channels:manage"
     | "chats:update"
+    | "environments:read"
+    | "environments:manage"
+    | "environments:deactivate"
     | "plugins:list"
     | "plugins:install"
     | "plugins:uninstall"
@@ -40,6 +43,9 @@ export type PluginHostPermission =
 export const pluginHostPermissions: readonly PluginHostPermission[] = [
     "channels:manage",
     "chats:update",
+    "environments:read",
+    "environments:manage",
+    "environments:deactivate",
     "plugins:list",
     "plugins:install",
     "plugins:uninstall",
@@ -54,7 +60,7 @@ export interface PluginApiPermissionDefinition {
 }
 
 export interface PluginApiPermissionSection {
-    id: "channels" | "chats" | "plugins";
+    id: "channels" | "chats" | "environments" | "plugins";
     displayName: string;
     readOnly: PluginApiPermissionDefinition[];
     mutations: PluginApiPermissionDefinition[];

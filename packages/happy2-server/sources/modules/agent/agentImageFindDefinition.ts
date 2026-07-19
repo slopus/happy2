@@ -1,7 +1,7 @@
 import type { AgentImageSummary } from "../chat/types.js";
 import type { DrizzleExecutor } from "../drizzle.js";
 import { agentImages } from "../schema.js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { asAgentImage } from "./impl/asAgentImage.js";
 import { agentImageSelection } from "./impl/agentImageSelection.js";
 
@@ -21,6 +21,7 @@ export async function agentImageFindDefinition(
                 "builtinKey" in selector
                     ? eq(agentImages.builtinKey, selector.builtinKey)
                     : eq(agentImages.definitionHash, selector.definitionHash),
+                isNull(agentImages.deletedAt),
             ),
         )
         .limit(1);

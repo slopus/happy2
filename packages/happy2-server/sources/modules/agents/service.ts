@@ -35,6 +35,9 @@ import { agentImageGetChangeContext } from "../agent/agentImageGetChangeContext.
 import { agentImageGet } from "../agent/agentImageGet.js";
 import { agentImageEnsureDefinitions } from "../agent/agentImageEnsureDefinitions.js";
 import { agentImageCreate } from "../agent/agentImageCreate.js";
+import { agentImageDeactivate } from "../agent/agentImageDeactivate.js";
+import { agentImageDockerfileGetForHost } from "../agent/agentImageDockerfileGetForHost.js";
+import { agentImageListForHost } from "../agent/agentImageListForHost.js";
 import { agentImageCommitChange } from "../agent/agentImageCommitChange.js";
 import { agentEffortUpdate } from "../agent/agentEffortUpdate.js";
 import { agentEffortInitialize } from "../agent/agentEffortInitialize.js";
@@ -440,7 +443,18 @@ export class AgentService {
     getAgentImage(actorUserId: string, imageId: string) {
         return agentImageGet(this.executor, actorUserId, imageId);
     }
-    async createAgentImage(input: { actorUserId: string; dockerfile: string; name: string }) {
+    listAgentImagesForHost() {
+        return agentImageListForHost(this.executor);
+    }
+    getAgentImageDockerfileForHost(imageId: string) {
+        return agentImageDockerfileGetForHost(this.executor, imageId);
+    }
+    async createAgentImage(input: {
+        actorInstallationId?: string;
+        actorUserId?: string;
+        dockerfile: string;
+        name: string;
+    }) {
         const definitionHash = agentImageDefinitionHash(input.dockerfile);
         const result = await agentImageCreate(this.executor, {
             ...input,
@@ -457,10 +471,23 @@ export class AgentService {
         this.queueImageBuild(result.image.id);
         return result.image;
     }
-    async setDefaultAgentImage(input: { actorUserId: string; imageId: string }) {
+    async setDefaultAgentImage(input: {
+        actorInstallationId?: string;
+        actorUserId?: string;
+        imageId: string;
+    }) {
         const result = await agentImageSetDefault(this.executor, input);
         await this.publishAgentImageHint(result.hint);
         return result.image;
+    }
+    async deactivateAgentImage(input: {
+        actorInstallationId?: string;
+        actorUserId?: string;
+        imageId: string;
+    }) {
+        const result = await agentImageDeactivate(this.executor, input);
+        await this.publishAgentImageHint(result.hint);
+        return { imageId: result.imageId };
     }
     getSetupBaseImages(actorUserId: string) {
         return setupBaseImageGetStatus(this.executor, actorUserId);

@@ -20,6 +20,31 @@ Authorization: Bearer …
 
 The response includes the calling installation ID and non-secret installation identity, short name, version, and status. It does not expose variables, users, filesystem paths, package internals, or administrator APIs.
 
+## Agent environments
+
+Manifest permissions: `environments:read` for listing and Dockerfile reads;
+`environments:manage` for creation and default selection;
+`environments:deactivate` separately for safe deactivation.
+
+```http
+GET /environments
+GET /environments/:environmentId/dockerfile
+POST /environments/createEnvironment
+POST /environments/:environmentId/setDefaultEnvironment
+POST /environments/:environmentId/deactivateEnvironment
+Authorization: Bearer …
+```
+
+Creation accepts `{ "name": string, "dockerfile": string }`, creates an immutable
+definition, and queues its image build. Creating the same inactive definition
+reactivates its retained manifest and queues a fresh build under the same ID.
+Only a ready environment can become the default. Deactivation accepts an empty
+body and rejects built-ins, queued or active builds, the default, agent
+assignments and bindings, and plugin container-image selections. It never
+deletes the immutable manifest or Dockerfile. `GET /environments` supplies
+active state, IDs, and lifecycle status required to drive those operations
+without exposing build logs or provider identifiers.
+
 ## Request linked installation
 
 Manifest permission: `plugins:request-install`

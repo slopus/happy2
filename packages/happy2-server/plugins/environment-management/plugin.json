@@ -1,0 +1,17 @@
+{
+    "schemaVersion": 1,
+    "version": "1.0.0",
+    "displayName": "Environment Management",
+    "shortName": "environment-management",
+    "description": "Lets an agent inspect, create, select, and safely deactivate Happy agent environments.",
+    "variables": [],
+    "container": {
+        "dockerfile": "container/Dockerfile",
+        "permissions": ["environments:read", "environments:manage", "environments:deactivate"]
+    },
+    "mcp": {
+        "type": "stdio",
+        "command": "node",
+        "args": ["/plugin/server.mjs"]
+    }
+}

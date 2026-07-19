@@ -7,7 +7,9 @@ Each child directory is one immutable, built-in plugin package. See
 tool. `chat-management` demonstrates installation-bound chat and referenced-user
 capabilities: it updates the current chat, manages channel membership, and creates
 private channels with either an informational opening message or an agent-triggering
-prompt. `plugin-developer` provides Happy2 plugin authoring/install documentation
+prompt. `environment-management` lets agents inspect, build, select, and safely
+deactivate Dockerfile-backed agent environments while retaining their manifests.
+`plugin-developer` provides Happy2 plugin authoring/install documentation
 and chat-scoped MCP tools that request administrator approval for linked install
 or uninstall actions. Product plugins should be added here as separate,
 reviewable changes.

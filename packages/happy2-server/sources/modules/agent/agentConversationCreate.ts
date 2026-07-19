@@ -30,6 +30,7 @@ export async function agentConversationCreate(
                     isNull(users.deletedAt),
                     eq(agentImages.status, "ready"),
                     isNull(agentImages.lastError),
+                    isNull(agentImages.deletedAt),
                 ),
             )
             .limit(1);

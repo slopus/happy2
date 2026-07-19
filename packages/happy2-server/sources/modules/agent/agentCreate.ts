@@ -11,7 +11,7 @@ import {
     users,
 } from "../schema.js";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { chatHint } from "../chat/chatHint.js";
 
 import { createId } from "@paralleldrive/cuid2";
@@ -60,7 +60,13 @@ export async function agentCreate(
             })
             .from(agentImageSettings)
             .innerJoin(agentImages, eq(agentImages.id, agentImageSettings.defaultImageId))
-            .where(and(eq(agentImageSettings.id, 1), eq(agentImages.id, input.imageId)))
+            .where(
+                and(
+                    eq(agentImageSettings.id, 1),
+                    eq(agentImages.id, input.imageId),
+                    isNull(agentImages.deletedAt),
+                ),
+            )
             .limit(1);
         if (configuredImage?.status !== "ready" || !configuredImage.dockerImageId)
             throw new CollaborationError(

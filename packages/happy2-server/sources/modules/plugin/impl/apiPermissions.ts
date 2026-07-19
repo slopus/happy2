@@ -20,6 +20,27 @@ const definitions = {
         section: "chats",
         access: "mutations",
     },
+    "environments:read": {
+        id: "environments:read",
+        displayName: "View environments",
+        description: "View agent environments and read their Dockerfiles.",
+        section: "environments",
+        access: "readOnly",
+    },
+    "environments:manage": {
+        id: "environments:manage",
+        displayName: "Manage environments",
+        description: "Create agent environments and select the default.",
+        section: "environments",
+        access: "mutations",
+    },
+    "environments:deactivate": {
+        id: "environments:deactivate",
+        displayName: "Deactivate environments",
+        description: "Deactivate unused custom agent environments while retaining their manifests.",
+        section: "environments",
+        access: "mutations",
+    },
     "plugins:list": {
         id: "plugins:list",
         displayName: "View plugins",
@@ -76,6 +97,7 @@ export function pluginApiPermissionSections(
         [
             { id: "channels", displayName: "Channels" },
             { id: "chats", displayName: "Chats" },
+            { id: "environments", displayName: "Environments" },
             { id: "plugins", displayName: "Plugins" },
         ] as const
     ).flatMap((section) => {

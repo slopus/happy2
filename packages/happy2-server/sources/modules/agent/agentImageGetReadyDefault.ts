@@ -2,7 +2,7 @@ import { type AgentExecutionImage } from "./impl/agentExecutionImage.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 import { agentImages, agentImageSettings } from "../schema.js";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 /**
  * Returns the configured default image only when it is ready and has a resolved Docker image identifier.
@@ -23,6 +23,7 @@ export async function agentImageGetReadyDefault(
             and(
                 eq(agentImageSettings.id, 1),
                 eq(agentImages.status, "ready"),
+                isNull(agentImages.deletedAt),
                 sql`${agentImages.dockerImageId} IS NOT NULL`,
             ),
         )

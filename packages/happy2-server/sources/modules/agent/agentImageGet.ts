@@ -3,7 +3,7 @@ import { type AgentImageDetails, CollaborationError } from "../chat/types.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 import { agentImageDetailsSelection } from "./impl/agentImageDetailsSelection.js";
 import { agentImages } from "../schema.js";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { asAgentImageDetails } from "./impl/asAgentImageDetails.js";
 
 import { userRequireAnyPermission } from "../permission/userRequireAnyPermission.js";
@@ -20,7 +20,7 @@ export async function agentImageGet(
     const [image] = await executor
         .select(agentImageDetailsSelection)
         .from(agentImages)
-        .where(eq(agentImages.id, imageId))
+        .where(and(eq(agentImages.id, imageId), isNull(agentImages.deletedAt)))
         .limit(1);
     if (!image) throw new CollaborationError("not_found", "Agent image was not found");
     return asAgentImageDetails(image);

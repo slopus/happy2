@@ -11,14 +11,110 @@ import {
     type PluginUserCapability,
 } from "../modules/plugin/types.js";
 
+const MAX_ENVIRONMENT_NAME_LENGTH = 100;
+const MAX_DOCKERFILE_BYTES = 256 * 1024;
+
+type PluginHostAgentService = Pick<
+    AgentService,
+    | "createAgentImage"
+    | "deactivateAgentImage"
+    | "getAgentImageDockerfileForHost"
+    | "listAgentImagesForHost"
+    | "prepareTurns"
+    | "setDefaultAgentImage"
+    | "startTurn"
+>;
+
 /** Builds the capability-only HTTP surface exposed to local plugin containers. */
 export function createPluginHostApi(
     executor: DrizzleExecutor,
     plugins: PluginService,
     logger: boolean,
-    agents?: Pick<AgentService, "prepareTurns" | "startTurn">,
+    agents?: PluginHostAgentService,
 ): FastifyInstance {
     const app = Fastify({ logger });
+    app.get("/environments", async (request, reply) => {
+        try {
+            await plugins.authorizeHost(bearerToken(request), "environments:read");
+            return requireAgents(agents).listAgentImagesForHost();
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.get("/environments/:environmentId/dockerfile", async (request, reply) => {
+        try {
+            await plugins.authorizeHost(bearerToken(request), "environments:read");
+            const environment = await requireAgents(agents).getAgentImageDockerfileForHost(
+                pathIdentifier(request, "environmentId"),
+            );
+            return { environment };
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/environments/createEnvironment", async (request, reply) => {
+        try {
+            const { installationId: actorInstallationId } = await plugins.authorizeHost(
+                bearerToken(request),
+                "environments:manage",
+            );
+            const body = object(request.body, "Request body");
+            only(body, ["name", "dockerfile"]);
+            const image = await requireAgents(agents).createAgentImage({
+                actorInstallationId,
+                name: requiredTrimmedString(body.name, "name", MAX_ENVIRONMENT_NAME_LENGTH),
+                dockerfile: environmentDockerfile(body.dockerfile),
+            });
+            return reply.code(202).send({ environment: hostEnvironment(image) });
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/environments/:environmentId/setDefaultEnvironment", async (request, reply) => {
+        try {
+            const { installationId: actorInstallationId } = await plugins.authorizeHost(
+                bearerToken(request),
+                "environments:manage",
+            );
+            emptyBody(request.body);
+            const image = await requireAgents(agents).setDefaultAgentImage({
+                actorInstallationId,
+                imageId: pathIdentifier(request, "environmentId"),
+            });
+            return {
+                defaultEnvironmentId: image.id,
+                environment: hostEnvironment(image),
+            };
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/environments/:environmentId/deactivateEnvironment", async (request, reply) => {
+        try {
+            const { installationId: actorInstallationId } = await plugins.authorizeHost(
+                bearerToken(request),
+                "environments:deactivate",
+            );
+            emptyBody(request.body);
+            const { imageId } = await requireAgents(agents).deactivateAgentImage({
+                actorInstallationId,
+                imageId: pathIdentifier(request, "environmentId"),
+            });
+            return { deactivated: true, environmentId: imageId };
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
     app.get("/plugins", async (request, reply) => {
         try {
             const claims = await plugins.authorizeHost(bearerToken(request), "plugins:list");
@@ -188,6 +284,43 @@ function optionalString(value: unknown, name: string, maximum: number): string |
             `${name} must contain between 1 and ${maximum} characters`,
         );
     return value.trim();
+}
+
+function requireAgents(agents: PluginHostAgentService | undefined): PluginHostAgentService {
+    if (!agents)
+        throw new PluginError(
+            "broken_configuration",
+            "Agent environments are unavailable on this server",
+        );
+    return agents;
+}
+
+function hostEnvironment(image: { builtinKey?: string; id: string; name: string; status: string }) {
+    return {
+        id: image.id,
+        name: image.name,
+        status: image.status,
+        builtin: image.builtinKey !== undefined,
+        active: true,
+    };
+}
+
+function environmentDockerfile(value: unknown): string {
+    if (typeof value !== "string" || !value.trim())
+        throw new PluginHostRequestError("dockerfile must be a non-empty string");
+    if (Buffer.byteLength(value, "utf8") > MAX_DOCKERFILE_BYTES)
+        throw new PluginHostRequestError("dockerfile exceeds the 256 KiB limit");
+    return value;
+}
+
+function pathIdentifier(request: FastifyRequest, name: string): string {
+    return identifier((request.params as Record<string, unknown>)[name], name);
+}
+
+function emptyBody(value: unknown): void {
+    if (value === undefined || value === null) return;
+    if (typeof value !== "object" || Array.isArray(value) || Object.keys(value).length > 0)
+        throw new PluginHostRequestError("Request body must be empty");
 }
 
 function bearerToken(request: FastifyRequest): string {

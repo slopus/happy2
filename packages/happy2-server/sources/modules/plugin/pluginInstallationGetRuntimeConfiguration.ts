@@ -35,6 +35,7 @@ export async function pluginInstallationGetRuntimeConfiguration(
             containerImageId: pluginInstallations.containerImageId,
             selectedImageTag: agentImages.dockerTag,
             selectedImageStatus: agentImages.status,
+            selectedImageDeletedAt: agentImages.deletedAt,
         })
         .from(pluginInstallations)
         .innerJoin(plugins, eq(pluginInstallations.pluginId, plugins.id))
@@ -130,7 +131,12 @@ export async function pluginInstallationGetRuntimeConfiguration(
     if (localContainer.dockerfile) {
         imageTag = `happy2-plugin:${row.packageDigest.replace(/^sha256:/, "")}`;
     } else {
-        if (!row.containerImageId || !row.selectedImageTag || row.selectedImageStatus !== "ready")
+        if (
+            !row.containerImageId ||
+            !row.selectedImageTag ||
+            row.selectedImageStatus !== "ready" ||
+            row.selectedImageDeletedAt
+        )
             throw new PluginError(
                 "broken_configuration",
                 "Selected plugin container image is missing or not ready",

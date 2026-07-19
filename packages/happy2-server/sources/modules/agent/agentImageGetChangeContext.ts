@@ -59,7 +59,7 @@ export async function agentImageGetChangeContext(
                 status: agentImages.status,
             })
             .from(agentImages)
-            .where(eq(agentImages.id, input.imageId))
+            .where(and(eq(agentImages.id, input.imageId), isNull(agentImages.deletedAt)))
             .limit(1)
             .then((rows) => rows[0]),
         executor

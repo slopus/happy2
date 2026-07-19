@@ -146,8 +146,13 @@ each configured process, not persisted in the image or container definition.
 `container.permissions` declares the exact host API capabilities a package may
 request. Permissions are grouped for presentation by API section:
 `channels:manage` is a mutating permission in `channels`, `chats:update` is a
-mutating permission in `chats`, while `plugins:list` is read-only and
-`plugins:install` and `plugins:uninstall` are mutating permissions in `plugins`.
+mutating permission in `chats`, `environments:read` is read-only and
+`environments:manage` creates and selects environments, and
+`environments:deactivate` separately deactivates unused custom environments.
+Deactivation retains the immutable manifest and Dockerfile, and creating the
+same definition later reactivates it and queues a fresh build. `plugins:list` is
+read-only and `plugins:install` and `plugins:uninstall` are mutating permissions
+in `plugins`.
 `plugins:request-install` and `plugins:request-uninstall` are also mutating
 permissions, but create chat-scoped human approvals instead of granting direct
 install or uninstall authority. Unknown and duplicate permissions are rejected
@@ -163,9 +168,10 @@ later with `POST /v0/admin/pluginInstallations/:installationId/updatePermissions
 Changing a grant invalidates the current runtime token and restarts the local
 container with a new token, so stale tokens cannot retain revoked access.
 
-The isolated plugin host listener provides `GET /plugins`, `POST /plugins/install`,
-`POST /plugins/uninstall`, `POST /channels/updateMembers`, and
-`POST /channels/createChannel`, alongside the chat-update route. Each route
+The isolated plugin host listener provides environment listing, Dockerfile reads,
+creation, default selection, and safe deactivation alongside `GET /plugins`,
+`POST /plugins/install`, `POST /plugins/uninstall`, `POST /channels/updateMembers`,
+`POST /channels/createChannel`, and the chat-update route. Each route
 requires its matching capability. Plugin-triggered installs must also choose a
 subset of the target package's declared permissions.
 

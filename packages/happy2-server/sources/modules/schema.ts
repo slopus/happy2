@@ -215,6 +215,7 @@ export const agentImages = sqliteTable("agent_images", {
     createdByUserId: text("created_by_user_id"),
     createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
     updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    deletedAt: text("deleted_at"),
 });
 
 export const agentImageSettings = sqliteTable("agent_image_settings", {
