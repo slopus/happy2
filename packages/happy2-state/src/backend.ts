@@ -11,7 +11,6 @@ import type {
     NotificationSummary,
     PresenceSettingsSummary,
     PresenceSnapshot,
-    ThreadSummary,
     UserSummary,
     WebRtcSignal,
     WorkspaceFileWriteInput,
@@ -169,7 +168,8 @@ export const backendOperations = {
     writeWorkspaceFile: post("/v0/chats/:chatId/workspace/writeFile"),
     deleteWorkspaceFile: post("/v0/chats/:chatId/workspace/deleteFile"),
     getMessage: get("/v0/messages/:messageId"),
-    getThread: get("/v0/messages/:messageId/thread", ["beforeSequence", "afterSequence", "limit"]),
+    getThread: get("/v0/messages/:messageId/thread"),
+    createThread: post("/v0/messages/:messageId/createThread"),
     getMessageAgentTrace: get("/v0/messages/:messageId/agentTrace"),
     getThreads: get("/v0/threads", ["before", "unreadOnly", "limit"]),
     getNotifications: get("/v0/notifications", ["before", "unreadOnly", "limit"]),
@@ -196,9 +196,7 @@ export const backendOperations = {
     reorderStarredChats: post("/v0/chats/reorderStarred"),
     sendMessage: post("/v0/chats/:chatId/sendMessage"),
     updateDraft: post("/v0/chats/:chatId/updateDraft"),
-    sendThreadMessage: post("/v0/messages/:messageId/sendThreadMessage"),
-    updateThreadSubscription: post("/v0/messages/:messageId/updateThreadSubscription"),
-    markThreadRead: post("/v0/messages/:messageId/markThreadRead"),
+    updateThreadFollow: post("/v0/chats/:chatId/updateThreadFollow"),
     deleteMessage: post("/v0/messages/:messageId/deleteMessage"),
     editMessage: post("/v0/messages/:messageId/editMessage"),
     getMessageRevisions: get("/v0/messages/:messageId/revisions"),
@@ -526,18 +524,8 @@ export interface KnownBackendInputs {
         readonly audience?: "people" | "agents";
         readonly agentUserIds?: readonly string[];
     };
-    sendThreadMessage: Omit<
-        KnownBackendInputs["sendMessage"],
-        "chatId" | "threadRootMessageId" | "audience" | "agentUserIds"
-    > & {
-        readonly messageId: string;
-    };
-    updateThreadSubscription: {
-        readonly messageId: string;
-        readonly subscribed: boolean;
-        readonly notificationLevel?: "all" | "mentions" | "none";
-    };
-    markThreadRead: { readonly messageId: string; readonly throughMessageId?: string };
+    createThread: { readonly messageId: string };
+    updateThreadFollow: { readonly chatId: string; readonly followed: boolean };
     deleteMessage: { readonly messageId: string };
     editMessage: {
         readonly messageId: string;
@@ -986,9 +974,9 @@ export interface KnownBackendResults {
         readonly file: { readonly path: string; readonly deletedVersion: string };
     };
     getMessage: { readonly message: MessageSummary };
-    getThread: MessagePage & { readonly root: MessageSummary };
+    getThread: { readonly chat: ChatSummary };
     getMessageAgentTrace: { readonly trace: AgentTurnTraceDetails };
-    getThreads: { readonly threads: readonly ThreadSummary[]; readonly nextCursor?: string };
+    getThreads: { readonly threads: readonly ChatSummary[]; readonly nextCursor?: string };
     getNotifications: {
         readonly notifications: readonly NotificationSummary[];
         readonly nextCursor?: string;
@@ -1121,8 +1109,9 @@ export interface KnownBackendResults {
     markChatRead: ChatResult;
     updateChatNotificationPreferences: ChatResult;
     setChatStar: ChatResult;
+    createThread: ChatResult;
+    updateThreadFollow: { readonly sync?: unknown };
     sendMessage: MessageResult;
-    sendThreadMessage: MessageResult;
     deleteMessage: MessageResult;
     editMessage: MessageResult;
     addReaction: MessageResult;

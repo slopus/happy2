@@ -14,6 +14,7 @@ export interface SyncState {
 export interface ChatSummary {
     readonly id: string;
     readonly kind: ChatKind;
+    readonly parentMessageId?: string;
     readonly name?: string;
     readonly slug?: string;
     readonly topic?: string;
@@ -38,6 +39,7 @@ export interface ChatSummary {
     readonly membershipEpoch: string;
     readonly membershipRole?: ChatRole;
     readonly starred: boolean;
+    readonly followed: boolean;
     readonly starOrder?: number;
     readonly lastReadSequence: string;
     readonly unreadCount: number;
@@ -237,18 +239,6 @@ export interface PresenceSettingsSummary {
     readonly customStatusEmoji?: string;
     readonly statusExpiresAt?: string;
     readonly dndUntil?: string;
-    readonly updatedAt: string;
-}
-
-export interface ThreadSummary {
-    readonly root: MessageSummary;
-    readonly replyCount: number;
-    readonly participantCount: number;
-    readonly lastReplyMessageId?: string;
-    readonly lastReplySequence?: string;
-    readonly subscribed: boolean;
-    readonly unreadCount: number;
-    readonly mentionCount: number;
     readonly updatedAt: string;
 }
 

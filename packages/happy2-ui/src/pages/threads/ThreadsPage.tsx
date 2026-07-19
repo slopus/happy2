@@ -1,12 +1,14 @@
 import type { ThreadsStore } from "happy2-state";
+import { Banner } from "../../Banner";
 import { Box } from "../../Box";
+import { Button } from "../../Button";
 import { EmptyState } from "../../EmptyState";
 import { StoreSurface } from "../../StoreSurface";
 import { ThreadList } from "../../ThreadList";
 export interface ThreadsPageProps {
     store: ThreadsStore;
     imageUrl?: (fileId?: string) => string | undefined;
-    onSelect?: (rootMessageId: string) => void;
+    onSelect?: (childChatId: string) => void;
 }
 /** Complete followed-thread index backed by one ThreadsStore. */
 export function ThreadsPage(props: ThreadsPageProps) {
@@ -17,7 +19,7 @@ export function ThreadsPage(props: ThreadsPageProps) {
                     const state = snapshot.threads;
                     return state.type === "ready"
                         ? state.value.map((thread) => ({
-                              id: thread.root.id,
+                              id: thread.chat.id,
                               title: thread.root.text || "Thread",
                               snippet: thread.root.text || undefined,
                               participants: thread.root.sender
@@ -30,10 +32,10 @@ export function ThreadsPage(props: ThreadsPageProps) {
                                         },
                                     ]
                                   : [],
-                              replyCount: thread.replyCount,
-                              unreadCount: thread.unreadCount,
-                              lastActivity: formatDate(thread.updatedAt),
-                              subscribed: thread.subscribed,
+                              replyCount: thread.root.threadReplyCount,
+                              unreadCount: thread.chat.unreadCount,
+                              lastActivity: formatDate(thread.chat.updatedAt),
+                              subscribed: thread.chat.followed,
                           }))
                         : [];
                 })();
@@ -51,9 +53,24 @@ export function ThreadsPage(props: ThreadsPageProps) {
                             style={{
                                 display: "flex",
                                 flexDirection: "column",
+                                gap: "8px",
                                 padding: "16px",
                             }}
                         >
+                            {snapshot.actionError ? (
+                                <Banner tone="danger" title="Thread action failed">
+                                    {snapshot.actionError.message}
+                                </Banner>
+                            ) : null}
+                            {snapshot.pageError ? (
+                                <Banner
+                                    action={{ label: "Retry", onClick: store.threadsMore }}
+                                    tone="danger"
+                                    title="More threads failed to load"
+                                >
+                                    {snapshot.pageError.message}
+                                </Banner>
+                            ) : null}
                             <ThreadList
                                 onSelect={(id) => {
                                     store.threadReadMark(id);
@@ -61,16 +78,36 @@ export function ThreadsPage(props: ThreadsPageProps) {
                                 }}
                                 threads={threads}
                             />
+                            {snapshot.nextCursor ? (
+                                <Button
+                                    onClick={store.threadsMore}
+                                    size="small"
+                                    variant="secondary"
+                                >
+                                    Load more
+                                </Button>
+                            ) : null}
                         </Box>
                     </Box>
                 ) : (
                     <EmptyState
-                        description="Follow-up conversations and thread replies collect here."
+                        action={
+                            snapshot.threads.type === "error"
+                                ? { label: "Retry", onClick: store.threadsRetry }
+                                : undefined
+                        }
+                        description={
+                            snapshot.threads.type === "error"
+                                ? snapshot.threads.error.message
+                                : "Follow-up conversations and thread replies collect here."
+                        }
                         icon="thread"
                         title={
                             snapshot.threads.type === "loading"
                                 ? "Loading threads…"
-                                : "No threads yet"
+                                : snapshot.threads.type === "error"
+                                  ? "Threads failed to load"
+                                  : "No threads yet"
                         }
                     />
                 );

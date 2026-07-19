@@ -3,7 +3,6 @@ import type { ChatPageActions } from "./ChatPage.js";
 import { emojiItems, type LiveThreadMessage } from "./chatPageModels.js";
 export interface ChatMessageActionsModelOptions {
     userId: () => string;
-    activeChatId: () => string;
     actions: ChatPageActions;
     onError(error: unknown): void;
     onEdit(message: LiveThreadMessage): void;
@@ -17,9 +16,8 @@ export function chatMessageActionsModelCreate(options: ChatMessageActionsModelOp
             (reaction) => reaction.emoji === resolved && reaction.reacted,
         );
         try {
-            if (selected)
-                await options.actions.reactionRemove(options.activeChatId(), source.id, resolved);
-            else await options.actions.reactionAdd(options.activeChatId(), source.id, resolved);
+            if (selected) await options.actions.reactionRemove(source.chatId, source.id, resolved);
+            else await options.actions.reactionAdd(source.chatId, source.id, resolved);
         } catch (error) {
             options.onError(error);
         }
@@ -53,7 +51,7 @@ export function chatMessageActionsModelCreate(options: ChatMessageActionsModelOp
             if (source.sender?.id !== options.userId()) return;
             if (action === "edit") return options.onEdit(message);
             if (action === "delete" && window.confirm("Delete this message?"))
-                await options.actions.messageDelete(options.activeChatId(), source.id);
+                await options.actions.messageDelete(source.chatId, source.id);
         } catch (error) {
             options.onError(error);
         }

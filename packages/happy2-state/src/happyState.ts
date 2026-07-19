@@ -150,9 +150,9 @@ import {
     type AgentSecretsOutput,
     type AgentSecretsStore,
 } from "./modules/agent-secrets/agentSecretsState.js";
-import { threadLoad, type ThreadActionContext } from "./modules/thread/threadState.js";
-import { threadMessageSend } from "./modules/thread/threadState.js";
+import { threadCreateAndSend, type ThreadActionContext } from "./modules/thread/threadState.js";
 import { threadOpen, type ThreadOpenContext } from "./modules/thread/threadState.js";
+import { threadResolve } from "./modules/thread/threadState.js";
 import {
     threadStoreCreate,
     type ThreadOutput,
@@ -306,12 +306,18 @@ export class HappyState implements AsyncDisposable, Disposable {
             workspaceFileRelease: (chatId, path) =>
                 this.workspaceFiles.release(workspaceFileKey(chatId, path)),
             workspaceFileLoad: (chatId, path) => this.workspaceFileLoad(chatId, path),
-            threadAcquire: (rootMessageId) =>
-                this.threadSurfaces.getOrCreate(rootMessageId, () =>
-                    threadStoreCreate(rootMessageId, (event) => this.eventRoute(event)),
+            threadAcquire: (parentChatId, rootMessageId) =>
+                this.threadSurfaces.getOrCreate(threadKey(parentChatId, rootMessageId), () =>
+                    threadStoreCreate(parentChatId, rootMessageId, {
+                        createId: this.runtime.createId,
+                        output: (event) => this.eventRoute(event),
+                    }),
                 ),
-            threadRelease: (rootMessageId) => this.threadSurfaces.release(rootMessageId),
-            threadLoad: (rootMessageId) => this.threadLoad(rootMessageId),
+            threadRelease: (parentChatId, rootMessageId) =>
+                this.threadSurfaces.release(threadKey(parentChatId, rootMessageId)),
+            threadResolve: (parentChatId, rootMessageId) =>
+                this.threadResolve(parentChatId, rootMessageId),
+            chatOpen: (chatId) => chatOpen(this.context, chatId),
             agentTraceAcquire: (messageId) =>
                 this.agentTraces.getOrCreate(messageId, () => agentTraceStoreCreate(messageId)),
             agentTraceRelease: (messageId) => this.agentTraces.release(messageId),
@@ -329,6 +335,7 @@ export class HappyState implements AsyncDisposable, Disposable {
             agentTraceReconcile: (message) => this.agentTraceReconcile(message),
             agentTracesInvalidate: () => this.agentTracesReload(),
             chatPluginRequestsReconcile: (chatId) => this.chatPluginRequestsReconcile(chatId),
+            threadListChatsReconcile: (chatIds) => this.threadListChatsReconcile(chatIds),
             areaReconcile: (area) => this.areaReconcile(area),
             resetReconcile: () => this.resetReconcile(),
             backgroundError,
@@ -541,8 +548,8 @@ export class HappyState implements AsyncDisposable, Disposable {
         });
     }
 
-    threadOpen(rootMessageId: string): ThreadHandle {
-        return threadOpen(this.context, rootMessageId);
+    threadOpen(parentChatId: string, rootMessageId: string): ThreadHandle {
+        return threadOpen(this.context, parentChatId, rootMessageId);
     }
 
     agentTraceOpen(messageId: string): AgentTraceHandle {
@@ -863,10 +870,17 @@ export class HappyState implements AsyncDisposable, Disposable {
             case "fileDeleteRequested":
                 this.workspaceFileDelete(event.chatId, event.path);
                 return;
+            case "threadResolutionRequested":
+                this.threadResolve(event.parentChatId, event.rootMessageId);
+                return;
+            case "childChatLoadRequested":
+                this.chatLoad(event.childChatId);
+                return;
+            case "threadCreateSubmitted":
+                this.backgroundIfConnected(() => threadCreateAndSend(this.threadContext(), event));
+                return;
             case "threadReplySubmitted":
-                this.backgroundIfConnected(() =>
-                    threadMessageSend(this.threadContext(), event.rootMessageId, event.input),
-                );
+                messageSend(this.messageContext(), event.childChatId, event.input);
                 return;
             case "filesMoreRequested":
                 if (this.filesBinding)
@@ -1037,8 +1051,9 @@ export class HappyState implements AsyncDisposable, Disposable {
                 );
                 return;
             case "threadsMoreRequested":
+            case "threadsRefreshRequested":
             case "threadReadSubmitted":
-            case "threadSubscriptionSubmitted":
+            case "threadFollowSubmitted":
                 if (this.threadsBinding)
                     this.backgroundIfConnected(() =>
                         threadsOutputRoute(
@@ -1125,6 +1140,22 @@ export class HappyState implements AsyncDisposable, Disposable {
         const requests = this.chats.get(chatId)?.getState().pluginRequests;
         if (requests?.type === "loading" || requests?.type === "ready")
             this.chatPluginRequestsLoad(chatId);
+    }
+
+    private threadListChatsReconcile(chatIds: readonly string[]): void {
+        const threads = this.threadsBinding;
+        const snapshot = threads?.getState().threads;
+        if (!threads || snapshot?.type !== "ready") return;
+        const changed = new Set(chatIds);
+        if (
+            !snapshot.value.some(
+                (thread) => changed.has(thread.chat.id) || changed.has(thread.root.chatId),
+            )
+        )
+            return;
+        this.runtime.background(
+            threadsLoad({ runtime: this.runtime, identities: this.identities, threads }),
+        );
     }
 
     private agentTraceLoad(messageId: string): void {
@@ -1347,7 +1378,10 @@ export class HappyState implements AsyncDisposable, Disposable {
             const { chatId, path } = binding.getState();
             this.workspaceFileLoad(chatId, path);
         }
-        for (const [rootMessageId] of this.threadSurfaces.values()) this.threadLoad(rootMessageId);
+        for (const [, binding] of this.threadSurfaces.values()) {
+            const { parentChatId, rootMessageId } = binding.getState();
+            this.threadResolve(parentChatId, rootMessageId);
+        }
         this.agentTracesReload();
         const files = this.filesBinding;
         if (files && files.getState().status.type !== "unloaded")
@@ -1540,13 +1574,16 @@ export class HappyState implements AsyncDisposable, Disposable {
         return {
             runtime: this.runtime,
             identities: this.identities,
-            threadGet: (rootMessageId) => this.threadSurfaces.get(rootMessageId),
+            threadGet: (parentChatId, rootMessageId) =>
+                this.threadSurfaces.get(threadKey(parentChatId, rootMessageId)),
+            chatGet: (chatId) => this.chats.get(chatId),
+            messageSend: (chatId, input) => messageSend(this.messageContext(), chatId, input),
         };
     }
 
-    private threadLoad(rootMessageId: string): void {
+    private threadResolve(parentChatId: string, rootMessageId: string): void {
         if (!this.runtime.connected) return;
-        this.runtime.background(threadLoad(this.threadContext(), rootMessageId));
+        this.runtime.background(threadResolve(this.threadContext(), parentChatId, rootMessageId));
     }
 
     private backgroundIfConnected(task: () => Promise<void>): void {
@@ -1560,4 +1597,8 @@ export function happyStateCreate(options: HappyStateOptions = {}): HappyState {
 
 function workspaceFileKey(chatId: string, path: string): string {
     return `${chatId}\u0000${path}`;
+}
+
+function threadKey(parentChatId: string, rootMessageId: string): string {
+    return `${parentChatId}\u0000${rootMessageId}`;
 }

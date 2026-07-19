@@ -20,10 +20,12 @@ describe("message module", () => {
         const revision = composer.getState().revision;
         const pending: Promise<void>[] = [];
         const operation = vi.fn().mockResolvedValue({ message: message() });
+        const operationWithIdempotencyKey = vi.fn().mockResolvedValue({ message: message() });
         const runtime = {
             createId: () => "mutation-1",
             now: () => 0,
             operation,
+            operationWithIdempotencyKey,
             background: (task: Promise<void>) => pending.push(task),
         } as unknown as StateRuntime;
         const pins = vi.fn();
@@ -51,8 +53,12 @@ describe("message module", () => {
         await messagePin(context, "chat-1", "message-1");
         await messageUnpin(context, "chat-1", "message-1");
         expect(pins).toHaveBeenCalledTimes(2);
-        expect(operation.mock.calls.map(([name]) => name)).toEqual([
+        expect(operationWithIdempotencyKey).toHaveBeenCalledWith(
             "sendMessage",
+            "mutation-1",
+            expect.objectContaining({ clientMutationId: "mutation-1" }),
+        );
+        expect(operation.mock.calls.map(([name]) => name)).toEqual([
             "editMessage",
             "deleteMessage",
             "pinMessage",
@@ -63,14 +69,14 @@ describe("message module", () => {
     it("sends audience routing to the server and projects it on the optimistic message", async () => {
         const chat = chatStoreCreate("chat-1");
         const pending: Promise<void>[] = [];
-        const operation = vi.fn().mockResolvedValue({
+        const operationWithIdempotencyKey = vi.fn().mockResolvedValue({
             message: message({ audience: "agents", agentUserIds: ["agent-1", "agent-2"] }),
         });
         const context: MessageActionContext = {
             runtime: {
                 createId: () => "mutation-1",
                 now: () => 0,
-                operation,
+                operationWithIdempotencyKey,
                 background: (task: Promise<void>) => pending.push(task),
             } as unknown as StateRuntime,
             identities: new IdentityCatalog(),
@@ -89,8 +95,9 @@ describe("message module", () => {
             agentUserIds: ["agent-2"],
         });
         await Promise.all(pending);
-        expect(operation).toHaveBeenCalledWith(
+        expect(operationWithIdempotencyKey).toHaveBeenCalledWith(
             "sendMessage",
+            "mutation-1",
             expect.objectContaining({
                 audience: "agents",
                 agentUserIds: ["agent-2"],
@@ -119,7 +126,7 @@ describe("message module", () => {
             runtime: {
                 createId: () => "mutation-1",
                 now: () => 0,
-                operation: vi.fn(() => new Promise(() => undefined)),
+                operationWithIdempotencyKey: vi.fn(() => new Promise(() => undefined)),
                 background: () => undefined,
             } as unknown as StateRuntime,
             identities: new IdentityCatalog(),
@@ -142,7 +149,7 @@ describe("message module", () => {
             runtime: {
                 createId: () => "mutation-1",
                 now: () => 0,
-                operation: vi.fn().mockRejectedValue(new Error("offline")),
+                operationWithIdempotencyKey: vi.fn().mockRejectedValue(new Error("offline")),
                 background: (task: Promise<void>) => pending.push(task.catch(() => undefined)),
             } as unknown as StateRuntime,
             identities: new IdentityCatalog(),

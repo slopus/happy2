@@ -37,7 +37,7 @@ it("renders every concrete HappyState surface from its deterministic real-store 
     const secrets = fixtureDispose(agentSecretsStoreFixtureCreate());
     const notifications = fixtureDispose(notificationsStoreFixtureCreate());
     const threads = fixtureDispose(threadsStoreFixtureCreate());
-    const thread = fixtureDispose(threadStoreFixtureCreate("message-1"));
+    const thread = fixtureDispose(threadStoreFixtureCreate("chat-1", "message-1"));
     const calls = fixtureDispose(callsStoreFixtureCreate());
     const settings = fixtureDispose(settingsStoreFixtureCreate());
     const workspace = fixtureDispose(workspaceStoreFixtureCreate("chat-1"));
@@ -104,7 +104,7 @@ it("renders every concrete HappyState surface from its deterministic real-store 
     ));
     render(() => (
         <StoreSurface store={thread.store}>
-            {(snapshot) => <output data-testid="thread">{snapshot.root.type}</output>}
+            {(snapshot) => <output data-testid="thread">{snapshot.resolution.type}</output>}
         </StoreSurface>
     ));
     render(() => (
@@ -140,7 +140,7 @@ it("renders every concrete HappyState surface from its deterministic real-store 
     secrets.input({ type: "secretsLoading" });
     notifications.input({ type: "notificationsLoading" });
     threads.input({ type: "threadsLoading" });
-    thread.input({ type: "threadLoading" });
+    thread.input({ type: "threadResolutionLoading" });
     calls.input({ type: "callsLoading" });
     settings.input({ type: "settingsLoadFailed", error: new UserError("offline") });
     workspace.input({ type: "workspaceLoading" });

@@ -48,6 +48,7 @@ function chat(
         membershipEpoch: "1",
         membershipRole: "member",
         starred: false,
+        followed: false,
         lastReadSequence: "0",
         unreadCount: 0,
         mentionCount: 0,

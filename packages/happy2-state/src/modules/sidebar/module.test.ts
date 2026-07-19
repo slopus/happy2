@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { chat } from "../../../tests/fixtures.js";
-import { sidebarStoreCreate } from "./sidebarState.js";
+import { IdentityCatalog } from "../identity/identityState.js";
+import { StateRuntime } from "../runtime/runtimeState.js";
+import { SidebarChatsProjector, sidebarStoreCreate } from "./sidebarState.js";
 
 describe("sidebar module", () => {
     it("orders, replaces, removes, and structurally shares chat summary projections", () => {
@@ -26,6 +28,17 @@ describe("sidebar module", () => {
         expect(binding.getState().chats[1]).toBe(second);
         binding.getState().sidebarInput({ type: "chatSummaryRemoved", chatId: "chat-1" });
         expect(binding.getState().chats).toEqual([second]);
+    });
+
+    it("filters child chats at the projection boundary", async () => {
+        const projector = new SidebarChatsProjector(new StateRuntime({}), new IdentityCatalog());
+        const parent = chat({ id: "parent" });
+        const child = chat({ id: "child", parentMessageId: "message-1", followed: true });
+
+        await expect(projector.project([parent, child])).resolves.toEqual([
+            expect.objectContaining({ id: "parent" }),
+        ]);
+        await expect(projector.projectOne(child)).resolves.toBeUndefined();
     });
 });
 

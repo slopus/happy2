@@ -5,13 +5,17 @@ import type {
     AgentTurnTraceSummary,
     ChatMessageItem,
     ChatSummary,
+    ThreadHandle,
+    ThreadOutput,
 } from "happy2-state";
+import { UserError } from "happy2-state";
 import {
     agentTraceStoreFixtureCreate,
     chatStoreFixtureCreate,
     composerStoreFixtureCreate,
     directoryStoreFixtureCreate,
     sidebarStoreFixtureCreate,
+    threadStoreFixtureCreate,
 } from "happy2-state/testing";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { createRenderer } from "../../testing";
@@ -37,6 +41,7 @@ const chat: ChatSummary = {
     membershipEpoch: "1",
     membershipRole: "owner",
     starred: false,
+    followed: false,
     lastReadSequence: "0",
     unreadCount: 0,
     mentionCount: 0,
@@ -109,6 +114,18 @@ function chatPageActionsCreate(overrides: Partial<ChatPageActions> = {}): ChatPa
         agentCreate: async () => undefined,
         directMessageCreate: async () => undefined,
         ...overrides,
+    };
+}
+
+function threadHandleCreate(
+    thread: ReturnType<typeof threadStoreFixtureCreate>,
+    child: ReturnType<typeof chatStoreFixtureCreate>,
+): ThreadHandle {
+    return {
+        ...thread.store,
+        childChat: () =>
+            thread.store.getState().resolution.type === "ready" ? child.store : undefined,
+        [Symbol.dispose]: () => undefined,
     };
 }
 async function chatIntroDescription(
@@ -335,7 +352,8 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
         composer[Symbol.dispose]();
     });
     const adminOpen = vi.fn();
-    const actions = chatPageActionsCreate({ adminOpen });
+    const chatSelect = vi.fn();
+    const actions = chatPageActionsCreate({ adminOpen, chatSelect });
     const view = createRenderer();
     view.render(
         () => (
@@ -429,6 +447,8 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
     adminButton!.click();
     expect(adminOpen).toHaveBeenCalledOnce();
     const happyRow = view.container.querySelector('[data-item-id="happy-chat"]')!;
+    (happyRow as HTMLElement).click();
+    expect(chatSelect).toHaveBeenCalledWith("happy-chat", "chat", false);
     sidebar.input({
         type: "chatSummariesReconciled",
         changedChats: [
@@ -496,6 +516,236 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
     expect(view.container.querySelector("textarea")?.value).toBe(
         "typed through the concrete composer store",
     );
+});
+
+it("renders the pinned parent root and every resolver, child-load, empty, and send-failure state", async () => {
+    const sidebar = sidebarStoreFixtureCreate();
+    const directory = directoryStoreFixtureCreate();
+    const parent = chatStoreFixtureCreate(chat.id);
+    const outputs: ThreadOutput[] = [];
+    const thread = threadStoreFixtureCreate(
+        chat.id,
+        "root-message",
+        (event) => outputs.push(event),
+        () => "mutation-1",
+    );
+    const childSummary: ChatSummary = {
+        ...chat,
+        id: "thread-chat",
+        kind: "private_channel",
+        name: "Thread",
+        slug: undefined,
+        topic: undefined,
+        isListed: false,
+        parentMessageId: "root-message",
+        followed: true,
+    };
+    const child = chatStoreFixtureCreate(childSummary.id);
+    onTestFinished(() => {
+        sidebar[Symbol.dispose]();
+        directory[Symbol.dispose]();
+        parent[Symbol.dispose]();
+        thread[Symbol.dispose]();
+        child[Symbol.dispose]();
+    });
+    directory.input({ type: "directoryLoaded", users: [], channels: [] });
+    sidebar.input({
+        type: "sidebarLoaded",
+        chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
+        sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+    });
+    const root = messageItem("root-message", "Pinned root context");
+    parent.input({ type: "chatLoaded", chat, messages: [root], hasMoreMessages: false });
+    thread.input({ type: "threadResolutionLoading" });
+    let resolverSubscriptions = 0;
+    let childSubscriptions = 0;
+    const resolverSubscribe = thread.store.subscribe.bind(thread.store);
+    const childSubscribe = child.store.subscribe.bind(child.store);
+    thread.store.subscribe = (listener) => {
+        resolverSubscriptions += 1;
+        const unsubscribe = resolverSubscribe(listener);
+        return () => {
+            resolverSubscriptions -= 1;
+            unsubscribe();
+        };
+    };
+    child.store.subscribe = (listener) => {
+        childSubscriptions += 1;
+        const unsubscribe = childSubscribe(listener);
+        return () => {
+            childSubscriptions -= 1;
+            unsubscribe();
+        };
+    };
+    const handle = threadHandleCreate(thread, child);
+    const chatReadMark = vi.fn(async () => undefined);
+    const view = createRenderer();
+    view.render(
+        () => (
+            <ChatPage
+                actions={chatPageActionsCreate({ chatReadMark })}
+                chat={parent.store}
+                directory={directory.store}
+                navigation={{
+                    chatId: chat.id,
+                    panel: { kind: "thread", rootMessageId: "root-message" },
+                }}
+                rail={<div>Rail</div>}
+                search=""
+                sidebar={sidebar.store}
+                thread={handle}
+                titleBar={<div>Title</div>}
+                user={{ id: "user-1", firstName: "Ada" }}
+            />
+        ),
+        { width: 1200, height: 800 },
+    );
+    await view.ready();
+    const panel = () => view.container.querySelector<HTMLElement>('[data-testid="thread-panel"]')!;
+    expect(panel().textContent).toContain("Pinned root context");
+    expect(panel().textContent).toContain("Loading replies");
+    expect(panel().textContent).not.toContain("No replies yet.");
+    const rootNode = panel().querySelector('[data-happy2-ui="message"]')!;
+    expect(resolverSubscriptions).toBe(1);
+    expect(childSubscriptions).toBe(0);
+
+    thread.input({
+        type: "threadResolutionFailed",
+        stage: "child",
+        error: new UserError("Lookup failed"),
+    });
+    await nextFrame();
+    expect(panel().textContent).toContain("Thread failed to resolve");
+    expect(panel().textContent).toContain("Lookup failed");
+    Array.from(panel().querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.trim() === "Retry")!
+        .click();
+    expect(outputs.at(-1)).toMatchObject({ type: "threadResolutionRequested" });
+
+    thread.input({ type: "threadResolutionAbsent" });
+    await nextFrame();
+    expect(panel().textContent).toContain("No replies yet.");
+    expect(panel().querySelector<HTMLTextAreaElement>("textarea")?.disabled).toBe(false);
+    thread.store.getState().replyDraftUpdate("First reply");
+    await nextFrame();
+    expect(panel().querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("First reply");
+
+    thread.input({ type: "threadResolutionReady", childChatId: childSummary.id });
+    child.input({ type: "chatLoading" });
+    await nextFrame();
+    expect(panel().textContent).toContain("Loading replies");
+    expect(childSubscriptions).toBe(1);
+    child.input({ type: "chatFailed", error: new UserError("Replies unavailable") });
+    await nextFrame();
+    expect(panel().textContent).toContain("Replies failed to load");
+    expect(panel().textContent).toContain("Replies unavailable");
+    Array.from(panel().querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.trim() === "Retry")!
+        .click();
+    expect(outputs.at(-1)).toEqual({
+        type: "childChatLoadRequested",
+        childChatId: childSummary.id,
+    });
+
+    const reply: ChatMessageItem = {
+        ...messageItem("reply-message", "Loaded child reply"),
+        message: {
+            ...messageItem("reply-message", "Loaded child reply").message,
+            chatId: childSummary.id,
+        },
+    };
+    child.input({
+        type: "chatLoaded",
+        chat: childSummary,
+        messages: [reply],
+        hasMoreMessages: false,
+    });
+    await nextFrame();
+    expect(panel().textContent).toContain("Loaded child reply");
+    expect(panel().textContent).not.toContain("No replies yet.");
+    expect(panel().querySelector('[data-happy2-ui="message"]')).toBe(rootNode);
+    expect(
+        Array.from(panel().querySelectorAll('[data-happy2-ui="message"]')).map((node) =>
+            node.textContent?.includes("Pinned root context")
+                ? "root"
+                : node.textContent?.includes("Loaded child reply")
+                  ? "reply"
+                  : "other",
+        ),
+    ).toEqual(["root", "reply"]);
+    await vi.waitFor(() =>
+        expect(chatReadMark).toHaveBeenCalledWith(childSummary.id, "reply-message"),
+    );
+
+    thread.store.getState().replySubmit();
+    child.input({
+        type: "messageUpserted",
+        item: {
+            ...reply,
+            source: "local",
+            delivery: "failed",
+            clientMutationId: "mutation-1",
+            error: new UserError("Send unavailable"),
+            message: {
+                ...reply.message,
+                id: "local:mutation-1",
+                sequence: "local:mutation-1",
+                text: "Failed child reply",
+            },
+        },
+    });
+    await nextFrame();
+    expect(panel().textContent).toContain("Reply failed to send");
+    expect(panel().textContent).toContain("Send unavailable");
+    Array.from(panel().querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.trim() === "Retry")!
+        .click();
+    expect(outputs.at(-1)).toEqual({
+        type: "threadReplySubmitted",
+        childChatId: childSummary.id,
+        clientMutationId: "mutation-1",
+        input: { text: "First reply", clientMutationId: "mutation-1" },
+    });
+
+    view.destroy();
+    expect(resolverSubscriptions).toBe(0);
+    expect(childSubscriptions).toBe(0);
+});
+
+it("does not select the first channel for a nonempty unknown route", async () => {
+    const sidebar = sidebarStoreFixtureCreate();
+    const directory = directoryStoreFixtureCreate();
+    onTestFinished(() => {
+        sidebar[Symbol.dispose]();
+        directory[Symbol.dispose]();
+    });
+    directory.input({ type: "directoryLoaded", users: [], channels: [] });
+    sidebar.input({
+        type: "sidebarLoaded",
+        chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
+        sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+    });
+    const chatSelect = vi.fn();
+    const view = createRenderer();
+    view.render(
+        () => (
+            <ChatPage
+                actions={chatPageActionsCreate({ chatSelect })}
+                directory={directory.store}
+                navigation={{ chatId: "unknown-chat" }}
+                rail={<div>Rail</div>}
+                search=""
+                sidebar={sidebar.store}
+                titleBar={<div>Title</div>}
+                user={{ id: "user-1", firstName: "Ada" }}
+            />
+        ),
+        { width: 1200, height: 800 },
+    );
+    await view.ready();
+    await nextFrame();
+    expect(chatSelect).not.toHaveBeenCalled();
+    expect(view.container.textContent).toContain("No conversation selected");
 });
 
 it("creates a direct message from the directory and does not hijack later navigation", async () => {

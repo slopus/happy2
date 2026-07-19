@@ -117,7 +117,10 @@ export function ChatView(props: ChatViewProps) {
             next.thread?.[Symbol.dispose]();
             replace({
                 threadId: nextThreadId,
-                thread: nextThreadId ? state.threadOpen(nextThreadId) : undefined,
+                thread:
+                    nextChatId && nextThreadId
+                        ? state.threadOpen(nextChatId, nextThreadId)
+                        : undefined,
             });
         }
         if (next.traceMessageId !== nextTraceMessageId) {

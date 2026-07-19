@@ -14,11 +14,11 @@ export function ThreadsView(props: ThreadsViewProps) {
     return (
         <ThreadsPage
             imageUrl={avatars.imageUrl}
-            onSelect={(rootMessageId) => {
+            onSelect={(childChatId) => {
                 const snapshot = store.getState().threads;
                 const thread =
                     snapshot.type === "ready"
-                        ? snapshot.value.find((item) => item.root.id === rootMessageId)
+                        ? snapshot.value.find((item) => item.chat.id === childChatId)
                         : undefined;
                 if (!thread) return;
                 const chat = props.state
@@ -28,7 +28,9 @@ export function ThreadsView(props: ThreadsViewProps) {
                 const conversationKind =
                     chat?.chat.kind === "public_channel" || chat?.chat.kind === "private_channel"
                         ? "channel"
-                        : "chat";
+                        : thread.chat.kind === "dm"
+                          ? "chat"
+                          : "channel";
                 props.navigation.navigate({
                     ...props.route,
                     primary: {
@@ -36,7 +38,7 @@ export function ThreadsView(props: ThreadsViewProps) {
                         conversationKind,
                         chatId: thread.root.chatId,
                     },
-                    panel: { kind: "thread", rootMessageId },
+                    panel: { kind: "thread", rootMessageId: thread.root.id },
                     overlay: undefined,
                 });
             }}

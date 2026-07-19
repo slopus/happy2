@@ -93,11 +93,15 @@ export function messageSend(
     context.runtime.background(
         (async () => {
             try {
-                const result = await context.runtime.operation("sendMessage", {
-                    chatId,
-                    ...input,
+                const result = await context.runtime.operationWithIdempotencyKey(
+                    "sendMessage",
                     clientMutationId,
-                });
+                    {
+                        chatId,
+                        ...input,
+                        clientMutationId,
+                    },
+                );
                 context
                     .chatGet(chatId)
                     ?.getState()

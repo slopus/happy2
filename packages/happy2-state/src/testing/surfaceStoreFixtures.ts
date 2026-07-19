@@ -198,10 +198,12 @@ export function agentTraceStoreFixtureCreate(
 }
 
 export function threadStoreFixtureCreate(
+    parentChatId: string,
     rootMessageId: string,
     output: (event: ThreadOutput) => void = () => undefined,
+    createId?: () => string,
 ): SurfaceStoreFixture<ThreadStore, ThreadInput> {
-    const store = threadStoreCreate(rootMessageId, output);
+    const store = threadStoreCreate(parentChatId, rootMessageId, { output, createId });
     return fixtureCreate(store, (event) => store.getState().threadInput(event));
 }
 

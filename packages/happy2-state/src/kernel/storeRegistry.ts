@@ -27,12 +27,13 @@ export class StoreRegistry<Key, Value> {
         for (const [key, entry] of this.entries) yield [key, entry.value] as const;
     }
 
-    release(key: Key): void {
+    release(key: Key): boolean {
         const entry = this.entries.get(key);
-        if (!entry) return;
+        if (!entry) return false;
         entry.acquisitions -= 1;
-        if (entry.acquisitions > 0) return;
+        if (entry.acquisitions > 0) return false;
         this.entries.delete(key);
+        return true;
     }
 
     dispose(): void {

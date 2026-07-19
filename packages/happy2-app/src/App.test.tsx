@@ -786,6 +786,12 @@ describe("default-agent conversation in the sidebar", () => {
         );
         // The existence-invariant marker must not create a privileged pinned row.
         expect(screen.container.querySelector('[data-happy2-ui="sidebar-pinned"]')).toBeNull();
+        fireEvent.click(
+            screen.container.querySelector<HTMLElement>(
+                '[data-section-id="agents"] [data-item-id="agent-dm"]',
+            )!,
+        );
+        await waitFor(() => expect(location.pathname).toBe("/chats/agent-dm"));
     });
 });
 function channelFixture(): ChatSummary {
@@ -807,6 +813,7 @@ function channelFixture(): ChatSummary {
         membershipEpoch: "1",
         membershipRole: "owner",
         starred: false,
+        followed: false,
         lastReadSequence: "0",
         unreadCount: 0,
         mentionCount: 0,

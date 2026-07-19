@@ -35,6 +35,7 @@ const chat: ChatSummary = {
     membershipEpoch: "1",
     membershipRole: "owner",
     starred: true,
+    followed: false,
     lastReadSequence: "0",
     unreadCount: 0,
     mentionCount: 0,

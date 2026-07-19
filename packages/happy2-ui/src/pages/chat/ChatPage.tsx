@@ -21,7 +21,7 @@ import type {
     DirectoryUserProjection,
     SidebarStore,
     SidebarChatProjection,
-    ThreadStore,
+    ThreadHandle,
     TerminalStore,
     WorkspaceStore,
     WorkspaceFileStore,
@@ -33,7 +33,6 @@ import {
     formatBytes,
     identityInitials,
     messagesGrouped,
-    mutationId,
     toneFor,
     type Conversation,
     type LiveThreadMessage,
@@ -75,7 +74,7 @@ export type ChatPageProps = {
     directory: DirectoryStore;
     chat?: ChatStore;
     composer?: ComposerStore;
-    thread?: ThreadStore;
+    thread?: ThreadHandle;
     trace?: AgentTraceStore;
     terminal?: TerminalStore;
     workspace?: WorkspaceStore;
@@ -162,18 +161,15 @@ export function ChatPage(props: ChatPageProps) {
     const chatState = useOptionalStoreSnapshot(props.chat);
     const composerState = useOptionalStoreSnapshot(props.composer);
     const threadState = useOptionalStoreSnapshot(props.thread);
+    const threadChat = props.thread?.childChat();
+    const threadChatState = useOptionalStoreSnapshot(threadChat);
     const traceState = useOptionalStoreSnapshot(props.trace);
     const terminalState = useOptionalStoreSnapshot(props.terminal);
     const sidebarSnapshot = () => sidebarState;
     const directorySnapshot = () => directoryState;
     const chatSnapshot = () => chatState;
     const composerSnapshot = () => composerState;
-    const threadSnapshot = () => threadState;
     const traceSnapshot = () => traceState;
-    const [threadDraftState, setThreadDraftState] = useState<{
-        rootMessageId?: string;
-        text: string;
-    }>({ text: "" });
     const [statusHint, setStatusHint] = useState<string>();
     function showError(error: unknown) {
         setStatusHint(error instanceof Error ? error.message : "Something went wrong.");
@@ -212,11 +208,7 @@ export function ChatPage(props: ChatPageProps) {
         const panel = activePanel();
         return panel?.kind === "thread" ? panel.rootMessageId : undefined;
     };
-    const threadDraft =
-        threadDraftState.rootMessageId === activeThreadRootId() ? threadDraftState.text : "";
-    function setThreadDraft(value: string) {
-        setThreadDraftState({ rootMessageId: activeThreadRootId(), text: value });
-    }
+    const threadDraft = threadState?.draft ?? "";
     const panelMode = (): "info" | "thread" | "trace" | "files" | undefined => {
         const panel = activePanel();
         if (panel?.kind === "thread") return "thread";
@@ -234,6 +226,7 @@ export function ChatPage(props: ChatPageProps) {
     const mediaModel = useChatMessageMediaModel(props.actions, showError);
     const sentTyping = useRef(false);
     const lastReadMessageId = useRef<string | undefined>(undefined);
+    const lastThreadReadMessageId = useRef<string | undefined>(undefined);
     const busy = () => busyCount > 0;
     const startBusy = () => setBusyCount((value) => value + 1);
     const finishBusy = () => setBusyCount((value) => Math.max(0, value - 1));
@@ -268,18 +261,76 @@ export function ChatPage(props: ChatPageProps) {
     const entries = entriesProject(
         (chatSnapshot()?.messages ?? []).filter((item) => !item.message.threadRootMessageId),
     );
+    const threadRootItem = () =>
+        chatSnapshot()?.messages.find(({ message }) => message.id === activeThreadRootId());
     const threadEntries = (() => {
-        const snapshot = threadSnapshot();
-        const root = snapshot?.root;
-        return entriesProject([
-            ...(root?.type === "ready"
-                ? [{ message: root.value, source: "server" as const, delivery: "sent" as const }]
-                : []),
-            ...(snapshot?.replies ?? []),
-        ]);
+        const root = threadRootItem();
+        return entriesProject([...(root ? [root] : []), ...(threadChatState?.messages ?? [])]);
     })();
     const threadRoot = () =>
-        threadEntries.find((entry): entry is LiveThreadMessage => entry.kind === "message");
+        threadEntries.find(
+            (entry): entry is LiveThreadMessage =>
+                entry.kind === "message" && entry.id === activeThreadRootId(),
+        );
+    const threadLoading = () => {
+        const resolution = threadState?.resolution;
+        if (!resolution || resolution.type === "unloaded" || resolution.type === "loading")
+            return true;
+        if (resolution.type !== "ready") return false;
+        const status = threadChatState?.status;
+        return !status || status.type === "unloaded" || status.type === "loading";
+    };
+    const threadError = () => {
+        const resolution = threadState?.resolution;
+        if (resolution?.type === "error")
+            return {
+                title:
+                    resolution.stage === "root"
+                        ? "Thread root failed to load"
+                        : "Thread failed to resolve",
+                message: resolution.error.message,
+                onRetry: () => props.thread?.getState().threadResolutionRetry(),
+            };
+        if (threadState?.create.type === "error")
+            return {
+                title: "Thread could not be created",
+                message: threadState.create.error.message,
+                onRetry: () => props.thread?.getState().threadCreateRetry(),
+            };
+        if (resolution?.type === "ready" && threadChatState?.status.type === "error")
+            return {
+                title: "Replies failed to load",
+                message: threadChatState.status.error.message,
+                onRetry: () => props.thread?.getState().childChatLoadRetry(),
+            };
+        const failed = threadChatState?.messages.find(
+            (item) => item.delivery === "failed" && item.clientMutationId,
+        );
+        return failed?.clientMutationId
+            ? {
+                  title: "Reply failed to send",
+                  message: failed.error?.message ?? "The reply could not be sent.",
+                  onRetry: () => props.thread?.getState().replyRetry(failed.clientMutationId!),
+              }
+            : undefined;
+    };
+    const threadEmpty = () => {
+        if (threadLoading() || threadError()) return false;
+        const resolution = threadState?.resolution;
+        return (
+            resolution?.type === "absent" ||
+            (resolution?.type === "ready" &&
+                threadChatState?.status.type === "ready" &&
+                threadChatState.messages.length === 0)
+        );
+    };
+    const threadComposerDisabled = () => {
+        const resolution = threadState?.resolution;
+        if (!resolution || resolution.type === "unloaded" || resolution.type === "loading")
+            return true;
+        if (resolution.type === "error" || threadState?.create.type === "error") return true;
+        return resolution.type === "ready" && threadChatState?.status.type !== "ready";
+    };
     const avatarFor = createAvatarProjection({
         user,
         sidebarSnapshot,
@@ -321,14 +372,13 @@ export function ChatPage(props: ChatPageProps) {
         activePanel()?.kind === "profile" ? routedProfile() : infoModel.profile();
     const messageActions = chatMessageActionsModelCreate({
         userId: () => user().id,
-        activeChatId: activeConversationId,
         actions: props.actions,
         onError: showError,
         onEdit: (message) => {
             const source = message.serverMessage;
             if (!source) return;
             setMessageEdit({
-                chatId: activeConversationId(),
+                chatId: source.chatId,
                 initialText: source.text,
                 messageId: source.id,
                 revision: source.revision,
@@ -630,6 +680,15 @@ export function ChatPage(props: ChatPageProps) {
         lastReadMessageId.current = latest.message.id;
         void props.actions.chatReadMark(snapshot!.chatId, latest.message.id).catch(showError);
     });
+    useLayoutEffect(() => {
+        const snapshot = threadChatState;
+        const latest = [...(snapshot?.messages ?? [])]
+            .reverse()
+            .find((item) => item.source === "server");
+        if (!snapshot || !latest || latest.message.id === lastThreadReadMessageId.current) return;
+        lastThreadReadMessageId.current = latest.message.id;
+        void props.actions.chatReadMark(snapshot.chatId, latest.message.id).catch(showError);
+    });
     const activityCount = chatState?.agentActivity.length ?? 0;
     useLayoutEffect(() => {
         if (activityCount === 0) return;
@@ -678,14 +737,10 @@ export function ChatPage(props: ChatPageProps) {
         }
     }
     function openThread(message: LiveThreadMessage) {
-        setThreadDraft("");
         if (message.serverMessage) props.actions.threadOpen(message.id);
     }
     function sendThreadReply() {
-        const text = threadDraft.trim();
-        if (!text) return;
-        props.thread?.getState().textSubmit({ text, clientMutationId: mutationId() });
-        setThreadDraft("");
+        props.thread?.getState().replySubmit();
     }
     function openFilesPanel() {
         workspaceModel.panelOpen();
@@ -742,14 +797,20 @@ export function ChatPage(props: ChatPageProps) {
                 panel={
                     panelMode() === "thread" ? (
                         <ChatThreadPanel
+                            disabled={threadComposerDisabled()}
                             draft={threadDraft}
+                            empty={threadEmpty()}
+                            error={threadError()}
+                            loading={threadLoading()}
                             mentions={mentionCandidates()}
-                            onDraftChange={setThreadDraft}
+                            onDraftChange={(value) =>
+                                props.thread?.getState().replyDraftUpdate(value)
+                            }
                             onClose={() => {
                                 props.actions.threadClose();
                             }}
                             onSend={sendThreadReply}
-                            pending={busy()}
+                            pending={threadState?.create.type === "pending" || busy()}
                             rootAuthor={threadRoot()?.author}
                         >
                             {threadEntries.map((entry, index) =>

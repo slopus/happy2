@@ -102,17 +102,19 @@ export interface ChatActionContext {
     readonly runtime: StateRuntime;
     readonly sidebar: SidebarStore;
     chatGet(chatId: string): ChatStore | undefined;
-    sidebarChatProject(chat: ChatSummary): Promise<SidebarChatProjection>;
+    sidebarChatProject(chat: ChatSummary): Promise<SidebarChatProjection | undefined>;
 }
 
 export async function chatResultApply(
     context: ChatActionContext,
     chat: ChatSummary,
 ): Promise<void> {
-    context.sidebar.getState().sidebarInput({
-        type: "chatSummaryUpserted",
-        chat: await context.sidebarChatProject(chat),
-    });
+    const projection = await context.sidebarChatProject(chat);
+    if (projection)
+        context.sidebar.getState().sidebarInput({
+            type: "chatSummaryUpserted",
+            chat: projection,
+        });
     context.chatGet(chat.id)?.getState().chatInput({ type: "chatSummaryReconciled", chat });
 }
 

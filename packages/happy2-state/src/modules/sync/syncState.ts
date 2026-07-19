@@ -74,6 +74,8 @@ export interface SyncCoordinatorContext extends SidebarLoadContext {
     agentTracesInvalidate(): void;
     /** Reloads a retained chat's plugin management requests after a plugin.* chat update. */
     chatPluginRequestsReconcile(chatId: string): void;
+    /** Reconciles a materialized coarse thread list when a child or its parent timeline changed. */
+    threadListChatsReconcile(chatIds: readonly string[]): void;
     areaReconcile(area: string): void;
     resetReconcile(): void;
     backgroundError(error: UserError): void;
@@ -255,6 +257,10 @@ export class SyncCoordinator {
                 else binding.getState().chatInput({ type: "chatSummaryReconciled", chat });
             }
             for (const area of difference.areas) this.context.areaReconcile(area);
+            if (!difference.areas.some((area) => area === "threads" || area.startsWith("thread:")))
+                this.context.threadListChatsReconcile(
+                    difference.changedChats.map((chat) => chat.id),
+                );
             cursor = difference.state;
             if (difference.kind !== "slice") return;
         }
