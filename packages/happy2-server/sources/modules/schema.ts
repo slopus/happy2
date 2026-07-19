@@ -243,6 +243,7 @@ export const agentRigBindings = sqliteTable(
         sessionId: text("session_id").notNull(),
         containerName: text("container_name").notNull(),
         cwd: text("cwd").notNull(),
+        effort: text("effort"),
         createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
         updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
     },

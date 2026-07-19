@@ -190,6 +190,13 @@
             "when": 1784426000000,
             "tag": "0026_agent_turn_traces",
             "breakpoints": true
+        },
+        {
+            "idx": 27,
+            "version": "6",
+            "when": 1784427000000,
+            "tag": "0027_chat_agent_effort",
+            "breakpoints": true
         }
     ]
 }

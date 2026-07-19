@@ -12,7 +12,7 @@ export async function agentCreate(
     await chatResultApply(context, result.chat);
 }
 
-/** Changes one agent's durable reasoning effort and reconciles the retained chat control. */
+/** Changes one agent binding's durable chat-specific reasoning effort and reconciles the retained chat control. */
 export async function agentEffortChange(
     context: ChatActionContext,
     chatId: string,
@@ -20,7 +20,11 @@ export async function agentEffortChange(
     effort: string,
 ): Promise<void> {
     try {
-        const value = await context.runtime.operation("changeAgentEffort", { agentUserId, effort });
+        const value = await context.runtime.operation("changeAgentEffort", {
+            chatId,
+            agentUserId,
+            effort,
+        });
         context.chatGet(chatId)?.getState().chatInput({ type: "agentEffortLoaded", value });
     } catch (error) {
         context
@@ -41,7 +45,7 @@ export async function agentEffortLoad(
     agentUserId: string,
 ): Promise<void> {
     try {
-        const value = await context.runtime.operation("getAgentEffort", { agentUserId });
+        const value = await context.runtime.operation("getAgentEffort", { chatId, agentUserId });
         context.chatGet(chatId)?.getState().chatInput({ type: "agentEffortLoaded", value });
     } catch (error) {
         context

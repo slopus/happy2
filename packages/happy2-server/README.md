@@ -373,13 +373,14 @@ authenticated Unix socket. Configure `[agents]` with the socket, token, Rig
 executable, and server-owned `default_cwd`; clients cannot select filesystem
 paths.
 
-An agent's reasoning effort is durable profile state. Any authenticated user can
-read its current value and the effort levels supported by all of its active Rig
-sessions from `GET /v0/agents/:agentUserId/effort`; only the agent's creator or
-a server administrator can change it with
-`POST /v0/agents/:agentUserId/changeEffort`. A change is applied to every
-existing private Rig session, inherited by sessions created later, reconciled
-again after server restart, and published as a normal `users` sync hint.
+An agent's profile effort is the default for new chat sessions. Each bound chat
+stores its own durable override, exposed to active chat members through
+`GET /v0/chats/:chatId/agents/:agentUserId/effort` and
+`POST /v0/chats/:chatId/agents/:agentUserId/changeEffort`. Changing one chat
+updates only that chat's Rig session, survives restart, and appends an
+`agent_effort_changed` service message to the same chat. Choosing the already
+effective value is a no-op and does not add duplicate history. A newly bound
+chat inherits the agent profile default rather than another chat's override.
 
 The server seeds immutable `Daycare Minimal` and `Daycare Full` definitions from
 the pinned upstream Daycare runtime Dockerfiles. Both use Ubuntu 24.04; Full adds

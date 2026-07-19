@@ -177,10 +177,16 @@ export interface MessageSummary {
     /** Every agent this message addressed (default agent plus explicit additions). */
     readonly agentUserIds: readonly string[];
     readonly text: string;
-    readonly service?: {
-        readonly type: "user_added" | "user_joined";
-        readonly userId: string;
-    };
+    readonly service?:
+        | {
+              readonly type: "user_added" | "user_joined";
+              readonly userId: string;
+          }
+        | {
+              readonly type: "agent_effort_changed";
+              readonly agentUserId: string;
+              readonly effort: string;
+          };
     readonly generationStatus?: "streaming" | "complete" | "failed";
     readonly agentTrace?: AgentTurnTraceSummary;
     readonly quotedMessage?: {

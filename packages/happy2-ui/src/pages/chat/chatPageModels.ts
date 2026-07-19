@@ -6,6 +6,7 @@ import type {
     IdentityProjection,
 } from "happy2-state";
 import type { EmojiItem, ToneName } from "./ChatPageComponents.js";
+import type { IconName } from "../../Icon.js";
 export type Conversation = {
     composerPlaceholder: string;
     icon?: "hash" | "spark" | "inbox";
@@ -58,6 +59,7 @@ type ThreadNotice = {
     kind: "notice";
     id: string;
     conversationId: string;
+    icon: IconName;
     text: string;
 };
 export type WorkspaceEntry = ThreadDivider | LiveThreadMessage | ThreadNotice;
@@ -194,6 +196,7 @@ export function entriesProject(items: readonly DeepReadonly<ChatMessageItem>[]):
                       kind: "notice",
                       id: message.id,
                       conversationId: message.chatId,
+                      icon: message.service.type === "agent_effort_changed" ? "settings" : "users",
                       text: message.text,
                   }
                 : messageEntry(item),

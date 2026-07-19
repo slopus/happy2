@@ -134,4 +134,81 @@ describe("chat module", () => {
         });
         expect(composer.getState().agentUserIds).toEqual([]);
     });
+
+    it("reconciles a durable effort service message into only an already retained control", () => {
+        const binding = chatStoreCreate("chat-1");
+        binding.getState().chatInput({
+            type: "agentEffortLoaded",
+            value: {
+                agentUserId: "agent-1",
+                effort: "high",
+                options: ["low", "medium", "high", "xhigh"],
+            },
+        });
+        const serviceItem = messageItemProject(
+            new IdentityCatalog(),
+            message({
+                id: "effort-message-2",
+                sequence: "2",
+                kind: "automated",
+                text: "@agent's reasoning effort changed to low",
+                service: {
+                    type: "agent_effort_changed",
+                    agentUserId: "agent-1",
+                    effort: "low",
+                },
+            }),
+        );
+        binding.getState().chatInput({ type: "messageUpserted", item: serviceItem });
+        expect(binding.getState().agentEffort).toEqual({
+            "agent-1": {
+                type: "ready",
+                value: {
+                    agentUserId: "agent-1",
+                    effort: "low",
+                    options: ["low", "medium", "high", "xhigh"],
+                },
+            },
+        });
+
+        binding.getState().chatInput({
+            type: "messageUpserted",
+            item: messageItemProject(
+                new IdentityCatalog(),
+                message({
+                    id: "effort-message-1",
+                    sequence: "1",
+                    kind: "automated",
+                    text: "@agent's reasoning effort changed to medium",
+                    service: {
+                        type: "agent_effort_changed",
+                        agentUserId: "agent-1",
+                        effort: "medium",
+                    },
+                }),
+            ),
+        });
+        expect(binding.getState().agentEffort["agent-1"]).toMatchObject({
+            type: "ready",
+            value: { effort: "low" },
+        });
+
+        binding.getState().chatInput({
+            type: "messageUpserted",
+            item: messageItemProject(
+                new IdentityCatalog(),
+                message({
+                    id: "other-agent-effort",
+                    sequence: "3",
+                    kind: "automated",
+                    service: {
+                        type: "agent_effort_changed",
+                        agentUserId: "agent-2",
+                        effort: "xhigh",
+                    },
+                }),
+            ),
+        });
+        expect(binding.getState().agentEffort["agent-2"]).toBeUndefined();
+    });
 });

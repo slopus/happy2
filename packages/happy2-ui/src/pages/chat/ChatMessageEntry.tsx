@@ -33,7 +33,7 @@ export interface ChatMessageEntryProps {
 export function ChatMessageEntry(props: ChatMessageEntryProps): ReactNode {
     const entry = props.entry;
     if (entry.kind === "divider") return <DayDivider label={entry.label} />;
-    if (entry.kind === "notice") return <SystemNotice text={entry.text} />;
+    if (entry.kind === "notice") return <SystemNotice icon={entry.icon} text={entry.text} />;
     return (
         <Message
             agent={entry.agent}

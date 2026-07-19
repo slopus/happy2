@@ -120,6 +120,30 @@ it("projects messages with stable entity ids for React keyed reconciliation", ()
     expect(updated.map((entry) => entry.id)).toEqual(initial.map((entry) => entry.id));
     expect(updated[2]).toMatchObject({ kind: "message", body: "changed" });
 });
+it("projects an effort change as a settings service notice", () => {
+    const item = messageItem("message-1", "@agent's reasoning effort changed to low");
+    const entries = entriesProject([
+        {
+            ...item,
+            message: {
+                ...item.message,
+                kind: "automated",
+                service: {
+                    type: "agent_effort_changed",
+                    agentUserId: "agent-1",
+                    effort: "low",
+                },
+            },
+        },
+    ]);
+    expect(entries[1]).toEqual({
+        kind: "notice",
+        id: "message-1",
+        conversationId: chat.id,
+        icon: "settings",
+        text: "@agent's reasoning effort changed to low",
+    });
+});
 it("updates one mounted message while preserving its open menu and sibling DOM", async () => {
     const first = messageItem("message-1", "first");
     const second = messageItem("message-2", "second");
@@ -556,6 +580,122 @@ it("replaces the channel default agent from the info panel", async () => {
         .poll(() => channelDefaultAgentUpdate.mock.calls)
         .toEqual([[routedChat.id, "agent-claude"]]);
     await expect.poll(() => view.container.textContent).toContain("Default agent updated.");
+});
+
+it("reconciles an effort notice without remounting or moving focus from the chat selector", async () => {
+    const agentChat: ChatSummary = {
+        ...chat,
+        kind: "dm",
+        name: undefined,
+        slug: undefined,
+        topic: undefined,
+        dmType: "direct",
+        isListed: false,
+    };
+    const owner = {
+        id: "user-1",
+        displayName: "Ada Lovelace",
+        username: "ada",
+        kind: "human" as const,
+        role: "admin" as const,
+        presence: "online" as const,
+    };
+    const agent = {
+        id: "agent-1",
+        displayName: "Reasoner",
+        username: "reasoner",
+        kind: "agent" as const,
+        role: "member" as const,
+        presence: "online" as const,
+    };
+    const sidebar = sidebarStoreFixtureCreate();
+    const directory = directoryStoreFixtureCreate();
+    const chatSurface = chatStoreFixtureCreate(agentChat.id);
+    onTestFinished(() => {
+        sidebar[Symbol.dispose]();
+        directory[Symbol.dispose]();
+        chatSurface[Symbol.dispose]();
+    });
+    directory.input({ type: "directoryLoaded", users: [owner, agent], channels: [] });
+    sidebar.input({
+        type: "sidebarLoaded",
+        chats: [
+            {
+                chat: agentChat,
+                id: agentChat.id,
+                displayName: agent.displayName,
+                participants: [owner, agent],
+            },
+        ],
+        sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+    });
+    chatSurface.input({
+        type: "chatLoaded",
+        chat: agentChat,
+        messages: [],
+        hasMoreMessages: false,
+    });
+    chatSurface.input({
+        type: "agentEffortLoaded",
+        value: {
+            agentUserId: agent.id,
+            effort: "high",
+            options: ["low", "medium", "high", "xhigh"],
+        },
+    });
+    const view = createRenderer();
+    view.render(
+        () => (
+            <ChatPage
+                actions={chatPageActionsCreate()}
+                chat={chatSurface.store}
+                directory={directory.store}
+                navigation={{ chatId: agentChat.id, panel: { kind: "info" } }}
+                rail={<div>Rail</div>}
+                search=""
+                sidebar={sidebar.store}
+                titleBar={<div>Title</div>}
+                user={{ id: owner.id, firstName: "Ada" }}
+            />
+        ),
+        { width: 1200, height: 800 },
+    );
+    await view.ready();
+
+    const control = view.container.querySelector('[data-happy2-ui="segmented-control"]')!;
+    const low = control.querySelector<HTMLButtonElement>('[data-value="low"]')!;
+    const high = control.querySelector<HTMLButtonElement>('[data-value="high"]')!;
+    high.focus();
+    expect(document.activeElement).toBe(high);
+
+    const notice = messageItem("effort-message", "@reasoner's reasoning effort changed to low");
+    chatSurface.input({
+        type: "messageUpserted",
+        item: {
+            ...notice,
+            message: {
+                ...notice.message,
+                kind: "automated",
+                service: {
+                    type: "agent_effort_changed",
+                    agentUserId: agent.id,
+                    effort: "low",
+                },
+            },
+        },
+    });
+    await nextFrame();
+
+    const updatedControl = view.container.querySelector('[data-happy2-ui="segmented-control"]')!;
+    expect(updatedControl).toBe(control);
+    expect(updatedControl.querySelector('[data-value="low"]')).toBe(low);
+    expect(updatedControl.querySelector('[data-value="high"]')).toBe(high);
+    expect(low.getAttribute("aria-pressed")).toBe("true");
+    expect(high.getAttribute("aria-pressed")).toBe("false");
+    expect(document.activeElement).toBe(high);
+    expect(view.container.querySelector('[data-happy2-ui="system-notice"]')?.textContent).toContain(
+        "@reasoner's reasoning effort changed to low",
+    );
 });
 
 it("edits an own message through the desktop-safe dialog with its current revision", async () => {

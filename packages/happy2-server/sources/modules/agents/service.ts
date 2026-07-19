@@ -384,50 +384,54 @@ export class AgentService {
     startTurn(chatId: string): void {
         this.startDrain(chatId);
     }
-    async getAgentEffort(input: { actorUserId: string; agentUserId: string }) {
+    async getAgentEffort(input: { actorUserId: string; agentUserId: string; chatId: string }) {
         const context = await agentEffortGetContext(
             this.executor,
             input.actorUserId,
+            input.chatId,
             input.agentUserId,
         );
         return this.agentEffortConfiguration(context);
     }
-    async changeAgentEffort(input: { actorUserId: string; agentUserId: string; effort: string }) {
-        return this.serializeAgentConfiguration(input.agentUserId, async () => {
-            const context = await agentEffortGetContext(
-                this.executor,
-                input.actorUserId,
-                input.agentUserId,
-                true,
-            );
-            const configuration = await this.agentEffortConfiguration(context);
-            if (!configuration.options.includes(input.effort))
-                throw new CollaborationError(
-                    "invalid",
-                    `Effort must be one of: ${configuration.options.join(", ")}`,
+    async changeAgentEffort(input: {
+        actorUserId: string;
+        agentUserId: string;
+        chatId: string;
+        effort: string;
+    }) {
+        return this.serializeAgentConfiguration(
+            `${input.agentUserId}:${input.chatId}`,
+            async () => {
+                const context = await agentEffortGetContext(
+                    this.executor,
+                    input.actorUserId,
+                    input.chatId,
+                    input.agentUserId,
                 );
-            const result = await agentEffortUpdate(this.executor, input);
-            try {
-                await Promise.all(
-                    context.sessionIds.map((sessionId) =>
-                        this.reconcileSessionEffort(sessionId, input.effort),
-                    ),
-                );
-            } finally {
-                if (result.hint) await this.publishAgentHint(result.hint);
-            }
-            return {
-                agent: result.user,
-                agentUserId: input.agentUserId,
-                effort: input.effort,
-                options: configuration.options,
-                ...(result.hint
-                    ? {
-                          sync: result.hint,
-                      }
-                    : {}),
-            };
-        });
+                const configuration = await this.agentEffortConfiguration(context);
+                if (!configuration.options.includes(input.effort))
+                    throw new CollaborationError(
+                        "invalid",
+                        `Effort must be one of: ${configuration.options.join(", ")}`,
+                    );
+                const result = await agentEffortUpdate(this.executor, input);
+                try {
+                    await this.reconcileSessionEffort(context.sessionId, input.effort);
+                } finally {
+                    if (result.hint) await this.publishAgentHint(result.hint);
+                }
+                return {
+                    agentUserId: input.agentUserId,
+                    effort: input.effort,
+                    options: configuration.options,
+                    ...(result.hint
+                        ? {
+                              sync: result.hint,
+                          }
+                        : {}),
+                };
+            },
+        );
     }
     listAgentImages(actorUserId: string) {
         return agentImageList(this.executor, actorUserId);
@@ -550,7 +554,7 @@ export class AgentService {
                     const session = await this.daemon.createSession(
                         binding.cwd,
                         containerName,
-                        context.user.agentEffort,
+                        binding.effort ?? context.user.agentEffort,
                         this.shutdown.signal,
                     );
                     replacements.push({
@@ -834,8 +838,8 @@ export class AgentService {
         const context = await agentChatGetContext(this.executor, actorUserId, chatId, agentUserId);
         if (!context) return undefined;
         if (context.binding) {
-            if (context.agentEffort)
-                await this.reconcileSessionEffort(context.binding.sessionId, context.agentEffort);
+            const effort = context.binding.effort ?? context.agentDefaultEffort;
+            if (effort) await this.reconcileSessionEffort(context.binding.sessionId, effort);
             await this.reconcileSecretBindings({
                 agentUserId: context.agentUserId,
                 chatId,
@@ -855,8 +859,8 @@ export class AgentService {
             if (!latest)
                 throw new CollaborationError("not_found", "Agent conversation was not found");
             if (latest.binding) {
-                if (latest.agentEffort)
-                    await this.reconcileSessionEffort(latest.binding.sessionId, latest.agentEffort);
+                const effort = latest.binding.effort ?? latest.agentDefaultEffort;
+                if (effort) await this.reconcileSessionEffort(latest.binding.sessionId, effort);
                 return latest.binding;
             }
             const sandbox = sandboxDirectories(
@@ -894,7 +898,7 @@ export class AgentService {
                 const session = await this.daemon.createSession(
                     sandbox.workspace,
                     containerName,
-                    latest.agentEffort,
+                    latest.agentDefaultEffort,
                     this.shutdown.signal,
                 );
                 const binding = await agentChatBind(this.executor, {
@@ -903,6 +907,7 @@ export class AgentService {
                     chatId,
                     containerName,
                     cwd: sandbox.workspace,
+                    effort: session.effort,
                     imageId: latest.image.id,
                     sessionId: session.id,
                 });
@@ -1107,28 +1112,26 @@ export class AgentService {
     }
     private async agentEffortConfiguration(context: {
         agentUserId: string;
+        defaultEffort?: string;
         effort?: string;
-        sessionIds: string[];
+        sessionId: string;
     }): Promise<{
         agentUserId: string;
         effort: string;
         options: string[];
     }> {
-        if (!context.sessionIds.length)
-            throw new CollaborationError("conflict", "Agent has no active Rig session");
-        const configurations = await Promise.all(
-            context.sessionIds.map((sessionId) =>
-                this.daemon.effortConfiguration(sessionId, this.shutdown.signal),
-            ),
+        const configuration = await this.daemon.effortConfiguration(
+            context.sessionId,
+            this.shutdown.signal,
         );
-        const options = configurations[0]!.options.filter((option) =>
-            configurations.every((configuration) => configuration.options.includes(option)),
-        );
-        const effort = context.effort ?? configurations[0]!.effort;
+        const effort =
+            [context.effort, context.defaultEffort].find(
+                (candidate) => candidate && configuration.options.includes(candidate),
+            ) ?? configuration.effort;
         return {
             agentUserId: context.agentUserId,
             effort,
-            options,
+            options: configuration.options,
         };
     }
     private async reconcileAgentEfforts(): Promise<void> {
@@ -1140,22 +1143,23 @@ export class AgentService {
             byAgent.set(binding.agentUserId, group);
         }
         for (const [agentUserId, agentBindings] of byAgent) {
-            const configured = agentBindings.find((binding) => binding.effort)?.effort;
-            const effort =
-                configured ??
-                (
+            let defaultEffort = agentBindings[0]?.defaultEffort;
+            if (!defaultEffort) {
+                defaultEffort = (
                     await this.daemon.effortConfiguration(
                         agentBindings[0]!.sessionId,
                         this.shutdown.signal,
                     )
                 ).effort;
-            if (!configured) {
-                const hint = await agentEffortInitialize(this.executor, agentUserId, effort);
+                const hint = await agentEffortInitialize(this.executor, agentUserId, defaultEffort);
                 if (hint) await this.publishAgentHint(hint);
             }
             await Promise.all(
                 agentBindings.map((binding) =>
-                    this.reconcileSessionEffort(binding.sessionId, effort),
+                    this.reconcileSessionEffort(
+                        binding.sessionId,
+                        binding.effort ?? defaultEffort!,
+                    ),
                 ),
             );
         }

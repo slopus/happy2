@@ -19,23 +19,25 @@ export function registerAgentRoutes(
     agents: AgentService,
 ): void {
     app.get(
-        "/v0/agents/:agentUserId/effort",
+        "/v0/chats/:chatId/agents/:agentUserId/effort",
         authenticated(auth, async (request, _reply, actorUserId) => {
             emptyQuery(request);
             return agents.getAgentEffort({
                 actorUserId,
                 agentUserId: pathId(request, "agentUserId"),
+                chatId: pathId(request, "chatId"),
             });
         }),
     );
 
     app.post(
-        "/v0/agents/:agentUserId/changeEffort",
+        "/v0/chats/:chatId/agents/:agentUserId/changeEffort",
         authenticated(auth, async (request, _reply, actorUserId) => {
             const body = requestBody(request, ["effort"]);
             return agents.changeAgentEffort({
                 actorUserId,
                 agentUserId: pathId(request, "agentUserId"),
+                chatId: pathId(request, "chatId"),
                 effort: requiredString(body, "effort", MAX_AGENT_EFFORT_LENGTH),
             });
         }),

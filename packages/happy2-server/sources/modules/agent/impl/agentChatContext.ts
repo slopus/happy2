@@ -1,7 +1,7 @@
 import { type AgentExecutionImage } from "./agentExecutionImage.js";
 export interface AgentChatContext {
     agentUserId: string;
-    agentEffort?: string;
+    agentDefaultEffort?: string;
     chatId: string;
     image: AgentExecutionImage;
     sandboxScope: {
@@ -12,6 +12,7 @@ export interface AgentChatContext {
     binding?: {
         containerName: string;
         cwd: string;
+        effort?: string;
         sessionId: string;
     };
 }

@@ -80,6 +80,7 @@ export async function agentChatGetContext(
         .select({
             containerName: agentRigBindings.containerName,
             cwd: agentRigBindings.cwd,
+            effort: agentRigBindings.effort,
             sessionId: agentRigBindings.sessionId,
         })
         .from(agentRigBindings)
@@ -93,7 +94,7 @@ export async function agentChatGetContext(
         .limit(1);
     return {
         agentUserId: agent.userId,
-        ...(agent.effort ? { agentEffort: agent.effort } : {}),
+        ...(agent.effort ? { agentDefaultEffort: agent.effort } : {}),
         chatId,
         image: {
             id: agent.imageId,
@@ -110,6 +111,7 @@ export async function agentChatGetContext(
                   binding: {
                       containerName: bound.containerName,
                       cwd: bound.cwd,
+                      ...(bound.effort ? { effort: bound.effort } : {}),
                       sessionId: bound.sessionId,
                   },
               }

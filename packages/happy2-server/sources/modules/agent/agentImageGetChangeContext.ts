@@ -26,6 +26,7 @@ export async function agentImageGetChangeContext(
         chatId: string;
         containerName: string;
         cwd: string;
+        effort?: string;
         sessionId: string;
     }>;
     currentImageId: string;
@@ -66,6 +67,7 @@ export async function agentImageGetChangeContext(
                 chatId: agentRigBindings.chatId,
                 containerName: agentRigBindings.containerName,
                 cwd: agentRigBindings.cwd,
+                effort: agentRigBindings.effort,
                 sessionId: agentRigBindings.sessionId,
             })
             .from(agentRigBindings)
@@ -97,7 +99,13 @@ export async function agentImageGetChangeContext(
             "Agent image cannot be changed while the agent has unfinished work",
         );
     return {
-        bindings,
+        bindings: bindings.map((binding) => ({
+            chatId: binding.chatId,
+            containerName: binding.containerName,
+            cwd: binding.cwd,
+            ...(binding.effort ? { effort: binding.effort } : {}),
+            sessionId: binding.sessionId,
+        })),
         currentImageId,
         image: {
             id: image.id,

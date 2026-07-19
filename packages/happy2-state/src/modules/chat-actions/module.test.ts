@@ -72,6 +72,15 @@ describe("chat actions module", () => {
         expect(chatInput).toHaveBeenCalledWith(
             expect.objectContaining({ type: "agentEffortLoaded" }),
         );
+        expect(operation).toHaveBeenCalledWith("getAgentEffort", {
+            chatId: summary.id,
+            agentUserId: "agent-1",
+        });
+        expect(operation).toHaveBeenCalledWith("changeAgentEffort", {
+            chatId: summary.id,
+            agentUserId: "agent-1",
+            effort: "high",
+        });
         expect(sidebar.getState().chats).toEqual([]);
     });
 

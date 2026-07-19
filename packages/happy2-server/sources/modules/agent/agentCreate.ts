@@ -99,6 +99,7 @@ export async function agentCreate(
             sessionId: input.sessionId,
             containerName: input.containerName,
             cwd: input.cwd,
+            effort: input.agentEffort,
         });
         await tx.insert(chatMembers).values(
             [input.actorUserId, agentUserId].map((userId) => ({

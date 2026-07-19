@@ -222,11 +222,16 @@ export function chatStoreCreate(
                                 (event.item.clientMutationId !== undefined &&
                                     item.clientMutationId === event.item.clientMutationId),
                         );
-                        if (index < 0)
-                            return {
-                                ...snapshot,
-                                messages: sorted([...snapshot.messages, event.item]),
-                            };
+                        if (index < 0) {
+                            const messages = sorted([...snapshot.messages, event.item]);
+                            return agentEffortMessageApply(
+                                {
+                                    ...snapshot,
+                                    messages,
+                                },
+                                event.item,
+                            );
+                        }
                         if (
                             snapshot.messages[index] === event.item ||
                             messageItemEquivalent(snapshot.messages[index]!, event.item)
@@ -234,7 +239,10 @@ export function chatStoreCreate(
                             return snapshot;
                         const messages = [...snapshot.messages];
                         messages[index] = event.item;
-                        return { ...snapshot, messages: sorted(messages) };
+                        return agentEffortMessageApply(
+                            { ...snapshot, messages: sorted(messages) },
+                            event.item,
+                        );
                     }
                     case "messageRemoved": {
                         const messages = snapshot.messages.filter(
@@ -519,6 +527,31 @@ export interface ChatState extends ChatSnapshot {
 export type ChatStore = StoreApi<ChatState>;
 
 export interface ChatHandle extends ChatStore, Disposable {}
+
+function agentEffortMessageApply(snapshot: ChatState, item: ChatMessageItem): ChatState {
+    const service = item.message.service;
+    if (service?.type !== "agent_effort_changed") return snapshot;
+    const current = snapshot.agentEffort[service.agentUserId];
+    if (current?.type !== "ready" || current.value.effort === service.effort) return snapshot;
+    const newest = [...snapshot.messages]
+        .reverse()
+        .find(
+            (candidate) =>
+                candidate.message.service?.type === "agent_effort_changed" &&
+                candidate.message.service.agentUserId === service.agentUserId,
+        );
+    if (newest !== item) return snapshot;
+    return {
+        ...snapshot,
+        agentEffort: {
+            ...snapshot.agentEffort,
+            [service.agentUserId]: {
+                type: "ready",
+                value: { ...current.value, effort: service.effort },
+            },
+        },
+    };
+}
 
 export function reactionActorsKey(messageId: string, reactionKey: string): string {
     return `${messageId}\u0000${reactionKey}`;

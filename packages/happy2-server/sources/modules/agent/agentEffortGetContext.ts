@@ -2,14 +2,14 @@ import { type AgentEffortContext } from "./impl/agentEffortContext.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 import { agentEffortContextDb } from "./impl/agentEffortContextDb.js";
 /**
- * Returns an active actor's view of a live agent's effort and chat-ordered Rig session bindings, optionally requiring creator or administrator control.
- * Keeping the optional management check on this public boundary prevents configuration callers from reading a context they are not allowed to change.
+ * Returns an active chat member's view of one live agent's chat-specific effort and Rig session, falling back to the agent-level default when needed.
+ * Keeping chat access and binding selection on this boundary prevents callers from reading or changing another conversation's execution setting.
  */
 export async function agentEffortGetContext(
     executor: DrizzleExecutor,
     actorUserId: string,
+    chatId: string,
     agentUserId: string,
-    requireManagement = false,
 ): Promise<AgentEffortContext> {
-    return agentEffortContextDb(executor, actorUserId, agentUserId, requireManagement);
+    return agentEffortContextDb(executor, actorUserId, chatId, agentUserId);
 }

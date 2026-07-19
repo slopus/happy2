@@ -754,10 +754,10 @@ function systemNoticeSegments(text: string): SystemNoticeSegment[] {
         );
 }
 /**
- * Centered, low-emphasis service line for the message stream — the service
- * agent's membership announcements ("@ada joined #welcome"). It is not a chat
- * bubble: a small leading glyph sits beside muted body text, with @user and
- * #channel references color-lifted so the actors read at a glance.
+ * Centered, low-emphasis service line for durable chat events such as
+ * membership and agent-setting changes. It is not a chat bubble: a small
+ * leading glyph sits beside muted body text, with @user and #channel references
+ * color-lifted so the affected entities read at a glance.
  */
 export function SystemNotice(props: {
     className?: string;

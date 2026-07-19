@@ -6,15 +6,29 @@ export function asServiceMessage(value: unknown): MessageSummary["service"] {
             service?: {
                 type?: unknown;
                 userId?: unknown;
+                agentUserId?: unknown;
+                effort?: unknown;
             };
         };
-        return (parsed.service?.type === "user_added" || parsed.service?.type === "user_joined") &&
+        if (
+            (parsed.service?.type === "user_added" || parsed.service?.type === "user_joined") &&
             typeof parsed.service.userId === "string"
-            ? {
-                  type: parsed.service.type,
-                  userId: parsed.service.userId,
-              }
-            : undefined;
+        )
+            return {
+                type: parsed.service.type,
+                userId: parsed.service.userId,
+            };
+        if (
+            parsed.service?.type === "agent_effort_changed" &&
+            typeof parsed.service.agentUserId === "string" &&
+            typeof parsed.service.effort === "string"
+        )
+            return {
+                type: parsed.service.type,
+                agentUserId: parsed.service.agentUserId,
+                effort: parsed.service.effort,
+            };
+        return undefined;
     } catch {
         return undefined;
     }

@@ -17,6 +17,7 @@ export async function agentChatBind(
         chatId: string;
         containerName: string;
         cwd: string;
+        effort: string;
         imageId: string;
         sessionId: string;
     },
@@ -43,6 +44,7 @@ export async function agentChatBind(
                 sessionId: input.sessionId,
                 containerName: input.containerName,
                 cwd: input.cwd,
+                effort: input.effort,
             })
             .onConflictDoNothing();
         const [binding] = await tx
@@ -50,6 +52,7 @@ export async function agentChatBind(
                 agentUserId: agentRigBindings.userId,
                 containerName: agentRigBindings.containerName,
                 cwd: agentRigBindings.cwd,
+                effort: agentRigBindings.effort,
                 imageId: agentRigBindings.imageId,
                 sessionId: agentRigBindings.sessionId,
             })
@@ -64,6 +67,7 @@ export async function agentChatBind(
         if (!binding) throw new Error("Agent chat binding was not created");
         if (binding.imageId !== input.imageId)
             throw new Error("Agent chat binding uses a different image");
+        if (!binding.effort) throw new Error("Agent chat binding effort is missing");
         return {
             containerName: binding.containerName,
             cwd: binding.cwd,

@@ -5,7 +5,7 @@ import { createGymServer, type GymRequestClient } from "../../sources/index.js";
 import { createGymStateTransport } from "../../sources/state/index.js";
 
 describe("agent effort across happy2-state and Rig", () => {
-    it("reads options and changes effort through typed state actions, reconciling contacts", async () => {
+    it("reconciles a chat effort service message into another retained state surface", async () => {
         await using rig = await createMockRigDaemon();
         await using server = await agentServer(rig);
         const owner = await server.createUser({ username: "state_effort_owner" });
@@ -20,15 +20,29 @@ describe("agent effort across happy2-state and Rig", () => {
         const agentUserId = await findAgentUserId(asOwner, "state_effort_agent");
         expect(rig.sessionEffort("session-1")).toBe("high");
 
-        const transport = await createGymStateTransport(server, owner);
-        await using state = happyStateCreate({ transport, sleep: async () => undefined });
-        await state.syncStart();
-        await transport.whenConnected();
-        using chat = state.chatOpen(agentChatId);
-        chat.getState().agentEffortRetain(agentUserId);
-        await state.whenIdle();
+        const actorTransport = await createGymStateTransport(server, owner);
+        await using actorState = happyStateCreate({
+            transport: actorTransport,
+            sleep: async () => undefined,
+        });
+        await actorState.syncStart();
+        await actorTransport.whenConnected();
+        using actorChat = actorState.chatOpen(agentChatId);
+        actorChat.getState().agentEffortRetain(agentUserId);
+        await actorState.whenIdle();
 
-        expect(chat.getState().agentEffort[agentUserId]).toEqual({
+        const observerTransport = await createGymStateTransport(server, owner);
+        await using observerState = happyStateCreate({
+            transport: observerTransport,
+            sleep: async () => undefined,
+        });
+        await observerState.syncStart();
+        await observerTransport.whenConnected();
+        using observerChat = observerState.chatOpen(agentChatId);
+        observerChat.getState().agentEffortRetain(agentUserId);
+        await observerState.whenIdle();
+
+        expect(actorChat.getState().agentEffort[agentUserId]).toEqual({
             type: "ready",
             value: {
                 agentUserId,
@@ -37,18 +51,33 @@ describe("agent effort across happy2-state and Rig", () => {
             },
         });
 
-        chat.getState().agentEffortChange(agentUserId, "ultra");
-        await state.whenIdle();
+        actorChat.getState().agentEffortChange(agentUserId, "ultra");
+        await actorState.whenIdle();
         expect(rig.sessionEffort("session-1")).toBe("high");
-        expect(chat.getState().agentEffort[agentUserId]?.type).toBe("error");
+        expect(actorChat.getState().agentEffort[agentUserId]?.type).toBe("error");
 
-        chat.getState().agentEffortChange(agentUserId, "low");
-        await state.whenIdle();
+        actorChat.getState().agentEffortChange(agentUserId, "low");
+        await actorState.whenIdle();
         expect(rig.sessionEffort("session-1")).toBe("low");
 
-        /* The change publishes a `users` sync hint; the durable contacts snapshot
-           reconciles to the new value without an explicit refetch. */
-        await expect.poll(() => effortValue(chat, agentUserId), { timeout: 3_000 }).toBe("low");
+        await expect
+            .poll(() => effortValue(observerChat, agentUserId), { timeout: 3_000 })
+            .toBe("low");
+        expect(
+            observerChat
+                .getState()
+                .messages.find(({ message }) => message.service?.type === "agent_effort_changed")
+                ?.message,
+        ).toMatchObject({
+            kind: "automated",
+            sender: { id: owner.id, username: "state_effort_owner" },
+            service: {
+                type: "agent_effort_changed",
+                agentUserId,
+                effort: "low",
+            },
+            text: "@state_effort_agent's reasoning effort changed to low",
+        });
     });
 });
 

@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { createMockRigDaemon, MockAgentSandboxRuntime, type MockRigDaemon } from "happy2-gym/rig";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
 
-describe("agent effort", () => {
-    it("changes every existing Rig session, survives restart, and is inherited by future sessions", async () => {
+describe("chat agent effort", () => {
+    it("isolates chat selections, announces real changes, survives restart, and preserves the agent default", async () => {
         await using rig = await createMockRigDaemon();
         await using server = await agentServer(rig);
         const admin = await server.createUser({ username: "effort_admin", firstName: "Admin" });
@@ -11,6 +11,10 @@ describe("agent effort", () => {
         const teammate = await server.createUser({
             username: "effort_teammate",
             firstName: "Teammate",
+        });
+        const newcomer = await server.createUser({
+            username: "effort_newcomer",
+            firstName: "Newcomer",
         });
         const outsider = await server.createUser({
             username: "effort_outsider",
@@ -23,6 +27,7 @@ describe("agent effort", () => {
             username: "deep_thinker",
         });
         expect(created.statusCode).toBe(201);
+        const ownerChatId = created.json().chat.id as string;
         const agentUserId = await findAgentUserId(server.as(owner), "deep_thinker");
         expect(await findAgent(server.as(owner), agentUserId)).toMatchObject({
             agentEffort: "high",
@@ -31,19 +36,13 @@ describe("agent effort", () => {
         });
         expect(rig.sessionEffort("session-1")).toBe("high");
 
-        expect((await server.get(`/v0/agents/${agentUserId}/effort`)).statusCode).toBe(401);
-        expect((await server.as(owner).get(`/v0/agents/${owner.id}/effort`)).statusCode).toBe(404);
-        expect(
-            (
-                await server
-                    .as(outsider)
-                    .post(`/v0/agents/${agentUserId}/changeEffort`, { effort: "low" })
-            ).statusCode,
-        ).toBe(403);
+        const ownerEffortPath = `/v0/chats/${ownerChatId}/agents/${agentUserId}/effort`;
+        expect((await server.get(ownerEffortPath)).statusCode).toBe(401);
+        expect((await server.as(outsider).get(ownerEffortPath)).statusCode).toBe(404);
 
         const unsupported = await server
             .as(owner)
-            .post(`/v0/agents/${agentUserId}/changeEffort`, { effort: "ultra" });
+            .post(chatEffortChangePath(ownerChatId, agentUserId), { effort: "ultra" });
         expect(unsupported.statusCode).toBe(400);
         expect(unsupported.json()).toMatchObject({
             error: "invalid",
@@ -53,19 +52,40 @@ describe("agent effort", () => {
 
         const changed = await server
             .as(owner)
-            .post(`/v0/agents/${agentUserId}/changeEffort`, { effort: "low" });
+            .post(chatEffortChangePath(ownerChatId, agentUserId), { effort: "low" });
         expect(changed.statusCode).toBe(200);
         expect(changed.json()).toMatchObject({
-            agent: { id: agentUserId, agentEffort: "low" },
             agentUserId,
             effort: "low",
             options: ["low", "medium", "high", "xhigh"],
-            sync: { areas: ["users"] },
+            sync: {
+                areas: [],
+                chats: [{ chatId: ownerChatId }],
+            },
         });
         expect(rig.sessionEffort("session-1")).toBe("low");
         expect(await findAgent(server.as(owner), agentUserId)).toMatchObject({
-            agentEffort: "low",
+            agentEffort: "high",
         });
+        expect(await effortServiceMessages(server.as(owner), ownerChatId)).toEqual([
+            expect.objectContaining({
+                kind: "automated",
+                sender: expect.objectContaining({ id: owner.id, username: "effort_owner" }),
+                service: {
+                    type: "agent_effort_changed",
+                    agentUserId,
+                    effort: "low",
+                },
+                text: "@deep_thinker's reasoning effort changed to low",
+            }),
+        ]);
+
+        const unchanged = await server
+            .as(owner)
+            .post(chatEffortChangePath(ownerChatId, agentUserId), { effort: "low" });
+        expect(unchanged.statusCode).toBe(200);
+        expect(unchanged.json().sync).toBeUndefined();
+        expect(await effortServiceMessages(server.as(owner), ownerChatId)).toHaveLength(1);
 
         const teammateChat = await server.as(teammate).post("/v0/chats/createDirectMessage", {
             userId: agentUserId,
@@ -75,38 +95,93 @@ describe("agent effort", () => {
         expect(
             (
                 await server.as(teammate).post(`/v0/chats/${teammateChatId}/sendMessage`, {
-                    text: "Use the inherited effort",
-                    clientMutationId: "inherited-effort",
+                    text: "Use the agent default",
+                    clientMutationId: "inherited-default-effort",
                 })
             ).statusCode,
         ).toBe(201);
-        await waitFor(() => rig.createdSessions.length === 2, "the second private Rig session");
-        expect(rig.createdSessions[1]).toMatchObject({ effort: "low" });
-        expect(rig.sessionEffort("session-2")).toBe("low");
+        await waitFor(() => rig.createdSessions.length === 2, "the teammate Rig session");
+        expect(rig.createdSessions[1]).toMatchObject({ effort: "high" });
+        expect(rig.sessionEffort("session-1")).toBe("low");
+        expect(rig.sessionEffort("session-2")).toBe("high");
 
-        const adminChanged = await server
-            .as(admin)
-            .post(`/v0/agents/${agentUserId}/changeEffort`, { effort: "xhigh" });
-        expect(adminChanged.statusCode).toBe(200);
-        expect(rig.sessionEffort("session-1")).toBe("xhigh");
+        expect(
+            (
+                await server
+                    .as(owner)
+                    .post(chatEffortChangePath(teammateChatId, agentUserId), { effort: "medium" })
+            ).statusCode,
+        ).toBe(404);
+        const teammateChanged = await server
+            .as(teammate)
+            .post(chatEffortChangePath(teammateChatId, agentUserId), { effort: "xhigh" });
+        expect(teammateChanged.statusCode).toBe(200);
+        expect(rig.sessionEffort("session-1")).toBe("low");
         expect(rig.sessionEffort("session-2")).toBe("xhigh");
+        expect(await effortServiceMessages(server.as(teammate), teammateChatId)).toEqual([
+            expect.objectContaining({
+                sender: expect.objectContaining({ id: teammate.id, username: "effort_teammate" }),
+                service: {
+                    type: "agent_effort_changed",
+                    agentUserId,
+                    effort: "xhigh",
+                },
+            }),
+        ]);
+        expect(await effortServiceMessages(server.as(owner), ownerChatId)).toHaveLength(1);
 
         await rig.restart();
         await server.restart();
-        const restored = await server.as(owner).get(`/v0/agents/${agentUserId}/effort`);
-        expect(restored.statusCode).toBe(200);
-        expect(restored.json()).toEqual({
+        expect((await server.as(owner).get(ownerEffortPath)).json()).toEqual({
+            agentUserId,
+            effort: "low",
+            options: ["low", "medium", "high", "xhigh"],
+        });
+        expect(
+            (
+                await server
+                    .as(teammate)
+                    .get(`/v0/chats/${teammateChatId}/agents/${agentUserId}/effort`)
+            ).json(),
+        ).toEqual({
             agentUserId,
             effort: "xhigh",
             options: ["low", "medium", "high", "xhigh"],
         });
-        expect(await findAgent(server.as(owner), agentUserId)).toMatchObject({
-            agentEffort: "xhigh",
-        });
-        expect(rig.sessionEffort("session-1")).toBe("xhigh");
+        expect(rig.sessionEffort("session-1")).toBe("low");
         expect(rig.sessionEffort("session-2")).toBe("xhigh");
+
+        const newcomerChat = await server.as(newcomer).post("/v0/chats/createDirectMessage", {
+            userId: agentUserId,
+        });
+        expect(newcomerChat.statusCode).toBe(201);
+        const newcomerChatId = newcomerChat.json().chat.id as string;
+        expect(
+            (
+                await server.as(newcomer).post(`/v0/chats/${newcomerChatId}/sendMessage`, {
+                    text: "Still inherit the profile default",
+                    clientMutationId: "future-default-effort",
+                })
+            ).statusCode,
+        ).toBe(201);
+        await waitFor(() => rig.createdSessions.length === 3, "the future Rig session");
+        expect(rig.createdSessions[2]).toMatchObject({ effort: "high" });
+        expect(rig.sessionEffort("session-3")).toBe("high");
     });
 });
+
+function chatEffortChangePath(chatId: string, agentUserId: string): string {
+    return `/v0/chats/${chatId}/agents/${agentUserId}/changeEffort`;
+}
+
+async function effortServiceMessages(client: GymRequestClient, chatId: string) {
+    const response = await client.get(`/v0/chats/${chatId}/messages`);
+    expect(response.statusCode).toBe(200);
+    return (response.json().messages as Array<Record<string, unknown>>).filter(
+        (message) =>
+            (message.service as { type?: string } | undefined)?.type === "agent_effort_changed",
+    );
+}
 
 function agentServer(rig: MockRigDaemon) {
     return createGymServer({
