@@ -8,11 +8,13 @@ import {
     ChannelHeader,
     Composer,
     MessageList,
+    TerminalPanel,
     type ComposerAgent,
     type ContextItem,
     type Mentionable,
     type MenuItem,
 } from "./ChatPageComponents.js";
+import type { TerminalSnapshot } from "happy2-state";
 import type { AudienceValue } from "../../AudienceToggle.js";
 import { emojiItems, identityInitials, toneFor, type Conversation } from "./chatPageModels.js";
 export interface ChatConversationProps {
@@ -50,14 +52,33 @@ export interface ChatConversationProps {
     onStarToggle(): void;
     onValueChange(value: string): void;
     onWorkspaceToggle(): void;
+    terminal?: TerminalSnapshot;
+    terminalAvailable: boolean;
+    terminalHeight: number;
+    onTerminalClose(): void;
+    onTerminalHeightChange(height: number): void;
+    onTerminalOpen(): void;
+    onTerminalInput(data: string): void;
+    onTerminalReconnect(): void;
+    onTerminalResize(cols: number, rows: number): void;
 }
 export function ChatConversation(props: ChatConversationProps) {
     const fileInput = useRef<HTMLInputElement>(null);
     return (
-        <>
+        <div className="happy2-chat-conversation" data-happy2-ui="chat-conversation">
             <ChannelHeader
                 actions={
                     <>
+                        {props.activeConversationId && props.terminalAvailable ? (
+                            <Button
+                                aria-label="Open terminal"
+                                icon="terminal"
+                                iconOnly
+                                onClick={props.onTerminalOpen}
+                                size="small"
+                                variant="ghost"
+                            />
+                        ) : null}
                         {props.activeConversationId ? (
                             <Button
                                 aria-label="Workspace files"
@@ -183,6 +204,19 @@ export function ChatConversation(props: ChatConversationProps) {
                     value={props.composerValue}
                 />
             </Box>
-        </>
+            {props.terminal ? (
+                <TerminalPanel
+                    error={props.terminal.error?.message}
+                    frame={props.terminal.frame}
+                    height={props.terminalHeight}
+                    onClose={props.onTerminalClose}
+                    onHeightChange={props.onTerminalHeightChange}
+                    onInput={props.onTerminalInput}
+                    onReconnect={props.onTerminalReconnect}
+                    onResize={props.onTerminalResize}
+                    status={props.terminal.status}
+                />
+            ) : null}
+        </div>
     );
 }

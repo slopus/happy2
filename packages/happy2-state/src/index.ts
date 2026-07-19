@@ -9,6 +9,7 @@ export {
 } from "./transport.js";
 export * from "./types.js";
 export * from "./resources.js";
+export type { TerminalFrame, TerminalIdentity } from "./backend.js";
 export {
     HappyState,
     happyStateCreate,
@@ -135,4 +136,10 @@ export type {
     CallSignalProjection,
 } from "./modules/calls/callsState.js";
 export type { ChannelUpdateInput } from "./modules/chat-actions/chatActionsState.js";
+export type {
+    TerminalHandle,
+    TerminalSnapshot,
+    TerminalState,
+    TerminalStore,
+} from "./modules/terminal/terminalState.js";
 export type { ReactionSelector } from "./modules/reaction/reactionState.js";

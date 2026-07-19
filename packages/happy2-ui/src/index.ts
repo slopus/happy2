@@ -313,6 +313,7 @@ export { SecretReveal, type SecretRevealProps } from "./SecretReveal";
 export { DevelopmentTokenModal, type DevelopmentTokenModalProps } from "./DevelopmentTokenModal";
 export { type EmojiItem, EmojiPicker, type EmojiPickerProps } from "./EmojiPicker";
 export { StoreSurface, type StoreSurfaceProps } from "./StoreSurface";
+export { TerminalPanel, type TerminalPanelProps } from "./TerminalPanel";
 export {
     ChatPage,
     type ChatPageActions,

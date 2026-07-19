@@ -12,6 +12,7 @@ import type {
     ComposerStore,
     HappyState,
     ThreadHandle,
+    TerminalHandle,
     WorkspaceFileHandle,
     WorkspaceHandle,
 } from "happy2-state";
@@ -40,6 +41,7 @@ type ChatResources = {
     trace?: AgentTraceHandle;
     workspace?: WorkspaceHandle;
     workspaceFile?: WorkspaceFileHandle;
+    terminal?: TerminalHandle;
     chatId?: string;
     conversationKind?: "chat" | "channel";
     threadId?: string;
@@ -87,6 +89,7 @@ export function ChatView(props: ChatViewProps) {
             next.trace?.[Symbol.dispose]();
             next.workspaceFile?.[Symbol.dispose]();
             next.workspace?.[Symbol.dispose]();
+            next.terminal?.[Symbol.dispose]();
             next.chat?.[Symbol.dispose]();
             if (next.chatId) state.composerRelease(next.chatId);
             if (!nextChatId) next = {};
@@ -167,6 +170,7 @@ export function ChatView(props: ChatViewProps) {
             current.trace?.[Symbol.dispose]();
             current.workspaceFile?.[Symbol.dispose]();
             current.workspace?.[Symbol.dispose]();
+            current.terminal?.[Symbol.dispose]();
             current.chat?.[Symbol.dispose]();
             if (current.chatId) state.composerRelease(current.chatId);
             resourcesRef.current = {};
@@ -251,6 +255,21 @@ export function ChatView(props: ChatViewProps) {
         directMessageCreate: (userId) => state.directMessageCreate(userId),
         pluginRequestImageDownload: (chatId, requestId) =>
             state.pluginManagementRequestImageDownload(chatId, requestId),
+        terminalOpen(agentUserId) {
+            const current = resourcesRef.current;
+            if (!current.chatId) return;
+            current.terminal?.[Symbol.dispose]();
+            resourcesCommit({
+                ...current,
+                terminal: state.terminalOpen(current.chatId, agentUserId),
+            });
+        },
+        terminalClose() {
+            const current = resourcesRef.current;
+            current.terminal?.getState().terminalClose();
+            current.terminal?.[Symbol.dispose]();
+            resourcesCommit({ ...current, terminal: undefined });
+        },
     };
     const pageNavigation = (): ChatPageNavigation => {
         const selected = conversation;
@@ -275,6 +294,7 @@ export function ChatView(props: ChatViewProps) {
             sidebar={state.sidebar()}
             thread={resources.thread}
             trace={resources.trace}
+            terminal={resources.terminal}
             titleBar={props.titleBar}
             user={props.session?.user ?? { id: "local-user", firstName: "Happy" }}
             workspace={resources.workspace}

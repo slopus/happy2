@@ -82,6 +82,7 @@ import { ThreadListPage } from "./pages/ThreadListPage";
 import { ThreadPanelPage } from "./pages/ThreadPanelPage";
 import { TitleBarPage } from "./pages/TitleBarPage";
 import { ToolbarPage } from "./pages/ToolbarPage";
+import { TerminalPanelPage } from "./pages/TerminalPanelPage";
 type BlueprintPage = {
     id: string;
     label: string;
@@ -90,6 +91,7 @@ type BlueprintPage = {
 };
 const components: BlueprintPage[] = [
     { id: "box", label: "Box", number: "C-001", page: BoxPage },
+    { id: "terminal-panel", label: "Terminal panel", number: "C-078", page: TerminalPanelPage },
     { id: "icon", label: "Icon", number: "C-002", page: IconPage },
     { id: "button", label: "Button", number: "C-003", page: ButtonPage },
     { id: "avatar", label: "Avatar", number: "C-004", page: AvatarPage },

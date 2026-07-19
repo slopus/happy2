@@ -22,6 +22,7 @@ import type {
     SidebarStore,
     SidebarChatProjection,
     ThreadStore,
+    TerminalStore,
     WorkspaceStore,
     WorkspaceFileStore,
 } from "happy2-state";
@@ -76,6 +77,7 @@ export type ChatPageProps = {
     composer?: ComposerStore;
     thread?: ThreadStore;
     trace?: AgentTraceStore;
+    terminal?: TerminalStore;
     workspace?: WorkspaceStore;
     workspaceFile?: WorkspaceFileStore;
     actions: ChatPageActions;
@@ -147,6 +149,8 @@ export interface ChatPageActions {
     channelDefaultAgentUpdate(chatId: string, agentUserId: string): Promise<void>;
     agentCreate(input: import("happy2-state").CreateAgentInput): Promise<void>;
     directMessageCreate(userId: string): Promise<void>;
+    terminalOpen?(agentUserId: string): void;
+    terminalClose?(): void;
     /** Downloads one staged plugin request image while the request package remains staged. */
     pluginRequestImageDownload?(chatId: string, requestId: string): Promise<ArrayBuffer>;
 }
@@ -159,6 +163,7 @@ export function ChatPage(props: ChatPageProps) {
     const composerState = useOptionalStoreSnapshot(props.composer);
     const threadState = useOptionalStoreSnapshot(props.thread);
     const traceState = useOptionalStoreSnapshot(props.trace);
+    const terminalState = useOptionalStoreSnapshot(props.terminal);
     const sidebarSnapshot = () => sidebarState;
     const directorySnapshot = () => directoryState;
     const chatSnapshot = () => chatState;
@@ -244,6 +249,20 @@ export function ChatPage(props: ChatPageProps) {
     };
     const activePeer = () =>
         activeProjection()?.participants.find((participant) => participant.id !== user()?.id);
+    const terminalAgent = () => {
+        const peer = activePeer();
+        if (peer?.kind === "agent") return peer;
+        const defaultId = activeChat()?.defaultAgentUserId;
+        const selected = defaultId
+            ? activeProjection()?.participants.find((participant) => participant.id === defaultId)
+            : undefined;
+        if (selected) return selected;
+        const members = chatSnapshot()?.members;
+        return members?.type === "ready"
+            ? members.value.find((participant) => participant.kind === "agent")
+            : activeProjection()?.participants.find((participant) => participant.kind === "agent");
+    };
+    const [terminalHeight, setTerminalHeight] = useState(280);
     const draft = () => composerSnapshot()?.text ?? "";
     const pendingAttachments = () => composerSnapshot()?.attachments ?? [];
     const entries = entriesProject(
@@ -845,6 +864,9 @@ export function ChatPage(props: ChatPageProps) {
                         draft().trim().length > 0 || pendingAttachments().length > 0
                     }
                     composerValue={draft()}
+                    terminal={terminalState}
+                    terminalAvailable={Boolean(terminalAgent() && props.actions.terminalOpen)}
+                    terminalHeight={terminalHeight}
                     contextItems={composerContext}
                     conversation={conversation}
                     directoryUsers={directoryUsers()}
@@ -879,6 +901,19 @@ export function ChatPage(props: ChatPageProps) {
                     onStarToggle={channelModel.starToggle}
                     onValueChange={updateDraft}
                     onWorkspaceToggle={toggleFilesPanel}
+                    onTerminalClose={() => props.actions.terminalClose?.()}
+                    onTerminalHeightChange={(height) =>
+                        setTerminalHeight(Math.max(160, Math.min(560, height)))
+                    }
+                    onTerminalOpen={() => {
+                        const agent = terminalAgent();
+                        if (agent) props.actions.terminalOpen?.(agent.id);
+                    }}
+                    onTerminalInput={(data) => props.terminal?.getState().terminalWrite(data)}
+                    onTerminalReconnect={() => props.terminal?.getState().terminalReconnect()}
+                    onTerminalResize={(cols, rows) =>
+                        props.terminal?.getState().terminalResize(cols, rows)
+                    }
                     starred={channelModel.starred()}
                 />
             </AppShell>

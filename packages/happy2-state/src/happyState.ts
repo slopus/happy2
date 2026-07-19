@@ -177,6 +177,7 @@ import {
 } from "./modules/notifications/notificationsState.js";
 import { callsLoad, callsOutputRoute } from "./modules/calls/callsState.js";
 import { callsStoreCreate, type CallsOutput, type CallsStore } from "./modules/calls/callsState.js";
+import { terminalOpen, type TerminalHandle } from "./modules/terminal/terminalState.js";
 import { agentCreate } from "./modules/chat-actions/chatActionsState.js";
 import { agentEffortChange } from "./modules/chat-actions/chatActionsState.js";
 import { agentEffortLoad } from "./modules/chat-actions/chatActionsState.js";
@@ -332,6 +333,11 @@ export class HappyState implements AsyncDisposable, Disposable {
             resetReconcile: () => this.resetReconcile(),
             backgroundError,
         });
+    }
+
+    /** Opens one ephemeral interactive terminal bound to an authorized chat agent session. */
+    terminalOpen(chatId: string, agentUserId: string): TerminalHandle {
+        return terminalOpen(this.runtime, chatId, agentUserId);
     }
 
     sidebar(): SidebarStore {

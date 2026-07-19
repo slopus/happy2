@@ -1,0 +1,101 @@
+.happy2-chat-conversation {
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.happy2-terminal-panel {
+    box-sizing: border-box;
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    min-height: 160px;
+    max-height: 70%;
+    overflow: hidden;
+    background: var(--happy2-bg-code);
+    border-top: 1px solid var(--happy2-border-strong);
+}
+
+.happy2-terminal-panel__resize {
+    flex: none;
+    height: 5px;
+    cursor: ns-resize;
+    background: transparent;
+}
+
+.happy2-terminal-panel__resize:hover {
+    background: var(--happy2-accent);
+}
+
+.happy2-terminal-panel__header {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 8px;
+    height: 36px;
+    padding: 0 8px 0 12px;
+    border-bottom: 1px solid var(--happy2-border);
+}
+
+.happy2-terminal-panel__title {
+    color: var(--happy2-text);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.happy2-terminal-panel__status {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--happy2-text-muted);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-terminal-panel__actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.happy2-terminal-panel__screen {
+    box-sizing: border-box;
+    flex: 1 1 0%;
+    min-height: 0;
+    width: 100%;
+    overflow: auto;
+    padding: 0;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-mono);
+    font-size: 14px;
+    line-height: 18px;
+}
+
+.happy2-terminal-panel__rows {
+    display: flex;
+    flex-direction: column;
+    min-width: max-content;
+    padding: 8px 12px;
+}
+
+.happy2-terminal-panel__row {
+    display: flex;
+    flex: none;
+    height: 18px;
+    white-space: pre;
+}
+
+.happy2-terminal-panel__cell {
+    white-space: pre;
+}
+
+.happy2-terminal-panel__input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+}

@@ -67,6 +67,38 @@ import type {
 export type JsonObject = Readonly<Record<string, unknown>>;
 export type BackendInput = JsonObject | undefined;
 
+export interface TerminalIdentity {
+    readonly chatId: string;
+    readonly agentUserId: string;
+    readonly terminalId: string;
+}
+
+export interface TerminalFrame {
+    readonly id: string;
+    readonly revision: number;
+    readonly status: "running" | "exited";
+    readonly exitCode: number | null;
+    readonly cols: number;
+    readonly totalRows: number;
+    readonly title: string;
+    readonly cursor: {
+        readonly x: number;
+        readonly y: number;
+        readonly visible: boolean;
+        readonly blinking: boolean;
+        readonly shape: "bar" | "block" | "block_hollow" | "underline";
+    } | null;
+    readonly rows: readonly {
+        readonly wrapped: boolean;
+        readonly cells: readonly {
+            readonly x: number;
+            readonly text: string;
+            readonly width: 1 | 2;
+            readonly style: Readonly<Record<string, unknown>>;
+        }[];
+    }[];
+}
+
 interface OperationSpec {
     readonly method: "GET" | "POST";
     readonly path: string;
@@ -222,6 +254,18 @@ export const backendOperations = {
 
     getAgentEffort: get("/v0/chats/:chatId/agents/:agentUserId/effort"),
     changeAgentEffort: post("/v0/chats/:chatId/agents/:agentUserId/changeEffort"),
+    createTerminal: post("/v0/chats/:chatId/agents/:agentUserId/terminals/createTerminal"),
+    getTerminal: get("/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId"),
+    resizeTerminal: post(
+        "/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId/resizeTerminal",
+    ),
+    writeTerminal: post(
+        "/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId/writeTerminal",
+    ),
+    stopTerminal: post("/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId/stopTerminal"),
+    streamTerminal: get("/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId/stream", [
+        "after",
+    ]),
     getAgentImages: get("/v0/admin/agentImages"),
     getAgentImage: get("/v0/admin/agentImages/:imageId"),
     createAgentImage: post("/v0/admin/agentImages/createImage"),
@@ -593,6 +637,17 @@ export interface KnownBackendInputs {
         readonly agentUserId: string;
         readonly effort: string;
     };
+    createTerminal: {
+        readonly chatId: string;
+        readonly agentUserId: string;
+        readonly cols: number;
+        readonly rows: number;
+    };
+    getTerminal: TerminalIdentity;
+    resizeTerminal: TerminalIdentity & { readonly cols: number; readonly rows: number };
+    writeTerminal: TerminalIdentity & { readonly data: string };
+    stopTerminal: TerminalIdentity;
+    streamTerminal: TerminalIdentity & { readonly after?: number };
     createAgentImage: { readonly name: string; readonly dockerfile: string };
     buildAgentImage: { readonly imageId: string };
     setDefaultAgentImage: { readonly imageId: string };
@@ -981,6 +1036,12 @@ export interface KnownBackendResults {
         readonly options: readonly string[];
         readonly sync?: unknown;
     };
+    createTerminal: { readonly terminal: TerminalFrame };
+    getTerminal: { readonly terminal: TerminalFrame };
+    resizeTerminal: { readonly terminal: TerminalFrame };
+    writeTerminal: { readonly accepted: true };
+    stopTerminal: { readonly terminal: TerminalFrame };
+    streamTerminal: never;
     getAgentImages: {
         readonly defaultImageId?: string;
         readonly images: readonly AgentImageSummary[];

@@ -41,6 +41,7 @@ export { Sidebar, type SidebarItem, type SidebarSection } from "../../Sidebar.js
 export { Switch } from "../../Switch.js";
 export { TextField } from "../../TextField.js";
 export { ThreadPanel } from "../../ThreadPanel.js";
+export { TerminalPanel } from "../../TerminalPanel.js";
 export type { EmojiItem } from "../../EmojiPicker.js";
 export type { FileTreeNode } from "../../FileTree.js";
 export type { MemberItem } from "../../MemberList.js";
