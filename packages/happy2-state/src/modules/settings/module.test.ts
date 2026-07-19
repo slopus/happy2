@@ -24,6 +24,7 @@ describe("settings module", () => {
                       } satisfies HttpResponse<T>)
                     : ({ status: 201, body: credential as T } satisfies HttpResponse<T>);
             },
+            requestStream: () => () => undefined,
             subscribe: () => () => undefined,
         };
         const runtime = new StateRuntime({ transport });
@@ -64,6 +65,7 @@ describe("settings module", () => {
                 requests.push(request);
                 return { status: 200, body: { file: uploaded } as T };
             },
+            requestStream: () => () => undefined,
             subscribe: () => () => undefined,
         };
         const runtime = new StateRuntime({ transport });

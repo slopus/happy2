@@ -4,11 +4,21 @@ import {
     type BackendOperationInput,
     type BackendOperationResult,
     backendOperations,
+    backendOperationStreamRequest,
     backendOperationSupportsIdempotency,
     executeBackendOperation,
 } from "../../backend.js";
-import { type ClientTransport, TransportError } from "../../transport.js";
+import { type ClientTransport, type HttpStreamEvent, TransportError } from "../../transport.js";
 import { UserError } from "../../types.js";
+
+export interface OperationStreamObserver {
+    /** One named server-sent event with its parsed JSON payload. */
+    readonly onEvent: (event: HttpStreamEvent) => void;
+    /** The stream closed after the server finished sending frames. */
+    readonly onEnd: () => void;
+    /** The request failed to open or the stream broke; already displayable. */
+    readonly onError: (error: UserError) => void;
+}
 
 export interface StateRetryPolicy {
     /** Total attempts, including the first request. */
@@ -110,6 +120,44 @@ export class StateRuntime implements AsyncDisposable {
         } catch (error) {
             throw userError(error);
         }
+    }
+
+    /**
+     * Opens one server-sent-event operation (plugin preparation, update checks).
+     * Streams are never retried and never carry idempotency keys; a non-2xx
+     * response or transport failure surfaces once through `onError`. The
+     * returned function cancels the stream and silences the observer.
+     */
+    operationStream<K extends BackendOperation>(
+        operation: K,
+        input: BackendOperationInput<K> | undefined,
+        observer: OperationStreamObserver,
+    ): () => void {
+        this.assertActive();
+        const transport = this.requireTransport();
+        return transport.requestStream(backendOperationStreamRequest(operation, input), {
+            onEvent: (event) => observer.onEvent(event),
+            onFailure: (response) => {
+                const body =
+                    response.body !== null && typeof response.body === "object"
+                        ? (response.body as Record<string, unknown>)
+                        : {};
+                observer.onError(
+                    userError(
+                        new ApiResponseError(
+                            response,
+                            typeof body.message === "string"
+                                ? body.message
+                                : typeof body.error === "string"
+                                  ? body.error
+                                  : "The server request failed.",
+                        ),
+                    ),
+                );
+            },
+            onEnd: () => observer.onEnd(),
+            onError: (error) => observer.onError(userError(error)),
+        });
     }
 
     async read<Result>(request: (transport: ClientTransport) => Promise<Result>): Promise<Result> {

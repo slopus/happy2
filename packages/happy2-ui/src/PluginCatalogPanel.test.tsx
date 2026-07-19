@@ -619,7 +619,7 @@ it("shows loading, error, and empty affordances", async () => {
     // Empty (loaded, zero packages): the catalog empty-state.
     expect(
         view.$('[data-testid="empty"] [data-happy2-ui="empty-state"]').element.textContent,
-    ).toContain("No plugins in the catalog");
+    ).toContain("No plugins yet");
 
     await view.screenshot("PluginCatalogPanel.variants.test");
 }, 120_000);

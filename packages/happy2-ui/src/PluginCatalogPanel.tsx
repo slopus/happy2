@@ -31,7 +31,13 @@ export type PluginVariableField = {
     /** Secret values render masked and are write-only. */
     kind: "secret" | "text";
 };
+export type PluginUpdateBadge =
+    | { status: "checking"; detail?: string }
+    | { status: "checked"; updateAvailable: boolean; remoteVersion: string }
+    | { status: "failed"; detail: string };
 export type PluginCatalogEntry = {
+    /** Stable row identity when shortName alone is not unique; defaults to shortName. */
+    id?: string;
     shortName: string;
     displayName: string;
     description: string;
@@ -48,6 +54,14 @@ export type PluginCatalogEntry = {
     installedVersion?: string;
     updateAvailable?: boolean;
     installations: readonly PluginInstallationItem[];
+    /** The durable system plugin ID; enables the uninstall action. */
+    pluginId?: string;
+    /** Display label of an external package source, e.g. "GitHub · owner/repo". */
+    sourceLabel?: string;
+    /** False for externally sourced rows that cannot be reinstalled from the catalog. */
+    installable?: boolean;
+    /** The latest automatic remote update check for this installed package. */
+    updateCheck?: PluginUpdateBadge;
 };
 export type PluginCatalogPanelProps = {
     className?: string;
@@ -78,6 +92,12 @@ export type PluginCatalogPanelProps = {
     onDraftValueChange?: (key: string, value: string) => void;
     onDraftContainerImageChange?: (imageId: string) => void;
     onSubmitInstall?: () => void;
+    /** Renders the "Install plugin" entry point for external packages in the header. */
+    onOpenExternalInstall?: () => void;
+    /** Plugin IDs with an in-flight uninstall; their action disables. */
+    uninstallingPluginIds?: readonly string[];
+    /** Renders an Uninstall action on entries that carry a pluginId. */
+    onUninstall?: (pluginId: string) => void;
 };
 const statusLabels: Record<PluginInstallationStatus, string> = {
     preparing: "Preparing",
@@ -93,6 +113,16 @@ const statusVariants: Record<PluginInstallationStatus, BadgeVariant> = {
     broken_configuration: "danger",
     failed: "danger",
 };
+function updateCheckLabel(check: PluginUpdateBadge): string {
+    if (check.status === "checking") return "Checking for update…";
+    if (check.status === "failed") return "Update check failed";
+    return check.updateAvailable ? `Update v${check.remoteVersion} available` : "Up to date";
+}
+function updateCheckVariant(check: PluginUpdateBadge): BadgeVariant {
+    if (check.status === "checking") return "info";
+    if (check.status === "failed") return "danger";
+    return check.updateAvailable ? "warning" : "neutral";
+}
 /**
  * C-066 PluginCatalogPanel — the administrator surface for the server plugin
  * catalog: packages of Agent Skills and MCP servers bundled with the server.
@@ -126,6 +156,9 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
         "onDraftValueChange",
         "onDraftContainerImageChange",
         "onSubmitInstall",
+        "onOpenExternalInstall",
+        "uninstallingPluginIds",
+        "onUninstall",
     ]);
     const title = () => local.title ?? "Plugins";
     const busy = (shortName: string) => local.busyShortNames?.includes(shortName) ?? false;
@@ -153,6 +186,19 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
                         </span>
                     ) : null}
                 </Box>
+                {local.onOpenExternalInstall ? (
+                    <Box className="happy2-plugin-catalog-panel__header-actions">
+                        <Button
+                            data-testid="plugin-catalog-install-external"
+                            icon="plus"
+                            onClick={() => local.onOpenExternalInstall?.()}
+                            size="small"
+                            variant="primary"
+                        >
+                            Install plugin
+                        </Button>
+                    </Box>
+                ) : null}
             </Box>
 
             {local.actionError
@@ -160,7 +206,7 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
                       <Banner
                           onDismiss={local.onDismissActionError}
                           tone="danger"
-                          title="Install failed"
+                          title="Plugin action failed"
                       >
                           {reason}
                       </Banner>
@@ -176,7 +222,7 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
                                     className="happy2-plugin-catalog-panel__card"
                                     data-happy2-ui="plugin-catalog-card"
                                     data-plugin-short-name={plugin.shortName}
-                                    key={plugin.shortName}
+                                    key={plugin.id ?? plugin.shortName}
                                 >
                                     <Box className="happy2-plugin-catalog-panel__icon">
                                         {plugin.iconUrl ? (
@@ -207,11 +253,35 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
                                             {plugin.installed ? (
                                                 <Badge label="Installed" variant="success" />
                                             ) : null}
+                                            {plugin.sourceLabel ? (
+                                                <Badge
+                                                    label={plugin.sourceLabel}
+                                                    variant="outline"
+                                                />
+                                            ) : null}
                                             {plugin.updateAvailable ? (
                                                 <Badge
                                                     label={`Update v${plugin.version}`}
                                                     variant="warning"
                                                 />
+                                            ) : null}
+                                            {plugin.updateCheck ? (
+                                                <span
+                                                    data-happy2-ui="plugin-catalog-update-check"
+                                                    title={
+                                                        plugin.updateCheck.status === "failed" ||
+                                                        plugin.updateCheck.status === "checking"
+                                                            ? plugin.updateCheck.detail
+                                                            : undefined
+                                                    }
+                                                >
+                                                    <Badge
+                                                        label={updateCheckLabel(plugin.updateCheck)}
+                                                        variant={updateCheckVariant(
+                                                            plugin.updateCheck,
+                                                        )}
+                                                    />
+                                                </span>
                                             ) : null}
                                         </Box>
                                         <span className="happy2-plugin-catalog-panel__description">
@@ -292,7 +362,7 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
                                         ) : null}
                                     </Box>
                                     <Box className="happy2-plugin-catalog-panel__card-actions">
-                                        {local.onOpenInstall ? (
+                                        {local.onOpenInstall && plugin.installable !== false ? (
                                             <Button
                                                 disabled={busy(plugin.shortName)}
                                                 icon="plus"
@@ -309,16 +379,37 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
                                                       : "Install"}
                                             </Button>
                                         ) : null}
+                                        {local.onUninstall && plugin.pluginId
+                                            ? ((pluginId) => (
+                                                  <Button
+                                                      data-testid="plugin-catalog-uninstall"
+                                                      disabled={
+                                                          local.uninstallingPluginIds?.includes(
+                                                              pluginId,
+                                                          ) ?? false
+                                                      }
+                                                      onClick={() => local.onUninstall?.(pluginId)}
+                                                      size="small"
+                                                      variant="danger"
+                                                  >
+                                                      {local.uninstallingPluginIds?.includes(
+                                                          pluginId,
+                                                      )
+                                                          ? "Uninstalling…"
+                                                          : "Uninstall"}
+                                                  </Button>
+                                              ))(plugin.pluginId)
+                                            : null}
                                     </Box>
                                 </Box>
                             ))}
                         </Box>
                     ) : (
                         <EmptyState
-                            description="Packages bundled with the server appear here once its catalog loads."
+                            description="Install a package from a ZIP or GitHub, or add a package to the server catalog."
                             icon="braces"
                             size="inline"
-                            title="No plugins in the catalog"
+                            title="No plugins yet"
                         />
                     )
                 ) : (

@@ -36,6 +36,14 @@
     gap: 12px;
 }
 
+.happy2-plugin-catalog-panel__header-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
 .happy2-plugin-catalog-panel__heading {
     display: flex;
     flex-direction: column;

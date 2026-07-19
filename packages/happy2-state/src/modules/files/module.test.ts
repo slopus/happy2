@@ -26,6 +26,7 @@ describe("files module", () => {
                 requests.push(request);
                 return { status: 200, body: { file: uploaded } as T };
             },
+            requestStream: () => () => undefined,
             subscribe: () => () => undefined,
         };
         const runtime = new StateRuntime({ transport });

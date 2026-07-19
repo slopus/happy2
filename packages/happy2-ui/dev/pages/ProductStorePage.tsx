@@ -3,6 +3,7 @@ import {
     adminStoreFixtureCreate,
     agentImagesStoreFixtureCreate,
     agentSecretsStoreFixtureCreate,
+    pluginInstallStoreFixtureCreate,
     pluginsStoreFixtureCreate,
     rolesStoreFixtureCreate,
     callsStoreFixtureCreate,
@@ -173,12 +174,13 @@ function SearchPageSpecimen() {
     );
 }
 function AdminPageSpecimen() {
-    const [{ fixture, images, secrets, plugins, roles }] = useState(() => {
+    const [{ fixture, images, secrets, plugins, pluginInstall, roles }] = useState(() => {
         const fixture = adminStoreFixtureCreate();
         const images = agentImagesStoreFixtureCreate();
         const secrets = agentSecretsStoreFixtureCreate();
         const plugins = pluginsStoreFixtureCreate();
         const roles = rolesStoreFixtureCreate();
+        const pluginInstall = pluginInstallStoreFixtureCreate();
         fixture.input({ type: "usersLoaded", users: [] });
         images.input({ type: "imagesLoaded", images: [] });
         secrets.input({ type: "secretsLoaded", secrets: [], agents: [], channels: [] });
@@ -188,7 +190,8 @@ function AdminPageSpecimen() {
             catalog: { permissions: [], roles: [] },
         });
         roles.input({ type: "membersLoaded", members: [] });
-        return { fixture, images, secrets, plugins, roles };
+        plugins.input({ type: "systemPluginsLoaded", plugins: [] });
+        return { fixture, images, secrets, plugins, pluginInstall, roles };
     });
     const [section, setSection] = useState<AdminPageSection>("users");
     useLayoutEffect(
@@ -198,8 +201,9 @@ function AdminPageSpecimen() {
             secrets[Symbol.dispose]();
             plugins[Symbol.dispose]();
             roles[Symbol.dispose]();
+            pluginInstall[Symbol.dispose]();
         },
-        [fixture, images, secrets, plugins, roles],
+        [fixture, images, secrets, plugins, pluginInstall, roles],
     );
     return frame(
         "P-009",
@@ -210,6 +214,7 @@ function AdminPageSpecimen() {
             agentImagesStore={() => images.store}
             agentSecretsStore={() => secrets.store}
             onSectionChange={setSection}
+            pluginInstallStore={() => pluginInstall.store}
             pluginsStore={() => plugins.store}
             rolesStore={() => roles.store}
             store={() => fixture.store}

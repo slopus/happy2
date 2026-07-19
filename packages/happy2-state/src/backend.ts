@@ -43,6 +43,7 @@ import type {
     Permission,
     PluginCatalogItem,
     PluginInstallationSummary,
+    SystemPluginSummary,
     PublicServerSetupStatus,
     RoleSummary,
     SandboxProviderDiscovery,
@@ -224,6 +225,13 @@ export const backendOperations = {
     getPluginCatalog: get("/v0/admin/plugins"),
     installPlugin: post("/v0/admin/plugins/:shortName/installPlugin"),
     downloadPluginIcon: get("/v0/admin/plugins/:shortName/icon"),
+    getSystemPlugins: get("/v0/admin/systemPlugins"),
+    downloadSystemPluginImage: get("/v0/admin/systemPlugins/:pluginId/image"),
+    preparePluginUpload: post("/v0/admin/pluginPackages/preparePlugin", "body"),
+    preparePluginSource: post("/v0/admin/pluginPackages/preparePlugin"),
+    installPreparedPlugin: post("/v0/admin/pluginPackages/installPlugin"),
+    checkPluginUpdate: post("/v0/admin/systemPlugins/:pluginId/checkForUpdate"),
+    uninstallPlugin: post("/v0/admin/systemPlugins/:pluginId/uninstallPlugin"),
     getAgentSecrets: get("/v0/admin/agentSecrets"),
     createAgentSecret: sensitivePost("/v0/admin/agentSecrets/createSecret"),
     deleteAgentSecret: post("/v0/admin/agentSecrets/:secretId/deleteSecret"),
@@ -564,6 +572,17 @@ export interface KnownBackendInputs {
         readonly variables?: Readonly<Record<string, string>>;
         readonly containerImageId?: string;
     };
+    preparePluginUpload: { readonly body: unknown };
+    preparePluginSource: {
+        readonly source: { readonly kind: "github" | "zip_url"; readonly url: string };
+    };
+    installPreparedPlugin: {
+        readonly preparedToken: string;
+        readonly variables?: Readonly<Record<string, string>>;
+        readonly containerImageId?: string;
+    };
+    checkPluginUpdate: { readonly pluginId: string };
+    uninstallPlugin: { readonly pluginId: string };
     createAgentSecret: {
         readonly id: string;
         readonly description: string;
@@ -940,6 +959,15 @@ export interface KnownBackendResults {
     getPluginCatalog: { readonly plugins: readonly PluginCatalogItem[] };
     installPlugin: { readonly installation: PluginInstallationSummary };
     downloadPluginIcon: ArrayBuffer;
+    getSystemPlugins: { readonly plugins: readonly SystemPluginSummary[] };
+    downloadSystemPluginImage: ArrayBuffer;
+    installPreparedPlugin: { readonly installation: PluginInstallationSummary };
+    uninstallPlugin: {
+        readonly uninstalled: {
+            readonly pluginId: string;
+            readonly installationIds: readonly string[];
+        };
+    };
     getAgentSecrets: { readonly secrets: readonly AgentSecretSummary[] };
     createAgentSecret: { readonly secret: AgentSecretSummary; readonly sync: unknown };
     deleteAgentSecret: { readonly removed: boolean; readonly sync: unknown };
@@ -1068,6 +1096,14 @@ interface DirectoryUsersResult {
 export type BackendOperationResult<K extends BackendOperation> = K extends keyof KnownBackendResults
     ? KnownBackendResults[K]
     : JsonObject;
+
+/** Builds the raw HTTP request for one operation whose response is a per-request SSE stream. */
+export function backendOperationStreamRequest<K extends BackendOperation>(
+    operation: K,
+    input: BackendOperationInput<K> | undefined,
+): HttpRequest {
+    return operationRequest(backendOperations[operation], input as BackendInput);
+}
 
 export async function executeBackendOperation<K extends BackendOperation>(
     transport: ClientTransport,

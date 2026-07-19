@@ -3,6 +3,8 @@ export {
     type ClientTransport,
     type HttpRequest,
     type HttpResponse,
+    type HttpStreamEvent,
+    type HttpStreamObserver,
     type RealtimeObserver,
 } from "./transport.js";
 export * from "./types.js";
@@ -88,13 +90,25 @@ export type {
     AgentSecretsSnapshot,
     AgentSecretsStore,
 } from "./modules/agent-secrets/agentSecretsState.js";
-export type { PluginsSnapshot, PluginsStore } from "./modules/plugins/pluginsState.js";
+export type {
+    PluginsSnapshot,
+    PluginsStore,
+    PluginUpdateCheckState,
+} from "./modules/plugins/pluginsState.js";
 export {
     permissionAllowed,
     type PermissionsSnapshot,
     type PermissionsStore,
 } from "./modules/permissions/permissionsState.js";
 export type { RolesCatalog, RolesSnapshot, RolesStore } from "./modules/roles/rolesState.js";
+export type {
+    PluginArchiveDraft,
+    PluginInstallSnapshot,
+    PluginInstallSourceKind,
+    PluginInstallStep,
+    PluginInstallStore,
+    PluginPrepareSource,
+} from "./modules/plugin-install/pluginInstallState.js";
 export type { ThreadHandle, ThreadSnapshot, ThreadStore } from "./modules/thread/threadState.js";
 export type {
     AgentTraceHandle,

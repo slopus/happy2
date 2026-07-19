@@ -29,10 +29,12 @@ export function AdminView(props: AdminViewProps) {
             canViewRoleMembers={props.canViewRoleMembers}
             onSectionChange={props.onSectionChange}
             pluginIconUrl={icons.iconUrl}
+            pluginInstallStore={() => props.state.pluginInstall()}
             pluginsStore={() => props.state.plugins()}
             rolesStore={() => props.state.roles()}
             sections={props.sections}
             store={() => props.state.admin(activeSection as AdminSection)}
+            systemPluginImageUrl={icons.systemImageUrl}
         />
     );
 }

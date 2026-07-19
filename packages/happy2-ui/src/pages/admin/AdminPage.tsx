@@ -7,6 +7,7 @@ import type {
     AutomationSummary,
     IntegrationSummary,
     ModerationReport,
+    PluginInstallStore,
     PluginsStore,
     RolesStore,
 } from "happy2-state";
@@ -28,9 +29,13 @@ export interface AdminPageProps {
     agentImagesStore: () => AgentImagesStore;
     agentSecretsStore: () => AgentSecretsStore;
     pluginsStore: () => PluginsStore;
+    /** The external plugin install flow surface, materialized when its dialog opens. */
+    pluginInstallStore: () => PluginInstallStore;
     rolesStore: () => RolesStore;
     /** Display-only plugin icon URL per catalog short name, resolved by the consumer. */
     pluginIconUrl?: (shortName: string) => string | undefined;
+    /** Display-only icon URL per persisted system plugin ID, resolved by the consumer. */
+    systemPluginImageUrl?: (pluginId: string) => string | undefined;
     activeSection: AdminPageSection;
     onSectionChange: (section: AdminPageSection) => void;
     /**
@@ -205,8 +210,10 @@ function adminPageContent(
                         <PluginsPage
                             agentImagesStore={props.agentImagesStore}
                             iconUrl={props.pluginIconUrl}
+                            installStore={props.pluginInstallStore}
                             query={query}
                             store={props.pluginsStore()}
+                            systemImageUrl={props.systemPluginImageUrl}
                         />
                     ) : tab() === "roles" ? (
                         <RolesPage

@@ -124,7 +124,11 @@ import {
     agentSecretsLoad,
     agentSecretsOutputRoute,
 } from "./modules/agent-secrets/agentSecretsState.js";
-import { pluginsLoad, pluginsOutputRoute } from "./modules/plugins/pluginsState.js";
+import {
+    pluginsLoad,
+    pluginsOutputRoute,
+    pluginsUpdateChecksStop,
+} from "./modules/plugins/pluginsState.js";
 import {
     permissionsLoad,
     permissionsStoreCreate,
@@ -137,6 +141,13 @@ import {
     type PluginsOutput,
     type PluginsStore,
 } from "./modules/plugins/pluginsState.js";
+import {
+    pluginInstallOutputRoute,
+    pluginInstallPrepareStop,
+    pluginInstallStoreCreate,
+    type PluginInstallOutput,
+    type PluginInstallStore,
+} from "./modules/plugin-install/pluginInstallState.js";
 import {
     agentSecretsStoreCreate,
     type AgentSecretsOutput,
@@ -202,6 +213,7 @@ export type HappyStateEvent =
     | AgentSecretsOutput
     | PluginsOutput
     | RolesOutput
+    | PluginInstallOutput
     | SetupOutput;
 
 export interface HappyStateOptions extends StateRuntimeOptions {
@@ -242,6 +254,7 @@ export class HappyState implements AsyncDisposable, Disposable {
     private permissionsBinding?: PermissionsStore;
     private initialPermissions?: EffectivePermissions;
     private rolesBinding?: RolesStore;
+    private pluginInstallBinding?: PluginInstallStore;
     private notificationsBinding?: NotificationsStore;
     private threadsBinding?: ThreadsStore;
     private callsBinding?: CallsStore;
@@ -496,6 +509,18 @@ export class HappyState implements AsyncDisposable, Disposable {
         return this.rolesBinding;
     }
 
+    /** Downloads one persisted system plugin icon PNG through the authenticated transport. */
+    async systemPluginImageDownload(pluginId: string): Promise<ArrayBuffer> {
+        return this.runtime.operation("downloadSystemPluginImage", { pluginId });
+    }
+
+    /** The external plugin install flow surface: preparation, candidate choice, and prepared install. */
+    pluginInstall(): PluginInstallStore {
+        if (!this.pluginInstallBinding)
+            this.pluginInstallBinding = pluginInstallStoreCreate((event) => this.eventRoute(event));
+        return this.pluginInstallBinding;
+    }
+
     threadOpen(rootMessageId: string): ThreadHandle {
         return threadOpen(this.context, rootMessageId);
     }
@@ -728,6 +753,8 @@ export class HappyState implements AsyncDisposable, Disposable {
         if (this.disposed) return;
         this.disposed = true;
         syncStop(this.sync);
+        if (this.pluginsBinding) pluginsUpdateChecksStop(this.pluginsBinding);
+        if (this.pluginInstallBinding) pluginInstallPrepareStop(this.pluginInstallBinding);
         this.runtime.stop();
         this.chats.dispose();
         this.workspaceFiles.dispose();
@@ -920,6 +947,8 @@ export class HappyState implements AsyncDisposable, Disposable {
                     );
                 return;
             case "pluginInstallSubmitted":
+            case "pluginUninstallSubmitted":
+            case "pluginUpdateChecksStarted":
                 if (this.pluginsBinding)
                     this.backgroundIfConnected(() =>
                         pluginsOutputRoute(
@@ -927,6 +956,38 @@ export class HappyState implements AsyncDisposable, Disposable {
                             event,
                         ),
                     );
+                return;
+            case "pluginUpdateChecksStopped":
+                // Cancels streams synchronously even while offline or stopping.
+                if (this.pluginsBinding) pluginsUpdateChecksStop(this.pluginsBinding);
+                return;
+            case "pluginPrepareCancelled":
+                if (this.pluginInstallBinding) pluginInstallPrepareStop(this.pluginInstallBinding);
+                return;
+            case "pluginPrepareSubmitted":
+                if (this.pluginInstallBinding)
+                    this.backgroundIfConnected(() =>
+                        pluginInstallOutputRoute(
+                            { runtime: this.runtime, install: this.pluginInstallBinding! },
+                            event,
+                        ),
+                    );
+                return;
+            case "pluginInstallPreparedSubmitted":
+                if (this.pluginInstallBinding)
+                    this.backgroundIfConnected(async () => {
+                        await pluginInstallOutputRoute(
+                            { runtime: this.runtime, install: this.pluginInstallBinding! },
+                            event,
+                        );
+                        // The durable install reconciles the plugin surface eagerly;
+                        // realtime hints keep it authoritative afterwards.
+                        if (this.pluginsBinding)
+                            await pluginsLoad({
+                                runtime: this.runtime,
+                                plugins: this.pluginsBinding,
+                            });
+                    });
                 return;
             case "threadsMoreRequested":
             case "threadReadSubmitted":

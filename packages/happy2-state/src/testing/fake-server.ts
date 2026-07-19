@@ -1,4 +1,10 @@
-import type { ClientTransport, HttpRequest, HttpResponse, RealtimeObserver } from "../transport.js";
+import type {
+    ClientTransport,
+    HttpRequest,
+    HttpResponse,
+    HttpStreamObserver,
+    RealtimeObserver,
+} from "../transport.js";
 import { TransportError } from "../transport.js";
 import type {
     AgentActivityPhase,
@@ -13,6 +19,26 @@ export type FakeRouteHandler = (
     request: HttpRequest,
     context: { readonly requestNumber: number },
 ) => HttpResponse | Promise<HttpResponse>;
+
+/** Test-owned controller for one open per-request SSE stream. */
+export interface FakeStreamController {
+    /** Emits one named event with a JSON payload to the streaming observer. */
+    event(event: string, data: unknown): void;
+    /** Closes the stream normally. */
+    end(): void;
+    /** Breaks the stream with a transport-level error. */
+    fail(error?: unknown): void;
+    /** True once the client cancelled the stream or a terminal call was made. */
+    readonly closed: boolean;
+    /** True specifically when the client cancelled the stream. */
+    readonly aborted: boolean;
+}
+
+export type FakeStreamHandler = (
+    request: HttpRequest,
+    stream: FakeStreamController,
+    context: { readonly requestNumber: number },
+) => void | Promise<void>;
 
 export interface RecordedRequest extends HttpRequest {
     readonly requestNumber: number;
@@ -68,6 +94,18 @@ export interface FakeServer {
         matcher: FakeRouteMatcher,
         ...responses: readonly HttpResponse[]
     ): void;
+    /** Registers one handler for per-request SSE streams opened via `requestStream`. */
+    streamRoute(
+        method: HttpRequest["method"],
+        matcher: FakeRouteMatcher,
+        handler: FakeStreamHandler,
+    ): void;
+    /** Queues scripted SSE responses: each stream emits its frames in order, then ends. */
+    respondStream(
+        method: HttpRequest["method"],
+        matcher: FakeRouteMatcher,
+        ...streams: readonly (readonly { readonly event: string; readonly data: unknown }[])[]
+    ): void;
     failNext(method: HttpRequest["method"], matcher: FakeRouteMatcher, error?: unknown): void;
     clearRequests(): void;
     close(): void;
@@ -77,6 +115,12 @@ interface Route {
     readonly method: HttpRequest["method"];
     readonly matcher: FakeRouteMatcher;
     readonly handler: FakeRouteHandler;
+}
+
+interface StreamRoute {
+    readonly method: HttpRequest["method"];
+    readonly matcher: FakeRouteMatcher;
+    readonly handler: FakeStreamHandler;
 }
 
 export function createFakeServer(): FakeServer {
@@ -89,6 +133,7 @@ export function jsonResponse<T>(status: number, body: T): HttpResponse<T> {
 
 class FakeServerModel implements FakeServer {
     private readonly routes: Route[] = [];
+    private readonly streamRoutes: StreamRoute[] = [];
     private readonly failures: Array<Route & { readonly error: unknown }> = [];
     private readonly observers = new Set<RealtimeObserver>();
     private readonly recorded: RecordedRequest[] = [];
@@ -119,6 +164,83 @@ class FakeServerModel implements FakeServer {
             return (await route.handler(recorded, {
                 requestNumber: recorded.requestNumber,
             })) as HttpResponse<T>;
+        },
+        requestStream: (request: HttpRequest, observer: HttpStreamObserver): (() => void) => {
+            if (this.closed) {
+                observer.onError(new TransportError("Fake server is closed.", false));
+                return () => undefined;
+            }
+            const recorded = cloneRequest(request, this.recorded.length + 1);
+            this.recorded.push(recorded);
+            const failureIndex = this.failures.findIndex(
+                (candidate) =>
+                    candidate.method === request.method && matches(candidate.matcher, request.path),
+            );
+            if (failureIndex >= 0) {
+                const [failure] = this.failures.splice(failureIndex, 1);
+                observer.onError(failure?.error);
+                return () => undefined;
+            }
+            const streamRoute = this.streamRoutes.find(
+                (candidate) =>
+                    candidate.method === request.method && matches(candidate.matcher, request.path),
+            );
+            if (!streamRoute) {
+                // A stream against a plain route (or no route) settles as an HTTP failure.
+                const route = this.routes.find(
+                    (candidate) =>
+                        candidate.method === request.method &&
+                        matches(candidate.matcher, request.path),
+                );
+                if (route) {
+                    void Promise.resolve(
+                        route.handler(recorded, { requestNumber: recorded.requestNumber }),
+                    ).then(
+                        (response) => observer.onFailure(response),
+                        (error: unknown) => observer.onError(error),
+                    );
+                } else {
+                    observer.onFailure(
+                        jsonResponse(404, {
+                            error: "fake_route_not_found",
+                            message: `No fake ${request.method} stream route matches ${request.path}`,
+                        }),
+                    );
+                }
+                return () => undefined;
+            }
+            let closed = false;
+            let aborted = false;
+            const controller: FakeStreamController = {
+                event: (event, data) => {
+                    if (closed) return;
+                    observer.onEvent({ event, data: structuredClone(data) });
+                },
+                end: () => {
+                    if (closed) return;
+                    closed = true;
+                    observer.onEnd();
+                },
+                fail: (error = new TransportError("Fake stream failed.")) => {
+                    if (closed) return;
+                    closed = true;
+                    observer.onError(error);
+                },
+                get closed() {
+                    return closed;
+                },
+                get aborted() {
+                    return aborted;
+                },
+            };
+            void streamRoute.handler(recorded, controller, {
+                requestNumber: recorded.requestNumber,
+            });
+            return () => {
+                if (closed) return;
+                closed = true;
+                aborted = true;
+            };
         },
         subscribe: (observer) => {
             if (this.closed) {
@@ -206,6 +328,29 @@ class FakeServerModel implements FakeServer {
         });
     }
 
+    streamRoute(
+        method: HttpRequest["method"],
+        matcher: FakeRouteMatcher,
+        handler: FakeStreamHandler,
+    ): void {
+        this.streamRoutes.push({ method, matcher, handler });
+    }
+
+    respondStream(
+        method: HttpRequest["method"],
+        matcher: FakeRouteMatcher,
+        ...streams: readonly (readonly { readonly event: string; readonly data: unknown }[])[]
+    ): void {
+        if (streams.length === 0) throw new Error("At least one fake stream script is required.");
+        let index = 0;
+        this.streamRoute(method, matcher, (_request, stream) => {
+            const frames = streams[Math.min(index, streams.length - 1)]!;
+            index += 1;
+            for (const frame of frames) stream.event(frame.event, frame.data);
+            stream.end();
+        });
+    }
+
     failNext(
         method: HttpRequest["method"],
         matcher: FakeRouteMatcher,
@@ -240,8 +385,17 @@ function cloneRequest(request: HttpRequest, requestNumber: number): RecordedRequ
     return {
         method: request.method,
         path: request.path,
-        body: request.body === undefined ? undefined : structuredClone(request.body),
+        body: request.body === undefined ? undefined : cloneBody(request.body),
         headers: request.headers ? { ...request.headers } : undefined,
         requestNumber,
     };
+}
+
+function cloneBody(body: unknown): unknown {
+    // Multipart bodies (FormData) are not structured-cloneable; record them by reference.
+    try {
+        return structuredClone(body);
+    } catch {
+        return body;
+    }
 }

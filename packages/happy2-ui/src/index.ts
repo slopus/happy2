@@ -50,8 +50,18 @@ export {
     type PluginCatalogPanelProps,
     type PluginInstallationItem,
     type PluginInstallationStatus,
+    type PluginUpdateBadge,
     type PluginVariableField,
 } from "./PluginCatalogPanel";
+export {
+    PluginInstallDialog,
+    type PluginInstallDialogCandidate,
+    type PluginInstallDialogProgress,
+    type PluginInstallDialogProps,
+    type PluginInstallDialogSourceKind,
+    type PluginInstallDialogStep,
+} from "./PluginInstallDialog";
+export { PluginUninstallDialog, type PluginUninstallDialogProps } from "./PluginUninstallDialog";
 export {
     AgentRunCard,
     type AgentRun,

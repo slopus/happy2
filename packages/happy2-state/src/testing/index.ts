@@ -5,6 +5,8 @@ export {
     type FakeRouteMatcher,
     type FakeServer,
     type FakeServerEvents,
+    type FakeStreamController,
+    type FakeStreamHandler,
     type RecordedRequest,
 } from "./fake-server.js";
 export {
@@ -23,6 +25,7 @@ export {
     filesStoreFixtureCreate,
     notificationsStoreFixtureCreate,
     permissionsStoreFixtureCreate,
+    pluginInstallStoreFixtureCreate,
     pluginsStoreFixtureCreate,
     rolesStoreFixtureCreate,
     searchStoreFixtureCreate,

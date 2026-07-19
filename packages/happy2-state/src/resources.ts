@@ -278,6 +278,8 @@ export interface AgentSecretSummary {
  */
 export type PluginVariableKind = "secret" | "text";
 
+export type PluginSourceKind = "builtin" | "github" | "upload" | "zip_url";
+
 export type PluginInstallationStatus =
     | "preparing"
     | "starting"
@@ -333,6 +335,9 @@ export interface SystemPluginSummary {
     readonly displayName: string;
     readonly shortName: string;
     readonly description: string;
+    readonly sourceKind: PluginSourceKind;
+    /** Normalized source identity: catalog name, GitHub location, ZIP URL, or upload digest. */
+    readonly sourceReference: string;
     readonly sourceVersion: string;
     readonly packageDigest: string;
     readonly variables: readonly PluginVariableDefinition[];
@@ -355,6 +360,44 @@ export interface PluginCatalogItem {
     readonly mcp?: PluginMcpRequirement;
     readonly variables: readonly PluginVariableDefinition[];
     readonly systemPlugin?: SystemPluginSummary;
+}
+
+/** One live progress frame from a plugin preparation or update-check stream. */
+export interface PluginPrepareProgress {
+    readonly stage: string;
+    readonly detail: string;
+    readonly receivedBytes?: number;
+    readonly totalBytes?: number;
+}
+
+/**
+ * One verified, installable package candidate produced by external plugin
+ * preparation. The prepared token is administrator-bound, single-use, and
+ * expires server-side at `expiresAt`.
+ */
+export interface PreparedPluginSummary {
+    readonly preparedToken: string;
+    readonly expiresAt: string;
+    readonly sourceKind: PluginSourceKind;
+    readonly sourceReference: string;
+    readonly packageDigest: string;
+    readonly version: string;
+    readonly displayName: string;
+    readonly shortName: string;
+    readonly description: string;
+    readonly skills: readonly { readonly name: string; readonly description: string }[];
+    readonly variables: readonly PluginVariableDefinition[];
+    readonly mcp?: PluginMcpRequirement;
+    readonly image: PluginImageSummary;
+}
+
+/** The read-only result of one remote update check for an installed system plugin. */
+export interface PluginUpdateCheck {
+    readonly pluginId: string;
+    readonly checkedAt: string;
+    readonly updateAvailable: boolean;
+    readonly installed: { readonly version: string; readonly packageDigest: string };
+    readonly remote: { readonly version: string; readonly packageDigest: string };
 }
 
 export interface IntegrationSummary {

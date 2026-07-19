@@ -2,6 +2,7 @@ import {
     adminStoreFixtureCreate,
     agentImagesStoreFixtureCreate,
     agentSecretsStoreFixtureCreate,
+    pluginInstallStoreFixtureCreate,
     pluginsStoreFixtureCreate,
     rolesStoreFixtureCreate,
     callsStoreFixtureCreate,
@@ -71,11 +72,13 @@ it("renders AdminPage without materializing optional admin subpages", async () =
     const images = owned(agentImagesStoreFixtureCreate());
     const secrets = owned(agentSecretsStoreFixtureCreate());
     const plugins = owned(pluginsStoreFixtureCreate());
+    const install = owned(pluginInstallStoreFixtureCreate());
     const roles = owned(rolesStoreFixtureCreate());
     admin.input({ type: "adminLoading" });
     let imageAccesses = 0;
     let secretAccesses = 0;
     let pluginAccesses = 0;
+    let installAccesses = 0;
     const view = createRenderer();
     view.render(
         () => (
@@ -90,6 +93,10 @@ it("renders AdminPage without materializing optional admin subpages", async () =
                     return secrets.store;
                 }}
                 onSectionChange={() => undefined}
+                pluginInstallStore={() => {
+                    installAccesses += 1;
+                    return install.store;
+                }}
                 pluginsStore={() => {
                     pluginAccesses += 1;
                     return plugins.store;
@@ -102,7 +109,7 @@ it("renders AdminPage without materializing optional admin subpages", async () =
     );
     await view.ready();
     expect(view.container.textContent).toContain("Admin");
-    expect([imageAccesses, secretAccesses, pluginAccesses]).toEqual([0, 0, 0]);
+    expect([imageAccesses, secretAccesses, pluginAccesses, installAccesses]).toEqual([0, 0, 0, 0]);
 });
 
 it("renders a permission-scoped admin subpage without materializing the legacy admin store", async () => {
@@ -110,6 +117,7 @@ it("renders a permission-scoped admin subpage without materializing the legacy a
     const images = owned(agentImagesStoreFixtureCreate());
     const secrets = owned(agentSecretsStoreFixtureCreate());
     const plugins = owned(pluginsStoreFixtureCreate());
+    const install = owned(pluginInstallStoreFixtureCreate());
     const roles = owned(rolesStoreFixtureCreate());
     images.input({ type: "imagesLoaded", images: [] });
     let adminAccesses = 0;
@@ -122,6 +130,7 @@ it("renders a permission-scoped admin subpage without materializing the legacy a
                 agentSecretsStore={() => secrets.store}
                 canManageImages={false}
                 onSectionChange={() => undefined}
+                pluginInstallStore={() => install.store}
                 pluginsStore={() => plugins.store}
                 rolesStore={() => roles.store}
                 sections={["images"]}
@@ -352,6 +361,7 @@ it("renders PluginsPage from its independent store and routes the typed install 
     const outputs: unknown[] = [];
     const fixture = owned(pluginsStoreFixtureCreate((event) => outputs.push(event)));
     const images = owned(agentImagesStoreFixtureCreate());
+    const install = owned(pluginInstallStoreFixtureCreate());
     let imageAccesses = 0;
     fixture.input({ type: "pluginsLoading" });
     const view = createRenderer();
@@ -362,6 +372,7 @@ it("renders PluginsPage from its independent store and routes the typed install 
                     imageAccesses += 1;
                     return images.store;
                 }}
+                installStore={() => install.store}
                 store={fixture.store}
             />
         ),
@@ -429,6 +440,8 @@ it("renders PluginsPage from its independent store and routes the typed install 
                     displayName: "Project Search",
                     shortName: "project-search",
                     description: "Searches source code and project documentation.",
+                    sourceKind: "builtin",
+                    sourceReference: "project-search",
                     sourceVersion: "2.1.0",
                     packageDigest: "digest-1",
                     variables: [],
@@ -484,7 +497,9 @@ it("renders PluginsPage from its independent store and routes the typed install 
         ),
     ).find((button) => button.textContent?.includes("Install plugin"))!;
     submit.click();
+    // Mounting the page also starts the automatic update-check watch.
     expect(outputs).toEqual([
+        { type: "pluginUpdateChecksStarted" },
         {
             type: "pluginInstallSubmitted",
             shortName: "project-search",
@@ -496,6 +511,7 @@ it("renders PluginsPage from its independent store and routes the typed install 
 it("filters the plugin catalog by skill name and description through PluginsPage", async () => {
     const fixture = owned(pluginsStoreFixtureCreate());
     const images = owned(agentImagesStoreFixtureCreate());
+    const install = owned(pluginInstallStoreFixtureCreate());
     fixture.input({
         type: "pluginsLoaded",
         plugins: [
@@ -530,6 +546,7 @@ it("filters the plugin catalog by skill name and description through PluginsPage
         <div data-testid={testId} style={{ display: "flex", width: "760px" }}>
             <PluginsPage
                 agentImagesStore={() => images.store}
+                installStore={() => install.store}
                 query={query}
                 store={fixture.store}
             />

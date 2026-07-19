@@ -2,6 +2,7 @@ import type {
     ClientTransport,
     HttpRequest,
     HttpResponse,
+    HttpStreamObserver,
     RealtimeEvent,
     RealtimeObserver,
 } from "happy2-state";
@@ -69,6 +70,109 @@ class GymStateTransportModel implements GymStateTransport {
             body,
             headers: Object.fromEntries(response.headers),
         };
+    }
+
+    requestStream(request: HttpRequest, observer: HttpStreamObserver): () => void {
+        const controller = new AbortController();
+        void this.streamRequest(request, controller.signal, observer);
+        return () => controller.abort();
+    }
+
+    private async streamRequest(
+        request: HttpRequest,
+        signal: AbortSignal,
+        observer: HttpStreamObserver,
+    ): Promise<void> {
+        let response: Response;
+        try {
+            const rawBody = isRawBody(request.body);
+            const init: RequestInit & { duplex?: "half" } = {
+                method: request.method,
+                headers: {
+                    accept: "text/event-stream",
+                    authorization: `Bearer ${this.token}`,
+                    ...(request.body === undefined || rawBody
+                        ? {}
+                        : { "content-type": "application/json" }),
+                    ...request.headers,
+                },
+                body:
+                    request.body === undefined
+                        ? undefined
+                        : rawBody
+                          ? (request.body as BodyInit)
+                          : JSON.stringify(request.body),
+                signal,
+            };
+            if (request.body instanceof ReadableStream) init.duplex = "half";
+            response = await fetch(`${this.baseUrl}${request.path}`, init);
+        } catch (error) {
+            if (!signal.aborted)
+                observer.onError(
+                    new TransportError("The gym stream request failed.", true, { cause: error }),
+                );
+            return;
+        }
+        if (signal.aborted) return;
+        if (!response.ok || !response.headers.get("content-type")?.includes("text/event-stream")) {
+            const body = response.headers.get("content-type")?.includes("application/json")
+                ? await response.json().catch(() => ({}))
+                : await response.arrayBuffer();
+            if (!signal.aborted)
+                observer.onFailure({
+                    status: response.status,
+                    body,
+                    headers: Object.fromEntries(response.headers),
+                });
+            return;
+        }
+        if (!response.body) {
+            observer.onError(new TransportError("The gym stream had no body."));
+            return;
+        }
+        try {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            for (;;) {
+                const result = await reader.read();
+                if (signal.aborted) return;
+                buffer += decoder.decode(result.value, { stream: !result.done });
+                for (;;) {
+                    const boundary = /(?:\r\n|\r(?!\n)|\n){2}/.exec(buffer);
+                    if (!boundary || boundary.index === undefined) break;
+                    const frame = buffer.slice(0, boundary.index);
+                    buffer = buffer.slice(boundary.index + boundary[0].length);
+                    const lines = frame.split(/\r\n|\r|\n/);
+                    const event = lines
+                        .find((line) => line.startsWith("event:"))
+                        ?.slice(6)
+                        .trim();
+                    const data = lines
+                        .filter((line) => line.startsWith("data:"))
+                        .map((line) => line.slice(5).trimStart())
+                        .join("\n");
+                    if (data) {
+                        let parsed: unknown = data;
+                        try {
+                            parsed = JSON.parse(data);
+                        } catch {
+                            // Non-JSON data frames are delivered as raw text.
+                        }
+                        observer.onEvent({ event: event ?? "message", data: parsed });
+                    }
+                }
+                if (result.done) {
+                    observer.onEnd();
+                    return;
+                }
+            }
+        } catch (error) {
+            if (!signal.aborted)
+                observer.onError(
+                    new TransportError("The gym stream was interrupted.", true, { cause: error }),
+                );
+        }
     }
 
     subscribe(observer: RealtimeObserver): () => void {

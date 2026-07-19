@@ -32,6 +32,8 @@ import { PermissionChecklistPage } from "./pages/PermissionChecklistPage";
 import { RolesPanelPage } from "./pages/RolesPanelPage";
 import { RoleEditorPage } from "./pages/RoleEditorPage";
 import { MemberAccessPanelPage } from "./pages/MemberAccessPanelPage";
+import { PluginInstallDialogPage } from "./pages/PluginInstallDialogPage";
+import { PluginUninstallDialogPage } from "./pages/PluginUninstallDialogPage";
 import { ComposerPage } from "./pages/ComposerPage";
 import { DataTablePage } from "./pages/DataTablePage";
 import { DiffSnippetPage } from "./pages/DiffSnippetPage";
@@ -260,6 +262,18 @@ const components: BlueprintPage[] = [
         number: "C-074",
         page: AgentTracePanelPage,
     },
+    {
+        id: "plugin-install-dialog",
+        label: "Plugin install dialog",
+        number: "C-075",
+        page: PluginInstallDialogPage,
+    },
+    {
+        id: "plugin-uninstall-dialog",
+        label: "Plugin uninstall dialog",
+        number: "C-076",
+        page: PluginUninstallDialogPage,
+    },
 ];
 const fullScreens: BlueprintPage[] = [
     { id: "settings-store", label: "Settings", number: "P-001", page: SettingsStorePage },
@@ -376,8 +390,12 @@ function Workbench() {
                 </label>
             </header>
             <div className="blueprint-field">
-                {pages.map((page) =>
-                    active === page.id ? <Fragment key={page.id}>{page.page()}</Fragment> : null,
+                {pages.map(({ id, page: Page }) =>
+                    active === id ? (
+                        <Fragment key={id}>
+                            <Page />
+                        </Fragment>
+                    ) : null,
                 )}
             </div>
         </div>
