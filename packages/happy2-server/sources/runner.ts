@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 
 import { parseArgs } from "node:util";
-import { loadRuntimeConfig } from "./modules/config/runtime.js";
-import { startStandaloneHappy2 } from "./standalone.js";
 import {
     isNpxInvocation,
     parseSystemServiceCommand,
@@ -33,6 +31,10 @@ try {
             args: arguments_,
             options: { config: { type: "string" } },
         });
+        const [{ loadRuntimeConfig }, { startStandaloneHappy2 }] = await Promise.all([
+            import("./modules/config/runtime.js"),
+            import("./standalone.js"),
+        ]);
         const { config } = await loadRuntimeConfig(values.config ?? process.env.HAPPY2_CONFIG);
         const running = await startStandaloneHappy2(config);
         console.log(`Happy (2) is running at ${running.url}`);
