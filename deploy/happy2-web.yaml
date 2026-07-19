@@ -17,7 +17,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: happy2-web
-          image: slopus/happy2:{version}
+          image: {version}
           args:
             - web
           envFrom:
