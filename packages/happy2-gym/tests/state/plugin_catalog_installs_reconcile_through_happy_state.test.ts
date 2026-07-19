@@ -1,11 +1,18 @@
 import { happyStateCreate, type PluginCatalogItem, type PluginsSnapshot } from "happy2-state";
+import type {
+    PluginLocalOpenInput,
+    PluginLocalPrepareInput,
+    PluginMcpRuntime,
+} from "happy2-server";
 import { describe, expect, it } from "vitest";
 import { createGymServer } from "../../sources/index.js";
 import { createGymStateTransport } from "../../sources/state/index.js";
 
 describe("plugin catalog across happy2-state and the real server", () => {
-    it("loads the catalog, installs the bundled hello package, and reconciles installs over realtime", async () => {
-        await using server = await createGymServer();
+    it("loads the catalog, installs the bundled hello package, and reconciles health over realtime", async () => {
+        await using server = await createGymServer({
+            pluginMcpRuntime: new StubPluginMcpRuntime(),
+        });
         const admin = await server.createUser({ username: "state_plugin_admin" });
 
         const transport = await createGymStateTransport(server, admin);
@@ -16,35 +23,29 @@ describe("plugin catalog across happy2-state and the real server", () => {
         await state.whenIdle();
 
         const hello = readyCatalog(plugins.getState()).find((item) => item.shortName === "hello");
-        expect(hello).toMatchObject({ displayName: "Hello", variables: [] });
+        expect(hello).toMatchObject({ displayName: "Hello" });
         expect(hello?.systemPlugin).toBeUndefined();
 
-        // A typed install intent creates a durable installation; a skills-only
-        // package is ready immediately and the reconciled catalog carries it.
+        // A typed install intent creates a durable installation. Container
+        // preparation continues asynchronously, so the installation streams
+        // through the lifecycle to ready via realtime hints while the ready
+        // catalog stays on screen the whole time.
         plugins.getState().pluginInstall("hello", {});
         await state.whenIdle();
         expect(plugins.getState().installing).toEqual([]);
         expect(plugins.getState().actionError).toBeUndefined();
-        const installed = readyCatalog(plugins.getState()).find(
-            (item) => item.shortName === "hello",
-        );
-        expect(installed?.systemPlugin?.installations).toHaveLength(1);
-        expect(installed?.systemPlugin?.installations[0]).toMatchObject({
-            shortName: "hello",
-            status: "ready",
-        });
+        expect(helloInstallations(plugins.getState())).toHaveLength(1);
+        await expect
+            .poll(() => helloInstallations(plugins.getState())[0]?.status, { timeout: 5_000 })
+            .toBe("ready");
+        expect(plugins.getState().catalog.type).toBe("ready");
 
         // An install performed by another surface reaches this retained store
         // through the realtime hint and durable catalog reconciliation.
         const second = await server.as(admin).post("/v0/admin/plugins/hello/installPlugin", {});
         expect(second.statusCode).toBe(202);
         await expect
-            .poll(
-                () =>
-                    readyCatalog(plugins.getState()).find((item) => item.shortName === "hello")
-                        ?.systemPlugin?.installations.length,
-                { timeout: 5_000 },
-            )
+            .poll(() => helloInstallations(plugins.getState()).length, { timeout: 5_000 })
             .toBe(2);
 
         // The catalog icon travels through the authenticated transport as PNG bytes.
@@ -70,4 +71,47 @@ describe("plugin catalog across happy2-state and the real server", () => {
 
 function readyCatalog(snapshot: PluginsSnapshot): readonly PluginCatalogItem[] {
     return snapshot.catalog.type === "ready" ? snapshot.catalog.value : [];
+}
+
+function helloInstallations(snapshot: PluginsSnapshot) {
+    return (
+        readyCatalog(snapshot).find((item) => item.shortName === "hello")?.systemPlugin
+            ?.installations ?? []
+    );
+}
+
+/** Answers the local MCP lifecycle in memory so hello's bundled container becomes ready without Docker. */
+class StubPluginMcpRuntime implements PluginMcpRuntime {
+    async prepareLocal(input: PluginLocalPrepareInput): Promise<{ imageTag: string }> {
+        return { imageTag: input.imageTag };
+    }
+
+    async openLocal(_input: PluginLocalOpenInput) {
+        type McpTransport = Awaited<ReturnType<PluginMcpRuntime["openLocal"]>>;
+        const transport: McpTransport = {
+            async start() {},
+            async close() {
+                transport.onclose?.();
+            },
+            async send(message) {
+                if (!("id" in message) || !("method" in message)) return;
+                const result =
+                    message.method === "initialize"
+                        ? {
+                              protocolVersion: "2025-06-18",
+                              capabilities: { tools: {} },
+                              serverInfo: { name: "gym-plugin", version: "1.0.0" },
+                          }
+                        : message.method === "tools/list"
+                          ? { tools: [] }
+                          : {};
+                queueMicrotask(() =>
+                    transport.onmessage?.({ jsonrpc: "2.0", id: message.id, result }),
+                );
+            },
+        };
+        return transport;
+    }
+
+    async removeLocal(_containerName: string): Promise<void> {}
 }
