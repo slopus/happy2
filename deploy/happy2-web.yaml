@@ -13,6 +13,8 @@ spec:
         app: happy2-web
     spec:
       securityContext:
+        runAsGroup: 1000
+        runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
