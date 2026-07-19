@@ -1,8 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { parse } from "smol-toml";
-import { bundledRigCommand } from "../agents/command.js";
-import { localRuntimePaths } from "./paths.js";
+import { defaultConfig } from "./defaults.js";
 import type { OidcProviderConfig, ServerConfig, ServerRole } from "./type.js";
 
 export type { ServerConfig } from "./type.js";
@@ -36,85 +34,100 @@ function integer(value: unknown, path: string, fallback?: number): number {
 }
 
 function strings(value: unknown, path: string, fallback: string[] = []): string[] {
-    if (value === undefined) return fallback;
+    if (value === undefined) return [...fallback];
     if (!Array.isArray(value) || !value.every((item) => typeof item === "string"))
         throw new Error(`${path} must be a string array`);
     return [...value];
 }
 
-export function parseConfig(input: string): ServerConfig {
-    const paths = localRuntimePaths();
+export function parseConfig(input: string, defaults: ServerConfig = defaultConfig()): ServerConfig {
     const root = table(parse(input), "config");
-    const server = table(root.server, "server");
-    const role = string(server.role, "server.role") as ServerRole;
+    const server = table(root.server ?? {}, "server");
+    const role = (string(server.role, "server.role", true) ?? defaults.server.role) as ServerRole;
     if (!(["all", "auth", "api"] as const).includes(role))
         throw new Error("server.role must be all, auth, or api");
-    const publicUrl = string(server.public_url, "server.public_url")!;
+    const host = string(server.host, "server.host", true) ?? defaults.server.host;
+    const port = integer(server.port, "server.port", defaults.server.port);
+    const publicUrl =
+        string(server.public_url, "server.public_url", true) ?? defaults.server.publicUrl;
     new URL(publicUrl);
-    const trustedProxyHops = integer(server.trusted_proxy_hops, "server.trusted_proxy_hops", 0);
+    const trustedProxyHops = integer(
+        server.trusted_proxy_hops,
+        "server.trusted_proxy_hops",
+        defaults.server.trustedProxyHops,
+    );
     if (trustedProxyHops < 0) throw new Error("server.trusted_proxy_hops cannot be negative");
 
-    const database = table(root.database, "database");
+    const database = table(root.database ?? {}, "database");
     const agents = table(root.agents ?? {}, "agents");
     const files = table(root.files ?? {}, "files");
     const plugins = table(root.plugins ?? {}, "plugins");
     const pluginHostApiPort = boundedPositiveInteger(
         plugins.host_api_port,
         "plugins.host_api_port",
-        3001,
+        defaults.plugins.hostApiPort,
         65_535,
     );
-    if (pluginHostApiPort === integer(server.port, "server.port"))
+    if (pluginHostApiPort === port)
         throw new Error("plugins.host_api_port must differ from server.port");
-    const fileProvider = string(files.provider, "files.provider", true) ?? "local";
+    const fileProvider = string(files.provider, "files.provider", true) ?? defaults.files.provider;
     if (fileProvider !== "local")
         throw new Error("files.provider must be local in this server build");
     const signedUrlExpirySeconds = integer(
         files.signed_url_expiry_seconds,
         "files.signed_url_expiry_seconds",
-        300,
+        defaults.files.signedUrlExpirySeconds,
     );
     if (signedUrlExpirySeconds < 1 || signedUrlExpirySeconds > 3600)
         throw new Error("files.signed_url_expiry_seconds must be between 1 and 3600");
     const maxUploadBytes = integer(
         files.max_upload_bytes,
         "files.max_upload_bytes",
-        512 * 1024 * 1024,
+        defaults.files.maxUploadBytes,
     );
     if (maxUploadBytes < 1024 || maxUploadBytes > 2 * 1024 * 1024 * 1024)
         throw new Error("files.max_upload_bytes must be between 1 KiB and 2 GiB");
     const resumableChunkBytes = integer(
         files.resumable_chunk_bytes,
         "files.resumable_chunk_bytes",
-        8 * 1024 * 1024,
+        defaults.files.resumableChunkBytes,
     );
     if (resumableChunkBytes < 64 * 1024 || resumableChunkBytes > 64 * 1024 * 1024)
         throw new Error("files.resumable_chunk_bytes must be between 64 KiB and 64 MiB");
-    const perUserQuotaBytes = quota(files.per_user_quota_bytes, "files.per_user_quota_bytes");
-    const serverQuotaBytes = quota(files.server_quota_bytes, "files.server_quota_bytes");
+    const perUserQuotaBytes = quota(
+        files.per_user_quota_bytes,
+        "files.per_user_quota_bytes",
+        defaults.files.perUserQuotaBytes,
+    );
+    const serverQuotaBytes = quota(
+        files.server_quota_bytes,
+        "files.server_quota_bytes",
+        defaults.files.serverQuotaBytes,
+    );
     const incompleteUploadExpirySeconds = integer(
         files.incomplete_upload_expiry_seconds,
         "files.incomplete_upload_expiry_seconds",
-        24 * 60 * 60,
+        defaults.files.incompleteUploadExpirySeconds,
     );
     if (incompleteUploadExpirySeconds < 60 || incompleteUploadExpirySeconds > 30 * 24 * 60 * 60)
         throw new Error("files.incomplete_upload_expiry_seconds must be between 60 and 2592000");
     const quarantineRetentionSeconds = integer(
         files.quarantine_retention_seconds,
         "files.quarantine_retention_seconds",
-        30 * 24 * 60 * 60,
+        defaults.files.quarantineRetentionSeconds,
     );
     if (quarantineRetentionSeconds < 0 || quarantineRetentionSeconds > 365 * 24 * 60 * 60)
         throw new Error("files.quarantine_retention_seconds must be between 0 and 31536000");
     const malwareScanTimeoutSeconds = integer(
         files.malware_scan_timeout_seconds,
         "files.malware_scan_timeout_seconds",
-        120,
+        defaults.files.malwareScanTimeoutSeconds,
     );
     if (malwareScanTimeoutSeconds < 1 || malwareScanTimeoutSeconds > 3600)
         throw new Error("files.malware_scan_timeout_seconds must be between 1 and 3600");
     const malwareScanFailureMode =
-        string(files.malware_scan_failure_mode, "files.malware_scan_failure_mode", true) ?? "deny";
+        string(files.malware_scan_failure_mode, "files.malware_scan_failure_mode", true) ??
+        defaults.files.malwareScanFailureMode;
     if (malwareScanFailureMode !== "allow" && malwareScanFailureMode !== "deny")
         throw new Error("files.malware_scan_failure_mode must be allow or deny");
     const security = table(root.security ?? {}, "security");
@@ -123,51 +136,56 @@ export function parseConfig(input: string): ServerConfig {
     const readsPerMinute = boundedPositiveInteger(
         rateLimit.reads_per_minute,
         "security.rate_limit.reads_per_minute",
-        1_200,
+        defaults.security.rateLimit.readsPerMinute,
         1_000_000,
     );
     const writesPerMinute = boundedPositiveInteger(
         rateLimit.writes_per_minute,
         "security.rate_limit.writes_per_minute",
-        300,
+        defaults.security.rateLimit.writesPerMinute,
         1_000_000,
     );
     const authPerMinute = boundedPositiveInteger(
         rateLimit.auth_per_minute,
         "security.rate_limit.auth_per_minute",
-        30,
+        defaults.security.rateLimit.authPerMinute,
         1_000_000,
     );
     const idempotencyLeaseSeconds = boundedPositiveInteger(
         idempotency.lease_seconds,
         "security.idempotency.lease_seconds",
-        30,
+        defaults.security.idempotency.leaseSeconds,
         3_600,
     );
     const idempotencyRetentionSeconds = boundedPositiveInteger(
         idempotency.retention_seconds,
         "security.idempotency.retention_seconds",
-        86_400,
+        defaults.security.idempotency.retentionSeconds,
         31_536_000,
     );
     if (idempotencyRetentionSeconds < idempotencyLeaseSeconds)
         throw new Error("security.idempotency.retention_seconds must be at least lease_seconds");
-    const jwt = table(root.jwt, "jwt");
-    const expiryDays = integer(jwt.expiry_days, "jwt.expiry_days", 30);
+    const jwt = table(root.jwt ?? {}, "jwt");
+    const expiryDays = integer(jwt.expiry_days, "jwt.expiry_days", defaults.jwt.expiryDays);
     if (expiryDays < 1 || expiryDays > 90)
         throw new Error("jwt.expiry_days must be between 1 and 90");
-    const privateKeyPath = string(jwt.private_key_path, "jwt.private_key_path", true);
-    const publicKeyPath = string(jwt.public_key_path, "jwt.public_key_path", true);
+    const privateKeyPath =
+        string(jwt.private_key_path, "jwt.private_key_path", true) ?? defaults.jwt.privateKeyPath;
+    const publicKeyPath =
+        string(jwt.public_key_path, "jwt.public_key_path", true) ?? defaults.jwt.publicKeyPath;
 
     const auth = table(root.auth ?? {}, "auth");
     const password = table(auth.password ?? {}, "auth.password");
     const magicLink = table(auth.magic_link ?? {}, "auth.magic_link");
     const cloudflareAccess = table(auth.cloudflare_access ?? {}, "auth.cloudflare_access");
     const devTokens = table(auth.dev_tokens ?? {}, "auth.dev_tokens");
-    const oidc = new Map<string, OidcProviderConfig>();
+    const oidc = new Map<string, OidcProviderConfig>(defaults.auth.oidc);
     for (const [id, value] of Object.entries(table(auth.oidc ?? {}, "auth.oidc"))) {
         const provider = table(value, `auth.oidc.${id}`);
-        if (!boolean(provider.enabled, `auth.oidc.${id}.enabled`)) continue;
+        if (!boolean(provider.enabled, `auth.oidc.${id}.enabled`)) {
+            oidc.delete(id);
+            continue;
+        }
         const scopes = provider.scopes ?? ["openid", "email", "profile"];
         if (!Array.isArray(scopes) || !scopes.every((scope) => typeof scope === "string"))
             throw new Error(`auth.oidc.${id}.scopes must be string array`);
@@ -191,24 +209,40 @@ export function parseConfig(input: string): ServerConfig {
         throw new Error("only one OIDC provider can be enabled at a time");
     }
 
-    const magicEnabled = boolean(magicLink.enabled, "auth.magic_link.enabled");
-    const magicRedirectUrl = string(magicLink.redirect_url, "auth.magic_link.redirect_url", true);
+    const passwordEnabled = boolean(
+        password.enabled,
+        "auth.password.enabled",
+        defaults.auth.password.enabled,
+    );
+    const magicEnabled = boolean(
+        magicLink.enabled,
+        "auth.magic_link.enabled",
+        defaults.auth.magicLink.enabled,
+    );
+    const magicRedirectUrl =
+        string(magicLink.redirect_url, "auth.magic_link.redirect_url", true) ??
+        defaults.auth.magicLink.redirectUrl;
     if (magicEnabled && !magicRedirectUrl)
         throw new Error("auth.magic_link.redirect_url is required when magic links are enabled");
     const cloudflareAccessEnabled = boolean(
         cloudflareAccess.enabled,
         "auth.cloudflare_access.enabled",
+        defaults.auth.cloudflareAccess.enabled,
     );
-    const cloudflareAccessTeamDomain = string(
-        cloudflareAccess.team_domain,
-        "auth.cloudflare_access.team_domain",
-        !cloudflareAccessEnabled,
-    );
-    const cloudflareAccessAudience = string(
-        cloudflareAccess.audience,
-        "auth.cloudflare_access.audience",
-        !cloudflareAccessEnabled,
-    );
+    const cloudflareAccessTeamDomain =
+        string(cloudflareAccess.team_domain, "auth.cloudflare_access.team_domain", true) ??
+        defaults.auth.cloudflareAccess.teamDomain;
+    const cloudflareAccessAudience =
+        string(cloudflareAccess.audience, "auth.cloudflare_access.audience", true) ??
+        defaults.auth.cloudflareAccess.audience;
+    if (cloudflareAccessEnabled && !cloudflareAccessTeamDomain)
+        throw new Error(
+            "auth.cloudflare_access.team_domain is required when Cloudflare Access is enabled",
+        );
+    if (cloudflareAccessEnabled && !cloudflareAccessAudience)
+        throw new Error(
+            "auth.cloudflare_access.audience is required when Cloudflare Access is enabled",
+        );
     let normalizedCloudflareAccessTeamDomain = cloudflareAccessTeamDomain;
     if (cloudflareAccessEnabled) {
         const teamDomain = new URL(cloudflareAccessTeamDomain!);
@@ -228,7 +262,7 @@ export function parseConfig(input: string): ServerConfig {
         normalizedCloudflareAccessTeamDomain = teamDomain.origin;
     }
     const enabledMethods = [
-        boolean(password.enabled, "auth.password.enabled"),
+        passwordEnabled,
         magicEnabled,
         oidc.size > 0,
         cloudflareAccessEnabled,
@@ -239,36 +273,33 @@ export function parseConfig(input: string): ServerConfig {
     return {
         server: {
             role,
-            host: string(server.host, "server.host")!,
-            port: integer(server.port, "server.port"),
+            host,
+            port,
             publicUrl: publicUrl.replace(/\/$/, ""),
             trustedProxyHops,
         },
         database: {
-            url: string(database.url, "database.url")!,
-            authTokenEnv: string(database.auth_token_env, "database.auth_token_env", true),
+            url: string(database.url, "database.url", true) ?? defaults.database.url,
+            authTokenEnv:
+                string(database.auth_token_env, "database.auth_token_env", true) ??
+                defaults.database.authTokenEnv,
         },
         agents: {
-            enabled: boolean(agents.enabled, "agents.enabled", true),
-            directory: paths.rigDirectory,
+            enabled: boolean(agents.enabled, "agents.enabled", defaults.agents.enabled),
+            directory: defaults.agents.directory,
             socketPath:
                 string(agents.socket_path, "agents.socket_path", true) ??
-                process.env.RIG_SERVER_SOCKET_PATH ??
-                join(paths.rigDirectory, "server.sock"),
+                defaults.agents.socketPath,
             tokenPath:
-                string(agents.token_path, "agents.token_path", true) ??
-                process.env.RIG_SERVER_TOKEN_PATH ??
-                join(paths.rigDirectory, "token"),
-            command:
-                string(agents.command, "agents.command", true) ??
-                process.env.RIG_COMMAND ??
-                bundledRigCommand(),
+                string(agents.token_path, "agents.token_path", true) ?? defaults.agents.tokenPath,
+            command: string(agents.command, "agents.command", true) ?? defaults.agents.command,
             defaultCwd:
-                string(agents.default_cwd, "agents.default_cwd", true) ?? paths.workspacesDirectory,
+                string(agents.default_cwd, "agents.default_cwd", true) ??
+                defaults.agents.defaultCwd,
         },
         files: {
             provider: fileProvider,
-            directory: string(files.directory, "files.directory", true) ?? paths.filesDirectory,
+            directory: string(files.directory, "files.directory", true) ?? defaults.files.directory,
             signedUrlExpirySeconds,
             maxUploadBytes,
             resumableChunkBytes,
@@ -276,55 +307,66 @@ export function parseConfig(input: string): ServerConfig {
             serverQuotaBytes,
             incompleteUploadExpirySeconds,
             quarantineRetentionSeconds,
-            malwareScannerCommand: string(
-                files.malware_scanner_command,
-                "files.malware_scanner_command",
-                true,
-            ),
+            malwareScannerCommand:
+                string(files.malware_scanner_command, "files.malware_scanner_command", true) ??
+                defaults.files.malwareScannerCommand,
             malwareScannerArguments: strings(
                 files.malware_scanner_arguments,
                 "files.malware_scanner_arguments",
+                defaults.files.malwareScannerArguments,
             ),
             malwareScanTimeoutSeconds,
             malwareScanFailureMode,
         },
         plugins: {
             directory:
-                string(plugins.directory, "plugins.directory", true) ?? paths.pluginsDirectory,
-            hostApiHost: string(plugins.host_api_host, "plugins.host_api_host", true) ?? "0.0.0.0",
+                string(plugins.directory, "plugins.directory", true) ?? defaults.plugins.directory,
+            hostApiHost:
+                string(plugins.host_api_host, "plugins.host_api_host", true) ??
+                defaults.plugins.hostApiHost,
             hostApiPort: pluginHostApiPort,
         },
         security: {
             integrationSecretEnv:
                 string(security.integration_secret_env, "security.integration_secret_env", true) ??
-                "HAPPY2_INTEGRATION_SECRET",
+                defaults.security.integrationSecretEnv,
             rateLimit: {
-                enabled: boolean(rateLimit.enabled, "security.rate_limit.enabled", true),
+                enabled: boolean(
+                    rateLimit.enabled,
+                    "security.rate_limit.enabled",
+                    defaults.security.rateLimit.enabled,
+                ),
                 readsPerMinute,
                 writesPerMinute,
                 authPerMinute,
             },
             idempotency: {
-                enabled: boolean(idempotency.enabled, "security.idempotency.enabled", true),
+                enabled: boolean(
+                    idempotency.enabled,
+                    "security.idempotency.enabled",
+                    defaults.security.idempotency.enabled,
+                ),
                 leaseSeconds: idempotencyLeaseSeconds,
                 retentionSeconds: idempotencyRetentionSeconds,
             },
         },
         jwt: {
-            issuer: string(jwt.issuer, "jwt.issuer")!,
-            audience: string(jwt.audience, "jwt.audience")!,
-            keyId: string(jwt.key_id, "jwt.key_id")!,
+            issuer: string(jwt.issuer, "jwt.issuer", true) ?? defaults.jwt.issuer,
+            audience: string(jwt.audience, "jwt.audience", true) ?? defaults.jwt.audience,
+            keyId: string(jwt.key_id, "jwt.key_id", true) ?? defaults.jwt.keyId,
             privateKeyPath,
             publicKeyPath,
             expiryDays,
         },
         auth: {
             password: {
-                enabled: boolean(password.enabled, "auth.password.enabled"),
+                enabled: passwordEnabled,
             },
             magicLink: {
                 enabled: magicEnabled,
-                from: string(magicLink.from, "auth.magic_link.from", true),
+                from:
+                    string(magicLink.from, "auth.magic_link.from", true) ??
+                    defaults.auth.magicLink.from,
                 redirectUrl: magicRedirectUrl,
             },
             oidc,
@@ -334,14 +376,18 @@ export function parseConfig(input: string): ServerConfig {
                 audience: cloudflareAccessAudience,
             },
             devTokens: {
-                enabled: boolean(devTokens.enabled, "auth.dev_tokens.enabled"),
+                enabled: boolean(
+                    devTokens.enabled,
+                    "auth.dev_tokens.enabled",
+                    defaults.auth.devTokens.enabled,
+                ),
             },
         },
     };
 }
 
-function quota(value: unknown, path: string): number {
-    const result = integer(value, path, 0);
+function quota(value: unknown, path: string, fallback: number): number {
+    const result = integer(value, path, fallback);
     if (!Number.isSafeInteger(result) || result < 0)
         throw new Error(`${path} must be zero or a positive safe integer`);
     return result;
@@ -358,6 +404,9 @@ function boundedPositiveInteger(
     return result;
 }
 
-export async function loadConfig(path: string): Promise<ServerConfig> {
-    return parseConfig(await readFile(path, "utf8"));
+export async function loadConfig(
+    path: string,
+    defaults: ServerConfig = defaultConfig(),
+): Promise<ServerConfig> {
+    return parseConfig(await readFile(path, "utf8"), defaults);
 }

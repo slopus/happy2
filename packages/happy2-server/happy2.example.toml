@@ -10,6 +10,9 @@ public_url = "http://127.0.0.1:3000"
 trusted_proxy_hops = 0
 
 [plugins]
+# Immutable installed package snapshots live here. Keep this persistent so a
+# bundled plugin continues to run until an explicit upgrade replaces it.
+directory = "plugins"
 # Dedicated capability-only listener reached by plugin containers through the
 # happy2.host.internal container-host mapping.
 # The cross-platform host-gateway path requires a non-loopback bind. Firewall
@@ -55,11 +58,6 @@ quarantine_retention_seconds = 2592000
 malware_scan_timeout_seconds = 120
 # "deny" quarantines files when the scanner is unavailable; "allow" fails open.
 malware_scan_failure_mode = "deny"
-
-[plugins]
-# Immutable installed package snapshots live here. Keep this persistent so a
-# bundled plugin continues to run until an explicit upgrade replaces it.
-directory = "plugins"
 
 [security]
 integration_secret_env = "HAPPY2_INTEGRATION_SECRET"

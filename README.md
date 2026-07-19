@@ -19,6 +19,7 @@
 
 <p>
   <a href="#quick-start">Quick start</a> ·
+  <a href="#configuration">Configuration</a> ·
   <a href="#why-happy-2">Why Happy (2)?</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#project-components">Project components</a> ·
@@ -77,6 +78,175 @@ explicit configuration file; otherwise the service keeps the current directory
 as its working directory and uses its `.happy2` state. When started through
 `npx`, the generated service runs `npx --yes happy2` instead of depending on an
 evictable `_npx` cache path.
+
+## Configuration
+
+Happy (2) uses the following configuration precedence:
+
+1. `--config /path/to/happy2.toml`
+2. `HAPPY2_CONFIG=/path/to/happy2.toml`
+3. `./.happy2/happy2.toml`, when it exists
+4. Built-in defaults
+
+TOML configuration is partial. Happy (2) recursively merges the supplied fields
+over the built-in defaults, so this is enough to expose the public listener:
+
+```toml
+[server]
+host = "0.0.0.0"
+```
+
+The managed path is relative to the directory where Happy (2) starts. Relative
+database, file, plugin, key, and agent paths are also resolved from that working
+directory, not from the TOML file's directory. The standalone `happy2` and
+`happy2 backend` commands use this configuration; `happy2 web` has its own CLI
+options because it only serves the SPA and proxies `/v0`.
+
+### Complete TOML reference
+
+All supported keys are shown below. Uncomment optional keys only when needed.
+The active values are equivalent to the built-in local defaults. For readability,
+paths are shown relative to the working directory; generated defaults store those
+same locations as absolute paths.
+
+```toml
+[server]
+# all: authentication + product API; auth: authentication only; api: validation only
+role = "all"
+host = "127.0.0.1"
+port = 3000
+public_url = "http://127.0.0.1:3000"
+# Number of trusted proxies outside Happy (2). Keep 0 for direct connections.
+trusted_proxy_hops = 0
+
+[database]
+url = "file:.happy2/happy2.db"
+# Name of the environment variable containing a remote libSQL auth token.
+# auth_token_env = "HAPPY2_DATABASE_AUTH_TOKEN"
+
+[agents]
+enabled = true
+# These default to the private Rig runtime under .happy2/rig.
+# socket_path = ".happy2/rig/server.sock"
+# token_path = ".happy2/rig/token"
+# command = "/absolute/path/to/rig"
+default_cwd = ".happy2/workspaces"
+
+[files]
+provider = "local"
+directory = ".happy2/files"
+signed_url_expiry_seconds = 300
+max_upload_bytes = 536870912
+resumable_chunk_bytes = 8388608
+# Zero disables the corresponding quota.
+per_user_quota_bytes = 0
+server_quota_bytes = 0
+incomplete_upload_expiry_seconds = 86400
+quarantine_retention_seconds = 2592000
+# malware_scanner_command = "/usr/local/bin/clamscan"
+malware_scanner_arguments = []
+malware_scan_timeout_seconds = 120
+malware_scan_failure_mode = "deny" # deny or allow
+
+[plugins]
+directory = ".happy2/plugins"
+# Capability-only API used by plugin containers. Firewall it from untrusted networks.
+host_api_host = "0.0.0.0"
+host_api_port = 3001
+
+[security]
+# Name of the environment variable containing the integration encryption secret.
+integration_secret_env = "HAPPY2_INTEGRATION_SECRET"
+
+[security.rate_limit]
+enabled = true
+reads_per_minute = 1200
+writes_per_minute = 300
+auth_per_minute = 30
+
+[security.idempotency]
+enabled = true
+lease_seconds = 30
+retention_seconds = 86400
+
+[jwt]
+issuer = "http://127.0.0.1:3000"
+audience = "happy2-desktop"
+key_id = "local-generated"
+expiry_days = 30
+# PEM files may replace environment or generated keys.
+# private_key_path = "/run/secrets/happy2-jwt-private.pem"
+# public_key_path = "/run/secrets/happy2-jwt-public.pem"
+
+# Password is the default. Set it to false before enabling magic link, OIDC,
+# or Cloudflare Access; exactly one authentication method may be enabled.
+[auth.password]
+enabled = true
+
+[auth.dev_tokens]
+# This augments the selected authentication method; it is not a separate method.
+enabled = false
+
+[auth.magic_link]
+enabled = false
+# from = "Happy (2) <noreply@example.com>"
+# redirect_url = "happy2://auth/magic-link"
+
+# Replace "example" with a stable provider ID.
+[auth.oidc.example]
+enabled = false
+# discovery_url = "https://id.example.com/.well-known/openid-configuration"
+# client_id = "happy2"
+# client_secret_env = "HAPPY2_OIDC_EXAMPLE_CLIENT_SECRET"
+# scopes = ["openid", "email", "profile"]
+# redirect_path = "/v0/auth/oidc/example/callback"
+
+[auth.cloudflare_access]
+enabled = false
+# team_domain = "https://team.cloudflareaccess.com"
+# audience = "cloudflare-access-application-aud"
+```
+
+For a reverse-proxied deployment such as `https://happy.example.com`, the
+listener can remain on `127.0.0.1`; set `server.public_url` and `jwt.issuer` to
+the public HTTPS origin and set `server.trusted_proxy_hops` to the exact number
+of trusted proxies in front of Happy (2). Binding `server.host = "0.0.0.0"` is
+only necessary when another machine or container must connect directly.
+
+### Secrets and environment
+
+Real process environment values take precedence over values loaded from the
+private `.env` beside the selected TOML path. If no explicit config is selected,
+that file is `./.happy2/.env`, whether or not `./.happy2/happy2.toml` exists.
+
+For an `all` or `auth` server without configured JWT key files or environment
+keys, Happy (2) generates a 3072-bit RS256 key pair and stores
+`HAPPY2_JWT_PRIVATE_KEY_B64` and `HAPPY2_JWT_PUBLIC_KEY_B64` in that `.env`.
+It also generates `HAPPY2_PASSWORD_PEPPER` when password auth is enabled and the
+configured integration secret when missing. The file is created with mode
+`0600`; back it up and keep it private. Replacing the JWT keys invalidates
+existing session tokens, while replacing the password pepper prevents existing
+password hashes from verifying. An `api`-only server must be given the matching
+public key because it does not generate a signing pair.
+
+Supported server and runner environment settings are:
+
+| Variable | Purpose |
+| --- | --- |
+| `HAPPY2_CONFIG` | Selects a TOML file when `--config` is absent. |
+| `HAPPY2_JWT_PRIVATE_KEY`, `HAPPY2_JWT_PUBLIC_KEY` | PEM keys; literal `\n` sequences are accepted. |
+| `HAPPY2_JWT_PRIVATE_KEY_B64`, `HAPPY2_JWT_PUBLIC_KEY_B64` | Base64-encoded PEM keys used by generated local configuration. |
+| `HAPPY2_PASSWORD_PEPPER` | Server-wide password pepper. |
+| `HAPPY2_INTEGRATION_SECRET` | Default integration encryption secret; the variable name is configurable. |
+| `RIG_HOME` | Absolute path for Happy's private Rig runtime. |
+| `RIG_SERVER_SOCKET_PATH`, `RIG_SERVER_TOKEN_PATH`, `RIG_COMMAND` | Override omitted agent socket, token, and command fields. |
+| `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD` | Required SMTP credentials for magic-link auth. |
+| `EMAIL_FROM` | Overrides `auth.magic_link.from`. |
+| `HAPPY2_BACKEND_URL` | Backend origin for the separate `happy2 web` command. |
+| `HAPPY2_WEB_HOST`, `HAPPY2_WEB_PORT`, `HAPPY2_WEB_TRUSTED_PROXY_HOPS` | Listener settings for `happy2 web`. |
+
+`database.auth_token_env`, `security.integration_secret_env`, and each OIDC
+provider's `client_secret_env` may name additional environment variables.
 
 ## Why Happy (2)?
 

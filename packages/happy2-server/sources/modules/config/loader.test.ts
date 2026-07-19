@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { join } from "node:path";
+import { defaultConfig } from "./defaults.js";
 import { parseConfig } from "./loader.js";
 
 const base = `[server]
@@ -18,8 +19,41 @@ key_id = "test"
 `;
 
 describe("TOML config", () => {
+    it("merges a partial config over every nested standalone default", () => {
+        const defaults = defaultConfig("/srv/happy");
+        const config = parseConfig(
+            `[server]
+host = "0.0.0.0"
+port = 4100
+
+[security.rate_limit]
+writes_per_minute = 777
+`,
+            defaults,
+        );
+
+        expect(config).toEqual({
+            ...defaults,
+            server: {
+                ...defaults.server,
+                host: "0.0.0.0",
+                port: 4100,
+            },
+            security: {
+                ...defaults.security,
+                rateLimit: {
+                    ...defaults.security.rateLimit,
+                    writesPerMinute: 777,
+                },
+            },
+        });
+    });
+
     it("loads one selected authentication mechanism", () => {
         const config = parseConfig(`${base}
+[auth.password]
+enabled = false
+
 [auth.oidc.example]
 enabled = true
 discovery_url = "https://id.example/.well-known/openid-configuration"
@@ -75,6 +109,9 @@ audience = "cloudflare-access-audience"
 
     it("loads a Cloudflare Access application and rejects unsafe team domains", () => {
         const config = parseConfig(`${base}
+[auth.password]
+enabled = false
+
 [auth.cloudflare_access]
 enabled = true
 team_domain = "https://happy.cloudflareaccess.com"
@@ -87,6 +124,9 @@ audience = "cloudflare-access-audience"
         });
         expect(() =>
             parseConfig(`${base}
+[auth.password]
+enabled = false
+
 [auth.cloudflare_access]
 enabled = true
 team_domain = "https://cloudflareaccess.com.evil.example"

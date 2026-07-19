@@ -61,17 +61,20 @@ its `server.trusted_proxy_hops` to `1`, because that gateway supplies one
 sanitized forwarding hop. Configure the web gateway's trusted hop count for the
 Ingress or load balancer in front of it.
 
-Without a TOML file, the package starts an `all`-role app on `127.0.0.1:3000`
-with SQLite, password authentication, and generated JWT/pepper
-material. Database, files, generated secrets, agent workspaces, and Rig runtime
-state live under `.happy2` in the invoking directory. Add `.happy2` to the
-project's ignore rules and preserve it as private application state. The
-package starts its bundled `@slopus/rig` executable with a private Rig home under
+The package starts an `all`-role app on `127.0.0.1:3000` with SQLite, password
+authentication, and generated JWT/pepper material by default. It reads
+`./.happy2/happy2.toml` when that file exists and recursively merges its fields
+over the built-in defaults; the file may therefore contain only the values that
+need to change. `--config /path/to/happy2.toml` or
+`HAPPY2_CONFIG=/path/to/happy2.toml` selects a different partial configuration.
+
+Database, files, generated secrets, agent workspaces, and Rig runtime state live
+under `.happy2` in the invoking directory by default. Add `.happy2` to the
+project's ignore rules and preserve it as private application state. The package
+starts its bundled `@slopus/rig` executable with a private Rig home under
 `.happy2/rig` by default, containing configuration, runtime settings, session
 state, socket, and token. Set `RIG_HOME` to an absolute path to relocate it. The
-package never connects to the user's global Rig daemon. Provide
-`--config /path/to/happy2.toml` or
-`HAPPY2_CONFIG=/path/to/happy2.toml` to override the defaults.
+package never connects to the user's global Rig daemon.
 
 `happy2 service start` keeps the all-in-one app running across restarts. On
 macOS it installs `~/Library/LaunchAgents/com.slopus.happy2.plist` without
@@ -328,11 +331,13 @@ reuse Cloudflare's HttpOnly application cookie.
 On initial startup, external environment values win. If an auth-capable server
 has no JWT private key configured, it generates a 3072-bit RS256 key pair and
 adds base64-encoded `HAPPY2_JWT_PRIVATE_KEY_B64` and
-`HAPPY2_JWT_PUBLIC_KEY_B64` to the `.env` file beside its TOML file. It likewise
-adds `HAPPY2_PASSWORD_PEPPER` when password auth is enabled. Preserve that file
-as a secret; replacing it invalidates existing passwords and sessions. You may
-instead supply those variables through the deployment environment or mount PEM
-key files via the `jwt` config.
+`HAPPY2_JWT_PUBLIC_KEY_B64` to the `.env` file beside the selected TOML path.
+For the managed default path this is `./.happy2/.env`, whether or not
+`./.happy2/happy2.toml` exists. It likewise adds `HAPPY2_PASSWORD_PEPPER` when
+password auth is enabled. Preserve that file as a secret; replacing it
+invalidates existing passwords and sessions. You may instead supply those
+variables through the deployment environment or mount PEM key files via the
+`jwt` config.
 
 Sessions are signed JWTs with a 30-day default lifetime and a stable `sid`.
 `POST /v0/auth/refresh` re-signs the same session ID and advances the database

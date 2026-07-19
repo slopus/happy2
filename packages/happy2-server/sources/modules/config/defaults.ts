@@ -4,12 +4,15 @@ import { bundledRigCommand } from "../agents/command.js";
 import { localRuntimePaths } from "./paths.js";
 
 /**
- * Safe standalone defaults used only when neither --config nor HAPPY2_CONFIG
- * is supplied. Persistent state and generated secrets live under .happy2 in
- * the invoking working directory.
+ * Safe standalone defaults used for configless startup and as the base for
+ * partial TOML overrides. Persistent state and generated secrets live under
+ * .happy2 in the invoking working directory.
  */
-export function defaultConfig(): ServerConfig {
-    const paths = localRuntimePaths();
+export function defaultConfig(
+    cwd = process.cwd(),
+    environment: NodeJS.ProcessEnv = process.env,
+): ServerConfig {
+    const paths = localRuntimePaths(cwd, environment);
     return {
         server: {
             role: "all",
@@ -23,9 +26,9 @@ export function defaultConfig(): ServerConfig {
             enabled: true,
             directory: paths.rigDirectory,
             socketPath:
-                process.env.RIG_SERVER_SOCKET_PATH ?? join(paths.rigDirectory, "server.sock"),
-            tokenPath: process.env.RIG_SERVER_TOKEN_PATH ?? join(paths.rigDirectory, "token"),
-            command: process.env.RIG_COMMAND ?? bundledRigCommand(),
+                environment.RIG_SERVER_SOCKET_PATH ?? join(paths.rigDirectory, "server.sock"),
+            tokenPath: environment.RIG_SERVER_TOKEN_PATH ?? join(paths.rigDirectory, "token"),
+            command: environment.RIG_COMMAND ?? bundledRigCommand(),
             defaultCwd: paths.workspacesDirectory,
         },
         files: {
