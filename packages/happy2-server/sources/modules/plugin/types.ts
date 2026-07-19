@@ -1,4 +1,5 @@
 export type PluginVariableKind = "secret" | "text";
+export const MAX_PLUGIN_MCP_TOOLS = 1_024;
 export type PluginInstallationStatus =
     | "preparing"
     | "starting"
@@ -28,6 +29,15 @@ export interface PluginRemoteMcp {
 
 export type PluginMcp = PluginStdioMcp | PluginRemoteMcp;
 
+export type PluginHostPermission = "plugins:list";
+
+export interface PluginContainer {
+    dockerfile?: string;
+    command?: string;
+    args: string[];
+    permissions: PluginHostPermission[];
+}
+
 export interface PluginManifest {
     schemaVersion: 1;
     version: string;
@@ -35,6 +45,7 @@ export interface PluginManifest {
     shortName: string;
     description: string;
     variables: PluginVariableDefinition[];
+    container?: PluginContainer;
     mcp?: PluginMcp;
 }
 
@@ -76,6 +87,11 @@ export interface SystemPluginSummary {
     mcp?: {
         type: "remote" | "stdio";
         container: "bundled" | "selection_required" | "none";
+    };
+    container?: {
+        image: "bundled" | "selection_required";
+        command: boolean;
+        permissions: PluginHostPermission[];
     };
     image: PluginImageMetadata & { url: string };
     installedByUserId?: string;
@@ -127,11 +143,27 @@ export interface PluginCatalogItem {
         type: "remote" | "stdio";
         container: "bundled" | "selection_required" | "none";
     };
+    container?: {
+        image: "bundled" | "selection_required";
+        command: boolean;
+        permissions: PluginHostPermission[];
+    };
     variables: PluginVariableDefinition[];
     systemPlugin?: SystemPluginSummary & {
         updateAvailable: boolean;
         installations: PluginInstallationSummary[];
     };
+}
+
+export interface PluginMcpToolSummary {
+    installationId: string;
+    name: string;
+    title?: string;
+    description?: string;
+    inputSchema: Record<string, unknown>;
+    outputSchema?: Record<string, unknown>;
+    annotations?: Record<string, unknown>;
+    syncedAt: string;
 }
 
 interface PluginRuntimePackage {
@@ -145,13 +177,15 @@ interface PluginRuntimePackage {
 export type PluginRuntimeConfiguration = PluginRuntimePackage &
     (
         | {
-              type: "stdio";
-              command: string;
-              args: string[];
+              type: "local";
+              command?: { command: string; args: string[] };
+              mcp?: { command: string; args: string[] };
               environment: Readonly<Record<string, string>>;
               containerName: string;
+              containerInstanceId?: string;
               imageTag: string;
               bundledDockerfile?: string;
+              permissions: PluginHostPermission[];
           }
         | {
               type: "remote";

@@ -175,7 +175,7 @@ describe("system plugin installation and MCP health", () => {
             },
             imageTag: expect.stringMatching(/^happy2-plugin:/),
         });
-        expect(runtime.opens.at(-1)?.environment).toEqual({
+        expect(runtime.opens.at(-1)?.environment).toMatchObject({
             STDIO_TOKEN: "stdio-secret-value",
             DISPLAY_MODE: "compact",
         });
@@ -196,7 +196,7 @@ describe("system plugin installation and MCP health", () => {
         expect(
             runtime.opens.find(({ environment }) => environment.STDIO_TOKEN === "another-secret")
                 ?.environment,
-        ).toEqual({ STDIO_TOKEN: "another-secret", DISPLAY_MODE: "expanded" });
+        ).toMatchObject({ STDIO_TOKEN: "another-secret", DISPLAY_MODE: "expanded" });
         expect(
             new Set(
                 runtime.prepares
@@ -239,8 +239,9 @@ describe("system plugin installation and MCP health", () => {
             remoteInstalled.json().installation.id as string,
             "ready",
         );
-        expect(remote.requests).toHaveLength(1);
+        expect(remote.requests.length).toBeGreaterThanOrEqual(3);
         expect(remote.requests[0]?.headers.authorization).toBe("Bearer remote-secret-value");
+        const healthyRemoteRequestCount = remote.requests.length;
         const listed = await server.as(admin).get("/v0/admin/plugins");
         expect(JSON.stringify(listed.json())).not.toContain("stdio-secret-value");
         expect(JSON.stringify(listed.json())).not.toContain("remote-secret-value");
@@ -396,7 +397,7 @@ describe("system plugin installation and MCP health", () => {
             broken.json().installation.id as string,
             "broken_configuration",
         );
-        expect(remote.requests).toHaveLength(1);
+        expect(remote.requests).toHaveLength(healthyRemoteRequestCount);
 
         const preparesBeforeRestart = runtime.prepares.length;
         await server.restart();
@@ -452,6 +453,14 @@ describe("system plugin installation and MCP health", () => {
         runtime.failOpen = false;
         await server.restart();
         await waitForStatus(server, admin, installed.json().installation.id as string, "ready");
+
+        runtime.failOpen = true;
+        const removalsBeforeAdoptionFailure = runtime.removals.length;
+        await server.restart();
+        await waitForStatus(server, admin, installed.json().installation.id as string, "failed");
+        expect(runtime.removals.slice(removalsBeforeAdoptionFailure)).toContain(
+            `happy2-plugin-${installed.json().installation.id as string}`,
+        );
     }, 30_000);
 
     it("creates one system plugin for concurrent installations with independent parameters and containers", async () => {
@@ -502,8 +511,14 @@ describe("system plugin installation and MCP health", () => {
         );
         expect(runtime.opens.map(({ environment }) => environment)).toEqual(
             expect.arrayContaining([
-                { STDIO_TOKEN: "compact-secret", DISPLAY_MODE: "compact" },
-                { STDIO_TOKEN: "expanded-secret", DISPLAY_MODE: "expanded" },
+                expect.objectContaining({
+                    STDIO_TOKEN: "compact-secret",
+                    DISPLAY_MODE: "compact",
+                }),
+                expect.objectContaining({
+                    STDIO_TOKEN: "expanded-secret",
+                    DISPLAY_MODE: "expanded",
+                }),
             ]),
         );
     }, 30_000);
@@ -540,7 +555,7 @@ describe("system plugin installation and MCP health", () => {
             runtime.removals.filter(
                 (containerName) => containerName === `happy2-plugin-${installationId}`,
             ).length,
-        ).toBeGreaterThanOrEqual(2);
+        ).toBe(1);
         const difference = await server.as(admin).post("/v0/sync/getDifference", { state });
         expect(difference.json().areas).toContain("plugins");
     }, 30_000);
@@ -584,9 +599,21 @@ class MockPluginMcpRuntime implements PluginMcpRuntime {
     readonly removals: string[] = [];
     failOpen = false;
 
-    async prepareLocal(input: PluginLocalPrepareInput): Promise<{ imageTag: string }> {
+    async startLocalCommand() {
+        return { wait: new Promise<never>(() => undefined), close() {} };
+    }
+
+    async monitorLocalCommand() {
+        return { wait: new Promise<never>(() => undefined), close() {} };
+    }
+
+    async prepareLocal(input: PluginLocalPrepareInput) {
         this.prepares.push(structuredClone(input));
-        return { imageTag: input.imageTag };
+        return {
+            containerInstanceId: input.existingContainerInstanceId ?? input.containerInstanceId,
+            imageTag: input.imageTag,
+            reused: input.existingContainerInstanceId !== undefined,
+        };
     }
 
     async openLocal(input: PluginLocalOpenInput) {
@@ -643,18 +670,33 @@ class MockRemoteMcp {
     readonly transport: WebhookTransport = {
         deliver: async (request) => {
             this.requests.push(structuredClone(request));
-            const id = (JSON.parse(request.body) as { id: string }).id;
+            if (request.method === "DELETE") return { statusCode: 405 };
+            const message = JSON.parse(request.body) as { id?: string; method?: string };
+            if (message.id === undefined) return { statusCode: 202 };
+            const result =
+                message.method === "initialize"
+                    ? {
+                          protocolVersion: "2025-06-18",
+                          capabilities: { tools: {} },
+                          serverInfo: { name: "remote-gym", version: "1.0.0" },
+                      }
+                    : message.method === "tools/list"
+                      ? {
+                            tools: [
+                                {
+                                    name: "remote_echo",
+                                    description: "Remote echo tool",
+                                    inputSchema: { type: "object" },
+                                },
+                            ],
+                        }
+                      : {};
             return {
                 statusCode: 200,
-                body: `event: message\ndata: ${JSON.stringify({
-                    jsonrpc: "2.0",
-                    id,
-                    result: {
-                        protocolVersion: "2025-06-18",
-                        capabilities: {},
-                        serverInfo: { name: "remote-gym", version: "1.0.0" },
-                    },
-                })}\n\n`,
+                body: JSON.stringify({ jsonrpc: "2.0", id: message.id, result }),
+                ...(message.method === "initialize"
+                    ? { headers: { "mcp-session-id": "remote-gym-session" } }
+                    : {}),
             };
         },
     };
@@ -674,7 +716,7 @@ class BlockingPluginMcpRuntime implements PluginMcpRuntime {
     prepareLocal(
         _input: PluginLocalPrepareInput,
         signal?: AbortSignal,
-    ): Promise<{ imageTag: string }> {
+    ): Promise<{ containerInstanceId: string; imageTag: string; reused: boolean }> {
         this.markStarted();
         return new Promise((_resolve, reject) => {
             const abort = () => {
@@ -690,6 +732,14 @@ class BlockingPluginMcpRuntime implements PluginMcpRuntime {
 
     async openLocal(): Promise<never> {
         throw new Error("Blocked preparation must not open MCP");
+    }
+
+    async startLocalCommand() {
+        return { wait: new Promise<never>(() => undefined), close() {} };
+    }
+
+    async monitorLocalCommand() {
+        return { wait: new Promise<never>(() => undefined), close() {} };
     }
 
     async removeLocal(): Promise<void> {}

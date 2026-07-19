@@ -152,6 +152,43 @@ describe("plugin package catalog", () => {
             "version must be a valid SemVer version",
         );
     });
+
+    it("loads container-only commands and rejects unrecognized host capabilities", async () => {
+        const root = await temporaryDirectory();
+        const command = await packageDirectory(root, "command-runtime");
+        await mkdir(join(command, "container"));
+        await writeFile(join(command, "container", "Dockerfile"), "FROM scratch\n");
+        await manifest(command, {
+            variables: [variable("COMMAND_TOKEN")],
+            container: {
+                dockerfile: "container/Dockerfile",
+                command: "/plugin/worker",
+                args: ["--serve"],
+                permissions: ["plugins:list"],
+            },
+        });
+        await expect(pluginCatalogLoad(root)).resolves.toMatchObject({});
+        expect((await pluginCatalogLoad(root)).get("command-runtime")?.manifest.container).toEqual({
+            dockerfile: "container/Dockerfile",
+            command: "/plugin/worker",
+            args: ["--serve"],
+            permissions: ["plugins:list"],
+        });
+
+        const deniedRoot = await temporaryDirectory();
+        const denied = await packageDirectory(deniedRoot, "denied-runtime");
+        await manifest(denied, {
+            variables: [],
+            container: {
+                command: "/plugin/worker",
+                args: [],
+                permissions: ["users:list"],
+            },
+        });
+        await expect(pluginCatalogLoad(deniedRoot)).rejects.toThrow(
+            "unknown container permission users:list",
+        );
+    });
 });
 
 async function temporaryDirectory(): Promise<string> {
@@ -172,6 +209,7 @@ async function manifest(
     additions: {
         variables: unknown[];
         version?: string;
+        container?: Record<string, unknown>;
         mcp?: Record<string, unknown>;
     },
 ): Promise<void> {

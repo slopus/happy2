@@ -6,6 +6,7 @@ import type {
     AgentImageBuildInput,
     AgentImageBuildOptions,
     AgentSandboxCreateInput,
+    PluginSandboxCommandInput,
     PluginSandboxCreateInput,
     SandboxFileEgressInput,
     SandboxFileIngressInput,
@@ -23,6 +24,7 @@ const BIND_MOUNT_RETRY_DELAYS_MS = [25, 50, 100, 200, 400, 800, 1_600] as const;
 const PLUGIN_MEMORY_BYTES = 1024 * 1024 * 1024;
 const PLUGIN_CPUS = "1";
 const PLUGIN_PID_LIMIT = "256";
+const PLUGIN_COMMAND_MARKER = "/run/happy2-plugin-command.pid";
 const PLUGIN_CLI_ENV_PREFIXES = ["CONTAINER_", "CONTAINERS_", "DOCKER_", "DYLD_", "LD_", "PODMAN_"];
 const PLUGIN_CLI_ENV_NAMES = new Set([
     "ALL_PROXY",
@@ -229,6 +231,10 @@ export class LocalOciSandboxProvider implements SandboxProvider {
             "dev.happy2.managed=true",
             "--label",
             `dev.happy2.plugin-installation=${input.installationId}`,
+            "--label",
+            `dev.happy2.plugin-instance=${input.containerInstanceId}`,
+            "--add-host",
+            "happy2.host.internal:host-gateway",
             "--read-only",
             "--init",
             "--cap-drop",
@@ -270,6 +276,102 @@ export class LocalOciSandboxProvider implements SandboxProvider {
 
     async removeSandbox(containerName: string): Promise<void> {
         await this.run(["rm", "--force", containerName]).catch(() => undefined);
+    }
+
+    async inspectPluginSandbox(
+        containerName: string,
+        signal?: AbortSignal,
+    ): Promise<
+        { containerInstanceId: string; installationId: string; running: boolean } | undefined
+    > {
+        let inspected: CommandResult;
+        try {
+            inspected = await this.run(["inspect", "--format", "{{json .}}", containerName], {
+                signal,
+            });
+        } catch (error) {
+            if (isMissingContainer(error)) return undefined;
+            throw error;
+        }
+        let value: {
+            Config?: { Labels?: Record<string, string> };
+            State?: { Running?: boolean };
+        };
+        try {
+            value = JSON.parse(inspected.stdout) as typeof value;
+        } catch (error) {
+            throw new Error(`${this.displayName} returned invalid plugin container metadata`, {
+                cause: error,
+            });
+        }
+        const installationId = value.Config?.Labels?.["dev.happy2.plugin-installation"];
+        const containerInstanceId = value.Config?.Labels?.["dev.happy2.plugin-instance"];
+        if (!installationId || !containerInstanceId) return undefined;
+        return { installationId, containerInstanceId, running: value.State?.Running === true };
+    }
+
+    async startPluginCommand(
+        input: PluginSandboxCommandInput,
+        signal?: AbortSignal,
+    ): Promise<void> {
+        const environment = Object.entries(input.environment);
+        const script = [
+            "set -eu",
+            `marker=${PLUGIN_COMMAND_MARKER}`,
+            "trap 'rm -f \"$marker\"' EXIT TERM INT",
+            'printf \'%s\\n\' "$$" > "$marker"',
+            '"$@"',
+        ].join("; ");
+        await this.run(
+            [
+                "exec",
+                "--detach",
+                ...environment.flatMap(([key]) => ["--env", key]),
+                input.containerName,
+                "/bin/sh",
+                "-c",
+                script,
+                "happy2-plugin-command",
+                ...input.command,
+            ],
+            { environment, signal },
+        );
+        for (let attempt = 0; attempt < 50; attempt += 1) {
+            if (await this.isPluginCommandRunning(input.containerName, signal)) return;
+            await abortableDelay(20, signal, this.displayName);
+        }
+        throw new Error(`${this.displayName} plugin command exited during startup`);
+    }
+
+    async isPluginCommandRunning(containerName: string, signal?: AbortSignal): Promise<boolean> {
+        const script = [
+            `marker=${PLUGIN_COMMAND_MARKER}`,
+            'if test -r "$marker" && kill -0 "$(cat "$marker")" 2>/dev/null',
+            "then printf running",
+            "else printf stopped",
+            "fi",
+        ].join("; ");
+        let result: CommandResult;
+        try {
+            result = await this.run(
+                [
+                    "exec",
+                    containerName,
+                    "/bin/sh",
+                    "-c",
+                    script,
+                    "happy2-plugin-command-running-check",
+                ],
+                { signal },
+            );
+        } catch (error) {
+            if (isMissingContainer(error) || isStoppedContainer(error)) return false;
+            throw error;
+        }
+        const state = result.stdout.trim();
+        if (state === "running") return true;
+        if (state === "stopped") return false;
+        throw new Error(`${this.displayName} returned an invalid plugin command state`);
     }
 
     async copyFileToSandbox(input: SandboxFileIngressInput, signal?: AbortSignal): Promise<void> {
@@ -377,14 +479,21 @@ export class LocalOciSandboxProvider implements SandboxProvider {
 
     private run(
         args: string[],
-        options: { input?: string; onOutput?: (chunk: string) => void; signal?: AbortSignal } = {},
+        options: {
+            environment?: ReadonlyArray<readonly [string, string]>;
+            input?: string;
+            onOutput?: (chunk: string) => void;
+            signal?: AbortSignal;
+        } = {},
     ): Promise<CommandResult> {
         if (options.signal?.aborted) return Promise.reject(abortError(this.displayName));
         return new Promise((resolve, reject) => {
             let settled = false;
             let forcedKill: ReturnType<typeof setTimeout> | undefined;
             const child = spawn(this.command, args, {
-                env: this.commandEnvironment(),
+                env: options.environment
+                    ? pluginCliEnvironment(this.commandEnvironment(), options.environment)
+                    : this.commandEnvironment(),
                 stdio: [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
             });
             let stdout = "";
@@ -592,6 +701,24 @@ function isMissingBindSource(error: unknown): boolean {
         error instanceof Error &&
         error.message.includes('invalid mount config for type "bind"') &&
         error.message.includes("bind source path does not exist")
+    );
+}
+
+function isMissingContainer(error: unknown): boolean {
+    return (
+        error instanceof Error &&
+        /(?:no such (?:object|container)|container .* not found|no container with name or id)/i.test(
+            error.message,
+        )
+    );
+}
+
+function isStoppedContainer(error: unknown): boolean {
+    return (
+        error instanceof Error &&
+        /(?:container .* is not running|can only create exec sessions on running containers|container state improper)/i.test(
+            error.message,
+        )
     );
 }
 

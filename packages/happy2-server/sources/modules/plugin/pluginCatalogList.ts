@@ -3,6 +3,7 @@ import type { PluginCatalog } from "./catalog.js";
 import { pluginInstallationList } from "./pluginInstallationList.js";
 import { pluginList } from "./pluginList.js";
 import type { PluginCatalogItem } from "./types.js";
+import { effectiveContainer } from "./impl/effectiveContainer.js";
 
 /**
  * Projects the validated built-in catalog together with administrator-visible installation health and update availability.
@@ -21,6 +22,7 @@ export async function pluginCatalogList(
     return catalog.list().map((plugin) => {
         const systemPlugin = systemByShortName.get(plugin.manifest.shortName);
         const catalogMcp = plugin.manifest.mcp;
+        const catalogContainer = effectiveContainer(plugin.manifest);
         const mcp = systemPlugin
             ? systemPlugin.mcp
             : catalogMcp
@@ -29,9 +31,20 @@ export async function pluginCatalogList(
                     container:
                         catalogMcp.type === "remote"
                             ? ("none" as const)
-                            : catalogMcp.container
+                            : catalogContainer?.dockerfile
                               ? ("bundled" as const)
                               : ("selection_required" as const),
+                }
+              : undefined;
+        const container = systemPlugin
+            ? systemPlugin.container
+            : catalogContainer
+              ? {
+                    image: catalogContainer.dockerfile
+                        ? ("bundled" as const)
+                        : ("selection_required" as const),
+                    command: Boolean(catalogContainer.command),
+                    permissions: catalogContainer.permissions,
                 }
               : undefined;
         return {
@@ -44,6 +57,7 @@ export async function pluginCatalogList(
             skills: plugin.skills,
             variables: systemPlugin?.variables ?? plugin.manifest.variables,
             ...(mcp ? { mcp } : {}),
+            ...(container ? { container } : {}),
             ...(systemPlugin
                 ? {
                       systemPlugin: {

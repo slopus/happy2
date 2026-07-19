@@ -11,6 +11,8 @@ import type {
     PluginPackage,
     PluginSkillSummary,
     PluginVariableDefinition,
+    PluginContainer,
+    PluginHostPermission,
 } from "./types.js";
 
 const MAX_PACKAGE_FILES = 1_000;
@@ -40,6 +42,7 @@ const RESERVED_REMOTE_HEADERS = new Set([
     "upgrade",
     "user-agent",
 ]);
+const HOST_PERMISSIONS = new Set<PluginHostPermission>(["plugins:list"]);
 
 /** Immutable lookup over validated plugin packages supplied by the built-in catalog. */
 export class PluginCatalog {
@@ -107,10 +110,12 @@ export async function pluginPackageLoad(
     )
         throw new Error(`${sourceReference}: plugin.png must be a square PNG up to 4096 pixels`);
     const skills = await skillsParse(files, sourceReference);
-    if (!manifest.mcp && skills.length === 0)
+    if (!manifest.container && !manifest.mcp && skills.length === 0)
         throw new Error(
-            `${sourceReference}: a plugin must contain at least one skill or MCP server`,
+            `${sourceReference}: a plugin must contain a container, skill, or MCP server`,
         );
+    if (manifest.container?.dockerfile)
+        requirePackageFile(files, manifest.container.dockerfile, sourceReference);
     if (manifest.mcp?.type === "stdio" && manifest.mcp.container)
         requirePackageFile(files, manifest.mcp.container.dockerfile, sourceReference);
     const thumbhashInput = await iconImage
@@ -187,6 +192,7 @@ function manifestParse(source: string, label: string): PluginManifest {
         "shortName",
         "description",
         "variables",
+        "container",
         "mcp",
     ]);
     if (record.schemaVersion !== 1) throw new Error(`${label}: schemaVersion must be 1`);
@@ -205,9 +211,17 @@ function manifestParse(source: string, label: string): PluginManifest {
     const shortName = string(record.shortName, "shortName", 64);
     if (!SHORT_NAME.test(shortName)) throw new Error(`${label}: shortName is invalid`);
     const variables = variableDefinitions(record.variables, label);
+    const parsedContainer =
+        record.container === undefined ? undefined : container(record.container, label);
     const parsedMcp = record.mcp === undefined ? undefined : mcp(record.mcp, variables, label);
-    if (!parsedMcp && variables.length)
-        throw new Error(`${label}: variables require an MCP server definition`);
+    if (parsedContainer && parsedMcp?.type === "stdio" && parsedMcp.container)
+        throw new Error(`${label}: use container.dockerfile instead of mcp.container.dockerfile`);
+    if (parsedContainer && parsedMcp?.type === "remote")
+        throw new Error(`${label}: a remote MCP cannot share a local plugin container`);
+    if (!parsedContainer && !parsedMcp && variables.length)
+        throw new Error(`${label}: variables require a container or MCP server definition`);
+    if (parsedContainer && !parsedContainer.command && parsedMcp?.type !== "stdio")
+        throw new Error(`${label}: a container without a stdio MCP requires a command`);
     return {
         schemaVersion: 1,
         version,
@@ -215,7 +229,39 @@ function manifestParse(source: string, label: string): PluginManifest {
         shortName,
         description: string(record.description, "description", 1_000),
         variables,
+        ...(parsedContainer ? { container: parsedContainer } : {}),
         ...(parsedMcp ? { mcp: parsedMcp } : {}),
+    };
+}
+
+function container(value: unknown, label: string): PluginContainer {
+    const record = object(value, "container");
+    only(record, ["dockerfile", "command", "args", "permissions"]);
+    const command =
+        record.command === undefined
+            ? undefined
+            : string(record.command, "container.command", 1_000);
+    if (!command && record.args !== undefined)
+        throw new Error(`${label}: container.args requires container.command`);
+    const rawPermissions = record.permissions ?? [];
+    if (!Array.isArray(rawPermissions) || rawPermissions.length > HOST_PERMISSIONS.size)
+        throw new Error(`${label}: container.permissions is invalid`);
+    const permissions: PluginHostPermission[] = [];
+    for (const [index, raw] of rawPermissions.entries()) {
+        const permission = string(raw, `container.permissions[${index}]`, 100);
+        if (!HOST_PERMISSIONS.has(permission as PluginHostPermission))
+            throw new Error(`${label}: unknown container permission ${permission}`);
+        if (permissions.includes(permission as PluginHostPermission))
+            throw new Error(`${label}: duplicate container permission ${permission}`);
+        permissions.push(permission as PluginHostPermission);
+    }
+    return {
+        ...(record.dockerfile === undefined
+            ? {}
+            : { dockerfile: relativePath(record.dockerfile, "container.dockerfile") }),
+        ...(command ? { command } : {}),
+        args: command ? stringArray(record.args, "container.args", 128, 4_096) : [],
+        permissions,
     };
 }
 

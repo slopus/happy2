@@ -161,9 +161,25 @@ describe("LocalOciSandboxProvider", () => {
         const provider = dockerProvider(command);
         await provider.createPluginSandbox({
             installationId: "plugin-installation-id",
+            containerInstanceId: "plugin-container-instance-id",
             containerName: "happy2-plugin-installation-id",
             imageTag: "happy2-plugin:immutable",
         });
+        await expect(
+            provider.inspectPluginSandbox("happy2-plugin-installation-id"),
+        ).resolves.toEqual({
+            installationId: "plugin-installation-id",
+            containerInstanceId: "plugin-container-instance-id",
+            running: true,
+        });
+        await provider.startPluginCommand({
+            containerName: "happy2-plugin-installation-id",
+            command: ["/plugin/worker", "--serve"],
+            environment: { API_TOKEN: "secret-value", DISPLAY_MODE: "compact" },
+        });
+        await expect(
+            provider.isPluginCommandRunning("happy2-plugin-installation-id"),
+        ).resolves.toBe(true);
         const process = provider.attachTerminal({
             containerName: "happy2-plugin-installation-id",
             command: ["/plugin/server", "--stdio"],
@@ -181,6 +197,10 @@ describe("LocalOciSandboxProvider", () => {
             "dev.happy2.managed=true",
             "--label",
             "dev.happy2.plugin-installation=plugin-installation-id",
+            "--label",
+            "dev.happy2.plugin-instance=plugin-container-instance-id",
+            "--add-host",
+            "happy2.host.internal:host-gateway",
             "--read-only",
             "--init",
             "--cap-drop",
@@ -213,6 +233,32 @@ describe("LocalOciSandboxProvider", () => {
         ]);
         expect(calls[1]?.args).toEqual(["start", "happy2-plugin-installation-id"]);
         expect(calls[2]?.args).toEqual([
+            "inspect",
+            "--format",
+            "{{json .}}",
+            "happy2-plugin-installation-id",
+        ]);
+        expect(calls[3]?.args).toEqual(
+            expect.arrayContaining([
+                "exec",
+                "--detach",
+                "--env",
+                "API_TOKEN",
+                "--env",
+                "DISPLAY_MODE",
+                "happy2-plugin-installation-id",
+                "/plugin/worker",
+                "--serve",
+            ]),
+        );
+        expect(calls[3]?.args.join(" ")).not.toContain("secret-value");
+        expect(calls[3]?.inheritedPluginValues).toEqual({
+            API_TOKEN: "secret-value",
+            DISPLAY_MODE: "compact",
+        });
+        expect(calls[4]?.args.at(-1)).toBe("happy2-plugin-command-running-check");
+        expect(calls[5]?.args.at(-1)).toBe("happy2-plugin-command-running-check");
+        expect(calls[6]?.args).toEqual([
             "exec",
             "--interactive",
             "--env",
@@ -223,8 +269,8 @@ describe("LocalOciSandboxProvider", () => {
             "/plugin/server",
             "--stdio",
         ]);
-        expect(calls[2]?.args.join(" ")).not.toContain("secret-value");
-        expect(calls[2]?.inheritedPluginValues).toEqual({
+        expect(calls[6]?.args.join(" ")).not.toContain("secret-value");
+        expect(calls[6]?.inheritedPluginValues).toEqual({
             API_TOKEN: "secret-value",
             DISPLAY_MODE: "compact",
         });
@@ -235,6 +281,28 @@ describe("LocalOciSandboxProvider", () => {
                 environment: { CONTAINERS_CONF: "secret-value" },
             }),
         ).toThrow("cannot shadow the container CLI environment");
+    });
+
+    it("distinguishes a missing plugin container from engine and metadata failures", async () => {
+        await writeCommand(command, log, "missing-container");
+        await expect(
+            dockerProvider(command).inspectPluginSandbox("missing-plugin"),
+        ).resolves.toBeUndefined();
+
+        await writeCommand(command, log, "inspect-failure");
+        await expect(dockerProvider(command).inspectPluginSandbox("plugin")).rejects.toThrow(
+            "engine is unavailable",
+        );
+
+        await writeCommand(command, log, "invalid-inspect");
+        await expect(dockerProvider(command).inspectPluginSandbox("plugin")).rejects.toThrow(
+            "invalid plugin container metadata",
+        );
+
+        await writeCommand(command, log, "stopped-container");
+        await expect(
+            dockerProvider(command).isPluginCommandRunning("stopped-plugin"),
+        ).resolves.toBe(false);
     });
 
     it("distinguishes unavailable binaries, unhealthy engines, and bounded probe timeouts", async () => {
@@ -312,7 +380,15 @@ function sandboxInput(containerName: string) {
 async function writeCommand(
     command: string,
     log: string,
-    mode: "healthy" | "multibyte-version" | "timeout" | "unhealthy",
+    mode:
+        | "healthy"
+        | "inspect-failure"
+        | "invalid-inspect"
+        | "missing-container"
+        | "multibyte-version"
+        | "stopped-container"
+        | "timeout"
+        | "unhealthy",
 ): Promise<void> {
     await writeFile(
         command,
@@ -335,6 +411,22 @@ if (${JSON.stringify(mode)} === "unhealthy" && args[0] === "info") {
     process.stderr.write("Cannot connect to the local engine\\n");
     process.exit(1);
 }
+if (${JSON.stringify(mode)} === "missing-container" && args[0] === "inspect") {
+    process.stderr.write("Error: No such object: missing-plugin\\n");
+    process.exit(1);
+}
+if (${JSON.stringify(mode)} === "inspect-failure" && args[0] === "inspect") {
+    process.stderr.write("local engine is unavailable\\n");
+    process.exit(1);
+}
+if (${JSON.stringify(mode)} === "invalid-inspect" && args[0] === "inspect") {
+    process.stdout.write("not-json\\n");
+    process.exit(0);
+}
+if (${JSON.stringify(mode)} === "stopped-container" && args[0] === "exec") {
+    process.stderr.write("Error response from daemon: Container abc is not running\\n");
+    process.exit(1);
+}
 const retryMarker = ${JSON.stringify(join(command, "..", "retry-mount.marker"))};
 if (args[0] === "create" && args.includes("retry-mount-container") && !fs.existsSync(retryMarker)) {
     fs.writeFileSync(retryMarker, "failed once");
@@ -342,6 +434,16 @@ if (args[0] === "create" && args.includes("retry-mount-container") && !fs.exists
     process.exit(1);
 }
 if (args[0] === "image" && args[1] === "inspect") process.stdout.write("sha256:built-image\\n");
+if (args[0] === "inspect") process.stdout.write(JSON.stringify({
+    Config: { Labels: {
+        "dev.happy2.plugin-installation": "plugin-installation-id",
+        "dev.happy2.plugin-instance": "plugin-container-instance-id"
+    } },
+    State: { Running: true }
+}) + "\\n");
+if (args[0] === "exec" && args.at(-1) === "happy2-plugin-command-running-check") {
+    process.stdout.write("running\\n");
+}
 if (args[0] === "build") process.stderr.write("#1 [stage-0 1/2] prepare\\n#1 DONE\\n#2 [stage-0 2/2] assemble\\n#2 DONE\\n");
 `,
         { mode: 0o700 },

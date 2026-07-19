@@ -9,6 +9,7 @@ import {
 import type { PluginSecretProtector } from "./secrets.js";
 import { PluginError, type PluginRuntimeConfiguration } from "./types.js";
 import { installedManifest } from "./impl/installedManifest.js";
+import { effectiveContainer } from "./impl/effectiveContainer.js";
 
 /**
  * Resolves one installed manifest into its private runtime configuration, revealing encrypted values only for process environment or remote header materialization.
@@ -28,6 +29,7 @@ export async function pluginInstallationGetRuntimeConfiguration(
             packageDigest: plugins.packageDigest,
             packageDirectory: plugins.packageDirectory,
             containerName: pluginInstallations.containerName,
+            containerInstanceId: pluginInstallations.containerInstanceId,
             containerImageId: pluginInstallations.containerImageId,
             selectedImageTag: agentImages.dockerTag,
             selectedImageStatus: agentImages.status,
@@ -46,7 +48,7 @@ export async function pluginInstallationGetRuntimeConfiguration(
         packageDirectory: row.packageDirectory,
         packageDigest: row.packageDigest,
     };
-    if (!manifest.mcp) return { ...installedPackage, type: "skills_only" };
+    if (!manifest.container && !manifest.mcp) return { ...installedPackage, type: "skills_only" };
     const variableRows = await executor
         .select({
             key: pluginInstallationVariables.key,
@@ -90,7 +92,7 @@ export async function pluginInstallationGetRuntimeConfiguration(
             environment[definition.key] = variable.textValue;
         }
     }
-    if (manifest.mcp.type === "remote") {
+    if (manifest.mcp?.type === "remote") {
         const headers = Object.fromEntries(
             Object.entries(manifest.mcp.headers).map(([key, template]) => [
                 key,
@@ -117,10 +119,13 @@ export async function pluginInstallationGetRuntimeConfiguration(
             headers,
         };
     }
+    const localContainer = effectiveContainer(manifest);
+    if (!localContainer)
+        throw new PluginError("broken_configuration", "Plugin container definition is missing");
     if (!row.containerName)
         throw new PluginError("broken_configuration", "Plugin container name is missing");
     let imageTag: string;
-    if (manifest.mcp.container) {
+    if (localContainer.dockerfile) {
         imageTag = `happy2-plugin:${row.packageDigest.replace(/^sha256:/, "")}`;
     } else {
         if (!row.containerImageId || !row.selectedImageTag || row.selectedImageStatus !== "ready")
@@ -132,12 +137,18 @@ export async function pluginInstallationGetRuntimeConfiguration(
     }
     return {
         ...installedPackage,
-        type: "stdio",
-        command: manifest.mcp.command,
-        args: manifest.mcp.args,
+        type: "local",
+        ...(localContainer.command
+            ? { command: { command: localContainer.command, args: localContainer.args } }
+            : {}),
+        ...(manifest.mcp?.type === "stdio"
+            ? { mcp: { command: manifest.mcp.command, args: manifest.mcp.args } }
+            : {}),
         environment,
         containerName: row.containerName,
+        containerInstanceId: row.containerInstanceId ?? undefined,
         imageTag,
-        ...(manifest.mcp.container ? { bundledDockerfile: manifest.mcp.container.dockerfile } : {}),
+        ...(localContainer.dockerfile ? { bundledDockerfile: localContainer.dockerfile } : {}),
+        permissions: localContainer.permissions,
     };
 }

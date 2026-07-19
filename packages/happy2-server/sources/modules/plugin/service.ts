@@ -4,13 +4,13 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js";
 import type { DrizzleExecutor } from "../drizzle.js";
 import type { MutationHint } from "../chat/types.js";
 import type { PubSub } from "../realtime/index.js";
 import { realtimeTopics } from "../realtime/index.js";
 import type { WebhookUrlPolicy } from "../integrations/ssrf.js";
 import type { WebhookTransport } from "../integrations/types.js";
+import type { TokenService } from "../auth/tokens.js";
 import { pluginInstall } from "./pluginInstall.js";
 import { pluginFindBySource } from "./pluginFindBySource.js";
 import { pluginGetImage } from "./pluginGetImage.js";
@@ -20,21 +20,27 @@ import { pluginInstallationListIds } from "./pluginInstallationListIds.js";
 import { pluginInstallationListReadyMcpIds } from "./pluginInstallationListReadyMcpIds.js";
 import { pluginInstallationUpdateStatus } from "./pluginInstallationUpdateStatus.js";
 import { pluginRemoveMissingBuiltins } from "./pluginRemoveMissingBuiltins.js";
+import { pluginMcpToolsReplace, type PluginMcpToolInput } from "./pluginMcpToolsReplace.js";
+import { pluginMcpToolsListReady } from "./pluginMcpToolsListReady.js";
+import { pluginContainerInstanceAuthorize } from "./pluginContainerInstanceAuthorize.js";
+import { pluginContainerInstanceInvalidate } from "./pluginContainerInstanceInvalidate.js";
 import type { PluginCatalog } from "./catalog.js";
 import type { PluginPackageStore } from "./packageStore.js";
-import type { PluginMcpRuntime } from "./runtime.js";
+import type { PluginLocalCommandHandle, PluginMcpRuntime } from "./runtime.js";
 import type { PluginSecretProtector } from "./secrets.js";
 import { RemotePluginMcpTransport } from "./utils/remoteMcpTransport.js";
 import {
     PluginError,
+    MAX_PLUGIN_MCP_TOOLS,
     type PluginFunctionDefinition,
     type PluginFunctionResult,
+    type PluginHostPermission,
     type PluginInstallationSummary,
     type PluginRuntimeConfiguration,
 } from "./types.js";
 
 const HEALTH_TIMEOUT_MS = 15_000;
-const FUNCTION_DISCOVERY_TIMEOUT_MS = 15_000;
+const COMMAND_STARTUP_GRACE_MS = 250;
 const FUNCTION_EXECUTION_TIMEOUT_MS = 30_000;
 const MAX_RIG_PLUGIN_FUNCTIONS = 128;
 
@@ -44,7 +50,7 @@ export class PluginService {
         string,
         { controller: AbortController; promise: Promise<void> }
     >();
-    private readonly localContainers = new Set<string>();
+    private readonly commandHandles = new Map<string, PluginLocalCommandHandle>();
     private closed = false;
 
     constructor(
@@ -54,8 +60,10 @@ export class PluginService {
         private readonly packages: PluginPackageStore,
         private readonly secrets: PluginSecretProtector,
         private readonly runtime: PluginMcpRuntime,
+        private readonly tokens: TokenService,
         private readonly urlPolicy: WebhookUrlPolicy,
         private readonly remoteTransport: WebhookTransport,
+        private readonly hostApiUrl: string,
         private readonly onError: (error: unknown) => void,
     ) {}
 
@@ -148,84 +156,33 @@ export class PluginService {
             this.secrets,
             installationId,
         );
-        if (configuration.type !== "stdio")
+        if (configuration.type !== "local" || !configuration.mcp)
             throw new PluginError("not_found", "Plugin does not expose a local stdio MCP server");
+        const environment = this.runtimeEnvironment(
+            configuration,
+            await this.pluginRuntimeToken(configuration),
+        );
         return this.runtime.openLocal({
             containerName: configuration.containerName,
-            command: configuration.command,
-            args: configuration.args,
-            environment: configuration.environment,
+            command: configuration.mcp.command,
+            args: configuration.mcp.args,
+            environment,
         });
     }
 
     async listFunctions(signal?: AbortSignal): Promise<readonly PluginFunctionDefinition[]> {
-        return withOperationTimeout(
-            FUNCTION_DISCOVERY_TIMEOUT_MS,
-            "Plugin MCP function discovery",
-            signal,
-            (operationSignal) => this.listFunctionsWithSignal(operationSignal),
-        );
-    }
-
-    private async listFunctionsWithSignal(
-        signal: AbortSignal,
-    ): Promise<readonly PluginFunctionDefinition[]> {
-        const installationIds = await pluginInstallationListReadyMcpIds(this.executor);
-        const functions: PluginFunctionDefinition[] = [];
-        for (const installationId of installationIds) {
-            try {
-                const discovered = await this.withClient(
-                    installationId,
-                    signal,
-                    async (client, configuration) => {
-                        const definitions: PluginFunctionDefinition[] = [];
-                        const seenCursors = new Set<string>();
-                        const remaining = MAX_RIG_PLUGIN_FUNCTIONS - functions.length;
-                        let pages = 0;
-                        let cursor: string | undefined;
-                        do {
-                            pages += 1;
-                            if (pages > MAX_RIG_PLUGIN_FUNCTIONS)
-                                throw new PluginFunctionCatalogError(
-                                    "Plugin MCP tool pagination exceeded the page limit",
-                                );
-                            const page = await client.listTools(
-                                cursor === undefined ? undefined : { cursor },
-                            );
-                            for (const tool of page.tools) {
-                                if (definitions.length >= remaining)
-                                    throw new PluginFunctionCatalogError(
-                                        `Installed plugins expose more than Rig's ${MAX_RIG_PLUGIN_FUNCTIONS}-function limit`,
-                                    );
-                                definitions.push({
-                                    description:
-                                        tool.description ??
-                                        `Runs ${tool.name} from the ${configuration.shortName} plugin.`,
-                                    label: `${configuration.shortName}: ${tool.title ?? tool.name}`,
-                                    name: pluginFunctionName(installationId, tool.name),
-                                    parameters: tool.inputSchema,
-                                });
-                            }
-                            if (page.nextCursor && seenCursors.has(page.nextCursor))
-                                throw new Error("Plugin MCP tool pagination repeated a cursor");
-                            if (page.nextCursor) seenCursors.add(page.nextCursor);
-                            cursor = page.nextCursor;
-                        } while (cursor !== undefined);
-                        return definitions;
-                    },
-                );
-                if (discovered) functions.push(...discovered);
-            } catch (error) {
-                if (signal.aborted) throw error;
-                if (error instanceof PluginFunctionCatalogError) throw error;
-                this.onError(error);
-            }
-        }
-        if (functions.length > MAX_RIG_PLUGIN_FUNCTIONS)
-            throw new Error(
-                `Installed plugins expose ${functions.length} MCP tools, exceeding Rig's ${MAX_RIG_PLUGIN_FUNCTIONS}-function limit`,
+        signal?.throwIfAborted();
+        const tools = await pluginMcpToolsListReady(this.executor);
+        if (tools.length > MAX_RIG_PLUGIN_FUNCTIONS)
+            throw new PluginFunctionCatalogError(
+                `Installed plugins expose ${tools.length} MCP tools, exceeding Rig's ${MAX_RIG_PLUGIN_FUNCTIONS}-function limit`,
             );
-        return functions;
+        return tools.map((tool) => ({
+            description: tool.description ?? `Runs ${tool.name} from the ${tool.shortName} plugin.`,
+            label: `${tool.shortName}: ${tool.title ?? tool.name}`,
+            name: pluginFunctionName(tool.installationId, tool.name),
+            parameters: tool.inputSchema,
+        }));
     }
 
     async callFunction(
@@ -267,63 +224,73 @@ export class PluginService {
         const ready = await pluginInstallationListReadyMcpIds(this.executor);
         if (!ready.includes(installationId))
             throw new Error("The plugin installation is not ready");
-        const result = await this.withClient(
-            installationId,
-            signal,
-            async (client, configuration) => {
-                const seenCursors = new Set<string>();
-                let pages = 0;
-                let cursor: string | undefined;
-                let toolName: string | undefined;
-                do {
-                    pages += 1;
-                    if (pages > MAX_RIG_PLUGIN_FUNCTIONS)
-                        throw new Error("Plugin MCP tool pagination exceeded the page limit");
-                    const page = await client.listTools(
-                        cursor === undefined ? undefined : { cursor },
-                    );
-                    toolName = page.tools.find(
-                        (tool) => pluginFunctionName(installationId, tool.name) === functionName,
-                    )?.name;
-                    if (page.nextCursor && seenCursors.has(page.nextCursor))
-                        throw new Error("Plugin MCP tool pagination repeated a cursor");
-                    if (page.nextCursor) seenCursors.add(page.nextCursor);
-                    cursor = page.nextCursor;
-                } while (!toolName && cursor !== undefined);
-                if (!toolName)
-                    throw new Error(
-                        `The ${configuration.shortName} plugin no longer exposes this function`,
-                    );
-                const result = await client.callTool({
-                    name: toolName,
-                    arguments: jsonArguments(args),
-                });
-                if (result.isError)
-                    return {
-                        status: "failed" as const,
-                        error: {
-                            code: "plugin_mcp_error",
-                            message: mcpErrorMessage(result.content),
-                            data: result,
-                        },
-                    };
-                return { status: "completed" as const, output: result };
-            },
+        const cached = (await pluginMcpToolsListReady(this.executor)).find(
+            (tool) =>
+                tool.installationId === installationId &&
+                pluginFunctionName(installationId, tool.name) === functionName,
         );
+        if (!cached) throw new Error("The plugin no longer exposes this cached function");
+        const result = await this.withClient(installationId, signal, async (client) => {
+            const result = await client.callTool({
+                name: cached.name,
+                arguments: jsonArguments(args),
+            });
+            if (result.isError)
+                return {
+                    status: "failed" as const,
+                    error: {
+                        code: "plugin_mcp_error",
+                        message: mcpErrorMessage(result.content),
+                        data: result,
+                    },
+                };
+            return { status: "completed" as const, output: result };
+        });
         if (!result) throw new Error("The plugin does not expose MCP tools");
         return result;
+    }
+
+    async authorizeHost(token: string, permission: PluginHostPermission): Promise<string> {
+        let claims: Awaited<ReturnType<TokenService["verifyPluginRuntimeToken"]>>;
+        try {
+            claims = await this.tokens.verifyPluginRuntimeToken(token);
+        } catch {
+            throw new PluginError("forbidden", "Plugin runtime token is invalid");
+        }
+        if (!claims.permissions.includes(permission))
+            throw new PluginError("forbidden", `Plugin runtime lacks ${permission} permission`);
+        const authorized = await pluginContainerInstanceAuthorize(
+            this.executor,
+            claims.installationId,
+            claims.containerInstanceId,
+        );
+        if (!authorized)
+            throw new PluginError("forbidden", "Plugin container incarnation is not authorized");
+        if (
+            !this.runtime.isLocalRunning ||
+            !(await this.runtime.isLocalRunning(
+                authorized.containerName,
+                claims.installationId,
+                claims.containerInstanceId,
+            ))
+        ) {
+            const hint = await pluginContainerInstanceInvalidate(this.executor, {
+                installationId: claims.installationId,
+                containerInstanceId: claims.containerInstanceId,
+                detail: "Plugin container is missing or stopped.",
+            });
+            if (hint) await this.publish(hint).catch(this.onError);
+            throw new PluginError("forbidden", "Plugin container incarnation is not running");
+        }
+        return claims.installationId;
     }
 
     async close(): Promise<void> {
         this.closed = true;
         for (const { controller } of this.activations.values()) controller.abort();
         await Promise.allSettled([...this.activations.values()].map(({ promise }) => promise));
-        await Promise.allSettled(
-            [...this.localContainers].map((containerName) =>
-                this.runtime.removeLocal(containerName),
-            ),
-        );
-        this.localContainers.clear();
+        for (const handle of this.commandHandles.values()) handle.close();
+        this.commandHandles.clear();
     }
 
     private activate(installationId: string): void {
@@ -347,14 +314,19 @@ export class PluginService {
             installationId,
         );
         if (configuration.type === "skills_only") return undefined;
+        if (configuration.type === "local" && !configuration.mcp) return undefined;
+        const localToken =
+            configuration.type === "local"
+                ? await this.pluginRuntimeToken(configuration)
+                : undefined;
         const transport =
-            configuration.type === "stdio"
+            configuration.type === "local"
                 ? await this.runtime.openLocal(
                       {
                           containerName: configuration.containerName,
-                          command: configuration.command,
-                          args: configuration.args,
-                          environment: configuration.environment,
+                          command: configuration.mcp!.command,
+                          args: configuration.mcp!.args,
+                          environment: this.runtimeEnvironment(configuration, localToken!),
                       },
                       signal,
                   )
@@ -378,6 +350,9 @@ export class PluginService {
 
     private async runActivation(installationId: string, signal: AbortSignal): Promise<void> {
         let preparedContainerName: string | undefined;
+        let preparedContainerInstanceId: string | undefined;
+        let commandHandle: PluginLocalCommandHandle | undefined;
+        this.closeCommand(installationId);
         try {
             signal.throwIfAborted();
             await this.status(
@@ -402,8 +377,14 @@ export class PluginService {
             }
             if (configuration.type === "remote") {
                 await this.status(installationId, "starting", "Checking the remote MCP server.");
-                await this.probeRemote(configuration, signal);
-                await this.status(installationId, "ready", "Remote MCP server is healthy.");
+                const tools = await this.probeRemote(configuration, signal);
+                const hint = await pluginMcpToolsReplace(this.executor, installationId, tools);
+                await this.publish(hint).catch(this.onError);
+                await this.status(
+                    installationId,
+                    "ready",
+                    "Remote MCP server and cached tools are ready.",
+                );
                 return;
             }
             const dockerfile = configuration.bundledDockerfile
@@ -416,6 +397,8 @@ export class PluginService {
                 {
                     installationId,
                     containerName: configuration.containerName,
+                    containerInstanceId: createId(),
+                    existingContainerInstanceId: configuration.containerInstanceId,
                     imageTag: configuration.imageTag,
                     ...(dockerfile
                         ? {
@@ -430,28 +413,62 @@ export class PluginService {
                 signal,
             );
             preparedContainerName = configuration.containerName;
-            this.localContainers.add(configuration.containerName);
+            preparedContainerInstanceId = prepared.containerInstanceId;
+            const token = await this.tokens.issuePluginRuntimeToken({
+                installationId,
+                containerInstanceId: prepared.containerInstanceId,
+                permissions: configuration.permissions,
+            });
+            const environment = this.runtimeEnvironment(configuration, token);
             await this.status(
                 installationId,
                 "starting",
-                "Starting and checking the containerized MCP server.",
+                "Starting and checking the containerized plugin runtime.",
                 undefined,
                 prepared.imageTag,
+                prepared.containerInstanceId,
             );
-            await this.probeLocal(configuration, signal);
+            if (configuration.command) {
+                commandHandle = prepared.reused
+                    ? await this.runtime.monitorLocalCommand(configuration.containerName, signal)
+                    : await this.runtime.startLocalCommand(
+                          {
+                              containerName: configuration.containerName,
+                              command: configuration.command.command,
+                              args: configuration.command.args,
+                              environment,
+                          },
+                          signal,
+                      );
+                this.commandHandles.set(installationId, commandHandle);
+                await commandSurviveStartup(commandHandle.wait, signal);
+            }
+            if (configuration.mcp) {
+                const tools = await this.probeLocal(configuration, environment, signal);
+                const hint = await pluginMcpToolsReplace(this.executor, installationId, tools);
+                await this.publish(hint).catch(this.onError);
+            }
             await this.status(
                 installationId,
                 "ready",
-                "Containerized MCP server is healthy.",
+                configuration.mcp
+                    ? "Containerized plugin runtime and MCP tools are ready."
+                    : "Containerized plugin command is running.",
                 undefined,
                 prepared.imageTag,
+                prepared.containerInstanceId,
             );
+            if (commandHandle)
+                this.monitorCommand(installationId, configuration.containerName, commandHandle);
         } catch (error) {
-            if (preparedContainerName) {
-                this.localContainers.delete(preparedContainerName);
-                await this.runtime.removeLocal(preparedContainerName).catch(this.onError);
+            if (commandHandle) {
+                if (this.commandHandles.get(installationId) === commandHandle)
+                    this.commandHandles.delete(installationId);
+                commandHandle.close();
             }
             if (signal.aborted && this.closed) return;
+            if (preparedContainerName)
+                await this.runtime.removeLocal(preparedContainerName).catch(this.onError);
             const broken = error instanceof PluginError && error.code === "broken_configuration";
             await this.status(
                 installationId,
@@ -460,23 +477,34 @@ export class PluginService {
                     ? "Plugin configuration must be corrected before it can start."
                     : "Plugin runtime failed to prepare or start.",
                 errorMessage(error),
+                undefined,
+                preparedContainerInstanceId ? null : undefined,
             ).catch(this.onError);
         }
     }
 
     private async probeLocal(
-        configuration: Extract<PluginRuntimeConfiguration, { type: "stdio" }>,
+        configuration: Extract<PluginRuntimeConfiguration, { type: "local" }>,
+        environment: Readonly<Record<string, string>>,
         signal: AbortSignal,
-    ): Promise<void> {
+    ): Promise<PluginMcpToolInput[]> {
+        if (!configuration.mcp) return [];
         const transport = await this.runtime.openLocal(
             {
                 containerName: configuration.containerName,
-                command: configuration.command,
-                args: configuration.args,
-                environment: configuration.environment,
+                command: configuration.mcp.command,
+                args: configuration.mcp.args,
+                environment,
             },
             signal,
         );
+        return this.discoverTools(transport, signal);
+    }
+
+    private async discoverTools(
+        transport: Transport,
+        signal: AbortSignal,
+    ): Promise<PluginMcpToolInput[]> {
         const client = new Client({ name: "happy2-plugin-health", version: "1.0.0" });
         try {
             await withTimeout(
@@ -486,6 +514,45 @@ export class PluginService {
                 signal,
             );
             await withTimeout(client.ping(), HEALTH_TIMEOUT_MS, "MCP ping", signal);
+            const tools: PluginMcpToolInput[] = [];
+            const cursors = new Set<string>();
+            let cursor: string | undefined;
+            do {
+                const listed = await withTimeout(
+                    client.listTools(cursor ? { cursor } : undefined),
+                    HEALTH_TIMEOUT_MS,
+                    "MCP tool discovery",
+                    signal,
+                );
+                tools.push(
+                    ...listed.tools.map((tool) => ({
+                        name: tool.name,
+                        ...(tool.title ? { title: tool.title } : {}),
+                        ...(tool.description ? { description: tool.description } : {}),
+                        inputSchema: tool.inputSchema,
+                        ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
+                        ...(tool.annotations ? { annotations: tool.annotations } : {}),
+                    })),
+                );
+                if (tools.length > MAX_PLUGIN_MCP_TOOLS)
+                    throw new PluginError(
+                        "broken_configuration",
+                        "Plugin MCP exposes too many tools",
+                    );
+                cursor = listed.nextCursor;
+                if (cursor && cursors.has(cursor))
+                    throw new PluginError(
+                        "broken_configuration",
+                        "Plugin MCP tool pagination repeated a cursor",
+                    );
+                if (cursor) cursors.add(cursor);
+                if (cursors.size > MAX_PLUGIN_MCP_TOOLS)
+                    throw new PluginError(
+                        "broken_configuration",
+                        "Plugin MCP tool pagination has too many pages",
+                    );
+            } while (cursor);
+            return tools;
         } finally {
             await client.close().catch(() => transport.close());
         }
@@ -494,60 +561,18 @@ export class PluginService {
     private async probeRemote(
         configuration: Extract<PluginRuntimeConfiguration, { type: "remote" }>,
         signal: AbortSignal,
-    ): Promise<void> {
-        const destination = await withTimeout(
-            this.urlPolicy.resolveForDelivery(configuration.url),
-            HEALTH_TIMEOUT_MS,
-            "Remote MCP DNS resolution",
-            signal,
-        );
-        const id = createId();
-        const response = await withTimeout(
-            this.remoteTransport.deliver({
-                deliveryId: `plugin-health:${configuration.installationId}`,
-                eventId: id,
-                eventType: "plugin.mcp.initialize",
-                url: destination.url,
-                allowedAddresses: destination.addresses,
-                headers: {
-                    ...configuration.headers,
-                    accept: "application/json, text/event-stream",
-                    "content-type": "application/json",
-                    "mcp-protocol-version": LATEST_PROTOCOL_VERSION,
-                },
-                body: JSON.stringify({
-                    jsonrpc: "2.0",
-                    id,
-                    method: "initialize",
-                    params: {
-                        protocolVersion: LATEST_PROTOCOL_VERSION,
-                        capabilities: {},
-                        clientInfo: { name: "happy2-plugin-health", version: "1.0.0" },
-                    },
-                }),
+    ): Promise<PluginMcpToolInput[]> {
+        return this.discoverTools(
+            new RemotePluginMcpTransport({
+                headers: configuration.headers,
+                installationId: configuration.installationId,
+                remoteTransport: this.remoteTransport,
+                signal,
+                url: configuration.url,
+                urlPolicy: this.urlPolicy,
             }),
-            HEALTH_TIMEOUT_MS,
-            "Remote MCP initialization",
             signal,
         );
-        if (response.statusCode < 200 || response.statusCode >= 300)
-            throw new Error(`Remote MCP initialization returned HTTP ${response.statusCode}`);
-        const payload = remoteJson(response.body ?? "");
-        if (
-            !payload ||
-            payload.jsonrpc !== "2.0" ||
-            payload.id !== id ||
-            (!payload.result && !payload.error)
-        )
-            throw new Error("Remote MCP initialization returned an invalid JSON-RPC response");
-        if (payload.error) {
-            const error =
-                payload.error && typeof payload.error === "object" && !Array.isArray(payload.error)
-                    ? (payload.error as Record<string, unknown>)
-                    : undefined;
-            const code = typeof error?.code === "number" ? ` with code ${error.code}` : "";
-            throw new Error(`Remote MCP initialization returned a JSON-RPC error${code}`);
-        }
     }
 
     private async status(
@@ -556,6 +581,7 @@ export class PluginService {
         detail: string,
         error?: string,
         runtimeImageTag?: string,
+        containerInstanceId?: string | null,
     ): Promise<void> {
         const hint = await pluginInstallationUpdateStatus(this.executor, {
             installationId,
@@ -563,12 +589,65 @@ export class PluginService {
             detail,
             error,
             runtimeImageTag,
+            containerInstanceId,
         });
         await this.publish(hint).catch(this.onError);
     }
 
     private publish(hint: MutationHint): Promise<void> {
         return this.pubsub.publish(realtimeTopics.server, { type: "sync", ...hint });
+    }
+
+    private closeCommand(installationId: string): void {
+        const handle = this.commandHandles.get(installationId);
+        if (!handle) return;
+        this.commandHandles.delete(installationId);
+        handle.close();
+    }
+
+    private monitorCommand(
+        installationId: string,
+        containerName: string,
+        handle: PluginLocalCommandHandle,
+    ): void {
+        void handle.wait
+            .then(async (result) => {
+                if (this.closed || this.commandHandles.get(installationId) !== handle) return;
+                this.commandHandles.delete(installationId);
+                await this.runtime.removeLocal(containerName).catch(this.onError);
+                await this.status(
+                    installationId,
+                    "failed",
+                    "Plugin runtime command exited.",
+                    commandExitMessage(result),
+                    undefined,
+                    null,
+                );
+            })
+            .catch(this.onError);
+    }
+
+    private runtimeEnvironment(
+        configuration: Extract<PluginRuntimeConfiguration, { type: "local" }>,
+        token: string,
+    ): Readonly<Record<string, string>> {
+        return {
+            ...configuration.environment,
+            HAPPY2_PLUGIN_API_URL: this.hostApiUrl,
+            HAPPY2_PLUGIN_API_TOKEN: token,
+        };
+    }
+
+    private pluginRuntimeToken(
+        configuration: Extract<PluginRuntimeConfiguration, { type: "local" }>,
+    ): Promise<string> {
+        if (!configuration.containerInstanceId)
+            throw new PluginError("not_ready", "Plugin container incarnation is unavailable");
+        return this.tokens.issuePluginRuntimeToken({
+            installationId: configuration.installationId,
+            containerInstanceId: configuration.containerInstanceId,
+            permissions: configuration.permissions,
+        });
     }
 }
 
@@ -614,32 +693,44 @@ function mcpErrorMessage(content: unknown): string {
     return "The plugin MCP tool returned an error";
 }
 
-function remoteJson(body: string): Record<string, unknown> | undefined {
-    const direct = jsonRecord(body.trim());
-    if (direct) return direct;
-    let data: string[] = [];
-    for (const line of body.split(/\r?\n/)) {
-        if (!line) {
-            const event = jsonRecord(data.join("\n"));
-            if (event) return event;
-            data = [];
-        } else if (line.startsWith("data:")) {
-            data.push(line.slice(5).trimStart());
-        }
-    }
-    return jsonRecord(data.join("\n"));
+function commandSurviveStartup(
+    wait: PluginLocalCommandHandle["wait"],
+    signal: AbortSignal,
+): Promise<void> {
+    if (signal.aborted) return Promise.reject(abortReason(signal));
+    return new Promise<void>((resolve, reject) => {
+        let settled = false;
+        const finish = (action: () => void) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            signal.removeEventListener("abort", aborted);
+            action();
+        };
+        const aborted = () => finish(() => reject(abortReason(signal)));
+        const timer = setTimeout(() => finish(resolve), COMMAND_STARTUP_GRACE_MS);
+        signal.addEventListener("abort", aborted, { once: true });
+        wait.then(
+            (result) =>
+                finish(() =>
+                    reject(
+                        new Error(
+                            `Plugin command exited during startup: ${commandExitMessage(result)}`,
+                        ),
+                    ),
+                ),
+            (error) => finish(() => reject(error)),
+        );
+    });
 }
 
-function jsonRecord(source: string): Record<string, unknown> | undefined {
-    if (!source) return undefined;
-    try {
-        const value = JSON.parse(source);
-        return value && typeof value === "object" && !Array.isArray(value)
-            ? (value as Record<string, unknown>)
-            : undefined;
-    } catch {
-        return undefined;
-    }
+function commandExitMessage(result: {
+    exitCode: number | null;
+    signal: NodeJS.Signals | null;
+}): string {
+    return result.signal
+        ? `Plugin command exited after signal ${result.signal}`
+        : `Plugin command exited with code ${result.exitCode ?? "unknown"}`;
 }
 
 function withTimeout<T>(

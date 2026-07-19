@@ -18,8 +18,21 @@ export function installedManifest(source: string): PluginManifest {
         !value.variables.every(variable)
     )
         throw unreadable();
+    if (value.container !== undefined && !container(value.container)) throw unreadable();
     if (value.mcp !== undefined && !mcp(value.mcp)) throw unreadable();
     return value as unknown as PluginManifest;
+}
+
+function container(value: unknown): boolean {
+    return (
+        record(value) &&
+        (value.dockerfile === undefined || typeof value.dockerfile === "string") &&
+        (value.command === undefined || typeof value.command === "string") &&
+        Array.isArray(value.args) &&
+        value.args.every((argument) => typeof argument === "string") &&
+        Array.isArray(value.permissions) &&
+        value.permissions.every((permission) => permission === "plugins:list")
+    );
 }
 
 function variable(value: unknown): boolean {

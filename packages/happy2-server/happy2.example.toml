@@ -9,6 +9,14 @@ public_url = "http://127.0.0.1:3000"
 # A wrong nonzero value lets clients spoof rate-limit and access telemetry IPs.
 trusted_proxy_hops = 0
 
+[plugins]
+# Dedicated capability-only listener reached by plugin containers through the
+# happy2.host.internal container-host mapping.
+# The cross-platform host-gateway path requires a non-loopback bind. Firewall
+# this fixed port from untrusted LANs; it is not a public product API.
+host_api_host = "0.0.0.0"
+host_api_port = 3001
+
 [database]
 # A local file works for one host. Use a shared libSQL endpoint when auth and
 # API are independently deployed, so every instance sees the same sessions.

@@ -77,6 +77,16 @@ import { registerSyncRoutes } from "./routes/sync.js";
 import { registerSetupRoutes } from "./routes/setup.js";
 import { registerWorkspaceRoutes } from "./routes/workspace.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
+import { createPluginHostApi } from "./routes/pluginHost.js";
+
+const pluginHostApis = new WeakMap<FastifyInstance, FastifyInstance>();
+
+/** Returns the isolated plugin host listener for black-box harness injection without exposing its routes on the product server. */
+export function pluginHostApiFor(app: FastifyInstance): FastifyInstance {
+    const hostApi = pluginHostApis.get(app);
+    if (!hostApi) throw new Error("This server does not run the plugin host API");
+    return hostApi;
+}
 
 interface Services {
     client: Client;
@@ -208,6 +218,7 @@ export async function buildServer(
     let agentService: AgentService | undefined;
     let workspaceService: WorkspaceService | undefined;
     let pluginService: PluginService | undefined;
+    let pluginHostApi: FastifyInstance | undefined;
     let pluginBridge: PluginMcpHttpBridge | undefined;
     let expiryTimer: NodeJS.Timeout | undefined;
     let pendingSweep: Promise<void> = Promise.resolve();
@@ -275,10 +286,20 @@ export async function buildServer(
             new PluginPackageStore(config.plugins.directory),
             pluginSecrets,
             services.pluginMcpRuntime ?? new SandboxPluginMcpRuntime(pluginProvider),
+            services.tokens,
             webhookUrlPolicy,
             webhookTransport,
+            `http://happy2.host.internal:${config.plugins.hostApiPort}`,
             (error) => app.log.error(error),
         );
+        pluginHostApi = createPluginHostApi(executor, pluginService, supplied?.logger ?? true);
+        pluginHostApis.set(app, pluginHostApi);
+        app.addHook("onListen", async () => {
+            await pluginHostApi!.listen({
+                host: config.plugins.hostApiHost,
+                port: config.plugins.hostApiPort,
+            });
+        });
         agentService =
             services.agents ??
             (config.agents.enabled
@@ -452,6 +473,7 @@ export async function buildServer(
         expiryTimer.unref();
     }
     app.addHook("onClose", async () => {
+        await pluginHostApi?.close();
         await pluginBridge?.close();
         await pluginService?.close();
         await workspaceService?.close();

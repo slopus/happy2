@@ -51,6 +51,8 @@ export interface ServerConfig {
     };
     plugins: {
         directory: string;
+        hostApiHost: string;
+        hostApiPort: number;
     };
     security: {
         integrationSecretEnv: string;

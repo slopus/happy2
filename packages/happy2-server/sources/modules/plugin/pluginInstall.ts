@@ -23,6 +23,7 @@ import {
 import { pluginInstallationSelection } from "./impl/installationSelection.js";
 import { asPluginInstallation } from "./impl/asInstallation.js";
 import { installedManifest } from "./impl/installedManifest.js";
+import { effectiveContainer } from "./impl/effectiveContainer.js";
 
 const MAX_VARIABLE_BYTES = 64 * 1024;
 
@@ -101,8 +102,9 @@ export async function pluginInstall(
 
         const definitions = manifest.variables;
         const mcp = manifest.mcp;
+        const localContainer = effectiveContainer(manifest);
         validateVariables(definitions, input.variables);
-        const selectionRequired = mcp?.type === "stdio" && !mcp.container;
+        const selectionRequired = Boolean(localContainer && !localContainer.dockerfile);
         if (selectionRequired && !input.containerImageId)
             throw new PluginError(
                 "broken_configuration",
@@ -132,20 +134,21 @@ export async function pluginInstall(
         }
 
         const id = input.installationId;
-        const status = mcp ? "preparing" : "ready";
+        const hasRuntime = Boolean(localContainer || mcp?.type === "remote");
+        const status = hasRuntime ? "preparing" : "ready";
         const [created] = await tx
             .insert(pluginInstallations)
             .values({
                 id,
                 pluginId,
                 containerImageId: input.containerImageId,
-                containerName: mcp?.type === "stdio" ? `happy2-plugin-${id}` : null,
+                containerName: localContainer ? `happy2-plugin-${id}` : null,
                 status,
-                statusDetail: mcp
+                statusDetail: hasRuntime
                     ? "Plugin runtime is queued for preparation."
                     : "Plugin skills are installed.",
                 installedByUserId: input.actorUserId,
-                readyAt: mcp ? null : new Date().toISOString(),
+                readyAt: hasRuntime ? null : new Date().toISOString(),
             })
             .returning({ id: pluginInstallations.id });
         if (!created) throw new Error("Plugin installation was not created");
@@ -175,6 +178,8 @@ export async function pluginInstall(
                 shortName: manifest.shortName,
                 version: manifest.version,
                 mcpType: mcp?.type,
+                container: Boolean(localContainer),
+                containerPermissions: localContainer?.permissions ?? [],
                 variableKeys: definitions.map(({ key }) => key),
                 containerImageId: input.containerImageId,
             },

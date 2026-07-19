@@ -15,6 +15,7 @@ import {
 } from "@libsql/client";
 import {
     buildServer,
+    pluginHostApiFor,
     AesGcmSecretProtector,
     AesGcmPluginSecretProtector,
     accountCreatePassword,
@@ -76,6 +77,8 @@ export interface GymServer extends GymRequestClient, AsyncDisposable {
     /** Simulates successful server-owned provider/image work for unrelated workflows. */
     completeSetup(input: { actorUserId: string; registrationEnabled: boolean }): Promise<void>;
     as(user: GymUser): GymRequestClient;
+    /** Sends requests only to the dedicated capability-scoped plugin host listener. */
+    pluginHost(): GymRequestClient;
     /** Binds this same in-process server to an ephemeral loopback port for streaming tests. */
     listen(): Promise<string>;
     /** Rebuilds every process-local service while preserving durable state; `beforeStart` can model crash residue after shutdown. */
@@ -226,6 +229,16 @@ class GymServerInstance implements GymServer {
         options: Omit<InjectOptions, "method" | "url" | "payload"> = {},
     ): Promise<LightMyRequestResponse> {
         return this.request({ ...options, method: "POST", url, payload });
+    }
+
+    pluginHost(): GymRequestClient {
+        const request = (options: InjectOptions) => pluginHostApiFor(this.app).inject(options);
+        return {
+            request,
+            get: (url, options = {}) => request({ ...options, method: "GET", url }),
+            post: (url, payload, options = {}) =>
+                request({ ...options, method: "POST", url, payload }),
+        };
     }
 
     async createUser(input: CreateGymUser = {}): Promise<GymUser> {
@@ -422,6 +435,7 @@ function gymConfig(databaseUrl: string): ServerConfig {
     config.database.url = databaseUrl;
     config.files.directory = "/files";
     config.server.publicUrl = "http://gym.invalid";
+    config.plugins.hostApiPort = 0;
     config.jwt.issuer = "http://gym.invalid";
     config.jwt.keyId = "gym-server";
     config.auth.password.enabled = false;

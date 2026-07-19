@@ -44,6 +44,8 @@ export function defaultConfig(): ServerConfig {
         },
         plugins: {
             directory: paths.pluginsDirectory,
+            hostApiHost: "0.0.0.0",
+            hostApiPort: 3001,
         },
         security: {
             integrationSecretEnv: "HAPPY2_INTEGRATION_SECRET",

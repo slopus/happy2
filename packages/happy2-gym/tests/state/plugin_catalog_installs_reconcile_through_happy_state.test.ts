@@ -82,8 +82,20 @@ function helloInstallations(snapshot: PluginsSnapshot) {
 
 /** Answers the local MCP lifecycle in memory so hello's bundled container becomes ready without Docker. */
 class StubPluginMcpRuntime implements PluginMcpRuntime {
-    async prepareLocal(input: PluginLocalPrepareInput): Promise<{ imageTag: string }> {
-        return { imageTag: input.imageTag };
+    async prepareLocal(input: PluginLocalPrepareInput) {
+        return {
+            containerInstanceId: input.existingContainerInstanceId ?? input.containerInstanceId,
+            imageTag: input.imageTag,
+            reused: input.existingContainerInstanceId !== undefined,
+        };
+    }
+
+    async startLocalCommand() {
+        return { wait: new Promise<never>(() => undefined), close() {} };
+    }
+
+    async monitorLocalCommand() {
+        return { wait: new Promise<never>(() => undefined), close() {} };
     }
 
     async openLocal(_input: PluginLocalOpenInput) {

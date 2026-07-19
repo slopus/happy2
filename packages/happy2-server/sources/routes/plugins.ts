@@ -8,6 +8,7 @@ import { pluginCatalogList } from "../modules/plugin/pluginCatalogList.js";
 import { pluginInstallationGetStatus } from "../modules/plugin/pluginInstallationGetStatus.js";
 import { pluginInstallationList } from "../modules/plugin/pluginInstallationList.js";
 import { pluginList } from "../modules/plugin/pluginList.js";
+import { pluginMcpToolsList } from "../modules/plugin/pluginMcpToolsList.js";
 import type { PluginService } from "../modules/plugin/service.js";
 import { PluginError } from "../modules/plugin/types.js";
 import { CollaborationError } from "../modules/chat/types.js";
@@ -96,6 +97,20 @@ export function registerPluginRoutes(
                     : { containerImageId: identifier(body.containerImageId, "containerImageId") }),
             });
             return reply.code(202).send({ installation });
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.get("/v0/admin/pluginInstallations/:installationId/mcpTools", async (request, reply) => {
+        const actorUserId = await actor(auth, request, reply);
+        if (!actorUserId) return;
+        try {
+            return await pluginMcpToolsList(
+                executor,
+                actorUserId,
+                pathIdentifier(request, "installationId"),
+            );
         } catch (error) {
             return handled(reply, error) ?? Promise.reject(error);
         }

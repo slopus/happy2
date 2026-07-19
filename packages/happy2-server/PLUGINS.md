@@ -1,6 +1,7 @@
 # Server plugins
 
-Happy (2) plugins package Agent Skills, an MCP server, or both. This first
+Happy (2) plugins package Agent Skills, a persistent container command, an MCP
+server, or any useful combination of those pieces. This first
 server-side implementation installs only packages bundled with the server. It
 already keeps catalog discovery, durable system plugins, immutable package/image
 snapshots, and independent runtime installations separate so a later remote
@@ -10,25 +11,30 @@ Plugin management is system-wide and administrator-only. The first installation
 of a catalog package creates one durable system-plugin record and one immutable
 package snapshot; later installations reuse that plugin identity and snapshot.
 Every installation has its own CUID2, variables, selected image, lifecycle, and
-dedicated container when it is a local stdio MCP. Remote MCP configuration is
+dedicated container when it has a local runtime. Remote MCP configuration is
 persisted and health-checked independently per installation. Ready MCP
-installations expose their tools to Rig as durable external functions on every
-agent submission. Happy executes each durable call against the originating
+installations expose their durably cached tools to Rig as external functions on
+every agent submission. Happy executes each durable call against the originating
 installation and resolves the result back into the paused Rig run. This feature
 does not yet inject installed skills, and it does not yet implement upgrade,
 uninstall, marketplace download, or OAuth flows.
 
-Tool discovery is bounded to 15 seconds per agent submission, and one MCP tool
-execution is bounded to 30 seconds so a stalled plugin cannot indefinitely block
-turn submission or Rig's global event consumer. Before execution, Happy claims a
-45-second database lease keyed by Rig session and call ID. Other server instances
-wait for that lease or replay its completed result instead of concurrently
-invoking the same tool. The first terminal outcome, including an MCP error or
-timeout, is persisted and reused for every later event delivery; Happy does not
-automatically retry an ambiguous failure because the first request may already
-have produced an external side effect. A process crash after the MCP side effect
-but before the outcome is committed can still cause one lease-expiry replay, so
-plugin tools with external side effects should themselves be idempotent.
+MCP tools are discovered during each runtime activation and atomically replace
+that installation's SQLite cache before it becomes ready. Local discovery runs
+after every container creation, and remote discovery runs on every server
+restart. Rig function discovery reads only this cache rather than opening every
+MCP server again per submission. Each discovery page is bounded to 15
+seconds, and one MCP tool execution is bounded to 30 seconds so a stalled plugin
+cannot indefinitely block turn submission or Rig's global event consumer. Before
+execution, Happy claims a 45-second database lease keyed by Rig session and call
+ID. Other server instances wait for that lease or replay its completed result
+instead of concurrently invoking the same tool. The first terminal outcome,
+including an MCP error or timeout, is persisted and reused for every later event
+delivery; Happy does not automatically retry an ambiguous failure because the
+first request may already have produced an external side effect. A process crash
+after the MCP side effect but before the outcome is committed can still cause one
+lease-expiry replay, so plugin tools with external side effects should themselves
+be idempotent.
 
 Rig sessions use Full access so durable external functions are executable without
 an unresolved permission prompt. Agent code still runs inside Happy's dedicated,
@@ -91,7 +97,13 @@ available.
             "description": "Region used for project queries.",
             "kind": "text"
         }
-    ]
+    ],
+    "container": {
+        "dockerfile": "container/Dockerfile",
+        "command": "/plugin/bin/indexer",
+        "args": ["--watch"],
+        "permissions": ["plugins:list"]
+    }
 }
 ```
 
@@ -101,10 +113,18 @@ The durable system plugin and every installation receive separate CUID2 IDs.
 Variable keys are environment variable names. Every declared variable is
 required for each installation. Secret values are encrypted with AES-256-GCM
 and are never returned by catalog or installation reads; text values are stored
-as ordinary configuration. Both kinds are supplied to a stdio process as
-environment variables.
+as ordinary configuration. Both kinds are supplied to configured local
+processes as environment variables.
 
-A package must contain at least one skill or an `mcp` definition.
+A package must contain at least one skill, `container`, or `mcp` definition.
+`container.command` is optional when the same container exposes a stdio MCP;
+otherwise it is required. A command and stdio MCP run alongside each other in
+the same dedicated installation container. Container variables are supplied to
+each configured process, not persisted in the image or container definition.
+
+`container.permissions` is an exact allowlist of host API capabilities. The
+currently supported permission is `plugins:list`. Unknown and duplicate
+permissions are rejected when the package is loaded.
 
 The bundled `hello` package is the minimal skill-plus-MCP example. It declares no
 variables or MCP authentication, so an administrator can install it with an
@@ -118,10 +138,12 @@ container.
     "mcp": {
         "type": "stdio",
         "command": "/plugin/bin/project-mcp",
-        "args": ["--stdio"],
-        "container": {
-            "dockerfile": "container/Dockerfile"
-        }
+        "args": ["--stdio"]
+    },
+    "container": {
+        "dockerfile": "container/Dockerfile",
+        "args": [],
+        "permissions": []
     }
 }
 ```
@@ -146,22 +168,29 @@ The fixed `HOME`, `TMPDIR`, and working directory are `/tmp`, so tools that
 need a cache can still run without making the image root writable.
 
 Each installation container stays alive as that installation's plugin runtime.
-Each HTTP MCP session starts
+The optional persistent command is started detached once for each container
+incarnation and monitored through a PID marker in the container's ephemeral
+`/run`. Server restart recovery adopts and resumes monitoring that same command
+without double-starting it. Each HTTP MCP session starts
 the configured command with `docker exec`/`podman exec`; variables reach that
 process through Docker/Podman's environment-copy option. Values are never placed
 in command arguments, Happy's process environment, the long-lived container
 definition, or the image build; they exist only in the short-lived OCI CLI child
-and the MCP process. Variables that could alter the OCI client itself, such as
+and the target persistent-command or MCP process. Variables that could alter the OCI client itself, such as
 `DOCKER_*`, proxy, loader, or executable-path settings, are rejected. Happy
 transparently bridges newline-delimited stdio JSON-RPC to MCP Streamable HTTP, so
 the plugin itself does not need an HTTP server.
 
 ## Stdio MCP using a selected container image
 
-Omit `mcp.container` when the plugin does not bundle its own Dockerfile:
+Omit `container.dockerfile` when the plugin does not bundle its own Dockerfile:
 
 ```json
 {
+    "container": {
+        "args": [],
+        "permissions": []
+    },
     "mcp": {
         "type": "stdio",
         "command": "npx",
@@ -220,8 +249,8 @@ transport used for SSRF-safe address pinning.
 The request body may be omitted when the manifest declares no variables and
 does not require a selected container image.
 
-`containerImageId` is required only for stdio manifests without a bundled
-container, and it is rejected in every other case. Unknown, missing, empty, or
+`containerImageId` is required for every local container manifest without a
+bundled Dockerfile, and it is rejected in every other case. Unknown, missing, empty, or
 oversized variable values are rejected. The endpoint returns HTTP 202 after the
 durable system plugin (created once), immutable package/image snapshot, new
 installation, variables, audit entry, initial state, and sync event are durable.
@@ -240,9 +269,10 @@ An installation has one of these durable health states:
 - `preparing`: copying/reconciling package and image/container state.
 - `starting`: the container exists or remote endpoint is selected and MCP
   initialization/health checking is in progress.
-- `ready`: the MCP server completed initialization and ping (local), or returned
-  a valid initialization response (remote). A skills-only plugin becomes ready
-  immediately after its durable install.
+- `ready`: a container-only command survived its startup probe; or a local or
+  remote MCP server completed initialization, ping, and durable tool discovery.
+  A skills-only plugin becomes ready immediately
+  after its durable install.
 - `broken_configuration`: stored variables, selected image state, manifest
   material, or resolved headers cannot form a valid runtime configuration.
 - `failed`: package integrity, image build, container creation, process startup,
@@ -253,8 +283,10 @@ Every transition updates `plugin_installations`, appends a `plugin.*` sync
 event, and publishes the normal server SSE hint with the `plugins` area. Clients
 must reconcile the durable catalog after a hint; the event itself is not state.
 On server restart, every installation is reconciled again. Its package path and
-SHA-256 digest are revalidated first; local containers are then recreated from
-the installed snapshot, and remote endpoints are rechecked.
+SHA-256 digest are revalidated first; a running local container with matching
+installation and incarnation labels is adopted, otherwise it is recreated from
+the installed snapshot. Adopted persistent commands resume liveness monitoring.
+Remote endpoints are rechecked.
 
 ## Read and MCP endpoints
 
@@ -277,6 +309,44 @@ the installed snapshot, and remote endpoints are rechecked.
   Streamable HTTP bridge for one ready local stdio installation. It follows MCP
   session semantics via `Mcp-Session-Id`. Happy’s existing bearer session is
   required; there is no plugin-specific OAuth exchange.
+- `GET /v0/admin/pluginInstallations/:installationId/mcpTools` returns the last
+  successfully synchronized MCP tool schemas from SQLite. It never contacts the
+  MCP server. Tool discovery is replaced atomically on every runtime activation,
+  including each server restart.
+- `GET /plugins` on the dedicated plugin host listener is the first
+  capability-scoped host API. It is deliberately absent from the product API
+  listener. A
+  container may call it only when its manifest grants `plugins:list` and it
+  presents the incarnation token supplied as `HAPPY2_PLUGIN_API_TOKEN`.
+
+Container processes receive `HAPPY2_PLUGIN_API_URL` and
+`HAPPY2_PLUGIN_API_TOKEN`. The URL is always
+`http://happy2.host.internal:<plugins.host_api_port>`; the hardened container
+adds `happy2.host.internal:host-gateway`, while the capability-only listener
+binds `plugins.host_api_host` on that fixed port. HTTP/TCP and the OCI
+`host-gateway` mapping work across Docker and Podman on macOS and Linux.
+The cross-platform default bind is `0.0.0.0` because a loopback bind is not
+reachable through Docker Desktop's or Podman's host gateway. Operators who
+expose the host to an untrusted LAN should firewall
+`plugins.host_api_port`; it is a container capability endpoint, not a public
+service.
+
+The token is an RS256 capability containing the installation ID, a random CUID2
+container-incarnation ID, and the exact manifest permissions. Token bytes are
+never stored. The incarnation ID is stored in `plugin_installations` and also
+attached to the OCI container as `dev.happy2.plugin-instance`. On each request,
+Happy verifies the signature, matches the incarnation against the ready database
+row, and confirms that the correspondingly labelled container is running. A
+stopped, missing, or replaced container therefore receives 403. A surviving
+container and its token remain valid after a server restart; startup adopts the
+matching container and refreshes its MCP tool cache instead of recreating it.
+The token intentionally has no time expiration: its lifetime is exactly the
+database-and-OCI incarnation lifetime, allowing a command to survive arbitrarily
+many server restarts without persisting or rotating token bytes. Killing,
+replacing, failing, or removing that incarnation immediately makes the token
+unauthorized.
+The capability is not a user session and the dedicated listener exposes no
+ordinary `/v0` APIs.
 
 The bridge allows at most 128 simultaneous sessions server-wide and 16 per
 authenticated user. Idle sessions close after 15 minutes; inbound requests and
@@ -297,7 +367,9 @@ thumbhash, and SHA-256 checksum.
 
 `plugin_installations` records a separate CUID2 and foreign key to `plugins`,
 plus that instance's container/image choice, lifecycle state, error detail,
-installer, and timestamps. `plugin_installation_variables` records each declared
+installer, tool-sync timestamp, and timestamps. `plugin_mcp_tools` contains the
+last complete MCP discovery keyed by installation and tool name.
+`plugin_installation_variables` records each declared
 value for one installation; secret rows contain authenticated ciphertext rather
 than plaintext. No installation uses `shortName` as identity.
 

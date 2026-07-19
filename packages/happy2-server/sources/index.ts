@@ -35,4 +35,4 @@ export {
     type PluginLocalPrepareInput,
     type PluginMcpRuntime,
 } from "./modules/plugin/runtime.js";
-export { buildServer } from "./server.js";
+export { buildServer, pluginHostApiFor } from "./server.js";

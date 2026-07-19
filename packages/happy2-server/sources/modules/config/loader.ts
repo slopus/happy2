@@ -58,6 +58,14 @@ export function parseConfig(input: string): ServerConfig {
     const agents = table(root.agents ?? {}, "agents");
     const files = table(root.files ?? {}, "files");
     const plugins = table(root.plugins ?? {}, "plugins");
+    const pluginHostApiPort = boundedPositiveInteger(
+        plugins.host_api_port,
+        "plugins.host_api_port",
+        3001,
+        65_535,
+    );
+    if (pluginHostApiPort === integer(server.port, "server.port"))
+        throw new Error("plugins.host_api_port must differ from server.port");
     const fileProvider = string(files.provider, "files.provider", true) ?? "local";
     if (fileProvider !== "local")
         throw new Error("files.provider must be local in this server build");
@@ -282,6 +290,8 @@ export function parseConfig(input: string): ServerConfig {
         plugins: {
             directory:
                 string(plugins.directory, "plugins.directory", true) ?? paths.pluginsDirectory,
+            hostApiHost: string(plugins.host_api_host, "plugins.host_api_host", true) ?? "0.0.0.0",
+            hostApiPort: pluginHostApiPort,
         },
         security: {
             integrationSecretEnv:

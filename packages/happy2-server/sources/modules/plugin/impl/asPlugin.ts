@@ -1,5 +1,6 @@
 import type { SystemPluginSummary } from "../types.js";
 import { installedManifest } from "./installedManifest.js";
+import { effectiveContainer } from "./effectiveContainer.js";
 
 export function asSystemPlugin(row: Record<string, unknown>): SystemPluginSummary {
     const sourceKind = requiredString(row.sourceKind, "plugin source kind");
@@ -9,6 +10,7 @@ export function asSystemPlugin(row: Record<string, unknown>): SystemPluginSummar
     if (contentType !== "image/png") throw new Error(`Unknown plugin image type ${contentType}`);
     const manifest = installedManifest(requiredString(row.manifestJson, "plugin manifest"));
     const mcp = manifest.mcp;
+    const localContainer = effectiveContainer(manifest);
     return {
         id,
         displayName: requiredString(row.displayName, "plugin display name"),
@@ -26,9 +28,20 @@ export function asSystemPlugin(row: Record<string, unknown>): SystemPluginSummar
                       container:
                           mcp.type === "remote"
                               ? ("none" as const)
-                              : mcp.container
+                              : localContainer?.dockerfile
                                 ? ("bundled" as const)
                                 : ("selection_required" as const),
+                  },
+              }
+            : {}),
+        ...(localContainer
+            ? {
+                  container: {
+                      image: localContainer.dockerfile
+                          ? ("bundled" as const)
+                          : ("selection_required" as const),
+                      command: Boolean(localContainer.command),
+                      permissions: localContainer.permissions,
                   },
               }
             : {}),

@@ -68,8 +68,21 @@ export interface SandboxTerminalInput {
 
 export interface PluginSandboxCreateInput {
     containerName: string;
+    containerInstanceId: string;
     imageTag: string;
     installationId: string;
+}
+
+export interface PluginSandboxState {
+    containerInstanceId: string;
+    installationId: string;
+    running: boolean;
+}
+
+export interface PluginSandboxCommandInput {
+    command: readonly string[];
+    containerName: string;
+    environment: Readonly<Record<string, string>>;
 }
 
 export interface SandboxTerminalHandle {
@@ -100,6 +113,14 @@ export interface SandboxProvider extends AgentSandboxRuntime {
     copyFileToSandbox(input: SandboxFileIngressInput, signal?: AbortSignal): Promise<void>;
     /** Optional local-runtime capability used by installed stdio MCP plugins. */
     createPluginSandbox?(input: PluginSandboxCreateInput, signal?: AbortSignal): Promise<void>;
+    inspectPluginSandbox?(
+        containerName: string,
+        signal?: AbortSignal,
+    ): Promise<PluginSandboxState | undefined>;
+    /** Starts the installation's one persistent command without coupling it to the server process. */
+    startPluginCommand?(input: PluginSandboxCommandInput, signal?: AbortSignal): Promise<void>;
+    /** Checks the persistent command marker maintained inside the installation container. */
+    isPluginCommandRunning?(containerName: string, signal?: AbortSignal): Promise<boolean>;
     probe(options?: SandboxProbeOptions): Promise<SandboxProviderStatus>;
 }
 

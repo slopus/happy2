@@ -20,6 +20,7 @@ export async function pluginInstallationUpdateStatus(
         detail: string;
         error?: string;
         runtimeImageTag?: string;
+        containerInstanceId?: string | null;
     },
 ): Promise<MutationHint> {
     return withTransaction(executor, async (tx) => {
@@ -31,6 +32,7 @@ export async function pluginInstallationUpdateStatus(
                 statusDetail: input.detail,
                 lastError: input.error ?? null,
                 runtimeImageTag: input.runtimeImageTag,
+                containerInstanceId: input.containerInstanceId,
                 syncSequence: sequence,
                 updatedAt: sql`CURRENT_TIMESTAMP`,
                 readyAt: input.status === "ready" ? sql`CURRENT_TIMESTAMP` : null,

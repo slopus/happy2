@@ -29,6 +29,7 @@ describe("installed plugin MCP tools in agent runs", () => {
         expect(installed.statusCode).toBe(202);
         const installationId = installed.json().installation.id as string;
         await waitForInstallation(client, installationId, "ready");
+        expect(pluginRuntime.listCalls).toBe(1);
         const chatId = await createAgent(client);
 
         const sent = await client.post(`/v0/chats/${chatId}/sendMessage`, {
@@ -38,6 +39,7 @@ describe("installed plugin MCP tools in agent runs", () => {
         expect(sent.statusCode).toBe(201);
         await waitFor(() => rig.submittedRuns.length === 1, "Rig submission");
         const run = rig.submittedRuns[0]!;
+        expect(pluginRuntime.listCalls).toBe(1);
         expect(run.externalTools).toEqual([
             expect.objectContaining({
                 description: "Creates a short, friendly greeting for a person.",
@@ -55,6 +57,7 @@ describe("installed plugin MCP tools in agent runs", () => {
             name: "Ada",
         });
         await server.restart();
+        await waitFor(() => pluginRuntime.listCalls === 2, "restart MCP cache refresh");
         rig.resumeGlobalEventDelivery();
 
         await waitFor(
@@ -63,6 +66,7 @@ describe("installed plugin MCP tools in agent runs", () => {
             10_000,
         );
         expect(pluginRuntime.calls).toEqual([{ name: "hello_greet", arguments: { name: "Ada" } }]);
+        expect(pluginRuntime.listCalls).toBe(2);
         expect(rig.externalToolCalls.find(({ id }) => id === callId)?.resolution).toMatchObject({
             status: "completed",
             output: {
@@ -84,9 +88,22 @@ describe("installed plugin MCP tools in agent runs", () => {
 
 class GreetingPluginMcpRuntime implements PluginMcpRuntime {
     readonly calls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
+    listCalls = 0;
 
-    async prepareLocal(input: PluginLocalPrepareInput): Promise<{ imageTag: string }> {
-        return { imageTag: input.imageTag };
+    async prepareLocal(input: PluginLocalPrepareInput) {
+        return {
+            containerInstanceId: input.existingContainerInstanceId ?? input.containerInstanceId,
+            imageTag: input.imageTag,
+            reused: input.existingContainerInstanceId !== undefined,
+        };
+    }
+
+    async startLocalCommand() {
+        return { wait: new Promise<never>(() => undefined), close() {} };
+    }
+
+    async monitorLocalCommand() {
+        return { wait: new Promise<never>(() => undefined), close() {} };
     }
 
     async openLocal(_input: PluginLocalOpenInput) {
@@ -97,7 +114,7 @@ class GreetingPluginMcpRuntime implements PluginMcpRuntime {
             async close() {
                 transport.onclose?.();
             },
-            async send(message) {
+            send: async (message) => {
                 if (!("id" in message) || !("method" in message)) return;
                 let result: Record<string, unknown>;
                 if (message.method === "initialize") {
@@ -107,6 +124,7 @@ class GreetingPluginMcpRuntime implements PluginMcpRuntime {
                         serverInfo: { name: "hello-gym", version: "1.0.0" },
                     };
                 } else if (message.method === "tools/list") {
+                    this.listCalls += 1;
                     result = {
                         tools: [
                             {

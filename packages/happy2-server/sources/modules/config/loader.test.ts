@@ -113,6 +113,24 @@ malware_scan_failure_mode = "allow"
         });
     });
 
+    it("loads a dedicated fixed plugin host API listener", () => {
+        const config = parseConfig(`${base}
+[plugins]
+host_api_host = "0.0.0.0"
+host_api_port = 43123
+`);
+        expect(config.plugins).toMatchObject({
+            hostApiHost: "0.0.0.0",
+            hostApiPort: 43123,
+        });
+        expect(() =>
+            parseConfig(`${base}
+[plugins]
+host_api_port = 3000
+`),
+        ).toThrow("must differ from server.port");
+    });
+
     it("rejects unsafe file pipeline limits", () => {
         expect(() =>
             parseConfig(`${base}

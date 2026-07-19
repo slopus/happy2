@@ -6,6 +6,11 @@ export interface SessionClaims {
     sessionId: string;
     accountId: string;
 }
+export interface PluginRuntimeClaims {
+    installationId: string;
+    containerInstanceId: string;
+    permissions: string[];
+}
 export interface TokenKeyPair {
     privateKey?: string;
     publicKey: string;
@@ -82,6 +87,42 @@ export class TokenService {
         });
         if (typeof payload.sub !== "string") throw new Error("JWT has invalid file claims");
         return payload.sub;
+    }
+
+    async issuePluginRuntimeToken(claims: PluginRuntimeClaims): Promise<string> {
+        if (!this.privateKey) throw new Error("This server has no JWT signing key");
+        return new SignJWT({ cid: claims.containerInstanceId, prm: claims.permissions })
+            .setProtectedHeader({
+                alg: "RS256",
+                kid: this.config.jwt.keyId,
+                typ: "happy2-plugin-runtime",
+            })
+            .setIssuer(this.config.jwt.issuer)
+            .setAudience(`${this.config.jwt.audience}/plugin-runtime`)
+            .setSubject(claims.installationId)
+            .setIssuedAt()
+            .sign(this.privateKey);
+    }
+
+    async verifyPluginRuntimeToken(token: string): Promise<PluginRuntimeClaims> {
+        const { payload } = await jwtVerify(token, this.publicKey, {
+            issuer: this.config.jwt.issuer,
+            audience: `${this.config.jwt.audience}/plugin-runtime`,
+            algorithms: ["RS256"],
+            typ: "happy2-plugin-runtime",
+        });
+        if (
+            typeof payload.sub !== "string" ||
+            typeof payload.cid !== "string" ||
+            !Array.isArray(payload.prm) ||
+            !payload.prm.every((permission) => typeof permission === "string")
+        )
+            throw new Error("JWT has invalid plugin runtime claims");
+        return {
+            installationId: payload.sub,
+            containerInstanceId: payload.cid,
+            permissions: payload.prm,
+        };
     }
 }
 
