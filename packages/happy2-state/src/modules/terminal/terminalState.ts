@@ -30,6 +30,9 @@ export function terminalOpen(
     let disposed = false;
     let stopRequested = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    let resizeInFlight = false;
+    let requestedSize: { cols: number; rows: number } | undefined = { cols, rows };
+    let pendingSize: { cols: number; rows: number } | undefined;
     const identity = () => {
         const frame = store.getState().frame;
         return frame ? { chatId, agentUserId, terminalId: frame.id } : undefined;
@@ -71,6 +74,38 @@ export function terminalOpen(
         stopRequested = true;
         runtime.background(runtime.operation("stopTerminal", terminal).then(() => undefined));
     };
+    const resizeSend = (nextCols: number, nextRows: number) => {
+        const terminal = identity();
+        if (disposed) return;
+        if (!terminal) {
+            pendingSize = { cols: nextCols, rows: nextRows };
+            return;
+        }
+        resizeInFlight = true;
+        runtime.background(
+            runtime
+                .operation("resizeTerminal", {
+                    ...terminal,
+                    cols: nextCols,
+                    rows: nextRows,
+                })
+                .then(({ terminal: frame }) => {
+                    if (!disposed && frame.revision >= (store.getState().frame?.revision ?? -1))
+                        store.setState({ frame });
+                })
+                .catch((error: unknown) => {
+                    if (requestedSize?.cols === nextCols && requestedSize.rows === nextRows)
+                        requestedSize = undefined;
+                    throw error;
+                })
+                .finally(() => {
+                    resizeInFlight = false;
+                    const next = pendingSize;
+                    pendingSize = undefined;
+                    if (next && !disposed) resizeSend(next.cols, next.rows);
+                }),
+        );
+    };
     const store = createStore<TerminalState>()(() => ({
         status: "connecting",
         terminalWrite(data) {
@@ -81,17 +116,11 @@ export function terminalOpen(
             );
         },
         terminalResize(nextCols, nextRows) {
-            const terminal = identity();
-            if (!terminal || disposed) return;
-            runtime.background(
-                runtime
-                    .operation("resizeTerminal", {
-                        ...terminal,
-                        cols: nextCols,
-                        rows: nextRows,
-                    })
-                    .then(({ terminal: frame }) => store.setState({ frame })),
-            );
+            if (disposed || (requestedSize?.cols === nextCols && requestedSize.rows === nextRows))
+                return;
+            requestedSize = { cols: nextCols, rows: nextRows };
+            if (resizeInFlight) pendingSize = requestedSize;
+            else resizeSend(nextCols, nextRows);
         },
         terminalReconnect: streamStart,
         terminalClose() {
@@ -115,6 +144,10 @@ export function terminalOpen(
                     return;
                 }
                 store.setState({ frame, status: "connected" });
+                const next = pendingSize;
+                pendingSize = undefined;
+                if (next && (next.cols !== frame.cols || next.rows !== frame.totalRows))
+                    resizeSend(next.cols, next.rows);
                 streamStart();
             })
             .catch((error: unknown) => {
