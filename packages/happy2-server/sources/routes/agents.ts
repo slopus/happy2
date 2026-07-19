@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { AgentService } from "../modules/agents/index.js";
+import { RigHttpError, type AgentService } from "../modules/agents/index.js";
 import type { AuthService } from "../modules/auth/service.js";
 import { CollaborationError } from "../modules/chat/types.js";
 
@@ -10,6 +10,9 @@ const MAX_SECRET_DESCRIPTION_LENGTH = 1_000;
 const MAX_SECRET_ENVIRONMENT_BYTES = 512 * 1024;
 const MAX_SECRET_ENVIRONMENT_VARIABLES = 128;
 const MAX_AGENT_EFFORT_LENGTH = 32;
+const MAX_TERMINAL_INPUT_BYTES = 64 * 1024;
+const MAX_TERMINAL_COLUMNS = 500;
+const MAX_TERMINAL_ROWS = 300;
 const SECRET_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const ENVIRONMENT_VARIABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 
@@ -18,6 +21,132 @@ export function registerAgentRoutes(
     auth: AuthService,
     agents: AgentService,
 ): void {
+    app.post(
+        "/v0/chats/:chatId/agents/:agentUserId/terminals/createTerminal",
+        authenticated(auth, async (request, reply, actorUserId) => {
+            const body = requestBody(request, ["cols", "rows"]);
+            const result = await agents.createTerminal({
+                actorUserId,
+                agentUserId: pathId(request, "agentUserId"),
+                chatId: pathId(request, "chatId"),
+                cols: terminalDimension(body, "cols", MAX_TERMINAL_COLUMNS),
+                rows: terminalDimension(body, "rows", MAX_TERMINAL_ROWS),
+            });
+            return reply.code(201).send(result);
+        }),
+    );
+
+    app.get(
+        "/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId",
+        authenticated(auth, async (request, _reply, actorUserId) => {
+            emptyQuery(request);
+            return agents.getTerminal({
+                actorUserId,
+                agentUserId: pathId(request, "agentUserId"),
+                chatId: pathId(request, "chatId"),
+                terminalId: pathId(request, "terminalId"),
+            });
+        }),
+    );
+
+    app.post(
+        "/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId/resizeTerminal",
+        authenticated(auth, async (request, _reply, actorUserId) => {
+            const body = requestBody(request, ["cols", "rows"]);
+            return agents.resizeTerminal({
+                actorUserId,
+                agentUserId: pathId(request, "agentUserId"),
+                chatId: pathId(request, "chatId"),
+                terminalId: pathId(request, "terminalId"),
+                cols: terminalDimension(body, "cols", MAX_TERMINAL_COLUMNS),
+                rows: terminalDimension(body, "rows", MAX_TERMINAL_ROWS),
+            });
+        }),
+    );
+
+    app.post(
+        "/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId/writeTerminal",
+        { bodyLimit: MAX_TERMINAL_INPUT_BYTES + 1_024 },
+        authenticated(auth, async (request, _reply, actorUserId) => {
+            const body = requestBody(request, ["data"]);
+            const data = terminalInput(body);
+            return agents.writeTerminal({
+                actorUserId,
+                agentUserId: pathId(request, "agentUserId"),
+                chatId: pathId(request, "chatId"),
+                terminalId: pathId(request, "terminalId"),
+                data,
+            });
+        }),
+    );
+
+    app.post(
+        "/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId/stopTerminal",
+        authenticated(auth, async (request, _reply, actorUserId) => {
+            emptyBody(request);
+            return agents.stopTerminal({
+                actorUserId,
+                agentUserId: pathId(request, "agentUserId"),
+                chatId: pathId(request, "chatId"),
+                terminalId: pathId(request, "terminalId"),
+            });
+        }),
+    );
+
+    app.get(
+        "/v0/chats/:chatId/agents/:agentUserId/terminals/:terminalId/stream",
+        authenticated(auth, async (request, reply, actorUserId) => {
+            const query = request.query as Record<string, unknown>;
+            const unexpected = Object.keys(query ?? {}).find((key) => key !== "after");
+            if (unexpected) throw new InvalidRequest(`Unexpected query parameter: ${unexpected}`);
+            const after = terminalRevision(query?.after);
+            const agentUserId = pathId(request, "agentUserId");
+            const chatId = pathId(request, "chatId");
+            const terminalId = pathId(request, "terminalId");
+            await agents.getTerminal({
+                actorUserId,
+                agentUserId,
+                chatId,
+                terminalId,
+            });
+            const controller = new AbortController();
+            const abort = () => controller.abort();
+            request.raw.once("aborted", abort);
+            reply.raw.once("close", abort);
+            reply.hijack();
+            reply.raw.statusCode = 200;
+            reply.raw.setHeader("content-type", "text/event-stream; charset=utf-8");
+            reply.raw.setHeader("cache-control", "private, no-cache, no-transform");
+            reply.raw.setHeader("x-accel-buffering", "no");
+            reply.raw.flushHeaders();
+            try {
+                await agents.watchTerminal(
+                    {
+                        actorUserId,
+                        agentUserId,
+                        chatId,
+                        terminalId,
+                        after,
+                    },
+                    async (frame) => {
+                        if (reply.raw.destroyed || reply.raw.writableEnded) return;
+                        if (
+                            !reply.raw.write(
+                                `id: ${frame.revision}\nevent: frame\ndata: ${JSON.stringify(frame)}\n\n`,
+                            )
+                        )
+                            await new Promise<void>((resolve) => reply.raw.once("drain", resolve));
+                    },
+                    controller.signal,
+                );
+            } finally {
+                request.raw.removeListener("aborted", abort);
+                reply.raw.removeListener("close", abort);
+                if (!reply.raw.destroyed && !reply.raw.writableEnded) reply.raw.end();
+            }
+        }),
+    );
+
     app.get(
         "/v0/chats/:chatId/agents/:agentUserId/effort",
         authenticated(auth, async (request, _reply, actorUserId) => {
@@ -211,6 +340,16 @@ function authenticated(auth: AuthService, handler: AuthenticatedHandler) {
                 return reply
                     .code(collaborationStatus(error.code))
                     .send({ error: error.code, message: error.message });
+            if (error instanceof RigHttpError && [400, 404, 409].includes(error.status))
+                return reply.code(error.status).send({
+                    error:
+                        error.status === 400
+                            ? "invalid_request"
+                            : error.status === 404
+                              ? "not_found"
+                              : "conflict",
+                    message: error.message,
+                });
             throw error;
         }
     };
@@ -272,6 +411,30 @@ function idField(body: Record<string, unknown>, key: string): string {
     if (typeof value !== "string" || !value || value.length > MAX_ID_LENGTH)
         throw new InvalidRequest(`${key} is invalid`);
     return value;
+}
+
+function terminalDimension(body: Record<string, unknown>, key: string, maximum: number): number {
+    const value = body[key];
+    if (!Number.isSafeInteger(value) || (value as number) < 1 || (value as number) > maximum)
+        throw new InvalidRequest(`${key} must be an integer between 1 and ${maximum}`);
+    return value as number;
+}
+
+function terminalInput(body: Record<string, unknown>): string {
+    const value = body.data;
+    if (typeof value !== "string" || Buffer.byteLength(value, "utf8") > MAX_TERMINAL_INPUT_BYTES)
+        throw new InvalidRequest("data must be text no larger than 64 KiB");
+    return value;
+}
+
+function terminalRevision(value: unknown): number | undefined {
+    if (value === undefined) return undefined;
+    if (typeof value !== "string" || !/^\d+$/u.test(value))
+        throw new InvalidRequest("after must be a non-negative integer");
+    const revision = Number(value);
+    if (!Number.isSafeInteger(revision))
+        throw new InvalidRequest("after must be a non-negative integer");
+    return revision;
 }
 
 function secretEnvironment(body: Record<string, unknown>): Record<string, string> {

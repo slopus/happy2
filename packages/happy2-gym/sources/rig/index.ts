@@ -56,6 +56,22 @@ interface SessionEventStream {
     sessionId: string;
 }
 
+interface TerminalEventStream {
+    response: ServerResponse;
+    sessionId: string;
+    terminalId: string;
+}
+
+interface MockTerminal {
+    cols: number;
+    exitCode: number | null;
+    id: string;
+    revision: number;
+    rows: number;
+    status: "exited" | "running";
+    text: string;
+}
+
 interface MockRunStream {
     messageId: string;
     started: boolean;
@@ -80,6 +96,7 @@ interface MockSession {
     sessionSecretIds: Set<string>;
     status: string;
     subagents: Map<string, MockRigSubagent>;
+    terminals: Map<string, MockTerminal>;
 }
 
 export interface MockRigSubagent {
@@ -159,6 +176,13 @@ export class MockRigDaemon implements AsyncDisposable {
     readonly submittedRuns: MockRigRun[] = [];
     readonly submittedTexts: string[] = [];
     readonly trimRequests: number[] = [];
+    readonly terminalInputs: Array<{ data: string; sessionId: string; terminalId: string }> = [];
+    readonly terminalResizes: Array<{
+        cols: number;
+        rows: number;
+        sessionId: string;
+        terminalId: string;
+    }> = [];
     readonly tokenPath: string;
     readonly socketPath: string;
     readonly workspaceRoot: string;
@@ -168,6 +192,8 @@ export class MockRigDaemon implements AsyncDisposable {
     globalEventReadCount = 0;
     globalStreamRequestCount = 0;
     sessionEventRequestCount = 0;
+    terminalStreamCount = 0;
+    terminalStreamDisconnectCount = 0;
     sessionStreamRequestCount = 0;
     submissionAttemptCount = 0;
     private automaticReply: string | undefined = "All tests are passing.";
@@ -189,6 +215,7 @@ export class MockRigDaemon implements AsyncDisposable {
     private readonly sessionEventStreams = new Set<SessionEventStream>();
     private readonly sessions = new Map<string, MockSession>();
     private readonly sockets = new Set<Socket>();
+    private readonly terminalEventStreams = new Set<TerminalEventStream>();
     private token = "test-token";
     private tokenSequence = 0;
     private trimmedThrough = 0;
@@ -727,6 +754,7 @@ export class MockRigDaemon implements AsyncDisposable {
                 ),
                 status: "idle",
                 subagents: new Map(),
+                terminals: new Map(),
             };
             this.sessions.set(id, session);
             this.createdCwds.push(String(body.cwd));
@@ -806,6 +834,96 @@ export class MockRigDaemon implements AsyncDisposable {
             const session = this.sessions.get(decodeURIComponent(subagentsMatch[1]!));
             if (!session) return sendJson(response, 404, { error: "Session not found" });
             return sendJson(response, 200, { subagents: [...session.subagents.values()] });
+        }
+        const terminalsMatch = url.pathname.match(/^\/sessions\/([^/]+)\/terminals$/u);
+        if (terminalsMatch) {
+            const session = this.sessions.get(decodeURIComponent(terminalsMatch[1]!));
+            if (!session) return sendJson(response, 404, { error: "Session not found" });
+            if (request.method === "POST") {
+                const body = await jsonBody(request);
+                const terminal: MockTerminal = {
+                    cols: Number(body.cols ?? 80),
+                    exitCode: null,
+                    id: `terminal-${session.terminals.size + 1}`,
+                    revision: 0,
+                    rows: Number(body.rows ?? 24),
+                    status: "running",
+                    text: "",
+                };
+                session.terminals.set(terminal.id, terminal);
+                return sendJson(response, 201, { terminal: terminalFrame(terminal) });
+            }
+        }
+        const terminalMatch = url.pathname.match(
+            /^\/sessions\/([^/]+)\/terminals\/([^/]+)(?:\/(input|stream))?$/u,
+        );
+        if (terminalMatch) {
+            const sessionId = decodeURIComponent(terminalMatch[1]!);
+            const terminalId = decodeURIComponent(terminalMatch[2]!);
+            const session = this.sessions.get(sessionId);
+            const terminal = session?.terminals.get(terminalId);
+            if (!session || !terminal)
+                return sendJson(response, 404, { error: "Terminal not found" });
+            const action = terminalMatch[3];
+            if (request.method === "GET" && action === undefined)
+                return sendJson(response, 200, { terminal: terminalFrame(terminal) });
+            if (request.method === "PATCH" && action === undefined) {
+                const body = await jsonBody(request);
+                terminal.cols = Number(body.cols);
+                terminal.rows = Number(body.rows);
+                terminal.revision += 1;
+                this.terminalResizes.push({
+                    cols: terminal.cols,
+                    rows: terminal.rows,
+                    sessionId,
+                    terminalId,
+                });
+                this.flushTerminalStreams(sessionId, terminalId);
+                return sendJson(response, 200, { terminal: terminalFrame(terminal) });
+            }
+            if (request.method === "POST" && action === "input") {
+                if (terminal.status === "exited")
+                    return sendJson(response, 409, { error: "The terminal has exited." });
+                const body = await jsonBody(request);
+                const data = String(body.data ?? "");
+                this.terminalInputs.push({ data, sessionId, terminalId });
+                terminal.text += data;
+                terminal.revision += 1;
+                this.flushTerminalStreams(sessionId, terminalId);
+                return sendJson(response, 200, { accepted: true });
+            }
+            if (request.method === "DELETE" && action === undefined) {
+                terminal.status = "exited";
+                terminal.exitCode = 0;
+                terminal.revision += 1;
+                this.flushTerminalStreams(sessionId, terminalId);
+                return sendJson(response, 200, { terminal: terminalFrame(terminal) });
+            }
+            if (request.method === "GET" && action === "stream") {
+                const afterText = url.searchParams.get("after");
+                const after = afterText === null ? undefined : Number(afterText);
+                if (
+                    after !== undefined &&
+                    (!Number.isSafeInteger(after) || after > terminal.revision)
+                )
+                    return sendJson(response, 409, { error: "Terminal revision is unavailable" });
+                response.writeHead(200, {
+                    "cache-control": "no-cache, no-transform",
+                    connection: "keep-alive",
+                    "content-type": "text/event-stream; charset=utf-8",
+                });
+                response.write(": connected\n\n");
+                this.terminalStreamCount += 1;
+                const stream = { response, sessionId, terminalId };
+                this.terminalEventStreams.add(stream);
+                if (after === undefined || terminal.revision > after)
+                    writeSseFrame(response, `data: ${JSON.stringify(terminalFrame(terminal))}\n\n`);
+                response.once("close", () => {
+                    if (this.terminalEventStreams.delete(stream))
+                        this.terminalStreamDisconnectCount += 1;
+                });
+                return;
+            }
         }
         const match = url.pathname.match(
             /^\/sessions\/([^/]+)(?:\/(messages|events|stream|effort|permissions))?$/u,
@@ -996,6 +1114,16 @@ export class MockRigDaemon implements AsyncDisposable {
                 `id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`,
             );
             stream.cursor = event.id;
+        }
+    }
+
+    private flushTerminalStreams(sessionId: string, terminalId: string): void {
+        const terminal = this.sessions.get(sessionId)?.terminals.get(terminalId);
+        if (!terminal) return;
+        for (const stream of this.terminalEventStreams) {
+            if (stream.sessionId !== sessionId || stream.terminalId !== terminalId) continue;
+            writeSseFrame(stream.response, `data: ${JSON.stringify(terminalFrame(terminal))}\n\n`);
+            if (terminal.status === "exited") stream.response.end();
         }
     }
 
@@ -1299,6 +1427,53 @@ function snapshot(session: MockSession) {
         backgroundProcesses: session.backgroundProcesses,
         snapshot: { messages: session.messages },
         status: session.status,
+    };
+}
+
+function terminalFrame(terminal: MockTerminal) {
+    const defaultColor = { kind: "palette" as const, index: 7 };
+    const style = {
+        background: null,
+        blink: false,
+        bold: false,
+        dim: false,
+        foreground: null,
+        invisible: false,
+        inverse: false,
+        italic: false,
+        overline: false,
+        strikethrough: false,
+        underline: "none" as const,
+        underlineColor: null,
+    };
+    return {
+        cols: terminal.cols,
+        cursor: {
+            blinking: true,
+            shape: "block" as const,
+            visible: terminal.status === "running",
+            x: terminal.text.length,
+            y: 0,
+        },
+        cursorColor: null,
+        defaultBackground: { kind: "palette" as const, index: 0 },
+        defaultForeground: defaultColor,
+        exitCode: terminal.exitCode,
+        id: terminal.id,
+        palette: [{ kind: "palette" as const, index: 0 }, defaultColor],
+        revision: terminal.revision,
+        rows: terminal.text
+            ? [
+                  {
+                      cells: [{ style, text: terminal.text, width: 1 as const, x: 0 }],
+                      wrapped: false,
+                  },
+              ]
+            : [],
+        startRow: 0,
+        status: terminal.status,
+        title: "Gym terminal",
+        totalRows: terminal.rows,
     };
 }
 
