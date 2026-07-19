@@ -37,6 +37,7 @@ import {
     type AgentSandboxRuntime,
     type SandboxProvider,
     type PluginCatalog,
+    type PluginArchiveDownloader,
     type PluginMcpRuntime,
     type WebhookTransport,
     type WebhookUrlPolicy,
@@ -94,6 +95,7 @@ export interface GymServerOptions {
     sandboxProviders?: readonly SandboxProvider[];
     pluginCatalog?: PluginCatalog;
     pluginMcpRuntime?: PluginMcpRuntime;
+    pluginArchiveDownloader?: PluginArchiveDownloader;
     webhookTransport?: WebhookTransport;
     webhookUrlPolicy?: WebhookUrlPolicy;
     configure?: (config: ServerConfig) => void;
@@ -139,6 +141,7 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
             pluginSecretProtector: pluginProtector,
             pluginCatalog: options.pluginCatalog,
             pluginMcpRuntime: options.pluginMcpRuntime,
+            pluginArchiveDownloader: options.pluginArchiveDownloader,
             webhookTransport: options.webhookTransport,
             webhookUrlPolicy: options.webhookUrlPolicy,
             fileStorage: new FileStorage(config, executor, fileSystem),
@@ -160,6 +163,7 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
             options.sandboxProviders,
             options.pluginCatalog,
             options.pluginMcpRuntime,
+            options.pluginArchiveDownloader,
             options.webhookTransport,
             options.webhookUrlPolicy,
             async () => {
@@ -206,6 +210,7 @@ class GymServerInstance implements GymServer {
         private readonly sandboxProviders: readonly SandboxProvider[] | undefined,
         private pluginCatalog: PluginCatalog | undefined,
         private readonly pluginMcpRuntime: PluginMcpRuntime | undefined,
+        private readonly pluginArchiveDownloader: PluginArchiveDownloader | undefined,
         private readonly webhookTransport: WebhookTransport | undefined,
         private readonly webhookUrlPolicy: WebhookUrlPolicy | undefined,
         private readonly cleanupDatabase: () => Promise<void>,
@@ -368,6 +373,7 @@ class GymServerInstance implements GymServer {
             pluginSecretProtector: this.pluginProtector,
             pluginCatalog: this.pluginCatalog,
             pluginMcpRuntime: this.pluginMcpRuntime,
+            pluginArchiveDownloader: this.pluginArchiveDownloader,
             webhookTransport: this.webhookTransport,
             webhookUrlPolicy: this.webhookUrlPolicy,
             fileStorage: new FileStorage(this.config, createDatabase(this.client), this.fileSystem),

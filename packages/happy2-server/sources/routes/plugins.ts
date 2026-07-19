@@ -9,6 +9,7 @@ import { pluginInstallationGetStatus } from "../modules/plugin/pluginInstallatio
 import { pluginInstallationList } from "../modules/plugin/pluginInstallationList.js";
 import { pluginList } from "../modules/plugin/pluginList.js";
 import { pluginMcpToolsList } from "../modules/plugin/pluginMcpToolsList.js";
+import { pluginAuthorizeManagement } from "../modules/plugin/pluginAuthorizeManagement.js";
 import type { PluginService } from "../modules/plugin/service.js";
 import { PluginError } from "../modules/plugin/types.js";
 import { CollaborationError } from "../modules/chat/types.js";
@@ -116,6 +117,114 @@ export function registerPluginRoutes(
         }
     });
 
+    app.post("/v0/admin/pluginPackages/preparePlugin", async (request, reply) => {
+        const actorUserId = await actor(auth, request, reply);
+        if (!actorUserId) return;
+        let operation:
+            | { kind: "upload"; archive: Buffer }
+            | { kind: "remote"; source: { kind: "github" | "zip_url"; url: string } };
+        try {
+            await pluginAuthorizeManagement(executor, actorUserId);
+            if (request.isMultipart()) {
+                const upload = await request.file({
+                    limits: { files: 1, fileSize: 50 * 1024 * 1024 },
+                });
+                if (!upload) throw new RequestError("A plugin ZIP file is required");
+                if (upload.fieldname !== "plugin")
+                    throw new RequestError("Plugin ZIP must use the plugin multipart field");
+                const archive = await upload.toBuffer();
+                if (upload.file.truncated) throw new RequestError("Plugin ZIP exceeds 50 MiB");
+                operation = { kind: "upload", archive };
+            } else {
+                const body = object(request.body, "Request body");
+                only(body, ["source"]);
+                const source = object(body.source, "source");
+                only(source, ["kind", "url"]);
+                if (source.kind !== "github" && source.kind !== "zip_url")
+                    throw new RequestError("source.kind must be github or zip_url");
+                if (typeof source.url !== "string" || !source.url || source.url.length > 8_192)
+                    throw new RequestError("source.url must be a valid URL");
+                operation = { kind: "remote", source: { kind: source.kind, url: source.url } };
+            }
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+        return eventStream(request, reply, async (send, signal) => {
+            const progress = (
+                stage: string,
+                detail: string,
+                bytes?: { receivedBytes: number; totalBytes?: number },
+            ) => send("progress", { stage, detail, ...bytes });
+            const result =
+                operation.kind === "upload"
+                    ? await plugins.prepareUpload(actorUserId, operation.archive, progress)
+                    : await plugins.prepareRemote(actorUserId, operation.source, progress, signal);
+            send(result.selectionRequired ? "selection_required" : "prepared", result);
+        });
+    });
+
+    app.post("/v0/admin/pluginPackages/installPlugin", async (request, reply) => {
+        const actorUserId = await actor(auth, request, reply);
+        if (!actorUserId) return;
+        try {
+            const body = object(request.body, "Request body");
+            only(body, ["preparedToken", "variables", "containerImageId"]);
+            if (typeof body.preparedToken !== "string" || body.preparedToken.length > 256)
+                throw new RequestError("preparedToken is invalid");
+            const installation = await plugins.installPrepared({
+                actorUserId,
+                preparedToken: body.preparedToken,
+                variables: variables(body.variables),
+                ...(body.containerImageId === undefined
+                    ? {}
+                    : { containerImageId: identifier(body.containerImageId, "containerImageId") }),
+            });
+            return reply.code(202).send({ installation });
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.post("/v0/admin/systemPlugins/:pluginId/checkForUpdate", async (request, reply) => {
+        const actorUserId = await actor(auth, request, reply);
+        if (!actorUserId) return;
+        let pluginId: string;
+        try {
+            await pluginAuthorizeManagement(executor, actorUserId);
+            pluginId = pathIdentifier(request, "pluginId");
+            const body = request.body === undefined ? {} : object(request.body, "Request body");
+            only(body, []);
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+        return eventStream(request, reply, async (send, signal) => {
+            const update = await plugins.checkForUpdate(
+                actorUserId,
+                pluginId,
+                (stage, detail, bytes) => send("progress", { stage, detail, ...bytes }),
+                signal,
+            );
+            send("checked", { update });
+        });
+    });
+
+    app.post("/v0/admin/systemPlugins/:pluginId/uninstallPlugin", async (request, reply) => {
+        const actorUserId = await actor(auth, request, reply);
+        if (!actorUserId) return;
+        try {
+            const body = request.body === undefined ? {} : object(request.body, "Request body");
+            only(body, []);
+            const uninstalled = await plugins.uninstall(
+                actorUserId,
+                pathIdentifier(request, "pluginId"),
+            );
+            await bridge.closeInstallations(uninstalled.installationIds);
+            return { uninstalled };
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
     const mcp = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
         const current = await auth.authenticate(request);
         if (!current) {
@@ -159,11 +268,13 @@ function handled(reply: FastifyReply, error: unknown): FastifyReply | undefined 
         const status =
             error.code === "not_found"
                 ? 404
-                : error.code === "forbidden"
-                  ? 403
-                  : error.code === "not_ready"
-                    ? 503
-                    : 400;
+                : error.code === "conflict"
+                  ? 409
+                  : error.code === "forbidden"
+                    ? 403
+                    : error.code === "not_ready"
+                      ? 503
+                      : 400;
         return reply.code(status).send({ error: error.code, message: error.message });
     }
     if (error instanceof CollaborationError)
@@ -220,3 +331,45 @@ function only(value: Record<string, unknown>, allowed: readonly string[]): void 
 }
 
 class RequestError extends Error {}
+
+async function eventStream(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    operation: (
+        send: (event: string, data: Record<string, unknown>) => void,
+        signal: AbortSignal,
+    ) => Promise<void>,
+): Promise<void> {
+    const controller = new AbortController();
+    const abort = () => controller.abort(new Error("Plugin operation stream disconnected"));
+    request.raw.once("aborted", abort);
+    reply.raw.once("close", abort);
+    reply.hijack();
+    for (const [name, value] of Object.entries(reply.getHeaders()))
+        if (value !== undefined) reply.raw.setHeader(name, value);
+    reply.raw.statusCode = 200;
+    reply.raw.setHeader("content-type", "text/event-stream; charset=utf-8");
+    reply.raw.setHeader("cache-control", "no-cache, no-transform");
+    reply.raw.setHeader("x-accel-buffering", "no");
+    reply.raw.flushHeaders();
+    const send = (event: string, data: Record<string, unknown>): void => {
+        if (!reply.raw.destroyed && !reply.raw.writableEnded)
+            reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+    try {
+        await operation(send, controller.signal);
+    } catch (error) {
+        if (!controller.signal.aborted) {
+            const pluginError = error instanceof PluginError ? error : undefined;
+            if (!pluginError) request.log.error(error, "Plugin SSE operation failed");
+            send("failed", {
+                error: pluginError?.code ?? "plugin_preparation_failed",
+                message: pluginError?.message ?? "Plugin operation failed",
+            });
+        }
+    } finally {
+        request.raw.removeListener("aborted", abort);
+        reply.raw.removeListener("close", abort);
+        if (!reply.raw.destroyed && !reply.raw.writableEnded) reply.raw.end();
+    }
+}

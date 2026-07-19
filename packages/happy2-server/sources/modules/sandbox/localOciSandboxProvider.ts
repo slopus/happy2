@@ -253,12 +253,14 @@ export class LocalOciSandboxProvider implements SandboxProvider {
             "/tmp:rw,nosuid,nodev,mode=1777",
             "--tmpfs",
             "/run:rw,nosuid,nodev,mode=755",
+            "--mount",
+            bindMount(input.workspaceDirectory, "/workspace"),
             "--env",
             "HOME=/tmp",
             "--env",
             "TMPDIR=/tmp",
             "--workdir",
-            "/tmp",
+            "/workspace",
             "--entrypoint",
             "/bin/sh",
             input.imageTag,
@@ -266,7 +268,7 @@ export class LocalOciSandboxProvider implements SandboxProvider {
             "trap : TERM INT; while :; do sleep 2073600; done",
         ];
         try {
-            await this.run(args, { signal });
+            await this.createWithBindMountRetry(args, input.containerName, signal);
             await this.run(["start", input.containerName], { signal });
         } catch (error) {
             await this.removeSandbox(input.containerName);

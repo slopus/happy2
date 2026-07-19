@@ -71,6 +71,7 @@ export interface PluginSandboxCreateInput {
     containerInstanceId: string;
     imageTag: string;
     installationId: string;
+    workspaceDirectory: string;
 }
 
 export interface PluginSandboxState {

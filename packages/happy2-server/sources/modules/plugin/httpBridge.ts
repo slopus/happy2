@@ -6,6 +6,7 @@ import type { PluginService } from "./service.js";
 
 interface BridgeConnection {
     actorUserId: string;
+    installationId: string;
     http: StreamableHTTPServerTransport;
     close(): Promise<void>;
     established(): boolean;
@@ -114,6 +115,15 @@ export class PluginMcpHttpBridge {
         ]);
     }
 
+    async closeInstallations(installationIds: readonly string[]): Promise<void> {
+        const selected = new Set(installationIds);
+        await Promise.allSettled(
+            [...this.activeConnections]
+                .filter(({ installationId }) => selected.has(installationId))
+                .map((connection) => connection.close()),
+        );
+    }
+
     private async createConnection(
         installationId: string,
         actorUserId: string,
@@ -151,6 +161,7 @@ export class PluginMcpHttpBridge {
         };
         connection = {
             actorUserId,
+            installationId,
             http,
             close,
             established: () => storedKey !== undefined,

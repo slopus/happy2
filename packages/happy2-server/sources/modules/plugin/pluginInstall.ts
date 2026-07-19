@@ -57,7 +57,11 @@ export async function pluginInstall(
     return withTransaction(executor, async (tx) => {
         await userRequireServerAdmin(tx, input.actorUserId);
         const [existing] = await tx
-            .select({ id: plugins.id, manifestJson: plugins.manifestJson })
+            .select({
+                id: plugins.id,
+                manifestJson: plugins.manifestJson,
+                packageDigest: plugins.packageDigest,
+            })
             .from(plugins)
             .where(
                 and(
@@ -70,6 +74,14 @@ export async function pluginInstall(
         let manifest: PluginManifest;
         let pluginCreated = false;
         if (existing) {
+            if (
+                input.plugin.source.kind !== "builtin" &&
+                existing.packageDigest !== input.plugin.packageDigest
+            )
+                throw new PluginError(
+                    "conflict",
+                    "This remote plugin changed after preparation; prepare its installed version again",
+                );
             pluginId = existing.id;
             manifest = installedManifest(existing.manifestJson);
         } else {

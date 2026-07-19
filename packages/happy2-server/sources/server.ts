@@ -54,6 +54,10 @@ import { SandboxPluginMcpRuntime, type PluginMcpRuntime } from "./modules/plugin
 import { PluginService } from "./modules/plugin/service.js";
 import { PluginMcpHttpBridge } from "./modules/plugin/httpBridge.js";
 import {
+    NodePluginArchiveDownloader,
+    type PluginArchiveDownloader,
+} from "./modules/plugin/source.js";
+import {
     createRateLimitHook,
     HttpRateLimiter,
     IdempotencyCoordinator,
@@ -105,6 +109,7 @@ interface Services {
     pluginCatalog?: PluginCatalog;
     pluginMcpRuntime?: PluginMcpRuntime;
     pluginSecretProtector?: PluginSecretProtector;
+    pluginArchiveDownloader?: PluginArchiveDownloader;
     logger?: boolean;
 }
 
@@ -290,6 +295,7 @@ export async function buildServer(
             webhookUrlPolicy,
             webhookTransport,
             `http://happy2.host.internal:${config.plugins.hostApiPort}`,
+            services.pluginArchiveDownloader ?? new NodePluginArchiveDownloader(webhookUrlPolicy),
             (error) => app.log.error(error),
         );
         pluginHostApi = createPluginHostApi(executor, pluginService, supplied?.logger ?? true);

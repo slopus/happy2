@@ -9,6 +9,7 @@ import type {
     PluginManifest,
     PluginMcp,
     PluginPackage,
+    PluginSource,
     PluginSkillSummary,
     PluginVariableDefinition,
     PluginContainer,
@@ -91,15 +92,58 @@ export async function pluginPackageLoad(
     directory: string,
     sourceReference = basename(directory),
 ): Promise<PluginPackage> {
+    return packageLoad(
+        directory,
+        { kind: "builtin", reference: sourceReference },
+        sourceReference,
+        false,
+    );
+}
+
+/** Loads one downloaded package with the same validation as a built-in package without coupling its short name to an archive directory. */
+export async function pluginPackageLoadSource(
+    directory: string,
+    source: PluginSource,
+    requireDirectoryName = false,
+): Promise<PluginPackage> {
+    return packageLoad(
+        directory,
+        source,
+        requireDirectoryName ? basename(directory) : undefined,
+        false,
+    );
+}
+
+/** Revalidates an installed package while excluding Happy's reserved writable data subtree from its immutable package digest. */
+export async function pluginPackageLoadInstalled(
+    directory: string,
+    source: PluginSource,
+    expectedShortName: string,
+): Promise<PluginPackage> {
+    const loaded = await packageLoad(directory, source, expectedShortName, true);
+    if (loaded.manifest.shortName !== expectedShortName)
+        throw new Error(`${source.reference}: installed plugin shortName changed`);
+    return loaded;
+}
+
+async function packageLoad(
+    directory: string,
+    source: PluginSource,
+    expectedShortName: string | undefined,
+    installed: boolean,
+): Promise<PluginPackage> {
     const canonicalDirectory = await realpath(directory);
-    const files = await packageFiles(canonicalDirectory);
+    const files = await packageFiles(canonicalDirectory, installed);
+    if (!installed && [...files.keys()].some((name) => name === "data" || name.startsWith("data/")))
+        throw new Error(`${source.reference}: data is reserved for Happy-managed persistent state`);
     const manifestBuffer = files.get("plugin.json");
     const iconBuffer = files.get("plugin.png");
-    if (!manifestBuffer) throw new Error(`${sourceReference}: plugin.json is required`);
-    if (!iconBuffer) throw new Error(`${sourceReference}: plugin.png is required`);
-    const manifest = manifestParse(manifestBuffer.toString("utf8"), sourceReference);
-    if (manifest.shortName !== sourceReference)
-        throw new Error(`${sourceReference}: shortName must match the package directory name`);
+    const label = source.reference;
+    if (!manifestBuffer) throw new Error(`${label}: plugin.json is required`);
+    if (!iconBuffer) throw new Error(`${label}: plugin.png is required`);
+    const manifest = manifestParse(manifestBuffer.toString("utf8"), label);
+    if (expectedShortName && manifest.shortName !== expectedShortName)
+        throw new Error(`${label}: shortName must match the package directory name`);
     const iconImage = sharp(iconBuffer, { limitInputPixels: 16_777_216 });
     const icon = await iconImage.metadata();
     if (
@@ -108,16 +152,14 @@ export async function pluginPackageLoad(
         icon.width !== icon.height ||
         icon.width > MAX_ICON_DIMENSION
     )
-        throw new Error(`${sourceReference}: plugin.png must be a square PNG up to 4096 pixels`);
-    const skills = await skillsParse(files, sourceReference);
+        throw new Error(`${label}: plugin.png must be a square PNG up to 4096 pixels`);
+    const skills = await skillsParse(files, label);
     if (!manifest.container && !manifest.mcp && skills.length === 0)
-        throw new Error(
-            `${sourceReference}: a plugin must contain a container, skill, or MCP server`,
-        );
+        throw new Error(`${label}: a plugin must contain a container, skill, or MCP server`);
     if (manifest.container?.dockerfile)
-        requirePackageFile(files, manifest.container.dockerfile, sourceReference);
+        requirePackageFile(files, manifest.container.dockerfile, label);
     if (manifest.mcp?.type === "stdio" && manifest.mcp.container)
-        requirePackageFile(files, manifest.mcp.container.dockerfile, sourceReference);
+        requirePackageFile(files, manifest.mcp.container.dockerfile, label);
     const thumbhashInput = await iconImage
         .clone()
         .resize(100, 100, { fit: "inside", withoutEnlargement: true })
@@ -144,16 +186,20 @@ export async function pluginPackageLoad(
             checksumSha256: createHash("sha256").update(iconBuffer).digest("hex"),
         },
         packageDigest: digest(files),
-        source: { kind: "builtin", reference: sourceReference },
+        source,
     };
 }
 
-async function packageFiles(directory: string): Promise<Map<string, Buffer>> {
+async function packageFiles(
+    directory: string,
+    ignoreInstalledData = false,
+): Promise<Map<string, Buffer>> {
     const result = new Map<string, Buffer>();
     let totalBytes = 0;
     const visit = async (current: string): Promise<void> => {
         const entries = await readdir(current, { withFileTypes: true });
         for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+            if (ignoreInstalledData && current === directory && entry.name === "data") continue;
             const path = join(current, entry.name);
             const info = await lstat(path);
             if (info.isSymbolicLink())

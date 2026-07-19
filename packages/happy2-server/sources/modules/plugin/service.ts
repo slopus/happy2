@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { createId } from "@paralleldrive/cuid2";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -13,6 +13,7 @@ import type { WebhookTransport } from "../integrations/types.js";
 import type { TokenService } from "../auth/tokens.js";
 import { pluginInstall } from "./pluginInstall.js";
 import { pluginFindBySource } from "./pluginFindBySource.js";
+import { pluginGetSource } from "./pluginGetSource.js";
 import { pluginGetImage } from "./pluginGetImage.js";
 import { pluginAuthorizeManagement } from "./pluginAuthorizeManagement.js";
 import { pluginInstallationGetRuntimeConfiguration } from "./pluginInstallationGetRuntimeConfiguration.js";
@@ -24,11 +25,21 @@ import { pluginMcpToolsReplace, type PluginMcpToolInput } from "./pluginMcpTools
 import { pluginMcpToolsListReady } from "./pluginMcpToolsListReady.js";
 import { pluginContainerInstanceAuthorize } from "./pluginContainerInstanceAuthorize.js";
 import { pluginContainerInstanceInvalidate } from "./pluginContainerInstanceInvalidate.js";
+import { pluginUninstall } from "./pluginUninstall.js";
+import { pluginArchiveExtract } from "./archive.js";
+import { pluginPackageLoadSource } from "./catalog.js";
 import type { PluginCatalog } from "./catalog.js";
 import type { PluginPackageStore } from "./packageStore.js";
 import type { PluginLocalCommandHandle, PluginMcpRuntime } from "./runtime.js";
 import type { PluginSecretProtector } from "./secrets.js";
 import { RemotePluginMcpTransport } from "./utils/remoteMcpTransport.js";
+import {
+    downloadedPluginSource,
+    remotePluginSource,
+    remotePluginSourceFromInstalled,
+    uploadedPluginSource,
+    type PluginArchiveDownloader,
+} from "./source.js";
 import {
     PluginError,
     MAX_PLUGIN_MCP_TOOLS,
@@ -36,13 +47,25 @@ import {
     type PluginFunctionResult,
     type PluginHostPermission,
     type PluginInstallationSummary,
+    type PluginPackage,
+    type PreparedPluginSummary,
     type PluginRuntimeConfiguration,
+    type PluginUpdateCheck,
 } from "./types.js";
 
 const HEALTH_TIMEOUT_MS = 15_000;
 const COMMAND_STARTUP_GRACE_MS = 250;
 const FUNCTION_EXECUTION_TIMEOUT_MS = 30_000;
 const MAX_RIG_PLUGIN_FUNCTIONS = 128;
+const PREPARATION_TTL_MS = 15 * 60_000;
+
+interface PreparedPlugin {
+    actorUserId: string;
+    expiresAt: number;
+    id: string;
+    plugin: PluginPackage;
+    secretHash: Buffer;
+}
 
 /** Coordinates durable plugin installs with asynchronous container preparation, MCP health probes, restart recovery, and local connection creation. */
 export class PluginService {
@@ -51,6 +74,7 @@ export class PluginService {
         { controller: AbortController; promise: Promise<void> }
     >();
     private readonly commandHandles = new Map<string, PluginLocalCommandHandle>();
+    private readonly preparations = new Map<string, PreparedPlugin>();
     private closed = false;
 
     constructor(
@@ -64,10 +88,12 @@ export class PluginService {
         private readonly urlPolicy: WebhookUrlPolicy,
         private readonly remoteTransport: WebhookTransport,
         private readonly hostApiUrl: string,
+        private readonly archiveDownloader: PluginArchiveDownloader,
         private readonly onError: (error: unknown) => void,
     ) {}
 
     async start(): Promise<void> {
+        await this.packages.cleanupTemporary();
         const removed = await pluginRemoveMissingBuiltins(
             this.executor,
             this.catalog.list().map(({ source }) => source.reference),
@@ -121,9 +147,205 @@ export class PluginService {
             throw error;
         }
         if (candidateId && !result.pluginCreated) await this.packages.remove(candidateId);
+        await this.packages.workspaceDirectory(result.pluginId, installationId);
         await this.publish(result.hint).catch(this.onError);
         if (result.installation.status === "preparing") this.activate(installationId);
         return result.installation;
+    }
+
+    async prepareUpload(
+        actorUserId: string,
+        archive: Buffer,
+        onProgress: (
+            stage: string,
+            detail: string,
+            bytes?: { receivedBytes: number; totalBytes?: number },
+        ) => void,
+    ): Promise<{ selectionRequired: false; candidates: PreparedPluginSummary[] }> {
+        await pluginAuthorizeManagement(this.executor, actorUserId);
+        onProgress("verifying", "Inspecting uploaded ZIP package.");
+        const prepared = await this.prepareArchive(
+            actorUserId,
+            archive,
+            "zip",
+            undefined,
+            onProgress,
+        );
+        return { selectionRequired: false, candidates: prepared };
+    }
+
+    async prepareRemote(
+        actorUserId: string,
+        input: { kind: "github" | "zip_url"; url: string },
+        onProgress: (
+            stage: string,
+            detail: string,
+            bytes?: { receivedBytes: number; totalBytes?: number },
+        ) => void,
+        signal?: AbortSignal,
+    ): Promise<{ selectionRequired: boolean; candidates: PreparedPluginSummary[] }> {
+        await pluginAuthorizeManagement(this.executor, actorUserId);
+        const remote = remotePluginSource(input.kind, input.url);
+        onProgress("downloading", "Downloading plugin ZIP from its remote source.");
+        const downloaded = await this.archiveDownloader.download(remote.archiveUrl, {
+            signal,
+            onProgress: (bytes) => onProgress("downloading", "Downloading plugin ZIP.", bytes),
+        });
+        onProgress("verifying", "Verifying archive structure and plugin metadata.");
+        const candidates = await this.prepareArchive(
+            actorUserId,
+            downloaded.body,
+            input.kind === "github" ? "github" : "zip",
+            remote,
+            onProgress,
+        );
+        return { selectionRequired: candidates.length > 1, candidates };
+    }
+
+    async installPrepared(input: {
+        actorUserId: string;
+        preparedToken: string;
+        variables: Readonly<Record<string, string>>;
+        containerImageId?: string;
+    }): Promise<PluginInstallationSummary> {
+        await pluginAuthorizeManagement(this.executor, input.actorUserId);
+        const prepared = await this.preparationTake(input.actorUserId, input.preparedToken);
+        try {
+            const existing = await pluginFindBySource(
+                this.executor,
+                prepared.plugin.source.kind,
+                prepared.plugin.source.reference,
+            );
+            if (existing && existing.packageDigest !== prepared.plugin.packageDigest)
+                throw new PluginError(
+                    "conflict",
+                    "This remote plugin has changed since its installed snapshot; update it before adding another installation",
+                );
+            const installationId = createId();
+            const candidateId = existing ? undefined : createId();
+            const candidate = candidateId
+                ? {
+                      pluginId: candidateId,
+                      ...(await this.packages.install(prepared.plugin, candidateId)),
+                  }
+                : undefined;
+            let result: Awaited<ReturnType<typeof pluginInstall>>;
+            try {
+                result = await pluginInstall(this.executor, this.secrets, {
+                    actorUserId: input.actorUserId,
+                    installationId,
+                    plugin: prepared.plugin,
+                    candidate,
+                    variables: input.variables,
+                    containerImageId: input.containerImageId,
+                });
+            } catch (error) {
+                if (candidateId) await this.packages.remove(candidateId);
+                throw error;
+            }
+            if (candidateId && !result.pluginCreated) await this.packages.remove(candidateId);
+            await this.packages.workspaceDirectory(result.pluginId, installationId);
+            await this.publish(result.hint).catch(this.onError);
+            if (result.installation.status === "preparing") this.activate(installationId);
+            return result.installation;
+        } finally {
+            await this.packages.removePreparation(prepared.id).catch(this.onError);
+        }
+    }
+
+    async uninstall(
+        actorUserId: string,
+        pluginId: string,
+    ): Promise<{
+        installationIds: string[];
+        pluginId: string;
+    }> {
+        const result = await pluginUninstall(this.executor, actorUserId, pluginId);
+        for (const installationId of result.installationIds) {
+            const activation = this.activations.get(installationId);
+            activation?.controller.abort();
+            this.closeCommand(installationId);
+        }
+        await Promise.allSettled(
+            result.installationIds.flatMap((installationId) => {
+                const activation = this.activations.get(installationId);
+                return activation ? [activation.promise] : [];
+            }),
+        );
+        await this.publish(result.hint).catch(this.onError);
+        await Promise.allSettled([
+            ...result.containerNames.map((containerName) => {
+                return this.runtime.removeLocal(containerName);
+            }),
+            this.packages.remove(pluginId),
+        ]).then((settled) => {
+            for (const item of settled) if (item.status === "rejected") this.onError(item.reason);
+        });
+        return { installationIds: result.installationIds, pluginId };
+    }
+
+    async checkForUpdate(
+        actorUserId: string,
+        pluginId: string,
+        onProgress: (
+            stage: string,
+            detail: string,
+            bytes?: { receivedBytes: number; totalBytes?: number },
+        ) => void,
+        signal?: AbortSignal,
+    ): Promise<PluginUpdateCheck> {
+        const installed = await pluginGetSource(this.executor, actorUserId, pluginId);
+        let remotePackage: PluginPackage;
+        if (installed.source.kind === "builtin") {
+            const catalogPackage = this.catalog.get(installed.source.reference);
+            if (!catalogPackage)
+                throw new PluginError("not_found", "Built-in plugin is no longer in the catalog");
+            remotePackage = catalogPackage;
+        } else {
+            const remote = remotePluginSourceFromInstalled(installed.source);
+            onProgress("downloading", "Downloading the current remote plugin package.");
+            const downloaded = await this.archiveDownloader.download(remote.archiveUrl, {
+                signal,
+                onProgress: (bytes) =>
+                    onProgress("downloading", "Downloading remote package.", bytes),
+            });
+            const directory = await this.packages.createDownloadDirectory();
+            try {
+                onProgress("verifying", "Verifying the current remote plugin package.");
+                const candidates = await pluginArchiveExtract(
+                    downloaded.body,
+                    directory,
+                    remote.kind === "github" ? "github" : "zip",
+                );
+                const candidate =
+                    remote.packagePath === undefined
+                        ? candidates[0]
+                        : candidates.find(({ packagePath }) => packagePath === remote.packagePath);
+                if (!candidate)
+                    throw new PluginError(
+                        "invalid_package",
+                        "The installed plugin path no longer exists remotely",
+                    );
+                remotePackage = await pluginPackageLoadSource(
+                    candidate.directory,
+                    installed.source,
+                );
+            } finally {
+                await this.packages.removeDownloadDirectory(directory);
+            }
+        }
+        if (remotePackage.manifest.shortName !== installed.shortName)
+            throw new PluginError("invalid_package", "Remote plugin shortName changed");
+        return {
+            pluginId,
+            checkedAt: new Date().toISOString(),
+            updateAvailable: remotePackage.packageDigest !== installed.packageDigest,
+            installed: { version: installed.sourceVersion, packageDigest: installed.packageDigest },
+            remote: {
+                version: remotePackage.manifest.version,
+                packageDigest: remotePackage.packageDigest,
+            },
+        };
     }
 
     async image(
@@ -291,6 +513,86 @@ export class PluginService {
         await Promise.allSettled([...this.activations.values()].map(({ promise }) => promise));
         for (const handle of this.commandHandles.values()) handle.close();
         this.commandHandles.clear();
+        await Promise.allSettled(
+            [...this.preparations.values()].map(({ id }) => this.packages.removePreparation(id)),
+        );
+        this.preparations.clear();
+    }
+
+    private async prepareArchive(
+        actorUserId: string,
+        archive: Buffer,
+        kind: "github" | "zip",
+        remote: ReturnType<typeof remotePluginSource> | undefined,
+        onProgress: (stage: string, detail: string) => void,
+    ): Promise<PreparedPluginSummary[]> {
+        this.preparationsExpire();
+        const directory = await this.packages.createDownloadDirectory();
+        try {
+            const candidates = await pluginArchiveExtract(archive, directory, kind);
+            const prepared: PreparedPluginSummary[] = [];
+            for (const candidate of candidates) {
+                const provisionalSource = remote
+                    ? downloadedPluginSource(remote, candidate.packagePath)
+                    : { kind: "upload" as const, reference: "upload:pending" };
+                let plugin = await pluginPackageLoadSource(candidate.directory, provisionalSource);
+                if (/^plugins\/[^/]+$/.test(candidate.packagePath)) {
+                    const folder = candidate.packagePath.split("/").at(-1)!;
+                    if (plugin.manifest.shortName !== folder)
+                        throw new PluginError(
+                            "invalid_package",
+                            `${candidate.packagePath}: shortName must match its plugin folder`,
+                        );
+                }
+                if (!remote)
+                    plugin = { ...plugin, source: uploadedPluginSource(plugin.packageDigest) };
+                const id = createId();
+                plugin = await this.packages.prepare(plugin, id);
+                const secret = randomBytes(32).toString("base64url");
+                const token = `${id}.${secret}`;
+                const expiresAt = Date.now() + PREPARATION_TTL_MS;
+                this.preparations.set(id, {
+                    actorUserId,
+                    expiresAt,
+                    id,
+                    plugin,
+                    secretHash: createHash("sha256").update(secret).digest(),
+                });
+                prepared.push(preparedSummary(plugin, token, expiresAt));
+            }
+            onProgress("prepared", "Plugin package is verified and ready to install.");
+            return prepared;
+        } catch (error) {
+            if (error instanceof PluginError) throw error;
+            throw new PluginError("invalid_package", errorMessage(error));
+        } finally {
+            await this.packages.removeDownloadDirectory(directory);
+        }
+    }
+
+    private async preparationTake(actorUserId: string, token: string): Promise<PreparedPlugin> {
+        this.preparationsExpire();
+        const match = /^([a-z0-9]+)\.([A-Za-z0-9_-]{43})$/.exec(token);
+        const prepared = match ? this.preparations.get(match[1]!) : undefined;
+        const suppliedHash = match ? createHash("sha256").update(match[2]!).digest() : undefined;
+        if (
+            !prepared ||
+            !suppliedHash ||
+            prepared.actorUserId !== actorUserId ||
+            !timingSafeEqual(prepared.secretHash, suppliedHash)
+        )
+            throw new PluginError("not_found", "Prepared plugin token was not found or expired");
+        this.preparations.delete(prepared.id);
+        return prepared;
+    }
+
+    private preparationsExpire(): void {
+        const now = Date.now();
+        for (const [id, prepared] of this.preparations)
+            if (prepared.expiresAt <= now) {
+                this.preparations.delete(id);
+                void this.packages.removePreparation(id).catch(this.onError);
+            }
     }
 
     private activate(installationId: string): void {
@@ -352,6 +654,7 @@ export class PluginService {
         let preparedContainerName: string | undefined;
         let preparedContainerInstanceId: string | undefined;
         let commandHandle: PluginLocalCommandHandle | undefined;
+        let buildContextDirectory: string | undefined;
         this.closeCommand(installationId);
         try {
             signal.throwIfAborted();
@@ -393,6 +696,13 @@ export class PluginService {
                       "utf8",
                   )
                 : undefined;
+            if (dockerfile)
+                buildContextDirectory = await this.packages.createBuildContext(
+                    configuration.pluginId,
+                    configuration.packageDirectory,
+                    configuration.shortName,
+                    configuration.packageDigest,
+                );
             const prepared = await this.runtime.prepareLocal(
                 {
                     installationId,
@@ -400,10 +710,14 @@ export class PluginService {
                     containerInstanceId: createId(),
                     existingContainerInstanceId: configuration.containerInstanceId,
                     imageTag: configuration.imageTag,
+                    workspaceDirectory: await this.packages.workspaceDirectory(
+                        configuration.pluginId,
+                        installationId,
+                    ),
                     ...(dockerfile
                         ? {
                               build: {
-                                  contextDirectory: configuration.packageDirectory,
+                                  contextDirectory: buildContextDirectory!,
                                   dockerfile,
                                   tag: configuration.imageTag,
                               },
@@ -480,6 +794,9 @@ export class PluginService {
                 undefined,
                 preparedContainerInstanceId ? null : undefined,
             ).catch(this.onError);
+        } finally {
+            if (buildContextDirectory)
+                await this.packages.removeBuildContext(buildContextDirectory).catch(this.onError);
         }
     }
 
@@ -817,4 +1134,39 @@ function abortError(): Error {
 function errorMessage(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
     return message.slice(0, 4_000);
+}
+
+function preparedSummary(
+    plugin: PluginPackage,
+    preparedToken: string,
+    expiresAt: number,
+): PreparedPluginSummary {
+    const mcp = plugin.manifest.mcp;
+    return {
+        preparedToken,
+        expiresAt: new Date(expiresAt).toISOString(),
+        sourceKind: plugin.source.kind,
+        sourceReference: plugin.source.reference,
+        packageDigest: plugin.packageDigest,
+        version: plugin.manifest.version,
+        displayName: plugin.manifest.displayName,
+        shortName: plugin.manifest.shortName,
+        description: plugin.manifest.description,
+        skills: plugin.skills.map(({ name, description }) => ({ name, description })),
+        variables: plugin.manifest.variables,
+        ...(mcp
+            ? {
+                  mcp: {
+                      type: mcp.type,
+                      container:
+                          mcp.type === "remote"
+                              ? ("none" as const)
+                              : mcp.container
+                                ? ("bundled" as const)
+                                : ("selection_required" as const),
+                  },
+              }
+            : {}),
+        image: plugin.image,
+    };
 }

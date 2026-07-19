@@ -18,6 +18,7 @@ export interface PluginLocalPrepareInput {
     installationId: string;
     containerInstanceId: string;
     existingContainerInstanceId?: string;
+    workspaceDirectory: string;
 }
 
 export interface PluginLocalOpenInput {
@@ -97,6 +98,7 @@ export class SandboxPluginMcpRuntime implements PluginMcpRuntime {
                 containerInstanceId: input.containerInstanceId,
                 imageTag: input.imageTag,
                 installationId: input.installationId,
+                workspaceDirectory: input.workspaceDirectory,
             },
             signal,
         );

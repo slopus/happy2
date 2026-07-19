@@ -164,6 +164,7 @@ describe("LocalOciSandboxProvider", () => {
             containerInstanceId: "plugin-container-instance-id",
             containerName: "happy2-plugin-installation-id",
             imageTag: "happy2-plugin:immutable",
+            workspaceDirectory: "/Users/example/plugin-data",
         });
         await expect(
             provider.inspectPluginSandbox("happy2-plugin-installation-id"),
@@ -219,12 +220,14 @@ describe("LocalOciSandboxProvider", () => {
             "/tmp:rw,nosuid,nodev,mode=1777",
             "--tmpfs",
             "/run:rw,nosuid,nodev,mode=755",
+            "--mount",
+            "type=bind,source=/Users/example/plugin-data,target=/workspace",
             "--env",
             "HOME=/tmp",
             "--env",
             "TMPDIR=/tmp",
             "--workdir",
-            "/tmp",
+            "/workspace",
             "--entrypoint",
             "/bin/sh",
             "happy2-plugin:immutable",

@@ -1,11 +1,11 @@
 # Server plugins
 
 Happy (2) plugins package Agent Skills, a persistent container command, an MCP
-server, or any useful combination of those pieces. This first
-server-side implementation installs only packages bundled with the server. It
-already keeps catalog discovery, durable system plugins, immutable package/image
-snapshots, and independent runtime installations separate so a later remote
-catalog/download step can reuse the same boundaries.
+server, or any useful combination of those pieces. Administrators can install a
+built-in package, upload one ZIP, download one ZIP over HTTPS, or import a GitHub
+repository. Catalog discovery, verified preparation, durable system plugins,
+immutable package/image snapshots, writable installation data, and independent
+runtime installations remain separate boundaries.
 
 Plugin management is system-wide and administrator-only. The first installation
 of a catalog package creates one durable system-plugin record and one immutable
@@ -16,8 +16,9 @@ persisted and health-checked independently per installation. Ready MCP
 installations expose their durably cached tools to Rig as external functions on
 every agent submission. Happy executes each durable call against the originating
 installation and resolves the result back into the paused Rig run. This feature
-does not yet inject installed skills, and it does not yet implement upgrade,
-uninstall, marketplace download, or OAuth flows.
+does not yet inject installed skills or implement in-place upgrade, marketplace
+discovery, or OAuth flows. Remote update checks report drift but deliberately do
+not replace the installed snapshot.
 
 MCP tools are discovered during each runtime activation and atomically replace
 that installation's SQLite cache before it becomes ready. Local discovery runs
@@ -44,12 +45,16 @@ to a ready installation.
 
 ## Package anatomy
 
-Each built-in package is a directory below `packages/happy2-server/plugins`:
+Each package has this shape. Built-ins live below
+`packages/happy2-server/plugins`; installed snapshots live below the configured
+`plugins.directory`:
 
 ```text
 example-plugin/
 ├── plugin.json
 ├── plugin.png
+├── data/                     # server-owned; absent from source ZIPs
+│   └── <installation-id>/      # persistent writable workspace
 ├── container/                 # optional; used by bundled stdio runtimes
 │   └── Dockerfile
 └── skills/                    # optional
@@ -74,6 +79,16 @@ particular, it needs `SKILL.md` with YAML frontmatter containing `name` and
 symlinks, unsafe relative paths, duplicate names, oversized packages, malformed
 frontmatter, and unexpected manifest fields before the catalog becomes
 available.
+
+Uploaded and downloaded ZIPs are capped at 50 MiB compressed. Extraction also
+bounds entry count, file count, individual and total uncompressed sizes, and
+actual DEFLATE output. It rejects ZIP64, encryption, unsupported compression,
+links, path traversal, duplicate paths, local/central filename disagreement,
+invalid checksums, and ambiguous generic archives. A generic uploaded or remote
+ZIP must contain exactly one `plugin.json`. GitHub archives may instead contain
+one root `plugin.json` or multiple `plugins/<name>/plugin.json` packages; when
+there are multiple packages, preparation returns each verified candidate so the
+administrator can choose one.
 
 `plugin.json` uses schema version 1:
 
@@ -151,7 +166,8 @@ container.
 The Dockerfile path is package-relative. Creating the durable system plugin
 copies the entire package once to `plugins.directory` before writing its
 database record. Each installation lifecycle builds or resolves that exact
-snapshot with the selected local Docker or Podman provider, using a
+snapshot, excluding the server-owned `data/` subtree from the build context,
+with the selected local Docker or Podman provider, using a
 content-addressed `happy2-plugin:<sha256>` tag. It then creates a dedicated,
 read-only container named from the installation CUID2, with `init`, all Linux capabilities
 dropped, privilege escalation disabled, bounded shared memory, and ephemeral
@@ -164,8 +180,13 @@ bundled Dockerfile is responsible for copying or installing its MCP executable
 and dependencies into the image. The MCP command itself must use newline-
 delimited JSON-RPC on stdin/stdout and must not write non-protocol output to
 stdout.
-The fixed `HOME`, `TMPDIR`, and working directory are `/tmp`, so tools that
-need a cache can still run without making the image root writable.
+The fixed `HOME` and `TMPDIR` are `/tmp`. The server creates
+`<plugins.directory>/<plugin-id>/data/<installation-id>` with private
+permissions, bind-mounts it read-write at `/workspace`, and uses `/workspace` as
+the container working directory. This is the plugin's persistent filesystem;
+the image root remains read-only. Different installations never share a data
+directory. Uninstalling the system plugin removes every linked installation,
+container, immutable package asset, and data subtree.
 
 Each installation container stays alive as that installation's plugin runtime.
 The optional persistent command is started detached once for each container
@@ -232,6 +253,39 @@ custom static headers described above. Production remote requests are capped at
 1,000,000 bytes and responses at 256,000 bytes, matching the bounded webhook
 transport used for SSRF-safe address pinning.
 
+## External package preparation
+
+External installation is a two-step, administrator-only flow. Preparation does
+all network and archive work before durable installation, and streams progress
+as SSE:
+
+- `POST /v0/admin/pluginPackages/preparePlugin` accepts either multipart form
+  data with one `plugin` ZIP file, or JSON containing
+  `{"source":{"kind":"zip_url"|"github","url":"https://..."}}`.
+- The server downloads remote archives through its public-HTTPS SSRF policy,
+  revalidates and pins DNS at every redirect, verifies package structure and
+  metadata, and emits `progress` events.
+- It emits `prepared` for one candidate or `selection_required` for multiple
+  GitHub candidates. Each candidate includes a 15-minute, administrator-bound,
+  one-use `preparedToken`, the immutable digest, source identity, version,
+  display name, description, skill descriptions, variable definitions, MCP
+  mode, and image metadata.
+- `POST /v0/admin/pluginPackages/installPlugin` accepts the selected
+  `preparedToken`, `variables`, and optional `containerImageId`. It returns HTTP
+  202 after consuming the token and making the installation durable.
+
+A GitHub URL may identify a repository or one `tree/<ref>` URL. The root
+`plugin.json` wins when present; otherwise the server discovers direct
+`plugins/<name>` children. ZIP URLs are stored as their normalized URL. Uploaded
+packages have content-addressed source identities and cannot be checked for a
+remote update.
+
+`POST /v0/admin/systemPlugins/:pluginId/checkForUpdate` is also an SSE endpoint.
+It downloads and verifies the same selected remote path, emits progress, then a
+`checked` event containing installed and remote versions/digests plus
+`updateAvailable`. Built-ins are compared with the current catalog. The check is
+read-only; a changed package requires an explicit future upgrade flow.
+
 ## Installation and lifecycle
 
 `POST /v0/admin/plugins/:shortName/installPlugin` accepts:
@@ -263,6 +317,12 @@ pinned to the existing system plugin's immutable manifest and package until an
 explicit upgrade action exists. Catalog reads therefore project the stored
 variable and MCP requirements for the install form while retaining the newer
 catalog version and `updateAvailable` indicator.
+
+`POST /v0/admin/systemPlugins/:pluginId/uninstallPlugin` atomically removes the
+system plugin, all linked installations and secrets, and publishes audit/sync
+evidence. Runtime cleanup then stops linked containers and removes the entire
+stored package directory, including images, descriptors, skills, and every
+installation's persistent `data` directory.
 
 An installation has one of these durable health states:
 

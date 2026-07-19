@@ -1,10 +1,11 @@
-import type { SystemPluginSummary } from "../types.js";
+import type { PluginSourceKind, SystemPluginSummary } from "../types.js";
 import { installedManifest } from "./installedManifest.js";
 import { effectiveContainer } from "./effectiveContainer.js";
 
 export function asSystemPlugin(row: Record<string, unknown>): SystemPluginSummary {
     const sourceKind = requiredString(row.sourceKind, "plugin source kind");
-    if (sourceKind !== "builtin") throw new Error(`Unknown plugin source kind ${sourceKind}`);
+    if (!sourceKinds.has(sourceKind as PluginSourceKind))
+        throw new Error(`Unknown plugin source kind ${sourceKind}`);
     const id = requiredString(row.id, "system plugin id");
     const contentType = requiredString(row.imageContentType, "plugin image content type");
     if (contentType !== "image/png") throw new Error(`Unknown plugin image type ${contentType}`);
@@ -16,7 +17,7 @@ export function asSystemPlugin(row: Record<string, unknown>): SystemPluginSummar
         displayName: requiredString(row.displayName, "plugin display name"),
         shortName: requiredString(row.shortName, "plugin short name"),
         description: requiredString(row.description, "plugin description"),
-        sourceKind,
+        sourceKind: sourceKind as PluginSourceKind,
         sourceReference: requiredString(row.sourceReference, "plugin source reference"),
         sourceVersion: requiredString(row.sourceVersion, "plugin source version"),
         packageDigest: requiredString(row.packageDigest, "plugin package digest"),
@@ -61,6 +62,8 @@ export function asSystemPlugin(row: Record<string, unknown>): SystemPluginSummar
         updatedAt: requiredString(row.updatedAt, "plugin update timestamp"),
     };
 }
+
+const sourceKinds = new Set<PluginSourceKind>(["builtin", "github", "upload", "zip_url"]);
 
 function requiredString(value: unknown, name: string): string {
     if (typeof value !== "string" || !value) throw new Error(`Invalid ${name}`);

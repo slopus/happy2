@@ -1,4 +1,8 @@
-import type { PluginInstallationStatus, PluginInstallationSummary } from "../types.js";
+import type {
+    PluginInstallationStatus,
+    PluginInstallationSummary,
+    PluginSourceKind,
+} from "../types.js";
 
 const statuses: readonly PluginInstallationStatus[] = [
     "preparing",
@@ -13,12 +17,13 @@ export function asPluginInstallation(row: Record<string, unknown>): PluginInstal
     if (!statuses.includes(status as PluginInstallationStatus))
         throw new Error(`Unknown plugin installation status ${status}`);
     const sourceKind = requiredString(row.sourceKind, "plugin source kind");
-    if (sourceKind !== "builtin") throw new Error(`Unknown plugin source kind ${sourceKind}`);
+    if (!sourceKinds.has(sourceKind as PluginSourceKind))
+        throw new Error(`Unknown plugin source kind ${sourceKind}`);
     return {
         id: requiredString(row.id, "plugin installation id"),
         pluginId: requiredString(row.pluginId, "system plugin id"),
         shortName: requiredString(row.shortName, "plugin short name"),
-        sourceKind,
+        sourceKind: sourceKind as PluginSourceKind,
         sourceReference: requiredString(row.sourceReference, "plugin source reference"),
         sourceVersion: requiredString(row.sourceVersion, "plugin source version"),
         packageDigest: requiredString(row.packageDigest, "plugin package digest"),
@@ -38,6 +43,8 @@ export function asPluginInstallation(row: Record<string, unknown>): PluginInstal
         ...(optionalString(row.readyAt) ? { readyAt: optionalString(row.readyAt) } : {}),
     };
 }
+
+const sourceKinds = new Set<PluginSourceKind>(["builtin", "github", "upload", "zip_url"]);
 
 function requiredString(value: unknown, name: string): string {
     if (typeof value !== "string" || !value) throw new Error(`Invalid ${name}`);

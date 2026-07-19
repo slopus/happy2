@@ -38,6 +38,14 @@ export interface PluginContainer {
     permissions: PluginHostPermission[];
 }
 
+export type PluginSourceKind = "builtin" | "github" | "upload" | "zip_url";
+
+export interface PluginSource {
+    kind: PluginSourceKind;
+    /** Stable identity used to reuse an installed package and to locate remote updates. */
+    reference: string;
+}
+
 export interface PluginManifest {
     schemaVersion: 1;
     version: string;
@@ -71,7 +79,7 @@ export interface PluginPackage {
     iconPath: string;
     image: PluginImageMetadata;
     packageDigest: string;
-    source: { kind: "builtin"; reference: string };
+    source: PluginSource;
 }
 
 export interface SystemPluginSummary {
@@ -79,7 +87,7 @@ export interface SystemPluginSummary {
     displayName: string;
     shortName: string;
     description: string;
-    sourceKind: "builtin";
+    sourceKind: PluginSourceKind;
     sourceReference: string;
     sourceVersion: string;
     packageDigest: string;
@@ -103,7 +111,7 @@ export interface PluginInstallationSummary {
     id: string;
     pluginId: string;
     shortName: string;
-    sourceKind: "builtin";
+    sourceKind: PluginSourceKind;
     sourceReference: string;
     sourceVersion: string;
     packageDigest: string;
@@ -166,6 +174,33 @@ export interface PluginMcpToolSummary {
     syncedAt: string;
 }
 
+export interface PreparedPluginSummary {
+    preparedToken: string;
+    expiresAt: string;
+    sourceKind: PluginSourceKind;
+    sourceReference: string;
+    packageDigest: string;
+    version: string;
+    displayName: string;
+    shortName: string;
+    description: string;
+    skills: Array<Pick<PluginSkillSummary, "name" | "description">>;
+    variables: PluginVariableDefinition[];
+    mcp?: {
+        type: "remote" | "stdio";
+        container: "bundled" | "selection_required" | "none";
+    };
+    image: PluginImageMetadata;
+}
+
+export interface PluginUpdateCheck {
+    pluginId: string;
+    checkedAt: string;
+    updateAvailable: boolean;
+    installed: { version: string; packageDigest: string };
+    remote: { version: string; packageDigest: string };
+}
+
 interface PluginRuntimePackage {
     installationId: string;
     pluginId: string;
@@ -199,7 +234,14 @@ export type PluginRuntimeConfiguration = PluginRuntimePackage &
 
 export class PluginError extends Error {
     constructor(
-        readonly code: "broken_configuration" | "forbidden" | "not_found" | "not_ready",
+        readonly code:
+            | "broken_configuration"
+            | "conflict"
+            | "forbidden"
+            | "invalid_package"
+            | "not_found"
+            | "not_ready"
+            | "unsupported_source",
         message: string,
     ) {
         super(message);

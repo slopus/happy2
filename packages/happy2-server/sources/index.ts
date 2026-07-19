@@ -30,9 +30,16 @@ export { AesGcmPluginSecretProtector } from "./modules/plugin/secrets.js";
 export type { PluginSecretProtector } from "./modules/plugin/secrets.js";
 export { PluginPackageStore } from "./modules/plugin/packageStore.js";
 export {
+    NodePluginArchiveDownloader,
+    type PluginArchiveDownload,
+    type PluginArchiveDownloader,
+    type PluginArchiveDownloadOptions,
+} from "./modules/plugin/source.js";
+export {
     SandboxPluginMcpRuntime,
     type PluginLocalOpenInput,
     type PluginLocalPrepareInput,
+    type PluginLocalCommandHandle,
     type PluginMcpRuntime,
 } from "./modules/plugin/runtime.js";
 export { buildServer, pluginHostApiFor } from "./server.js";

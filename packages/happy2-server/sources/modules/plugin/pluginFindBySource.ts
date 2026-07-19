@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import type { DrizzleExecutor } from "../drizzle.js";
 import { plugins } from "../schema.js";
+import type { PluginSourceKind } from "./types.js";
 
 /**
  * Finds the durable system plugin for one catalog source so installation orchestration can reuse its immutable package snapshot.
@@ -8,11 +9,11 @@ import { plugins } from "../schema.js";
  */
 export async function pluginFindBySource(
     executor: DrizzleExecutor,
-    sourceKind: "builtin",
+    sourceKind: PluginSourceKind,
     sourceReference: string,
-): Promise<{ id: string } | undefined> {
+): Promise<{ id: string; packageDigest: string } | undefined> {
     const [row] = await executor
-        .select({ id: plugins.id })
+        .select({ id: plugins.id, packageDigest: plugins.packageDigest })
         .from(plugins)
         .where(
             and(eq(plugins.sourceKind, sourceKind), eq(plugins.sourceReference, sourceReference)),
