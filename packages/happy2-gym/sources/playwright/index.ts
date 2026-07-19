@@ -723,8 +723,27 @@ export function createRenderer<Component>(
             await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
             if (!pointerParked) {
                 if (container.matches(":hover")) {
-                    await userEvent.hover(pointerPark);
-                    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+                    const transitionReset = document.createElement("style");
+                    transitionReset.textContent = `
+                        [data-gym-pointer-reset],
+                        [data-gym-pointer-reset] *,
+                        [data-gym-pointer-reset]::before,
+                        [data-gym-pointer-reset]::after,
+                        [data-gym-pointer-reset] *::before,
+                        [data-gym-pointer-reset] *::after {
+                            transition: none !important;
+                        }
+                    `;
+                    document.head.append(transitionReset);
+                    container.dataset.gymPointerReset = "";
+                    try {
+                        void container.offsetHeight;
+                        await userEvent.hover(pointerPark);
+                        void container.offsetHeight;
+                    } finally {
+                        delete container.dataset.gymPointerReset;
+                        transitionReset.remove();
+                    }
                 }
                 pointerParked = true;
             }

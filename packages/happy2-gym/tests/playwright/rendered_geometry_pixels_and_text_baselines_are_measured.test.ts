@@ -14,26 +14,56 @@ function renderer() {
 it("clears inherited pointer hover once without erasing intentional hover", async () => {
     const view = renderer().render(
         () => {
+            const wrapper = document.createElement("div");
+            const style = document.createElement("style");
+            style.textContent = `
+                [data-testid="hover-target"] {
+                    background: rgb(255 255 255);
+                }
+                [data-testid="hover-child"] {
+                    background: rgb(255 255 255);
+                    height: 16px;
+                    transition: background-color 120ms ease;
+                    width: 16px;
+                }
+                [data-testid="hover-target"]:hover [data-testid="hover-child"] {
+                    background: rgb(0 0 0);
+                }
+            `;
             const element = document.createElement("button");
             element.dataset.testid = "hover-target";
             Object.assign(element.style, {
                 height: "32px",
                 width: "80px",
             });
-            return element;
+            element.addEventListener("pointerleave", () => {
+                element.style.setProperty("--pointer-leave", "observed");
+            });
+            const child = document.createElement("span");
+            child.dataset.testid = "hover-child";
+            element.append(child);
+            wrapper.append(style, element);
+            return wrapper;
         },
         { height: 80, width: 140 },
     );
-    const target = view.$('[data-testid="hover-target"]').element;
+    const target = view.$('[data-testid="hover-target"]').element as HTMLElement;
+    const child = view.$('[data-testid="hover-child"]').element;
     await userEvent.hover(target);
+    for (const animation of child.getAnimations()) animation.finish();
     expect(target.matches(":hover")).toBe(true);
+    expect(getComputedStyle(child).backgroundColor).toBe("rgb(0, 0, 0)");
 
     await view.ready();
     expect(target.matches(":hover")).toBe(false);
+    expect(getComputedStyle(child).backgroundColor).toBe("rgb(255, 255, 255)");
+    expect(target.style.getPropertyValue("--pointer-leave")).toBe("observed");
 
     await userEvent.hover(target);
+    for (const animation of child.getAnimations()) animation.finish();
     await view.ready();
     expect(target.matches(":hover")).toBe(true);
+    expect(getComputedStyle(child).backgroundColor).toBe("rgb(0, 0, 0)");
 });
 
 it("measures rendered coordinates and computed CSS", () => {
