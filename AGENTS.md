@@ -87,6 +87,13 @@ only for a genuine two-dimensional grid) solely when flexbox cannot express the
 layout at all; never fall back to floats, `inline-block` hacks, or layout tables.
 See `DESIGN.md` → "Layout with flexbox".
 
+## Generated images
+
+Whenever a feature needs a new raster image, generate an original image for
+that feature. Never copy or reuse another feature's image as a placeholder.
+Every new built-in plugin must include its own newly generated `plugin.png`
+whose visual identity matches that plugin.
+
 ## Reactivity
 
 Every surface must stay current on its own. A manual "Refresh" button (or any

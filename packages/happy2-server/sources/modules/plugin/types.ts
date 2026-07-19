@@ -29,7 +29,7 @@ export interface PluginRemoteMcp {
 
 export type PluginMcp = PluginStdioMcp | PluginRemoteMcp;
 
-export type PluginHostPermission = "plugins:list";
+export type PluginHostPermission = "chats:update" | "plugins:list";
 
 export interface PluginContainer {
     dockerfile?: string;

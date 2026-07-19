@@ -378,6 +378,12 @@ Remote endpoints are rechecked.
   listener. A
   container may call it only when its manifest grants `plugins:list` and it
   presents the incarnation token supplied as `HAPPY2_PLUGIN_API_TOKEN`.
+- `POST /chats/updateChat` on that same listener changes the current chat's
+  `title` and/or `description`. It requires the installation runtime bearer
+  token, the `chats:update` manifest permission, and the current call's chat
+  capability in `X-Happy2-Chat-Token`. The endpoint deliberately accepts no
+  chat ID: the signed capability selects the chat, so tool arguments cannot
+  redirect the update to another conversation.
 
 Container processes receive `HAPPY2_PLUGIN_API_URL` and
 `HAPPY2_PLUGIN_API_TOKEN`. The URL is always
@@ -407,6 +413,28 @@ replacing, failing, or removing that incarnation immediately makes the token
 unauthorized.
 The capability is not a user session and the dedicated listener exposes no
 ordinary `/v0` APIs.
+
+When Happy asks an installed MCP tool to run for an agent, it adds the following
+request metadata:
+
+```json
+{
+    "_meta": {
+        "happy2/chat": {
+            "id": "current-chat-cuid2",
+            "token": "signed-chat-capability-jwt"
+        }
+    }
+}
+```
+
+The RS256 chat token has no expiration and is bound to both that chat and the
+specific plugin installation receiving the call. Plugin host chat actions also
+require the running installation's ordinary runtime token; presenting a chat
+token through another installation is rejected. Uninstalling or replacing an
+installation therefore prevents its old chat tokens from being used by a new
+installation. Chat IDs remain immutable and are supplied in metadata and API
+results for correlation, never accepted as mutation input.
 
 The bridge allows at most 128 simultaneous sessions server-wide and 16 per
 authenticated user. Idle sessions close after 15 minutes; inbound requests and

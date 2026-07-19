@@ -81,6 +81,7 @@ import type {
     PluginFunctionResult,
     PluginSkillDefinition,
 } from "../plugin/types.js";
+import { agentChatGetIdBySession } from "../agent/agentChatGetIdBySession.js";
 import { pluginFunctionResultAcquire } from "../plugin/pluginFunctionResultAcquire.js";
 import { pluginFunctionResultComplete } from "../plugin/pluginFunctionResultComplete.js";
 import {
@@ -184,6 +185,7 @@ interface AgentPluginCapabilities {
     callFunction(
         functionName: string,
         args: unknown,
+        context: { chatId: string },
         signal?: AbortSignal,
     ): Promise<PluginFunctionResult>;
     listFunctions(signal?: AbortSignal): Promise<readonly PluginFunctionDefinition[]>;
@@ -1368,17 +1370,31 @@ export class AgentService {
         functionName: string,
         args: unknown,
     ): Promise<PluginFunctionResult> {
-        return this.executeDurablePluginCall(sessionId, callId, () =>
-            this.pluginCapabilities
-                ? this.pluginCapabilities.callFunction(functionName, args, this.shutdown.signal)
-                : Promise.resolve({
-                      status: "failed" as const,
-                      error: {
-                          code: "plugin_functions_unavailable",
-                          message: "Plugin functions are unavailable on this server",
-                      },
-                  }),
-        );
+        return this.executeDurablePluginCall(sessionId, callId, async () => {
+            if (!this.pluginCapabilities)
+                return {
+                    status: "failed" as const,
+                    error: {
+                        code: "plugin_functions_unavailable",
+                        message: "Plugin functions are unavailable on this server",
+                    },
+                };
+            const chatId = await agentChatGetIdBySession(this.executor, sessionId);
+            if (!chatId)
+                return {
+                    status: "failed" as const,
+                    error: {
+                        code: "plugin_chat_unavailable",
+                        message: "The agent session is not bound to one current chat",
+                    },
+                };
+            return this.pluginCapabilities.callFunction(
+                functionName,
+                args,
+                { chatId },
+                this.shutdown.signal,
+            );
+        });
     }
 
     private async executePluginSkillRead(

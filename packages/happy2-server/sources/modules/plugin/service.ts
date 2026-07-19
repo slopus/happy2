@@ -11,6 +11,7 @@ import { realtimeTopics } from "../realtime/index.js";
 import type { WebhookUrlPolicy } from "../integrations/ssrf.js";
 import type { WebhookTransport } from "../integrations/types.js";
 import type { TokenService } from "../auth/tokens.js";
+import { chatUpdateMetadata, type ChatMetadataSummary } from "../chat/chatUpdateMetadata.js";
 import { pluginInstall } from "./pluginInstall.js";
 import { pluginFindBySource } from "./pluginFindBySource.js";
 import { pluginGetSource } from "./pluginGetSource.js";
@@ -63,6 +64,7 @@ const FUNCTION_EXECUTION_TIMEOUT_MS = 30_000;
 const MAX_RIG_PLUGIN_FUNCTIONS = 128;
 const MAX_RIG_PLUGIN_SKILLS = 128;
 const PREPARATION_TTL_MS = 15 * 60_000;
+const PLUGIN_CHAT_META_KEY = "happy2/chat";
 
 interface PreparedPlugin {
     actorUserId: string;
@@ -471,6 +473,7 @@ export class PluginService {
     async callFunction(
         functionName: string,
         args: unknown,
+        context: { chatId: string },
         signal?: AbortSignal,
     ): Promise<PluginFunctionResult> {
         try {
@@ -479,7 +482,7 @@ export class PluginService {
                 "Plugin MCP function execution",
                 signal,
                 (operationSignal) =>
-                    this.callFunctionWithSignal(functionName, args, operationSignal),
+                    this.callFunctionWithSignal(functionName, args, context, operationSignal),
             );
         } catch (error) {
             if (signal?.aborted) throw error;
@@ -496,6 +499,7 @@ export class PluginService {
     private async callFunctionWithSignal(
         functionName: string,
         args: unknown,
+        context: { chatId: string },
         signal: AbortSignal,
     ): Promise<PluginFunctionResult> {
         const installationId = pluginFunctionInstallationId(functionName);
@@ -513,10 +517,20 @@ export class PluginService {
                 pluginFunctionName(installationId, tool.name) === functionName,
         );
         if (!cached) throw new Error("The plugin no longer exposes this cached function");
+        const chatToken = await this.tokens.issuePluginChatToken({
+            installationId,
+            chatId: context.chatId,
+        });
         const result = await this.withClient(installationId, signal, async (client) => {
             const result = await client.callTool({
                 name: cached.name,
                 arguments: jsonArguments(args),
+                _meta: {
+                    [PLUGIN_CHAT_META_KEY]: {
+                        id: context.chatId,
+                        token: chatToken,
+                    },
+                },
             });
             if (result.isError)
                 return {
@@ -583,6 +597,35 @@ export class PluginService {
             throw new PluginError("forbidden", "Plugin container incarnation is not running");
         }
         return claims.installationId;
+    }
+
+    async chatUpdate(
+        runtimeToken: string,
+        chatToken: string,
+        input: { title?: string; description?: string | null },
+    ): Promise<{ chat: ChatMetadataSummary; sync: MutationHint }> {
+        const installationId = await this.authorizeHost(runtimeToken, "chats:update");
+        let claims: Awaited<ReturnType<TokenService["verifyPluginChatToken"]>>;
+        try {
+            claims = await this.tokens.verifyPluginChatToken(chatToken);
+        } catch {
+            throw new PluginError("forbidden", "Plugin chat token is invalid");
+        }
+        if (claims.installationId !== installationId)
+            throw new PluginError("forbidden", "Plugin chat token belongs to another installation");
+        const result = await chatUpdateMetadata(this.executor, {
+            chatId: claims.chatId,
+            ...input,
+        });
+        const event = { type: "sync" as const, ...result.hint };
+        await Promise.allSettled([
+            this.pubsub.publish(realtimeTopics.chat(claims.chatId), event),
+            this.pubsub.publish(realtimeTopics.server, event),
+        ]).then((publications) => {
+            for (const publication of publications)
+                if (publication.status === "rejected") this.onError(publication.reason);
+        });
+        return { chat: result.chat, sync: result.hint };
     }
 
     async close(): Promise<void> {

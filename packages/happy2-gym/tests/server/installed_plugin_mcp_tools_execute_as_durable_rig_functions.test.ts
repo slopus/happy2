@@ -65,7 +65,18 @@ describe("installed plugin MCP tools in agent runs", () => {
             "durable plugin function resolution",
             10_000,
         );
-        expect(pluginRuntime.calls).toEqual([{ name: "hello_greet", arguments: { name: "Ada" } }]);
+        expect(pluginRuntime.calls).toEqual([
+            {
+                name: "hello_greet",
+                arguments: { name: "Ada" },
+                _meta: {
+                    "happy2/chat": {
+                        id: chatId,
+                        token: expect.any(String),
+                    },
+                },
+            },
+        ]);
         expect(pluginRuntime.listCalls).toBe(2);
         expect(rig.externalToolCalls.find(({ id }) => id === callId)?.resolution).toMatchObject({
             status: "completed",
@@ -87,7 +98,11 @@ describe("installed plugin MCP tools in agent runs", () => {
 });
 
 class GreetingPluginMcpRuntime implements PluginMcpRuntime {
-    readonly calls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
+    readonly calls: Array<{
+        name: string;
+        arguments: Record<string, unknown>;
+        _meta?: Record<string, unknown>;
+    }> = [];
     listCalls = 0;
 
     async prepareLocal(input: PluginLocalPrepareInput) {
@@ -144,6 +159,7 @@ class GreetingPluginMcpRuntime implements PluginMcpRuntime {
                     const params = message.params as {
                         name: string;
                         arguments: Record<string, unknown>;
+                        _meta?: Record<string, unknown>;
                     };
                     calls.push(structuredClone(params));
                     result = {

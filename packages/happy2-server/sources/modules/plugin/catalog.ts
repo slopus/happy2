@@ -43,7 +43,7 @@ const RESERVED_REMOTE_HEADERS = new Set([
     "upgrade",
     "user-agent",
 ]);
-const HOST_PERMISSIONS = new Set<PluginHostPermission>(["plugins:list"]);
+const HOST_PERMISSIONS = new Set<PluginHostPermission>(["chats:update", "plugins:list"]);
 
 /** Immutable lookup over validated plugin packages supplied by the built-in catalog. */
 export class PluginCatalog {

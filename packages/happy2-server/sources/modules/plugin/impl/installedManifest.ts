@@ -31,7 +31,9 @@ function container(value: unknown): boolean {
         Array.isArray(value.args) &&
         value.args.every((argument) => typeof argument === "string") &&
         Array.isArray(value.permissions) &&
-        value.permissions.every((permission) => permission === "plugins:list")
+        value.permissions.every(
+            (permission) => permission === "chats:update" || permission === "plugins:list",
+        )
     );
 }
 

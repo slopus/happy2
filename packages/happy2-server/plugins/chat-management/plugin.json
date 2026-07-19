@@ -1,0 +1,17 @@
+{
+    "schemaVersion": 1,
+    "version": "1.0.0",
+    "displayName": "Chat Management",
+    "shortName": "chat-management",
+    "description": "Lets an agent update the title and description of its current chat.",
+    "variables": [],
+    "container": {
+        "dockerfile": "container/Dockerfile",
+        "permissions": ["chats:update"]
+    },
+    "mcp": {
+        "type": "stdio",
+        "command": "node",
+        "args": ["/plugin/server.mjs"]
+    }
+}

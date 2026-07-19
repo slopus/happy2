@@ -47,6 +47,15 @@ describe("plugin catalog across happy2-state and the real server", () => {
         await expect
             .poll(() => helloInstallations(plugins.getState()).length, { timeout: 5_000 })
             .toBe(2);
+        await expect
+            .poll(
+                () =>
+                    helloInstallations(plugins.getState()).every(
+                        ({ status }) => status === "ready",
+                    ),
+                { timeout: 5_000 },
+            )
+            .toBe(true);
 
         // The catalog icon travels through the authenticated transport as PNG bytes.
         const icon = await state.pluginIconDownload("hello");

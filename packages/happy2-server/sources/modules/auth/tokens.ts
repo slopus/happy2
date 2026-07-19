@@ -11,6 +11,10 @@ export interface PluginRuntimeClaims {
     containerInstanceId: string;
     permissions: string[];
 }
+export interface PluginChatClaims {
+    installationId: string;
+    chatId: string;
+}
 export interface TokenKeyPair {
     privateKey?: string;
     publicKey: string;
@@ -123,6 +127,33 @@ export class TokenService {
             containerInstanceId: payload.cid,
             permissions: payload.prm,
         };
+    }
+
+    async issuePluginChatToken(claims: PluginChatClaims): Promise<string> {
+        if (!this.privateKey) throw new Error("This server has no JWT signing key");
+        return new SignJWT({ cht: claims.chatId })
+            .setProtectedHeader({
+                alg: "RS256",
+                kid: this.config.jwt.keyId,
+                typ: "happy2-plugin-chat",
+            })
+            .setIssuer(this.config.jwt.issuer)
+            .setAudience(`${this.config.jwt.audience}/plugin-chat`)
+            .setSubject(claims.installationId)
+            .setIssuedAt()
+            .sign(this.privateKey);
+    }
+
+    async verifyPluginChatToken(token: string): Promise<PluginChatClaims> {
+        const { payload } = await jwtVerify(token, this.publicKey, {
+            issuer: this.config.jwt.issuer,
+            audience: `${this.config.jwt.audience}/plugin-chat`,
+            algorithms: ["RS256"],
+            typ: "happy2-plugin-chat",
+        });
+        if (typeof payload.sub !== "string" || typeof payload.cht !== "string")
+            throw new Error("JWT has invalid plugin chat claims");
+        return { installationId: payload.sub, chatId: payload.cht };
     }
 }
 
