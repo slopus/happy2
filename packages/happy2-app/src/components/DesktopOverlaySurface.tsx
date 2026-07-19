@@ -31,7 +31,7 @@ export function DesktopOverlaySurface(props: DesktopOverlaySurfaceProps) {
     };
     const close = () => props.navigation.close("overlay");
     return searchOverlay() ? (
-        <ModalOverlay onDismiss={close}>
+        <ModalOverlay onDismiss={close} placement="top">
             <CommandPalette
                 onClose={close}
                 onQueryChange={props.onSearchQueryChange}

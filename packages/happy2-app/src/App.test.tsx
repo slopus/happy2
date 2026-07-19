@@ -229,6 +229,11 @@ describe("persistent desktop routing", () => {
         expect(
             screen.container.querySelector('[data-happy2-ui="command-palette-input"]'),
         ).toBeTruthy();
+        expect(
+            screen.container
+                .querySelector('[data-happy2-ui="modal-overlay"]')
+                ?.getAttribute("data-placement"),
+        ).toBe("top");
         expect(screen.container.textContent).toContain("Search Happy (2)");
         expect(chatPrimarySurface(screen.container)).toBe(primary);
         navigation.close("overlay");
@@ -237,6 +242,11 @@ describe("persistent desktop routing", () => {
         );
         fireEvent.click(screen.getByRole("button", { name: "Open profile" }));
         expect(screen.container.textContent).toContain("Profile and settings");
+        expect(
+            screen.container
+                .querySelector('[data-happy2-ui="modal-overlay"]')
+                ?.getAttribute("data-placement"),
+        ).toBeNull();
         expect(chatPrimarySurface(screen.container)).toBe(primary);
         await session.setAvatar("avatar-new");
         await waitFor(() =>

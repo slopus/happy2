@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 import "./theme.css";
 import "./styles/modal-overlay.css";
 import "./styles/modal.css";
@@ -28,6 +29,44 @@ function WindowFrame(props: { children: ReactNode }): ReactNode {
         >
             {props.children}
         </div>
+    );
+}
+
+/* Top-placement fixtures use a real-sized, non-transformed host. The inline
+ * absolute position keeps the production overlay bounded by that host without
+ * introducing a transformed containing block, so cqh resolves from the
+ * overlay's own size container. */
+function TopWindowFrame(props: { children: ReactNode; height: number; width: number }): ReactNode {
+    return (
+        <div
+            data-testid="top-frame"
+            style={{
+                position: "relative",
+                width: `${props.width}px`,
+                height: `${props.height}px`,
+                overflow: "hidden",
+            }}
+        >
+            {props.children}
+        </div>
+    );
+}
+
+function TopCard(): ReactNode {
+    return (
+        <div
+            data-testid="top-card"
+            style={{
+                boxSizing: "border-box",
+                flex: "none",
+                height: "461px",
+                maxHeight: "100%",
+                width: "640px",
+                background: "var(--happy2-bg-raised)",
+                border: "1px solid var(--happy2-border-strong)",
+                borderRadius: "var(--happy2-radius-shell)",
+            }}
+        />
     );
 }
 it("holds ModalOverlay backdrop geometry, centering, and backdrop-only dismiss", async () => {
@@ -182,4 +221,149 @@ it("does not dismiss when no onDismiss is wired (a click-away-safe surface)", as
     /* No throw, no handler: clicking the backdrop is inert. */
     (overlay.element as HTMLElement).click();
     expect(overlay.element.getAttribute("data-happy2-ui")).toBe("modal-overlay");
+}, 120000);
+
+it("keeps explicit center byte-identical to the attribute-free default placement", async () => {
+    const view = createRenderer();
+    const centeredModal = (overlay: "default" | "explicit") => (
+        <WindowFrame>
+            <ModalOverlay
+                data-testid={overlay}
+                placement={overlay === "explicit" ? "center" : undefined}
+            >
+                <Modal icon="hash" size="medium" title="Create a channel">
+                    Channels organize conversation around a topic.
+                </Modal>
+            </ModalOverlay>
+        </WindowFrame>
+    );
+    view.render(() => centeredModal("default"), { width: 800, height: 540, padding: 40 });
+    view.render(() => centeredModal("explicit"), { width: 800, height: 540, padding: 40 });
+    await view.ready();
+
+    const defaultOverlay = view.$('[data-testid="default"]');
+    const explicitOverlay = view.$('[data-testid="explicit"]');
+    expect(defaultOverlay.element.getAttribute("data-placement")).toBeNull();
+    expect(explicitOverlay.element.getAttribute("data-placement")).toBeNull();
+    expect(
+        explicitOverlay.computedStyles([
+            "align-items",
+            "container-type",
+            "justify-content",
+            "padding-top",
+        ]),
+    ).toEqual(
+        defaultOverlay.computedStyles([
+            "align-items",
+            "container-type",
+            "justify-content",
+            "padding-top",
+        ]),
+    );
+    expect(view.$('[data-testid="explicit"] [data-happy2-ui="modal-dialog"]').bounds()).toEqual(
+        view.$('[data-testid="default"] [data-happy2-ui="modal-dialog"]').bounds(),
+    );
+}, 120000);
+
+it("anchors top placement at the 720x480 Electron minimum and dismisses from real backdrop coordinates", async () => {
+    const dismissed: string[] = [];
+    const view = createRenderer();
+    view.render(
+        () => (
+            <TopWindowFrame height={480} width={720}>
+                <ModalOverlay
+                    data-testid="top-minimum"
+                    onDismiss={() => dismissed.push("dismissed")}
+                    placement="top"
+                    style={{ position: "absolute" }}
+                >
+                    <TopCard />
+                </ModalOverlay>
+            </TopWindowFrame>
+        ),
+        { width: 720, height: 480 },
+    );
+    await view.ready();
+
+    const overlay = view.$('[data-testid="top-minimum"]');
+    const layout = view.$(
+        '[data-testid="top-minimum"] [data-happy2-ui="modal-overlay-top-layout"]',
+    );
+    const card = view.$('[data-testid="top-card"]');
+    expect(overlay.element.getAttribute("data-placement")).toBe("top");
+    expect(overlay.bounds()).toEqual({ x: 0, y: 0, width: 720, height: 480 });
+    expect(
+        overlay.computedStyles(["align-items", "container-type", "justify-content", "padding-top"]),
+    ).toEqual({
+        "align-items": "flex-start",
+        "container-type": "size",
+        "justify-content": "center",
+        "padding-top": "0px",
+    });
+    expect(
+        layout.computedStyles([
+            "align-items",
+            "justify-content",
+            "padding-bottom",
+            "padding-left",
+            "padding-right",
+            "padding-top",
+        ]),
+    ).toEqual({
+        "align-items": "flex-start",
+        "justify-content": "center",
+        "padding-bottom": "24px",
+        "padding-left": "24px",
+        "padding-right": "24px",
+        "padding-top": "48px",
+    });
+    expect(card.bounds()).toEqual({ x: 40, y: 48, width: 640, height: 408 });
+    expect(card.bounds().x).toBeGreaterThanOrEqual(24);
+    expect(overlay.bounds().height - card.bounds().y - card.bounds().height).toBe(24);
+
+    const realPointerClick = async (x: number, y: number) => {
+        const rect = layout.element.getBoundingClientRect();
+        expect(document.elementFromPoint(rect.left + x, rect.top + y)).toBe(layout.element);
+        await userEvent.click(layout.element, { position: { x, y } });
+    };
+    await realPointerClick(360, 24); // above
+    await realPointerClick(20, 252); // beside
+    await realPointerClick(360, 468); // below
+    expect(dismissed).toEqual(["dismissed", "dismissed", "dismissed"]);
+
+    await view.screenshot("ModalOverlay.top.minimum.test");
+}, 120000);
+
+it("anchors top placement at the 1024x704 design reference", async () => {
+    const view = createRenderer();
+    view.render(
+        () => (
+            <TopWindowFrame height={704} width={1024}>
+                <ModalOverlay
+                    data-testid="top-reference"
+                    placement="top"
+                    style={{ position: "absolute" }}
+                >
+                    <TopCard />
+                </ModalOverlay>
+            </TopWindowFrame>
+        ),
+        { width: 1024, height: 704 },
+    );
+    await view.ready();
+
+    const overlay = view.$('[data-testid="top-reference"]');
+    const layout = view.$(
+        '[data-testid="top-reference"] [data-happy2-ui="modal-overlay-top-layout"]',
+    );
+    const card = view.$('[data-testid="top-card"]');
+    expect(overlay.element.getAttribute("data-placement")).toBe("top");
+    expect(overlay.bounds()).toEqual({ x: 0, y: 0, width: 1024, height: 704 });
+    expect(overlay.computedStyle("container-type")).toBe("size");
+    expect(layout.computedStyle("padding-top")).toBe("128px");
+    expect(card.bounds()).toEqual({ x: 192, y: 128, width: 640, height: 461 });
+    expect(card.bounds().x).toBeGreaterThanOrEqual(24);
+    expect(overlay.bounds().height - card.bounds().y - card.bounds().height).toBe(115);
+
+    await view.screenshot("ModalOverlay.top.reference.test");
 }, 120000);

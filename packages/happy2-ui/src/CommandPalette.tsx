@@ -39,7 +39,7 @@ export type CommandPaletteProps = {
  * IME-safe — intermediate composition text is left to the browser's buffer and
  * only the committed value is emitted, so a controlled `query` never interrupts
  * an active composition. It renders the card only (no scrim/stacking); compose
- * it inside `ModalOverlay` so it dims and centers like every other dialog.
+ * it inside `ModalOverlay` so the host owns its dim, stacking, and placement.
  */
 export function CommandPalette(props: CommandPaletteProps) {
     const [local, rest] = partitionComponentProps(props, [

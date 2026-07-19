@@ -75,7 +75,8 @@ Current reference dimensions are:
 
 | Element                   | Reference dimension             |
 | ------------------------- | ------------------------------- |
-| Minimum app window        | 1024 × 704 px                   |
+| Design reference window   | 1024 × 704 px                   |
+| Electron minimum window   | 720 × 480 px                    |
 | App title/navigation row  | 38 px high                      |
 | Feature rail              | 76 px wide                      |
 | Standard sidebar          | 288 px wide                     |
@@ -110,17 +111,22 @@ padding, content, and `box-sizing` must resolve to that size. Test fixed,
 content-sized, percentage, full-width, nested, and constrained-container cases
 as applicable.
 
-Every modal-class surface uses one location and one of three widths. The
-`Modal` card is `small` (360), `medium` (480), or `large` (640): confirmations
-and pickers are `small`, forms are `medium`, and content-heavy detail is
-`large`. It never sets its own position, scrim, or stacking — it is hosted by
-`ModalOverlay`, the single backdrop that fixes to the app window, dims with
-`--happy2-scrim` at `--happy2-z-overlay`, and centers the card inside a 24 px
-safe-area gutter. Application code composes `ModalOverlay` around a `Modal`,
-`Lightbox`, or editor panel instead of hand-rolling per-view scrims, so every
-dialog dims, stacks, and centers identically. Wire its `onDismiss` to close on
-a backdrop click; omit it for a surface that must not be lost to a stray click,
-such as an editor holding unsaved work.
+Every modal-class surface uses one of three widths and one of two sanctioned
+placements. The `Modal` card is `small` (360), `medium` (480), or `large` (640):
+confirmations and pickers are `small`, forms are `medium`, and content-heavy
+detail is `large`. It never sets its own position, scrim, or stacking — it is
+hosted by `ModalOverlay`, the single backdrop that fixes to the app window,
+dims with `--happy2-scrim` at `--happy2-z-overlay`, and keeps a 24 px minimum
+safe-area gutter. The default `center` placement is for dialogs and forms. The
+`top` placement is only for transient type-ahead surfaces, never forms; it uses
+an adaptive top gutter of
+`min(128px, max(48px, calc(100cqh - 552px)))` so the card sits 128 px from the
+top in the 1024 × 704 design reference and 48 px from the top at the actual
+720 × 480 Electron minimum. Application code composes `ModalOverlay` around a
+`Modal`, `Lightbox`, editor panel, or type-ahead instead of hand-rolling
+per-view scrims. Wire its `onDismiss` to close on a backdrop click; omit it for
+a surface that must not be lost to a stray click, such as an editor holding
+unsaved work.
 
 ## Layout with flexbox
 

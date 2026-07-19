@@ -54,6 +54,7 @@ export function SearchPage(props: SearchPageProps) {
                                 <EmptyState
                                     description={`No channels, people, messages, or files match “${trimmed}”.`}
                                     icon="search"
+                                    size={props.variant === "flush" ? "inline" : undefined}
                                     title="No results"
                                 />
                             ))(groups)
@@ -61,6 +62,7 @@ export function SearchPage(props: SearchPageProps) {
                         <EmptyState
                             description={`Searching the workspace for “${trimmed}”.`}
                             icon="search"
+                            size={props.variant === "flush" ? "inline" : undefined}
                             title="Searching…"
                         />
                     )
@@ -75,6 +77,7 @@ export function SearchPage(props: SearchPageProps) {
         <EmptyState
             description="Find channels, people, messages, and files across your workspace."
             icon="search"
+            size={props.variant === "flush" ? "inline" : undefined}
             title="Search Happy (2)"
         />
     );

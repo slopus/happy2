@@ -65,6 +65,54 @@ it("routes SearchPage query through the typed SearchStore action", async () => {
     await view.ready();
     expect(outputs).toEqual(["relay"]);
     expect(view.container.textContent).toContain("No results");
+    expect(
+        view.container.querySelector('[data-happy2-ui="empty-state"]')?.getAttribute("data-size"),
+    ).toBe("panel");
+});
+
+it("keeps flush SearchPage idle, searching, and no-results states inline near the top", async () => {
+    const idle = owned(searchStoreFixtureCreate());
+    const searching = owned(searchStoreFixtureCreate());
+    searching.store.getState().queryUpdate("relay");
+    searching.input({ type: "searchLoading", query: "relay" });
+    const empty = owned(searchStoreFixtureCreate());
+    empty.store.getState().queryUpdate("calm");
+    empty.input({ type: "searchLoaded", query: "calm", results: [], files: [] });
+
+    const view = createRenderer();
+    view.render(() => <SearchPage query="" store={idle.store} variant="flush" />, {
+        width: 640,
+        height: 399,
+    });
+    view.render(() => <SearchPage query="relay" store={searching.store} variant="flush" />, {
+        width: 640,
+        height: 399,
+    });
+    view.render(() => <SearchPage query="calm" store={empty.store} variant="flush" />, {
+        width: 640,
+        height: 399,
+    });
+    await view.ready();
+
+    const states = Array.from(
+        view.container.querySelectorAll<HTMLElement>('[data-happy2-ui="empty-state"]'),
+    );
+    expect(states).toHaveLength(3);
+    expect(states.map((state) => state.getAttribute("data-size"))).toEqual([
+        "inline",
+        "inline",
+        "inline",
+    ]);
+    expect(states.map((state) => state.querySelector("h2")?.textContent)).toEqual([
+        "Search Happy (2)",
+        "Searching…",
+        "No results",
+    ]);
+    for (const state of states) {
+        expect(state.getBoundingClientRect().y).toBeLessThan(
+            state.closest<HTMLElement>("[data-gym-surface]")!.getBoundingClientRect().y + 32,
+        );
+    }
 });
 
 it("renders AdminPage without materializing optional admin subpages", async () => {

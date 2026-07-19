@@ -1,5 +1,7 @@
 import { type ReactNode } from "react";
 import { Button } from "../../src/Button";
+import { CommandPalette } from "../../src/CommandPalette";
+import { EmptyState } from "../../src/EmptyState";
 import { Modal } from "../../src/Modal";
 import { ModalOverlay } from "../../src/ModalOverlay";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
@@ -26,11 +28,52 @@ function WindowFrame(props: { children: ReactNode; width: number; height: number
         </div>
     );
 }
+
+/* Top-placement specimens use a real-sized, non-transformed host. Positioning
+ * the overlay absolutely bounds it to this frame while its cqh gutter resolves
+ * from the overlay's own size container. The inset shadow marks the frame edge
+ * without consuming any of its declared dimensions. */
+function TopWindowFrame(props: { children: ReactNode; width: number; height: number }) {
+    return (
+        <div
+            style={{
+                position: "relative",
+                width: `${props.width}px`,
+                height: `${props.height}px`,
+                overflow: "hidden",
+                borderRadius: "8px",
+                background: "var(--happy2-bg-app)",
+                boxShadow: "inset 0 0 0 1px var(--happy2-border-strong)",
+            }}
+        >
+            {props.children}
+        </div>
+    );
+}
+
+function TopPalette() {
+    return (
+        <CommandPalette
+            autoFocus={false}
+            onClose={() => {}}
+            onQueryChange={() => {}}
+            placeholder="Search Happy (2)…"
+            query=""
+        >
+            <EmptyState
+                description="Find channels, people, messages, and files across your workspace."
+                icon="search"
+                size="inline"
+                title="Search Happy (2)"
+            />
+        </CommandPalette>
+    );
+}
 export function ModalOverlayPage() {
     return (
         <ComponentPage
             number="C-058"
-            summary="The single backdrop every modal-class surface sits on — one dim (scrim), one stacking level, fixed to the app window, centering a single card inside a 24px safe-area gutter. Clicking the dim outside the card dismisses when wired."
+            summary="The single backdrop every modal-class surface sits on — one dim and stacking level with a 24px minimum safe area. Dialogs center by default; transient type-ahead surfaces may use the adaptive top placement."
             title="Modal overlay"
         >
             <div className="specimen-grid">
@@ -87,6 +130,50 @@ export function ModalOverlayPage() {
                                 </Modal>
                             </ModalOverlay>
                         </WindowFrame>
+                    </div>
+                </Specimen>
+            </div>
+
+            <div className="specimen-grid">
+                <Specimen
+                    detail="720 × 480 Electron minimum · 48px top · 24px bottom · palette shrinks to 408px"
+                    label="Top — Electron minimum"
+                    number="O-03"
+                    stage="app"
+                >
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        <DimensionRule label="720 × 480 host · top gutter 48" />
+                        <TopWindowFrame height={480} width={720}>
+                            <ModalOverlay
+                                onDismiss={() => {}}
+                                placement="top"
+                                style={{ position: "absolute" }}
+                            >
+                                <TopPalette />
+                            </ModalOverlay>
+                        </TopWindowFrame>
+                    </div>
+                </Specimen>
+            </div>
+
+            <div className="specimen-grid">
+                <Specimen
+                    detail="1024 × 704 design reference · 128px top · full 461px palette frame"
+                    label="Top — design reference"
+                    number="O-04"
+                    stage="app"
+                >
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        <DimensionRule label="1024 × 704 host · top gutter 128" />
+                        <TopWindowFrame height={704} width={1024}>
+                            <ModalOverlay
+                                onDismiss={() => {}}
+                                placement="top"
+                                style={{ position: "absolute" }}
+                            >
+                                <TopPalette />
+                            </ModalOverlay>
+                        </TopWindowFrame>
                     </div>
                 </Specimen>
             </div>

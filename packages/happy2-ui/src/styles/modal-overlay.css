@@ -2,10 +2,11 @@
  * C-058 ModalOverlay — the single backdrop for every modal-class surface.
  *
  * Fixed to the app window with one dim (--happy2-scrim) at one stacking level
- * (--happy2-z-overlay, above all app chrome and in-panel popovers). A centering
- * flex box holds one card (Modal / Lightbox / editor panel) inside a 24px
- * safe-area gutter so a tall card never touches the window edge. The dim
- * outside the card is the click target that dismisses the surface.
+ * (--happy2-z-overlay, above all app chrome and in-panel popovers). A flex box
+ * holds one card (Modal / Lightbox / editor panel / transient type-ahead)
+ * inside a 24px safe-area gutter. Dialogs center by default; transient
+ * type-ahead surfaces may use the adaptive top placement. The dim outside the
+ * card is the click target that dismisses the surface.
  */
 
 .happy2-modal-overlay {
@@ -18,6 +19,29 @@
     box-sizing: border-box;
     padding: 24px;
     background: var(--happy2-scrim);
+}
+
+.happy2-modal-overlay[data-placement="top"] {
+    container-type: size;
+    align-items: flex-start;
+    padding: 0;
+}
+
+/* A container cannot resolve cqh units against itself. This top-only child
+   fills the overlay's size container and owns its flex-safe gutters, keeping
+   the default centered DOM and CSS path unchanged. */
+.happy2-modal-overlay__top-layout {
+    display: flex;
+    flex: none;
+    align-items: flex-start;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    padding-top: min(128px, max(48px, calc(100cqh - 552px)));
+    padding-right: 24px;
+    padding-bottom: 24px;
+    padding-left: 24px;
 }
 
 /*

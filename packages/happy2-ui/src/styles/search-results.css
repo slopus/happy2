@@ -109,8 +109,8 @@
 }
 
 .happy2-search-results__group:last-child .happy2-search-results__row:last-child {
-    border-bottom-right-radius: 3px;
-    border-bottom-left-radius: 3px;
+    border-bottom-right-radius: var(--happy2-search-results-last-radius, 3px);
+    border-bottom-left-radius: var(--happy2-search-results-last-radius, 3px);
 }
 
 .happy2-search-results__row:hover {
