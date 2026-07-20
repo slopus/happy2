@@ -21,10 +21,9 @@ export interface DesktopPrimarySurfaceProps {
     platform?: "desktop" | "web";
     rail: ReactNode;
     route: DesktopRoute;
-    search: string;
     session?: AuthSession;
     state: HappyState;
-    titleBar: ReactNode;
+    windowControls?: boolean;
     adminSections: readonly AdminPageSection[];
     canManageImages: boolean;
     canManageSecrets: boolean;
@@ -48,7 +47,7 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
         return value.kind === "onboarding" ? value : undefined;
     };
     const shell = (child: ReactNode) => (
-        <AppShell rail={props.rail} titleBar={props.titleBar}>
+        <AppShell rail={props.rail} windowControls={props.windowControls}>
             {child}
         </AppShell>
     );
@@ -61,10 +60,9 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
             platform={props.platform}
             rail={props.rail}
             route={props.route}
-            search={props.search}
+            windowControls={props.windowControls}
             session={props.session}
             state={props.state}
-            titleBar={props.titleBar}
         />
     ) : primary().kind === "files" ? (
         shell(

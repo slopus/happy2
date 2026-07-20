@@ -7,6 +7,7 @@
  */
 
 .happy2-app-shell {
+    position: relative;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -19,6 +20,23 @@
     color: var(--happy2-text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
+}
+
+.happy2-app-shell__window-controls {
+    position: absolute;
+    z-index: 2;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+
+.happy2-app-shell__window-controls .happy2-title-bar__controls {
+    display: block;
+    width: 78px;
+    height: 56px;
+    pointer-events: auto;
+    -webkit-app-region: drag;
+    app-region: drag;
 }
 
 .happy2-app-shell__title-bar {

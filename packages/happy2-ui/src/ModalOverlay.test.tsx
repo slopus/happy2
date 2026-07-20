@@ -317,9 +317,9 @@ it("anchors top placement at the 720x480 Electron minimum and dismisses from rea
         "padding-bottom": "24px",
         "padding-left": "24px",
         "padding-right": "24px",
-        "padding-top": "48px",
+        "padding-top": "24px",
     });
-    expect(card.bounds()).toEqual({ x: 40, y: 48, width: 640, height: 408 });
+    expect(card.bounds()).toEqual({ x: 40, y: 24, width: 640, height: 432 });
     expect(card.bounds().x).toBeGreaterThanOrEqual(24);
     expect(overlay.bounds().height - card.bounds().y - card.bounds().height).toBe(24);
 
@@ -328,7 +328,7 @@ it("anchors top placement at the 720x480 Electron minimum and dismisses from rea
         expect(document.elementFromPoint(rect.left + x, rect.top + y)).toBe(layout.element);
         await userEvent.click(layout.element, { position: { x, y } });
     };
-    await realPointerClick(360, 24); // above
+    await realPointerClick(360, 12); // above
     await realPointerClick(20, 252); // beside
     await realPointerClick(360, 468); // below
     expect(dismissed).toEqual(["dismissed", "dismissed", "dismissed"]);

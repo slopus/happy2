@@ -12,6 +12,16 @@ export async function agentCreate(
     await chatResultApply(context, result.chat);
 }
 
+/** Opens a fresh direct conversation with an existing agent. */
+export async function agentConversationCreate(
+    context: ChatActionContext,
+    agentUserId: string,
+): Promise<ChatSummary> {
+    const result = await context.runtime.operation("createAgentConversation", { agentUserId });
+    await chatResultApply(context, result.chat);
+    return result.chat;
+}
+
 /** Changes one agent binding's durable chat-specific reasoning effort and reconciles the retained chat control. */
 export async function agentEffortChange(
     context: ChatActionContext,

@@ -78,6 +78,7 @@ import {
 } from "./modules/workspace-file/workspaceFileState.js";
 import type { WorkspaceFileHandle } from "./modules/workspace-file/workspaceFileState.js";
 import type {
+    ChatSummary,
     CreateAgentInput,
     CreateChannelInput,
     MessageAudience,
@@ -179,6 +180,7 @@ import {
 import { callsLoad, callsOutputRoute } from "./modules/calls/callsState.js";
 import { callsStoreCreate, type CallsOutput, type CallsStore } from "./modules/calls/callsState.js";
 import { terminalOpen, type TerminalHandle } from "./modules/terminal/terminalState.js";
+import { agentConversationCreate } from "./modules/chat-actions/chatActionsState.js";
 import { agentCreate } from "./modules/chat-actions/chatActionsState.js";
 import { agentEffortChange } from "./modules/chat-actions/chatActionsState.js";
 import { agentEffortLoad } from "./modules/chat-actions/chatActionsState.js";
@@ -750,6 +752,14 @@ export class HappyState implements AsyncDisposable, Disposable {
         await agentCreate(this.chatActionContext(), input);
     }
 
+    async agentConversationCreate(agentUserId: string): Promise<ChatSummary> {
+        return agentConversationCreate(this.chatActionContext(), agentUserId);
+    }
+
+    async agentEffortChange(chatId: string, agentUserId: string, effort: string): Promise<void> {
+        await agentEffortChange(this.chatActionContext(), chatId, agentUserId, effort);
+    }
+
     async directMessageCreate(userId: string): Promise<void> {
         await directMessageCreate(this.chatActionContext(), userId);
     }
@@ -858,7 +868,7 @@ export class HappyState implements AsyncDisposable, Disposable {
                 this.agentEffortLoad(event.chatId, event.agentUserId);
                 return;
             case "agentEffortSubmitted":
-                this.agentEffortChange(event.chatId, event.agentUserId, event.effort);
+                void this.agentEffortChange(event.chatId, event.agentUserId, event.effort);
                 return;
             case "directoriesUpdated":
                 this.workspaceDirectoriesUpdate(event.chatId, event.directories);
@@ -1260,13 +1270,6 @@ export class HappyState implements AsyncDisposable, Disposable {
     private agentEffortLoad(chatId: string, agentUserId: string): void {
         if (!this.runtime.connected) return;
         this.runtime.background(agentEffortLoad(this.chatActionContext(), chatId, agentUserId));
-    }
-
-    private agentEffortChange(chatId: string, agentUserId: string, effort: string): void {
-        if (!this.runtime.connected) return;
-        this.runtime.background(
-            agentEffortChange(this.chatActionContext(), chatId, agentUserId, effort),
-        );
     }
 
     private areaReconcile(area: string): void {

@@ -112,7 +112,10 @@ function chatPageActionsCreate(overrides: Partial<ChatPageActions> = {}): ChatPa
         channelUpdate: async () => undefined,
         channelDefaultAgentUpdate: async () => undefined,
         agentCreate: async () => undefined,
+        agentConversationCreate: async () => "chat-1",
+        agentEffortChange: async () => undefined,
         directMessageCreate: async () => undefined,
+        messageSend: () => undefined,
         ...overrides,
     };
 }
@@ -165,9 +168,9 @@ async function chatIntroDescription(
                     directory={directory.store}
                     navigation={{ chatId: selectedChat.id }}
                     rail={<div>Rail</div>}
-                    search=""
+                    sidebarSearch=""
                     sidebar={sidebar.store}
-                    titleBar={<div>Title</div>}
+                    windowControls={false}
                     user={{ id: "user-1", firstName: "Ada" }}
                 />
             ),
@@ -360,14 +363,14 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
             <ChatPage
                 canOpenAdmin
                 rail={<div>Rail</div>}
-                search=""
+                sidebarSearch=""
                 actions={actions}
                 chat={chatSurface.store}
                 composer={composer}
                 directory={directory.store}
                 navigation={{ chatId: chat.id }}
                 sidebar={sidebar.store}
-                titleBar={<div>Title</div>}
+                windowControls={false}
                 user={{ id: "user-1", firstName: "Ada" }}
             />
         ),
@@ -591,10 +594,10 @@ it("renders the pinned parent root and every resolver, child-load, empty, and se
                     panel: { kind: "thread", rootMessageId: "root-message" },
                 }}
                 rail={<div>Rail</div>}
-                search=""
+                sidebarSearch=""
                 sidebar={sidebar.store}
                 thread={handle}
-                titleBar={<div>Title</div>}
+                windowControls={false}
                 user={{ id: "user-1", firstName: "Ada" }}
             />
         ),
@@ -734,9 +737,9 @@ it("does not select the first channel for a nonempty unknown route", async () =>
                 directory={directory.store}
                 navigation={{ chatId: "unknown-chat" }}
                 rail={<div>Rail</div>}
-                search=""
+                sidebarSearch=""
                 sidebar={sidebar.store}
-                titleBar={<div>Title</div>}
+                windowControls={false}
                 user={{ id: "user-1", firstName: "Ada" }}
             />
         ),
@@ -816,9 +819,9 @@ it("creates a direct message from the directory and does not hijack later naviga
                     directory={directory.store}
                     navigation={navigation}
                     rail={<div>Rail</div>}
-                    search=""
+                    sidebarSearch=""
                     sidebar={sidebar.store}
-                    titleBar={<div>Title</div>}
+                    windowControls={false}
                     user={{ id: owner.id, firstName: "Ada" }}
                 />
             );
@@ -928,9 +931,9 @@ it("replaces the channel default agent from the info panel", async () => {
                 directory={directory.store}
                 navigation={{ chatId: routedChat.id, panel: { kind: "info" } }}
                 rail={<div>Rail</div>}
-                search=""
+                sidebarSearch=""
                 sidebar={sidebar.store}
-                titleBar={<div>Title</div>}
+                windowControls={false}
                 user={{ id: owner.id, firstName: "Ada" }}
             />
         ),
@@ -1020,9 +1023,9 @@ it("reconciles an effort notice without remounting or moving focus from the chat
                 directory={directory.store}
                 navigation={{ chatId: agentChat.id, panel: { kind: "info" } }}
                 rail={<div>Rail</div>}
-                search=""
+                sidebarSearch=""
                 sidebar={sidebar.store}
-                titleBar={<div>Title</div>}
+                windowControls={false}
                 user={{ id: owner.id, firstName: "Ada" }}
             />
         ),
@@ -1114,9 +1117,9 @@ it("edits an own message through the desktop-safe dialog with its current revisi
                 directory={directory.store}
                 navigation={{ chatId: chat.id }}
                 rail={<div>Rail</div>}
-                search=""
+                sidebarSearch=""
                 sidebar={sidebar.store}
-                titleBar={<div>Title</div>}
+                windowControls={false}
                 user={{ id: owner.id, firstName: "Ada" }}
             />
         ),
@@ -1259,9 +1262,9 @@ it("opens a live trace panel from the message row and keeps DOM identity across 
                     directory={directory.store}
                     navigation={{ chatId: chat.id, panel }}
                     rail={<div>Rail</div>}
-                    search=""
+                    sidebarSearch=""
                     sidebar={sidebar.store}
-                    titleBar={<div>Title</div>}
+                    windowControls={false}
                     trace={trace.store}
                     user={{ id: "user-1", firstName: "Ada" }}
                 />
@@ -1413,9 +1416,9 @@ it("projects live subagents and terminals into the strip with stable row identit
                 directory={directory.store}
                 navigation={{ chatId: chat.id }}
                 rail={<div>Rail</div>}
-                search=""
+                sidebarSearch=""
                 sidebar={sidebar.store}
-                titleBar={<div>Title</div>}
+                windowControls={false}
                 user={{ id: "user-1", firstName: "Ada" }}
             />
         ),

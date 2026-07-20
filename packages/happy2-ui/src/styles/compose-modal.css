@@ -1,0 +1,139 @@
+/*
+ * Compose modal — prompt-first card for starting a new agent conversation.
+ * Hosted by ModalOverlay; matches command-palette / modal elevation tokens.
+ */
+
+.happy2-compose-modal,
+.happy2-compose-modal *,
+.happy2-compose-modal *::before,
+.happy2-compose-modal *::after {
+    box-sizing: border-box;
+}
+
+.happy2-compose-modal {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    width: min(720px, 100%);
+    max-height: 100%;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-compose-modal__dialog {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    width: 100%;
+    height: min(420px, calc(100vh - 128px));
+    max-height: min(calc(100vh - 128px), 560px);
+    overflow: hidden;
+    background: var(--happy2-bg-raised);
+    border: 1px solid var(--happy2-border-strong);
+    border-radius: var(--happy2-radius-shell);
+    box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
+}
+
+.happy2-compose-modal__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 56px;
+    padding: 12px 12px 12px 20px;
+    border-bottom: 1px solid var(--happy2-border);
+}
+
+.happy2-compose-modal__brand {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    min-width: 0;
+}
+
+.happy2-compose-modal__title {
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 20px;
+    letter-spacing: -0.01em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-compose-modal__title-suffix {
+    color: var(--happy2-text-faint);
+    font-weight: 800;
+}
+
+.happy2-compose-modal__input {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    padding: 16px 20px 8px;
+}
+
+.happy2-compose-modal__textarea {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 160px;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    border: 0;
+    background: transparent;
+    color: var(--happy2-text);
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 22px;
+    letter-spacing: -0.01em;
+    outline: none;
+    resize: none;
+}
+
+.happy2-compose-modal__textarea::placeholder {
+    color: var(--happy2-text-muted);
+}
+
+.happy2-compose-modal__textarea:disabled {
+    opacity: 0.6;
+}
+
+.happy2-compose-modal__footer {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px 16px 20px;
+}
+
+.happy2-compose-modal__controls {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.happy2-compose-modal__controls .happy2-select {
+    flex: none;
+    min-width: 160px;
+}
+
+.happy2-compose-modal__controls .happy2-segmented-control {
+    flex: 1 1 auto;
+    min-width: 220px;
+    max-width: 360px;
+}
+
+.happy2-compose-modal__create {
+    flex: none;
+}

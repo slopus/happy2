@@ -68,6 +68,7 @@
 }
 
 .happy2-terminal-panel__screen {
+    position: relative;
     box-sizing: border-box;
     flex: 1 1 0%;
     min-height: 0;
@@ -78,6 +79,12 @@
     font-family: var(--happy2-font-mono);
     font-size: 14px;
     line-height: 18px;
+}
+
+/* The terminal captures keyboard input in an invisible textarea. Surface its
+   otherwise hidden focus state so the active keyboard target is always clear. */
+.happy2-terminal-panel__screen[data-focused] {
+    box-shadow: inset 0 0 0 2px var(--happy2-accent);
 }
 
 .happy2-terminal-panel__rows {
@@ -105,9 +112,15 @@
 /* The cursor is an overlay positioned in cell coordinates, outside text flow. */
 .happy2-terminal-panel__cursor {
     position: absolute;
+    outline: 1px solid var(--happy2-accent);
+    outline-offset: -1px;
+    pointer-events: none;
+}
+
+.happy2-terminal-panel__screen[data-focused] .happy2-terminal-panel__cursor {
     background: var(--happy2-accent);
     opacity: 0.65;
-    pointer-events: none;
+    outline: none;
 }
 
 .happy2-terminal-panel__input {

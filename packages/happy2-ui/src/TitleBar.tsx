@@ -92,34 +92,47 @@ export function SearchField(props: SearchFieldProps) {
         </div>
     );
 }
-type TitleBarSharedProps = {
+type TitleBarBaseProps = {
     /** Left slot, e.g. a workspace crumb. */
     leading?: ReactNode;
-    searchPlaceholder?: string;
-    searchValue: string;
     /** Reserve 78px at the left edge for native macOS traffic lights. */
     showWindowControls?: boolean;
     /** Right slot for actions. */
     trailing?: ReactNode;
 };
 /** Editable search well that reports typing through `onSearchChange`. */
-export type TitleBarEditableProps = TitleBarSharedProps & {
+export type TitleBarEditableProps = TitleBarBaseProps & {
     onSearchChange: (value: string) => void;
     onSearchOpen?: never;
+    searchPlaceholder?: string;
+    searchValue: string;
 };
 /** Opener search well (read-only) that invokes `onSearchOpen` on click/Enter. */
-export type TitleBarOpenerProps = TitleBarSharedProps & {
+export type TitleBarOpenerProps = TitleBarBaseProps & {
     onSearchOpen: () => void;
     onSearchChange?: never;
+    searchPlaceholder?: string;
+    searchValue: string;
 };
-/** The search well is either editable or a palette opener, never both. */
-export type TitleBarProps = TitleBarEditableProps | TitleBarOpenerProps;
+/** Title bar without a centered search well. */
+export type TitleBarPlainProps = TitleBarBaseProps & {
+    onSearchChange?: never;
+    onSearchOpen?: never;
+    searchPlaceholder?: never;
+    searchValue?: never;
+};
+/** The search well is editable, a palette opener, or omitted entirely. */
+export type TitleBarProps = TitleBarEditableProps | TitleBarOpenerProps | TitleBarPlainProps;
 /**
  * 56px window title bar: draggable app-owned chrome under the transparent
- * native title bar, with a centered 420px-max SearchField between two 1fr
- * slots.
+ * native title bar, with an optional centered 420px-max SearchField between
+ * two 1fr slots.
  */
 export function TitleBar(props: TitleBarProps) {
+    const searchOpen = "onSearchOpen" in props ? props.onSearchOpen : undefined;
+    const searchChange = "onSearchChange" in props ? props.onSearchChange : undefined;
+    const searchValue = ("searchValue" in props ? props.searchValue : "") ?? "";
+    const hasSearch = searchOpen !== undefined || searchChange !== undefined;
     return (
         <header
             className="happy2-title-bar"
@@ -136,23 +149,23 @@ export function TitleBar(props: TitleBarProps) {
                 ) : null}
                 {props.leading}
             </div>
-            <div className="happy2-title-bar__center" data-happy2-ui="title-bar-center">
-                {props.onSearchOpen ? (
-                    ((onSearchOpen) => (
+            {hasSearch ? (
+                <div className="happy2-title-bar__center" data-happy2-ui="title-bar-center">
+                    {searchOpen ? (
                         <SearchField
-                            onOpen={onSearchOpen}
+                            onOpen={searchOpen}
                             placeholder={props.searchPlaceholder}
-                            value={props.searchValue}
+                            value={searchValue}
                         />
-                    ))(props.onSearchOpen)
-                ) : (
-                    <SearchField
-                        onChange={(props as TitleBarEditableProps).onSearchChange}
-                        placeholder={props.searchPlaceholder}
-                        value={props.searchValue}
-                    />
-                )}
-            </div>
+                    ) : (
+                        <SearchField
+                            onChange={searchChange!}
+                            placeholder={props.searchPlaceholder}
+                            value={searchValue}
+                        />
+                    )}
+                </div>
+            ) : null}
             <div className="happy2-title-bar__trailing" data-happy2-ui="title-bar-trailing">
                 {props.trailing}
             </div>

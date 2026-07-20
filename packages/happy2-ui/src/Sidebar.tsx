@@ -35,6 +35,8 @@ export type SidebarSection = {
 };
 export type SidebarProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
     activeItemId: string;
+    /** Renders the product mark ("Happy" + faint "2") instead of a custom title row. */
+    brand?: boolean;
     composeLabel?: string;
     footer?: ReactNode;
     onCompose?: () => void;
@@ -43,7 +45,7 @@ export type SidebarProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
     sections: SidebarSection[];
     style?: CSSProperties;
     subtitle?: string;
-    title: string;
+    title?: string;
 };
 function leadingIcon(item: SidebarItem): IconName {
     if (item.kind === "channel") return "hash";
@@ -131,6 +133,7 @@ function SidebarRow(props: { active: boolean; item: SidebarItem; onSelect: (id: 
 export function Sidebar(props: SidebarProps) {
     const [local, rest] = partitionComponentProps(props, [
         "activeItemId",
+        "brand",
         "className",
         "composeLabel",
         "footer",
@@ -151,14 +154,29 @@ export function Sidebar(props: SidebarProps) {
         >
             <header className="happy2-sidebar__header" data-happy2-ui="sidebar-header">
                 <div className="happy2-sidebar__heading" data-happy2-ui="sidebar-heading">
-                    <span className="happy2-sidebar__title-row">
-                        <span className="happy2-sidebar__title" data-happy2-ui="sidebar-title">
-                            {local.title}
+                    {local.brand ? (
+                        <span className="happy2-sidebar__title-row">
+                            <span className="happy2-sidebar__title" data-happy2-ui="sidebar-title">
+                                Happy
+                                <span
+                                    className="happy2-sidebar__title-suffix"
+                                    data-happy2-ui="sidebar-title-suffix"
+                                >
+                                    {" "}
+                                    2
+                                </span>
+                            </span>
                         </span>
-                        <span className="happy2-sidebar__title-chevron" aria-hidden="true">
-                            <Icon name="chevron-down" size={14} />
+                    ) : (
+                        <span className="happy2-sidebar__title-row">
+                            <span className="happy2-sidebar__title" data-happy2-ui="sidebar-title">
+                                {local.title}
+                            </span>
+                            <span className="happy2-sidebar__title-chevron" aria-hidden="true">
+                                <Icon name="chevron-down" size={14} />
+                            </span>
                         </span>
-                    </span>
+                    )}
                     {local.subtitle ? (
                         <span
                             className="happy2-sidebar__subtitle"
@@ -168,18 +186,26 @@ export function Sidebar(props: SidebarProps) {
                         </span>
                     ) : null}
                 </div>
-                <Button
-                    aria-label={local.composeLabel ?? "New message"}
-                    className="happy2-sidebar__compose"
-                    icon="edit"
-                    iconOnly
-                    onClick={local.onCompose}
-                    size="small"
-                    variant="ghost"
-                />
             </header>
             <div className="happy2-sidebar__body" data-happy2-ui="sidebar-body">
                 <div className="happy2-sidebar__body-content" data-happy2-ui="sidebar-body-content">
+                    {local.onCompose ? (
+                        <div
+                            className="happy2-sidebar__compose-row"
+                            data-happy2-ui="sidebar-compose-row"
+                        >
+                            <Button
+                                className="happy2-sidebar__compose"
+                                fullWidth
+                                icon="edit"
+                                onClick={local.onCompose}
+                                size="medium"
+                                variant="secondary"
+                            >
+                                {local.composeLabel ?? "New chat"}
+                            </Button>
+                        </div>
+                    ) : null}
                     {local.sections.map((section) => (
                         <section
                             className="happy2-sidebar__section"

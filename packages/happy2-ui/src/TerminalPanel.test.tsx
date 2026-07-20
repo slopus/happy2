@@ -1,4 +1,6 @@
 import { expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
+import { useState } from "react";
 import type { TerminalCellSnapshot, TerminalGridSnapshot } from "happy2-state";
 import "./theme.css";
 import "./styles/terminal-panel.css";
@@ -200,4 +202,87 @@ it("lays sparse and wide cells on their declared columns and swaps inverse color
         color: "rgb(238, 238, 238)",
         "background-color": "rgb(17, 17, 17)",
     });
+});
+
+it("forwards focused printable and control-key terminal input", async () => {
+    const input: string[] = [];
+    const view = createRenderer();
+    view.render(
+        () => (
+            <div style={{ display: "flex", flexDirection: "column", width: "760px" }}>
+                <TerminalPanel
+                    grid={connectedGrid}
+                    height={240}
+                    onClose={noop}
+                    onHeightChange={noop}
+                    onInput={(data) => input.push(data)}
+                    onReconnect={noop}
+                    onResize={noop}
+                    status="connected"
+                />
+            </div>
+        ),
+        { width: 800, height: 320, padding: 16 },
+    );
+    await view.ready();
+
+    const capture = view.container.querySelector<HTMLTextAreaElement>(
+        'textarea[aria-label="Terminal input"]',
+    );
+    expect(capture).toBeTruthy();
+    expect(document.activeElement).toBe(capture);
+    expect(
+        view.$('[data-happy2-ui="terminal-screen"]').computedStyles(["box-shadow"])["box-shadow"],
+    ).toContain("inset");
+
+    await userEvent.keyboard("pwd");
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("{Control>}c{/Control}");
+    expect(input).toEqual(["p", "w", "d", "\r", "\x03"]);
+    expect(capture!.value).toBe("");
+});
+
+it("does not steal focus from the chat composer when its resize callback changes", async () => {
+    function FocusFixture() {
+        const [draft, draftSet] = useState("");
+        return (
+            <div style={{ display: "flex", flexDirection: "column", width: "760px" }}>
+                <textarea
+                    aria-label="Chat input"
+                    onInput={(event) => draftSet(event.currentTarget.value)}
+                    value={draft}
+                />
+                <TerminalPanel
+                    grid={connectedGrid}
+                    height={240}
+                    onClose={noop}
+                    onHeightChange={noop}
+                    onInput={noop}
+                    onReconnect={noop}
+                    onResize={() => undefined}
+                    status="connected"
+                />
+            </div>
+        );
+    }
+
+    const view = createRenderer();
+    view.render(FocusFixture, { width: 800, height: 400, padding: 16 });
+    await view.ready();
+
+    const chat = view.container.querySelector<HTMLTextAreaElement>(
+        'textarea[aria-label="Chat input"]',
+    );
+    const terminal = view.container.querySelector<HTMLTextAreaElement>(
+        'textarea[aria-label="Terminal input"]',
+    );
+    expect(document.activeElement).toBe(terminal);
+
+    await userEvent.click(chat!);
+    await userEvent.keyboard("hello");
+    expect(chat!.value).toBe("hello");
+    expect(document.activeElement).toBe(chat);
+
+    await userEvent.click(view.$('[data-happy2-ui="terminal-screen"]').element);
+    expect(document.activeElement).toBe(terminal);
 });

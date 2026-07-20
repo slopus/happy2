@@ -19,6 +19,7 @@ import {
 } from "happy2-ui";
 import { createServerClient, ServerError, type User } from "../server";
 import { createAuthenticatedTransport } from "../stateTransport";
+import { terminalDriverCreate } from "../terminalDriver";
 import type { AuthSession } from "./AuthGate";
 type DevTokenGateProps = {
     /** Request origin for auth and state. Empty string means the app's own origin. */
@@ -95,6 +96,7 @@ export function DevTokenGate(props: DevTokenGateProps) {
                 nextState = happyStateCreate({
                     initialPermissions: response.permissions,
                     transport: createAuthenticatedTransport(props.serverUrl),
+                    terminalDriverCreate,
                 });
                 await nextState.syncStart();
                 const profile = await loadAvatar(response.user, nextState);

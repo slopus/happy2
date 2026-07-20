@@ -155,6 +155,7 @@ export {
     TitleBar,
     type TitleBarEditableProps,
     type TitleBarOpenerProps,
+    type TitleBarPlainProps,
     type TitleBarProps,
     WindowDragRegion,
     type WindowDragRegionProps,
@@ -348,6 +349,11 @@ export { AdminPage, type AdminPageProps, type AdminPageSection } from "./pages/a
 export { ActivityPage, type ActivityPageProps } from "./pages/activity/ActivityPage";
 export { ProfilePage, type ProfilePageProps } from "./pages/profile/ProfilePage";
 export { CallsPage, type CallsPageProps } from "./pages/calls/CallsPage";
+export {
+    ComposeModal,
+    type ComposeModalModelOption,
+    type ComposeModalProps,
+} from "./pages/compose/ComposeModal";
 export { HomePage, type HomePageProps } from "./pages/home/HomePage";
 export { ThreadsPage, type ThreadsPageProps } from "./pages/threads/ThreadsPage";
 export { FilesPage, type FilesPageFilter, type FilesPageProps } from "./pages/files/FilesPage";

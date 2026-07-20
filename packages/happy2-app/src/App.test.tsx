@@ -30,6 +30,9 @@ function chatPrimarySurface(container: HTMLElement): HTMLElement {
     if (!surface) throw new Error("chat primary surface not found");
     return surface;
 }
+function openSearchPalette() {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
+}
 function DesktopSessionFixture(props: {
     navigation: ReturnType<typeof desktopNavigationCreate>;
     state: ReturnType<typeof happyStateCreate>;
@@ -238,13 +241,12 @@ describe("persistent desktop routing", () => {
             />,
         );
         const primary = chatPrimarySurface(screen.container);
-        const well = screen.container.querySelector<HTMLInputElement>(
-            '[data-happy2-ui="search-field-input"]',
-        )!;
-        fireEvent.click(well);
-        expect(
-            screen.container.querySelector('[data-happy2-ui="command-palette-input"]'),
-        ).toBeTruthy();
+        openSearchPalette();
+        await waitFor(() =>
+            expect(
+                screen.container.querySelector('[data-happy2-ui="command-palette-input"]'),
+            ).toBeTruthy(),
+        );
         expect(
             screen.container
                 .querySelector('[data-happy2-ui="modal-overlay"]')
@@ -428,10 +430,13 @@ describe("persistent desktop routing", () => {
         const screen = render(<DesktopApp navigation={navigation} state={state} />);
         await state.whenIdle();
         const primary = chatPrimarySurface(screen.container);
-        fireEvent.click(
-            screen.container.querySelector<HTMLInputElement>(
-                '[data-happy2-ui="search-field-input"]',
-            )!,
+        openSearchPalette();
+        await waitFor(() =>
+            expect(
+                screen.container.querySelector<HTMLInputElement>(
+                    '[data-happy2-ui="command-palette-input"]',
+                ),
+            ).toBeTruthy(),
         );
         const paletteInput = screen.container.querySelector<HTMLInputElement>(
             '[data-happy2-ui="command-palette-input"]',

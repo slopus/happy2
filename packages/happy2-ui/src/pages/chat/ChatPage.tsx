@@ -51,6 +51,7 @@ import { ChatWorkspacePanel } from "./ChatWorkspacePanel.js";
 import { useChatWorkspaceModel } from "./chatWorkspaceModel.js";
 import { useChatMessageMediaModel } from "./chatMessageMediaModel.js";
 import { ChatConversation } from "./ChatConversation.js";
+import { ComposeModal } from "../compose/ComposeModal.js";
 import { chatSidebarModelCreate } from "./chatSidebarModel.js";
 import { useChatInfoModel } from "./chatInfoModel.js";
 import { chatMessageActionsModelCreate } from "./chatMessageActionsModel.js";
@@ -81,13 +82,14 @@ export type ChatPageProps = {
     workspaceFile?: WorkspaceFileStore;
     actions: ChatPageActions;
     navigation: ChatPageNavigation;
-    search: string;
+    /** Filters sidebar rows locally; global search must not drive this prop. */
+    sidebarSearch?: string;
+    windowControls?: boolean;
     createRequest?: {
         kind: "agent" | "channel";
         nonce: number;
     };
     rail: ReactNode;
-    titleBar: ReactNode;
     /** Shows the administration entry when effective permissions expose a section. */
     canOpenAdmin?: boolean;
 };
@@ -147,7 +149,10 @@ export interface ChatPageActions {
     channelUpdate(chatId: string, input: import("happy2-state").ChannelUpdateInput): Promise<void>;
     channelDefaultAgentUpdate(chatId: string, agentUserId: string): Promise<void>;
     agentCreate(input: import("happy2-state").CreateAgentInput): Promise<void>;
+    agentConversationCreate(agentUserId: string): Promise<string>;
+    agentEffortChange(chatId: string, agentUserId: string, effort: string): Promise<void>;
     directMessageCreate(userId: string): Promise<void>;
+    messageSend(chatId: string, text: string): void;
     terminalOpen?(agentUserId: string): void;
     terminalClose?(): void;
     /** Downloads one staged plugin request image while the request package remains staged. */
@@ -178,6 +183,7 @@ export function ChatPage(props: ChatPageProps) {
     const [createOpen, setCreateOpen] = useState(false);
     const [agentCreateOpen, setAgentCreateOpen] = useState(false);
     const [directoryOpen, setDirectoryOpen] = useState(false);
+    const [composeOpen, setComposeOpen] = useState(false);
     const [directMessageOpen, setDirectMessageOpen] = useState(false);
     const [messageEdit, setMessageEdit] = useState<{
         chatId: string;
@@ -340,7 +346,7 @@ export function ChatPage(props: ChatPageProps) {
     const sidebarModel = chatSidebarModelCreate({
         user,
         activeConversationId,
-        search: () => props.search,
+        search: () => props.sidebarSearch ?? "",
         sidebarSnapshot,
         directorySnapshot,
         avatarFor,
@@ -407,6 +413,34 @@ export function ChatPage(props: ChatPageProps) {
         pendingSelection.current = { kind: "dm", userId };
         setDirectMessageOpen(false);
     }
+    async function applyComposeEffort(chatId: string, agentUserId: string, effort: string) {
+        let lastError: unknown;
+        for (let attempt = 0; attempt < 5; attempt++) {
+            try {
+                await props.actions.agentEffortChange(chatId, agentUserId, effort);
+                return;
+            } catch (error) {
+                lastError = error;
+                if (attempt < 4)
+                    await new Promise<void>((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
+            }
+        }
+        throw lastError;
+    }
+    async function composeSubmit(input: { agentUserId: string; effort: string; prompt: string }) {
+        startBusy();
+        try {
+            const chatId = await props.actions.agentConversationCreate(input.agentUserId);
+            props.actions.chatSelect(chatId, "chat");
+            await applyComposeEffort(chatId, input.agentUserId, input.effort);
+            props.actions.messageSend(chatId, input.prompt);
+            setComposeOpen(false);
+        } catch (error) {
+            showError(error);
+        } finally {
+            finishBusy();
+        }
+    }
     async function messageEditSave(text: string) {
         const edit = messageEdit;
         if (!edit) return;
@@ -451,6 +485,10 @@ export function ChatPage(props: ChatPageProps) {
             ? members.value.filter((person) => person.kind === "agent")
             : [];
     };
+    const composeAgents = () =>
+        directoryUsers()
+            .filter((person) => person.kind === "agent")
+            .map((agent) => ({ label: agent.displayName, value: agent.id }));
     const composerAgent = (id: string) => {
         const person =
             directoryUsers().find((candidate) => candidate.id === id) ??
@@ -764,11 +802,12 @@ export function ChatPage(props: ChatPageProps) {
     return (
         <>
             <AppShell
-                titleBar={props.titleBar}
                 rail={props.rail}
+                windowControls={props.windowControls}
                 sidebar={
                     <Sidebar
                         activeItemId={activeConversationId()}
+                        brand
                         footer={
                             props.canOpenAdmin ? (
                                 <Button
@@ -783,7 +822,8 @@ export function ChatPage(props: ChatPageProps) {
                                 </Button>
                             ) : null
                         }
-                        onCompose={() => setDirectMessageOpen(true)}
+                        composeLabel="New chat"
+                        onCompose={() => setComposeOpen(true)}
                         onItemSelect={selectConversation}
                         onSectionAction={(sectionId) => {
                             if (sectionId === "agents") setAgentCreateOpen(true);
@@ -791,7 +831,6 @@ export function ChatPage(props: ChatPageProps) {
                             if (sectionId === "dms") setDirectMessageOpen(true);
                         }}
                         sections={sidebarSections}
-                        title={user() ? `${user()!.firstName}’s Happy (2)` : "Happy (2)"}
                     />
                 }
                 panel={
@@ -1028,6 +1067,15 @@ export function ChatPage(props: ChatPageProps) {
                     key={messageEdit.messageId}
                     onClose={() => setMessageEdit(undefined)}
                     onSave={(text) => void messageEditSave(text)}
+                />
+            ) : null}
+            {composeOpen ? (
+                <ComposeModal
+                    busy={busy()}
+                    defaultAgentUserId={composeAgents()[0]?.value}
+                    models={composeAgents()}
+                    onClose={() => setComposeOpen(false)}
+                    onCreate={(input) => composeSubmit(input)}
                 />
             ) : null}
             {agentCreateOpen ? (

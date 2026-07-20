@@ -1,4 +1,11 @@
-import { useLayoutEffect, useRef, type CSSProperties, type KeyboardEvent } from "react";
+import {
+    useEffectEvent,
+    useLayoutEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+    type KeyboardEvent,
+} from "react";
 import type { TerminalCellSnapshot, TerminalGridSnapshot } from "happy2-state";
 import { Button } from "./Button";
 
@@ -21,36 +28,51 @@ export interface TerminalPanelProps {
 // Mono at 14px (0.6em), so a column in CSS `ch` and this pixel value agree.
 const CELL_WIDTH = 8.4;
 const CELL_HEIGHT = 18;
-const ROWS_PADDING_LEFT = 12;
-const ROWS_PADDING_TOP = 8;
+const ROWS_PADDING_HORIZONTAL = 12;
+const ROWS_PADDING_VERTICAL = 8;
 // The theme default terminal colors, used when an inverse cell has no explicit color.
 const DEFAULT_FOREGROUND = "var(--happy2-text)";
 const DEFAULT_BACKGROUND = "var(--happy2-bg-code)";
 
 export function TerminalPanel(props: TerminalPanelProps) {
-    const onResize = props.onResize;
     const screen = useRef<HTMLDivElement>(null);
     const input = useRef<HTMLTextAreaElement>(null);
     const drag = useRef<{ startHeight: number; startY: number } | undefined>(undefined);
+    const [focused, focusedSet] = useState(false);
+    const resize = useEffectEvent((cols: number, rows: number) => props.onResize(cols, rows));
     // With nothing to show, a dead session collapses to its header line so it
     // does not push the conversation around; once output exists it stays
     // visible through disconnects for context.
     const collapsed =
         !props.grid &&
         (props.status === "error" || props.status === "disconnected" || props.status === "exited");
+    // Terminal autofocus is a mount/visibility concern, never a response to an
+    // unrelated ChatPage render. Otherwise a freshly allocated callback prop
+    // would steal the composer's focus whenever its draft changes.
     useLayoutEffect(() => {
-        input.current?.focus();
+        if (!collapsed) input.current?.focus({ preventScroll: true });
+    }, [collapsed]);
+    useLayoutEffect(() => {
         const element = screen.current;
         if (!element) return;
         const observer = new ResizeObserver(([entry]) => {
             if (!entry) return;
-            const cols = Math.max(1, Math.floor(entry.contentRect.width / CELL_WIDTH));
-            const rows = Math.max(1, Math.floor(entry.contentRect.height / CELL_HEIGHT));
-            onResize(cols, rows);
+            // Rows own the terminal's 12px/8px inset, so size the PTY from the
+            // cell viewport inside that inset. Rounding the outer screen would
+            // request columns and rows that cannot actually fit.
+            const cols = Math.max(
+                1,
+                Math.floor((entry.contentRect.width - ROWS_PADDING_HORIZONTAL * 2) / CELL_WIDTH),
+            );
+            const rows = Math.max(
+                1,
+                Math.floor((entry.contentRect.height - ROWS_PADDING_VERTICAL * 2) / CELL_HEIGHT),
+            );
+            resize(cols, rows);
         });
         observer.observe(element);
         return () => observer.disconnect();
-    }, [onResize, collapsed]);
+    }, [collapsed]);
     function keyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
         const sequences: Partial<Record<string, string>> = {
             Enter: "\r",
@@ -70,6 +92,13 @@ export function TerminalPanel(props: TerminalPanelProps) {
             event.preventDefault();
             props.onInput(String.fromCharCode(event.key.toUpperCase().charCodeAt(0) - 64));
         }
+    }
+    function screenFocus() {
+        // A terminal click returns keyboard capture unless the user has an
+        // active grid selection they may be copying. This mirrors native
+        // terminal selection behavior instead of cancelling the click early.
+        const selection = window.getSelection();
+        if (!selection || selection.isCollapsed) input.current?.focus({ preventScroll: true });
     }
     function dragStart(event: React.PointerEvent<HTMLDivElement>) {
         drag.current = { startHeight: props.height, startY: event.clientY };
@@ -135,9 +164,15 @@ export function TerminalPanel(props: TerminalPanelProps) {
             {collapsed ? null : (
                 <div
                     className="happy2-terminal-panel__screen"
+                    data-focused={focused ? "" : undefined}
                     data-happy2-ui="terminal-screen"
-                    onPointerDown={() => input.current?.focus()}
+                    onClick={screenFocus}
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") screenFocus();
+                    }}
                     ref={screen}
+                    role="application"
+                    tabIndex={-1}
                 >
                     <div className="happy2-terminal-panel__rows" data-happy2-ui="terminal-rows">
                         {props.grid?.lines.map((row, rowIndex) => (
@@ -162,8 +197,8 @@ export function TerminalPanel(props: TerminalPanelProps) {
                                 style={{
                                     // Offset by the rows wrapper padding so cell
                                     // coordinates align with painted glyphs.
-                                    left: `calc(${ROWS_PADDING_LEFT}px + ${cursor.x}ch)`,
-                                    top: `${ROWS_PADDING_TOP + cursor.y * CELL_HEIGHT}px`,
+                                    left: `calc(${ROWS_PADDING_HORIZONTAL}px + ${cursor.x}ch)`,
+                                    top: `${ROWS_PADDING_VERTICAL + cursor.y * CELL_HEIGHT}px`,
                                     width: "1ch",
                                     height: `${CELL_HEIGHT}px`,
                                 }}
@@ -173,11 +208,17 @@ export function TerminalPanel(props: TerminalPanelProps) {
                     <textarea
                         aria-label="Terminal input"
                         className="happy2-terminal-panel__input"
-                        onChange={(event) => {
+                        /* `input` is the browser's text-entry event. Keeping the
+                           terminal's byte forwarding on it avoids depending on
+                           React's change-event normalization for this deliberately
+                           invisible, immediately cleared capture field. */
+                        onInput={(event) => {
                             if (event.currentTarget.value) props.onInput(event.currentTarget.value);
                             event.currentTarget.value = "";
                         }}
                         onKeyDown={keyDown}
+                        onBlur={() => focusedSet(false)}
+                        onFocus={() => focusedSet(true)}
                         ref={input}
                     />
                 </div>

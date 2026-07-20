@@ -4,7 +4,6 @@ import {
     Rail,
     StoreSurface,
     ThemeScope,
-    TitleBar,
     type AdminPageSection,
     type RailItem,
     type SearchResultType,
@@ -53,10 +52,6 @@ export function DesktopApp(props: DesktopAppProps) {
     const user = () => props.session?.user;
     const userName = () => user()?.firstName ?? "Profile";
     const userInitials = () => user()?.firstName?.slice(0, 2).toUpperCase() ?? "?";
-    const search = () => {
-        const overlay = route.overlay;
-        return overlay?.kind === "search" ? overlay.query : "";
-    };
     function primaryOpen(primary: DesktopPrimaryRoute) {
         const next: DesktopRoute = {
             ...route,
@@ -83,11 +78,6 @@ export function DesktopApp(props: DesktopAppProps) {
         if (route.primary.kind !== "conversation")
             primaryOpen({ kind: "conversation", conversationKind: "chat" });
         queueMicrotask(() => requestCreateNext(kind));
-    }
-    /** Opens the empty palette over the current surface without changing the primary route. */
-    function paletteOpen() {
-        if (route.overlay?.kind === "search") return;
-        props.navigation.navigate({ ...route, overlay: { kind: "search", query: "" } });
     }
     /** Updates the live palette query, keeping the palette open when the query is cleared. */
     function searchChange(value: string) {
@@ -191,14 +181,7 @@ export function DesktopApp(props: DesktopAppProps) {
             }}
         />
     );
-    const titleBar = () => (
-        <TitleBar
-            onSearchOpen={paletteOpen}
-            searchPlaceholder="Search Happy (2)…"
-            searchValue={search()}
-            showWindowControls={props.platform === "desktop"}
-        />
-    );
+    const windowControls = () => props.platform === "desktop";
     return (
         <StoreSurface store={props.state.permissions()}>
             {(permissions) => {
@@ -219,10 +202,9 @@ export function DesktopApp(props: DesktopAppProps) {
                             platform={props.platform}
                             rail={rail()}
                             route={route}
-                            search={search()}
                             session={props.session}
                             state={props.state}
-                            titleBar={titleBar()}
+                            windowControls={windowControls()}
                         />
                         <DesktopOverlaySurface
                             navigation={props.navigation}

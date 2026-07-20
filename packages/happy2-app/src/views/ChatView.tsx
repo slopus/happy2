@@ -28,9 +28,8 @@ export type ChatViewProps = {
         kind: "agent" | "channel";
         nonce: number;
     };
-    search: string;
+    windowControls?: boolean;
     rail: ReactNode;
-    titleBar: ReactNode;
     canOpenAdmin: boolean;
     adminStartSection: AdminPageSection;
 };
@@ -255,7 +254,14 @@ export function ChatView(props: ChatViewProps) {
         channelDefaultAgentUpdate: (selectedChatId, agentUserId) =>
             state.channelDefaultAgentUpdate(selectedChatId, agentUserId),
         agentCreate: (input) => state.agentCreate(input),
+        agentConversationCreate: async (agentUserId) => {
+            const chat = await state.agentConversationCreate(agentUserId);
+            return chat.id;
+        },
+        agentEffortChange: (chatId, agentUserId, effort) =>
+            state.agentEffortChange(chatId, agentUserId, effort),
         directMessageCreate: (userId) => state.directMessageCreate(userId),
+        messageSend: (chatId, text) => state.messageSend(chatId, { text }),
         pluginRequestImageDownload: (chatId, requestId) =>
             state.pluginManagementRequestImageDownload(chatId, requestId),
         terminalOpen(agentUserId) {
@@ -293,12 +299,11 @@ export function ChatView(props: ChatViewProps) {
             directory={state.directory()}
             navigation={pageNavigation()}
             rail={props.rail}
-            search={props.search}
             sidebar={state.sidebar()}
             thread={resources.thread}
             trace={resources.trace}
             terminal={resources.terminal}
-            titleBar={props.titleBar}
+            windowControls={props.windowControls}
             user={props.session?.user ?? { id: "local-user", firstName: "Happy" }}
             workspace={resources.workspace}
             workspaceFile={resources.workspaceFile}

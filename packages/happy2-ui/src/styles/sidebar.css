@@ -63,6 +63,10 @@
     transform: translateY(var(--happy2-sidebar-header-optical-y, 0px));
 }
 
+.happy2-sidebar__title-suffix {
+    color: var(--happy2-text-faint);
+}
+
 .happy2-sidebar__title-chevron {
     display: flex;
     flex: none;
@@ -82,8 +86,19 @@
     transform: translateY(var(--happy2-sidebar-header-optical-y, 0px));
 }
 
+.happy2-sidebar__compose-row {
+    flex: none;
+    margin-bottom: 8px;
+}
+
 .happy2-sidebar__compose {
-    margin-right: -6px; /* optical: keep the glyph on the 16px margin */
+    justify-content: flex-start;
+    border-radius: var(--happy2-radius-md);
+}
+
+.happy2-sidebar__compose .happy2-button__content {
+    justify-content: flex-start;
+    width: 100%;
 }
 
 /* ---- Body ------------------------------------------------------------- */

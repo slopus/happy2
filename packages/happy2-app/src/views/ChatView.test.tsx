@@ -134,9 +134,7 @@ it("acquires and releases exactly one trace lease per routed panel lifetime", as
             navigation={navigation}
             rail={<div>Rail</div>}
             route={route}
-            search=""
             state={state}
-            titleBar={<div>Title</div>}
         />
     );
 
@@ -227,9 +225,7 @@ it("acquires and releases exactly one composite thread lease per routed panel li
             navigation={navigation}
             rail={<div>Rail</div>}
             route={route}
-            search=""
             state={state}
-            titleBar={<div>Title</div>}
         />
     );
     const threadRoute = chatRoute("chat-1", { kind: "thread", rootMessageId: "root-1" });

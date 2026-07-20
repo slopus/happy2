@@ -13,7 +13,6 @@ import {
     type ChatPageNavigation,
 } from "../../src/pages/chat/ChatPage";
 import { Rail } from "../../src/Rail";
-import { TitleBar } from "../../src/TitleBar";
 import { ComponentPage, FullScreenSpecimen } from "../kit";
 const chat: ChatSummary = {
     id: "chat-blueprint",
@@ -81,7 +80,10 @@ const passiveActions: ChatPageActions = {
     channelUpdate: async () => undefined,
     channelDefaultAgentUpdate: async () => undefined,
     agentCreate: async () => undefined,
+    agentConversationCreate: async () => "chat-1",
+    agentEffortChange: async () => undefined,
     directMessageCreate: async () => undefined,
+    messageSend: () => undefined,
 };
 export function ChatStorePage() {
     const [{ sidebar, directory, chatSurface, composer }] = useState(() => {
@@ -128,7 +130,6 @@ export function ChatStorePage() {
         chatSurface.input({ type: "chatLoaded", chat, messages: [], hasMoreMessages: false });
         return { sidebar, directory, chatSurface, composer };
     });
-    const [search, setSearch] = useState("");
     const [navigation, setNavigation] = useState<ChatPageNavigation>({ chatId: chat.id });
     const actions: ChatPageActions = {
         ...passiveActions,
@@ -192,16 +193,7 @@ export function ChatStorePage() {
                             onItemSelect={() => undefined}
                         />
                     }
-                    search={search}
                     sidebar={sidebar.store}
-                    titleBar={
-                        <TitleBar
-                            onSearchChange={setSearch}
-                            searchPlaceholder="Search Happy (2)"
-                            searchValue={search}
-                            showWindowControls
-                        />
-                    }
                     user={{ id: "user-blueprint", firstName: "Ada" }}
                 />
             </FullScreenSpecimen>

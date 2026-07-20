@@ -165,6 +165,7 @@ export const backendOperations = {
     createDirectMessage: post("/v0/chats/createDirectMessage"),
     createGroupDirectMessage: post("/v0/chats/createGroupDirectMessage"),
     createAgent: post("/v0/chats/createAgent"),
+    createAgentConversation: post("/v0/chats/createAgentConversation"),
     createChannel: post("/v0/chats/createChannel"),
     updateChatTopic: post("/v0/chats/:chatId/updateTopic"),
     updateDefaultAgent: post("/v0/chats/:chatId/updateDefaultAgent"),
@@ -444,6 +445,7 @@ export interface KnownBackendInputs {
         readonly topic?: string | null;
     };
     createAgent: { readonly name: string; readonly username: string };
+    createAgentConversation: { readonly agentUserId: string };
     updateChatTopic: { readonly chatId: string; readonly topic: string | null };
     updateDefaultAgent: { readonly chatId: string; readonly agentUserId: string };
     updateChannel: {
@@ -1071,6 +1073,7 @@ export interface KnownBackendResults {
     createGroupDirectMessage: ChatResult;
     createChannel: ChatResult;
     createAgent: ChatResult;
+    createAgentConversation: ChatResult;
     updateChatTopic: ChatResult;
     updateDefaultAgent: ChatResult;
     updateChannel: ChatResult;

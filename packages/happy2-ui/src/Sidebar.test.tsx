@@ -131,6 +131,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
                         Sasha K.
                     </span>
                 }
+                onCompose={() => {}}
                 onItemSelect={(id) => selected.push(id)}
                 onSectionAction={(id) => sectionActions.push(id)}
                 sections={sections}
@@ -138,7 +139,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
                 title="Acme Studio"
             />
         ),
-        { width: 400, height: 700 },
+        { width: 400, height: 744 },
     );
     view.render(
         () => (
@@ -170,7 +171,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
 
     const root = view.$('[data-testid="full"]');
     expect(root.element.tagName).toBe("NAV");
-    expect(root.bounds()).toEqual({ x: 0, y: 0, width: 360, height: 700 });
+    expect(root.bounds()).toEqual({ x: 0, y: 0, width: 360, height: 744 });
     expect(
         root.computedStyles([
             "background-color",
@@ -247,11 +248,11 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
 
     const compose = view.$('[data-testid="full"] .happy2-sidebar__compose');
     expect(compose.element.tagName).toBe("BUTTON");
-    expect(compose.element.getAttribute("aria-label")).toBe("New message");
-    expect(compose.bounds().width).toBe(28);
-    expect(compose.bounds().height).toBe(28);
-    /* 16px header padding minus the -6px optical pull-in. */
-    expect(compose.offsets().right).toBe(10);
+    expect(compose.textMetrics().text).toContain("New chat");
+    expect(compose.bounds().width).toBe(344);
+    expect(compose.bounds().height).toBe(36);
+    expect(compose.bounds().x).toBe(8);
+    expect(compose.bounds().y).toBe(64);
     expect((await compose.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     /* ---- Body and section rhythm ---------------------------------------- */
@@ -279,25 +280,25 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
 
     const row = (id: string) => view.$(`[data-testid="full"] [data-item-id="${id}"]`);
     /* 32px rows on the grid: gaps 2, sections 12 apart, heads 24. */
-    expect(row("inbox").bounds()).toEqual({ x: 8, y: 64, width: 344, height: 32 });
-    expect(row("my-issues").bounds().y).toBe(98);
-    expect(row("agent-runs").bounds().y).toBe(132);
-    expect(row("launch-week").bounds().y).toBe(202);
-    expect(row("eng-core").bounds().y).toBe(236);
-    expect(row("design-crit").bounds().y).toBe(270);
-    expect(row("claude").bounds().y).toBe(340);
-    expect(row("codex").bounds().y).toBe(374);
-    expect(row("scout").bounds().y).toBe(408);
-    expect(row("maya").bounds().y).toBe(478);
-    expect(row("jun").bounds().y).toBe(512);
-    expect(row("invite").bounds().y).toBe(546);
-    expect(row("requests").bounds().y).toBe(580);
+    expect(row("inbox").bounds()).toEqual({ x: 8, y: 108, width: 344, height: 32 });
+    expect(row("my-issues").bounds().y).toBe(142);
+    expect(row("agent-runs").bounds().y).toBe(176);
+    expect(row("launch-week").bounds().y).toBe(246);
+    expect(row("eng-core").bounds().y).toBe(280);
+    expect(row("design-crit").bounds().y).toBe(314);
+    expect(row("claude").bounds().y).toBe(384);
+    expect(row("codex").bounds().y).toBe(418);
+    expect(row("scout").bounds().y).toBe(452);
+    expect(row("maya").bounds().y).toBe(522);
+    expect(row("jun").bounds().y).toBe(556);
+    expect(row("invite").bounds().y).toBe(590);
+    expect(row("requests").bounds().y).toBe(624);
 
     const head = view.$(
         '[data-testid="full"] [data-section-id="channels"] [data-happy2-ui="sidebar-section-head"]',
     );
     expect(head.bounds().height).toBe(24);
-    expect(head.bounds().y).toBe(176);
+    expect(head.bounds().y).toBe(220);
     const headLabel = view.$(
         '[data-testid="full"] [data-section-id="channels"] [data-happy2-ui="sidebar-section-label"]',
     );
@@ -707,7 +708,7 @@ it("renders actionable guidance for empty sections", async () => {
     expect(sectionActions).toEqual(["channels", "dms"]);
 
     const composeButton = document.querySelector<HTMLButtonElement>(
-        '[data-testid="empty"] [aria-label="New message"]',
+        '[data-testid="empty"] .happy2-sidebar__compose',
     );
     expect(composeButton).not.toBeNull();
     composeButton!.click();

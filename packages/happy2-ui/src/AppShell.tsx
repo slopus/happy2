@@ -1,5 +1,6 @@
 import { partitionComponentProps } from "./componentProps";
 import { type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
+import { WindowDragRegion } from "./TitleBar";
 export type AppShellProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     children: ReactNode;
     panel?: ReactNode;
@@ -7,10 +8,12 @@ export type AppShellProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     rail: ReactNode;
     sidebar?: ReactNode;
     style?: CSSProperties;
-    titleBar: ReactNode;
+    titleBar?: ReactNode;
+    /** Overlays native macOS traffic-light drag chrome without reserving a title row. */
+    windowControls?: boolean;
 };
 /*
- * Window composition for the Happy desktop app. Chrome base, title bar row,
+ * Window composition for the Happy desktop app. An optional title bar row,
  * then rail | navigation | workspace and an optional right inspector. Every
  * region meets on a hairline so the desktop feels like one native surface.
  */
@@ -24,17 +27,36 @@ export function AppShell(props: AppShellProps) {
         "sidebar",
         "style",
         "titleBar",
+        "windowControls",
     ]);
     return (
         <div
             {...rest}
             className={["happy2-app-shell", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="app-shell"
+            data-window-controls={local.windowControls ? "" : undefined}
             style={local.style}
         >
-            <div className="happy2-app-shell__title-bar" data-happy2-ui="app-shell-title-bar">
-                {local.titleBar}
-            </div>
+            {local.windowControls ? (
+                <>
+                    <WindowDragRegion />
+                    <div
+                        aria-hidden="true"
+                        className="happy2-app-shell__window-controls"
+                        data-happy2-ui="app-shell-window-controls"
+                    >
+                        <span
+                            className="happy2-title-bar__controls"
+                            data-happy2-ui="title-bar-controls"
+                        />
+                    </div>
+                </>
+            ) : null}
+            {local.titleBar ? (
+                <div className="happy2-app-shell__title-bar" data-happy2-ui="app-shell-title-bar">
+                    {local.titleBar}
+                </div>
+            ) : null}
             <div className="happy2-app-shell__body" data-happy2-ui="app-shell-body">
                 <div className="happy2-app-shell__rail" data-happy2-ui="app-shell-rail">
                     {local.rail}
