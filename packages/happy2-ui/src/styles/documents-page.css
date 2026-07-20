@@ -29,10 +29,19 @@
     max-width: 720px;
 }
 
+/* The item is the hover pill: the open row and its delete action live inside
+ * one highlighted surface, so the revealed action never floats outside it. */
 .happy2-documents-page__item {
     display: flex;
     align-items: center;
     gap: 2px;
+    padding-right: 8px;
+    border-radius: var(--happy2-radius-md);
+}
+
+.happy2-documents-page__item:hover,
+.happy2-documents-page__item:focus-within {
+    background: var(--happy2-bg-hover);
 }
 
 .happy2-documents-page__row {
@@ -48,10 +57,6 @@
     color: var(--happy2-text);
     text-align: left;
     cursor: pointer;
-}
-
-.happy2-documents-page__row:hover {
-    background: var(--happy2-bg-hover);
 }
 
 .happy2-documents-page__row:focus-visible {
@@ -100,7 +105,7 @@
 }
 
 .happy2-documents-page__item:hover .happy2-documents-page__row-delete,
-.happy2-documents-page__row-delete:focus-visible {
+.happy2-documents-page__item:focus-within .happy2-documents-page__row-delete {
     opacity: 1;
 }
 

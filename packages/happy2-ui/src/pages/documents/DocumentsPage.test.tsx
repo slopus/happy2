@@ -60,10 +60,27 @@ it("lists the collection, opens rows, and deletes only through the confirmation"
     // confirm reports it exactly once.
     const deletes = document.querySelectorAll('[data-happy2-ui="documents-page-row-delete"]');
     expect(deletes).toHaveLength(2);
+
+    // The delete action lives inside the row pill, vertically centered on it —
+    // never floating beside or below the highlighted row.
+    const itemBox = document.querySelector(".happy2-documents-page__item")!.getBoundingClientRect();
+    const deleteBox = (deletes[0] as HTMLElement).getBoundingClientRect();
+    expect(deleteBox.left).toBeGreaterThanOrEqual(itemBox.left);
+    expect(deleteBox.right).toBeLessThanOrEqual(itemBox.right);
+    expect(
+        Math.abs(deleteBox.top + deleteBox.height / 2 - (itemBox.top + itemBox.height / 2)),
+    ).toBeLessThan(1);
+
     await userEvent.click(deletes[0] as HTMLButtonElement);
     expect(onDelete).not.toHaveBeenCalled();
     let dialog = document.querySelector('[data-testid="documents-page-delete-dialog"]');
     expect(dialog?.textContent).toContain("Delete “Launch plan — Q3”?");
+
+    // The confirmation is hosted on the centered modal scrim.
+    expect(document.querySelector(".happy2-modal-overlay")).not.toBeNull();
+    const cardBox = document.querySelector(".happy2-modal__dialog")!.getBoundingClientRect();
+    expect(Math.abs(cardBox.left + cardBox.width / 2 - window.innerWidth / 2)).toBeLessThan(1);
+    expect(Math.abs(cardBox.top + cardBox.height / 2 - window.innerHeight / 2)).toBeLessThan(1);
     await userEvent.click(
         Array.from(dialog!.querySelectorAll("button")).find(
             (button) => button.textContent === "Cancel",

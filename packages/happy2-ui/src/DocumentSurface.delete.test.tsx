@@ -28,6 +28,14 @@ it("deletes only after the trash action is confirmed in the dialog", async () =>
     const dialog = document.querySelector('[data-testid="document-surface-delete-dialog"]');
     expect(dialog?.textContent).toContain("Delete “Launch plan — Q3”?");
 
+    // The confirmation sits on the centered modal scrim, never in the pane flow.
+    expect(document.querySelector(".happy2-modal-overlay")).not.toBeNull();
+    const card = document.querySelector(".happy2-modal__dialog") as HTMLElement;
+    const cardBox = card.getBoundingClientRect();
+    expect(cardBox.width).toBe(360);
+    expect(Math.abs(cardBox.left + cardBox.width / 2 - window.innerWidth / 2)).toBeLessThan(1);
+    expect(Math.abs(cardBox.top + cardBox.height / 2 - window.innerHeight / 2)).toBeLessThan(1);
+
     // Cancel dismisses without deleting; a confirmed pass deletes exactly once.
     await userEvent.click(
         Array.from(dialog!.querySelectorAll("button")).find(

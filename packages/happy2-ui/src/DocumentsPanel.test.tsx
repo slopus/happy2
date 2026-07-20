@@ -46,6 +46,19 @@ it("holds DocumentsPanel header geometry, row content, and click intents", async
     const detach = document.querySelectorAll('[data-happy2-ui="documents-panel-row-detach"]');
     expect(detach).toHaveLength(2);
     expect(detach[0]?.getAttribute("aria-label")).toBe("Unlink Launch checklist from this channel");
+
+    // The unlink action sits inside the row pill on the same line as the row,
+    // vertically centered — never wrapped below it.
+    const itemBox = document
+        .querySelector(".happy2-documents-panel__item")!
+        .getBoundingClientRect();
+    const firstRowBox = (rows[0] as HTMLElement).getBoundingClientRect();
+    const detachBox = (detach[0] as HTMLElement).getBoundingClientRect();
+    expect(detachBox.right).toBeLessThanOrEqual(itemBox.right);
+    expect(detachBox.top).toBeLessThan(firstRowBox.bottom);
+    expect(
+        Math.abs(detachBox.top + detachBox.height / 2 - (itemBox.top + itemBox.height / 2)),
+    ).toBeLessThan(1);
     (detach[1] as HTMLButtonElement).click();
     expect(onDetach).toHaveBeenCalledWith("doc-2");
     expect(onOpen).toHaveBeenCalledTimes(1);

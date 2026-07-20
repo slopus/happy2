@@ -5,10 +5,19 @@ function log(message: string) {
     console.info(`[blueprint] DocumentDeleteDialog: ${message}`);
 }
 
-function frame(children: React.ReactNode, height = 300) {
+function frame(children: React.ReactNode, height = 420) {
     return (
         <div
-            style={{ display: "flex", position: "relative", width: "560px", height: `${height}px` }}
+            style={{
+                background: "var(--happy2-bg-app)",
+                border: "1px solid var(--happy2-border-strong)",
+                borderRadius: "8px",
+                height: `${height}px`,
+                overflow: "hidden",
+                position: "relative",
+                transform: "translateZ(0)",
+                width: "560px",
+            }}
         >
             {children}
         </div>

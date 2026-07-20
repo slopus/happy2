@@ -48,10 +48,20 @@
     flex-direction: column;
 }
 
-.happy2-documents-panel__item {
+/* The item is the hover pill: the open row and its unlink action live inside
+ * one highlighted surface. The extra list selector outweighs the generic
+ * column li rule above so the action stays beside the row, never below it. */
+.happy2-documents-panel__list .happy2-documents-panel__item {
     flex-direction: row;
     align-items: center;
     gap: 2px;
+    padding-right: 6px;
+    border-radius: var(--happy2-radius-sm);
+}
+
+.happy2-documents-panel__item:hover,
+.happy2-documents-panel__item:focus-within {
+    background: var(--happy2-bg-hover);
 }
 
 .happy2-documents-panel__item .happy2-documents-panel__row {
@@ -75,7 +85,7 @@
 }
 
 .happy2-documents-panel__item:hover .happy2-documents-panel__row-detach,
-.happy2-documents-panel__row-detach:focus-visible {
+.happy2-documents-panel__item:focus-within .happy2-documents-panel__row-detach {
     opacity: 1;
 }
 
@@ -101,10 +111,6 @@
     color: var(--happy2-text);
     text-align: left;
     cursor: pointer;
-}
-
-.happy2-documents-panel__row:hover {
-    background: var(--happy2-bg-hover);
 }
 
 .happy2-documents-panel__row:focus-visible {
