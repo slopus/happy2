@@ -89,6 +89,7 @@ import { DocumentEditorPage } from "./pages/DocumentEditorPage";
 import { DocumentsPanelPage } from "./pages/DocumentsPanelPage";
 import { DocumentsPagePage } from "./pages/DocumentsPagePage";
 import { DocumentDeleteDialogPage } from "./pages/DocumentDeleteDialogPage";
+import { DocumentWritePermissionCardPage } from "./pages/DocumentWritePermissionCardPage";
 type BlueprintPage = {
     id: string;
     label: string;
@@ -106,6 +107,12 @@ const components: BlueprintPage[] = [
         label: "Document delete dialog",
         number: "C-139",
         page: DocumentDeleteDialogPage,
+    },
+    {
+        id: "document-write-permission-card",
+        label: "Document write permission card",
+        number: "C-141",
+        page: DocumentWritePermissionCardPage,
     },
     {
         id: "user-password-reset-dialog",

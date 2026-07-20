@@ -97,6 +97,7 @@ import type { PortShareContainerPort } from "../port-share/types.js";
 import { agentTurnGetPluginContext } from "../agent/agentTurnGetPluginContext.js";
 import { pluginFunctionResultAcquire } from "../plugin/pluginFunctionResultAcquire.js";
 import { pluginFunctionResultComplete } from "../plugin/pluginFunctionResultComplete.js";
+import { pluginFunctionResultRenewLease } from "../plugin/pluginFunctionResultRenewLease.js";
 import {
     setupBaseImageCompleteBuild,
     setupBaseImageFailBuild,
@@ -108,6 +109,7 @@ import {
 const IGNORED_EVENT_CHECKPOINT_INTERVAL = 100;
 const EVENT_RETRY_INTERVAL_MS = 100;
 const PLUGIN_FUNCTION_LEASE_MS = 45_000;
+const DOCUMENT_WRITE_PLUGIN_FUNCTION_LEASE_MS = 6 * 60_000 + PLUGIN_FUNCTION_LEASE_MS;
 const PLUGIN_FUNCTION_WAIT_INTERVAL_MS = 1_000;
 const TYPING_TTL_MS = 30_000;
 const TYPING_RENEW_INTERVAL_MS = 20_000;
@@ -204,6 +206,9 @@ interface AgentPluginCapabilities {
     listFunctions(signal?: AbortSignal): Promise<readonly PluginFunctionDefinition[]>;
     listSkills(signal?: AbortSignal): Promise<readonly PluginSkillDefinition[]>;
     readSkill(skill: PluginSkillDefinition, signal?: AbortSignal): Promise<PluginFunctionResult>;
+}
+interface DurablePluginCallControl {
+    documentWriteWaitChange(waiting: boolean): Promise<void>;
 }
 export class AgentService {
     private readonly workerId = createId();
@@ -1601,7 +1606,7 @@ export class AgentService {
         functionName: string,
         args: unknown,
     ): Promise<PluginFunctionResult> {
-        return this.executeDurablePluginCall(sessionId, callId, async () => {
+        return this.executeDurablePluginCall(sessionId, callId, async (control) => {
             if (!this.pluginCapabilities)
                 return {
                     status: "failed" as const,
@@ -1622,7 +1627,12 @@ export class AgentService {
             return this.pluginCapabilities.callFunction(
                 functionName,
                 args,
-                { ...context, sessionId, callId },
+                {
+                    ...context,
+                    sessionId,
+                    callId,
+                    documentWriteWaitChange: control.documentWriteWaitChange,
+                },
                 this.shutdown.signal,
             );
         });
@@ -1658,7 +1668,7 @@ export class AgentService {
     private async executeDurablePluginCall(
         sessionId: string,
         callId: string,
-        execute: () => Promise<PluginFunctionResult>,
+        execute: (control: DurablePluginCallControl) => Promise<PluginFunctionResult>,
     ): Promise<PluginFunctionResult> {
         const leaseToken = createId();
         for (;;) {
@@ -1682,7 +1692,19 @@ export class AgentService {
                 );
                 continue;
             }
-            const result = await execute();
+            const result = await execute({
+                documentWriteWaitChange: (waiting) =>
+                    pluginFunctionResultRenewLease(this.executor, {
+                        callId,
+                        leaseExpiresAt:
+                            Date.now() +
+                            (waiting
+                                ? DOCUMENT_WRITE_PLUGIN_FUNCTION_LEASE_MS
+                                : PLUGIN_FUNCTION_LEASE_MS),
+                        leaseToken,
+                        sessionId,
+                    }),
+            });
             return pluginFunctionResultComplete(this.executor, {
                 callId,
                 leaseToken,

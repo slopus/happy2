@@ -470,6 +470,32 @@ export interface PluginManagementRequestSummary {
     readonly lastError?: string;
 }
 
+export type DocumentWriteRequestStatus = "pending" | "approved" | "denied" | "failed";
+
+/**
+ * One agent-initiated document write awaiting (or resolved by) a chat member's
+ * decision. The staged updates never travel to clients; only the metadata a
+ * card needs to present and decide the request does.
+ */
+export interface DocumentWriteRequestSummary {
+    readonly id: string;
+    readonly status: DocumentWriteRequestStatus;
+    readonly chatId: string;
+    readonly actorUserId?: string;
+    readonly agentUserId?: string;
+    readonly requesterInstallationId?: string;
+    readonly documentId: string;
+    readonly documentTitle: string;
+    readonly clientUpdateId: string;
+    readonly acceptedSequence?: string;
+    readonly resolvedByUserId?: string;
+    readonly resolvedAt?: string;
+    readonly expiresAt: string;
+    readonly lastError?: string;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
 /** One live progress frame from a plugin preparation or update-check stream. */
 export interface PluginPrepareProgress {
     readonly stage: string;

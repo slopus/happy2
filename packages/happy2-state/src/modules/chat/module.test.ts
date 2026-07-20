@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PluginManagementRequestSummary, PortShareSummary } from "../../resources.js";
+import type {
+    DocumentWriteRequestSummary,
+    PluginManagementRequestSummary,
+    PortShareSummary,
+} from "../../resources.js";
 import { UserError } from "../../types.js";
 import { chat, message } from "../../../tests/fixtures.js";
 import { createFakeServer, jsonResponse } from "../../testing/index.js";
@@ -8,6 +12,7 @@ import { composerStoreCreate } from "../composer/composerState.js";
 import { StateRuntime } from "../runtime/runtimeState.js";
 import { chatMembersLoad } from "./chatState.js";
 import { chatPluginRequestDecide, chatPluginRequestsLoad } from "./chatState.js";
+import { chatDocumentWriteRequestDecide, chatDocumentWriteRequestsLoad } from "./chatState.js";
 import {
     chatPortShareDisable,
     chatPortShareOpen,
@@ -494,6 +499,154 @@ describe("chat plugin management requests", () => {
         expect(after).toMatchObject({
             type: "ready",
             value: [{ id: "request1" }, { id: "request2", status: "approved" }],
+        });
+    });
+});
+
+const pendingWriteRequest: DocumentWriteRequestSummary = {
+    id: "write1",
+    status: "pending",
+    chatId: "chat-1",
+    agentUserId: "agent-1",
+    requesterInstallationId: "installation-1",
+    documentId: "doc-1",
+    documentTitle: "Launch plan",
+    clientUpdateId: "update-1",
+    expiresAt: "2026-01-01T00:05:00.000Z",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+};
+
+describe("chat document write requests", () => {
+    it("retains once, loads durably, and scopes each decision to the exact pending request", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/documentWriteRequests",
+            jsonResponse(200, { requests: [pendingWriteRequest] }),
+        );
+        server.respond(
+            "POST",
+            "/v0/chats/chat-1/documentWriteRequests/write1/approveDocumentWrite",
+            jsonResponse(200, {
+                request: {
+                    ...pendingWriteRequest,
+                    status: "approved",
+                    resolvedByUserId: "user-1",
+                    resolvedAt: "2026-01-01T00:01:00.000Z",
+                    acceptedSequence: "42",
+                },
+                acceptedSequence: "42",
+            }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport });
+        const output = vi.fn();
+        const binding = chatStoreCreate("chat-1", output);
+        binding.getState().documentWriteRequestsRetain();
+        binding.getState().documentWriteRequestsRetain();
+        expect(
+            output.mock.calls.filter(([event]) => event.type === "documentWriteRequestsRetained"),
+        ).toHaveLength(1);
+        expect(binding.getState().documentWriteRequests.type).toBe("loading");
+        const context = { runtime, identities: new IdentityCatalog(), chatGet: () => binding };
+        await chatDocumentWriteRequestsLoad(context, "chat-1");
+        expect(binding.getState().documentWriteRequests).toMatchObject({
+            type: "ready",
+            value: [{ id: "write1", status: "pending" }],
+        });
+
+        // A decision for an unknown or non-pending request never leaves the store.
+        binding.getState().documentWriteRequestApprove("missing");
+        binding.getState().documentWriteRequestApprove("write1");
+        // A repeated decision while the first is in flight stays local.
+        binding.getState().documentWriteRequestDeny("write1");
+        const decisions = output.mock.calls
+            .map(([event]) => event)
+            .filter(({ type }) => type === "documentWriteRequestDecisionSubmitted");
+        expect(decisions).toEqual([
+            {
+                type: "documentWriteRequestDecisionSubmitted",
+                chatId: "chat-1",
+                requestId: "write1",
+                decision: "approve",
+            },
+        ]);
+        expect(binding.getState().documentWriteRequestPendingIds).toEqual(["write1"]);
+
+        await chatDocumentWriteRequestDecide(
+            { runtime, chatGet: () => binding },
+            decisions[0] as never,
+        );
+        expect(binding.getState().documentWriteRequests).toMatchObject({
+            type: "ready",
+            value: [{ id: "write1", status: "approved", acceptedSequence: "42" }],
+        });
+        expect(binding.getState().documentWriteRequestPendingIds).toEqual([]);
+        expect(
+            server.requests.filter((request) => request.method === "POST").map(({ path }) => path),
+        ).toEqual(["/v0/chats/chat-1/documentWriteRequests/write1/approveDocumentWrite"]);
+        runtime.stop();
+    });
+
+    it("surfaces a decision failure and clears it on the next decision intent", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/documentWriteRequests",
+            jsonResponse(200, { requests: [pendingWriteRequest] }),
+        );
+        server.respond(
+            "POST",
+            "/v0/chats/chat-1/documentWriteRequests/write1/denyDocumentWrite",
+            jsonResponse(409, { error: "conflict", message: "Request is no longer pending" }),
+        );
+        const runtime = new StateRuntime({
+            transport: server.transport,
+            retry: { attempts: 1 },
+        });
+        const output = vi.fn();
+        const binding = chatStoreCreate("chat-1", output);
+        const context = { runtime, identities: new IdentityCatalog(), chatGet: () => binding };
+        binding.getState().documentWriteRequestsRetain();
+        await chatDocumentWriteRequestsLoad(context, "chat-1");
+
+        binding.getState().documentWriteRequestDeny("write1");
+        const decision = output.mock.calls
+            .map(([event]) => event)
+            .find(({ type }) => type === "documentWriteRequestDecisionSubmitted");
+        expect(decision).toMatchObject({ decision: "deny" });
+        await chatDocumentWriteRequestDecide(
+            { runtime, chatGet: () => binding },
+            decision as never,
+        );
+        expect(binding.getState().documentWriteRequestPendingIds).toEqual([]);
+        expect(binding.getState().documentWriteRequestActionError?.message).toBe(
+            "Request is no longer pending",
+        );
+        // The request stays actionable, and the next intent clears the error.
+        binding.getState().documentWriteRequestApprove("write1");
+        expect(binding.getState().documentWriteRequestActionError).toBeUndefined();
+        expect(binding.getState().documentWriteRequestPendingIds).toEqual(["write1"]);
+        runtime.stop();
+    });
+
+    it("prunes local busy markers when a durable reload shows a decision resolved elsewhere", () => {
+        const binding = chatStoreCreate("chat-1");
+        binding.getState().chatInput({ type: "documentWriteRequestsLoading" });
+        binding.getState().chatInput({
+            type: "documentWriteRequestsLoaded",
+            requests: [pendingWriteRequest],
+        });
+        binding.getState().documentWriteRequestApprove("write1");
+        expect(binding.getState().documentWriteRequestPendingIds).toEqual(["write1"]);
+        binding.getState().chatInput({
+            type: "documentWriteRequestsLoaded",
+            requests: [{ ...pendingWriteRequest, status: "denied" }],
+        });
+        expect(binding.getState().documentWriteRequestPendingIds).toEqual([]);
+        expect(binding.getState().documentWriteRequests).toMatchObject({
+            type: "ready",
+            value: [{ status: "denied" }],
         });
     });
 });

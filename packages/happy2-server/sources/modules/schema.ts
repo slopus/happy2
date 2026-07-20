@@ -637,6 +637,59 @@ export const documentUpdates = sqliteTable(
     ],
 );
 
+export const documentWriteRequests = sqliteTable(
+    "document_write_requests",
+    {
+        id: text("id").primaryKey().notNull(),
+        status: text("status").notNull().default("pending"),
+        chatId: text("chat_id")
+            .notNull()
+            .references(() => chats.id, { onDelete: "cascade" }),
+        actorUserId: text("actor_user_id").references(() => users.id, {
+            onDelete: "set null",
+        }),
+        agentUserId: text("agent_user_id").references(() => users.id, {
+            onDelete: "set null",
+        }),
+        requesterInstallationId: text("requester_installation_id").references(
+            () => pluginInstallations.id,
+            { onDelete: "set null" },
+        ),
+        sessionId: text("session_id").notNull(),
+        callId: text("call_id").notNull(),
+        documentId: text("document_id").notNull(),
+        documentTitle: text("document_title").notNull(),
+        clientUpdateId: text("client_update_id").notNull(),
+        updatesJson: text("updates_json").notNull(),
+        acceptedSequence: text("accepted_sequence"),
+        resolvedByUserId: text("resolved_by_user_id").references(() => users.id, {
+            onDelete: "set null",
+        }),
+        resolvedAt: text("resolved_at"),
+        expiresAt: text("expires_at").notNull(),
+        lastError: text("last_error"),
+        syncSequence: integer("sync_sequence").notNull().default(0),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [
+        index("document_write_requests_chat_index").on(table.chatId, table.createdAt),
+        index("document_write_requests_pending_expiry_index").on(table.status, table.expiresAt),
+        uniqueIndex("document_write_requests_call_unique").on(
+            table.requesterInstallationId,
+            table.callId,
+        ),
+        check(
+            "document_write_requests_status_check",
+            sql`${table.status} in ('pending', 'approved', 'denied', 'failed')`,
+        ),
+        check(
+            "document_write_requests_updates_check",
+            sql`json_valid(${table.updatesJson}) and json_type(${table.updatesJson}) = 'array'`,
+        ),
+    ],
+);
+
 export const dataExportJobs = sqliteTable("data_export_jobs", {
     id: text("id").primaryKey().notNull(),
     requestedByUserId: text("requested_by_user_id"),

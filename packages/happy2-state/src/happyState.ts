@@ -154,8 +154,8 @@ import type {
     MessageAudience,
     MessageSummary,
     SendMessageInput,
-    UserError,
 } from "./types.js";
+import { UserError } from "./types.js";
 import { searchQueryUpdate } from "./modules/search/searchState.js";
 import {
     searchStoreCreate,
@@ -203,6 +203,10 @@ import {
     pluginsUpdateChecksStop,
 } from "./modules/plugins/pluginsState.js";
 import { chatPluginRequestDecide, chatPluginRequestsLoad } from "./modules/chat/chatState.js";
+import {
+    chatDocumentWriteRequestDecide,
+    chatDocumentWriteRequestsLoad,
+} from "./modules/chat/chatState.js";
 import {
     chatPortShareDisable,
     chatPortShareOpen,
@@ -516,6 +520,8 @@ export class HappyState implements AsyncDisposable, Disposable {
             mcpAppReconcile: (message) => this.mcpAppReconcile(message),
             mcpAppsInvalidate: () => this.mcpAppsReload(),
             chatPluginRequestsReconcile: (chatId) => this.chatPluginRequestsReconcile(chatId),
+            chatDocumentWriteRequestsReconcile: (chatId) =>
+                this.chatDocumentWriteRequestsReconcile(chatId),
             chatPortSharesReconcile: (chatId) => this.chatPortSharesReconcile(chatId),
             threadListChatsReconcile: (chatIds) => this.threadListChatsReconcile(chatIds),
             documentReconcile: (documentId, sequence) =>
@@ -1373,6 +1379,32 @@ export class HappyState implements AsyncDisposable, Disposable {
             case "pluginRequestsRetained":
                 this.chatPluginRequestsLoad(event.chatId);
                 return;
+            case "documentWriteRequestsRetained":
+                this.chatDocumentWriteRequestsLoad(event.chatId);
+                return;
+            case "documentWriteRequestDecisionSubmitted":
+                // A silently dropped decision would leave the card busy forever,
+                // so a disconnected surface fails the intent immediately instead.
+                if (this.runtime.connected && this.runtime.active)
+                    this.runtime.background(
+                        chatDocumentWriteRequestDecide(
+                            {
+                                runtime: this.runtime,
+                                chatGet: (chatId) => this.chats.get(chatId),
+                            },
+                            event,
+                        ),
+                    );
+                else
+                    this.chats
+                        .get(event.chatId)
+                        ?.getState()
+                        .chatInput({
+                            type: "documentWriteRequestDecisionFailed",
+                            requestId: event.requestId,
+                            error: new UserError("You're offline. Try again once reconnected."),
+                        });
+                return;
             case "portSharesRetained":
                 this.chatPortSharesLoad(event.chatId);
                 return;
@@ -1493,6 +1525,7 @@ export class HappyState implements AsyncDisposable, Disposable {
         // A full chat reload also covers reset paths where individual chat
         // updates were unavailable; a retained request list must not stale.
         this.chatPluginRequestsReconcile(chatId);
+        this.chatDocumentWriteRequestsReconcile(chatId);
         this.chatPortSharesReconcile(chatId);
     }
 
@@ -1559,6 +1592,26 @@ export class HappyState implements AsyncDisposable, Disposable {
                 chatId,
             ),
         );
+    }
+
+    private chatDocumentWriteRequestsLoad(chatId: string): void {
+        this.backgroundIfConnected(() =>
+            chatDocumentWriteRequestsLoad(
+                {
+                    runtime: this.runtime,
+                    identities: this.identities,
+                    chatGet: (id) => this.chats.get(id),
+                },
+                chatId,
+            ),
+        );
+    }
+
+    /** Reloads document-write approvals only for a chat surface that has retained them. */
+    private chatDocumentWriteRequestsReconcile(chatId: string): void {
+        const requests = this.chats.get(chatId)?.getState().documentWriteRequests;
+        if (requests?.type === "loading" || requests?.type === "ready")
+            this.chatDocumentWriteRequestsLoad(chatId);
     }
 
     /** Reloads plugin management requests only for a chat surface that has retained them. */

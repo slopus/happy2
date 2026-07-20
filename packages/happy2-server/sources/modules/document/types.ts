@@ -53,6 +53,35 @@ export interface DocumentDifference {
     readonly hasMore: boolean;
 }
 
+export type DocumentWriteRequestStatus = "pending" | "approved" | "denied" | "failed";
+
+export interface DocumentWriteRequestSummary {
+    readonly id: string;
+    readonly status: DocumentWriteRequestStatus;
+    readonly chatId: string;
+    readonly actorUserId?: string;
+    readonly agentUserId?: string;
+    readonly requesterInstallationId?: string;
+    readonly documentId: string;
+    readonly documentTitle: string;
+    readonly clientUpdateId: string;
+    readonly acceptedSequence?: string;
+    readonly resolvedByUserId?: string;
+    readonly resolvedAt?: string;
+    readonly expiresAt: string;
+    readonly lastError?: string;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+export interface DocumentHostSummary {
+    readonly id: string;
+    readonly title: string;
+    readonly format: DocumentFormat;
+    readonly latestSequence: string;
+    readonly updatedAt: string;
+}
+
 /** Decoded size cap for one client-sent Yjs update. */
 export const MAX_DOCUMENT_UPDATE_BYTES = 256 * 1024;
 /** Update count cap for one applyUpdates batch. */
@@ -67,3 +96,5 @@ export const MAX_DOCUMENT_TITLE_LENGTH = 200;
 export const DOCUMENT_DIFFERENCE_DEFAULT_LIMIT = 100;
 export const DOCUMENT_DIFFERENCE_MAX_LIMIT = 200;
 export const DOCUMENT_PRESENCE_DEFAULT_TTL_MS = 15_000;
+/** A staged agent document write fails if no chat member decides it within five minutes. */
+export const DOCUMENT_WRITE_APPROVAL_TIMEOUT_MS = 5 * 60_000;

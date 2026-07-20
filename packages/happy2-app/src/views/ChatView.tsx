@@ -132,6 +132,9 @@ export function ChatView(props: ChatViewProps) {
                 // Agent plugin install/uninstall requests render as approval
                 // cards in every conversation and reconcile with the chat.
                 chat.getState().pluginRequestsRetain();
+                // Agent document writes render as approval cards and only apply
+                // once a member approves them here.
+                chat.getState().documentWriteRequestsRetain();
                 // Active port shares appear in the header and info panel of every
                 // conversation and reconcile with the chat over the sync stream.
                 chat.getState().portSharesRetain();

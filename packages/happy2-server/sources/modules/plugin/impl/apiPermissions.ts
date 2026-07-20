@@ -134,6 +134,20 @@ const definitions = {
         section: "workspace",
         access: "mutations",
     },
+    "documents:read": {
+        id: "documents:read",
+        displayName: "Read chat documents",
+        description: "List and read documents attached to the current chat.",
+        section: "documents",
+        access: "readOnly",
+    },
+    "documents:write": {
+        id: "documents:write",
+        displayName: "Request document writes",
+        description: "Stage document updates for approval by a member of the current chat.",
+        section: "documents",
+        access: "mutations",
+    },
     "environments:read": {
         id: "environments:read",
         displayName: "View environments",
@@ -259,6 +273,7 @@ export function pluginApiPermissionSections(
             { id: "search", displayName: "Search" },
             { id: "commands", displayName: "Commands" },
             { id: "workspace", displayName: "Workspace" },
+            { id: "documents", displayName: "Documents" },
             { id: "environments", displayName: "Environments" },
             { id: "apps", displayName: "App surfaces" },
             { id: "plugins", displayName: "Plugins" },

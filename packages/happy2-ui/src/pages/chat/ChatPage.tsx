@@ -5,6 +5,7 @@ import {
     Banner,
     Button,
     DocumentsPanel,
+    DocumentWritePermissionCard,
     Lightbox,
     ModalOverlay,
     PluginPermissionCard,
@@ -838,6 +839,45 @@ export function ChatPage(props: ChatPageProps) {
             );
         return nodes;
     };
+    const documentWriteRequestEntries = (): ReactNode[] => {
+        const snapshot = chatSnapshot();
+        const requests = snapshot?.documentWriteRequests;
+        if (!snapshot || requests?.type !== "ready" || requests.value.length === 0) return [];
+        const requester = (agentUserId?: string) =>
+            agentUserId
+                ? directoryUsers().find((person) => person.id === agentUserId)?.displayName
+                : undefined;
+        const nodes: ReactNode[] = requests.value.map((request) => (
+            <div
+                className="happy2-document-write-permission-card-row"
+                data-happy2-ui="document-write-permission-card-row"
+                key={`document-write-request:${request.id}`}
+            >
+                <DocumentWritePermissionCard
+                    busy={snapshot.documentWriteRequestPendingIds.includes(request.id)}
+                    documentTitle={request.documentTitle}
+                    error={request.lastError}
+                    onApprove={() => props.chat?.getState().documentWriteRequestApprove(request.id)}
+                    onDeny={() => props.chat?.getState().documentWriteRequestDeny(request.id)}
+                    requestedBy={requester(request.agentUserId)}
+                    status={request.status}
+                />
+            </div>
+        ));
+        const decisionError = snapshot.documentWriteRequestActionError;
+        if (decisionError)
+            nodes.push(
+                <div
+                    className="happy2-document-write-permission-card-row"
+                    key="document-write-request:decision-error"
+                >
+                    <Banner tone="danger" title="Document write decision failed">
+                        {decisionError.message}
+                    </Banner>
+                </div>,
+            );
+        return nodes;
+    };
     function selectConversation(id: string, replace = false) {
         pendingSelection.current = undefined;
         const projection = sidebarChats().find((candidate) => candidate.id === id);
@@ -1239,6 +1279,7 @@ export function ChatPage(props: ChatPageProps) {
                                     renderEntry(entry, index, list),
                                 ),
                                 ...pluginRequestEntries(),
+                                ...documentWriteRequestEntries(),
                             ]}
                             onAudienceChange={(audience) =>
                                 props.composer?.getState().audienceUpdate(audience)

@@ -1,5 +1,9 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { type PluginManagementRequestSummary, type PortShareSummary } from "../../resources.js";
+import {
+    type DocumentWriteRequestSummary,
+    type PluginManagementRequestSummary,
+    type PortShareSummary,
+} from "../../resources.js";
 import {
     type AgentActivityState,
     type ChatPinSummary,
@@ -196,6 +200,89 @@ export interface ChatPluginRequestDecideContext {
     chatGet(chatId: string): ChatStore | undefined;
     /** Reconciles the admin plugin surface after a decision durably changes installations. */
     pluginsReconcile(): void;
+}
+
+const documentWriteRequestGenerations = new WeakMap<ChatStore, number>();
+
+function documentWriteRequestGenerationNext(chat: ChatStore): number {
+    const next = (documentWriteRequestGenerations.get(chat) ?? 0) + 1;
+    documentWriteRequestGenerations.set(chat, next);
+    return next;
+}
+
+/**
+ * Loads the retained document-write approval requests for one chat through the
+ * durable listing, so approval cards reflect the server's request lifecycle
+ * rather than any realtime payload. Stale overlapping reads are discarded by
+ * generation, and a surface released mid-read never receives the result.
+ */
+export async function chatDocumentWriteRequestsLoad(
+    context: ChatLoadContext,
+    chatId: string,
+): Promise<void> {
+    const chat = context.chatGet(chatId);
+    if (!chat || !context.runtime.connected) return;
+    const generation = documentWriteRequestGenerationNext(chat);
+    const current = (): ChatStore | undefined => {
+        const binding = context.chatGet(chatId);
+        return binding === chat && documentWriteRequestGenerations.get(chat) === generation
+            ? binding
+            : undefined;
+    };
+    try {
+        const result = await context.runtime.operation("getDocumentWriteRequests", { chatId });
+        current()
+            ?.getState()
+            .chatInput({ type: "documentWriteRequestsLoaded", requests: result.requests });
+    } catch (error) {
+        current()
+            ?.getState()
+            .chatInput({ type: "documentWriteRequestsFailed", error: userError(error) });
+    }
+}
+
+export interface ChatDocumentWriteRequestDecideContext {
+    readonly runtime: StateRuntime;
+    chatGet(chatId: string): ChatStore | undefined;
+}
+
+/**
+ * Performs one member approve/deny decision on an agent's staged document
+ * write and applies the terminal request summary authoritatively to the
+ * retained chat surface. An approval durably applies the staged Yjs updates,
+ * so open document sessions converge through the normal document.updated flow.
+ */
+export async function chatDocumentWriteRequestDecide(
+    context: ChatDocumentWriteRequestDecideContext,
+    event: Extract<ChatOutput, { type: "documentWriteRequestDecisionSubmitted" }>,
+): Promise<void> {
+    const operation =
+        event.decision === "approve"
+            ? ("approveDocumentWrite" as const)
+            : ("denyDocumentWrite" as const);
+    try {
+        const result = await context.runtime.operation(operation, {
+            chatId: event.chatId,
+            requestId: event.requestId,
+        });
+        const chat = context.chatGet(event.chatId);
+        if (chat) {
+            documentWriteRequestGenerationNext(chat);
+            chat.getState().chatInput({
+                type: "documentWriteRequestReconciled",
+                request: result.request,
+            });
+        }
+    } catch (error) {
+        context
+            .chatGet(event.chatId)
+            ?.getState()
+            .chatInput({
+                type: "documentWriteRequestDecisionFailed",
+                requestId: event.requestId,
+                error: userError(error),
+            });
+    }
 }
 
 /**
@@ -457,6 +544,8 @@ export function chatStoreCreate(
         members: { type: "unloaded" },
         pins: { type: "unloaded" },
         pluginRequests: { type: "unloaded" },
+        documentWriteRequests: { type: "unloaded" },
+        documentWriteRequestPendingIds: [],
         pluginRequestPendingIds: [],
         portShares: { type: "unloaded" },
         portShareOpeningIds: [],
@@ -505,6 +594,32 @@ export function chatStoreCreate(
                 chatId,
                 requestId,
                 action: request.action,
+                decision: "deny",
+            });
+        },
+        documentWriteRequestsRetain(): void {
+            const current = get().documentWriteRequests;
+            if (current.type === "loading" || current.type === "ready") return;
+            get().chatInput({ type: "documentWriteRequestsLoading" });
+            output({ type: "documentWriteRequestsRetained", chatId });
+        },
+        documentWriteRequestApprove(requestId): void {
+            if (!documentWriteRequestActionable(get(), requestId)) return;
+            get().chatInput({ type: "documentWriteRequestPending", requestId });
+            output({
+                type: "documentWriteRequestDecisionSubmitted",
+                chatId,
+                requestId,
+                decision: "approve",
+            });
+        },
+        documentWriteRequestDeny(requestId): void {
+            if (!documentWriteRequestActionable(get(), requestId)) return;
+            get().chatInput({ type: "documentWriteRequestPending", requestId });
+            output({
+                type: "documentWriteRequestDecisionSubmitted",
+                chatId,
+                requestId,
                 decision: "deny",
             });
         },
@@ -622,6 +737,92 @@ export function chatStoreCreate(
                         return { ...snapshot, pins: { type: "ready", value: event.pins } };
                     case "pinsFailed":
                         return { ...snapshot, pins: { type: "error", error: event.error } };
+                    case "documentWriteRequestsLoading":
+                        return snapshot.documentWriteRequests.type === "loading" ||
+                            snapshot.documentWriteRequests.type === "ready"
+                            ? snapshot
+                            : { ...snapshot, documentWriteRequests: { type: "loading" } };
+                    case "documentWriteRequestsLoaded": {
+                        // Preserve references for unchanged requests so cards keep
+                        // their identity across ordinary reconciliation reads.
+                        const previous =
+                            snapshot.documentWriteRequests.type === "ready"
+                                ? snapshot.documentWriteRequests.value
+                                : [];
+                        const value = event.requests.map((request) => {
+                            const before = previous.find(
+                                (candidate) => candidate.id === request.id,
+                            );
+                            return before &&
+                                before.status === request.status &&
+                                before.updatedAt === request.updatedAt
+                                ? before
+                                : request;
+                        });
+                        const unchanged =
+                            snapshot.documentWriteRequests.type === "ready" &&
+                            previous.length === value.length &&
+                            previous.every((request, index) => request === value[index]);
+                        return {
+                            ...snapshot,
+                            documentWriteRequests: unchanged
+                                ? snapshot.documentWriteRequests
+                                : { type: "ready", value },
+                            documentWriteRequestPendingIds:
+                                snapshot.documentWriteRequestPendingIds.filter(
+                                    (id) =>
+                                        event.requests.find((request) => request.id === id)
+                                            ?.status === "pending",
+                                ),
+                        };
+                    }
+                    case "documentWriteRequestsFailed":
+                        return {
+                            ...snapshot,
+                            documentWriteRequests:
+                                snapshot.documentWriteRequests.type === "ready"
+                                    ? snapshot.documentWriteRequests
+                                    : { type: "error", error: event.error },
+                        };
+                    case "documentWriteRequestPending":
+                        return {
+                            ...snapshot,
+                            documentWriteRequestPendingIds:
+                                snapshot.documentWriteRequestPendingIds.includes(event.requestId)
+                                    ? snapshot.documentWriteRequestPendingIds
+                                    : [...snapshot.documentWriteRequestPendingIds, event.requestId],
+                            documentWriteRequestActionError: undefined,
+                        };
+                    case "documentWriteRequestReconciled": {
+                        const pendingIds = snapshot.documentWriteRequestPendingIds.filter(
+                            (id) => id !== event.request.id,
+                        );
+                        if (snapshot.documentWriteRequests.type !== "ready")
+                            return { ...snapshot, documentWriteRequestPendingIds: pendingIds };
+                        const existing = snapshot.documentWriteRequests.value.findIndex(
+                            (request) => request.id === event.request.id,
+                        );
+                        const value =
+                            existing < 0
+                                ? [...snapshot.documentWriteRequests.value, event.request]
+                                : snapshot.documentWriteRequests.value.map((request, index) =>
+                                      index === existing ? event.request : request,
+                                  );
+                        return {
+                            ...snapshot,
+                            documentWriteRequests: { type: "ready", value },
+                            documentWriteRequestPendingIds: pendingIds,
+                        };
+                    }
+                    case "documentWriteRequestDecisionFailed":
+                        return {
+                            ...snapshot,
+                            documentWriteRequestPendingIds:
+                                snapshot.documentWriteRequestPendingIds.filter(
+                                    (id) => id !== event.requestId,
+                                ),
+                            documentWriteRequestActionError: event.error,
+                        };
                     case "pluginRequestsLoading":
                         return snapshot.pluginRequests.type === "loading" ||
                             snapshot.pluginRequests.type === "ready"
@@ -988,6 +1189,9 @@ export interface ChatSnapshot {
     readonly members: Loadable<readonly ChatMemberProjection[]>;
     readonly pins: Loadable<readonly ChatPinProjection[]>;
     readonly pluginRequests: Loadable<readonly PluginManagementRequestSummary[]>;
+    readonly documentWriteRequests: Loadable<readonly DocumentWriteRequestSummary[]>;
+    readonly documentWriteRequestPendingIds: readonly string[];
+    readonly documentWriteRequestActionError?: UserError;
     /** Request ids whose approve/deny decision is still in flight from this surface. */
     readonly pluginRequestPendingIds: readonly string[];
     readonly pluginRequestActionError?: UserError;
@@ -1013,6 +1217,13 @@ export type ChatOutput =
     | { readonly type: "membersRetained"; readonly chatId: string }
     | { readonly type: "pinsRetained"; readonly chatId: string }
     | { readonly type: "pluginRequestsRetained"; readonly chatId: string }
+    | { readonly type: "documentWriteRequestsRetained"; readonly chatId: string }
+    | {
+          readonly type: "documentWriteRequestDecisionSubmitted";
+          readonly chatId: string;
+          readonly requestId: string;
+          readonly decision: "approve" | "deny";
+      }
     | { readonly type: "portSharesRetained"; readonly chatId: string }
     | {
           readonly type: "portShareOpenSubmitted";
@@ -1067,6 +1278,22 @@ export type ChatInput =
     | { readonly type: "pinsLoading" }
     | { readonly type: "pinsLoaded"; readonly pins: readonly ChatPinProjection[] }
     | { readonly type: "pinsFailed"; readonly error: UserError }
+    | { readonly type: "documentWriteRequestsLoading" }
+    | {
+          readonly type: "documentWriteRequestsLoaded";
+          readonly requests: readonly DocumentWriteRequestSummary[];
+      }
+    | { readonly type: "documentWriteRequestsFailed"; readonly error: UserError }
+    | { readonly type: "documentWriteRequestPending"; readonly requestId: string }
+    | {
+          readonly type: "documentWriteRequestReconciled";
+          readonly request: DocumentWriteRequestSummary;
+      }
+    | {
+          readonly type: "documentWriteRequestDecisionFailed";
+          readonly requestId: string;
+          readonly error: UserError;
+      }
     | { readonly type: "pluginRequestsLoading" }
     | {
           readonly type: "pluginRequestsLoaded";
@@ -1139,6 +1366,9 @@ export interface ChatState extends ChatSnapshot {
     pinsRetain(): void;
     pluginRequestsRetain(): void;
     pluginRequestApprove(requestId: string): void;
+    documentWriteRequestsRetain(): void;
+    documentWriteRequestApprove(requestId: string): void;
+    documentWriteRequestDeny(requestId: string): void;
     pluginRequestDeny(requestId: string): void;
     portSharesRetain(): void;
     portShareOpen(portShareId: string): void;
@@ -1243,6 +1473,18 @@ function pluginRequestActionable(
     if (snapshot.pluginRequests.type !== "ready") return undefined;
     if (snapshot.pluginRequestPendingIds.includes(requestId)) return undefined;
     const request = snapshot.pluginRequests.value.find((candidate) => candidate.id === requestId);
+    return request?.status === "pending" ? request : undefined;
+}
+
+function documentWriteRequestActionable(
+    snapshot: ChatSnapshot,
+    requestId: string,
+): DocumentWriteRequestSummary | undefined {
+    if (snapshot.documentWriteRequests.type !== "ready") return undefined;
+    if (snapshot.documentWriteRequestPendingIds.includes(requestId)) return undefined;
+    const request = snapshot.documentWriteRequests.value.find(
+        (candidate) => candidate.id === requestId,
+    );
     return request?.status === "pending" ? request : undefined;
 }
 

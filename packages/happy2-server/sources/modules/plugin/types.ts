@@ -48,6 +48,8 @@ export type PluginHostPermission =
     | "commands:run"
     | "workspace:read"
     | "workspace:write"
+    | "documents:read"
+    | "documents:write"
     | "environments:read"
     | "environments:manage"
     | "environments:deactivate"
@@ -81,6 +83,8 @@ export const pluginHostPermissions: readonly PluginHostPermission[] = [
     "commands:run",
     "workspace:read",
     "workspace:write",
+    "documents:read",
+    "documents:write",
     "environments:read",
     "environments:manage",
     "environments:deactivate",
@@ -112,6 +116,7 @@ export interface PluginApiPermissionSection {
         | "search"
         | "commands"
         | "workspace"
+        | "documents"
         | "environments"
         | "apps"
         | "plugins"
@@ -297,6 +302,7 @@ export interface PluginCallContext {
     agentUserId: string;
     callId: string;
     chatId: string;
+    documentWriteWaitChange?: (waiting: boolean) => Promise<void>;
     sessionId: string;
     triggeredByUserId: string;
     users: readonly PluginReferencedUser[];

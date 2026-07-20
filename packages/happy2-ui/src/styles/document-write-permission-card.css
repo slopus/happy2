@@ -1,0 +1,212 @@
+/*
+ * C-141 DocumentWritePermissionCard — chat-scoped permission prompt for an
+ * agent-requested document write.
+ *
+ * Surface card, radius 10, max-width 560. Pending wears the amber treatment
+ * (warning-soft hairline + edit chip + warning badge) with Approve / Deny
+ * actions; approved, denied, and failed add a resolution banner and a muted
+ * terminal state line. A 40px document glyph sits beside the request title so
+ * the member sees exactly which document would change.
+ */
+
+.happy2-document-write-permission-card,
+.happy2-document-write-permission-card * {
+    box-sizing: border-box;
+}
+
+/* Conversation row hosting one permission card between message rows; matches
+ * the 20px message gutter so cards align with message text columns. */
+.happy2-document-write-permission-card-row {
+    display: flex;
+    flex: none;
+    padding: 6px 20px;
+}
+
+.happy2-document-write-permission-card {
+    display: block;
+    width: 100%;
+    max-width: 560px;
+    margin: 0;
+    overflow: hidden;
+    background: var(--happy2-bg-surface);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-document-write-permission-card[data-status="pending"] {
+    border-color: var(--happy2-warning-soft);
+}
+
+/* ---- Resolution banner ------------------------------------------------ */
+
+.happy2-document-write-permission-card__banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--happy2-border);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 31px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.happy2-document-write-permission-card[data-status="approved"]
+    .happy2-document-write-permission-card__banner {
+    background: var(--happy2-success-soft);
+    color: var(--happy2-success-strong);
+}
+
+.happy2-document-write-permission-card[data-status="denied"]
+    .happy2-document-write-permission-card__banner,
+.happy2-document-write-permission-card[data-status="failed"]
+    .happy2-document-write-permission-card__banner {
+    background: var(--happy2-danger-soft);
+    color: var(--happy2-danger-strong);
+}
+
+.happy2-document-write-permission-card__banner-label {
+    display: block;
+    line-height: 31px;
+}
+
+/* ---- Body -------------------------------------------------------------- */
+
+.happy2-document-write-permission-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 16px;
+}
+
+.happy2-document-write-permission-card__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.happy2-document-write-permission-card__chip {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    background: var(--happy2-warning-soft);
+    border-radius: 8px;
+    color: var(--happy2-warning);
+}
+
+.happy2-document-write-permission-card[data-status="approved"]
+    .happy2-document-write-permission-card__chip {
+    background: var(--happy2-success-soft);
+    color: var(--happy2-success);
+}
+
+.happy2-document-write-permission-card[data-status="denied"]
+    .happy2-document-write-permission-card__chip,
+.happy2-document-write-permission-card[data-status="failed"]
+    .happy2-document-write-permission-card__chip {
+    background: var(--happy2-danger-soft);
+    color: var(--happy2-danger);
+}
+
+.happy2-document-write-permission-card__requester {
+    display: block;
+    margin-left: auto;
+    overflow: hidden;
+    color: var(--happy2-text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-document-write-permission-card__document {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.happy2-document-write-permission-card__glyph {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: var(--happy2-bg-raised);
+    border-radius: 8px;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-document-write-permission-card__title {
+    margin: 0;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    letter-spacing: -0.01em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-document-write-permission-card__description {
+    margin: 0;
+    color: var(--happy2-text-secondary);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 18px;
+}
+
+/* ---- Footer ------------------------------------------------------------- */
+
+.happy2-document-write-permission-card__footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-top: 1px solid var(--happy2-border);
+}
+
+.happy2-document-write-permission-card__state {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-document-write-permission-card[data-status="approved"]
+    .happy2-document-write-permission-card__state
+    > .happy2-icon {
+    color: var(--happy2-success);
+}
+
+.happy2-document-write-permission-card[data-status="denied"]
+    .happy2-document-write-permission-card__state
+    > .happy2-icon,
+.happy2-document-write-permission-card[data-status="failed"]
+    .happy2-document-write-permission-card__state
+    > .happy2-icon {
+    color: var(--happy2-danger);
+}
+
+.happy2-document-write-permission-card__state-label {
+    display: block;
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

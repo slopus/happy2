@@ -78,6 +78,7 @@ import type {
     UserAccessTelemetry,
     WebhookDeliverySummary,
     WebhookSubscriptionSummary,
+    DocumentWriteRequestSummary,
 } from "./resources.js";
 
 export type JsonObject = Readonly<Record<string, unknown>>;
@@ -323,6 +324,11 @@ export const backendOperations = {
     downloadPluginManagementRequestImage: get(
         "/v0/chats/:chatId/pluginManagementRequests/:requestId/image",
     ),
+    getDocumentWriteRequests: get("/v0/chats/:chatId/documentWriteRequests"),
+    approveDocumentWrite: post(
+        "/v0/chats/:chatId/documentWriteRequests/:requestId/approveDocumentWrite",
+    ),
+    denyDocumentWrite: post("/v0/chats/:chatId/documentWriteRequests/:requestId/denyDocumentWrite"),
     approvePluginInstall: post(
         "/v0/chats/:chatId/pluginManagementRequests/:requestId/approvePluginInstall",
     ),
@@ -484,6 +490,8 @@ export interface KnownBackendInputs {
         readonly initialUpdate?: string;
     };
     attachDocument: { readonly documentId: string; readonly chatId: string };
+    approveDocumentWrite: { readonly chatId: string; readonly requestId: string };
+    denyDocumentWrite: { readonly chatId: string; readonly requestId: string };
     detachDocument: { readonly documentId: string; readonly chatId: string };
     applyDocumentUpdates: {
         readonly documentId: string;
@@ -1229,6 +1237,13 @@ export interface KnownBackendResults {
         readonly requests: readonly PluginManagementRequestSummary[];
     };
     downloadPluginManagementRequestImage: ArrayBuffer;
+    getDocumentWriteRequests: { readonly requests: readonly DocumentWriteRequestSummary[] };
+    approveDocumentWrite: {
+        readonly request: DocumentWriteRequestSummary;
+        readonly acceptedSequence?: string;
+        readonly replayed?: boolean;
+    };
+    denyDocumentWrite: { readonly request: DocumentWriteRequestSummary };
     approvePluginInstall: { readonly approval: PluginManagementRequestSummary };
     denyPluginInstall: { readonly approval: PluginManagementRequestSummary };
     approvePluginUninstall: { readonly approval: PluginManagementRequestSummary };

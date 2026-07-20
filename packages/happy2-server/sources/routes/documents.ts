@@ -13,6 +13,10 @@ import { documentListForChat } from "../modules/document/documentListForChat.js"
 import { documentPresenceList } from "../modules/document/documentPresenceList.js";
 import { documentPresenceUpdate } from "../modules/document/documentPresenceUpdate.js";
 import { documentRename } from "../modules/document/documentRename.js";
+import { documentWriteRequestApprove } from "../modules/document/documentWriteRequestApprove.js";
+import { documentWriteRequestDeny } from "../modules/document/documentWriteRequestDeny.js";
+import { documentWriteRequestFail } from "../modules/document/documentWriteRequestFail.js";
+import { documentWriteRequestList } from "../modules/document/documentWriteRequestList.js";
 import { DocumentPresenceTracker } from "../modules/document/presenceTracker.js";
 import {
     DOCUMENT_DIFFERENCE_DEFAULT_LIMIT,
@@ -51,6 +55,96 @@ export function registerDocumentRoutes(
             return handled(reply, error) ?? Promise.reject(error);
         }
     });
+
+    app.get("/v0/chats/:chatId/documentWriteRequests", async (request, reply) => {
+        const userId = await actor(auth, request, reply);
+        if (!userId) return;
+        try {
+            return {
+                requests: await documentWriteRequestList(
+                    executor,
+                    userId,
+                    routeId(request, "chatId"),
+                ),
+            };
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.post(
+        "/v0/chats/:chatId/documentWriteRequests/:requestId/approveDocumentWrite",
+        async (request, reply) => {
+            const userId = await actor(auth, request, reply);
+            if (!userId) return;
+            const chatId = routeId(request, "chatId");
+            const requestId = routeId(request, "requestId");
+            try {
+                emptyBody(request.body);
+                const result = await documentWriteRequestApprove(executor, {
+                    actorUserId: userId,
+                    chatId,
+                    requestId,
+                    now: Date.now(),
+                });
+                await publish(pubsub, result.hint);
+                if (!result.replayed) {
+                    const event: DocumentUpdatedEvent = {
+                        type: "document.updated",
+                        documentId: result.request.documentId,
+                        sequence: result.acceptedSequence,
+                        occurredAt: Date.now(),
+                    };
+                    await publishDocumentEvent(pubsub, result.audience, event);
+                }
+                return {
+                    request: result.request,
+                    acceptedSequence: result.acceptedSequence,
+                    replayed: result.replayed,
+                };
+            } catch (error) {
+                if (error instanceof RequestError) return handled(reply, error);
+                if (
+                    error instanceof CollaborationError &&
+                    (error.code === "forbidden" || error.code === "conflict")
+                )
+                    return handled(reply, error);
+                try {
+                    const failed = await documentWriteRequestFail(executor, {
+                        actorUserId: userId,
+                        chatId,
+                        requestId,
+                        error: errorMessage(error),
+                    });
+                    if (failed.hint) await publish(pubsub, failed.hint);
+                    return { request: failed.request };
+                } catch {
+                    return handled(reply, error) ?? Promise.reject(error);
+                }
+            }
+        },
+    );
+
+    app.post(
+        "/v0/chats/:chatId/documentWriteRequests/:requestId/denyDocumentWrite",
+        async (request, reply) => {
+            const userId = await actor(auth, request, reply);
+            if (!userId) return;
+            try {
+                emptyBody(request.body);
+                const result = await documentWriteRequestDeny(executor, {
+                    actorUserId: userId,
+                    chatId: routeId(request, "chatId"),
+                    requestId: routeId(request, "requestId"),
+                    now: Date.now(),
+                });
+                await publish(pubsub, result.hint);
+                return { request: result.request };
+            } catch (error) {
+                return handled(reply, error) ?? Promise.reject(error);
+            }
+        },
+    );
 
     app.get("/v0/documents", async (request, reply) => {
         const userId = await actor(auth, request, reply);
@@ -413,4 +507,8 @@ function optionalPositiveInteger(
 function booleanField(value: unknown, name: string): boolean {
     if (typeof value !== "boolean") throw new RequestError(`${name} must be a boolean`);
     return value;
+}
+
+function errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
 }

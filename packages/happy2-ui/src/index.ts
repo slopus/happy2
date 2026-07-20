@@ -64,6 +64,11 @@ export {
     type PluginPermissionStatus,
 } from "./PluginPermissionCard";
 export {
+    DocumentWritePermissionCard,
+    type DocumentWritePermissionCardProps,
+    type DocumentWritePermissionStatus,
+} from "./DocumentWritePermissionCard";
+export {
     AgentRunCard,
     type AgentRun,
     type AgentRunAction,

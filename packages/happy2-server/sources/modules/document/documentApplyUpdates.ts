@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, lte } from "drizzle-orm";
 import { CollaborationError } from "../chat/types.js";
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 import { documentUpdates, documents } from "../schema.js";
@@ -10,12 +10,10 @@ import {
     documentUpdateDecode,
     documentUpdatesMerge,
 } from "./impl/updateCodec.js";
+import { documentUpdatesValidate } from "./impl/documentUpdatesValidate.js";
 import {
     DOCUMENT_COMPACTION_INTERVAL,
     DOCUMENT_UPDATE_RETENTION,
-    MAX_DOCUMENT_BATCH_BYTES,
-    MAX_DOCUMENT_UPDATE_BATCH,
-    MAX_DOCUMENT_UPDATE_BYTES,
     type DocumentRealtimeAudience,
     type DocumentSummary,
 } from "./types.js";
@@ -44,24 +42,10 @@ export async function documentApplyUpdates(
     replayed: boolean;
     audience: DocumentRealtimeAudience;
 }> {
-    if (
-        !Array.isArray(input.updates) ||
-        input.updates.length === 0 ||
-        input.updates.length > MAX_DOCUMENT_UPDATE_BATCH
-    )
-        throw new CollaborationError(
-            "invalid",
-            `updates must contain between 1 and ${MAX_DOCUMENT_UPDATE_BATCH} entries`,
-        );
-    const decoded = input.updates.map((update, index) =>
-        documentUpdateDecode(update, `updates[${index}]`, MAX_DOCUMENT_UPDATE_BYTES),
+    const updates = documentUpdatesValidate(input.updates);
+    const decoded = updates.map((update, index) =>
+        documentUpdateDecode(update, `updates[${index}]`, Number.POSITIVE_INFINITY),
     );
-    const totalBytes = decoded.reduce((total, update) => total + update.byteLength, 0);
-    if (totalBytes > MAX_DOCUMENT_BATCH_BYTES)
-        throw new CollaborationError(
-            "invalid",
-            `updates must decode to at most ${MAX_DOCUMENT_BATCH_BYTES} bytes in total`,
-        );
     const merged = documentUpdatesMerge(decoded);
     return withTransaction(executor, async (tx) => {
         const row = await documentRowGet(tx, input.actorUserId, input.documentId, "write");

@@ -7,6 +7,7 @@ import { createDatabase, type DrizzleExecutor } from "../drizzle.js";
 import { serverSchemaMigrate } from "../server/serverSchemaMigrate.js";
 import { pluginFunctionResultAcquire } from "./pluginFunctionResultAcquire.js";
 import { pluginFunctionResultComplete } from "./pluginFunctionResultComplete.js";
+import { pluginFunctionResultRenewLease } from "./pluginFunctionResultRenewLease.js";
 
 describe("durable plugin function results", () => {
     let client: Client;
@@ -103,6 +104,49 @@ describe("durable plugin function results", () => {
             status: "failed",
             error: { message: "stable failure" },
         });
+    });
+
+    it("extends and restores only the current executor lease", async () => {
+        await pluginFunctionResultAcquire(executor, {
+            callId: "call-renewed",
+            leaseExpiresAt: 2_000,
+            leaseToken: "lease-current",
+            now: 1_000,
+            sessionId: "session-renewed",
+        });
+        await expect(
+            pluginFunctionResultRenewLease(executor, {
+                callId: "call-renewed",
+                leaseExpiresAt: 5_000,
+                leaseToken: "lease-current",
+                sessionId: "session-renewed",
+            }),
+        ).resolves.toBeUndefined();
+        await expect(
+            pluginFunctionResultAcquire(executor, {
+                callId: "call-renewed",
+                leaseExpiresAt: 6_000,
+                leaseToken: "lease-contender",
+                now: 3_000,
+                sessionId: "session-renewed",
+            }),
+        ).resolves.toEqual({ kind: "in_progress", retryAt: 5_000 });
+        await expect(
+            pluginFunctionResultRenewLease(executor, {
+                callId: "call-renewed",
+                leaseExpiresAt: 7_000,
+                leaseToken: "lease-contender",
+                sessionId: "session-renewed",
+            }),
+        ).rejects.toThrow("lease was lost");
+        await expect(
+            pluginFunctionResultRenewLease(executor, {
+                callId: "call-renewed",
+                leaseExpiresAt: 3_500,
+                leaseToken: "lease-current",
+                sessionId: "session-renewed",
+            }),
+        ).resolves.toBeUndefined();
     });
 
     it("linearizes simultaneous claims from separate database connections", async () => {

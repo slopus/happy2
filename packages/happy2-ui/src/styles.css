@@ -54,6 +54,7 @@
 @import "./styles/document-editor.css";
 @import "./styles/document-surface.css";
 @import "./styles/document-delete-dialog.css";
+@import "./styles/document-write-permission-card.css";
 @import "./styles/documents-page.css";
 @import "./styles/documents-panel.css";
 @import "./styles/media-gallery.css";

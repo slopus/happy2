@@ -350,6 +350,89 @@ export function createPluginHostApi(
             throw error;
         }
     });
+    app.get("/documents", async (request, reply) => {
+        try {
+            const claims = await plugins.authorizeChatHost(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                "documents:read",
+            );
+            return {
+                documents: await plugins.listDocumentsForHost(claims.actorUserId, claims.chatId),
+            };
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.get("/documents/:documentId", async (request, reply) => {
+        try {
+            const claims = await plugins.authorizeChatHost(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                "documents:read",
+            );
+            return await plugins.getDocumentForHost(
+                claims.actorUserId,
+                claims.chatId,
+                pathIdentifier(request, "documentId"),
+            );
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/documents/:documentId/applyUpdates", async (request, reply) => {
+        const controller = new AbortController();
+        const aborted = () => controller.abort(new Error("Plugin document write disconnected"));
+        request.raw.once("aborted", aborted);
+        try {
+            const runtimeToken = bearerToken(request);
+            const runtime = await plugins.authorizeHost(runtimeToken, "documents:write");
+            if (!runtime.agentCall)
+                throw new PluginError(
+                    "forbidden",
+                    "Plugin document writes require an active Happy agent call",
+                );
+            const chat = await plugins.authorizeChatHost(
+                runtimeToken,
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                "documents:write",
+            );
+            if (
+                chat.chatId !== runtime.agentCall.chatId ||
+                chat.actorUserId !== runtime.agentCall.actorUserId ||
+                chat.agentUserId !== runtime.agentCall.agentUserId
+            )
+                throw new PluginError(
+                    "forbidden",
+                    "Plugin chat token belongs to another active agent call",
+                );
+            const body = documentWriteInput(request.body);
+            return await plugins.requestDocumentWriteForHost(
+                {
+                    actorUserId: runtime.agentCall.actorUserId,
+                    agentUserId: runtime.agentCall.agentUserId,
+                    requesterInstallationId: runtime.installationId,
+                    sessionId: runtime.agentCall.sessionId,
+                    callId: runtime.agentCall.callId,
+                    chatId: chat.chatId,
+                    documentId: pathIdentifier(request, "documentId"),
+                    clientUpdateId: body.clientUpdateId,
+                    updates: body.updates,
+                },
+                controller.signal,
+            );
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        } finally {
+            request.raw.removeListener("aborted", aborted);
+        }
+    });
     app.post("/workspace/writeFile", async (request, reply) => {
         try {
             const result = await plugins.workspaceFileWrite(
@@ -845,6 +928,25 @@ function workspaceWriteInput(value: unknown): {
     if (Buffer.byteLength(body.content, "utf8") > MAX_WORKSPACE_TEXT_FILE_BYTES)
         throw new PluginHostRequestError("content exceeds the 4 MiB workspace file limit");
     return { path: workspacePath(body.path), expectedHash, content: body.content };
+}
+
+function documentWriteInput(value: unknown): {
+    clientUpdateId: string;
+    updates: unknown[];
+} {
+    const body = bodyRecord(value);
+    onlyBodyKeys(body, ["clientUpdateId", "updates"]);
+    if (!Array.isArray(body.updates)) throw new PluginHostRequestError("updates must be an array");
+    return {
+        clientUpdateId: documentClientUpdateId(body.clientUpdateId),
+        updates: body.updates,
+    };
+}
+
+function documentClientUpdateId(value: unknown): string {
+    if (typeof value !== "string" || !value || value.length > 128 || value.trim() !== value)
+        throw new PluginHostRequestError("clientUpdateId must be a valid identifier");
+    return value;
 }
 
 function commandInput(value: unknown): {

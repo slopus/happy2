@@ -11,6 +11,11 @@ import { realtimeTopics } from "../realtime/index.js";
 import type { WebhookUrlPolicy } from "../integrations/ssrf.js";
 import type { WebhookTransport } from "../integrations/types.js";
 import type { TokenService } from "../auth/tokens.js";
+import { documentGetForChatHost } from "../document/documentGetForChatHost.js";
+import { documentListForChatHost } from "../document/documentListForChatHost.js";
+import { documentWriteRequestAwaitOutcome } from "../document/documentWriteRequestAwaitOutcome.js";
+import { documentWriteRequestCreate } from "../document/documentWriteRequestCreate.js";
+import type { DocumentHostSummary, DocumentSnapshot } from "../document/types.js";
 import { chatUpdateMetadata, type ChatMetadataSummary } from "../chat/chatUpdateMetadata.js";
 import { channelCreateChild } from "../chat/channelCreateChild.js";
 import { channelCreateWithMembers } from "../chat/channelCreateWithMembers.js";
@@ -129,6 +134,8 @@ import {
 const HEALTH_TIMEOUT_MS = 15_000;
 const COMMAND_STARTUP_GRACE_MS = 250;
 const FUNCTION_EXECUTION_TIMEOUT_MS = 30_000;
+const DOCUMENT_WRITE_FUNCTION_TIMEOUT_MS = 6 * 60_000;
+const DOCUMENT_WRITE_OUTCOME_POLL_MS = 250;
 const MAX_RIG_PLUGIN_FUNCTIONS = 128;
 const MAX_RIG_PLUGIN_SKILLS = 128;
 const PREPARATION_TTL_MS = 15 * 60_000;
@@ -166,6 +173,10 @@ interface PluginMcpCatalogInput {
     resources: McpAppResourceInput[];
 }
 
+interface OperationTimeoutControl {
+    timeoutReset(timeoutMs: number): void;
+}
+
 /** Coordinates durable plugin installs with asynchronous container preparation, MCP health probes, restart recovery, and local connection creation. */
 export class PluginService {
     private readonly activations = new Map<
@@ -175,6 +186,10 @@ export class PluginService {
     private readonly commandHandles = new Map<string, PluginLocalCommandHandle>();
     private readonly preparations = new Map<string, PreparedPlugin>();
     private readonly activeMcpAppOperationsByActor = new Map<string, number>();
+    private readonly activeFunctionDocumentWriteWaits = new Map<
+        string,
+        (waiting: boolean) => Promise<void>
+    >();
     private closed = false;
 
     constructor(
@@ -740,6 +755,100 @@ export class PluginService {
         return pluginManagementRequestList(this.executor, actorUserId, chatId);
     }
 
+    listDocumentsForHost(actorUserId: string, chatId: string): Promise<DocumentHostSummary[]> {
+        return documentListForChatHost(this.executor, actorUserId, chatId);
+    }
+
+    getDocumentForHost(
+        actorUserId: string,
+        chatId: string,
+        documentId: string,
+    ): Promise<{ document: DocumentHostSummary; snapshot: DocumentSnapshot }> {
+        return documentGetForChatHost(this.executor, actorUserId, chatId, documentId);
+    }
+
+    async requestDocumentWriteForHost(
+        input: {
+            actorUserId: string;
+            agentUserId: string;
+            requesterInstallationId: string;
+            sessionId: string;
+            callId: string;
+            chatId: string;
+            documentId: string;
+            clientUpdateId: string;
+            updates: readonly unknown[];
+        },
+        signal?: AbortSignal,
+    ): Promise<
+        | {
+              status: "approved";
+              requestId: string;
+              documentId: string;
+              acceptedSequence: string;
+          }
+        | {
+              status: "denied" | "failed";
+              requestId: string;
+              documentId: string;
+              message: string;
+          }
+    > {
+        const waitChange = this.activeFunctionDocumentWriteWaits.get(
+            pluginAgentCallKey(input.sessionId, input.callId),
+        );
+        if (!waitChange)
+            throw new PluginError(
+                "forbidden",
+                "Plugin document writes require the active function executor",
+            );
+        await waitChange(true);
+        try {
+            const created = await documentWriteRequestCreate(this.executor, {
+                id: createId(),
+                ...input,
+                now: Date.now(),
+            });
+            if (created.hint) await this.publish(created.hint).catch(this.onError);
+            for (;;) {
+                signal?.throwIfAborted();
+                const outcome = await documentWriteRequestAwaitOutcome(
+                    this.executor,
+                    created.request.id,
+                    Date.now(),
+                );
+                if (outcome.hint) await this.publish(outcome.hint).catch(this.onError);
+                if (outcome.request.status === "approved") {
+                    if (!outcome.request.acceptedSequence)
+                        throw new Error("Approved document write request is missing its sequence");
+                    return {
+                        status: "approved",
+                        requestId: outcome.request.id,
+                        documentId: outcome.request.documentId,
+                        acceptedSequence: outcome.request.acceptedSequence,
+                    };
+                }
+                if (outcome.request.status === "denied")
+                    return {
+                        status: "denied",
+                        requestId: outcome.request.id,
+                        documentId: outcome.request.documentId,
+                        message: "Document write was denied by a chat member.",
+                    };
+                if (outcome.request.status === "failed")
+                    return {
+                        status: "failed",
+                        requestId: outcome.request.id,
+                        documentId: outcome.request.documentId,
+                        message: outcome.request.lastError ?? "Document write approval failed.",
+                    };
+                await abortablePluginDelay(DOCUMENT_WRITE_OUTCOME_POLL_MS, signal);
+            }
+        } finally {
+            await waitChange(false);
+        }
+    }
+
     async managementRequestImage(input: {
         actorUserId: string;
         chatId: string;
@@ -968,14 +1077,41 @@ export class PluginService {
                 FUNCTION_EXECUTION_TIMEOUT_MS,
                 "Plugin MCP function execution",
                 signal,
-                (operationSignal) =>
-                    this.callFunctionWithSignal(
-                        functionName,
-                        args,
-                        context,
-                        agentCall,
-                        operationSignal,
-                    ),
+                async (operationSignal, timeout) => {
+                    const key = pluginAgentCallKey(context.sessionId, context.callId);
+                    let waitCount = 0;
+                    let leaseTransition = Promise.resolve();
+                    const waitChange = (waiting: boolean): Promise<void> => {
+                        if (waiting) waitCount += 1;
+                        else {
+                            if (waitCount === 0) return leaseTransition;
+                            waitCount -= 1;
+                        }
+                        const changed = waiting ? waitCount === 1 : waitCount === 0;
+                        if (!changed) return leaseTransition;
+                        timeout.timeoutReset(
+                            waiting
+                                ? DOCUMENT_WRITE_FUNCTION_TIMEOUT_MS
+                                : FUNCTION_EXECUTION_TIMEOUT_MS,
+                        );
+                        leaseTransition = leaseTransition.then(() =>
+                            context.documentWriteWaitChange?.(waiting),
+                        );
+                        return leaseTransition;
+                    };
+                    this.activeFunctionDocumentWriteWaits.set(key, waitChange);
+                    try {
+                        return await this.callFunctionWithSignal(
+                            functionName,
+                            args,
+                            context,
+                            agentCall,
+                            operationSignal,
+                        );
+                    } finally {
+                        this.activeFunctionDocumentWriteWaits.delete(key);
+                    }
+                },
             );
         } catch (error) {
             if (signal?.aborted) throw error;
@@ -3229,6 +3365,23 @@ function commandSurviveStartup(
     });
 }
 
+function abortablePluginDelay(milliseconds: number, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) return Promise.reject(abortReason(signal));
+    return new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(finished, milliseconds);
+        timer.unref();
+        signal?.addEventListener("abort", aborted, { once: true });
+        function finished() {
+            signal?.removeEventListener("abort", aborted);
+            resolve();
+        }
+        function aborted() {
+            clearTimeout(timer);
+            reject(signal ? abortReason(signal) : abortError());
+        }
+    });
+}
+
 function commandExitMessage(result: {
     exitCode: number | null;
     signal: NodeJS.Signals | null;
@@ -3273,7 +3426,7 @@ function withOperationTimeout<T>(
     timeoutMs: number,
     operation: string,
     signal: AbortSignal | undefined,
-    action: (signal: AbortSignal) => Promise<T>,
+    action: (signal: AbortSignal, timeout: OperationTimeoutControl) => Promise<T>,
 ): Promise<T> {
     if (signal?.aborted) return Promise.reject(abortReason(signal));
     const controller = new AbortController();
@@ -3297,16 +3450,25 @@ function withOperationTimeout<T>(
             controller.abort(error);
             settle(() => reject(error));
         };
-        timer = setTimeout(timedOut, timeoutMs);
-        timer.unref();
+        const timeoutReset = (nextTimeoutMs: number) => {
+            if (settled) return;
+            clearTimeout(timer);
+            timer = setTimeout(timedOut, nextTimeoutMs);
+            timer.unref();
+        };
+        timeoutReset(timeoutMs);
         signal?.addEventListener("abort", parentAborted, { once: true });
         Promise.resolve()
-            .then(() => action(controller.signal))
+            .then(() => action(controller.signal, { timeoutReset }))
             .then(
                 (value) => settle(() => resolve(value)),
                 (error) => settle(() => reject(error)),
             );
     });
+}
+
+function pluginAgentCallKey(sessionId: string, callId: string): string {
+    return `${sessionId}\u0000${callId}`;
 }
 
 function abortReason(signal: AbortSignal): Error {
