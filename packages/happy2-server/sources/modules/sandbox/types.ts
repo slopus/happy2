@@ -72,12 +72,17 @@ export interface PluginSandboxCreateInput {
     imageTag: string;
     installationId: string;
     workspaceDirectory: string;
+    /** Numeric owner of the private host workspace bind mount. */
+    workspaceGroupId: number;
+    workspaceUserId: number;
 }
 
 export interface PluginSandboxState {
     containerInstanceId: string;
     installationId: string;
     running: boolean;
+    /** Host workspace owner recorded when this container was created. */
+    workspaceUser?: string;
 }
 
 export interface PluginSandboxCommandInput {

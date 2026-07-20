@@ -8,6 +8,7 @@ import type {
     AgentSandboxCreateInput,
     PluginSandboxCommandInput,
     PluginSandboxCreateInput,
+    PluginSandboxState,
     SandboxFileEgressInput,
     SandboxFileIngressInput,
     SandboxProbeOptions,
@@ -225,6 +226,7 @@ export class LocalOciSandboxProvider implements SandboxProvider {
         input: PluginSandboxCreateInput,
         signal?: AbortSignal,
     ): Promise<void> {
+        const workspaceUser = pluginWorkspaceUser(input);
         const args = [
             "create",
             "--name",
@@ -235,6 +237,9 @@ export class LocalOciSandboxProvider implements SandboxProvider {
             `dev.happy2.plugin-installation=${input.installationId}`,
             "--label",
             `dev.happy2.plugin-instance=${input.containerInstanceId}`,
+            "--label",
+            `dev.happy2.plugin-workspace-user=${workspaceUser}`,
+            ...(this.id === "docker" ? ["--user", workspaceUser] : []),
             "--add-host",
             "happy2.host.internal:host-gateway",
             "--read-only",
@@ -254,7 +259,9 @@ export class LocalOciSandboxProvider implements SandboxProvider {
             "--tmpfs",
             "/tmp:rw,nosuid,nodev,mode=1777",
             "--tmpfs",
-            "/run:rw,nosuid,nodev,mode=755",
+            this.id === "docker"
+                ? `/run:rw,nosuid,nodev,mode=700,uid=${input.workspaceUserId},gid=${input.workspaceGroupId}`
+                : "/run:rw,nosuid,nodev,mode=755",
             "--mount",
             bindMount(input.workspaceDirectory, "/workspace"),
             "--env",
@@ -306,9 +313,7 @@ export class LocalOciSandboxProvider implements SandboxProvider {
     async inspectPluginSandbox(
         containerName: string,
         signal?: AbortSignal,
-    ): Promise<
-        { containerInstanceId: string; installationId: string; running: boolean } | undefined
-    > {
+    ): Promise<PluginSandboxState | undefined> {
         let inspected: CommandResult;
         try {
             inspected = await this.run(["inspect", "--format", "{{json .}}", containerName], {
@@ -331,8 +336,14 @@ export class LocalOciSandboxProvider implements SandboxProvider {
         }
         const installationId = value.Config?.Labels?.["dev.happy2.plugin-installation"];
         const containerInstanceId = value.Config?.Labels?.["dev.happy2.plugin-instance"];
+        const workspaceUser = value.Config?.Labels?.["dev.happy2.plugin-workspace-user"];
         if (!installationId || !containerInstanceId) return undefined;
-        return { installationId, containerInstanceId, running: value.State?.Running === true };
+        return {
+            installationId,
+            containerInstanceId,
+            running: value.State?.Running === true,
+            workspaceUser,
+        };
     }
 
     async startPluginCommand(
@@ -634,6 +645,16 @@ function pluginCliEnvironment(
         seen.add(normalized);
     }
     return { ...base, ...Object.fromEntries(plugin) };
+}
+
+function pluginWorkspaceUser(input: PluginSandboxCreateInput): string {
+    for (const [label, value] of [
+        ["user", input.workspaceUserId],
+        ["group", input.workspaceGroupId],
+    ] as const)
+        if (!Number.isSafeInteger(value) || value < 0)
+            throw new Error(`Plugin workspace ${label} id is invalid`);
+    return `${input.workspaceUserId}:${input.workspaceGroupId}`;
 }
 
 class OciBuildProgress {

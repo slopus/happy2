@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -40,6 +40,11 @@ describe("compiled collaborative TODO plugin realtime integration", () => {
             expect(installed.statusCode).toBe(202);
             const installationId = installed.json().installation.id as string;
             await waitForInstallation(asAlice, installationId);
+            const workspace = await stat(runtime.prepare().workspaceDirectory);
+            expect(runtime.prepare()).toMatchObject({
+                workspaceGroupId: workspace.gid,
+                workspaceUserId: workspace.uid,
+            });
 
             const indexPut = await server.pluginHost().post(
                 "/apps/putInstance",
@@ -122,6 +127,7 @@ type VisibleApp = Record<string, unknown> & { id: string; dataRevision?: number 
 
 class CompiledTodoRuntime implements PluginMcpRuntime {
     #host?: GymRequestClient;
+    #prepare?: PluginLocalPrepareInput;
     #runtimeToken?: string;
 
     private constructor(
@@ -153,7 +159,13 @@ class CompiledTodoRuntime implements PluginMcpRuntime {
         return required(this.#runtimeToken, "plugin runtime token");
     }
 
+    prepare(): PluginLocalPrepareInput {
+        if (!this.#prepare) throw new TypeError("plugin prepare input is missing");
+        return this.#prepare;
+    }
+
     async prepareLocal(input: PluginLocalPrepareInput) {
+        this.#prepare = structuredClone(input);
         return {
             containerInstanceId: input.existingContainerInstanceId ?? input.containerInstanceId,
             imageTag: input.imageTag,

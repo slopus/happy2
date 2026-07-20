@@ -1,6 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { createId } from "@paralleldrive/cuid2";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -2906,6 +2906,11 @@ export class PluginService {
                     configuration.shortName,
                     configuration.packageDigest,
                 );
+            const workspaceDirectory = await this.packages.workspaceDirectory(
+                configuration.pluginId,
+                installationId,
+            );
+            const workspace = await stat(workspaceDirectory);
             const prepared = await this.runtime.prepareLocal(
                 {
                     installationId,
@@ -2913,10 +2918,9 @@ export class PluginService {
                     containerInstanceId: createId(),
                     existingContainerInstanceId: configuration.containerInstanceId,
                     imageTag: configuration.imageTag,
-                    workspaceDirectory: await this.packages.workspaceDirectory(
-                        configuration.pluginId,
-                        installationId,
-                    ),
+                    workspaceDirectory,
+                    workspaceGroupId: workspace.gid,
+                    workspaceUserId: workspace.uid,
                     ...(dockerfile
                         ? {
                               build: {

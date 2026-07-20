@@ -19,6 +19,8 @@ export interface PluginLocalPrepareInput {
     containerInstanceId: string;
     existingContainerInstanceId?: string;
     workspaceDirectory: string;
+    workspaceGroupId: number;
+    workspaceUserId: number;
 }
 
 export interface PluginLocalOpenInput {
@@ -76,10 +78,12 @@ export class SandboxPluginMcpRuntime implements PluginMcpRuntime {
         if (input.build && input.build.tag !== input.imageTag)
             throw new Error("Plugin build and runtime image tags must match");
         const existing = await provider.inspectPluginSandbox?.(input.containerName, signal);
+        const workspaceUser = `${input.workspaceUserId}:${input.workspaceGroupId}`;
         if (
             existing?.running &&
             existing.installationId === input.installationId &&
-            existing.containerInstanceId === input.existingContainerInstanceId
+            existing.containerInstanceId === input.existingContainerInstanceId &&
+            existing.workspaceUser === workspaceUser
         )
             return {
                 containerInstanceId: existing.containerInstanceId,
@@ -103,6 +107,8 @@ export class SandboxPluginMcpRuntime implements PluginMcpRuntime {
                 imageTag: input.imageTag,
                 installationId: input.installationId,
                 workspaceDirectory: input.workspaceDirectory,
+                workspaceGroupId: input.workspaceGroupId,
+                workspaceUserId: input.workspaceUserId,
             },
             signal,
         );

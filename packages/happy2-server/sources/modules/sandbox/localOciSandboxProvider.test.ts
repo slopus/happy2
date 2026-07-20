@@ -178,6 +178,8 @@ describe("LocalOciSandboxProvider", () => {
             containerName: "happy2-plugin-installation-id",
             imageTag: "happy2-plugin:immutable",
             workspaceDirectory: "/Users/example/plugin-data",
+            workspaceGroupId: 20,
+            workspaceUserId: 501,
         });
         await expect(
             provider.inspectPluginSandbox("happy2-plugin-installation-id"),
@@ -185,6 +187,7 @@ describe("LocalOciSandboxProvider", () => {
             installationId: "plugin-installation-id",
             containerInstanceId: "plugin-container-instance-id",
             running: true,
+            workspaceUser: "501:20",
         });
         await provider.startPluginCommand({
             containerName: "happy2-plugin-installation-id",
@@ -213,6 +216,10 @@ describe("LocalOciSandboxProvider", () => {
             "dev.happy2.plugin-installation=plugin-installation-id",
             "--label",
             "dev.happy2.plugin-instance=plugin-container-instance-id",
+            "--label",
+            "dev.happy2.plugin-workspace-user=501:20",
+            "--user",
+            "501:20",
             "--add-host",
             "happy2.host.internal:host-gateway",
             "--read-only",
@@ -232,7 +239,7 @@ describe("LocalOciSandboxProvider", () => {
             "--tmpfs",
             "/tmp:rw,nosuid,nodev,mode=1777",
             "--tmpfs",
-            "/run:rw,nosuid,nodev,mode=755",
+            "/run:rw,nosuid,nodev,mode=700,uid=501,gid=20",
             "--mount",
             "type=bind,source=/Users/example/plugin-data,target=/workspace",
             "--env",
@@ -297,6 +304,28 @@ describe("LocalOciSandboxProvider", () => {
                 environment: { CONTAINERS_CONF: "secret-value" },
             }),
         ).toThrow("cannot shadow the container CLI environment");
+    });
+
+    it("keeps rootless Podman plugin identity and runtime directory behavior", async () => {
+        const provider = new LocalOciSandboxProvider({
+            id: "podman",
+            displayName: "Podman",
+            command,
+        });
+        await provider.createPluginSandbox({
+            installationId: "plugin-installation-id",
+            containerInstanceId: "plugin-container-instance-id",
+            containerName: "happy2-plugin-installation-id",
+            imageTag: "happy2-plugin:immutable",
+            workspaceDirectory: "/Users/example/plugin-data",
+            workspaceGroupId: 20,
+            workspaceUserId: 501,
+        });
+
+        const create = (await recordedCalls(log)).find(({ args }) => args[0] === "create")!;
+        expect(create.args).not.toContain("--user");
+        expect(create.args).toContain("/run:rw,nosuid,nodev,mode=755");
+        expect(create.args).toContain("dev.happy2.plugin-workspace-user=501:20");
     });
 
     it("distinguishes a missing plugin container from engine and metadata failures", async () => {
@@ -454,7 +483,8 @@ if (args[0] === "port") process.stdout.write("127.0.0.1:49152\\n");
 if (args[0] === "inspect") process.stdout.write(JSON.stringify({
     Config: { Labels: {
         "dev.happy2.plugin-installation": "plugin-installation-id",
-        "dev.happy2.plugin-instance": "plugin-container-instance-id"
+        "dev.happy2.plugin-instance": "plugin-container-instance-id",
+        "dev.happy2.plugin-workspace-user": "501:20"
     } },
     State: { Running: true }
 }) + "\\n");
