@@ -6,6 +6,7 @@ import { chatSyncGetDifference } from "../modules/sync/chatSyncGetDifference.js"
 import { chatList } from "../modules/chat/chatList.js";
 import { chatCanPost } from "../modules/chat/chatCanPost.js";
 import { chatCanAccess } from "../modules/chat/chatCanAccess.js";
+import { documentCanAccess } from "../modules/document/documentCanAccess.js";
 import { callCanSignal } from "../modules/call/callCanSignal.js";
 import { type DrizzleExecutor } from "../modules/drizzle.js";
 import { userLastSeenTouch } from "../modules/user/userLastSeenTouch.js";
@@ -402,6 +403,12 @@ async function visibleRealtimeEvent(
     }
     if (event.type === "workspace.changed")
         return (await chatWorkspaceCanAccess(executor, userId, event.chatId)) ? event : undefined;
+    if (event.type === "document.updated")
+        return (await documentCanAccess(executor, userId, event.documentId)) ? event : undefined;
+    if (event.type === "document.presence")
+        return (await documentCanAccess(executor, userId, event.presence.documentId))
+            ? event
+            : undefined;
     if (!(await chatCanAccess(executor, userId, event.chatId))) return undefined;
     if (
         event.type === "call.signal" &&

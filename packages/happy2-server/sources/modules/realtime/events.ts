@@ -158,7 +158,8 @@ export interface WorkspaceChangedEvent {
  */
 export interface DocumentUpdatedEvent {
     readonly type: "document.updated";
-    readonly chatId: string;
+    /** Present when delivered through one attached channel; absent on the owner's user topic. */
+    readonly chatId?: string;
     readonly documentId: string;
     readonly sequence: RealtimeSequence;
     readonly occurredAt: number;
@@ -180,7 +181,8 @@ export interface DocumentPresenceSnapshot {
 
 export interface DocumentPresenceEvent {
     readonly type: "document.presence";
-    readonly chatId: string;
+    /** Present when delivered through one attached channel; absent on the owner's user topic. */
+    readonly chatId?: string;
     readonly presence: DocumentPresenceSnapshot;
     readonly occurredAt: number;
 }
@@ -362,13 +364,13 @@ export function assertRealtimeEvent(
             assertTimestamp(event.occurredAt, "workspace change occurredAt");
             return;
         case "document.updated":
-            assertRealtimeId(event.chatId, "chat id", limits);
+            if (event.chatId !== undefined) assertRealtimeId(event.chatId, "chat id", limits);
             assertRealtimeId(event.documentId, "document id", limits);
             assertSequence(event.sequence, "document sequence");
             assertTimestamp(event.occurredAt, "document update occurredAt");
             return;
         case "document.presence":
-            assertRealtimeId(event.chatId, "chat id", limits);
+            if (event.chatId !== undefined) assertRealtimeId(event.chatId, "chat id", limits);
             assertTimestamp(event.occurredAt, "document presence occurredAt");
             assertDocumentPresenceSnapshot(event.presence, event.occurredAt, limits);
             return;

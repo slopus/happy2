@@ -8,18 +8,18 @@ import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { documentRowGet } from "./impl/documentRowGet.js";
 
 /**
- * Deletes one document row from `documents` for an actor who may post to the owning
- * chat, letting the `documentUpdates` log follow by cascade. The same transaction
- * records a `document.deleted` sync event so document lists drop the document through
- * the `documents` area rather than trusting the realtime hint.
+ * Deletes one `documents` row only for its owner, cascading its update log and channel
+ * attachments while channel members receive `not_found` even though they may collaborate.
+ * The same transaction records `document.deleted` so every visible list drops the
+ * durable document through the documents area; ownership makes this a distinct boundary.
  */
 export async function documentDelete(
     executor: DrizzleExecutor,
     actorUserId: string,
     documentId: string,
-): Promise<{ chatId: string; hint: MutationHint }> {
+): Promise<{ hint: MutationHint }> {
     return withTransaction(executor, async (tx) => {
-        const row = await documentRowGet(tx, actorUserId, documentId, "write");
+        await documentRowGet(tx, actorUserId, documentId, "owner");
         await tx.delete(documents).where(eq(documents.id, documentId));
         const sequence = await syncSequenceNext(tx);
         await syncEventInsert(tx, {
@@ -28,6 +28,6 @@ export async function documentDelete(
             entityId: documentId,
             actorUserId,
         });
-        return { chatId: row.chatId, hint: areaHint(sequence, "documents") };
+        return { hint: areaHint(sequence, "documents") };
     });
 }

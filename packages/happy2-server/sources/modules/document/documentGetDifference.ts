@@ -2,15 +2,15 @@ import { and, asc, eq, gt } from "drizzle-orm";
 import { CollaborationError } from "../chat/types.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 import { documentUpdates } from "../schema.js";
-import { documentProjection } from "./impl/documentProjection.js";
 import { documentRowGet } from "./impl/documentRowGet.js";
+import { documentSummaryGet } from "./impl/documentSummaryGet.js";
 import { DOCUMENT_DIFFERENCE_MAX_LIMIT, type DocumentDifference } from "./types.js";
 
 /**
  * Returns the sequenced updates a client is missing after its cursor, falling back to
- * the compacted snapshot when the cursor predates the retained log floor. The response
- * is a bounded slice with `hasMore`, so a far-behind client catches up by looping while
- * never holding one oversized payload; nothing durable is written.
+ * the compacted snapshot when the cursor predates the retained log floor. Owners always
+ * have access; other callers need membership in any attached channel and denial is
+ * `not_found`. The bounded `hasMore` slice preserves the sync boundary without a durable write.
  */
 export async function documentGetDifference(
     executor: DrizzleExecutor,
@@ -44,7 +44,7 @@ export async function documentGetDifference(
         update: entry.update,
     }));
     return {
-        document: documentProjection(row),
+        document: await documentSummaryGet(executor, input.actorUserId, row),
         ...(includeSnapshot
             ? {
                   snapshot: {

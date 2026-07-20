@@ -1,15 +1,16 @@
 import { CollaborationError } from "../chat/types.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 import { DEFAULT_REALTIME_LIMITS, type DocumentPresenceSnapshot } from "../realtime/index.js";
+import { documentAudienceGet } from "./impl/documentAudienceGet.js";
 import { documentRowGet } from "./impl/documentRowGet.js";
 import { type DocumentPresenceTracker } from "./presenceTracker.js";
-import { DOCUMENT_PRESENCE_DEFAULT_TTL_MS } from "./types.js";
+import { DOCUMENT_PRESENCE_DEFAULT_TTL_MS, type DocumentRealtimeAudience } from "./types.js";
 
 /**
- * Applies one revision-gated, TTL-bounded presence announcement for a document the actor
- * can read, updating only the in-memory roster; presence is an ephemeral delivery hint
- * and never durable state. Returns the owning chat and the resulting roster so the route
- * can broadcast the accepted announcement and the caller can reconcile immediately.
+ * Applies one revision-gated, TTL-bounded presence announcement for the owner or a member
+ * of any attached channel, with `not_found` denial so attachment is not probeable. Only
+ * the in-memory roster changes; the returned durable audience lets the route fan out the
+ * ephemeral hint to every attached channel and to an unattached owner without persisting presence.
  */
 export async function documentPresenceUpdate(
     executor: DrizzleExecutor,
@@ -24,7 +25,7 @@ export async function documentPresenceUpdate(
         ttlMs?: number;
     },
 ): Promise<{
-    chatId: string;
+    audience: DocumentRealtimeAudience;
     accepted: boolean;
     snapshot: DocumentPresenceSnapshot;
     presence: DocumentPresenceSnapshot[];
@@ -60,7 +61,7 @@ export async function documentPresenceUpdate(
     };
     const accepted = tracker.update(snapshot, now);
     return {
-        chatId: row.chatId,
+        audience: await documentAudienceGet(executor, row),
         accepted,
         snapshot,
         presence: tracker.list(input.documentId, now),

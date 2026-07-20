@@ -2,8 +2,9 @@ import { and, asc, eq, gt, lte, sql } from "drizzle-orm";
 import { CollaborationError } from "../chat/types.js";
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 import { documentUpdates, documents } from "../schema.js";
-import { documentProjection } from "./impl/documentProjection.js";
+import { documentAudienceGet } from "./impl/documentAudienceGet.js";
 import { documentRowGet } from "./impl/documentRowGet.js";
+import { documentSummaryGet } from "./impl/documentSummaryGet.js";
 import {
     documentStoredUpdateDecode,
     documentUpdateDecode,
@@ -15,13 +16,16 @@ import {
     MAX_DOCUMENT_BATCH_BYTES,
     MAX_DOCUMENT_UPDATE_BATCH,
     MAX_DOCUMENT_UPDATE_BYTES,
+    type DocumentRealtimeAudience,
     type DocumentSummary,
 } from "./types.js";
 
 /**
  * Appends one client batch of opaque Yjs updates as the next sequenced row in
  * `documentUpdates` and advances the head sequence on `documents`, replaying an already
- * accepted `clientUpdateId` idempotently instead of writing twice. Every
+ * accepted `clientUpdateId` idempotently instead of writing twice. The owner may always
+ * write; another actor must be able to post in any attached channel, with denial reported
+ * as `not_found` so attachment is not probeable. Every
  * `DOCUMENT_COMPACTION_INTERVAL` batches the same transaction merges the log into the
  * `documents` snapshot and trims rows older than the replay-retention window, so storage
  * stays bounded while retried batches keep detecting their earlier commit.
@@ -38,6 +42,7 @@ export async function documentApplyUpdates(
     document: DocumentSummary;
     acceptedSequence: string;
     replayed: boolean;
+    audience: DocumentRealtimeAudience;
 }> {
     if (
         !Array.isArray(input.updates) ||
@@ -72,9 +77,10 @@ export async function documentApplyUpdates(
             .limit(1);
         if (replayedRow)
             return {
-                document: documentProjection(row),
+                document: await documentSummaryGet(tx, input.actorUserId, row),
                 acceptedSequence: String(replayedRow.sequence),
                 replayed: true,
+                audience: await documentAudienceGet(tx, row),
             };
         const accepted = row.lastSequence + 1;
         const updatedAt = new Date().toISOString();
@@ -130,9 +136,10 @@ export async function documentApplyUpdates(
             .returning();
         if (!updated) throw new CollaborationError("conflict", "Document changed concurrently");
         return {
-            document: documentProjection(updated),
+            document: await documentSummaryGet(tx, input.actorUserId, updated),
             acceptedSequence: String(accepted),
             replayed: false,
+            audience: await documentAudienceGet(tx, updated),
         };
     });
 }

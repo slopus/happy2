@@ -8,16 +8,29 @@
 export const DOCUMENT_FORMATS = ["blocknote"] as const;
 export type DocumentFormat = (typeof DOCUMENT_FORMATS)[number];
 
+export interface DocumentChannelAttachment {
+    readonly chatId: string;
+    readonly attachedByUserId: string;
+    readonly attachedAt: string;
+}
+
 export interface DocumentSummary {
     readonly id: string;
-    readonly chatId: string;
+    readonly ownerUserId: string;
     readonly title: string;
     readonly format: DocumentFormat;
-    readonly createdByUserId?: string;
+    /** Attachments visible to the caller; owners see every attachment. */
+    readonly channelAttachments: readonly DocumentChannelAttachment[];
     /** Sequence of the newest accepted update, as an unsigned decimal string. */
     readonly latestSequence: string;
     readonly createdAt: string;
     readonly updatedAt: string;
+}
+
+export interface DocumentRealtimeAudience {
+    readonly ownerUserId: string;
+    readonly ownerNeedsUserTopic: boolean;
+    readonly chatIds: readonly string[];
 }
 
 /** A merged base64 Yjs update covering the document up to `sequence`. */

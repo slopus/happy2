@@ -1,16 +1,16 @@
 import { and, asc, eq, gt } from "drizzle-orm";
 import { type DrizzleExecutor } from "../drizzle.js";
 import { documentUpdates } from "../schema.js";
-import { documentProjection } from "./impl/documentProjection.js";
 import { documentRowGet } from "./impl/documentRowGet.js";
+import { documentSummaryGet } from "./impl/documentSummaryGet.js";
 import { documentStoredUpdateDecode, documentUpdatesMerge } from "./impl/updateCodec.js";
 import { type DocumentSnapshot, type DocumentSummary } from "./types.js";
 
 /**
  * Returns one document summary together with a single merged Yjs snapshot covering the
- * complete current content, so an opening client hydrates from one blob and then follows
- * the update stream. The merge treats stored updates as opaque bytes and performs no
- * durable mutation.
+ * complete current content for its owner or a member of any attached channel, so an
+ * opening client hydrates from one blob and then follows the update stream. Denial is
+ * `not_found` so attachments cannot be probed; the opaque merge performs no durable mutation.
  */
 export async function documentGet(
     executor: DrizzleExecutor,
@@ -33,7 +33,7 @@ export async function documentGet(
         ...pending.map((entry) => documentStoredUpdateDecode(entry.update)),
     ]);
     return {
-        document: documentProjection(row),
+        document: await documentSummaryGet(executor, actorUserId, row),
         snapshot: { update, sequence: String(row.lastSequence) },
     };
 }

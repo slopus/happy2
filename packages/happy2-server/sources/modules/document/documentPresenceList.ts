@@ -4,9 +4,9 @@ import { documentRowGet } from "./impl/documentRowGet.js";
 import { type DocumentPresenceTracker } from "./presenceTracker.js";
 
 /**
- * Lists the still-unexpired live participants of one document the actor can read.
- * The roster is ephemeral in-memory state used to seed a joining editor before realtime
- * presence events take over; nothing durable is read beyond the access check.
+ * Lists still-unexpired participants for the owner or a member of any attached channel;
+ * denied callers receive `not_found` so attachment is not probeable. The roster is
+ * ephemeral state used to seed an editor before realtime takes over, with no durable write.
  */
 export async function documentPresenceList(
     executor: DrizzleExecutor,

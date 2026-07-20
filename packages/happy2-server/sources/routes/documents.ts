@@ -2,11 +2,14 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AuthService } from "../modules/auth/service.js";
 import { CollaborationError, type MutationHint } from "../modules/chat/types.js";
 import { documentApplyUpdates } from "../modules/document/documentApplyUpdates.js";
+import { documentAttach } from "../modules/document/documentAttach.js";
 import { documentCreate } from "../modules/document/documentCreate.js";
 import { documentDelete } from "../modules/document/documentDelete.js";
+import { documentDetach } from "../modules/document/documentDetach.js";
 import { documentGet } from "../modules/document/documentGet.js";
 import { documentGetDifference } from "../modules/document/documentGetDifference.js";
 import { documentList } from "../modules/document/documentList.js";
+import { documentListForChat } from "../modules/document/documentListForChat.js";
 import { documentPresenceList } from "../modules/document/documentPresenceList.js";
 import { documentPresenceUpdate } from "../modules/document/documentPresenceUpdate.js";
 import { documentRename } from "../modules/document/documentRename.js";
@@ -16,6 +19,7 @@ import {
     DOCUMENT_DIFFERENCE_MAX_LIMIT,
     DOCUMENT_FORMATS,
     type DocumentFormat,
+    type DocumentRealtimeAudience,
 } from "../modules/document/types.js";
 import type { DrizzleExecutor } from "../modules/drizzle.js";
 import {
@@ -40,7 +44,38 @@ export function registerDocumentRoutes(
         const userId = await actor(auth, request, reply);
         if (!userId) return;
         try {
-            return { documents: await documentList(executor, userId, routeId(request, "chatId")) };
+            return {
+                documents: await documentListForChat(executor, userId, routeId(request, "chatId")),
+            };
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.get("/v0/documents", async (request, reply) => {
+        const userId = await actor(auth, request, reply);
+        if (!userId) return;
+        try {
+            return { documents: await documentList(executor, userId) };
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.post("/v0/documents/create", async (request, reply) => {
+        const userId = await actor(auth, request, reply);
+        if (!userId) return;
+        try {
+            const body = object(request.body);
+            only(body, ["title", "format", "initialUpdate"]);
+            const result = await documentCreate(executor, {
+                actorUserId: userId,
+                title: optionalString(body.title, "title") ?? "",
+                format: documentFormat(body.format),
+                initialUpdate: optionalString(body.initialUpdate, "initialUpdate", 1_000_000),
+            });
+            await publish(pubsub, result.hint);
+            return reply.code(201).send({ document: result.document, sync: result.hint });
         } catch (error) {
             return handled(reply, error) ?? Promise.reject(error);
         }
@@ -76,6 +111,50 @@ export function registerDocumentRoutes(
         }
     });
 
+    app.post("/v0/documents/:documentId/attach", async (request, reply) => {
+        const userId = await actor(auth, request, reply);
+        if (!userId) return;
+        try {
+            const body = object(request.body);
+            only(body, ["chatId"]);
+            const result = await documentAttach(executor, {
+                actorUserId: userId,
+                documentId: routeId(request, "documentId"),
+                chatId: id(body.chatId, "chatId"),
+            });
+            await publish(pubsub, result.hint);
+            return reply.code(201).send({
+                attachment: result.attachment,
+                document: result.document,
+                sync: result.hint,
+            });
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.post("/v0/documents/:documentId/detach", async (request, reply) => {
+        const userId = await actor(auth, request, reply);
+        if (!userId) return;
+        try {
+            const body = object(request.body);
+            only(body, ["chatId"]);
+            const result = await documentDetach(executor, {
+                actorUserId: userId,
+                documentId: routeId(request, "documentId"),
+                chatId: id(body.chatId, "chatId"),
+            });
+            await publish(pubsub, result.hint);
+            return {
+                documentId: result.documentId,
+                chatId: result.chatId,
+                sync: result.hint,
+            };
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
     app.post("/v0/documents/:documentId/applyUpdates", async (request, reply) => {
         const userId = await actor(auth, request, reply);
         if (!userId) return;
@@ -91,15 +170,17 @@ export function registerDocumentRoutes(
             if (!result.replayed) {
                 const event: DocumentUpdatedEvent = {
                     type: "document.updated",
-                    chatId: result.document.chatId,
                     documentId: result.document.id,
                     sequence: result.acceptedSequence,
                     occurredAt: Date.now(),
                 };
-                assertRealtimeEvent(event);
-                await pubsub.publish(realtimeTopics.chat(result.document.chatId), event);
+                await publishDocumentEvent(pubsub, result.audience, event);
             }
-            return reply.code(result.replayed ? 200 : 201).send(result);
+            return reply.code(result.replayed ? 200 : 201).send({
+                document: result.document,
+                acceptedSequence: result.acceptedSequence,
+                replayed: result.replayed,
+            });
         } catch (error) {
             return handled(reply, error) ?? Promise.reject(error);
         }
@@ -192,12 +273,10 @@ export function registerDocumentRoutes(
             if (result.accepted) {
                 const event: DocumentPresenceEvent = {
                     type: "document.presence",
-                    chatId: result.chatId,
                     presence: result.snapshot,
                     occurredAt: Date.now(),
                 };
-                assertRealtimeEvent(event);
-                await pubsub.publish(realtimeTopics.chat(result.chatId), event);
+                await publishDocumentEvent(pubsub, result.audience, event);
             }
             return { accepted: result.accepted, presence: result.presence };
         } catch (error) {
@@ -226,6 +305,24 @@ async function publish(pubsub: PubSub, hint: MutationHint): Promise<void> {
     await Promise.all([
         pubsub.publish(realtimeTopics.server, event),
         ...hint.chats.map(({ chatId }) => pubsub.publish(realtimeTopics.chat(chatId), event)),
+    ]);
+}
+
+async function publishDocumentEvent(
+    pubsub: PubSub,
+    audience: DocumentRealtimeAudience,
+    event: DocumentUpdatedEvent | DocumentPresenceEvent,
+): Promise<void> {
+    assertRealtimeEvent(event);
+    await Promise.all([
+        ...(audience.ownerNeedsUserTopic
+            ? [pubsub.publish(realtimeTopics.user(audience.ownerUserId), event)]
+            : []),
+        ...audience.chatIds.map((chatId) => {
+            const channelEvent = { ...event, chatId };
+            assertRealtimeEvent(channelEvent);
+            return pubsub.publish(realtimeTopics.chat(chatId), channelEvent);
+        }),
     ]);
 }
 

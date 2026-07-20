@@ -36,10 +36,10 @@ describe("channel documents lifecycle", () => {
         expect(created.statusCode).toBe(201);
         expect(created.json()).toMatchObject({
             document: {
-                chatId,
                 title: "Design notes",
                 format: "blocknote",
-                createdByUserId: owner.id,
+                ownerUserId: owner.id,
+                channelAttachments: [{ chatId, attachedByUserId: owner.id }],
                 latestSequence: "0",
             },
             sync: { areas: ["documents"], chats: [] },
@@ -86,6 +86,10 @@ describe("channel documents lifecycle", () => {
             document: { id: documentId, title: "Design notes v2" },
             sync: { areas: ["documents"], chats: [] },
         });
+
+        expect(
+            (await asCollaborator.post(`/v0/documents/${documentId}/delete`, {})).statusCode,
+        ).toBe(404);
 
         expect(
             (

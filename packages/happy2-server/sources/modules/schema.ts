@@ -580,19 +580,39 @@ export const documents = sqliteTable(
     "documents",
     {
         id: text("id").primaryKey().notNull(),
-        chatId: text("chat_id")
+        ownerUserId: text("owner_user_id")
             .notNull()
-            .references(() => chats.id, { onDelete: "cascade" }),
+            .references(() => users.id, { onDelete: "restrict" }),
         title: text("title").notNull().default(""),
         format: text("format").notNull().default("blocknote"),
-        createdByUserId: text("created_by_user_id"),
         snapshotUpdate: text("snapshot_update").notNull(),
         snapshotSequence: integer("snapshot_sequence").notNull().default(0),
         lastSequence: integer("last_sequence").notNull().default(0),
         createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
         updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
     },
-    (table) => [index("documents_chat_id_idx").on(table.chatId)],
+    (table) => [index("documents_owner_user_id_idx").on(table.ownerUserId)],
+);
+
+export const documentChannelAttachments = sqliteTable(
+    "document_channel_attachments",
+    {
+        documentId: text("document_id")
+            .notNull()
+            .references(() => documents.id, { onDelete: "cascade" }),
+        chatId: text("chat_id")
+            .notNull()
+            .references(() => chats.id, { onDelete: "cascade" }),
+        attachedByUserId: text("attached_by_user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "restrict" }),
+        attachedAt: text("attached_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [
+        primaryKey({ columns: [table.documentId, table.chatId] }),
+        index("document_channel_attachments_chat_id_idx").on(table.chatId),
+        index("document_channel_attachments_attached_by_user_id_idx").on(table.attachedByUserId),
+    ],
 );
 
 export const documentUpdates = sqliteTable(

@@ -497,6 +497,13 @@
             "when": 1784851200000,
             "tag": "0033_collaborative_documents",
             "breakpoints": true
+        },
+        {
+            "idx": 34,
+            "version": "6",
+            "when": 1784937600000,
+            "tag": "0034_standalone_channel_documents",
+            "breakpoints": true
         }
     ]
 >>>>>>> b22bf4f (feat(app): channel documents surfaces with collaborative editor overlay)

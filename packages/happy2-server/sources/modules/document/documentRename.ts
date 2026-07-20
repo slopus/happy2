@@ -5,15 +5,15 @@ import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 import { documents } from "../schema.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
-import { documentProjection } from "./impl/documentProjection.js";
 import { documentRowGet } from "./impl/documentRowGet.js";
+import { documentSummaryGet } from "./impl/documentSummaryGet.js";
 import { MAX_DOCUMENT_TITLE_LENGTH, type DocumentSummary } from "./types.js";
 
 /**
- * Replaces one document title on its `documents` row for an actor who may post to the
- * owning chat. The same transaction records a `document.renamed` sync event so document
- * lists reconcile the new title through the `documents` area instead of trusting the
- * realtime hint.
+ * Replaces one title on `documents` for its always-authorized owner or an actor who may
+ * post in any attached channel; denial is `not_found` so attachment is not probeable.
+ * The same transaction records `document.renamed` so every visible list reconciles the
+ * durable title through the documents area, which is why rename owns this action boundary.
  */
 export async function documentRename(
     executor: DrizzleExecutor,
@@ -44,7 +44,7 @@ export async function documentRename(
             actorUserId: input.actorUserId,
         });
         return {
-            document: documentProjection(updated),
+            document: await documentSummaryGet(tx, input.actorUserId, updated),
             hint: areaHint(sequence, "documents"),
         };
     });

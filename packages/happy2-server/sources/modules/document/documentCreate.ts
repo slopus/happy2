@@ -3,10 +3,10 @@ import { areaHint } from "../chat/areaHint.js";
 import { chatCanPost } from "../chat/chatCanPost.js";
 import { CollaborationError, type MutationHint } from "../chat/types.js";
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
-import { documentUpdates, documents } from "../schema.js";
+import { documentChannelAttachments, documentUpdates, documents } from "../schema.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
-import { documentProjection } from "./impl/documentProjection.js";
+import { documentSummaryGet } from "./impl/documentSummaryGet.js";
 import {
     documentEmptyUpdate,
     documentUpdateDecode,
@@ -21,17 +21,18 @@ import {
 } from "./types.js";
 
 /**
- * Creates one collaborative document owned by a chat the actor may post to: a new
- * `documents` row seeded with the canonical empty Yjs snapshot, plus an optional first
- * content row in `documentUpdates` when the client supplies initial content. The single
- * transaction also records a `document.created` sync event so chat document lists
- * reconcile through the `documents` area without ever parsing document content.
+ * Creates one owner-accessible standalone `documents` row seeded with the canonical
+ * empty Yjs snapshot, plus optional `documentUpdates` initial content and an optional
+ * `documentChannelAttachments` row when the actor may post to the requested channel.
+ * The owner is always authorized; attached-channel members gain access after creation.
+ * One transaction records `document.created` so every visible document list reconciles
+ * through the documents area, which is why creation and optional attachment share this boundary.
  */
 export async function documentCreate(
     executor: DrizzleExecutor,
     input: {
         actorUserId: string;
-        chatId: string;
+        chatId?: string;
         title: string;
         format: DocumentFormat;
         initialUpdate?: string;
@@ -55,7 +56,7 @@ export async function documentCreate(
                   ),
               ]);
     return withTransaction(executor, async (tx) => {
-        if (!(await chatCanPost(tx, input.actorUserId, input.chatId)))
+        if (input.chatId !== undefined && !(await chatCanPost(tx, input.actorUserId, input.chatId)))
             throw new CollaborationError("not_found", "Chat was not found");
         const id = createId();
         const createdAt = new Date().toISOString();
@@ -63,10 +64,9 @@ export async function documentCreate(
             .insert(documents)
             .values({
                 id,
-                chatId: input.chatId,
+                ownerUserId: input.actorUserId,
                 title: input.title,
                 format: input.format,
-                createdByUserId: input.actorUserId,
                 snapshotUpdate: documentEmptyUpdate(),
                 snapshotSequence: 0,
                 lastSequence: initialUpdate === undefined ? 0 : 1,
@@ -84,6 +84,13 @@ export async function documentCreate(
                 actorUserId: input.actorUserId,
                 createdAt,
             });
+        if (input.chatId !== undefined)
+            await tx.insert(documentChannelAttachments).values({
+                documentId: id,
+                chatId: input.chatId,
+                attachedByUserId: input.actorUserId,
+                attachedAt: createdAt,
+            });
         const sequence = await syncSequenceNext(tx);
         await syncEventInsert(tx, {
             sequence,
@@ -92,7 +99,7 @@ export async function documentCreate(
             actorUserId: input.actorUserId,
         });
         return {
-            document: documentProjection(row),
+            document: await documentSummaryGet(tx, input.actorUserId, row),
             hint: areaHint(sequence, "documents"),
         };
     });
