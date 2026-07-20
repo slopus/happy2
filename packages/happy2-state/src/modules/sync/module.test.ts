@@ -23,6 +23,7 @@ describe("sync module", () => {
             threadsReconcile: vi.fn(),
             notificationsReconcile: vi.fn(),
             draftsReconcile: vi.fn(),
+            documentsReconcile: vi.fn(),
             agentImagesReconcile: vi.fn(),
             setupReconcile: vi.fn(),
             agentSecretsReconcile: vi.fn(),
@@ -40,6 +41,7 @@ describe("sync module", () => {
             "thread:message-1",
             "notifications",
             "drafts",
+            "documents",
             "agent-images",
             "setup",
             "user-onboarding",
@@ -58,6 +60,7 @@ describe("sync module", () => {
         expect(context.threadsReconcile).toHaveBeenCalledTimes(2);
         expect(context.notificationsReconcile).toHaveBeenCalledOnce();
         expect(context.draftsReconcile).toHaveBeenCalledOnce();
+        expect(context.documentsReconcile).toHaveBeenCalledOnce();
         expect(context.agentImagesReconcile).toHaveBeenCalledOnce();
         // "agent-images" also reconciles setup (shared build progress) plus the
         // dedicated "setup" and "user-onboarding" areas: three calls total.

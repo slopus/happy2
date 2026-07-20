@@ -7,6 +7,11 @@ import type {
     ChatBookmarkSummary,
     ChatPinSummary,
     ChatSummary,
+    DocumentFormat,
+    DocumentPresenceEntry,
+    DocumentSnapshotPayload,
+    DocumentSummary,
+    DocumentUpdatePayload,
     FileSummary,
     McpAppView,
     McpResourceReadResult,
@@ -204,6 +209,15 @@ export const backendOperations = {
     reorderStarredChats: post("/v0/chats/reorderStarred"),
     sendMessage: post("/v0/chats/:chatId/sendMessage"),
     updateDraft: post("/v0/chats/:chatId/updateDraft"),
+    getChatDocuments: get("/v0/chats/:chatId/documents"),
+    createDocument: post("/v0/chats/:chatId/createDocument"),
+    getDocument: get("/v0/documents/:documentId"),
+    applyDocumentUpdates: post("/v0/documents/:documentId/applyUpdates"),
+    getDocumentDifference: post("/v0/documents/:documentId/getDifference"),
+    renameDocument: post("/v0/documents/:documentId/rename"),
+    deleteDocument: post("/v0/documents/:documentId/delete"),
+    getDocumentPresence: get("/v0/documents/:documentId/presence"),
+    updateDocumentPresence: post("/v0/documents/:documentId/updatePresence"),
     updateThreadFollow: post("/v0/chats/:chatId/updateThreadFollow"),
     deleteMessage: post("/v0/messages/:messageId/deleteMessage"),
     editMessage: post("/v0/messages/:messageId/editMessage"),
@@ -434,6 +448,32 @@ type DerivedBackendInput<K extends BackendOperation> = (typeof backendOperations
 
 export interface KnownBackendInputs {
     updateDraft: { readonly chatId: string; readonly text: string };
+    createDocument: {
+        readonly chatId: string;
+        readonly title: string;
+        readonly format?: DocumentFormat;
+        readonly initialUpdate?: string;
+    };
+    applyDocumentUpdates: {
+        readonly documentId: string;
+        readonly clientUpdateId: string;
+        readonly updates: readonly string[];
+    };
+    getDocumentDifference: {
+        readonly documentId: string;
+        readonly afterSequence: string;
+        readonly limit?: number;
+    };
+    renameDocument: { readonly documentId: string; readonly title: string };
+    deleteDocument: { readonly documentId: string };
+    updateDocumentPresence: {
+        readonly documentId: string;
+        readonly clientId: string;
+        readonly revision: number;
+        readonly active: boolean;
+        readonly state?: unknown;
+        readonly ttlMs?: number;
+    };
     getWorkspaceFile: { readonly chatId: string; readonly path: string };
     writeWorkspaceFile: { readonly chatId: string } & WorkspaceFileWriteInput;
     deleteWorkspaceFile: {
@@ -959,6 +999,31 @@ export interface KnownBackendResults {
     getChats: { readonly chats: readonly ChatSummary[] };
     getDrafts: { readonly drafts: readonly DraftSummary[]; readonly serverTime: string };
     updateDraft: { readonly draft: DraftSummary; readonly sync: unknown };
+    getChatDocuments: { readonly documents: readonly DocumentSummary[] };
+    createDocument: { readonly document: DocumentSummary; readonly sync: unknown };
+    getDocument: {
+        readonly document: DocumentSummary;
+        readonly snapshot: DocumentSnapshotPayload;
+    };
+    applyDocumentUpdates: {
+        readonly document: DocumentSummary;
+        readonly acceptedSequence: string;
+        readonly replayed: boolean;
+    };
+    getDocumentDifference: {
+        readonly document: DocumentSummary;
+        readonly snapshot?: DocumentSnapshotPayload;
+        readonly updates: readonly DocumentUpdatePayload[];
+        readonly latestSequence: string;
+        readonly hasMore: boolean;
+    };
+    renameDocument: { readonly document: DocumentSummary; readonly sync: unknown };
+    deleteDocument: { readonly sync: unknown };
+    getDocumentPresence: { readonly presence: readonly DocumentPresenceEntry[] };
+    updateDocumentPresence: {
+        readonly accepted: boolean;
+        readonly presence: readonly DocumentPresenceEntry[];
+    };
     getChat: { readonly chat: ChatSummary };
     getChatMembers: {
         readonly users: readonly UserSummary[];

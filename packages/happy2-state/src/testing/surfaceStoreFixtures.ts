@@ -41,6 +41,17 @@ import { directoryStoreCreate } from "../modules/directory/directoryState.js";
 import type { DirectoryInput, DirectoryStore } from "../modules/directory/directoryState.js";
 import { filesStoreCreate } from "../modules/files/filesState.js";
 import type { FilesInput, FilesOutput, FilesStore } from "../modules/files/filesState.js";
+import { documentStoreCreate, documentSessionStop } from "../modules/document/documentState.js";
+import type {
+    DocumentInput,
+    DocumentOutput,
+    DocumentStore,
+} from "../modules/document/documentState.js";
+import { documentListStoreCreate } from "../modules/document-list/documentListState.js";
+import type {
+    DocumentListInput,
+    DocumentListStore,
+} from "../modules/document-list/documentListState.js";
 import { notificationsStoreCreate } from "../modules/notifications/notificationsState.js";
 import type {
     NotificationsInput,
@@ -116,6 +127,26 @@ export function filesStoreFixtureCreate(
 ): SurfaceStoreFixture<FilesStore, FilesInput> {
     const store = filesStoreCreate(output);
     return fixtureCreate(store, (event) => store.getState().filesInput(event));
+}
+
+export function documentStoreFixtureCreate(
+    documentId = "fixture-document",
+    output: (event: DocumentOutput) => void = () => undefined,
+    options: { readonly clientId?: string } = {},
+): SurfaceStoreFixture<DocumentStore, DocumentInput> {
+    const store = documentStoreCreate(documentId, output, options);
+    return {
+        store,
+        input: (event) => store.getState().documentInput(event),
+        [Symbol.dispose]: () => documentSessionStop(store),
+    };
+}
+
+export function documentListStoreFixtureCreate(
+    chatId = "fixture-chat",
+): SurfaceStoreFixture<DocumentListStore, DocumentListInput> {
+    const store = documentListStoreCreate(chatId);
+    return fixtureCreate(store, (event) => store.getState().documentListInput(event));
 }
 
 export function directoryStoreFixtureCreate(): SurfaceStoreFixture<DirectoryStore, DirectoryInput> {

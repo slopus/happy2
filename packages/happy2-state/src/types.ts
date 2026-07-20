@@ -473,6 +473,44 @@ export interface ClientWorkspace {
     readonly directories: readonly WorkspaceDirectoryLoad[];
 }
 
+export type DocumentFormat = "blocknote";
+
+export interface DocumentSummary {
+    readonly id: string;
+    readonly chatId: string;
+    readonly title: string;
+    readonly format: DocumentFormat;
+    readonly createdByUserId?: string;
+    /** Sequence of the newest accepted update, as an unsigned decimal string. */
+    readonly latestSequence: string;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+/** A merged base64 Yjs update covering a document up to `sequence`. */
+export interface DocumentSnapshotPayload {
+    readonly update: string;
+    readonly sequence: string;
+}
+
+export interface DocumentUpdatePayload {
+    readonly sequence: string;
+    readonly update: string;
+}
+
+export interface DocumentPresenceEntry {
+    readonly documentId: string;
+    readonly userId: string;
+    readonly clientId: string;
+    /** Monotonic per client so stale out-of-order deliveries are discarded. */
+    readonly revision: number;
+    readonly active: boolean;
+    /** Opaque editor awareness payload (cursor, selection, identity). */
+    readonly state?: unknown;
+    /** Present while active so observers can expire a silent participant. */
+    readonly expiresAt?: number;
+}
+
 export type RealtimeEvent =
     | {
           readonly type: "sync";
@@ -520,6 +558,19 @@ export type RealtimeEvent =
     | {
           readonly type: "workspace.changed";
           readonly chatId: string;
+          readonly occurredAt: number;
+      }
+    | {
+          readonly type: "document.updated";
+          readonly chatId: string;
+          readonly documentId: string;
+          readonly sequence: string;
+          readonly occurredAt: number;
+      }
+    | {
+          readonly type: "document.presence";
+          readonly chatId: string;
+          readonly presence: DocumentPresenceEntry;
           readonly occurredAt: number;
       };
 

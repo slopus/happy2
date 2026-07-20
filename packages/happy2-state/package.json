@@ -19,6 +19,7 @@
         "clean": "rm -rf coverage"
     },
     "dependencies": {
+        "yjs": "^13.6.31",
         "zustand": "5.0.14"
     },
     "devDependencies": {

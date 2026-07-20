@@ -1,6 +1,7 @@
 import { type DifferenceResponse, Happy2Api } from "../../api.js";
 import {
     type AgentActivityState,
+    type DocumentPresenceEntry,
     type MessageSummary,
     type PresenceSnapshot,
     type RealtimeEvent,
@@ -26,6 +27,7 @@ export interface AreaReconcileContext {
     threadsReconcile(): void;
     notificationsReconcile(): void;
     draftsReconcile(): void;
+    documentsReconcile(): void;
     agentImagesReconcile(): void;
     setupReconcile(): void;
     agentSecretsReconcile(): void;
@@ -49,6 +51,7 @@ export function areaReconcile(context: AreaReconcileContext, area: string): void
     else if (area === "threads" || area.startsWith("thread:")) context.threadsReconcile();
     else if (area === "notifications") context.notificationsReconcile();
     else if (area === "drafts") context.draftsReconcile();
+    else if (area === "documents") context.documentsReconcile();
     else if (area === "agent-images") {
         // Base-image build progress reaches both the admin catalog and the
         // onboarding surface, so a durable image change reconciles each owner.
@@ -78,6 +81,10 @@ export interface SyncCoordinatorContext extends SidebarLoadContext {
     chatPluginRequestsReconcile(chatId: string): void;
     /** Reconciles a materialized coarse thread list when a child or its parent timeline changed. */
     threadListChatsReconcile(chatIds: readonly string[]): void;
+    /** Debounce-synchronizes an open document session hinted at newer durable content. */
+    documentReconcile(documentId: string, sequence: number): void;
+    /** Applies one ephemeral document presence announcement to its open session. */
+    documentPresenceApply(documentId: string, presence: DocumentPresenceEntry): void;
     areaReconcile(area: string): void;
     resetReconcile(): void;
     backgroundError(error: UserError): void;
@@ -193,6 +200,17 @@ export class SyncCoordinator {
                 return;
             case "workspace.changed":
                 this.context.areaReconcile(`workspace:${event.chatId}`);
+                return;
+            case "document.updated": {
+                const sequence = Number(event.sequence);
+                this.context.documentReconcile(
+                    event.documentId,
+                    Number.isSafeInteger(sequence) ? sequence : 0,
+                );
+                return;
+            }
+            case "document.presence":
+                this.context.documentPresenceApply(event.presence.documentId, event.presence);
                 return;
             case "call.signal":
                 this.context

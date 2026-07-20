@@ -5,7 +5,9 @@ import { moduleSpecifiersParse } from "./moduleSpecifiersParse.mjs";
 const root = new URL("../src/", import.meta.url).pathname;
 const files = walk(root).filter((path) => path.endsWith(".ts"));
 const failures: string[] = [];
-const allowedExternalSpecifiers = new Set(["vitest", "zustand/vanilla"]);
+// yjs is the framework-independent CRDT value type collaborative documents are
+// made of; it stays memory-only and opens no transport, so it belongs in state core.
+const allowedExternalSpecifiers = new Set(["vitest", "zustand/vanilla", "yjs"]);
 
 for (const directory of readdirSync(join(root, "modules"))) {
     const moduleDirectory = join(root, "modules", directory);

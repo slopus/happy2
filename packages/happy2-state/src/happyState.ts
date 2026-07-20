@@ -18,6 +18,32 @@ import {
     type McpAppOpenContext,
     type McpAppStore,
 } from "./modules/mcp-apps/mcpAppState.js";
+    documentCreate,
+    documentDelete,
+    documentFlushSchedule,
+    documentLeaveAnnounce,
+    documentLoad,
+    documentOpen,
+    documentPresenceSchedule,
+    documentReconcile,
+    documentRename,
+    documentSessionStop,
+    documentStoreCreate,
+    documentSynchronize,
+    type DocumentActionContext,
+    type DocumentHandle,
+    type DocumentOpenContext,
+    type DocumentOutput,
+    type DocumentStore,
+} from "./modules/document/documentState.js";
+import {
+    documentListLoad,
+    documentListOpen,
+    documentListStoreCreate,
+    type DocumentListHandle,
+    type DocumentListOpenContext,
+    type DocumentListStore,
+} from "./modules/document-list/documentListState.js";
 import { chatLoad } from "./modules/chat/chatState.js";
 import { chatMembersLoad } from "./modules/chat/chatState.js";
 import { chatPinsLoad } from "./modules/chat/chatState.js";
@@ -92,6 +118,7 @@ import type {
     CreateAgentInput,
     CreateChannelInput,
     CreateChildChannelInput,
+    DocumentSummary,
     MessageAudience,
     MessageSummary,
     SendMessageInput,
@@ -235,7 +262,8 @@ export type HappyStateEvent =
     | RolesOutput
     | AdminOutput
     | PluginInstallOutput
-    | SetupOutput;
+    | SetupOutput
+    | DocumentOutput;
 
 export interface HappyStateOptions extends StateRuntimeOptions {
     readonly event?: (event: HappyStateEvent) => void;
@@ -262,6 +290,8 @@ export class HappyState implements AsyncDisposable, Disposable {
     private readonly threadSurfaces = new StoreRegistry<string, ThreadStore>();
     private readonly agentTraces = new StoreRegistry<string, AgentTraceStore>();
     private readonly mcpApps = new StoreRegistry<string, McpAppStore>();
+    private readonly documents = new StoreRegistry<string, DocumentStore>();
+    private readonly documentLists = new StoreRegistry<string, DocumentListStore>();
     private readonly sidebarBinding = sidebarStoreCreate();
     private filesBinding?: FilesStore;
     private searchBinding?: SearchStore;
@@ -293,6 +323,8 @@ export class HappyState implements AsyncDisposable, Disposable {
         ThreadOpenContext &
         AgentTraceOpenContext &
         McpAppOpenContext;
+        DocumentOpenContext &
+        DocumentListOpenContext;
     private disposed = false;
     private readonly unknownSyncArea: (area: string) => void;
     private readonly eventListener: (event: HappyStateEvent) => void;
@@ -359,6 +391,27 @@ export class HappyState implements AsyncDisposable, Disposable {
                 mcpAppToolCall(this.runtime, messageId, callId, name, args),
             mcpAppResourceRead: (messageId, callId, uri) =>
                 mcpAppResourceRead(this.runtime, messageId, callId, uri),
+            documentAcquire: (documentId) =>
+                this.documents.getOrCreate(documentId, () =>
+                    documentStoreCreate(documentId, (event) => this.eventRoute(event), {
+                        clientId: this.runtime.createId(),
+                    }),
+                ),
+            documentRelease: (documentId) => {
+                const binding = this.documents.get(documentId);
+                if (this.documents.release(documentId) && binding) documentSessionStop(binding);
+            },
+            documentLoad: (documentId) => this.documentLoad(documentId),
+            documentLeave: (documentId, clientId, revision) => {
+                if (this.runtime.connected && this.runtime.active)
+                    this.runtime.background(
+                        documentLeaveAnnounce(this.runtime, documentId, clientId, revision),
+                    );
+            },
+            documentListAcquire: (chatId) =>
+                this.documentLists.getOrCreate(chatId, () => documentListStoreCreate(chatId)),
+            documentListRelease: (chatId) => this.documentLists.release(chatId),
+            documentListLoad: (chatId) => this.documentListLoad(chatId),
         };
         this.sync = new SyncCoordinator({
             runtime: this.runtime,
@@ -375,6 +428,13 @@ export class HappyState implements AsyncDisposable, Disposable {
             mcpAppsInvalidate: () => this.mcpAppsReload(),
             chatPluginRequestsReconcile: (chatId) => this.chatPluginRequestsReconcile(chatId),
             threadListChatsReconcile: (chatIds) => this.threadListChatsReconcile(chatIds),
+            documentReconcile: (documentId, sequence) =>
+                documentReconcile(this.documentContext(), documentId, sequence),
+            documentPresenceApply: (documentId, presence) =>
+                this.documents
+                    .get(documentId)
+                    ?.getState()
+                    .documentInput({ type: "documentPresenceReconciled", presence }),
             areaReconcile: (area) => this.areaReconcile(area),
             resetReconcile: () => this.resetReconcile(),
             backgroundError,
@@ -384,6 +444,34 @@ export class HappyState implements AsyncDisposable, Disposable {
     /** Opens one ephemeral interactive terminal bound to an authorized chat agent session. */
     terminalOpen(chatId: string, agentUserId: string): TerminalHandle {
         return terminalOpen(this.runtime, chatId, agentUserId);
+    }
+
+    /** Opens one collaborative document session lease with a live Y.Doc. */
+    documentOpen(documentId: string): DocumentHandle {
+        return documentOpen(this.context, documentId);
+    }
+
+    /** Opens one channel's document list lease. */
+    documentListOpen(chatId: string): DocumentListHandle {
+        return documentListOpen(this.context, chatId);
+    }
+
+    /** Creates a document in a channel and resolves with its summary. */
+    documentCreate(
+        chatId: string,
+        input: { readonly title: string; readonly initialUpdate?: string },
+    ): Promise<DocumentSummary> {
+        return documentCreate({ runtime: this.runtime }, chatId, input);
+    }
+
+    /** Renames a document; open surfaces reconcile from the response and sync hints. */
+    documentRename(documentId: string, title: string): Promise<void> {
+        return documentRename(this.documentContext(), documentId, title);
+    }
+
+    /** Deletes a document; lists reconcile through the documents-area sync hint. */
+    documentDelete(documentId: string): Promise<void> {
+        return documentDelete({ runtime: this.runtime }, documentId);
     }
 
     sidebar(): SidebarStore {
@@ -863,6 +951,9 @@ export class HappyState implements AsyncDisposable, Disposable {
         this.threadSurfaces.dispose();
         this.agentTraces.dispose();
         this.mcpApps.dispose();
+        for (const [, binding] of this.documents.values()) documentSessionStop(binding);
+        this.documents.dispose();
+        this.documentLists.dispose();
         this.settingsCoordinator?.[Symbol.dispose]();
         this.identities.clear();
         this.sidebarChats.clear();
@@ -956,6 +1047,12 @@ export class HappyState implements AsyncDisposable, Disposable {
                 return;
             case "threadReplySubmitted":
                 messageSend(this.messageContext(), event.childChatId, event.input);
+                return;
+            case "documentUpdatesQueued":
+                documentFlushSchedule(this.documentContext(), event.documentId);
+                return;
+            case "documentPresenceQueued":
+                documentPresenceSchedule(this.documentContext(), event.documentId);
                 return;
             case "filesMoreRequested":
                 if (this.filesBinding)
@@ -1254,6 +1351,36 @@ export class HappyState implements AsyncDisposable, Disposable {
         );
     }
 
+    private documentContext(): DocumentActionContext {
+        return {
+            runtime: this.runtime,
+            documentGet: (documentId) => this.documents.get(documentId),
+        };
+    }
+
+    private documentLoad(documentId: string): void {
+        this.runtime.background(documentLoad(this.documentContext(), documentId));
+    }
+
+    private documentListLoad(chatId: string): void {
+        this.runtime.background(
+            documentListLoad(
+                {
+                    runtime: this.runtime,
+                    documentListGet: (id) => this.documentLists.get(id),
+                },
+                chatId,
+            ),
+        );
+    }
+
+    /** Reloads every materialized document list and re-synchronizes open sessions. */
+    private documentsReconcile(): void {
+        for (const [chatId] of this.documentLists.values()) this.documentListLoad(chatId);
+        for (const [documentId] of this.documents.values())
+            this.runtime.background(documentSynchronize(this.documentContext(), documentId));
+    }
+
     private agentTraceReconcile(message: MessageSummary): void {
         agentTraceReconcile(
             {
@@ -1420,6 +1547,7 @@ export class HappyState implements AsyncDisposable, Disposable {
                         );
                 },
                 draftsReconcile: () => this.runtime.background(this.drafts.load()),
+                documentsReconcile: () => this.documentsReconcile(),
                 agentImagesReconcile: () => {
                     if (this.agentImagesBinding)
                         this.runtime.background(
@@ -1507,6 +1635,7 @@ export class HappyState implements AsyncDisposable, Disposable {
         }
         this.agentTracesReload();
         this.mcpAppsReload();
+        this.documentsReconcile();
         const files = this.filesBinding;
         if (files && files.getState().status.type !== "unloaded")
             this.runtime.background(filesLoad({ runtime: this.runtime, files }));

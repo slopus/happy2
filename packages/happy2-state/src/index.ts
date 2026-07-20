@@ -130,6 +130,23 @@ export type {
     AgentTraceStore,
 } from "./modules/agent-trace/agentTraceState.js";
 export type { McpAppHandle, McpAppSnapshot, McpAppStore } from "./modules/mcp-apps/mcpAppState.js";
+export {
+    documentRemoteOrigin,
+    documentStoreCreate,
+    type DocumentHandle,
+    type DocumentLocalPresence,
+    type DocumentOutput,
+    type DocumentSessionSnapshot,
+    type DocumentSessionState,
+    type DocumentStore,
+} from "./modules/document/documentState.js";
+export {
+    documentListStoreCreate,
+    type DocumentListHandle,
+    type DocumentListSnapshot,
+    type DocumentListState,
+    type DocumentListStore,
+} from "./modules/document-list/documentListState.js";
 export type {
     ThreadsSnapshot,
     ThreadsOutput,

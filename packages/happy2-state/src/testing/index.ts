@@ -24,6 +24,8 @@ export {
     callsStoreFixtureCreate,
     chatStoreFixtureCreate,
     directoryStoreFixtureCreate,
+    documentListStoreFixtureCreate,
+    documentStoreFixtureCreate,
     filesStoreFixtureCreate,
     mcpAppStoreFixtureCreate,
     notificationsStoreFixtureCreate,
