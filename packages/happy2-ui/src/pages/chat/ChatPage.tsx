@@ -52,7 +52,7 @@ import { ChatDirectMessageDialog } from "./ChatDirectMessageDialog.js";
 import { ChatMessageEditDialog } from "./ChatMessageEditDialog.js";
 import { ChatInfoPanel } from "./ChatInfoPanel.js";
 import { ChatThreadPanel } from "./ChatThreadPanel.js";
-import { ChatDocumentOverlay } from "./ChatDocumentOverlay.js";
+import { ChatDocumentPane } from "./ChatDocumentPane.js";
 import { ChatWorkspaceEditor } from "./ChatWorkspaceEditor.js";
 import { ChatWorkspacePanel } from "./ChatWorkspacePanel.js";
 import { useChatWorkspaceModel } from "./chatWorkspaceModel.js";
@@ -877,6 +877,11 @@ export function ChatPage(props: ChatPageProps) {
             workspaceModel.panelClose();
         } else openFilesPanel();
     }
+    // A document replaces the conversation region, so it needs both the routed
+    // id and a materialized session store before the pane can render.
+    function documentOpen(): boolean {
+        return Boolean(props.navigation.documentId && props.document);
+    }
     function toggleDocumentsPanel() {
         if (panelMode() === "documents") props.actions.documentsClose();
         else props.actions.documentsOpen();
@@ -1087,80 +1092,101 @@ export function ChatPage(props: ChatPageProps) {
                     ) : undefined
                 }
             >
-                {props.workspaceOverride ?? (
-                    <ChatConversation
-                        activeConversationId={activeConversationId()}
-                        activities={activeAgentActivity()}
-                        activityNow={activityNow}
-                        busy={busy()}
-                        composerAudience={
-                            audienceRoutingActive() ? composerSnapshot()?.audience : undefined
-                        }
-                        composerCompactHint={liveComposerCompactHint()}
-                        composerDisabled={!activeConversationId()}
-                        composerHint={liveComposerHint()}
-                        composerMentions={mentionCandidates()}
-                        composerPending={
-                            composerSnapshot()?.submission.status === "pending" || busy()
-                        }
-                        composerSendEnabled={
-                            draft().trim().length > 0 || pendingAttachments().length > 0
-                        }
-                        composerValue={draft()}
-                        terminal={terminalState}
-                        terminalAvailable={Boolean(terminalAgent() && props.actions.terminalOpen)}
-                        terminalHeight={terminalHeight}
-                        contextItems={composerContext}
-                        conversation={conversation}
-                        joinVisible={Boolean(
-                            activeChat()?.kind !== "dm" &&
-                            activeChat() &&
-                            !activeChat()?.membershipRole,
-                        )}
-                        menuItems={
-                            activeConversationId() && channelModel.menuItems().length > 0
-                                ? channelModel.menuItems()
-                                : undefined
-                        }
-                        messageEntries={[
-                            ...conversationEntries().map((entry, index, list) =>
-                                renderEntry(entry, index, list),
-                            ),
-                            ...pluginRequestEntries(),
-                        ]}
-                        onAudienceChange={(audience) =>
-                            props.composer?.getState().audienceUpdate(audience)
-                        }
-                        onContextRemove={(id) =>
-                            props.composer?.getState().attachmentRemove(id.replace(/^file:/u, ""))
-                        }
-                        onComposerFocusChange={(focused) =>
-                            props.composer?.getState().focusUpdate(focused)
-                        }
-                        onFilesSelected={(files) => void uploadFiles(files)}
-                        onInfoOpen={() => infoModel.open()}
-                        onJoin={() => void channelModel.join()}
-                        onMenuSelect={channelModel.menuSelect}
-                        onSend={sendMessage}
-                        onStarToggle={channelModel.starToggle}
-                        onValueChange={updateDraft}
-                        onWorkspaceToggle={toggleFilesPanel}
-                        onDocumentsToggle={toggleDocumentsPanel}
-                        onTerminalClose={() => props.actions.terminalClose?.()}
-                        onTerminalHeightChange={(height) =>
-                            setTerminalHeight(Math.max(160, Math.min(560, height)))
-                        }
-                        onTerminalOpen={() => {
-                            const agent = terminalAgent();
-                            if (agent) props.actions.terminalOpen?.(agent.id);
+                {documentOpen() ? (
+                    <ChatDocumentPane
+                        document={props.document!}
+                        memberName={memberDisplayName}
+                        onClose={() => props.actions.documentClose()}
+                        onRename={(title) => {
+                            const documentId = props.navigation.documentId;
+                            if (documentId) void props.actions.documentRename(documentId, title);
                         }}
-                        onTerminalInput={(data) => props.terminal?.getState().terminalWrite(data)}
-                        onTerminalReconnect={() => props.terminal?.getState().terminalReconnect()}
-                        onTerminalResize={(cols, rows) =>
-                            props.terminal?.getState().terminalResize(cols, rows)
-                        }
-                        starred={channelModel.starred()}
+                        user={user()}
                     />
+                ) : (
+                    (props.workspaceOverride ?? (
+                        <ChatConversation
+                            activeConversationId={activeConversationId()}
+                            activities={activeAgentActivity()}
+                            activityNow={activityNow}
+                            busy={busy()}
+                            composerAudience={
+                                audienceRoutingActive() ? composerSnapshot()?.audience : undefined
+                            }
+                            composerCompactHint={liveComposerCompactHint()}
+                            composerDisabled={!activeConversationId()}
+                            composerHint={liveComposerHint()}
+                            composerMentions={mentionCandidates()}
+                            composerPending={
+                                composerSnapshot()?.submission.status === "pending" || busy()
+                            }
+                            composerSendEnabled={
+                                draft().trim().length > 0 || pendingAttachments().length > 0
+                            }
+                            composerValue={draft()}
+                            terminal={terminalState}
+                            terminalAvailable={Boolean(
+                                terminalAgent() && props.actions.terminalOpen,
+                            )}
+                            terminalHeight={terminalHeight}
+                            contextItems={composerContext}
+                            conversation={conversation}
+                            joinVisible={Boolean(
+                                activeChat()?.kind !== "dm" &&
+                                activeChat() &&
+                                !activeChat()?.membershipRole,
+                            )}
+                            menuItems={
+                                activeConversationId() && channelModel.menuItems().length > 0
+                                    ? channelModel.menuItems()
+                                    : undefined
+                            }
+                            messageEntries={[
+                                ...conversationEntries().map((entry, index, list) =>
+                                    renderEntry(entry, index, list),
+                                ),
+                                ...pluginRequestEntries(),
+                            ]}
+                            onAudienceChange={(audience) =>
+                                props.composer?.getState().audienceUpdate(audience)
+                            }
+                            onContextRemove={(id) =>
+                                props.composer
+                                    ?.getState()
+                                    .attachmentRemove(id.replace(/^file:/u, ""))
+                            }
+                            onComposerFocusChange={(focused) =>
+                                props.composer?.getState().focusUpdate(focused)
+                            }
+                            onFilesSelected={(files) => void uploadFiles(files)}
+                            onInfoOpen={() => infoModel.open()}
+                            onJoin={() => void channelModel.join()}
+                            onMenuSelect={channelModel.menuSelect}
+                            onSend={sendMessage}
+                            onStarToggle={channelModel.starToggle}
+                            onValueChange={updateDraft}
+                            onWorkspaceToggle={toggleFilesPanel}
+                            onDocumentsToggle={toggleDocumentsPanel}
+                            onTerminalClose={() => props.actions.terminalClose?.()}
+                            onTerminalHeightChange={(height) =>
+                                setTerminalHeight(Math.max(160, Math.min(560, height)))
+                            }
+                            onTerminalOpen={() => {
+                                const agent = terminalAgent();
+                                if (agent) props.actions.terminalOpen?.(agent.id);
+                            }}
+                            onTerminalInput={(data) =>
+                                props.terminal?.getState().terminalWrite(data)
+                            }
+                            onTerminalReconnect={() =>
+                                props.terminal?.getState().terminalReconnect()
+                            }
+                            onTerminalResize={(cols, rows) =>
+                                props.terminal?.getState().terminalResize(cols, rows)
+                            }
+                            starred={channelModel.starred()}
+                        />
+                    ))
                 )}
             </AppShell>
             {workspaceModel.openPath() ? (
@@ -1181,18 +1207,6 @@ export function ChatPage(props: ChatPageProps) {
                     path={workspaceModel.openPath()!}
                     saving={workspaceModel.fileSaving()}
                     status={workspaceModel.fileStatus()}
-                />
-            ) : null}
-            {props.navigation.documentId && props.document ? (
-                <ChatDocumentOverlay
-                    document={props.document}
-                    memberName={memberDisplayName}
-                    onClose={() => props.actions.documentClose()}
-                    onRename={(title) => {
-                        const documentId = props.navigation.documentId;
-                        if (documentId) void props.actions.documentRename(documentId, title);
-                    }}
-                    user={user()}
                 />
             ) : null}
             {directoryOpen ? (

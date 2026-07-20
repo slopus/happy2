@@ -18,6 +18,7 @@ import {
     type McpAppOpenContext,
     type McpAppStore,
 } from "./modules/mcp-apps/mcpAppState.js";
+import {
     documentCreate,
     documentDelete,
     documentFlushSchedule,
@@ -322,7 +323,7 @@ export class HappyState implements AsyncDisposable, Disposable {
         WorkspaceFileOpenContext &
         ThreadOpenContext &
         AgentTraceOpenContext &
-        McpAppOpenContext;
+        McpAppOpenContext &
         DocumentOpenContext &
         DocumentListOpenContext;
     private disposed = false;
