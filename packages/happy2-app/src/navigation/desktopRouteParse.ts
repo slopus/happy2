@@ -79,6 +79,7 @@ function primaryParse(segments: string[]): DesktopPrimaryRoute {
     if (head === "threads") return { kind: "threads" };
     if (head === "calls") return { kind: "calls" };
     if (head === "files") return { kind: "files" };
+    if (head === "apps") return { kind: "apps", ...(value ? { appId: value } : {}) };
     if (head === "settings")
         return {
             kind: "settings",
@@ -152,6 +153,12 @@ function overlayQueryParse(
     if (kind === "profile" && search.get("profile"))
         return { kind: "profile", userId: search.get("profile")! };
     if (kind === "file" && search.get("file")) return { kind: "file", fileId: search.get("file")! };
+    if (kind === "app" && search.get("app"))
+        return {
+            kind: "app",
+            instanceId: search.get("app")!,
+            presentation: search.get("present") === "fullscreen" ? "fullscreen" : "modal",
+        };
     if (
         kind === "workspace-file" &&
         primary.kind === "conversation" &&

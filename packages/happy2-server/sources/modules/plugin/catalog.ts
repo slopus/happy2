@@ -11,6 +11,8 @@ import type {
     PluginPackage,
     PluginSource,
     PluginSkillSummary,
+    PluginUiAsset,
+    PluginUiAssetDefinition,
     PluginVariableDefinition,
     PluginContainer,
     PluginHostPermission,
@@ -24,6 +26,9 @@ const MAX_ICON_DIMENSION = 4_096;
 const SHORT_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ENV_KEY = /^[A-Z_][A-Z0-9_]*$/;
 const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const UI_ASSET_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const MAX_UI_ASSET_BYTES = 64 * 1024;
+const UI_ASSET_SIZE = 40;
 const VERSION =
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
@@ -153,6 +158,7 @@ async function packageLoad(
     )
         throw new Error(`${label}: plugin.png must be a square PNG up to 4096 pixels`);
     const skills = await skillsParse(files, label);
+    const uiAssets = await uiAssetsParse(manifest.uiAssets, files, label);
     if (!manifest.container && !manifest.mcp && skills.length === 0)
         throw new Error(`${label}: a plugin must contain a container, skill, or MCP server`);
     if (manifest.container?.dockerfile)
@@ -184,6 +190,7 @@ async function packageLoad(
             ).toString("base64url"),
             checksumSha256: createHash("sha256").update(iconBuffer).digest("hex"),
         },
+        uiAssets,
         packageDigest: digest(files),
         source,
     };
@@ -236,6 +243,7 @@ function manifestParse(source: string, label: string): PluginManifest {
         "displayName",
         "shortName",
         "description",
+        "uiAssets",
         "variables",
         "container",
         "mcp",
@@ -256,6 +264,7 @@ function manifestParse(source: string, label: string): PluginManifest {
     const shortName = string(record.shortName, "shortName", 64);
     if (!SHORT_NAME.test(shortName)) throw new Error(`${label}: shortName is invalid`);
     const variables = variableDefinitions(record.variables, label);
+    const uiAssets = uiAssetDefinitions(record.uiAssets, label);
     const parsedContainer =
         record.container === undefined ? undefined : container(record.container, label);
     const parsedMcp = record.mcp === undefined ? undefined : mcp(record.mcp, variables, label);
@@ -273,10 +282,87 @@ function manifestParse(source: string, label: string): PluginManifest {
         displayName: string(record.displayName, "displayName", 100),
         shortName,
         description: string(record.description, "description", 1_000),
+        uiAssets,
         variables,
         ...(parsedContainer ? { container: parsedContainer } : {}),
         ...(parsedMcp ? { mcp: parsedMcp } : {}),
     };
+}
+
+function uiAssetDefinitions(value: unknown, label: string): PluginUiAssetDefinition[] {
+    if (value === undefined) return [];
+    if (!Array.isArray(value) || value.length > 128)
+        throw new Error(`${label}: uiAssets must be an array of at most 128 entries`);
+    const ids = new Set<string>();
+    const paths = new Set<string>();
+    return value.map((raw, index) => {
+        const record = object(raw, `uiAssets[${index}]`);
+        only(record, ["id", "path"]);
+        const id = string(record.id, `uiAssets[${index}].id`, 64);
+        if (!UI_ASSET_ID.test(id)) throw new Error(`${label}: uiAssets[${index}].id is invalid`);
+        if (ids.has(id)) throw new Error(`${label}: duplicate UI asset id ${id}`);
+        ids.add(id);
+        const path = relativePath(record.path, `uiAssets[${index}].path`);
+        if (paths.has(path)) throw new Error(`${label}: duplicate UI asset path ${path}`);
+        paths.add(path);
+        return { id, path };
+    });
+}
+
+async function uiAssetsParse(
+    definitions: readonly PluginUiAssetDefinition[],
+    files: ReadonlyMap<string, Buffer>,
+    label: string,
+): Promise<PluginUiAsset[]> {
+    return Promise.all(
+        definitions.map(async ({ id, path }): Promise<PluginUiAsset> => {
+            const contents = files.get(path);
+            if (!contents)
+                throw new Error(`${label}: referenced UI asset file ${path} does not exist`);
+            if (contents.byteLength > MAX_UI_ASSET_BYTES)
+                throw new Error(`${label}: UI asset ${id} exceeds ${MAX_UI_ASSET_BYTES} bytes`);
+            const image = sharp(contents, { limitInputPixels: UI_ASSET_SIZE * UI_ASSET_SIZE });
+            const metadata = await image.metadata();
+            if (
+                metadata.format !== "png" ||
+                metadata.width !== UI_ASSET_SIZE ||
+                metadata.height !== UI_ASSET_SIZE ||
+                metadata.channels !== 4 ||
+                !metadata.hasAlpha
+            )
+                throw new Error(
+                    `${label}: UI asset ${id} must be a ${UI_ASSET_SIZE}x${UI_ASSET_SIZE} RGBA PNG`,
+                );
+            const pixels = await image.ensureAlpha().raw().toBuffer();
+            let transparent = false;
+            let visible = false;
+            for (let offset = 0; offset < pixels.length; offset += 4) {
+                const alpha = pixels[offset + 3]!;
+                if (alpha === 0) {
+                    transparent = true;
+                    continue;
+                }
+                visible = true;
+                if (pixels[offset] !== 0 || pixels[offset + 1] !== 0 || pixels[offset + 2] !== 0)
+                    throw new Error(
+                        `${label}: UI asset ${id} visible pixels must be normalized black`,
+                    );
+            }
+            if (!visible || !transparent)
+                throw new Error(
+                    `${label}: UI asset ${id} must contain visible art and transparency`,
+                );
+            return {
+                id,
+                path,
+                contentType: "image/png",
+                size: contents.byteLength,
+                width: UI_ASSET_SIZE,
+                height: UI_ASSET_SIZE,
+                checksumSha256: createHash("sha256").update(contents).digest("hex"),
+            };
+        }),
+    );
 }
 
 function container(value: unknown, label: string): PluginContainer {

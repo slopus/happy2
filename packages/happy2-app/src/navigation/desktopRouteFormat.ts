@@ -25,6 +25,10 @@ export function desktopRouteFormat(route: DesktopRoute): string {
         else if (overlay.kind === "file") search.set("file", overlay.fileId);
         else if (overlay.kind === "workspace-file") search.set("path", overlay.path);
         else if (overlay.kind === "document") search.set("document", overlay.documentId);
+        else if (overlay.kind === "app") {
+            search.set("app", overlay.instanceId);
+            search.set("present", overlay.presentation);
+        }
     }
     if (route.primary.kind === "files") {
         if (route.files.filter !== "all") search.set("filter", route.files.filter);
@@ -40,6 +44,8 @@ function primaryPath(primary: DesktopPrimaryRoute): string {
             const base = primary.conversationKind === "channel" ? "/channels" : "/chats";
             return primary.chatId ? `${base}/${encodeURIComponent(primary.chatId)}` : base;
         }
+        case "apps":
+            return primary.appId ? `/apps/${encodeURIComponent(primary.appId)}` : "/apps";
         case "settings":
             return `/settings/${primary.section}`;
         case "admin":

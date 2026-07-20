@@ -259,7 +259,43 @@ export {
     type BuildProgressStatus,
 } from "./BuildProgressPanel";
 export { McpAppShell, type McpAppShellProps, type McpAppShellStatus } from "./McpAppShell";
+export {
+    McpAppBridgeFrame,
+    MCP_APP_DEFAULT_HEIGHT,
+    type McpAppBridgeFrameProps,
+    type McpAppBridgeResource,
+    type McpAppDisplayMode,
+} from "./mcpAppBridge";
 export type { McpAppLogEntry, McpAppLogLevel, McpAppSize } from "./mcpAppProtocol";
+export { PluginAssetGlyph, type PluginAssetGlyphProps } from "./PluginAssetGlyph";
+export {
+    PluginAppView,
+    PluginAppOverlay,
+    type PluginAppViewProps,
+    type PluginAppViewStatus,
+    type PluginAppOverlayProps,
+} from "./PluginAppView";
+export {
+    PluginContributionControl,
+    PluginContributionSection,
+    PluginContributionMenuButton,
+    type PluginContributionControlProps,
+    type PluginContributionSectionProps,
+    type PluginContributionMenuButtonProps,
+    type PluginContributionActionState,
+    type PluginContributionMenuState,
+    type PluginContributionInvoke,
+} from "./PluginContribution";
+export {
+    SidebarAppsSection,
+    type SidebarAppsSectionProps,
+    type SidebarAppEntry,
+} from "./SidebarAppsSection";
+export {
+    PluginSettingsPanel,
+    type PluginSettingsPanelProps,
+    type PluginSettingsAppRow,
+} from "./PluginSettingsPanel";
 export {
     ProfileCard,
     type ProfileCardProps,

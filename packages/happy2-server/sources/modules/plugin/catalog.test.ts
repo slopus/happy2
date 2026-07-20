@@ -1,6 +1,8 @@
 import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { deflateSync } from "node:zlib";
+import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
 import { pluginCatalogLoad, pluginPackageLoad } from "./catalog.js";
 import { PluginPackageStore } from "./packageStore.js";
@@ -18,6 +20,58 @@ afterEach(async () => {
 });
 
 describe("plugin package catalog", () => {
+    it("loads only declared normalized monochrome UI action assets", async () => {
+        const root = await temporaryDirectory();
+        const plugin = await packageDirectory(root, "ui-assets");
+        await mkdir(join(plugin, "assets"));
+        await actionAssetWrite(join(plugin, "assets", "check.png"));
+        await manifest(plugin, {
+            variables: [],
+            mcp: stdioMcp(),
+            uiAssets: [{ id: "check", path: "assets/check.png" }],
+        });
+
+        await expect(pluginPackageLoad(plugin)).resolves.toMatchObject({
+            manifest: { uiAssets: [{ id: "check", path: "assets/check.png" }] },
+            uiAssets: [
+                {
+                    id: "check",
+                    path: "assets/check.png",
+                    contentType: "image/png",
+                    width: 40,
+                    height: 40,
+                    checksumSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+                },
+            ],
+        });
+
+        const invalidRoot = await temporaryDirectory();
+        const invalid = await packageDirectory(invalidRoot, "invalid-ui-assets");
+        await mkdir(join(invalid, "assets"));
+        await actionAssetWrite(join(invalid, "assets", "white.png"), { visibleRgb: 255 });
+        await manifest(invalid, {
+            variables: [],
+            mcp: stdioMcp(),
+            uiAssets: [{ id: "white", path: "assets/white.png" }],
+        });
+        await expect(pluginPackageLoad(invalid)).rejects.toThrow(
+            "UI asset white visible pixels must be normalized black",
+        );
+
+        const grayscaleRoot = await temporaryDirectory();
+        const grayscale = await packageDirectory(grayscaleRoot, "grayscale-ui-assets");
+        await mkdir(join(grayscale, "assets"));
+        await grayscaleActionAssetWrite(join(grayscale, "assets", "grayscale.png"));
+        await manifest(grayscale, {
+            variables: [],
+            mcp: stdioMcp(),
+            uiAssets: [{ id: "grayscale", path: "assets/grayscale.png" }],
+        });
+        await expect(pluginPackageLoad(grayscale)).rejects.toThrow(
+            "UI asset grayscale must be a 40x40 RGBA PNG",
+        );
+    });
+
     it("loads a spec-shaped skill and verifies an immutable installed snapshot", async () => {
         const root = await temporaryDirectory();
         const plugin = await packageDirectory(root, "search-tools");
@@ -236,6 +290,7 @@ async function manifest(
         version?: string;
         container?: Record<string, unknown>;
         mcp?: Record<string, unknown>;
+        uiAssets?: unknown[];
     },
 ): Promise<void> {
     const shortName = basename(directory);
@@ -250,6 +305,67 @@ async function manifest(
             ...additions,
         }),
     );
+}
+
+async function actionAssetWrite(
+    path: string,
+    options: { visibleRgb?: number } = {},
+): Promise<void> {
+    const pixels = Buffer.alloc(40 * 40 * 4);
+    const visibleRgb = options.visibleRgb ?? 0;
+    for (let y = 10; y < 30; y += 1)
+        for (let x = 10; x < 30; x += 1) {
+            const offset = (y * 40 + x) * 4;
+            pixels[offset] = visibleRgb;
+            pixels[offset + 1] = visibleRgb;
+            pixels[offset + 2] = visibleRgb;
+            pixels[offset + 3] = x === 10 || y === 10 ? 128 : 255;
+        }
+    await sharp(pixels, { raw: { width: 40, height: 40, channels: 4 } })
+        .png()
+        .toFile(path);
+}
+
+async function grayscaleActionAssetWrite(path: string): Promise<void> {
+    const scanlines = Buffer.alloc(40 * (1 + 40 * 2));
+    for (let y = 0; y < 40; y += 1)
+        for (let x = 0; x < 40; x += 1) {
+            const offset = y * 81 + 1 + x * 2;
+            scanlines[offset + 1] = x >= 10 && x < 30 && y >= 10 && y < 30 ? 255 : 0;
+        }
+    const header = Buffer.alloc(13);
+    header.writeUInt32BE(40, 0);
+    header.writeUInt32BE(40, 4);
+    header[8] = 8;
+    header[9] = 4;
+    await writeFile(
+        path,
+        Buffer.concat([
+            Buffer.from("89504e470d0a1a0a", "hex"),
+            pngChunk("IHDR", header),
+            pngChunk("IDAT", deflateSync(scanlines)),
+            pngChunk("IEND", Buffer.alloc(0)),
+        ]),
+    );
+}
+
+function pngChunk(type: string, data: Buffer): Buffer {
+    const name = Buffer.from(type, "ascii");
+    const chunk = Buffer.alloc(12 + data.length);
+    chunk.writeUInt32BE(data.length, 0);
+    name.copy(chunk, 4);
+    data.copy(chunk, 8);
+    chunk.writeUInt32BE(crc32(Buffer.concat([name, data])), 8 + data.length);
+    return chunk;
+}
+
+function crc32(data: Buffer): number {
+    let crc = 0xffffffff;
+    for (const byte of data) {
+        crc ^= byte;
+        for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+    return (crc ^ 0xffffffff) >>> 0;
 }
 
 function stdioMcp(): Record<string, unknown> {

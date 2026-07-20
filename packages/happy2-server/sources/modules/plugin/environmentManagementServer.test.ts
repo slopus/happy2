@@ -92,7 +92,16 @@ describe("bundled Environment Management MCP server", () => {
             if (!address || typeof address === "string") throw new Error("Test host did not bind");
             const child = spawn(
                 process.execPath,
-                [join(process.cwd(), "plugins", "environment-management", "server.mjs")],
+                [
+                    join(
+                        process.cwd(),
+                        "..",
+                        "happy2-plugin-environment-management",
+                        "dist",
+                        "plugin",
+                        "server.js",
+                    ),
+                ],
                 {
                     stdio: ["pipe", "pipe", "pipe"],
                     env: {
@@ -106,9 +115,20 @@ describe("bundled Environment Management MCP server", () => {
             const errors: Buffer[] = [];
             child.stdout.on("data", (chunk: Buffer) => output.push(chunk));
             child.stderr.on("data", (chunk: Buffer) => errors.push(chunk));
-            child.stdin.end(
-                [
-                    rpc(1, "initialize", { protocolVersion: "2025-06-18" }),
+            child.stdin.write(`${rpc(1, "initialize", { protocolVersion: "2025-06-18" })}\n`);
+            await new Promise<void>((resolve, reject) => {
+                const responseRead = () => {
+                    if (!Buffer.concat(output).includes(10)) return;
+                    child.stdout.off("data", responseRead);
+                    resolve();
+                };
+                child.stdout.on("data", responseRead);
+                child.once("error", reject);
+                responseRead();
+            });
+            child.stdin.write(
+                `${[
+                    notification("notifications/initialized", {}),
                     rpc(2, "tools/list", {}),
                     toolCall(3, "happy2_environments_list", {}),
                     toolCall(4, "happy2_environment_get_dockerfile", {
@@ -124,8 +144,10 @@ describe("bundled Environment Management MCP server", () => {
                     toolCall(7, "happy2_environment_deactivate", {
                         environmentId: "environment-2",
                     }),
-                ].join("\n"),
+                ].join("\n")}\n`,
             );
+            await waitForResponses(child.stdout, output, 7);
+            child.stdin.end();
             const exitCode = await new Promise<number | null>((resolve, reject) => {
                 child.once("error", reject);
                 child.once("close", resolve);
@@ -172,8 +194,8 @@ describe("bundled Environment Management MCP server", () => {
                 {
                     authorization: "Bearer environment-test-token",
                     body: JSON.stringify({
-                        name: "New tools",
                         dockerfile: "FROM alpine:3.21\n",
+                        name: "New tools",
                     }),
                     method: "POST",
                     url: "/environments/createEnvironment",
@@ -203,6 +225,28 @@ function rpc(id: number, method: string, params: Record<string, unknown>): strin
     return JSON.stringify({ jsonrpc: "2.0", id, method, params });
 }
 
+function notification(method: string, params: Record<string, unknown>): string {
+    return JSON.stringify({ jsonrpc: "2.0", method, params });
+}
+
 function toolCall(id: number, name: string, args: Record<string, unknown>): string {
     return rpc(id, "tools/call", { name, arguments: args });
+}
+
+async function waitForResponses(
+    stdout: NodeJS.ReadableStream,
+    output: readonly Buffer[],
+    count: number,
+): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+        const responseRead = () => {
+            const lines = Buffer.concat(output).toString().trim().split("\n");
+            if (lines.length < count) return;
+            stdout.off("data", responseRead);
+            resolve();
+        };
+        stdout.on("data", responseRead);
+        stdout.once("error", reject);
+        responseRead();
+    });
 }

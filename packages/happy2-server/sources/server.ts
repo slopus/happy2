@@ -1,6 +1,4 @@
 import { createHash, randomBytes } from "node:crypto";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { createClient, type Client } from "@libsql/client";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
@@ -86,8 +84,10 @@ import { registerSyncRoutes } from "./routes/sync.js";
 import { registerSetupRoutes } from "./routes/setup.js";
 import { registerWorkspaceRoutes } from "./routes/workspace.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
+import { builtinPluginCatalogDirectory } from "./modules/plugin/builtinCatalog.js";
 import { createPluginHostApi } from "./routes/pluginHost.js";
 import { registerPermissionRoutes } from "./routes/permissions.js";
+import { registerAppSurfaceRoutes } from "./routes/appSurfaces.js";
 
 const pluginHostApis = new WeakMap<FastifyInstance, FastifyInstance>();
 
@@ -288,7 +288,7 @@ export async function buildServer(
         webhookTransport = services.webhookTransport ?? new NodeWebhookTransport();
         const pluginCatalog =
             services.pluginCatalog ??
-            (await pluginCatalogLoad(join(dirname(fileURLToPath(import.meta.url)), "../plugins")));
+            (await pluginCatalogLoad(builtinPluginCatalogDirectory(import.meta.url)));
         const pluginSecrets =
             services.pluginSecretProtector ?? pluginSecretProtector(config, Boolean(supplied));
         workspaceService = new WorkspaceService(
@@ -382,6 +382,7 @@ export async function buildServer(
             },
         });
         registerPluginRoutes(app, auth, executor, pluginCatalog, pluginService, pluginBridge);
+        registerAppSurfaceRoutes(app, auth, pluginService);
         registerPermissionRoutes(app, auth, executor, livePubsub);
         registerSyncRoutes(app, auth, executor, livePubsub);
         registerWorkspaceRoutes(app, auth, workspaceService);

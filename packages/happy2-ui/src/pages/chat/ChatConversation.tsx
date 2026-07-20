@@ -22,6 +22,10 @@ export interface ChatConversationProps {
     joinVisible: boolean;
     starred: boolean;
     menuItems?: MenuItem[];
+    /** Native plugin chat-menu contribution triggers, shown in the header actions. */
+    headerContributions?: ReactNode;
+    /** Native plugin composer contribution triggers, shown in the composer toolbar. */
+    composerContributions?: ReactNode;
     messageEntries: ReactNode;
     activities: readonly DeepReadonly<AgentActivityState>[];
     activityNow: number;
@@ -105,6 +109,7 @@ export function ChatConversation(props: ChatConversationProps) {
                                 Join
                             </Button>
                         ) : null}
+                        {props.headerContributions}
                     </>
                 }
                 icon={props.conversation.icon}
@@ -152,6 +157,7 @@ export function ChatConversation(props: ChatConversationProps) {
                     />
                     <Composer
                         audience={props.composerAudience}
+                        contributions={props.composerContributions}
                         contextItems={props.contextItems}
                         disabled={props.composerDisabled}
                         emoji={emojiItems}

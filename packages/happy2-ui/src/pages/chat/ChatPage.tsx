@@ -125,6 +125,20 @@ export type ChatPageProps = {
      * subscription and never subscribes an app store per row.
      */
     renderMcpApp?: (input: McpAppRenderInput) => ReactNode;
+    /**
+     * Native plugin chat-menu contribution triggers for the active conversation,
+     * built by the application from its single chat-contribution subscription and
+     * shown in the conversation header.
+     */
+    chatMenuContributions?: ReactNode;
+    /** Native plugin composer contribution triggers, shown in the composer toolbar. */
+    composerContributions?: ReactNode;
+    /**
+     * Builds the message-menu contribution triggers for one message id. ChatPage
+     * calls it per message row from the same single chat subscription; the app
+     * fans the shared snapshot out to each row and never subscribes per message.
+     */
+    messageContributions?: (messageId: string) => ReactNode;
 };
 /** The identity and inline summary of one MCP App handed to the app renderer. */
 export interface McpAppRenderInput {
@@ -1120,10 +1134,12 @@ export function ChatPage(props: ChatPageProps) {
                             composerPending={
                                 composerSnapshot()?.submission.status === "pending" || busy()
                             }
+                            composerContributions={props.composerContributions}
                             composerSendEnabled={
                                 draft().trim().length > 0 || pendingAttachments().length > 0
                             }
                             composerValue={draft()}
+                            headerContributions={props.chatMenuContributions}
                             terminal={terminalState}
                             terminalAvailable={Boolean(
                                 terminalAgent() && props.actions.terminalOpen,
@@ -1343,6 +1359,7 @@ export function ChatPage(props: ChatPageProps) {
                     message.senderId === user()?.id
                 }
                 images={message ? mediaModel.images(message) : []}
+                menuContributions={server ? props.messageContributions?.(server.id) : undefined}
                 menuItems={message ? messageActions.menuItems(message) : []}
                 profile={message ? infoModel.messageProfile(message) : undefined}
                 onImageOpen={(message, id) => void mediaModel.imageOpen(message, id)}

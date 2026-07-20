@@ -6,6 +6,7 @@ import {
     type CSSProperties,
     type FormEvent,
     type KeyboardEvent as ReactKeyboardEvent,
+    type ReactNode,
 } from "react";
 import { AudienceToggle, type AudienceValue } from "./AudienceToggle";
 import { Avatar, type ToneName } from "./Avatar";
@@ -206,6 +207,12 @@ export type ComposerProps = {
     className?: string;
     /** Short companion for `hint`, shown only when the toolbar needs to compact. */
     compactHint?: string;
+    /**
+     * Native plugin composer contribution triggers (icon buttons and menus),
+     * rendered at the end of the toolbar action group. Supplied by the
+     * application; each owns its own invocation state.
+     */
+    contributions?: ReactNode;
     contextItems?: ContextItem[];
     "data-testid"?: string;
     disabled?: boolean;
@@ -593,6 +600,14 @@ export function Composer(props: ComposerProps) {
                             size="small"
                             variant="ghost"
                         />
+                    ) : null}
+                    {props.contributions ? (
+                        <span
+                            className="happy2-composer__contributions"
+                            data-happy2-ui="composer-contributions"
+                        >
+                            {props.contributions}
+                        </span>
                     ) : null}
                 </div>
                 <div className="happy2-composer__trailing" data-happy2-ui="composer-trailing">

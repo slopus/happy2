@@ -100,6 +100,12 @@ export type MessageProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     /** Real actions for the overflow menu. No menu button renders when empty. */
     menuItems?: MenuItem[];
     onMenuSelect?: (id: string) => void;
+    /**
+     * Native plugin message-menu contribution triggers rendered in the hover
+     * action toolbar, supplied by the application (each owns its own invocation
+     * state). Message-scoped, so the app binds each to this message's id.
+     */
+    contributions?: ReactNode;
     onReactionAdd?: () => void;
     onReactionSelect?: (emoji: string) => void;
     onReplySelect?: () => void;
@@ -171,6 +177,7 @@ export function Message(props: MessageProps) {
         "children",
         "className",
         "compact",
+        "contributions",
         "deliveryState",
         "generationStatus",
         "grouped",
@@ -226,9 +233,13 @@ export function Message(props: MessageProps) {
     const hasMenuAction = () =>
         Boolean(local.onMenuSelect) &&
         Boolean(local.menuItems?.some((item) => item.kind === "item"));
+    const hasContributions = () => hasRenderableChild(local.contributions);
     const hasActions = () =>
         deliveryState() !== "sending" &&
-        (hasReactionAction() || Boolean(local.onReplySelect) || hasMenuAction());
+        (hasReactionAction() ||
+            Boolean(local.onReplySelect) ||
+            hasMenuAction() ||
+            hasContributions());
     const filteredReactionOptions = () => {
         const query = reactionQuery.trim().toLocaleLowerCase();
         if (!query) return local.reactionOptions ?? [];
@@ -554,6 +565,14 @@ export function Message(props: MessageProps) {
                                 size="small"
                                 variant="ghost"
                             />
+                        ) : null}
+                        {hasContributions() ? (
+                            <span
+                                className="happy2-message__contributions"
+                                data-happy2-ui="message-contributions"
+                            >
+                                {local.contributions}
+                            </span>
                         ) : null}
                     </div>
                     {reactionOpen && local.reactionOptions?.length ? (

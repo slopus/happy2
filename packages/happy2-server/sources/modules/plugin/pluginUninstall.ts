@@ -67,7 +67,10 @@ export async function pluginUninstall(
             containerNames: installations.flatMap(({ containerName }) =>
                 containerName ? [containerName] : [],
             ),
-            hint: areaHint(sequence, "plugins"),
+            hint: {
+                ...areaHint(sequence, "plugins"),
+                areas: ["plugins", "apps", "contributions"],
+            },
             installationIds: installations.map(({ id }) => id),
             pluginId,
         };

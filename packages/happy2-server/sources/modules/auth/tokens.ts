@@ -191,6 +191,7 @@ export class TokenService {
             .setAudience(`${this.config.jwt.audience}/plugin-chat`)
             .setSubject(claims.installationId)
             .setIssuedAt()
+            .setExpirationTime("5m")
             .sign(this.privateKey);
     }
 
@@ -229,6 +230,7 @@ export class TokenService {
             .setSubject(claims.installationId)
             .setIssuedAt()
             .setJti(claims.userId)
+            .setExpirationTime("5m")
             .sign(this.privateKey);
     }
 
@@ -257,6 +259,7 @@ export class TokenService {
             .setSubject(claims.installationId)
             .setIssuedAt()
             .setJti(claims.messageId)
+            .setExpirationTime("5m")
             .sign(this.privateKey);
     }
 

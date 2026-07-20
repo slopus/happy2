@@ -4,6 +4,7 @@ import { Avatar, type ToneName } from "./Avatar";
 import { CountBadge } from "./Badge";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
+import { PluginAssetGlyph } from "./PluginAssetGlyph";
 export type SidebarItem = {
     /** Marks a row as archived; the row keeps its position but paints muted. */
     archived?: boolean;
@@ -14,8 +15,14 @@ export type SidebarItem = {
     id: string;
     imageUrl?: string;
     initials?: string;
-    kind: "view" | "channel" | "person" | "agent" | "action";
+    kind: "view" | "channel" | "person" | "agent" | "action" | "app";
     label: string;
+    /**
+     * A same-origin blob URL for an authenticated monochrome asset (e.g. a plugin
+     * app's 40×40 PNG). When present, the leading slot paints it as a
+     * `currentColor` mask instead of an `Icon`/`Avatar`. The caller owns the URL.
+     */
+    maskUrl?: string;
     meta?: string;
     online?: boolean;
     status?: "ready" | "working";
@@ -103,6 +110,12 @@ function SidebarRow(props: { active: boolean; item: SidebarItem; onSelect: (id: 
                         size="xs"
                         tone={item().tone}
                         type={item().kind === "agent" ? "agent" : "human"}
+                    />
+                ) : item().kind === "app" ? (
+                    <PluginAssetGlyph
+                        fallbackIcon={item().icon ?? "spark"}
+                        maskUrl={item().maskUrl}
+                        size={16}
                     />
                 ) : (
                     <Icon name={leadingIcon(item())} size={16} />

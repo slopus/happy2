@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
     cp,
     lstat,
@@ -15,6 +15,7 @@ import { pluginArchiveExtract } from "./archive.js";
 import { pluginPackageLoadInstalled, pluginPackageLoadSource } from "./catalog.js";
 import type { PluginPackage, PluginSource } from "./types.js";
 import type { PluginReadySkillPackage } from "./pluginSkillPackageListReady.js";
+import type { PluginUiAssetSummary } from "./pluginUiAssetGet.js";
 
 export interface PreparedPluginPackage {
     plugin: PluginPackage;
@@ -346,6 +347,49 @@ export class PluginPackageStore {
         if (imageStorageKey !== `${pluginId}/plugin.png`)
             throw new Error("Installed plugin image storage key is invalid");
         return readFile(join(this.path(pluginId), "plugin.png"));
+    }
+
+    async readUiAsset(asset: PluginUiAssetSummary): Promise<Buffer> {
+        const plugin = await this.loadInstalled(
+            asset.pluginId,
+            asset.packageDirectory,
+            asset.shortName,
+            asset.packageDigest,
+            { kind: asset.sourceKind, reference: asset.sourceReference },
+        );
+        if (
+            plugin.source.kind !== asset.sourceKind ||
+            plugin.source.reference !== asset.sourceReference
+        )
+            throw new Error("Installed plugin UI asset source identity changed");
+        const declared = plugin.uiAssets.find(({ id }) => id === asset.assetId);
+        if (
+            !declared ||
+            declared.path !== asset.relativePath ||
+            declared.contentType !== asset.contentType ||
+            declared.size !== asset.byteSize ||
+            declared.width !== asset.width ||
+            declared.height !== asset.height ||
+            declared.checksumSha256 !== asset.checksumSha256
+        )
+            throw new Error("Installed plugin UI asset no longer matches its recorded metadata");
+        const packageRoot = await realpath(asset.packageDirectory);
+        const candidate = resolve(packageRoot, declared.path);
+        if (!candidate.startsWith(`${packageRoot}${sep}`))
+            throw new Error("Installed plugin UI asset is outside its package");
+        const file = await lstat(candidate);
+        if (!file.isFile() || file.isSymbolicLink())
+            throw new Error("Installed plugin UI asset is not a regular package file");
+        const actual = await realpath(candidate);
+        if (!actual.startsWith(`${packageRoot}${sep}`))
+            throw new Error("Installed plugin UI asset resolves outside its package");
+        const body = await readFile(actual);
+        if (
+            body.byteLength !== asset.byteSize ||
+            createHash("sha256").update(body).digest("hex") !== asset.checksumSha256
+        )
+            throw new Error("Installed plugin UI asset bytes changed after validation");
+        return body;
     }
 
     private path(pluginId: string): string {

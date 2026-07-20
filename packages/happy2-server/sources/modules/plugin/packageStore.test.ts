@@ -24,7 +24,7 @@ describe("installed plugin skills", () => {
                 "---\nname: user-skill\ndescription: Keep this user-owned skill.\n---\n\nUser skill.\n",
             );
             const source = await pluginPackageLoad(
-                join(process.cwd(), "plugins", "plugin-developer"),
+                join(process.cwd(), "..", "happy2-plugin-plugin-developer", "dist", "plugin"),
                 "plugin-developer",
             );
             const store = new PluginPackageStore(packageRoot);

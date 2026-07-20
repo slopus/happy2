@@ -260,6 +260,13 @@
             "when": 1784937600000,
             "tag": "0036_standalone_channel_documents",
             "breakpoints": true
+        },
+        {
+            "idx": 37,
+            "version": "6",
+            "when": 1785024000000,
+            "tag": "0037_app_platform",
+            "breakpoints": true
         }
     ]
 }

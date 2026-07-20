@@ -69,7 +69,10 @@ export async function pluginInstallationUninstall(
             actorUserId: input.actorUserId,
         });
         return {
-            hint: areaHint(sequence, "plugins"),
+            hint: {
+                ...areaHint(sequence, "plugins"),
+                areas: ["plugins", "apps", "contributions"],
+            },
             pluginId: installation.pluginId,
             pluginRemoved,
         };

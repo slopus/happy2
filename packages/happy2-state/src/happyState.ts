@@ -50,6 +50,29 @@ import {
     documentCollectionStoreCreate,
     type DocumentCollectionStore,
 } from "./modules/document-collection/documentCollectionState.js";
+import {
+    chatContributionsLoad,
+    chatContributionsOpen,
+    chatContributionsStoreCreate,
+    pluginAppInstanceStoreCreate,
+    pluginAppLoad,
+    pluginAppOpen,
+    pluginAppResourceRead,
+    pluginAppToolCall,
+    pluginContributionOutputRoute,
+    pluginNavigationLoad,
+    pluginNavigationStoreCreate,
+    pluginUiAssetRead,
+    type ChatContributionsHandle,
+    type ChatContributionsOpenContext,
+    type ChatContributionsOutput,
+    type ChatContributionsStore,
+    type PluginAppHandle,
+    type PluginAppInstanceStore,
+    type PluginAppOpenContext,
+    type PluginNavigationOutput,
+    type PluginNavigationStore,
+} from "./modules/plugin-surfaces/pluginSurfacesState.js";
 import { chatLoad } from "./modules/chat/chatState.js";
 import { chatMembersLoad } from "./modules/chat/chatState.js";
 import { chatPinsLoad } from "./modules/chat/chatState.js";
@@ -269,7 +292,9 @@ export type HappyStateEvent =
     | AdminOutput
     | PluginInstallOutput
     | SetupOutput
-    | DocumentOutput;
+    | DocumentOutput
+    | PluginNavigationOutput
+    | ChatContributionsOutput;
 
 export interface HappyStateOptions extends StateRuntimeOptions {
     readonly event?: (event: HappyStateEvent) => void;
@@ -299,6 +324,9 @@ export class HappyState implements AsyncDisposable, Disposable {
     private readonly documents = new StoreRegistry<string, DocumentStore>();
     private readonly documentLists = new StoreRegistry<string, DocumentListStore>();
     private documentCollectionBinding?: DocumentCollectionStore;
+    private readonly pluginApps = new StoreRegistry<string, PluginAppInstanceStore>();
+    private readonly chatContributions = new StoreRegistry<string, ChatContributionsStore>();
+    private pluginNavigationBinding?: PluginNavigationStore;
     private readonly sidebarBinding = sidebarStoreCreate();
     private filesBinding?: FilesStore;
     private searchBinding?: SearchStore;
@@ -331,7 +359,9 @@ export class HappyState implements AsyncDisposable, Disposable {
         AgentTraceOpenContext &
         McpAppOpenContext &
         DocumentOpenContext &
-        DocumentListOpenContext;
+        DocumentListOpenContext &
+        PluginAppOpenContext &
+        ChatContributionsOpenContext;
     private disposed = false;
     private readonly unknownSyncArea: (area: string) => void;
     private readonly eventListener: (event: HappyStateEvent) => void;
@@ -352,6 +382,7 @@ export class HappyState implements AsyncDisposable, Disposable {
         });
         this.sidebarChats = new SidebarChatsProjector(this.runtime, this.identities);
         this.context = {
+            runtime: this.runtime,
             chatAcquire: (chatId) =>
                 this.chats.getOrCreate(chatId, () =>
                     chatStoreCreate(chatId, (event) => this.eventRoute(event)),
@@ -419,6 +450,25 @@ export class HappyState implements AsyncDisposable, Disposable {
                 this.documentLists.getOrCreate(chatId, () => documentListStoreCreate(chatId)),
             documentListRelease: (chatId) => this.documentLists.release(chatId),
             documentListLoad: (chatId) => this.documentListLoad(chatId),
+            pluginAppAcquire: (instanceId) =>
+                this.pluginApps.getOrCreate(instanceId, () =>
+                    pluginAppInstanceStoreCreate(instanceId),
+                ),
+            pluginAppRelease: (instanceId) => this.pluginApps.release(instanceId),
+            pluginAppGet: (instanceId) => this.pluginApps.get(instanceId),
+            pluginAppLoad: (instanceId) => this.pluginAppLoad(instanceId),
+            pluginAppToolCall: (instanceId, name, args) =>
+                pluginAppToolCall(this.runtime, instanceId, name, args),
+            pluginAppResourceRead: (instanceId, uri) =>
+                pluginAppResourceRead(this.runtime, instanceId, uri),
+            pluginNavigationGet: () => this.pluginNavigationBinding,
+            chatContributionsAcquire: (chatId) =>
+                this.chatContributions.getOrCreate(chatId, () =>
+                    chatContributionsStoreCreate(chatId, (event) => this.eventRoute(event)),
+                ),
+            chatContributionsRelease: (chatId) => this.chatContributions.release(chatId),
+            chatContributionsGet: (chatId) => this.chatContributions.get(chatId),
+            chatContributionsLoad: (chatId) => this.chatContributionsLoad(chatId),
         };
         this.sync = new SyncCoordinator({
             runtime: this.runtime,
@@ -718,6 +768,33 @@ export class HappyState implements AsyncDisposable, Disposable {
         return mcpAppOpen(this.context, messageId, callId);
     }
 
+    /** Materializes the global sidebar, profile, and plugin-settings contribution surface. */
+    pluginNavigation(): PluginNavigationStore {
+        if (!this.pluginNavigationBinding) {
+            this.pluginNavigationBinding = pluginNavigationStoreCreate((event) =>
+                this.eventRoute(event),
+            );
+            if (this.runtime.connected)
+                this.runtime.background(pluginNavigationLoad(this.pluginSurfacesContext()));
+        }
+        return this.pluginNavigationBinding;
+    }
+
+    /** Opens one durable MCP App instance whose handle survives context and data revisions. */
+    pluginAppOpen(instanceId: string): PluginAppHandle {
+        return pluginAppOpen(this.context, instanceId);
+    }
+
+    /** Loads one authenticated plugin icon as PNG bytes for a UI-owned blob URL. */
+    async pluginUiAssetRead(pluginId: string, assetId: string): Promise<ArrayBuffer> {
+        return pluginUiAssetRead(this.runtime, pluginId, assetId);
+    }
+
+    /** Opens native contributions visible in one chat, including global contributions. */
+    chatContributionsOpen(chatId: string): ChatContributionsHandle {
+        return chatContributionsOpen(this.context, chatId);
+    }
+
     threads(): ThreadsStore {
         if (!this.threadsBinding) {
             this.threadsBinding = threadsStoreCreate((event) => this.eventRoute(event));
@@ -974,6 +1051,8 @@ export class HappyState implements AsyncDisposable, Disposable {
         for (const [, binding] of this.documents.values()) documentSessionStop(binding);
         this.documents.dispose();
         this.documentLists.dispose();
+        this.pluginApps.dispose();
+        this.chatContributions.dispose();
         this.settingsCoordinator?.[Symbol.dispose]();
         this.identities.clear();
         this.sidebarChats.clear();
@@ -1299,6 +1378,13 @@ export class HappyState implements AsyncDisposable, Disposable {
                         ),
                     );
                 return;
+            case "appPresentationUpdateSubmitted":
+            case "pluginContributionInvokeSubmitted":
+            case "pluginContributionMenuResolveSubmitted":
+                this.backgroundIfConnected(() =>
+                    pluginContributionOutputRoute(this.pluginSurfacesContext(), event),
+                );
+                return;
             default: {
                 const exhaustive: never = event;
                 throw new Error(`Unhandled HappyState event: ${JSON.stringify(exhaustive)}`);
@@ -1534,6 +1620,42 @@ export class HappyState implements AsyncDisposable, Disposable {
         this.runtime.background(agentEffortLoad(this.chatActionContext(), chatId, agentUserId));
     }
 
+    private pluginSurfacesContext() {
+        return {
+            runtime: this.runtime,
+            pluginNavigationGet: () => this.pluginNavigationBinding,
+            chatContributionsGet: (chatId: string) => this.chatContributions.get(chatId),
+        };
+    }
+
+    private pluginAppLoad(instanceId: string): void {
+        this.runtime.background(
+            pluginAppLoad(
+                {
+                    runtime: this.runtime,
+                    pluginAppGet: (id) => this.pluginApps.get(id),
+                },
+                instanceId,
+            ),
+        );
+    }
+
+    private chatContributionsLoad(chatId: string): void {
+        this.runtime.background(chatContributionsLoad(this.pluginSurfacesContext(), chatId));
+    }
+
+    private pluginAppsReconcile(): void {
+        if (this.pluginNavigationBinding)
+            this.runtime.background(pluginNavigationLoad(this.pluginSurfacesContext()));
+        for (const [instanceId] of this.pluginApps.values()) this.pluginAppLoad(instanceId);
+    }
+
+    private pluginContributionsReconcile(): void {
+        if (this.pluginNavigationBinding)
+            this.runtime.background(pluginNavigationLoad(this.pluginSurfacesContext()));
+        for (const [chatId] of this.chatContributions.values()) this.chatContributionsLoad(chatId);
+    }
+
     private areaReconcile(area: string): void {
         areaReconcileAction(
             {
@@ -1606,6 +1728,8 @@ export class HappyState implements AsyncDisposable, Disposable {
                             pluginsLoad({ runtime: this.runtime, plugins: this.pluginsBinding }),
                         );
                 },
+                appsReconcile: () => this.pluginAppsReconcile(),
+                contributionsReconcile: () => this.pluginContributionsReconcile(),
                 permissionsReconcile: () => this.permissionsReconcile(),
                 identitiesReconcile: () =>
                     this.runtime.background(
@@ -1663,6 +1787,8 @@ export class HappyState implements AsyncDisposable, Disposable {
         this.agentTracesReload();
         this.mcpAppsReload();
         this.documentsReconcile();
+        this.pluginAppsReconcile();
+        this.pluginContributionsReconcile();
         const files = this.filesBinding;
         if (files && files.getState().status.type !== "unloaded")
             this.runtime.background(filesLoad({ runtime: this.runtime, files }));

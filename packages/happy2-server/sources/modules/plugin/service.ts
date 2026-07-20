@@ -19,6 +19,7 @@ import { channelSetArchived } from "../chat/channelSetArchived.js";
 import { messageSend } from "../message/messageSend.js";
 import { messageDelete } from "../message/messageDelete.js";
 import { messageGet } from "../message/messageGet.js";
+import { userFindActive } from "../user/userFindActive.js";
 import { messageList } from "../message/messageList.js";
 import { messageReactionSet } from "../message/messageReactionSet.js";
 import { searchPageGet } from "../search/searchPageGet.js";
@@ -44,6 +45,19 @@ import { pluginMcpAppBegin } from "./pluginMcpAppBegin.js";
 import { pluginMcpAppComplete } from "./pluginMcpAppComplete.js";
 import { pluginMcpAppGet } from "./pluginMcpAppGet.js";
 import { pluginMcpAppResourceGet } from "./pluginMcpAppResourceGet.js";
+import { pluginAppInstancePut } from "./pluginAppInstancePut.js";
+import { pluginAppInstanceContextUpdate } from "./pluginAppInstanceContextUpdate.js";
+import { pluginAppInstanceDelete } from "./pluginAppInstanceDelete.js";
+import { pluginAppInstanceGet } from "./pluginAppInstanceGet.js";
+import { pluginAppInstanceResourceGet } from "./pluginAppInstanceResourceGet.js";
+import { pluginAppInstanceList } from "./pluginAppInstanceList.js";
+import { pluginAppPreferenceUpdate } from "./pluginAppPreferenceUpdate.js";
+import { pluginContributionPut } from "./pluginContributionPut.js";
+import { pluginContributionDelete } from "./pluginContributionDelete.js";
+import { pluginContributionList } from "./pluginContributionList.js";
+import { pluginUiAssetGet } from "./pluginUiAssetGet.js";
+import { pluginUiAssetList } from "./pluginUiAssetList.js";
+import { pluginUiAssetsReplace } from "./pluginUiAssetsReplace.js";
 import { pluginSkillsListReady } from "./pluginSkillsListReady.js";
 import { pluginSkillsListInstalled } from "./pluginSkillsListInstalled.js";
 import { pluginApiPermissionSections } from "./impl/apiPermissions.js";
@@ -52,6 +66,14 @@ import type { PluginSkillSourceRecord } from "./impl/pluginSkillSource.js";
 import { pluginContainerInstanceAuthorize } from "./pluginContainerInstanceAuthorize.js";
 import { pluginContainerInstanceInvalidate } from "./pluginContainerInstanceInvalidate.js";
 import { pluginUninstall } from "./pluginUninstall.js";
+import {
+    pluginContributionDefinitionParse,
+    type PluginButtonControl,
+    type PluginContributionSpec,
+    type PluginInteractiveControl,
+    type PluginToolAction,
+} from "./impl/surfaceDefinition.js";
+import { pluginContributionDependenciesRequire } from "./impl/surfaceAuthority.js";
 import {
     MCP_APP_EXTENSION_ID,
     MCP_APP_RESOURCE_MIME_TYPE,
@@ -114,6 +136,12 @@ const MAX_MCP_APP_HTML_BYTES = 4 * 1024 * 1024;
 const MAX_ACTIVE_MCP_APP_OPERATIONS_PER_ACTOR = 16;
 const PLUGIN_CHAT_META_KEY = "happy2/chat";
 const PLUGIN_USERS_META_KEY = "happy2/users";
+const PLUGIN_VIEWER_META_KEY = "happy2/viewer";
+const PLUGIN_MESSAGE_META_KEY = "happy2/message";
+const PLUGIN_INSTANCE_META_KEY = "happy2/instance";
+const PLUGIN_CONTRIBUTION_META_KEY = "happy2/contribution";
+const MAX_SURFACE_ARGUMENT_BYTES = 64 * 1024;
+const MAX_SURFACE_RESULT_BYTES = 256 * 1024;
 
 interface PluginAgentRuntime {
     modelRequireAvailable(modelId: string): Promise<void>;
@@ -168,6 +196,33 @@ export class PluginService {
 
     async start(): Promise<void> {
         await this.packages.cleanupTemporary();
+        for (const plugin of this.catalog.list()) {
+            const installed = await pluginFindBySource(
+                this.executor,
+                plugin.source.kind,
+                plugin.source.reference,
+            );
+            if (installed?.packageDigest !== plugin.packageDigest) continue;
+            const currentAssets = await pluginUiAssetList(this.executor, installed.id);
+            if (
+                currentAssets.length === plugin.uiAssets.length &&
+                plugin.uiAssets.every((asset, index) => {
+                    const current = currentAssets[index];
+                    return (
+                        current?.assetId === asset.id &&
+                        current.relativePath === asset.path &&
+                        current.contentType === asset.contentType &&
+                        current.byteSize === asset.size &&
+                        current.width === asset.width &&
+                        current.height === asset.height &&
+                        current.checksumSha256 === asset.checksumSha256
+                    );
+                })
+            )
+                continue;
+            const hint = await pluginUiAssetsReplace(this.executor, installed.id, plugin.uiAssets);
+            await this.publish(hint).catch(this.onError);
+        }
         for (const hint of await pluginManagementRequestRecoverProcessing(this.executor))
             await this.publish(hint).catch(this.onError);
         for (const requestId of await pluginManagementRequestListTerminalIds(this.executor))
@@ -979,13 +1034,20 @@ export class PluginService {
             actorUserId: context.triggeredByUserId,
             agentUserId: context.agentUserId,
         });
+        const viewerToken = await this.tokens.issuePluginUserToken({
+            installationId,
+            userId: context.triggeredByUserId,
+        });
         const referencedUsers = await Promise.all(
             context.users.map(async (user) => ({
                 ...user,
-                token: await this.tokens.issuePluginUserToken({
-                    installationId,
-                    userId: user.id,
-                }),
+                token:
+                    user.id === context.triggeredByUserId
+                        ? viewerToken
+                        : await this.tokens.issuePluginUserToken({
+                              installationId,
+                              userId: user.id,
+                          }),
             })),
         );
         const result = await this.withClient(installationId, signal, agentCall, async (client) => {
@@ -998,6 +1060,10 @@ export class PluginService {
                             id: context.chatId,
                             token: chatToken,
                             triggeredByUserId: context.triggeredByUserId,
+                        },
+                        [PLUGIN_VIEWER_META_KEY]: {
+                            id: context.triggeredByUserId,
+                            token: viewerToken,
                         },
                         [PLUGIN_USERS_META_KEY]: referencedUsers,
                     },
@@ -1146,6 +1212,10 @@ export class PluginService {
                                     token: chatToken,
                                     triggeredByUserId: input.actorUserId,
                                 },
+                                [PLUGIN_VIEWER_META_KEY]: {
+                                    id: input.actorUserId,
+                                    token: userToken,
+                                },
                                 [PLUGIN_USERS_META_KEY]: [
                                     {
                                         ...app.actor,
@@ -1195,6 +1265,626 @@ export class PluginService {
                 return result;
             },
         );
+    }
+
+    async hostAppInstancePut(input: {
+        runtimeToken: string;
+        viewerToken?: string;
+        chatToken?: string;
+        definition: unknown;
+    }) {
+        const context = await this.authorizeSurfaceHost(
+            input.runtimeToken,
+            "apps:manage",
+            input.viewerToken,
+            input.chatToken,
+        );
+        const result = await pluginAppInstancePut(this.executor, {
+            installationId: context.installationId,
+            viewerUserId: context.viewerUserId,
+            chatId: context.chatId,
+            definition: input.definition,
+        });
+        await this.publish(result.hint).catch(this.onError);
+        return { ...result, sync: result.hint };
+    }
+
+    async hostAppInstanceContextUpdate(input: {
+        runtimeToken: string;
+        viewerToken?: string;
+        chatToken?: string;
+        instanceKey: unknown;
+        context: unknown;
+    }) {
+        const authorization = await this.authorizeSurfaceHost(
+            input.runtimeToken,
+            "apps:manage",
+            input.viewerToken,
+            input.chatToken,
+        );
+        const result = await pluginAppInstanceContextUpdate(this.executor, {
+            installationId: authorization.installationId,
+            viewerUserId: authorization.viewerUserId,
+            chatId: authorization.chatId,
+            instanceKey: input.instanceKey,
+            context: input.context,
+        });
+        await this.publish(result.hint).catch(this.onError);
+        return { ...result, sync: result.hint };
+    }
+
+    async hostAppInstanceDelete(input: {
+        runtimeToken: string;
+        viewerToken?: string;
+        chatToken?: string;
+        instanceKey: unknown;
+    }) {
+        const authorization = await this.authorizeSurfaceHost(
+            input.runtimeToken,
+            "apps:manage",
+            input.viewerToken,
+            input.chatToken,
+        );
+        const result = await pluginAppInstanceDelete(this.executor, {
+            installationId: authorization.installationId,
+            viewerUserId: authorization.viewerUserId,
+            chatId: authorization.chatId,
+            instanceKey: input.instanceKey,
+        });
+        if (result.hint) await this.publish(result.hint).catch(this.onError);
+        return { ...result, ...(result.hint ? { sync: result.hint } : {}) };
+    }
+
+    async hostContributionPut(input: {
+        runtimeToken: string;
+        viewerToken?: string;
+        chatToken?: string;
+        definition: unknown;
+    }) {
+        const context = await this.authorizeSurfaceHost(
+            input.runtimeToken,
+            "contributions:manage",
+            input.viewerToken,
+            input.chatToken,
+        );
+        const result = await pluginContributionPut(this.executor, {
+            installationId: context.installationId,
+            viewerUserId: context.viewerUserId,
+            chatId: context.chatId,
+            definition: input.definition,
+        });
+        await this.publish(result.hint).catch(this.onError);
+        return { ...result, sync: result.hint };
+    }
+
+    async hostContributionDelete(input: {
+        runtimeToken: string;
+        viewerToken?: string;
+        chatToken?: string;
+        externalKey: unknown;
+    }) {
+        const authorization = await this.authorizeSurfaceHost(
+            input.runtimeToken,
+            "contributions:manage",
+            input.viewerToken,
+            input.chatToken,
+        );
+        const result = await pluginContributionDelete(this.executor, {
+            installationId: authorization.installationId,
+            viewerUserId: authorization.viewerUserId,
+            chatId: authorization.chatId,
+            externalKey: input.externalKey,
+        });
+        if (result.hint) await this.publish(result.hint).catch(this.onError);
+        return { ...result, ...(result.hint ? { sync: result.hint } : {}) };
+    }
+
+    async listAppInstances(viewerUserId: string) {
+        return pluginAppInstanceList(this.executor, viewerUserId);
+    }
+
+    async getAppInstance(viewerUserId: string, instanceId: string) {
+        return this.withMcpAppOperation(
+            viewerUserId,
+            "Persistent MCP App load",
+            undefined,
+            async () => {
+                const app = await pluginAppInstanceGet(this.executor, viewerUserId, instanceId);
+                if (!app.available)
+                    throw new PluginError("not_ready", "MCP App instance is unavailable");
+                const resource = await pluginAppInstanceResourceGet(
+                    this.executor,
+                    viewerUserId,
+                    instanceId,
+                );
+                return {
+                    app,
+                    resource: {
+                        html: resource.html,
+                        contentHashSha256: resource.contentHashSha256,
+                        ...(resource.csp ? { csp: resource.csp } : {}),
+                        ...(resource.permissions ? { permissions: resource.permissions } : {}),
+                        ...(resource.domain ? { domain: resource.domain } : {}),
+                        ...(resource.prefersBorder === undefined
+                            ? {}
+                            : { prefersBorder: resource.prefersBorder }),
+                    },
+                    hostContext: {
+                        [PLUGIN_INSTANCE_META_KEY]: {
+                            id: app.id,
+                            key: app.instanceKey,
+                            context: app.context,
+                            dataRevision: app.dataRevision,
+                            definitionRevision: app.revision,
+                        },
+                    },
+                };
+            },
+        );
+    }
+
+    async callAppInstanceTool(input: {
+        viewerUserId: string;
+        instanceId: string;
+        toolName: string;
+        arguments: Readonly<Record<string, unknown>>;
+        signal?: AbortSignal;
+    }) {
+        boundedJson(input.arguments, "MCP App tool arguments", MAX_SURFACE_ARGUMENT_BYTES);
+        return this.withMcpAppOperation(
+            input.viewerUserId,
+            "Persistent MCP App tool execution",
+            input.signal,
+            async (signal) => {
+                const app = await pluginAppInstanceGet(
+                    this.executor,
+                    input.viewerUserId,
+                    input.instanceId,
+                );
+                if (!app.available)
+                    throw new PluginError("not_ready", "MCP App instance is unavailable");
+                const result = await this.callSurfaceTool({
+                    viewerUserId: input.viewerUserId,
+                    installationId: app.installationId,
+                    toolName: input.toolName,
+                    arguments: input.arguments,
+                    chatId: app.chatId,
+                    instance: { id: app.id, key: app.instanceKey },
+                    signal,
+                });
+                return result;
+            },
+        );
+    }
+
+    async readAppInstanceResource(input: {
+        viewerUserId: string;
+        instanceId: string;
+        uri: string;
+        signal?: AbortSignal;
+    }) {
+        if (!validMcpResourceUri(input.uri))
+            throw new PluginError("broken_configuration", "MCP resource URI is invalid");
+        return this.withMcpAppOperation(
+            input.viewerUserId,
+            "Persistent MCP App resource read",
+            input.signal,
+            async (signal) => {
+                const app = await pluginAppInstanceGet(
+                    this.executor,
+                    input.viewerUserId,
+                    input.instanceId,
+                );
+                if (!app.available)
+                    throw new PluginError("not_ready", "MCP App instance is unavailable");
+                const result = await this.withClient(
+                    app.installationId,
+                    signal,
+                    undefined,
+                    (client) => client.readResource({ uri: input.uri }),
+                );
+                if (!result) throw new PluginError("not_found", "MCP resource was not found");
+                boundedJson(result, "MCP resource result", MAX_MCP_APP_HTML_BYTES);
+                return result;
+            },
+        );
+    }
+
+    async listContributions(input: { viewerUserId: string; chatId?: string }) {
+        return pluginContributionList(this.executor, input);
+    }
+
+    async invokeContribution(input: {
+        viewerUserId: string;
+        contributionId: string;
+        actionId: string;
+        value?: unknown;
+        chatId?: string;
+        messageId?: string;
+        signal?: AbortSignal;
+    }) {
+        return this.withMcpAppOperation(
+            input.viewerUserId,
+            "Plugin contribution execution",
+            input.signal,
+            async (signal) => {
+                const context = await this.contributionContext(input);
+                const action = await this.contributionAction(
+                    context.contribution,
+                    input.actionId,
+                    input.value,
+                    context,
+                    signal,
+                );
+                const result = await this.callSurfaceTool({
+                    viewerUserId: input.viewerUserId,
+                    installationId: context.contribution.installationId,
+                    toolName: action.toolName,
+                    arguments: action.arguments,
+                    chatId: context.chatId,
+                    messageId: context.messageId,
+                    contribution: {
+                        id: context.contribution.id,
+                        key: context.contribution.externalKey,
+                        placement: context.contribution.location,
+                        revision: context.contribution.revision,
+                    },
+                    signal,
+                });
+                const openApp = action.openApp
+                    ? await this.contributionAppOpen(
+                          input.viewerUserId,
+                          context.contribution.installationId,
+                          action.openApp.instanceKey,
+                          action.openApp.presentation,
+                      )
+                    : undefined;
+                return { result, ...(openApp ? { openApp } : {}) };
+            },
+        );
+    }
+
+    async resolveContributionMenu(input: {
+        viewerUserId: string;
+        contributionId: string;
+        chatId?: string;
+        messageId?: string;
+        signal?: AbortSignal;
+    }): Promise<{ items: PluginButtonControl[]; revision: number }> {
+        return this.withMcpAppOperation(
+            input.viewerUserId,
+            "Plugin contribution menu resolution",
+            input.signal,
+            async (signal) => {
+                const context = await this.contributionContext(input);
+                if (context.contribution.spec.kind !== "asyncMenu")
+                    throw new PluginError("not_found", "Async contribution menu was not found");
+                const items = await this.resolveMenuItems(context, signal);
+                return { items, revision: context.contribution.revision };
+            },
+        );
+    }
+
+    async updateAppPresentation(
+        viewerUserId: string,
+        input: { instanceId: unknown; hidden: unknown; position?: unknown },
+    ) {
+        const result = await pluginAppPreferenceUpdate(this.executor, {
+            viewerUserId,
+            ...input,
+        });
+        await this.publish(result.hint).catch(this.onError);
+        const app = await pluginAppInstanceGet(
+            this.executor,
+            viewerUserId,
+            String(input.instanceId),
+        );
+        return { app, sync: result.hint };
+    }
+
+    async getUiAsset(viewerUserId: string, pluginId: string, assetId: string) {
+        if (!(await userFindActive(this.executor, viewerUserId)))
+            throw new PluginError("not_found", "Plugin UI asset was not found");
+        const asset = await pluginUiAssetGet(this.executor, pluginId, assetId);
+        return {
+            body: await this.packages.readUiAsset(asset),
+            contentType: asset.contentType,
+            checksumSha256: asset.checksumSha256,
+        };
+    }
+
+    private async authorizeSurfaceHost(
+        runtimeToken: string,
+        permission: "apps:manage" | "contributions:manage",
+        viewerToken?: string,
+        chatToken?: string,
+    ): Promise<{ installationId: string; viewerUserId?: string; chatId?: string }> {
+        const runtime = await this.authorizeHost(runtimeToken, permission);
+        let viewerUserId: string | undefined;
+        if (viewerToken) {
+            let viewer: Awaited<ReturnType<TokenService["verifyPluginUserToken"]>>;
+            try {
+                viewer = await this.tokens.verifyPluginUserToken(viewerToken);
+            } catch {
+                throw new PluginError("forbidden", "Plugin viewer token is invalid");
+            }
+            if (viewer.installationId !== runtime.installationId)
+                throw new PluginError(
+                    "forbidden",
+                    "Plugin viewer token belongs to another installation",
+                );
+            viewerUserId = viewer.userId;
+        }
+        let chatId: string | undefined;
+        if (chatToken) {
+            let chat: Awaited<ReturnType<TokenService["verifyPluginChatToken"]>>;
+            try {
+                chat = await this.tokens.verifyPluginChatToken(chatToken);
+            } catch {
+                throw new PluginError("forbidden", "Plugin chat token is invalid");
+            }
+            if (chat.installationId !== runtime.installationId)
+                throw new PluginError(
+                    "forbidden",
+                    "Plugin chat token belongs to another installation",
+                );
+            if (viewerUserId && chat.actorUserId !== viewerUserId)
+                throw new PluginError(
+                    "forbidden",
+                    "Plugin viewer and chat tokens belong to different actors",
+                );
+            if (!viewerUserId) viewerUserId = chat.actorUserId;
+            chatId = chat.chatId;
+        }
+        return {
+            installationId: runtime.installationId,
+            ...(viewerUserId ? { viewerUserId } : {}),
+            ...(chatId ? { chatId } : {}),
+        };
+    }
+
+    private async contributionContext(input: {
+        viewerUserId: string;
+        contributionId: string;
+        chatId?: string;
+        messageId?: string;
+    }) {
+        let chatId = input.chatId;
+        if (input.messageId) {
+            const message = await messageGet(this.executor, input.viewerUserId, input.messageId);
+            if (message.deletedAt)
+                throw new PluginError("not_found", "Contribution message was not found");
+            if (chatId && chatId !== message.chatId)
+                throw new PluginError("forbidden", "Contribution message belongs to another chat");
+            chatId = message.chatId;
+        }
+        const contribution = (
+            await pluginContributionList(this.executor, {
+                viewerUserId: input.viewerUserId,
+                ...(chatId ? { chatId } : {}),
+            })
+        ).find((candidate) => candidate.id === input.contributionId);
+        if (!contribution) throw new PluginError("not_found", "Plugin contribution was not found");
+        if (!contribution.available)
+            throw new PluginError("not_ready", "Plugin contribution is unavailable");
+        if (contribution.location === "messageMenu") {
+            if (!input.messageId)
+                throw new PluginError("forbidden", "Message contribution requires a message");
+        } else if (
+            contribution.location === "chatMenu" ||
+            contribution.location === "composerIcon" ||
+            contribution.location === "composerMenu"
+        ) {
+            if (!chatId) throw new PluginError("forbidden", "Chat contribution requires a chat");
+            if (input.messageId)
+                throw new PluginError(
+                    "forbidden",
+                    "Only message menu contributions accept a message",
+                );
+        } else if (chatId || input.messageId) {
+            throw new PluginError(
+                "forbidden",
+                "This contribution does not accept chat or message context",
+            );
+        }
+        return {
+            viewerUserId: input.viewerUserId,
+            contribution,
+            ...(chatId ? { chatId } : {}),
+            ...(input.messageId ? { messageId: input.messageId } : {}),
+        };
+    }
+
+    private async contributionAction(
+        contribution: Awaited<ReturnType<typeof pluginContributionList>>[number],
+        actionId: string,
+        value: unknown,
+        context: { viewerUserId: string; chatId?: string; messageId?: string },
+        signal: AbortSignal,
+    ): Promise<{
+        toolName: string;
+        arguments: Record<string, unknown>;
+        openApp?: PluginToolAction["openApp"];
+    }> {
+        if (contribution.spec.kind === "asyncMenu") {
+            const items = await this.resolveMenuItems({ contribution, ...context }, signal);
+            const item = items.find((candidate) => candidate.id === actionId);
+            if (!item) throw new PluginError("not_found", "Contribution action was not found");
+            return contributionControlAction(item, value);
+        }
+        const control = contributionControlFind(contribution.spec, actionId);
+        if (!control) throw new PluginError("not_found", "Contribution action was not found");
+        return contributionControlAction(control, value);
+    }
+
+    private async resolveMenuItems(
+        context: {
+            contribution: Awaited<ReturnType<typeof pluginContributionList>>[number];
+            viewerUserId: string;
+            chatId?: string;
+            messageId?: string;
+        },
+        signal: AbortSignal,
+    ): Promise<PluginButtonControl[]> {
+        if (context.contribution.spec.kind !== "asyncMenu")
+            throw new PluginError("not_found", "Async contribution menu was not found");
+        const result = await this.callSurfaceTool({
+            viewerUserId: context.viewerUserId,
+            installationId: context.contribution.installationId,
+            toolName: context.contribution.spec.resolverToolName,
+            arguments: {},
+            chatId: context.chatId,
+            messageId: context.messageId,
+            contribution: {
+                id: context.contribution.id,
+                key: context.contribution.externalKey,
+                placement: context.contribution.location,
+                revision: context.contribution.revision,
+            },
+            signal,
+        });
+        const items = asyncMenuItems(result);
+        await pluginContributionDependenciesRequire(
+            this.executor,
+            {
+                installationId: context.contribution.installationId,
+                pluginId: context.contribution.pluginId,
+            },
+            {
+                kind: "staticMenu",
+                id: context.contribution.spec.id,
+                title: context.contribution.spec.title,
+                description: context.contribution.spec.description,
+                items,
+            },
+        );
+        return items;
+    }
+
+    private async contributionAppOpen(
+        viewerUserId: string,
+        installationId: string,
+        instanceKey: string,
+        presentation: "primary" | "modal" | "fullscreen",
+    ): Promise<{ instanceId: string; presentation: "primary" | "modal" | "fullscreen" }> {
+        const app = (await pluginAppInstanceList(this.executor, viewerUserId)).find(
+            (candidate) =>
+                candidate.installationId === installationId &&
+                candidate.instanceKey === instanceKey &&
+                candidate.available,
+        );
+        if (!app) throw new PluginError("not_found", "Contribution app target was not found");
+        return { instanceId: app.id, presentation };
+    }
+
+    private async callSurfaceTool(input: {
+        viewerUserId: string;
+        installationId: string;
+        toolName: string;
+        arguments: Readonly<Record<string, unknown>>;
+        chatId?: string;
+        messageId?: string;
+        instance?: { id: string; key: string };
+        contribution?: {
+            id: string;
+            key: string;
+            placement: string;
+            revision: number;
+        };
+        signal: AbortSignal;
+    }) {
+        boundedJson(input.arguments, "Plugin surface tool arguments", MAX_SURFACE_ARGUMENT_BYTES);
+        const tool = (await pluginMcpToolsListReady(this.executor)).find(
+            (candidate) =>
+                candidate.installationId === input.installationId &&
+                candidate.name === input.toolName,
+        );
+        if (!tool || !mcpAppToolVisibleTo(tool.meta, "app"))
+            throw new PluginError("forbidden", "MCP tool is not available to this app");
+        const meta = await this.surfaceCallMeta(input);
+        const result = await this.withClient(
+            input.installationId,
+            input.signal,
+            undefined,
+            (client) =>
+                client.callTool({
+                    name: tool.name,
+                    arguments: input.arguments,
+                    _meta: meta,
+                }),
+        );
+        if (!result) throw new PluginError("not_found", "Plugin does not expose MCP tools");
+        boundedJson(result, "Plugin surface tool result", MAX_SURFACE_RESULT_BYTES);
+        return result;
+    }
+
+    private async surfaceCallMeta(input: {
+        viewerUserId: string;
+        installationId: string;
+        chatId?: string;
+        messageId?: string;
+        instance?: { id: string; key: string };
+        contribution?: { id: string; key: string; placement: string; revision: number };
+    }): Promise<Record<string, unknown>> {
+        const actor = await userFindActive(this.executor, input.viewerUserId);
+        if (!actor) throw new PluginError("not_found", "Plugin surface viewer was not found");
+        const viewerToken = await this.tokens.issuePluginUserToken({
+            installationId: input.installationId,
+            userId: input.viewerUserId,
+        });
+        const chatToken = input.chatId
+            ? await this.tokens.issuePluginChatToken({
+                  installationId: input.installationId,
+                  chatId: input.chatId,
+                  actorUserId: input.viewerUserId,
+                  agentUserId: input.viewerUserId,
+              })
+            : undefined;
+        const messageToken = input.messageId
+            ? await this.tokens.issuePluginMessageToken({
+                  installationId: input.installationId,
+                  messageId: input.messageId,
+                  actorUserId: input.viewerUserId,
+              })
+            : undefined;
+        return {
+            [PLUGIN_VIEWER_META_KEY]: { id: input.viewerUserId, token: viewerToken },
+            ...(input.chatId && chatToken
+                ? {
+                      [PLUGIN_CHAT_META_KEY]: {
+                          id: input.chatId,
+                          token: chatToken,
+                          triggeredByUserId: input.viewerUserId,
+                      },
+                  }
+                : {}),
+            ...(input.messageId && messageToken
+                ? {
+                      [PLUGIN_MESSAGE_META_KEY]: { id: input.messageId, token: messageToken },
+                  }
+                : {}),
+            ...(input.instance ? { [PLUGIN_INSTANCE_META_KEY]: input.instance } : {}),
+            ...(input.contribution
+                ? {
+                      [PLUGIN_CONTRIBUTION_META_KEY]: {
+                          ...input.contribution,
+                          ...(input.chatId ? { chatId: input.chatId } : {}),
+                          ...(input.messageId ? { messageId: input.messageId } : {}),
+                      },
+                  }
+                : {}),
+            [PLUGIN_USERS_META_KEY]: [
+                {
+                    id: actor.id,
+                    username: actor.username,
+                    firstName: actor.firstName,
+                    ...(actor.lastName ? { lastName: actor.lastName } : {}),
+                    kind: actor.kind,
+                    triggeredTurn: false,
+                    token: viewerToken,
+                },
+            ],
+        };
     }
 
     private skillSources(
@@ -2345,6 +3035,128 @@ function jsonArguments(value: unknown): Record<string, unknown> {
     return value && typeof value === "object" && !Array.isArray(value)
         ? (value as Record<string, unknown>)
         : {};
+}
+
+function contributionControlFind(
+    spec: PluginContributionSpec,
+    actionId: string,
+): PluginInteractiveControl | undefined {
+    if (!actionId || actionId.length > 64) return undefined;
+    if (spec.kind === "button") return spec.id === actionId ? spec : undefined;
+    if (spec.kind === "staticMenu") return spec.items.find((item) => item.id === actionId);
+    if (spec.kind === "section")
+        return spec.controls.find(
+            (control): control is PluginInteractiveControl =>
+                control.kind !== "text" && control.id === actionId,
+        );
+    return undefined;
+}
+
+function contributionControlAction(
+    control: PluginInteractiveControl,
+    value: unknown,
+): {
+    toolName: string;
+    arguments: Record<string, unknown>;
+    openApp?: PluginToolAction["openApp"];
+} {
+    let argumentsValue: Record<string, unknown>;
+    if (control.kind === "button") {
+        if (value !== undefined)
+            throw new PluginError("broken_configuration", "Button action does not accept value");
+        argumentsValue = {};
+    } else if (control.kind === "checkbox") {
+        if (typeof value !== "boolean")
+            throw new PluginError("broken_configuration", "Checkbox action requires a boolean");
+        argumentsValue = { value };
+    } else if (control.kind === "checkboxGroup") {
+        if (
+            !Array.isArray(value) ||
+            value.length > control.options.length ||
+            value.some((item) => typeof item !== "string")
+        )
+            throw new PluginError(
+                "broken_configuration",
+                "Checkbox group action requires option ids",
+            );
+        const selected = value as string[];
+        if (
+            new Set(selected).size !== selected.length ||
+            selected.some((id) => !control.options.some((option) => option.id === id))
+        )
+            throw new PluginError(
+                "broken_configuration",
+                "Checkbox group action contains an unknown option",
+            );
+        argumentsValue = { value: selected };
+    } else {
+        if (typeof value !== "string" || Buffer.byteLength(value, "utf8") > 2_048)
+            throw new PluginError(
+                "broken_configuration",
+                "Input action requires at most 2 KiB of text",
+            );
+        argumentsValue = { value };
+    }
+    return {
+        toolName: control.action.toolName,
+        arguments: argumentsValue,
+        ...(control.action.openApp ? { openApp: control.action.openApp } : {}),
+    };
+}
+
+function asyncMenuItems(result: unknown): PluginButtonControl[] {
+    const output = result && typeof result === "object" ? (result as Record<string, unknown>) : {};
+    const structured = output.structuredContent;
+    if (!structured || typeof structured !== "object" || Array.isArray(structured))
+        throw new PluginError(
+            "broken_configuration",
+            "Async menu must return structuredContent.items",
+        );
+    const record = structured as Record<string, unknown>;
+    if (Object.keys(record).some((key) => key !== "items"))
+        throw new PluginError(
+            "broken_configuration",
+            "Async menu structuredContent contains an unsupported field",
+        );
+    const parsed = pluginContributionDefinitionParse({
+        audience: { scope: "all_users" },
+        description: "Resolved async menu",
+        externalKey: "resolved-menu",
+        location: "chatMenu",
+        position: 0,
+        spec: {
+            kind: "staticMenu",
+            id: "resolved-menu",
+            title: "Resolved menu",
+            description: "Resolved async menu items",
+            items: record.items,
+        },
+        title: "Resolved menu",
+    });
+    if (parsed.spec.kind !== "staticMenu") throw new Error("Async menu parser returned wrong kind");
+    return [...parsed.spec.items];
+}
+
+function boundedJson(value: unknown, label: string, maximum: number): string {
+    let json: string;
+    try {
+        json = JSON.stringify(value);
+    } catch {
+        throw new PluginError("broken_configuration", `${label} is not valid JSON`);
+    }
+    if (json === undefined || Buffer.byteLength(json, "utf8") > maximum)
+        throw new PluginError("broken_configuration", `${label} is too large`);
+    return json;
+}
+
+function validMcpResourceUri(value: string): boolean {
+    if (!value || value.length > 2_048 || value.includes("\0")) return false;
+    try {
+        const url = new URL(value);
+        return Boolean(url.protocol && url.protocol !== ":");
+    } catch {
+        return false;
+    }
 }
 
 function mcpErrorMessage(content: unknown): string {

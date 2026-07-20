@@ -1,0 +1,163 @@
+/*
+ * C-132 PluginAppView / C-133 PluginAppOverlay — the page-quality and
+ * modal/fullscreen host chrome for a durable MCP App instance. A flex column
+ * with a 56px surface header over a full-bleed body that owns the sandboxed
+ * frame. Border-box everywhere, integer px on the 4px grid.
+ */
+
+.happy2-plugin-app-view,
+.happy2-plugin-app-view *,
+.happy2-plugin-app-view::before,
+.happy2-plugin-app-view::after {
+    box-sizing: border-box;
+}
+
+.happy2-plugin-app-view {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    background: var(--happy2-bg-surface);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+/* ---- Header (56px surface header row) --------------------------------- */
+
+.happy2-plugin-app-view__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 56px;
+    flex: none;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--happy2-border);
+    background: var(--happy2-bg-chrome);
+}
+
+.happy2-plugin-app-view__glyph {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    color: var(--happy2-text);
+}
+
+.happy2-plugin-app-view__heading {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 1px;
+}
+
+.happy2-plugin-app-view__title {
+    color: var(--happy2-text);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.happy2-plugin-app-view__description {
+    color: var(--happy2-text-muted);
+    font-size: 13px;
+    line-height: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.happy2-plugin-app-view__trailing {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ---- Body ------------------------------------------------------------- */
+
+.happy2-plugin-app-view__body {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    background: var(--happy2-bg-surface);
+}
+
+/* ---- Loading state ---------------------------------------------------- */
+
+.happy2-plugin-app-view__loading {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px;
+}
+
+.happy2-plugin-app-view__loading-text {
+    color: var(--happy2-text-muted);
+    font-size: 13px;
+    line-height: 18px;
+}
+
+/*
+ * Static progress ring: one accent arc on a strong hairline track. Un-animated
+ * so fixtures and screenshots stay deterministic.
+ */
+.happy2-plugin-app-view__spinner {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--happy2-border-strong);
+    border-top-color: var(--happy2-accent);
+    border-radius: var(--happy2-radius-pill);
+}
+
+/* ---- Overlay (modal / fullscreen) ------------------------------------- */
+
+.happy2-plugin-app-overlay {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--happy2-bg-surface);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-shell);
+    box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
+}
+
+/* A modal app is a large, resilient dialog card centered by ModalOverlay. */
+.happy2-plugin-app-overlay[data-presentation="modal"] {
+    width: min(920px, 100%);
+    height: min(640px, 100%);
+}
+
+/* A fullscreen app fills the whole overlay region (inside ModalOverlay's gutter). */
+.happy2-plugin-app-overlay[data-presentation="fullscreen"] {
+    width: 100%;
+    height: 100%;
+}
+
+.happy2-plugin-app-overlay__view {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* The overlay view rounds its top corners to parallel the 14px card corner minus
+   the 1px border (see DESIGN.md "Nested rounded corners"): max(0, 14 - 1) = 13px. */
+.happy2-plugin-app-overlay__view .happy2-plugin-app-view__header {
+    border-top-left-radius: 13px;
+    border-top-right-radius: 13px;
+}
+
+.happy2-plugin-app-overlay__controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}

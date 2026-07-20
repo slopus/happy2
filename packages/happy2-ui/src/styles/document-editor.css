@@ -43,6 +43,10 @@
     min-height: 0;
     width: 100%;
     overflow-y: auto;
+    padding: 0;
+}
+
+.happy2-document-editor .bn-editor > .bn-block-group {
     padding-inline: 48px;
     padding-block: 24px;
 }

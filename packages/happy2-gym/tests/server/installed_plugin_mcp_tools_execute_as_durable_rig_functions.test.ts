@@ -75,6 +75,10 @@ describe("installed plugin MCP tools in agent runs", () => {
                         token: expect.any(String),
                         triggeredByUserId: owner.id,
                     },
+                    "happy2/viewer": {
+                        id: owner.id,
+                        token: expect.any(String),
+                    },
                     "happy2/users": [
                         expect.objectContaining({
                             id: owner.id,

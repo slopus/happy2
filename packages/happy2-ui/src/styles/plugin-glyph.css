@@ -1,0 +1,29 @@
+/*
+ * C-131 PluginAssetGlyph — a plugin's monochrome PNG painted as a currentColor
+ * mask. The element is a fixed square that inherits ink color from its container
+ * so it reads exactly like a built-in Icon. The fallback variant centers a
+ * neutral Icon in the same slot so geometry never shifts when the mask arrives.
+ */
+
+.happy2-plugin-glyph {
+    box-sizing: border-box;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    color: inherit;
+    background-color: currentColor;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+}
+
+/* The fallback holds the slot with a neutral Icon, so it must not paint the mask
+   background; it is a plain flex box centering the Icon glyph. */
+.happy2-plugin-glyph--fallback {
+    background-color: transparent;
+    color: var(--happy2-text-muted);
+}

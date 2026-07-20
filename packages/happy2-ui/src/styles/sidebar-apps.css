@@ -1,0 +1,18 @@
+/*
+ * C-137 SidebarAppsSection footer — stacks the sidebar-menu contribution
+ * triggers over the manage affordance. The section body itself is the shared
+ * Sidebar; only the footer composition is owned here.
+ */
+
+.happy2-sidebar-apps__footer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.happy2-sidebar-apps__menu {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}

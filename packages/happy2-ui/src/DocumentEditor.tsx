@@ -1,6 +1,6 @@
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffectEvent, useLayoutEffect, useMemo, useRef } from "react";
 import {
     Awareness,
     applyAwarenessUpdate,
@@ -73,8 +73,9 @@ export function DocumentEditor(props: DocumentEditorProps) {
         [props.ydoc, awareness],
     );
 
-    const onPresenceRef = useRef(props.onPresence);
-    onPresenceRef.current = props.onPresence;
+    const presenceEmit = useEffectEvent((payload: DocumentEditorPresencePayload) =>
+        props.onPresence?.(payload),
+    );
     useLayoutEffect(() => {
         const onUpdate = (
             changes: { added: number[]; updated: number[]; removed: number[] },
@@ -86,7 +87,7 @@ export function DocumentEditor(props: DocumentEditorProps) {
                 (clientId) => clientId === local,
             );
             if (!touchedLocal) return;
-            onPresenceRef.current?.({
+            presenceEmit({
                 update: base64Encode(encodeAwarenessUpdate(awareness, [local])),
                 awarenessClientId: local,
             });
@@ -95,7 +96,7 @@ export function DocumentEditor(props: DocumentEditorProps) {
         // The editor seeds its local awareness state during creation, before
         // this listener exists; announce that initial state explicitly.
         if (awareness.getLocalState() !== null)
-            onPresenceRef.current?.({
+            presenceEmit({
                 update: base64Encode(encodeAwarenessUpdate(awareness, [awareness.clientID])),
                 awarenessClientId: awareness.clientID,
             });

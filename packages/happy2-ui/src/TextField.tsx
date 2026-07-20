@@ -9,6 +9,10 @@ export type TextFieldProps = {
     style?: CSSProperties;
     value?: string;
     onValueChange?: (value: string) => void;
+    /** Fires when the field loses focus, for commit-on-blur controls. */
+    onBlur?: () => void;
+    /** Fires on Enter in a single-line field, for commit-on-submit controls. */
+    onSubmit?: () => void;
     label?: string;
     placeholder?: string;
     type?: TextFieldType;
@@ -56,6 +60,8 @@ export function TextField(props: TextFieldProps) {
         "leadingIcon",
         "multiline",
         "name",
+        "onBlur",
+        "onSubmit",
         "onValueChange",
         "placeholder",
         "required",
@@ -133,6 +139,7 @@ export function TextField(props: TextFieldProps) {
                         disabled={local.disabled}
                         id={fieldId()}
                         name={local.name}
+                        onBlur={() => local.onBlur?.()}
                         onInput={(event) => local.onValueChange?.(event.currentTarget.value)}
                         placeholder={local.placeholder}
                         required={local.required}
@@ -150,7 +157,11 @@ export function TextField(props: TextFieldProps) {
                         disabled={local.disabled}
                         id={fieldId()}
                         name={local.name}
+                        onBlur={() => local.onBlur?.()}
                         onInput={(event) => local.onValueChange?.(event.currentTarget.value)}
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter") local.onSubmit?.();
+                        }}
                         placeholder={local.placeholder}
                         required={local.required}
                         type={local.type ?? "text"}

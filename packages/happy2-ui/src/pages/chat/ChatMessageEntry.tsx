@@ -30,6 +30,11 @@ export interface ChatMessageEntryProps {
      * by the application because each owns its own materialized surface store.
      */
     appNodes?: ReactNode;
+    /**
+     * Native plugin message-menu contribution triggers for this message, supplied
+     * by the application and bound to this message's id.
+     */
+    menuContributions?: ReactNode;
     onProfileOpen(profile: InfoPanelProfile): void;
     onImageOpen(message: LiveThreadMessage, imageId: string): void;
     onMenuSelect(message: LiveThreadMessage, action: string): void;
@@ -47,6 +52,7 @@ export function ChatMessageEntry(props: ChatMessageEntryProps): ReactNode {
             audienceLabel={props.audienceLabel}
             author={entry.author}
             body={entry.body}
+            contributions={props.menuContributions}
             deliveryState={entry.delivery ?? (entry.id.startsWith("local:") ? "sending" : "sent")}
             generationStatus={entry.generationStatus}
             grouped={props.grouped}

@@ -69,6 +69,14 @@
     background: var(--happy2-bg-surface);
 }
 
+/* A durable app page/overlay fills the region its parent allocates instead of a
+   fixed/app-requested height, so the sandboxed View scrolls internally. */
+.happy2-mcp-app__frame[data-fill] {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+}
+
 /* A bordered app keeps a hairline gutter so its own chrome reads as distinct. */
 .happy2-mcp-app__frame[data-bordered] {
     padding: 8px;

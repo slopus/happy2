@@ -118,6 +118,14 @@
     border-bottom-left-radius: 3px;
 }
 
+/* Native plugin composer contribution triggers sit inline with the built-in
+   composer actions. */
+.happy2-composer__contributions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
 .happy2-composer__trailing {
     display: flex;
     align-items: center;

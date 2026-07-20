@@ -774,6 +774,14 @@
     transform: translateY(0);
 }
 
+/* Native plugin message-menu contribution triggers sit inline with the built-in
+   reaction/reply/more actions in the hover toolbar. */
+.happy2-message__contributions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
 /* The 28px buttons are 3px inside the toolbar border box. At the occupied
  * outer corners their 3px curve is the true parallel of the 6px toolbar. */
 .happy2-message__action.happy2-button:first-child {

@@ -36,6 +36,7 @@ export type DesktopPrimaryRoute =
     | { readonly kind: "threads" }
     | { readonly kind: "calls" }
     | { readonly kind: "files" }
+    | { readonly kind: "apps"; readonly appId?: string }
     | { readonly kind: "settings"; readonly section: DesktopSettingsSection }
     | { readonly kind: "admin"; readonly section: DesktopAdminSection }
     | { readonly kind: "onboarding"; readonly step: DesktopOnboardingStep };
@@ -48,12 +49,19 @@ export type DesktopPanelRoute =
     | { readonly kind: "workspace" }
     | { readonly kind: "documents" };
 
+export type DesktopAppOverlayPresentation = "modal" | "fullscreen";
+
 export type DesktopOverlayRoute =
     | { readonly kind: "search"; readonly query: string }
     | { readonly kind: "profile"; readonly userId: string }
     | { readonly kind: "file"; readonly fileId: string }
     | { readonly kind: "workspace-file"; readonly chatId: string; readonly path: string }
-    | { readonly kind: "document"; readonly chatId: string; readonly documentId: string };
+    | { readonly kind: "document"; readonly chatId: string; readonly documentId: string }
+    | {
+          readonly kind: "app";
+          readonly instanceId: string;
+          readonly presentation: DesktopAppOverlayPresentation;
+      };
 
 export interface DesktopRoute {
     readonly primary: DesktopPrimaryRoute;

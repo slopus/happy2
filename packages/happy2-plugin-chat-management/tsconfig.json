@@ -1,0 +1,5 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": { "types": ["node"] },
+    "include": ["happy2.plugin.ts", "src"]
+}

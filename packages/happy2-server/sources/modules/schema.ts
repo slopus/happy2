@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
     type AnySQLiteColumn,
+    check,
     index,
     integer,
     primaryKey,
@@ -853,6 +854,259 @@ export const pluginInstallations = sqliteTable(
     (table) => [index("plugin_installations_plugin_id_index").on(table.pluginId)],
 );
 
+export const pluginUiAssets = sqliteTable(
+    "plugin_ui_assets",
+    {
+        pluginId: text("plugin_id")
+            .notNull()
+            .references(() => plugins.id, { onDelete: "cascade" }),
+        assetId: text("asset_id").notNull(),
+        relativePath: text("relative_path").notNull(),
+        contentType: text("content_type").notNull(),
+        byteSize: integer("byte_size").notNull(),
+        width: integer("width").notNull(),
+        height: integer("height").notNull(),
+        checksumSha256: text("checksum_sha256").notNull(),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [
+        primaryKey({ columns: [table.pluginId, table.assetId] }),
+        index("plugin_ui_assets_checksum_index").on(table.checksumSha256),
+        check("plugin_ui_assets_asset_id_check", sql`length(${table.assetId}) between 1 and 64`),
+        check(
+            "plugin_ui_assets_relative_path_check",
+            sql`length(${table.relativePath}) between 1 and 512`,
+        ),
+        check("plugin_ui_assets_content_type_check", sql`${table.contentType} = 'image/png'`),
+        check("plugin_ui_assets_byte_size_check", sql`${table.byteSize} between 1 and 65536`),
+        check(
+            "plugin_ui_assets_dimensions_check",
+            sql`${table.width} = 40 and ${table.height} = 40`,
+        ),
+        check(
+            "plugin_ui_assets_checksum_check",
+            sql`length(${table.checksumSha256}) = 64 and ${table.checksumSha256} not glob '*[^0-9a-f]*'`,
+        ),
+    ],
+);
+
+export const pluginAppInstances = sqliteTable(
+    "plugin_app_instances",
+    {
+        id: text("id").primaryKey().notNull(),
+        installationId: text("installation_id")
+            .notNull()
+            .references(() => pluginInstallations.id, { onDelete: "cascade" }),
+        instanceKey: text("instance_key").notNull(),
+        resourceUri: text("resource_uri").notNull(),
+        resourceHtml: text("resource_html").notNull(),
+        resourceContentHashSha256: text("resource_content_hash_sha256").notNull(),
+        resourceCspJson: text("resource_csp_json"),
+        resourcePermissionsJson: text("resource_permissions_json"),
+        resourceDomain: text("resource_domain"),
+        resourcePrefersBorder: integer("resource_prefers_border", { mode: "boolean" }),
+        title: text("title").notNull(),
+        description: text("description").notNull(),
+        assetId: text("asset_id").notNull(),
+        contextJson: text("context_json").notNull().default("{}"),
+        dataRevision: integer("data_revision").notNull().default(0),
+        scope: text("scope").notNull(),
+        ownerUserId: text("owner_user_id").references(() => users.id, {
+            onDelete: "cascade",
+        }),
+        chatId: text("chat_id").references(() => chats.id, { onDelete: "cascade" }),
+        presentation: text("presentation").notNull().default("sidebar"),
+        position: text("position").notNull(),
+        revision: integer("revision").notNull().default(0),
+        createdByUserId: text("created_by_user_id").references(() => users.id, {
+            onDelete: "set null",
+        }),
+        syncSequence: integer("sync_sequence").notNull().default(0),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [
+        uniqueIndex("plugin_app_instances_installation_key_unique").on(
+            table.installationId,
+            table.instanceKey,
+        ),
+        index("plugin_app_instances_resource_index").on(table.installationId, table.resourceUri),
+        index("plugin_app_instances_owner_index").on(
+            table.ownerUserId,
+            table.presentation,
+            table.position,
+        ),
+        index("plugin_app_instances_chat_index").on(
+            table.chatId,
+            table.presentation,
+            table.position,
+        ),
+        index("plugin_app_instances_listing_index").on(
+            table.scope,
+            table.presentation,
+            table.position,
+        ),
+        check(
+            "plugin_app_instances_instance_key_check",
+            sql`length(${table.instanceKey}) between 1 and 128`,
+        ),
+        check(
+            "plugin_app_instances_resource_uri_check",
+            sql`length(${table.resourceUri}) between 6 and 2048 and substr(${table.resourceUri}, 1, 5) = 'ui://'`,
+        ),
+        check(
+            "plugin_app_instances_resource_hash_check",
+            sql`length(${table.resourceContentHashSha256}) = 64 and ${table.resourceContentHashSha256} not glob '*[^0-9a-f]*'`,
+        ),
+        check(
+            "plugin_app_instances_resource_csp_check",
+            sql`${table.resourceCspJson} is null or (json_valid(${table.resourceCspJson}) and json_type(${table.resourceCspJson}) = 'object')`,
+        ),
+        check(
+            "plugin_app_instances_resource_permissions_check",
+            sql`${table.resourcePermissionsJson} is null or (json_valid(${table.resourcePermissionsJson}) and json_type(${table.resourcePermissionsJson}) = 'object')`,
+        ),
+        check(
+            "plugin_app_instances_resource_border_check",
+            sql`${table.resourcePrefersBorder} is null or ${table.resourcePrefersBorder} in (0, 1)`,
+        ),
+        check(
+            "plugin_app_instances_title_check",
+            sql`length(trim(${table.title})) between 1 and 64`,
+        ),
+        check(
+            "plugin_app_instances_description_check",
+            sql`length(trim(${table.description})) between 1 and 256`,
+        ),
+        check(
+            "plugin_app_instances_asset_id_check",
+            sql`length(${table.assetId}) between 1 and 64`,
+        ),
+        check(
+            "plugin_app_instances_context_check",
+            sql`length(${table.contextJson}) <= 32768 and case when json_valid(${table.contextJson}) then json_type(${table.contextJson}) = 'object' else 0 end`,
+        ),
+        check("plugin_app_instances_data_revision_check", sql`${table.dataRevision} >= 0`),
+        check("plugin_app_instances_scope_check", sql`${table.scope} in ('all_users', 'user')`),
+        check(
+            "plugin_app_instances_owner_check",
+            sql`(${table.scope} = 'all_users' and ${table.ownerUserId} is null) or (${table.scope} = 'user' and ${table.ownerUserId} is not null)`,
+        ),
+        check(
+            "plugin_app_instances_presentation_check",
+            sql`${table.presentation} in ('sidebar', 'detached')`,
+        ),
+        check(
+            "plugin_app_instances_position_check",
+            sql`length(${table.position}) between 1 and 256`,
+        ),
+        check("plugin_app_instances_revision_check", sql`${table.revision} >= 0`),
+        check("plugin_app_instances_sync_sequence_check", sql`${table.syncSequence} >= 0`),
+    ],
+);
+
+export const pluginContributions = sqliteTable(
+    "plugin_contributions",
+    {
+        id: text("id").primaryKey().notNull(),
+        installationId: text("installation_id")
+            .notNull()
+            .references(() => pluginInstallations.id, { onDelete: "cascade" }),
+        contributionKey: text("contribution_key").notNull(),
+        placement: text("placement").notNull(),
+        title: text("title").notNull(),
+        description: text("description").notNull(),
+        specJson: text("spec_json").notNull(),
+        scope: text("scope").notNull(),
+        ownerUserId: text("owner_user_id").references(() => users.id, {
+            onDelete: "cascade",
+        }),
+        chatId: text("chat_id").references(() => chats.id, { onDelete: "cascade" }),
+        position: text("position").notNull(),
+        revision: integer("revision").notNull().default(0),
+        syncSequence: integer("sync_sequence").notNull().default(0),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [
+        uniqueIndex("plugin_contributions_installation_key_unique").on(
+            table.installationId,
+            table.contributionKey,
+        ),
+        index("plugin_contributions_placement_index").on(table.placement, table.position),
+        index("plugin_contributions_owner_index").on(
+            table.ownerUserId,
+            table.placement,
+            table.position,
+        ),
+        index("plugin_contributions_chat_index").on(table.chatId, table.placement, table.position),
+        check(
+            "plugin_contributions_key_check",
+            sql`length(${table.contributionKey}) between 1 and 128`,
+        ),
+        check(
+            "plugin_contributions_placement_check",
+            sql`${table.placement} in ('sidebarMenu', 'profileSection', 'pluginSettings', 'chatMenu', 'composerIcon', 'composerMenu', 'messageMenu')`,
+        ),
+        check(
+            "plugin_contributions_title_check",
+            sql`length(trim(${table.title})) between 1 and 64`,
+        ),
+        check(
+            "plugin_contributions_description_check",
+            sql`length(trim(${table.description})) between 1 and 256`,
+        ),
+        check(
+            "plugin_contributions_spec_check",
+            sql`length(${table.specJson}) between 2 and 32768 and case when json_valid(${table.specJson}) then json_type(${table.specJson}) = 'object' else 0 end`,
+        ),
+        check("plugin_contributions_scope_check", sql`${table.scope} in ('all_users', 'user')`),
+        check(
+            "plugin_contributions_owner_check",
+            sql`(${table.scope} = 'all_users' and ${table.ownerUserId} is null) or (${table.scope} = 'user' and ${table.ownerUserId} is not null)`,
+        ),
+        check(
+            "plugin_contributions_position_check",
+            sql`length(${table.position}) between 1 and 256`,
+        ),
+        check("plugin_contributions_revision_check", sql`${table.revision} >= 0`),
+        check("plugin_contributions_sync_sequence_check", sql`${table.syncSequence} >= 0`),
+    ],
+);
+
+export const appPresentationPreferences = sqliteTable(
+    "app_presentation_preferences",
+    {
+        userId: text("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        instanceId: text("instance_id")
+            .notNull()
+            .references(() => pluginAppInstances.id, { onDelete: "cascade" }),
+        hidden: integer("hidden", { mode: "boolean" }).notNull().default(false),
+        position: text("position"),
+        syncSequence: integer("sync_sequence").notNull().default(0),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [
+        primaryKey({ columns: [table.userId, table.instanceId] }),
+        index("app_presentation_preferences_instance_index").on(table.instanceId),
+        index("app_presentation_preferences_user_listing_index").on(
+            table.userId,
+            table.hidden,
+            table.position,
+        ),
+        check("app_presentation_preferences_hidden_check", sql`${table.hidden} in (0, 1)`),
+        check(
+            "app_presentation_preferences_position_check",
+            sql`${table.position} is null or length(${table.position}) between 1 and 256`,
+        ),
+        check("app_presentation_preferences_sync_sequence_check", sql`${table.syncSequence} >= 0`),
+    ],
+);
+
 export const pluginSkills = sqliteTable(
     "plugin_skills",
     {
@@ -1555,6 +1809,7 @@ export const webhookSubscriptions = sqliteTable("webhook_subscriptions", {
 export const schema = {
     accountBans,
     accounts,
+    appPresentationPreferences,
     agentImages,
     agentImageSettings,
     agentTurns,
@@ -1612,12 +1867,15 @@ export const schema = {
     oidcIdentities,
     pluginInstallations,
     pluginInstallationVariables,
+    pluginAppInstances,
+    pluginContributions,
     pluginFunctionResults,
     pluginMcpAppCalls,
     pluginMcpAppResources,
     pluginMcpTools,
     pluginSkills,
     pluginManagementRequests,
+    pluginUiAssets,
     plugins,
     rateLimitBuckets,
     reactions,

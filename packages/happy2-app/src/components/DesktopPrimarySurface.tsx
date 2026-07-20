@@ -10,6 +10,7 @@ import type { HappyState } from "happy2-state";
 import type { AuthSession } from "./AuthGate";
 import type { DesktopNavigation, DesktopRoute } from "../navigation/desktopRouteTypes";
 import { AdminView } from "../views/AdminView";
+import { AppsView } from "../views/AppsView";
 import { CallsView } from "../views/CallsView";
 import { ChatView } from "../views/ChatView";
 import { FilesView } from "../views/FilesView";
@@ -31,6 +32,8 @@ export interface DesktopPrimarySurfaceProps {
     sidebarFooter: ReactNode;
     /** Admin drill-down sidebar, present only while the admin route is active. */
     adminSidebar?: ReactNode;
+    /** Apps drill-down sidebar, present only while the apps route is active. */
+    appsSidebar?: ReactNode;
     route: DesktopRoute;
     session?: AuthSession;
     state: HappyState;
@@ -128,6 +131,11 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
         )
     ) : primary().kind === "calls" ? (
         chatView(<CallsView state={props.state} />)
+    ) : primary().kind === "apps" ? (
+        chatView(
+            <AppsView navigation={props.navigation} route={props.route} state={props.state} />,
+            props.appsSidebar,
+        )
     ) : adminPrimary() ? (
         chatView(
             adminSectionAllowed() ? (

@@ -28,7 +28,7 @@ describe("plugin runtime capability tokens", () => {
         await expect(restarted.verify(token)).rejects.toThrow();
     });
 
-    it("issues non-expiring chat capabilities bound to one plugin installation", async () => {
+    it("issues short-lived chat capabilities bound to one plugin installation", async () => {
         const config = defaultConfig();
         const keys = generateKeyPairSync("rsa", {
             modulusLength: 2048,
@@ -43,7 +43,7 @@ describe("plugin runtime capability tokens", () => {
             agentUserId: "working-agent",
         });
 
-        expect(decodeJwt(token)).not.toHaveProperty("exp");
+        expectCapabilityExpiresWithinFiveMinutes(token);
         await expect(tokens.verifyPluginChatToken(token)).resolves.toEqual({
             installationId: "chat-management-installation",
             chatId: "current-chat",
@@ -53,7 +53,7 @@ describe("plugin runtime capability tokens", () => {
         await expect(tokens.verifyPluginRuntimeToken(token)).rejects.toThrow();
     });
 
-    it("issues non-expiring user capabilities bound to one plugin installation", async () => {
+    it("issues short-lived user capabilities bound to one plugin installation", async () => {
         const config = defaultConfig();
         const keys = generateKeyPairSync("rsa", {
             modulusLength: 2048,
@@ -66,7 +66,7 @@ describe("plugin runtime capability tokens", () => {
             userId: "referenced-user",
         });
 
-        expect(decodeJwt(token)).not.toHaveProperty("exp");
+        expectCapabilityExpiresWithinFiveMinutes(token);
         await expect(tokens.verifyPluginUserToken(token)).resolves.toEqual({
             installationId: "chat-management-installation",
             userId: "referenced-user",
@@ -74,7 +74,7 @@ describe("plugin runtime capability tokens", () => {
         await expect(tokens.verifyPluginChatToken(token)).rejects.toThrow();
     });
 
-    it("issues non-expiring message capabilities bound to one plugin installation", async () => {
+    it("issues short-lived message capabilities bound to one plugin installation", async () => {
         const config = defaultConfig();
         const keys = generateKeyPairSync("rsa", {
             modulusLength: 2048,
@@ -88,7 +88,7 @@ describe("plugin runtime capability tokens", () => {
             actorUserId: "requesting-user",
         });
 
-        expect(decodeJwt(token)).not.toHaveProperty("exp");
+        expectCapabilityExpiresWithinFiveMinutes(token);
         await expect(tokens.verifyPluginMessageToken(token)).resolves.toEqual({
             installationId: "chat-management-installation",
             messageId: "message-1",
@@ -133,3 +133,12 @@ describe("plugin runtime capability tokens", () => {
         await expect(service.verify(token)).rejects.toThrow();
     });
 });
+
+function expectCapabilityExpiresWithinFiveMinutes(token: string): void {
+    const payload = decodeJwt(token);
+    expect(payload.iat).toBeTypeOf("number");
+    expect(payload.exp).toBeTypeOf("number");
+    expect(
+        Math.abs((payload.exp as number) - ((payload.iat as number) + 5 * 60)),
+    ).toBeLessThanOrEqual(1);
+}

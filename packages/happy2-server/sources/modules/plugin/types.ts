@@ -51,6 +51,8 @@ export type PluginHostPermission =
     | "environments:read"
     | "environments:manage"
     | "environments:deactivate"
+    | "apps:manage"
+    | "contributions:manage"
     | "plugins:list"
     | "plugins:install"
     | "plugins:uninstall"
@@ -78,6 +80,8 @@ export const pluginHostPermissions: readonly PluginHostPermission[] = [
     "environments:read",
     "environments:manage",
     "environments:deactivate",
+    "apps:manage",
+    "contributions:manage",
     "plugins:list",
     "plugins:install",
     "plugins:uninstall",
@@ -101,6 +105,7 @@ export interface PluginApiPermissionSection {
         | "commands"
         | "workspace"
         | "environments"
+        | "apps"
         | "plugins";
     displayName: string;
     readOnly: PluginApiPermissionDefinition[];
@@ -129,9 +134,23 @@ export interface PluginManifest {
     displayName: string;
     shortName: string;
     description: string;
+    uiAssets: PluginUiAssetDefinition[];
     variables: PluginVariableDefinition[];
     container?: PluginContainer;
     mcp?: PluginMcp;
+}
+
+export interface PluginUiAssetDefinition {
+    id: string;
+    path: string;
+}
+
+export interface PluginUiAsset extends PluginUiAssetDefinition {
+    contentType: "image/png";
+    size: number;
+    width: 40;
+    height: 40;
+    checksumSha256: string;
 }
 
 export interface PluginSkillSummary {
@@ -161,6 +180,7 @@ export interface PluginPackage {
     directory: string;
     iconPath: string;
     image: PluginImageMetadata;
+    uiAssets: PluginUiAsset[];
     packageDigest: string;
     source: PluginSource;
 }

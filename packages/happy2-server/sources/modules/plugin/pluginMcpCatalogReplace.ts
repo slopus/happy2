@@ -111,7 +111,7 @@ export async function pluginMcpCatalogReplace(
             kind: "plugin.mcp_tools_synced",
             entityId: installationId,
         });
-        return areaHint(sequence, "plugins");
+        return { ...areaHint(sequence, "plugins"), areas: ["plugins", "apps", "contributions"] };
     });
 }
 

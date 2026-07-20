@@ -155,6 +155,21 @@ const definitions = {
         section: "environments",
         access: "mutations",
     },
+    "apps:manage": {
+        id: "apps:manage",
+        displayName: "Manage app surfaces",
+        description: "Create and update durable MCP App destinations for an authorized audience.",
+        section: "apps",
+        access: "mutations",
+    },
+    "contributions:manage": {
+        id: "contributions:manage",
+        displayName: "Manage app actions",
+        description:
+            "Create and update typed actions in Happy's native menus, composer, and settings surfaces.",
+        section: "apps",
+        access: "mutations",
+    },
     "plugins:list": {
         id: "plugins:list",
         displayName: "View plugins",
@@ -217,6 +232,7 @@ export function pluginApiPermissionSections(
             { id: "commands", displayName: "Commands" },
             { id: "workspace", displayName: "Workspace" },
             { id: "environments", displayName: "Environments" },
+            { id: "apps", displayName: "App surfaces" },
             { id: "plugins", displayName: "Plugins" },
         ] as const
     ).flatMap((section) => {

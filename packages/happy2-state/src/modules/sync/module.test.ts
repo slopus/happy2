@@ -28,6 +28,8 @@ describe("sync module", () => {
             setupReconcile: vi.fn(),
             agentSecretsReconcile: vi.fn(),
             pluginsReconcile: vi.fn(),
+            appsReconcile: vi.fn(),
+            contributionsReconcile: vi.fn(),
             permissionsReconcile: vi.fn(),
             identitiesReconcile: vi.fn(),
             unknownArea: vi.fn(),
@@ -47,6 +49,8 @@ describe("sync module", () => {
             "user-onboarding",
             "agent-secrets",
             "plugins",
+            "apps",
+            "contributions",
             "permissions",
             "users",
             "profile",
@@ -67,6 +71,8 @@ describe("sync module", () => {
         expect(context.setupReconcile).toHaveBeenCalledTimes(3);
         expect(context.agentSecretsReconcile).toHaveBeenCalledOnce();
         expect(context.pluginsReconcile).toHaveBeenCalledOnce();
+        expect(context.appsReconcile).toHaveBeenCalledOnce();
+        expect(context.contributionsReconcile).toHaveBeenCalledOnce();
         expect(context.permissionsReconcile).toHaveBeenCalledOnce();
         expect(context.identitiesReconcile).toHaveBeenCalledTimes(2);
         expect(context.unknownArea).toHaveBeenCalledTimes(2);

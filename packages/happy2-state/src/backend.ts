@@ -19,6 +19,12 @@ import type {
     McpToolResult,
     MessageSummary,
     NotificationSummary,
+    PluginAppSummary,
+    PluginAppView,
+    PluginButtonControl,
+    PluginContributionActionValue,
+    PluginContributionInvocationResult,
+    PluginContributionSummary,
     PresenceSettingsSummary,
     PresenceSnapshot,
     UserSummary,
@@ -182,6 +188,15 @@ export const backendOperations = {
     getMcpApp: get("/v0/messages/:messageId/mcpApps/:callId"),
     callMcpAppTool: rpcPost("/v0/messages/:messageId/mcpApps/:callId/callTool"),
     readMcpAppResource: rpcPost("/v0/messages/:messageId/mcpApps/:callId/readResource"),
+    getPluginApps: get("/v0/apps"),
+    getPluginUiAsset: get("/v0/plugins/:pluginId/uiAssets/:assetId"),
+    getPluginApp: get("/v0/apps/:instanceId"),
+    callPluginAppTool: rpcPost("/v0/apps/:instanceId/callTool"),
+    readPluginAppResource: rpcPost("/v0/apps/:instanceId/readResource"),
+    getPluginContributions: get("/v0/contributions", ["chatId"]),
+    invokePluginContribution: rpcPost("/v0/contributions/:contributionId/invoke"),
+    resolvePluginContributionMenu: rpcPost("/v0/contributions/:contributionId/resolveMenu"),
+    updateAppPresentation: post("/v0/me/updateAppPresentation"),
     getThreads: get("/v0/threads", ["before", "unreadOnly", "limit"]),
     getNotifications: get("/v0/notifications", ["before", "unreadOnly", "limit"]),
     markNotificationsRead: post("/v0/notifications/markRead"),
@@ -595,6 +610,32 @@ export interface KnownBackendInputs {
         readonly messageId: string;
         readonly callId: string;
         readonly uri: string;
+    };
+    getPluginApp: { readonly instanceId: string };
+    getPluginUiAsset: { readonly pluginId: string; readonly assetId: string };
+    callPluginAppTool: {
+        readonly instanceId: string;
+        readonly name: string;
+        readonly arguments: Readonly<Record<string, unknown>>;
+    };
+    readPluginAppResource: { readonly instanceId: string; readonly uri: string };
+    getPluginContributions: { readonly chatId?: string };
+    invokePluginContribution: {
+        readonly contributionId: string;
+        readonly actionId: string;
+        readonly value?: PluginContributionActionValue;
+        readonly chatId?: string;
+        readonly messageId?: string;
+    };
+    resolvePluginContributionMenu: {
+        readonly contributionId: string;
+        readonly chatId?: string;
+        readonly messageId?: string;
+    };
+    updateAppPresentation: {
+        readonly instanceId: string;
+        readonly hidden: boolean;
+        readonly position?: number;
     };
     updateThreadFollow: { readonly chatId: string; readonly followed: boolean };
     deleteMessage: { readonly messageId: string };
@@ -1083,6 +1124,18 @@ export interface KnownBackendResults {
     getMcpApp: McpAppView;
     callMcpAppTool: { readonly result: McpToolResult };
     readMcpAppResource: { readonly result: McpResourceReadResult };
+    getPluginApps: { readonly apps: readonly PluginAppSummary[] };
+    getPluginUiAsset: ArrayBuffer;
+    getPluginApp: PluginAppView;
+    callPluginAppTool: { readonly result: McpToolResult };
+    readPluginAppResource: { readonly result: McpResourceReadResult };
+    getPluginContributions: { readonly contributions: readonly PluginContributionSummary[] };
+    invokePluginContribution: PluginContributionInvocationResult;
+    resolvePluginContributionMenu: {
+        readonly items: readonly PluginButtonControl[];
+        readonly revision: number;
+    };
+    updateAppPresentation: { readonly app: PluginAppSummary; readonly sync: unknown };
     getThreads: { readonly threads: readonly ChatSummary[]; readonly nextCursor?: string };
     getNotifications: {
         readonly notifications: readonly NotificationSummary[];

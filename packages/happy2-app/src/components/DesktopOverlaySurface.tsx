@@ -5,6 +5,7 @@ import type { DesktopNavigation, DesktopRoute } from "../navigation/desktopRoute
 import { SearchOverlay } from "../views/SearchOverlay";
 import { ProfileView } from "../views/ProfileView";
 import { SettingsView } from "../views/SettingsView";
+import { PluginAppOverlayView } from "../views/PluginAppOverlayView";
 import { DesktopFileOverlay } from "./DesktopFileOverlay";
 export interface DesktopOverlaySurfaceProps {
     route: DesktopRoute;
@@ -28,6 +29,10 @@ export function DesktopOverlaySurface(props: DesktopOverlaySurfaceProps) {
     const profileOverlay = () => {
         const value = overlay();
         return value?.kind === "profile" ? value : undefined;
+    };
+    const appOverlay = () => {
+        const value = overlay();
+        return value?.kind === "app" ? value : undefined;
     };
     const close = () => props.navigation.close("overlay");
     return searchOverlay() ? (
@@ -60,6 +65,28 @@ export function DesktopOverlaySurface(props: DesktopOverlaySurfaceProps) {
         <DesktopFileOverlay
             fileId={fileOverlay()?.fileId ?? ""}
             onClose={close}
+            state={props.state}
+        />
+    ) : appOverlay() ? (
+        <PluginAppOverlayView
+            instanceId={appOverlay()!.instanceId}
+            navigation={props.navigation}
+            route={props.route}
+            onClose={close}
+            onPresentationChange={(presentation) =>
+                props.navigation.navigate(
+                    {
+                        ...props.route,
+                        overlay: {
+                            kind: "app",
+                            instanceId: appOverlay()!.instanceId,
+                            presentation,
+                        },
+                    },
+                    { replace: true },
+                )
+            }
+            presentation={appOverlay()!.presentation}
             state={props.state}
         />
     ) : null;

@@ -48,15 +48,18 @@ to a ready installation.
 
 ## Package anatomy
 
-Each package has this shape. Built-ins live below
-`packages/happy2-server/plugins`; installed snapshots live below the configured
-`plugins.directory`. A ZIP may contain this tree at its root or inside one
-top-level folder:
+Each package has this shape. Built-ins are authored as dedicated
+`packages/happy2-plugin-*` workspaces, emit this tree in `dist/plugin`, and are
+validated and assembled into `packages/happy2-server/dist/plugins` for development
+and publication. Installed snapshots live below the configured `plugins.directory`.
+A ZIP may contain this tree at its root or inside one top-level folder:
 
 ```text
 example-plugin/
 ├── plugin.json
 ├── plugin.png
+├── assets/                    # optional host-rendered monochrome UI assets
+│   └── create-task.png
 ├── data/                     # server-owned; absent from source ZIPs
 │   └── <installation-id>/      # persistent writable workspace
 ├── container/                 # optional; used by bundled stdio runtimes
@@ -103,6 +106,12 @@ administrator can choose one.
     "displayName": "Project Search",
     "shortName": "project-search",
     "description": "Searches source code and project documentation.",
+    "uiAssets": [
+        {
+            "id": "create-task",
+            "path": "assets/create-task.png"
+        }
+    ],
     "variables": [
         {
             "key": "PROJECT_API_TOKEN",
@@ -127,15 +136,24 @@ administrator can choose one.
 ```
 
 `version` uses `x.y.z` SemVer syntax. `shortName` is the stable package name and
-must match a built-in package directory. External ZIPs are not required to make
-their enclosing folder match; `shortName` still identifies the validated
-package metadata and is not an installation identity.
+must match its directory in the assembled built-in catalog. External ZIPs are not
+required to make their enclosing folder match; `shortName` still identifies the
+validated package metadata and is not an installation identity.
 The durable system plugin and every installation receive separate CUID2 IDs.
 Variable keys are environment variable names. Every declared variable is
 required for each installation. Secret values are encrypted with AES-256-GCM
 and are never returned by catalog or installation reads; text values are stored
 as ordinary configuration. Both kinds are supplied to configured local
 processes as environment variables.
+
+`uiAssets` declares immutable artwork that typed plugin contributions and app
+instances may reference by ID. Each path is package-relative and unique. The
+built asset must be an exact 40×40 RGBA PNG with transparent background and
+uniform black visible pixels; partial alpha preserves antialiasing. Happy
+checks its bytes and SHA-256 digest during package validation, serves it only
+through authenticated product routes, and renders the fetched blob as a CSS
+mask so the interface—not the plugin—owns hover, selection, disabled, light,
+and dark tint colors. Contribution JSON cannot contain image URLs or inline SVG.
 
 A package must contain at least one skill, `container`, or `mcp` definition.
 `container.command` is optional when the same container exposes a stdio MCP;
@@ -161,6 +179,10 @@ in `plugins`.
 permissions, but create chat-scoped human approvals instead of granting direct
 install or uninstall authority. Unknown and duplicate permissions are rejected
 when the package is loaded.
+`apps:manage` creates and updates durable MCP App destinations, while
+`contributions:manage` creates and updates strictly typed native controls. Both
+permissions remain installation-bound and require current delegated viewer/chat
+capabilities whenever a definition narrows its audience.
 Unknown and duplicate declarations are rejected when the package is loaded.
 
 Declarations are not grants. Each install request may include a `permissions`

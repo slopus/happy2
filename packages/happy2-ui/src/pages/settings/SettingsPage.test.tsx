@@ -495,7 +495,7 @@ it("gates development tokens, prevents duplicate creation, copies, and clears th
     buttonNamed("Copy")!.click();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     expect(writeText).toHaveBeenCalledWith(credential.token);
-    expect(buttonNamed("Copied")).toBeTruthy();
+    await expect.poll(() => buttonNamed("Copied")).toBeTruthy();
 
     view.container.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));

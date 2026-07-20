@@ -54,11 +54,11 @@ describe("agent effort across happy2-state and Rig", () => {
         actorChat.getState().agentEffortChange(agentUserId, "ultra");
         await actorState.whenIdle();
         expect(rig.sessionEffort("session-1")).toBe("high");
-        expect(actorChat.getState().agentEffort[agentUserId]?.type).toBe("error");
+        await expect.poll(() => actorChat.getState().agentEffort[agentUserId]?.type).toBe("error");
 
         actorChat.getState().agentEffortChange(agentUserId, "low");
         await actorState.whenIdle();
-        expect(rig.sessionEffort("session-1")).toBe("low");
+        await expect.poll(() => rig.sessionEffort("session-1")).toBe("low");
 
         await expect
             .poll(() => effortValue(observerChat, agentUserId), { timeout: 3_000 })

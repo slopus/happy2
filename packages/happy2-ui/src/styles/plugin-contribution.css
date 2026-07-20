@@ -1,0 +1,222 @@
+/*
+ * C-134..136 Plugin contribution controls — native, strictly-typed controls for
+ * plugin surfaces (never plugin HTML/CSS). Controls, sections, and menu triggers
+ * compose Happy primitives; monochrome assets are painted by PluginAssetGlyph as
+ * currentColor masks. Border-box everywhere, flex layout, 4px grid.
+ */
+
+.happy2-plugin-control,
+.happy2-plugin-control *,
+.happy2-plugin-section,
+.happy2-plugin-section *,
+.happy2-plugin-menu,
+.happy2-plugin-menu * {
+    box-sizing: border-box;
+}
+
+/* ---- Single control --------------------------------------------------- */
+
+.happy2-plugin-control {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: var(--happy2-font-ui);
+    color: var(--happy2-text);
+}
+
+.happy2-plugin-control__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.happy2-plugin-control__label,
+.happy2-plugin-control__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.happy2-plugin-control__title {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 18px;
+    color: var(--happy2-text);
+}
+
+.happy2-plugin-control__body {
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--happy2-text);
+}
+
+.happy2-plugin-control__hint {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-plugin-control__error,
+.happy2-plugin-menu__error {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-danger);
+}
+
+.happy2-plugin-control__glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+}
+
+.happy2-plugin-control__group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+}
+
+.happy2-plugin-control__options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* ---- Section ---------------------------------------------------------- */
+
+.happy2-plugin-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    background: var(--happy2-bg-surface);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    font-family: var(--happy2-font-ui);
+}
+
+.happy2-plugin-section__header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.happy2-plugin-section__title {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    color: var(--happy2-text);
+}
+
+.happy2-plugin-section__description {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-plugin-section__controls {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* ---- Menu trigger + popover ------------------------------------------- */
+
+.happy2-plugin-menu {
+    /* The popover is absolutely positioned against this trigger box. */
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.happy2-plugin-menu__glyph,
+.happy2-plugin-menu__item-glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+}
+
+/* Transparent full-window backdrop that closes the menu on an outside click. */
+.happy2-plugin-menu__backdrop {
+    /* Fixed overlay layer: it must cover the whole window regardless of the
+       trigger's position, which flex cannot express. */
+    position: fixed;
+    inset: 0;
+    z-index: var(--happy2-z-overlay);
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    cursor: default;
+}
+
+.happy2-plugin-menu__popover {
+    /* Anchored dropdown below the trigger; absolute placement is the sanctioned
+       exception for popovers that leave the normal flow. */
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: calc(var(--happy2-z-overlay) + 1);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 200px;
+    padding: 6px;
+    background: var(--happy2-bg-surface);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.24);
+}
+
+.happy2-plugin-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: var(--happy2-radius-sm);
+    background: transparent;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-size: 13px;
+    line-height: 18px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.happy2-plugin-menu__item:hover:not(:disabled) {
+    background: var(--happy2-bg-raised);
+}
+
+.happy2-plugin-menu__item:disabled {
+    color: var(--happy2-text-muted);
+    cursor: default;
+}
+
+.happy2-plugin-menu__item-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-plugin-menu__status {
+    padding: 8px;
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-plugin-menu__status--error {
+    color: var(--happy2-danger);
+}

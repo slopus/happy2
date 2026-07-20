@@ -4,11 +4,13 @@ import {
     Box,
     Button,
     Sidebar,
+    SidebarAppsSection,
     StoreSurface,
     ThemeScope,
     type AdminPageSection,
     type IconName,
     type SearchResultType,
+    type SidebarItem,
     type SidebarSection,
     type ThemeMode,
 } from "happy2-ui";
@@ -18,6 +20,11 @@ import { DesktopOverlaySurface } from "./DesktopOverlaySurface";
 import { DesktopPrimarySurface } from "./DesktopPrimarySurface";
 import { useDesktopNavigation } from "../navigation/useDesktopNavigation";
 import { desktopRouteFormat } from "../navigation/desktopRouteFormat";
+import { usePluginAssetMasks, type PluginAssetMasks } from "../pluginAssets";
+import { sidebarAppEntries } from "../views/AppsView";
+import { PluginMenuContribution } from "../views/PluginContributionRenderer";
+import { PluginOpenAppWatcher } from "../views/PluginOpenAppWatcher";
+import type { PluginNavigationSurface } from "../pluginContributions";
 import type {
     DesktopNavigation,
     DesktopPrimaryRoute,
@@ -43,6 +50,7 @@ const adminSectionMeta: Record<AdminPageSection, { label: string; icon: IconName
 /** Composes the persistent route owner, primary surface, and independent overlay layer. */
 export function DesktopApp(props: DesktopAppProps) {
     const route = useDesktopNavigation(props.navigation);
+    const masks = usePluginAssetMasks(props.state);
     const [themeMode, themeModeSelect] = useReducer(
         (_mode: ThemeMode, currentAppearance: "dark" | "light") =>
             currentAppearance === "dark" ? "light" : "dark",
@@ -180,25 +188,24 @@ export function DesktopApp(props: DesktopAppProps) {
                     permissionAllowed(permissions, permission);
                 const adminSections = adminSectionsProject(permissions);
                 const canOpenAdmin = adminSections.length > 0;
-                // The sidebar's only workspace nav row is Administration; every
-                // other destination is chat. Selecting it pushes the admin
-                // drill-down sidebar (adminSidebar) below.
-                const navSection: SidebarSection | undefined = canOpenAdmin
-                    ? {
-                          id: "workspace",
-                          items: [
-                              {
-                                  id: "admin",
-                                  kind: "view",
-                                  icon: "settings",
-                                  label: "Administration",
-                              },
-                          ],
-                      }
-                    : undefined;
+                // Workspace nav rows above the chat list: Apps (always available)
+                // and Administration (owner/permission gated). Selecting either
+                // pushes its drill-down sidebar (appsSidebar / adminSidebar).
+                const navItems: SidebarItem[] = [
+                    { id: "apps", kind: "view", icon: "spark", label: "Apps" },
+                ];
+                if (canOpenAdmin)
+                    navItems.push({
+                        id: "admin",
+                        kind: "view",
+                        icon: "settings",
+                        label: "Administration",
+                    });
+                const navSection: SidebarSection = { id: "workspace", items: navItems };
                 const navSelect = (id: string) => {
                     if (id === "admin")
                         primaryOpen({ kind: "admin", section: adminSections[0] ?? "users" });
+                    else if (id === "apps") primaryOpen({ kind: "apps" });
                     else chatOpen();
                 };
                 const adminRoute = route.primary.kind === "admin" ? route.primary : undefined;
@@ -225,11 +232,34 @@ export function DesktopApp(props: DesktopAppProps) {
                             title="Administration"
                         />
                     ) : undefined;
+                const appsRoute = route.primary.kind === "apps" ? route.primary : undefined;
+                const appsSidebar = appsRoute ? (
+                    <StoreSurface store={props.state.pluginNavigation()}>
+                        {(nav) => (
+                            <SidebarAppsSection
+                                activeAppId={appsRoute.appId ?? ""}
+                                apps={sidebarAppEntries(
+                                    nav.apps.type === "ready" ? nav.apps.value : [],
+                                ).map((app) => ({
+                                    id: app.id,
+                                    title: app.title,
+                                    maskUrl: masks.maskUrl(app.pluginId, app.assetId),
+                                    available: app.available,
+                                }))}
+                                menu={sidebarMenuContributions(nav, masks)}
+                                onAppSelect={(id) => primaryOpen({ kind: "apps", appId: id })}
+                                onBack={chatOpen}
+                                onManage={() => primaryOpen({ kind: "apps" })}
+                            />
+                        )}
+                    </StoreSurface>
+                ) : undefined;
                 return (
                     <ThemeScope mode={themeMode}>
                         <DesktopPrimarySurface
                             adminSections={adminSections}
                             adminSidebar={adminSidebar}
+                            appsSidebar={appsSidebar}
                             canAssignSecrets={allowed("assignSecrets")}
                             canManageImages={allowed("manageImages")}
                             canManageSecrets={allowed("manageSecrets")}
@@ -255,11 +285,37 @@ export function DesktopApp(props: DesktopAppProps) {
                             session={props.session}
                             state={props.state}
                         />
+                        <StoreSurface store={props.state.pluginNavigation()}>
+                            {(nav) => (
+                                <PluginOpenAppWatcher
+                                    actionStates={nav.actionStates}
+                                    navigation={props.navigation}
+                                    route={route}
+                                />
+                            )}
+                        </StoreSurface>
                     </ThemeScope>
                 );
             }}
         </StoreSurface>
     );
+}
+
+/** Renders the sidebar-menu contribution triggers shown in the Apps sidebar footer. */
+function sidebarMenuContributions(nav: PluginNavigationSurface, masks: PluginAssetMasks) {
+    const contributions =
+        nav.contributions.type === "ready"
+            ? nav.contributions.value.filter((item) => item.location === "sidebarMenu")
+            : [];
+    if (contributions.length === 0) return undefined;
+    return contributions.map((contribution) => (
+        <PluginMenuContribution
+            contribution={contribution}
+            key={contribution.id}
+            masks={masks}
+            surface={nav}
+        />
+    ));
 }
 
 function adminSectionsProject(snapshot: PermissionsSnapshot): readonly AdminPageSection[] {

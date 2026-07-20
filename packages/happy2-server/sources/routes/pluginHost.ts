@@ -36,6 +36,83 @@ export function createPluginHostApi(
     agents?: PluginHostAgentService,
 ): FastifyInstance {
     const app = Fastify({ logger, bodyLimit: PLUGIN_HOST_BODY_BYTES });
+    app.post("/apps/putInstance", async (request, reply) => {
+        try {
+            return await plugins.hostAppInstancePut({
+                runtimeToken: bearerToken(request),
+                viewerToken: optionalHeader(request, "x-happy2-viewer-token"),
+                chatToken: optionalHeader(request, "x-happy2-chat-token"),
+                definition: request.body,
+            });
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/apps/updateInstanceContext", async (request, reply) => {
+        try {
+            const body = object(request.body, "Request body");
+            only(body, ["instanceKey", "context"]);
+            return await plugins.hostAppInstanceContextUpdate({
+                runtimeToken: bearerToken(request),
+                viewerToken: optionalHeader(request, "x-happy2-viewer-token"),
+                chatToken: optionalHeader(request, "x-happy2-chat-token"),
+                instanceKey: body.instanceKey,
+                context: body.context,
+            });
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/apps/deleteInstance", async (request, reply) => {
+        try {
+            const body = object(request.body, "Request body");
+            only(body, ["instanceKey"]);
+            return await plugins.hostAppInstanceDelete({
+                runtimeToken: bearerToken(request),
+                viewerToken: optionalHeader(request, "x-happy2-viewer-token"),
+                chatToken: optionalHeader(request, "x-happy2-chat-token"),
+                instanceKey: body.instanceKey,
+            });
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/contributions/putContribution", async (request, reply) => {
+        try {
+            return await plugins.hostContributionPut({
+                runtimeToken: bearerToken(request),
+                viewerToken: optionalHeader(request, "x-happy2-viewer-token"),
+                chatToken: optionalHeader(request, "x-happy2-chat-token"),
+                definition: request.body,
+            });
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/contributions/deleteContribution", async (request, reply) => {
+        try {
+            const body = object(request.body, "Request body");
+            only(body, ["externalKey"]);
+            return await plugins.hostContributionDelete({
+                runtimeToken: bearerToken(request),
+                viewerToken: optionalHeader(request, "x-happy2-viewer-token"),
+                chatToken: optionalHeader(request, "x-happy2-chat-token"),
+                externalKey: body.externalKey,
+            });
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
     app.get("/environments", async (request, reply) => {
         try {
             await plugins.authorizeHost(bearerToken(request), "environments:read");
@@ -514,6 +591,15 @@ function requiredHeader(request: FastifyRequest, name: string, message: string):
     const raw = request.headers[name];
     const value = Array.isArray(raw) ? raw[0] : raw;
     if (!value || value.length > 4_096) throw new PluginError("forbidden", message);
+    return value;
+}
+
+function optionalHeader(request: FastifyRequest, name: string): string | undefined {
+    const raw = request.headers[name];
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    if (value === undefined) return undefined;
+    if (!value || value.length > 4_096)
+        throw new PluginError("forbidden", `Plugin ${name} is invalid`);
     return value;
 }
 

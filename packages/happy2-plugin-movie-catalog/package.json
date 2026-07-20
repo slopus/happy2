@@ -1,0 +1,33 @@
+{
+    "name": "happy2-plugin-movie-catalog",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "happy2-plugin-build",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "typecheck": "tsc --project tsconfig.json",
+        "format": "oxfmt --write .",
+        "format:check": "oxfmt --check .",
+        "lint": "oxlint .",
+        "clean": "rm -rf dist"
+    },
+    "dependencies": {
+        "happy2-plugin-sdk": "workspace:*",
+        "react": "^19.2.7",
+        "react-dom": "^19.2.7",
+        "zod": "^4.3.6"
+    },
+    "devDependencies": {
+        "@modelcontextprotocol/ext-apps": "^1.7.4",
+        "@modelcontextprotocol/sdk": "^1.29.0",
+        "@types/node": "^26.1.1",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "oxfmt": "^0.57.0",
+        "oxlint": "^1.73.0",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.10"
+    }
+}

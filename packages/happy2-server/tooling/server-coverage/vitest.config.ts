@@ -5,6 +5,7 @@ export default defineConfig({
         include: [
             "tooling/server-coverage/**/*.test.ts",
             "tooling/server-architecture/**/*.test.ts",
+            "tooling/plugin-catalog/**/*.test.ts",
         ],
     },
 });

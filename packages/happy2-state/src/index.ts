@@ -155,6 +155,19 @@ export {
     type DocumentCollectionStore,
 } from "./modules/document-collection/documentCollectionState.js";
 export type {
+    ChatContributionsHandle,
+    ChatContributionsSnapshot,
+    ChatContributionsStore,
+    PluginActionState,
+    PluginAppHandle,
+    PluginAppInstanceSnapshot,
+    PluginAppInstanceStore,
+    PluginMenuState,
+    PluginNavigationSnapshot,
+    PluginNavigationStore,
+    PluginPresentationState,
+} from "./modules/plugin-surfaces/pluginSurfacesState.js";
+export type {
     ThreadsSnapshot,
     ThreadsOutput,
     ThreadsStore,

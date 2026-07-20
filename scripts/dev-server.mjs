@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
@@ -20,6 +20,8 @@ const configPath = join(runtimeDirectory, "happy2.toml");
 const serverPort = port(process.env.PORT);
 const serverUrl = process.env.PORTLESS_URL;
 if (!serverUrl) throw new Error("Portless must provide PORTLESS_URL for the Happy (2) server");
+
+execFileSync("pnpm", ["plugins:prepare"], { cwd: workspace, env: process.env, stdio: "inherit" });
 
 await mkdir(runtimeDirectory, { recursive: true });
 await writeFile(

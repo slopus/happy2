@@ -27,6 +27,7 @@ import { asPluginInstallation } from "./impl/asInstallation.js";
 import { installedManifest } from "./impl/installedManifest.js";
 import { effectiveContainer } from "./impl/effectiveContainer.js";
 import { pluginPermissionsValidate } from "./impl/apiPermissions.js";
+import { pluginUiAssetsReplace } from "./pluginUiAssetsReplace.js";
 
 const MAX_VARIABLE_BYTES = 64 * 1024;
 
@@ -139,6 +140,7 @@ export async function pluginInstall(
                 );
             pluginCreated = true;
         }
+        if (pluginCreated) await pluginUiAssetsReplace(tx, pluginId, input.plugin.uiAssets);
 
         const definitions = manifest.variables;
         const mcp = manifest.mcp;
@@ -258,7 +260,7 @@ export async function pluginInstall(
             .limit(1);
         if (!projection) throw new Error("Plugin installation projection was not found");
         return {
-            hint: areaHint(sequence, "plugins"),
+            hint: { ...areaHint(sequence, "plugins"), areas: ["plugins", "apps", "contributions"] },
             installation: asPluginInstallation(projection),
             pluginCreated,
             pluginId,

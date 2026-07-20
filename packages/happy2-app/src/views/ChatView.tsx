@@ -1,6 +1,7 @@
 import { useLayoutEffect, useReducer, useRef, type ReactNode } from "react";
 import {
     ChatPage,
+    StoreSurface,
     type AdminPageSection,
     type ChatPageActions,
     type ChatPageNavigation,
@@ -9,6 +10,8 @@ import {
 } from "happy2-ui";
 import type {
     AgentTraceHandle,
+    ChatContributionsHandle,
+    ChatContributionsSnapshot,
     ChatHandle,
     ComposerStore,
     DocumentHandle,
@@ -21,6 +24,13 @@ import type {
 } from "happy2-state";
 import type { AuthSession } from "../components/AuthGate";
 import type { DesktopNavigation, DesktopRoute } from "../navigation/desktopRouteTypes";
+import { usePluginAssetMasks } from "../pluginAssets";
+import {
+    chatMenuContributionNodes,
+    composerContributionNodes,
+    messageMenuContributionNodes,
+    type ContributionSurface,
+} from "./PluginContributionRenderer";
 import { MessageApp } from "./MessageApp";
 export type ChatViewProps = {
     platform?: "desktop" | "web";
@@ -49,6 +59,7 @@ export type ChatViewProps = {
 type ChatResources = {
     chat?: ChatHandle;
     composer?: ComposerStore;
+    chatContributions?: ChatContributionsHandle;
     thread?: ThreadHandle;
     trace?: AgentTraceHandle;
     workspace?: WorkspaceHandle;
@@ -68,6 +79,7 @@ type ChatResources = {
 /** Owns route-keyed HappyState leases while the reusable ChatPage remains props-only. */
 export function ChatView(props: ChatViewProps) {
     const state = props.state;
+    const masks = usePluginAssetMasks(state);
     const [resources, resourcesReplace] = useReducer(
         (_current: ChatResources, next: ChatResources) => next,
         {},
@@ -110,6 +122,7 @@ export function ChatView(props: ChatViewProps) {
             next.workspaceFile?.[Symbol.dispose]();
             next.workspace?.[Symbol.dispose]();
             next.terminal?.[Symbol.dispose]();
+            next.chatContributions?.[Symbol.dispose]();
             next.chat?.[Symbol.dispose]();
             if (next.chatId) state.composerRelease(next.chatId);
             if (!nextChatId) next = {};
@@ -129,6 +142,9 @@ export function ChatView(props: ChatViewProps) {
                         nextChatId,
                         nextConversationKind === "channel" ? { audience: "people" } : {},
                     ),
+                    // One retained chat-contribution surface fans out to the
+                    // header, composer, and every message row.
+                    chatContributions: state.chatContributionsOpen(nextChatId),
                 };
             }
             changed = true;
@@ -214,6 +230,7 @@ export function ChatView(props: ChatViewProps) {
             current.terminal?.[Symbol.dispose]();
             current.documentList?.[Symbol.dispose]();
             current.document?.[Symbol.dispose]();
+            current.chatContributions?.[Symbol.dispose]();
             current.chat?.[Symbol.dispose]();
             if (current.chatId) state.composerRelease(current.chatId);
             resourcesRef.current = {};
@@ -353,15 +370,22 @@ export function ChatView(props: ChatViewProps) {
                 documentRoute?.chatId === selected?.chatId ? documentRoute?.documentId : undefined,
         };
     };
-    return (
+    const renderPage = (contributions: {
+        chatMenuContributions?: ReactNode;
+        composerContributions?: ReactNode;
+        messageContributions?: (messageId: string) => ReactNode;
+    }) => (
         <ChatPage
             actions={actions}
             agentModels={state.agentModels()}
             canOpenAdmin={props.canOpenAdmin}
             chat={resources.chat}
+            chatMenuContributions={contributions.chatMenuContributions}
             composer={resources.composer}
+            composerContributions={contributions.composerContributions}
             createRequest={props.createRequest}
             directory={state.directory()}
+            messageContributions={contributions.messageContributions}
             navActiveId={props.navActiveId}
             navSection={props.navSection}
             navigation={pageNavigation()}
@@ -381,5 +405,31 @@ export function ChatView(props: ChatViewProps) {
             documentList={resources.documentList}
             document={resources.document}
         />
+    );
+    const contributionHandle = resources.chatContributions;
+    if (!contributionHandle) return renderPage({});
+    // One coarse subscription for the active chat's contributions; the header,
+    // composer, and every message row are fanned out from this single snapshot.
+    return (
+        <StoreSurface store={contributionHandle}>
+            {(snapshot: ChatContributionsSnapshot & ContributionSurface) => {
+                const contributions =
+                    snapshot.contributions.type === "ready" ? snapshot.contributions.value : [];
+                return renderPage({
+                    chatMenuContributions: chatMenuContributionNodes(
+                        contributions,
+                        snapshot,
+                        masks,
+                    ),
+                    composerContributions: composerContributionNodes(
+                        contributions,
+                        snapshot,
+                        masks,
+                    ),
+                    messageContributions: (messageId: string) =>
+                        messageMenuContributionNodes(contributions, snapshot, masks, messageId),
+                });
+            }}
+        </StoreSurface>
     );
 }

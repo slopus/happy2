@@ -1,0 +1,27 @@
+{
+    "name": "happy2-plugin-hello",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "happy2-plugin-build",
+        "typecheck": "tsc --project tsconfig.json",
+        "format": "oxfmt --write .",
+        "format:check": "oxfmt --check .",
+        "lint": "oxlint .",
+        "clean": "rm -rf dist"
+    },
+    "dependencies": {
+        "happy2-plugin-sdk": "workspace:*",
+        "zod": "^4.3.6"
+    },
+    "devDependencies": {
+        "@types/node": "^26.1.1",
+        "oxfmt": "^0.57.0",
+        "oxlint": "^1.73.0",
+        "typescript": "^7.0.2"
+    },
+    "engines": {
+        "node": ">=24.0.0"
+    }
+}

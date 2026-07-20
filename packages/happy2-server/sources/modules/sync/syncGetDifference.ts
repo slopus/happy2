@@ -134,6 +134,30 @@ export async function syncGetDifference(
             else removedChatIds.add(chatId);
             continue;
         }
+        if (kind === "plugin.uninstalled") {
+            areas.add("plugins");
+            areas.add("apps");
+            areas.add("contributions");
+            continue;
+        }
+        const surfaceAreas = new Set<string>();
+        if (
+            kind.startsWith("plugin.app_instance_") ||
+            kind.startsWith("plugin.app_preference_") ||
+            kind.startsWith("app.")
+        )
+            surfaceAreas.add("apps");
+        if (kind.startsWith("plugin.ui_assets_")) {
+            surfaceAreas.add("apps");
+            surfaceAreas.add("contributions");
+        }
+        if (kind.startsWith("plugin.contribution_") || kind.startsWith("contribution."))
+            surfaceAreas.add("contributions");
+        if (surfaceAreas.size) {
+            if (!chatId || (await chatCanAccess(executor, input.userId, chatId)))
+                for (const area of surfaceAreas) areas.add(area);
+            continue;
+        }
         if (kind.startsWith("call.")) areas.add("calls");
         if (chatId && (await chatCanAccess(executor, input.userId, chatId))) {
             changedChatIds.add(chatId);

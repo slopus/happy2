@@ -1,0 +1,113 @@
+/*
+ * C-138 PluginSettingsPanel — the Apps & plugin settings surface. A flex column
+ * of grouped sections; the app list is a flex column of rows, each a glyph +
+ * label block + trailing controls. Border-box, 4px grid, flex layout.
+ */
+
+.happy2-plugin-settings,
+.happy2-plugin-settings * {
+    box-sizing: border-box;
+}
+
+.happy2-plugin-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 100%;
+    font-family: var(--happy2-font-ui);
+    color: var(--happy2-text);
+}
+
+.happy2-plugin-settings__group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.happy2-plugin-settings__group-head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.happy2-plugin-settings__group-title {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+}
+
+.happy2-plugin-settings__group-description {
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--happy2-text-muted);
+}
+
+.happy2-plugin-settings__list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.happy2-plugin-settings__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--happy2-bg-surface);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+}
+
+.happy2-plugin-settings__row[data-hidden] {
+    background: var(--happy2-bg-app);
+}
+
+.happy2-plugin-settings__glyph {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    color: var(--happy2-text);
+}
+
+.happy2-plugin-settings__label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.happy2-plugin-settings__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+}
+
+.happy2-plugin-settings__description {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-plugin-settings__error {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--happy2-danger);
+}
+
+.happy2-plugin-settings__controls {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+}

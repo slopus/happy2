@@ -241,6 +241,174 @@ export type McpToolResult = Readonly<Record<string, unknown>>;
 /** Raw MCP `resources/read` result proxied back to a sandboxed app. */
 export type McpResourceReadResult = Readonly<Record<string, unknown>>;
 
+/** JSON data a plugin may persist in an app instance or receive with a native action. */
+export type PluginSurfaceJsonValue =
+    | boolean
+    | null
+    | number
+    | string
+    | PluginSurfaceJsonObject
+    | readonly PluginSurfaceJsonValue[];
+export interface PluginSurfaceJsonObject {
+    readonly [key: string]: PluginSurfaceJsonValue;
+}
+
+export type PluginAppPresentation = "sidebar" | "detached";
+export type PluginAppOpenPresentation = "primary" | "modal" | "fullscreen";
+export type PluginContributionPlacement =
+    | "sidebarMenu"
+    | "profileSection"
+    | "pluginSettings"
+    | "chatMenu"
+    | "composerIcon"
+    | "composerMenu"
+    | "messageMenu";
+
+export interface PluginToolAction {
+    readonly toolName: string;
+    readonly openApp?: {
+        readonly instanceKey: string;
+        readonly presentation: PluginAppOpenPresentation;
+    };
+}
+
+export interface PluginControlBase {
+    readonly id: string;
+    readonly title: string;
+    readonly description: string;
+}
+
+export interface PluginButtonControl extends PluginControlBase {
+    readonly kind: "button";
+    readonly assetId: string;
+    readonly action: PluginToolAction;
+}
+
+export interface PluginCheckboxControl extends PluginControlBase {
+    readonly kind: "checkbox";
+    readonly checked: boolean;
+    readonly action: PluginToolAction;
+}
+
+export interface PluginCheckboxGroupControl extends PluginControlBase {
+    readonly kind: "checkboxGroup";
+    readonly options: readonly PluginControlBase[];
+    readonly selectedOptionIds: readonly string[];
+    readonly action: PluginToolAction;
+}
+
+export interface PluginInputControl extends PluginControlBase {
+    readonly kind: "input";
+    readonly value: string;
+    readonly placeholder?: string;
+    readonly action: PluginToolAction;
+}
+
+export interface PluginTextControl extends PluginControlBase {
+    readonly kind: "text";
+    readonly text: string;
+}
+
+export type PluginInteractiveControl =
+    | PluginButtonControl
+    | PluginCheckboxControl
+    | PluginCheckboxGroupControl
+    | PluginInputControl;
+
+export type PluginContributionSpec =
+    | PluginButtonControl
+    | (PluginControlBase & {
+          readonly kind: "staticMenu";
+          readonly items: readonly PluginButtonControl[];
+      })
+    | (PluginControlBase & { readonly kind: "asyncMenu"; readonly resolverToolName: string })
+    | (PluginControlBase & {
+          readonly kind: "section";
+          readonly controls: readonly (PluginInteractiveControl | PluginTextControl)[];
+      });
+
+/** One durable app visible to the current user, including their presentation preference. */
+export interface PluginAppSummary {
+    readonly id: string;
+    readonly installationId: string;
+    readonly pluginId: string;
+    readonly pluginShortName: string;
+    readonly instanceKey: string;
+    readonly resourceUri: string;
+    readonly title: string;
+    readonly description: string;
+    readonly assetId: string;
+    readonly available: boolean;
+    readonly context: PluginSurfaceJsonObject;
+    readonly dataRevision: number;
+    readonly scope: "all_users" | "user";
+    readonly ownerUserId?: string;
+    readonly chatId?: string;
+    readonly presentation: PluginAppPresentation;
+    readonly position: number;
+    readonly revision: number;
+    readonly hidden: boolean;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+/** One typed native contribution visible in the current global or chat scope. */
+export interface PluginContributionSummary {
+    readonly id: string;
+    readonly installationId: string;
+    readonly pluginId: string;
+    readonly pluginShortName: string;
+    readonly externalKey: string;
+    readonly location: PluginContributionPlacement;
+    readonly title: string;
+    readonly description: string;
+    readonly spec: PluginContributionSpec;
+    readonly available: boolean;
+    readonly scope: "all_users" | "user";
+    readonly ownerUserId?: string;
+    readonly chatId?: string;
+    readonly position: number;
+    readonly revision: number;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+/** Validated HTML and sandbox policy for a durable plugin app instance. */
+export interface PluginAppResource {
+    readonly html: string;
+    readonly contentHashSha256: string;
+    readonly csp?: McpAppResourceMeta["ui"]["csp"];
+    readonly permissions?: McpAppResourceMeta["ui"]["permissions"];
+    readonly domain?: string;
+    readonly prefersBorder?: boolean;
+}
+
+export interface PluginAppHostContext {
+    readonly "happy2/instance": {
+        readonly id: string;
+        readonly key: string;
+        readonly context: PluginSurfaceJsonObject;
+        readonly dataRevision: number;
+        readonly definitionRevision: number;
+    };
+}
+
+export interface PluginAppView {
+    readonly app: PluginAppSummary;
+    readonly resource: PluginAppResource;
+    readonly hostContext: PluginAppHostContext;
+}
+
+export type PluginContributionActionValue = boolean | string | readonly string[];
+
+export interface PluginContributionInvocationResult {
+    readonly result: McpToolResult;
+    readonly openApp?: {
+        readonly instanceId: string;
+        readonly presentation: PluginAppOpenPresentation;
+    };
+}
+
 export interface MessageSummary {
     readonly id: string;
     readonly chatId: string;

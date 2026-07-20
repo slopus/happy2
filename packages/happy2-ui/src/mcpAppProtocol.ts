@@ -47,6 +47,12 @@ export const McpAppMethod = {
     ping: "ping",
     /** Host -> View request for graceful shutdown before the frame is removed. */
     resourceTeardown: "ui/resource-teardown",
+    /** View -> host request to change its display mode (inline/fullscreen/pip). */
+    requestDisplayMode: "ui/request-display-mode",
+    /** Host -> View notification carrying a partial HostContext update. */
+    hostContextChanged: "ui/notifications/host-context-changed",
+    /** View -> host Happy vendor request to open a predeclared app instance. */
+    appOpen: "happy2/app-open",
     /** Sandbox proxy -> host: the proxy is ready to receive View HTML. */
     sandboxProxyReady: "ui/notifications/sandbox-proxy-ready",
     /** Host -> sandbox proxy: the View HTML resource to load. */
