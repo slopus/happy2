@@ -43,7 +43,7 @@
     "web": "node scripts/web.mjs",
     "dev:desktop": "node scripts/dev-desktop.mjs",
     "dev:server": "pnpm --dir packages/happy2-server dev",
-    "plugins:build": "pnpm --filter happy2-plugin-hello --filter happy2-plugin-chat-management --filter happy2-plugin-environment-management --filter happy2-plugin-plugin-developer --filter happy2-plugin-movie-catalog --filter happy2-plugin-todos --filter happy2-plugin-port-sharing build",
+    "plugins:build": "pnpm --filter happy2-plugin-hello --filter happy2-plugin-chat-management --filter happy2-plugin-documents --filter happy2-plugin-environment-management --filter happy2-plugin-plugin-developer --filter happy2-plugin-movie-catalog --filter happy2-plugin-todos --filter happy2-plugin-port-sharing build",
     "plugins:assemble": "pnpm --dir packages/happy2-server plugins:assemble",
     "plugins:prepare": "pnpm run plugins:build && pnpm run plugins:assemble",
     "start": "node packages/happy2-server/dist/runner.js",

@@ -65,6 +65,7 @@ export interface DocumentWriteRequestSummary {
     readonly documentId: string;
     readonly documentTitle: string;
     readonly clientUpdateId: string;
+    readonly baseSequence: string;
     readonly acceptedSequence?: string;
     readonly resolvedByUserId?: string;
     readonly resolvedAt?: string;

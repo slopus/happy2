@@ -16,6 +16,7 @@ describe("server upgrades with shared plugin packages", () => {
         try {
             await serverSchemaMigrate(client);
             await client.migrate([
+                "DROP TABLE document_write_requests",
                 "DROP TABLE plugin_skills",
                 "DROP TABLE plugin_ui_assets",
                 "DROP TABLE plugin_installations",
@@ -41,6 +42,40 @@ describe("server upgrades with shared plugin packages", () => {
                     FOREIGN KEY (installed_by_user_id) REFERENCES users(id) ON DELETE set null
                 )`,
                 "CREATE INDEX plugin_installations_plugin_id_index ON plugin_installations (plugin_id)",
+                `CREATE TABLE document_write_requests (
+                    id text PRIMARY KEY NOT NULL,
+                    status text DEFAULT 'pending' NOT NULL,
+                    chat_id text NOT NULL,
+                    actor_user_id text,
+                    agent_user_id text,
+                    requester_installation_id text,
+                    session_id text NOT NULL,
+                    call_id text NOT NULL,
+                    document_id text NOT NULL,
+                    document_title text NOT NULL,
+                    client_update_id text NOT NULL,
+                    updates_json text NOT NULL,
+                    accepted_sequence text,
+                    resolved_by_user_id text,
+                    resolved_at text,
+                    expires_at text NOT NULL,
+                    last_error text,
+                    sync_sequence integer DEFAULT 0 NOT NULL,
+                    created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                    updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                    FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE cascade,
+                    FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE set null,
+                    FOREIGN KEY (agent_user_id) REFERENCES users(id) ON DELETE set null,
+                    FOREIGN KEY (requester_installation_id) REFERENCES plugin_installations(id) ON DELETE set null,
+                    FOREIGN KEY (resolved_by_user_id) REFERENCES users(id) ON DELETE set null,
+                    CONSTRAINT document_write_requests_status_check
+                        CHECK (status in ('pending', 'approved', 'denied', 'failed')),
+                    CONSTRAINT document_write_requests_updates_check
+                        CHECK (json_valid(updates_json) and json_type(updates_json) = 'array')
+                )`,
+                "CREATE INDEX document_write_requests_chat_index ON document_write_requests (chat_id, created_at)",
+                "CREATE INDEX document_write_requests_pending_expiry_index ON document_write_requests (status, expires_at)",
+                "CREATE UNIQUE INDEX document_write_requests_call_unique ON document_write_requests (requester_installation_id, call_id)",
                 `CREATE TABLE plugin_skills (
                     plugin_id text NOT NULL,
                     name text NOT NULL,
@@ -127,7 +162,7 @@ describe("server upgrades with shared plugin packages", () => {
                 ],
             });
             await client.execute({
-                sql: "DELETE FROM __drizzle_migrations WHERE created_at = ?",
+                sql: "DELETE FROM __drizzle_migrations WHERE created_at >= ?",
                 args: [1785369600000],
             });
 
@@ -201,6 +236,19 @@ describe("server upgrades with shared plugin packages", () => {
                     ["manifest_json", 1],
                     ["package_directory", 1],
                 ]),
+            );
+            const documentWriteRequestColumns = await client.execute(
+                "PRAGMA table_info(document_write_requests)",
+            );
+            const baseSequence = documentWriteRequestColumns.rows.find(
+                ({ name }) => name === "base_sequence",
+            );
+            expect(baseSequence).toEqual(
+                expect.objectContaining({
+                    name: "base_sequence",
+                    notnull: 1,
+                    dflt_value: "'0'",
+                }),
             );
             expect((await client.execute("PRAGMA foreign_key_check")).rows).toEqual([]);
         } finally {

@@ -11,6 +11,7 @@ import { realtimeTopics } from "../realtime/index.js";
 import type { WebhookUrlPolicy } from "../integrations/ssrf.js";
 import type { WebhookTransport } from "../integrations/types.js";
 import type { TokenService } from "../auth/tokens.js";
+import { documentCreate } from "../document/documentCreate.js";
 import { documentGetForChatHost } from "../document/documentGetForChatHost.js";
 import { documentListForChatHost } from "../document/documentListForChatHost.js";
 import { documentWriteRequestAwaitOutcome } from "../document/documentWriteRequestAwaitOutcome.js";
@@ -876,6 +877,31 @@ export class PluginService {
         return documentGetForChatHost(this.executor, actorUserId, chatId, documentId);
     }
 
+    async documentCreateForHost(input: {
+        actorUserId: string;
+        agentUserId: string;
+        chatId: string;
+        title: string;
+        initialUpdate?: string;
+    }): Promise<DocumentHostSummary> {
+        const result = await documentCreate(this.executor, {
+            actorUserId: input.actorUserId,
+            attributedCreatorUserId: input.agentUserId,
+            chatId: input.chatId,
+            title: input.title,
+            format: "blocknote",
+            ...(input.initialUpdate ? { initialUpdate: input.initialUpdate } : {}),
+        });
+        await this.publish(result.hint).catch(this.onError);
+        return {
+            id: result.document.id,
+            title: result.document.title,
+            format: result.document.format,
+            latestSequence: result.document.latestSequence,
+            updatedAt: result.document.updatedAt,
+        };
+    }
+
     async requestDocumentWriteForHost(
         input: {
             actorUserId: string;
@@ -886,6 +912,7 @@ export class PluginService {
             chatId: string;
             documentId: string;
             clientUpdateId: string;
+            baseSequence: string;
             updates: readonly unknown[];
         },
         signal?: AbortSignal,

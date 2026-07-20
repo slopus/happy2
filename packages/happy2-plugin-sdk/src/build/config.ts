@@ -27,6 +27,7 @@ export interface PluginBuildConfig {
     readonly pluginIcon?: string;
     readonly root?: string;
     readonly server?: string;
+    readonly serverMinify?: boolean;
     readonly uiAssets?: Readonly<Record<string, string>>;
 }
 

@@ -15,7 +15,7 @@ import {
 } from "./impl/documentWriteRequestProjection.js";
 import type { DocumentRealtimeAudience, DocumentWriteRequestSummary } from "./types.js";
 
-/** Applies one pending staged Yjs batch exactly once and marks its documentWriteRequests row approved in the same top-level transaction, but only for an active member who can post in the request chat and while the document remains attached there. The action also records the deciding user and advances `document.write_approved`, making document content, card state, audit, and chat sequence commit atomically. */
+/** Applies one pending staged Yjs batch exactly once and marks its documentWriteRequests row approved in the same top-level transaction, but only for an active member who can post in the request chat, while the document remains attached there, and while its sequence still matches the staged base. A sequence conflict throws outside the transaction so the route can durably fail the held request; successful approval records the deciding user and advances `document.write_approved` with the content update atomically. */
 export async function documentWriteRequestApprove(
     executor: DrizzleExecutor,
     input: { actorUserId: string; chatId: string; requestId: string; now: number },
@@ -47,7 +47,11 @@ export async function documentWriteRequestApprove(
             );
         if (Date.parse(row.expiresAt) <= input.now)
             throw new CollaborationError("conflict", "Document write request has expired");
-        await documentAttachedRowGet(tx, input.chatId, row.documentId);
+        const document = await documentAttachedRowGet(tx, input.chatId, row.documentId);
+        if (String(document.lastSequence) !== row.baseSequence)
+            throw new Error(
+                `Document changed while this edit awaited approval: expected sequence ${row.baseSequence}, current sequence ${document.lastSequence}. Read the document again and propose a new edit.`,
+            );
         const updates = JSON.parse(row.updatesJson) as unknown;
         if (!Array.isArray(updates)) throw new Error("Stored document write updates are invalid");
         const applied = await documentApplyUpdates(tx, {
@@ -83,6 +87,7 @@ export async function documentWriteRequestApprove(
             after: {
                 documentId: row.documentId,
                 clientUpdateId: row.clientUpdateId,
+                baseSequence: row.baseSequence,
                 acceptedSequence: applied.acceptedSequence,
                 replayed: applied.replayed,
             },

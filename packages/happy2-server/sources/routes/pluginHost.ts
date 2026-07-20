@@ -5,6 +5,7 @@ import Fastify, {
     type FastifyRequest,
 } from "fastify";
 import type { DrizzleExecutor } from "../modules/drizzle.js";
+import { MAX_DOCUMENT_TITLE_LENGTH } from "../modules/document/types.js";
 import { pluginInstallationListForHost } from "../modules/plugin/pluginInstallationListForHost.js";
 import type { PluginService } from "../modules/plugin/service.js";
 import { CollaborationError } from "../modules/chat/types.js";
@@ -374,6 +375,44 @@ export function createPluginHostApi(
             throw error;
         }
     });
+    app.post("/documents/create", async (request, reply) => {
+        try {
+            const runtimeToken = bearerToken(request);
+            const runtime = await plugins.authorizeHost(runtimeToken, "documents:write");
+            if (!runtime.agentCall)
+                throw new PluginError(
+                    "forbidden",
+                    "Plugin document creation requires an active Happy agent call",
+                );
+            const chat = await plugins.authorizeChatHost(
+                runtimeToken,
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                "documents:write",
+            );
+            if (
+                chat.chatId !== runtime.agentCall.chatId ||
+                chat.actorUserId !== runtime.agentCall.actorUserId ||
+                chat.agentUserId !== runtime.agentCall.agentUserId
+            )
+                throw new PluginError(
+                    "forbidden",
+                    "Plugin chat token belongs to another active agent call",
+                );
+            const body = documentCreateInput(request.body);
+            const document = await plugins.documentCreateForHost({
+                actorUserId: runtime.agentCall.actorUserId,
+                agentUserId: runtime.agentCall.agentUserId,
+                chatId: runtime.agentCall.chatId,
+                title: body.title,
+                ...(body.initialUpdate ? { initialUpdate: body.initialUpdate } : {}),
+            });
+            return reply.code(201).send({ document });
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
     app.get("/documents/:documentId", async (request, reply) => {
         try {
             const claims = await plugins.authorizeChatHost(
@@ -429,6 +468,7 @@ export function createPluginHostApi(
                     chatId: chat.chatId,
                     documentId: pathIdentifier(request, "documentId"),
                     clientUpdateId: body.clientUpdateId,
+                    baseSequence: body.baseSequence,
                     updates: body.updates,
                 },
                 controller.signal,
@@ -943,15 +983,34 @@ function workspaceWriteInput(value: unknown): {
 
 function documentWriteInput(value: unknown): {
     clientUpdateId: string;
+    baseSequence: string;
     updates: unknown[];
 } {
     const body = bodyRecord(value);
-    onlyBodyKeys(body, ["clientUpdateId", "updates"]);
+    onlyBodyKeys(body, ["clientUpdateId", "baseSequence", "updates"]);
     if (!Array.isArray(body.updates)) throw new PluginHostRequestError("updates must be an array");
     return {
         clientUpdateId: documentClientUpdateId(body.clientUpdateId),
+        baseSequence: documentSequence(body.baseSequence, "baseSequence"),
         updates: body.updates,
     };
+}
+
+function documentCreateInput(value: unknown): { title: string; initialUpdate?: string } {
+    const body = bodyRecord(value);
+    onlyBodyKeys(body, ["title", "initialUpdate"]);
+    const title = requiredTrimmedString(body.title, "title", MAX_DOCUMENT_TITLE_LENGTH);
+    const initialUpdate =
+        body.initialUpdate === undefined
+            ? undefined
+            : requiredToken(body.initialUpdate, "initialUpdate", 1_000_000);
+    return { title, ...(initialUpdate ? { initialUpdate } : {}) };
+}
+
+function documentSequence(value: unknown, name: string): string {
+    if (typeof value !== "string" || !/^\d+$/.test(value))
+        throw new PluginHostRequestError(`${name} must be a document sequence`);
+    return value;
 }
 
 function documentClientUpdateId(value: unknown): string {

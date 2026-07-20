@@ -295,6 +295,13 @@
             "when": 1785369600000,
             "tag": "0041_plugin_installation_diagnostics",
             "breakpoints": true
+        },
+        {
+            "idx": 42,
+            "version": "6",
+            "when": 1785456000000,
+            "tag": "0042_document_write_base_sequence",
+            "breakpoints": true
         }
     ]
 }

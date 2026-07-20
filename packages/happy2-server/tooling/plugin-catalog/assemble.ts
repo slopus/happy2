@@ -15,6 +15,7 @@ const workspaceRoot = resolve(import.meta.dirname, "../../../..");
 export const builtinPluginOutputs: readonly BuiltinPluginOutput[] = [
     builtin("happy2-plugin-hello", "hello"),
     builtin("happy2-plugin-chat-management", "chat-management"),
+    builtin("happy2-plugin-documents", "documents"),
     builtin("happy2-plugin-environment-management", "environment-management"),
     builtin("happy2-plugin-plugin-developer", "plugin-developer"),
     builtin("happy2-plugin-movie-catalog", "movie-catalog"),

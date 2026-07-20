@@ -660,6 +660,7 @@ export const documentWriteRequests = sqliteTable(
         documentId: text("document_id").notNull(),
         documentTitle: text("document_title").notNull(),
         clientUpdateId: text("client_update_id").notNull(),
+        baseSequence: text("base_sequence").notNull().default("0"),
         updatesJson: text("updates_json").notNull(),
         acceptedSequence: text("accepted_sequence"),
         resolvedByUserId: text("resolved_by_user_id").references(() => users.id, {

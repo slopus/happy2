@@ -78,6 +78,7 @@
         "@types/ws": "^8.18.1",
         "@vitest/coverage-v8": "^4.1.10",
         "happy2-plugin-chat-management": "workspace:*",
+        "happy2-plugin-documents": "workspace:*",
         "happy2-plugin-environment-management": "workspace:*",
         "happy2-plugin-hello": "workspace:*",
         "happy2-plugin-movie-catalog": "workspace:*",

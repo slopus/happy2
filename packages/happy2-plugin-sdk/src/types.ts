@@ -209,6 +209,8 @@ export const pluginHostPermissions = [
     "commands:run",
     "workspace:read",
     "workspace:write",
+    "documents:read",
+    "documents:write",
     "environments:read",
     "environments:manage",
     "environments:deactivate",

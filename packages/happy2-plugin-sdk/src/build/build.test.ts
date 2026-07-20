@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import type { ContributionDefinition } from "../types.js";
@@ -96,6 +97,33 @@ describe("plugin build helpers", () => {
         expect(app).not.toMatch(/<link\b(?=[^>]*\brel="stylesheet")/);
         expect(app.match(/<\/script>/g)).toHaveLength(1);
         expect(app.match(/<\/style>/g)).toHaveLength(1);
+    });
+
+    it("emits minified Node server bundles with bare built-ins left native", async () => {
+        const root = await mkdtemp(join(tmpdir(), "happy2-sdk-node-server-"));
+        await mkdir(join(root, "src"), { recursive: true });
+        await writeFile(join(root, "package.json"), '{"type":"module"}\n', "utf8");
+        await writeFile(
+            join(root, "src/server.ts"),
+            'import { join } from "path"; export const joined = join("plugin", "server");\n',
+            "utf8",
+        );
+        const result = await buildPlugin({
+            root,
+            manifest: {
+                description: "Tests Node server bundling.",
+                displayName: "Node server",
+                shortName: "node-server",
+                version: "1.0.0",
+            },
+            serverMinify: true,
+        });
+        const bundled = await readFile(join(result.outputDirectory, "server.js"), "utf8");
+        expect(bundled).not.toContain("__vite-browser-external");
+        const loaded = (await import(
+            `${pathToFileURL(join(result.outputDirectory, "server.js")).href}?test=${Date.now()}`
+        )) as { joined: string };
+        expect(loaded.joined).toBe(join("plugin", "server"));
     });
 
     it("keeps contribution placements and control kinds closed at compile time", () => {

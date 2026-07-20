@@ -15,7 +15,7 @@ import {
 import { documentUpdatesValidate } from "./impl/documentUpdatesValidate.js";
 import { DOCUMENT_WRITE_APPROVAL_TIMEOUT_MS, type DocumentWriteRequestSummary } from "./types.js";
 
-/** Creates one idempotent pending documentWriteRequests row for an active agent call, after validating the staged Yjs batch and exact chat attachment. The transaction records the title snapshot, five-minute expiry, audit evidence, and `document.write_requested` chat sequence together so the human approval card cannot diverge from the held tool call. */
+/** Creates one idempotent pending documentWriteRequests row for an active agent call after validating the staged Yjs batch, exact chat attachment, and current base sequence. The transaction records the title and sequence snapshot, five-minute expiry, audit evidence, and `document.write_requested` chat sequence together so the human approval card cannot diverge from the held tool call. */
 export async function documentWriteRequestCreate(
     executor: DrizzleExecutor,
     input: {
@@ -28,6 +28,7 @@ export async function documentWriteRequestCreate(
         chatId: string;
         documentId: string;
         clientUpdateId: string;
+        baseSequence: string;
         updates: readonly unknown[];
         now: number;
     },
@@ -54,6 +55,11 @@ export async function documentWriteRequestCreate(
                 "The originating user can no longer post in this chat",
             );
         const document = await documentAttachedRowGet(tx, input.chatId, input.documentId);
+        if (String(document.lastSequence) !== input.baseSequence)
+            throw new CollaborationError(
+                "conflict",
+                `Document changed before the edit could be staged: expected sequence ${input.baseSequence}, current sequence ${document.lastSequence}`,
+            );
         const expiresAt = new Date(input.now + DOCUMENT_WRITE_APPROVAL_TIMEOUT_MS).toISOString();
         const [inserted] = await tx
             .insert(documentWriteRequests)
@@ -69,6 +75,7 @@ export async function documentWriteRequestCreate(
                 documentId: input.documentId,
                 documentTitle: document.title,
                 clientUpdateId: input.clientUpdateId,
+                baseSequence: input.baseSequence,
                 updatesJson: JSON.stringify(updates),
                 expiresAt,
             })
@@ -102,6 +109,7 @@ export async function documentWriteRequestCreate(
                 requesterInstallationId: input.requesterInstallationId,
                 documentId: input.documentId,
                 clientUpdateId: input.clientUpdateId,
+                baseSequence: input.baseSequence,
                 expiresAt,
             },
         });

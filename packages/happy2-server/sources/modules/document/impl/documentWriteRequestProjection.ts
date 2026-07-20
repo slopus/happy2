@@ -11,6 +11,7 @@ export const documentWriteRequestSelection = {
     documentId: documentWriteRequests.documentId,
     documentTitle: documentWriteRequests.documentTitle,
     clientUpdateId: documentWriteRequests.clientUpdateId,
+    baseSequence: documentWriteRequests.baseSequence,
     acceptedSequence: documentWriteRequests.acceptedSequence,
     resolvedByUserId: documentWriteRequests.resolvedByUserId,
     resolvedAt: documentWriteRequests.resolvedAt,
@@ -46,6 +47,7 @@ export function asDocumentWriteRequest(row: Record<string, unknown>): DocumentWr
             true,
         ),
         clientUpdateId: requiredString(row.clientUpdateId, "document write request update id"),
+        baseSequence: requiredString(row.baseSequence, "document write request base sequence"),
         ...(optionalString(row.acceptedSequence)
             ? { acceptedSequence: optionalString(row.acceptedSequence) }
             : {}),

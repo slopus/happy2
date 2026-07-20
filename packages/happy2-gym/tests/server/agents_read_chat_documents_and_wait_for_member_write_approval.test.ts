@@ -123,6 +123,7 @@ describe("agent document access with chat-member write approval", () => {
                 ).toBe(404);
                 const body = {
                     clientUpdateId: "approved-agent-update",
+                    baseSequence: "0",
                     updates: [approvedUpdate],
                 };
                 const [first, replay] = await Promise.all([
@@ -141,6 +142,7 @@ describe("agent document access with chat-member write approval", () => {
                     `/documents/${documentId}/applyUpdates`,
                     {
                         clientUpdateId: "mismatched-chat-update",
+                        baseSequence: "0",
                         updates: [deniedUpdate],
                     },
                     headers(input.runtimeToken, fullChatToken),
@@ -167,6 +169,7 @@ describe("agent document access with chat-member write approval", () => {
                 `/documents/${documentId}/applyUpdates`,
                 {
                     clientUpdateId: "denied-agent-update",
+                    baseSequence: "1",
                     updates: [deniedUpdate],
                 },
                 requestHeaders,
@@ -232,6 +235,7 @@ describe("agent document access with chat-member write approval", () => {
             documentId,
             documentTitle: "Agent-editable notes",
             clientUpdateId: "approved-agent-update",
+            baseSequence: "0",
             expiresAt: expect.any(String),
         });
         expect(pending.agentUserId).toEqual(expect.any(String));
@@ -289,7 +293,7 @@ describe("agent document access with chat-member write approval", () => {
             .pluginHost()
             .post(
                 `/documents/${documentId}/applyUpdates`,
-                { clientUpdateId: "non-agent-update", updates: [deniedUpdate] },
+                { clientUpdateId: "non-agent-update", baseSequence: "1", updates: [deniedUpdate] },
                 headers(nonAgentToken, fullChatToken),
             );
         expect(nonAgentWrite.statusCode).toBe(403);

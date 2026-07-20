@@ -9,6 +9,7 @@ import {
     rm,
     writeFile,
 } from "node:fs/promises";
+import { builtinModules } from "node:module";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
@@ -23,6 +24,7 @@ import { createPluginManifest } from "./manifest.js";
 
 const SAFE_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const TAILWIND_STYLESHEET = fileURLToPath(import.meta.resolve("tailwindcss/index.css"));
+const NODE_BUILTINS = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
 const DEFAULT_DOCKERFILE = `FROM node:24-alpine
 
 WORKDIR /plugin
@@ -48,7 +50,7 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<PluginBuil
     await mkdir(outputDirectory, { recursive: true });
 
     const server = await packageFile(root, config.server ?? "src/server.ts");
-    await bundleServer(root, server, outputDirectory);
+    await bundleServer(root, server, outputDirectory, config.serverMinify ?? false);
     const appFiles = await buildApps(root, outputDirectory, config.apps ?? {});
     const declarations: UiAssetDeclaration[] = [];
     for (const [id, source] of Object.entries(config.uiAssets ?? {}).sort(([a], [b]) =>
@@ -86,18 +88,33 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<PluginBuil
     return { appFiles, manifest, outputDirectory };
 }
 
-async function bundleServer(root: string, entry: string, output: string): Promise<void> {
+async function bundleServer(
+    root: string,
+    entry: string,
+    output: string,
+    minify: boolean,
+): Promise<void> {
     await viteBuild({
         build: {
             emptyOutDir: false,
             lib: { entry, formats: ["es"], fileName: () => "server.js" },
-            minify: false,
+            minify,
             outDir: output,
-            rollupOptions: { external: [/^node:/] },
+            rollupOptions: {
+                external: (id) => NODE_BUILTINS.has(id),
+                output: {
+                    banner: 'import { createRequire as __happy2CreateRequire } from "node:module"; const require = __happy2CreateRequire(import.meta.url);',
+                },
+            },
             sourcemap: false,
+            ssr: true,
             target: "node24",
         },
         configFile: false,
+        // A packaged plugin does not carry dependency-owned worker files, so optional
+        // workers addressed through relative require.resolve paths cannot exist.
+        // jsdom only uses this for synchronous XHR, which plugin servers do not expose.
+        define: { "require.resolve": "undefined" },
         logLevel: "warn",
         root,
         ssr: { noExternal: true },

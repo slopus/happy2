@@ -1,9 +1,16 @@
 import { createId } from "@paralleldrive/cuid2";
+import { and, eq, isNull } from "drizzle-orm";
 import { areaHint } from "../chat/areaHint.js";
 import { chatCanPost } from "../chat/chatCanPost.js";
 import { CollaborationError, type MutationHint } from "../chat/types.js";
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
-import { documentChannelAttachments, documentUpdates, documents } from "../schema.js";
+import {
+    chatMembers,
+    documentChannelAttachments,
+    documentUpdates,
+    documents,
+    users,
+} from "../schema.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { documentSummaryGet } from "./impl/documentSummaryGet.js";
@@ -23,15 +30,18 @@ import {
 /**
  * Creates one owner-accessible standalone `documents` row seeded with the canonical
  * empty Yjs snapshot, plus optional `documentUpdates` initial content and an optional
- * `documentChannelAttachments` row when the actor may post to the requested channel.
- * The owner is always authorized; attached-channel members gain access after creation.
- * One transaction records `document.created` so every visible document list reconciles
- * through the documents area, which is why creation and optional attachment share this boundary.
+ * `documentChannelAttachments` row when the actor may post to the requested channel. An
+ * optional active agent member may be attributed as creator while the authenticated actor
+ * retains ownership, making agent-created documents member-manageable without losing agent
+ * attribution on the initial update, attachment, or sync event. One transaction records
+ * `document.created` so every visible document list reconciles through the documents area,
+ * which is why creation and optional attachment share this boundary.
  */
 export async function documentCreate(
     executor: DrizzleExecutor,
     input: {
         actorUserId: string;
+        attributedCreatorUserId?: string;
         chatId?: string;
         title: string;
         format: DocumentFormat;
@@ -58,6 +68,35 @@ export async function documentCreate(
     return withTransaction(executor, async (tx) => {
         if (input.chatId !== undefined && !(await chatCanPost(tx, input.actorUserId, input.chatId)))
             throw new CollaborationError("not_found", "Chat was not found");
+        const creatorUserId = input.attributedCreatorUserId ?? input.actorUserId;
+        if (creatorUserId !== input.actorUserId) {
+            if (input.chatId === undefined)
+                throw new CollaborationError(
+                    "invalid",
+                    "An attributed document creator requires a chat",
+                );
+            const [creator] = await tx
+                .select({ id: users.id })
+                .from(users)
+                .innerJoin(
+                    chatMembers,
+                    and(
+                        eq(chatMembers.userId, users.id),
+                        eq(chatMembers.chatId, input.chatId),
+                        isNull(chatMembers.leftAt),
+                    ),
+                )
+                .where(
+                    and(
+                        eq(users.id, creatorUserId),
+                        eq(users.kind, "agent"),
+                        isNull(users.deletedAt),
+                    ),
+                )
+                .limit(1);
+            if (!creator)
+                throw new CollaborationError("not_found", "Document creator was not found");
+        }
         const id = createId();
         const createdAt = new Date().toISOString();
         const [row] = await tx
@@ -81,14 +120,14 @@ export async function documentCreate(
                 sequence: 1,
                 update: initialUpdate,
                 clientUpdateId: `create:${id}`,
-                actorUserId: input.actorUserId,
+                actorUserId: creatorUserId,
                 createdAt,
             });
         if (input.chatId !== undefined)
             await tx.insert(documentChannelAttachments).values({
                 documentId: id,
                 chatId: input.chatId,
-                attachedByUserId: input.actorUserId,
+                attachedByUserId: creatorUserId,
                 attachedAt: createdAt,
             });
         const sequence = await syncSequenceNext(tx);
@@ -96,7 +135,7 @@ export async function documentCreate(
             sequence,
             kind: "document.created",
             entityId: id,
-            actorUserId: input.actorUserId,
+            actorUserId: creatorUserId,
         });
         return {
             document: await documentSummaryGet(tx, input.actorUserId, row),
