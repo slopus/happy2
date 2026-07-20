@@ -36,6 +36,7 @@ export async function searchPageGet(
         query: string;
         limit: number;
         cursor?: string;
+        types?: readonly ("user" | "channel" | "message")[];
     },
 ): Promise<{
     results: Array<
@@ -57,8 +58,10 @@ export async function searchPageGet(
     >;
     nextCursor?: string;
 }> {
+    const types = new Set(input.types ?? ["user", "channel", "message"]);
     const normalized = normalizeSearch(input.query);
-    const offset = decodeSearchCursor(input.cursor, normalized);
+    const cursorScope = `${normalized}\0${[...types].sort().join(",")}`;
+    const offset = decodeSearchCursor(input.cursor, cursorScope);
     const candidates: Array<
         | {
               type: "message";
@@ -76,38 +79,44 @@ export async function searchPageGet(
               user: UserSummary;
           }
     > = [];
-    const users = await contactList(executor);
-    for (const user of users) {
-        const score = fuzzyScore(
-            normalized,
-            [user.username, user.firstName, user.lastName, user.title].filter(Boolean).join(" "),
-        );
-        if (score > 0)
-            candidates.push({
-                type: "user",
-                score,
-                user,
-            });
+    if (types.has("user")) {
+        const users = await contactList(executor);
+        for (const user of users) {
+            const score = fuzzyScore(
+                normalized,
+                [user.username, user.firstName, user.lastName, user.title]
+                    .filter(Boolean)
+                    .join(" "),
+            );
+            if (score > 0)
+                candidates.push({
+                    type: "user",
+                    score,
+                    user,
+                });
+        }
     }
-    const channels = await channelDirectoryList(executor, input.userId);
-    for (const channel of channels) {
-        const score = fuzzyScore(
-            normalized,
-            [channel.name, channel.slug, channel.topic].filter(Boolean).join(" "),
-        );
-        if (score > 0)
-            candidates.push({
-                type: "channel",
-                score,
-                channel,
-            });
+    if (types.has("channel")) {
+        const channels = await channelDirectoryList(executor, input.userId);
+        for (const channel of channels) {
+            const score = fuzzyScore(
+                normalized,
+                [channel.name, channel.slug, channel.topic].filter(Boolean).join(" "),
+            );
+            if (score > 0)
+                candidates.push({
+                    type: "channel",
+                    score,
+                    channel,
+                });
+        }
     }
     const grams = [...searchGrams(normalized).keys()];
     const rankedMessages: Array<{
         messageId: string;
         score: number;
     }> = [];
-    if (grams.length > 0) {
+    if (types.has("message") && grams.length > 0) {
         const candidateLimit = offset + input.limit + candidates.length + 1;
         const matched = executor
             .select({
@@ -185,7 +194,7 @@ export async function searchPageGet(
         results,
         nextCursor:
             ranked.length > offset + input.limit
-                ? encodeSearchCursor(normalized, offset + input.limit)
+                ? encodeSearchCursor(cursorScope, offset + input.limit)
                 : undefined,
     };
 }

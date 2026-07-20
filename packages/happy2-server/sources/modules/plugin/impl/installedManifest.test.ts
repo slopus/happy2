@@ -31,10 +31,14 @@ describe("installedManifest", () => {
                     variables: [],
                     container: {
                         args: [],
-                        permissions: ["channels:manage"],
+                        permissions: [
+                            "channels:create",
+                            "chats:members:add",
+                            "chats:members:remove",
+                        ],
                     },
                 }),
             ).container?.permissions,
-        ).toEqual(["channels:manage"]);
+        ).toEqual(["channels:create", "chats:members:add", "chats:members:remove"]);
     });
 });

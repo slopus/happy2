@@ -11,13 +11,14 @@ const MUTATION_SCOPE = "channel.createWithMembers";
 import type { ChatSummary, MutationHint } from "./types.js";
 
 /**
- * Creates one private channel, grants its selected initial memberships, optionally assigns its working default agent, and records a clientMutations replay result in one transaction.
+ * Creates one public or private channel, grants its selected initial memberships, optionally assigns its working default agent, and records a clientMutations replay result in one transaction.
  * Composing the established channel actions prevents a partially populated or retry-duplicated channel from becoming visible when an initial grant or agent assignment fails.
  */
 export async function channelCreateWithMembers(
     executor: DrizzleExecutor,
     input: {
         actorUserId: string;
+        kind: "public_channel" | "private_channel";
         name: string;
         slug: string;
         topic?: string;
@@ -60,7 +61,7 @@ export async function channelCreateWithMembers(
         }
         const created = await channelCreate(tx, {
             actorUserId: input.actorUserId,
-            kind: "private_channel",
+            kind: input.kind,
             name: input.name,
             slug: input.slug,
             topic: input.topic,

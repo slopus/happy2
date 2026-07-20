@@ -34,7 +34,7 @@ async function handle(request) {
             result: {
                 protocolVersion: request.params?.protocolVersion ?? "2025-06-18",
                 capabilities: { tools: {} },
-                serverInfo: { name: "happy2-chat-management", version: "1.1.0" },
+                serverInfo: { name: "happy2-chat-management", version: "1.2.0" },
             },
         };
     }
@@ -99,7 +99,7 @@ async function handle(request) {
                         name: "channel_create",
                         title: "Create a channel",
                         description:
-                            "Creates a private channel owned by the user who triggered this turn, adds selected referenced users, and optionally posts an initial message. An agents message starts the current agent working; a people message only shares context and does not trigger inference.",
+                            "Creates a public channel by default, or a private channel when requested, owned by the user who triggered this turn. It adds selected referenced users and can post an initial message. An agents message starts the current agent working; a people message only shares context and does not trigger inference.",
                         inputSchema: {
                             type: "object",
                             properties: {
@@ -114,6 +114,12 @@ async function handle(request) {
                                     minLength: 1,
                                     maxLength: 500,
                                     description: "Optional channel description.",
+                                },
+                                visibility: {
+                                    type: "string",
+                                    enum: ["public", "private"],
+                                    default: "public",
+                                    description: "Channel visibility. Defaults to public.",
                                 },
                                 members: {
                                     type: "array",

@@ -28,6 +28,11 @@ export interface PluginUserClaims {
     installationId: string;
     userId: string;
 }
+export interface PluginMessageClaims {
+    installationId: string;
+    messageId: string;
+    actorUserId: string;
+}
 export interface TokenKeyPair {
     privateKey?: string;
     publicKey: string;
@@ -237,6 +242,42 @@ export class TokenService {
         if (typeof payload.sub !== "string" || typeof payload.jti !== "string")
             throw new Error("JWT has invalid plugin user claims");
         return { installationId: payload.sub, userId: payload.jti };
+    }
+
+    async issuePluginMessageToken(claims: PluginMessageClaims): Promise<string> {
+        if (!this.privateKey) throw new Error("This server has no JWT signing key");
+        return new SignJWT({ act: claims.actorUserId })
+            .setProtectedHeader({
+                alg: "RS256",
+                kid: this.config.jwt.keyId,
+                typ: "happy2-plugin-message",
+            })
+            .setIssuer(this.config.jwt.issuer)
+            .setAudience(`${this.config.jwt.audience}/plugin-message`)
+            .setSubject(claims.installationId)
+            .setIssuedAt()
+            .setJti(claims.messageId)
+            .sign(this.privateKey);
+    }
+
+    async verifyPluginMessageToken(token: string): Promise<PluginMessageClaims> {
+        const { payload } = await jwtVerify(token, this.publicKey, {
+            issuer: this.config.jwt.issuer,
+            audience: `${this.config.jwt.audience}/plugin-message`,
+            algorithms: ["RS256"],
+            typ: "happy2-plugin-message",
+        });
+        if (
+            typeof payload.sub !== "string" ||
+            typeof payload.jti !== "string" ||
+            typeof payload.act !== "string"
+        )
+            throw new Error("JWT has invalid plugin message claims");
+        return {
+            installationId: payload.sub,
+            messageId: payload.jti,
+            actorUserId: payload.act,
+        };
     }
 }
 

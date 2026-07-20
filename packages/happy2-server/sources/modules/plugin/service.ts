@@ -14,7 +14,14 @@ import type { TokenService } from "../auth/tokens.js";
 import { chatUpdateMetadata, type ChatMetadataSummary } from "../chat/chatUpdateMetadata.js";
 import { channelCreateWithMembers } from "../chat/channelCreateWithMembers.js";
 import { channelMembersUpdate } from "../chat/channelMembersUpdate.js";
+import { channelSetArchived } from "../chat/channelSetArchived.js";
 import { messageSend } from "../message/messageSend.js";
+import { messageDelete } from "../message/messageDelete.js";
+import { messageGet } from "../message/messageGet.js";
+import { messageList } from "../message/messageList.js";
+import { messageReactionSet } from "../message/messageReactionSet.js";
+import { searchPageGet } from "../search/searchPageGet.js";
+import type { WorkspaceService } from "../workspace/index.js";
 import { pluginInstall } from "./pluginInstall.js";
 import { pluginFindBySource } from "./pluginFindBySource.js";
 import { pluginGetSource } from "./pluginGetSource.js";
@@ -133,6 +140,7 @@ export class PluginService {
         private readonly remoteTransport: WebhookTransport,
         private readonly hostApiUrl: string,
         private readonly archiveDownloader: PluginArchiveDownloader,
+        private readonly workspaces: WorkspaceService,
         private readonly onError: (error: unknown) => void,
     ) {}
 
@@ -988,6 +996,13 @@ export class PluginService {
         token: string,
         permission: PluginHostPermission,
     ): Promise<Awaited<ReturnType<TokenService["verifyPluginRuntimeToken"]>>> {
+        return this.authorizeHostPermissions(token, [permission]);
+    }
+
+    private async authorizeHostPermissions(
+        token: string,
+        permissions: readonly PluginHostPermission[],
+    ): Promise<Awaited<ReturnType<TokenService["verifyPluginRuntimeToken"]>>> {
         let claims: Awaited<ReturnType<TokenService["verifyPluginRuntimeToken"]>>;
         try {
             claims = await this.tokens.verifyPluginRuntimeToken(token);
@@ -1011,8 +1026,9 @@ export class PluginService {
                     "Plugin agent-call capability is no longer active",
                 );
         }
-        if (!claims.permissions.includes(permission))
-            throw new PluginError("forbidden", `Plugin runtime lacks ${permission} permission`);
+        for (const permission of permissions)
+            if (!claims.permissions.includes(permission))
+                throw new PluginError("forbidden", `Plugin runtime lacks ${permission} permission`);
         const authorized = await pluginContainerInstanceAuthorize(
             this.executor,
             claims.installationId,
@@ -1060,6 +1076,219 @@ export class PluginService {
         return { chat: result.chat, sync: result.hint };
     }
 
+    async chatArchive(runtimeToken: string, chatToken: string) {
+        const claims = await this.authorizeChat(runtimeToken, chatToken, "chats:archive");
+        const result = await channelSetArchived(this.executor, {
+            actorUserId: claims.actorUserId,
+            chatId: claims.chatId,
+            archived: true,
+        });
+        await this.publishHints([result.hint], [claims.actorUserId]);
+        return { chat: result.chat, sync: result.hint };
+    }
+
+    async messageSend(
+        runtimeToken: string,
+        chatToken: string,
+        input: {
+            text: string;
+            audience: "people" | "agents";
+            idempotencyKey?: string;
+        },
+        agents?: PluginAgentRuntime,
+    ) {
+        const claims = await this.authorizeChat(runtimeToken, chatToken, "messages:send");
+        if (input.audience === "agents" && !agents)
+            throw new PluginError("not_ready", "AI agents are not enabled on this server");
+        const agentTurns =
+            input.audience === "agents"
+                ? await agents!.prepareTurns({
+                      actorUserId: claims.actorUserId,
+                      agentUserIds: [],
+                      chatId: claims.chatId,
+                  })
+                : [];
+        const result = await messageSend(this.executor, {
+            actorUserId: claims.actorUserId,
+            chatId: claims.chatId,
+            text: input.text,
+            audience: input.audience,
+            agentTurns,
+            clientMutationId: input.idempotencyKey
+                ? `${claims.installationId}:${input.idempotencyKey}`
+                : undefined,
+        });
+        if (agentTurns.length) agents!.startTurn(claims.chatId);
+        await this.publishHints([result.hint], [claims.actorUserId]);
+        return {
+            message: result.message,
+            token: await this.tokens.issuePluginMessageToken({
+                installationId: claims.installationId,
+                messageId: result.message.id,
+                actorUserId: claims.actorUserId,
+            }),
+            sync: result.hint,
+        };
+    }
+
+    async messageHistory(
+        runtimeToken: string,
+        chatToken: string,
+        input: { beforeSequence?: number; afterSequence?: number; limit: number },
+    ) {
+        const claims = await this.authorizeChat(runtimeToken, chatToken, "messages:history");
+        return messageList(this.executor, {
+            userId: claims.actorUserId,
+            chatId: claims.chatId,
+            ...input,
+        });
+    }
+
+    async messageRead(runtimeToken: string, messageId: string, messageToken: string) {
+        const claims = await this.authorizeMessage(
+            runtimeToken,
+            messageToken,
+            messageId,
+            "messages:read",
+        );
+        return { message: await messageGet(this.executor, claims.actorUserId, messageId) };
+    }
+
+    async messageDelete(runtimeToken: string, messageId: string, messageToken: string) {
+        const claims = await this.authorizeMessage(
+            runtimeToken,
+            messageToken,
+            messageId,
+            "messages:delete",
+        );
+        const result = await messageDelete(this.executor, claims.actorUserId, messageId);
+        await this.publishHints([result.hint], [claims.actorUserId]);
+        return { message: result.message, sync: result.hint };
+    }
+
+    async messageReactionSet(
+        runtimeToken: string,
+        messageId: string,
+        messageToken: string,
+        input: { emoji?: string; customEmojiId?: string; active: boolean },
+    ) {
+        const claims = await this.authorizeMessage(
+            runtimeToken,
+            messageToken,
+            messageId,
+            input.active ? "reactions:add" : "reactions:remove",
+        );
+        const result = await messageReactionSet(this.executor, {
+            actorUserId: claims.actorUserId,
+            messageId,
+            ...input,
+        });
+        await this.publishHints([result.hint], [claims.actorUserId]);
+        return { message: result.message, sync: result.hint };
+    }
+
+    async search(
+        runtimeToken: string,
+        chatToken: string,
+        input: {
+            query: string;
+            types: readonly ("user" | "message" | "chat")[];
+            cursor?: string;
+            limit: number;
+        },
+    ) {
+        const permissions = input.types.map((type): PluginHostPermission => {
+            if (type === "user") return "search:users";
+            if (type === "message") return "search:messages";
+            return "search:chats";
+        });
+        const claims = await this.authorizeChat(runtimeToken, chatToken, permissions);
+        const page = await searchPageGet(this.executor, {
+            userId: claims.actorUserId,
+            query: input.query,
+            types: input.types.map((type) => (type === "chat" ? "channel" : type)),
+            cursor: input.cursor,
+            limit: input.limit,
+        });
+        return {
+            ...page,
+            results: await Promise.all(
+                page.results.map(async (result) => {
+                    switch (result.type) {
+                        case "user":
+                            return {
+                                ...result,
+                                token: await this.tokens.issuePluginUserToken({
+                                    installationId: claims.installationId,
+                                    userId: result.user.id,
+                                }),
+                            };
+                        case "channel":
+                            return {
+                                ...result,
+                                token: await this.tokens.issuePluginChatToken({
+                                    installationId: claims.installationId,
+                                    chatId: result.channel.id,
+                                    actorUserId: claims.actorUserId,
+                                    agentUserId: claims.agentUserId,
+                                }),
+                            };
+                        case "message":
+                            return {
+                                ...result,
+                                token: await this.tokens.issuePluginMessageToken({
+                                    installationId: claims.installationId,
+                                    messageId: result.message.id,
+                                    actorUserId: claims.actorUserId,
+                                }),
+                            };
+                    }
+                }),
+            ),
+        };
+    }
+
+    async workspaceFileRead(runtimeToken: string, chatToken: string, path: string) {
+        const claims = await this.authorizeChat(runtimeToken, chatToken, "workspace:read");
+        return {
+            file: await this.workspaces.getFileWithHash({
+                userId: claims.actorUserId,
+                chatId: claims.chatId,
+                path,
+            }),
+        };
+    }
+
+    async workspaceFileWrite(
+        runtimeToken: string,
+        chatToken: string,
+        input: { path: string; expectedHash: string | null; content: string },
+    ) {
+        const claims = await this.authorizeChat(runtimeToken, chatToken, "workspace:write");
+        return {
+            file: await this.workspaces.writeFileByHash({
+                userId: claims.actorUserId,
+                chatId: claims.chatId,
+                ...input,
+            }),
+        };
+    }
+
+    async workspaceCommandRun(
+        runtimeToken: string,
+        chatToken: string,
+        input: { command: string; environment: Readonly<Record<string, string>> },
+    ) {
+        const claims = await this.authorizeChat(runtimeToken, chatToken, "commands:run");
+        return {
+            command: await this.workspaces.runCommand({
+                userId: claims.actorUserId,
+                chatId: claims.chatId,
+                ...input,
+            }),
+        };
+    }
+
     async channelMembersUpdate(
         runtimeToken: string,
         chatToken: string,
@@ -1070,7 +1299,10 @@ export class PluginService {
         removedUserIds: string[];
         sync: MutationHint[];
     }> {
-        const claims = await this.authorizeChat(runtimeToken, chatToken, "channels:manage");
+        const permissions: PluginHostPermission[] = [];
+        if (input.add.length) permissions.push("chats:members:add");
+        if (input.remove.length) permissions.push("chats:members:remove");
+        const claims = await this.authorizeChat(runtimeToken, chatToken, permissions);
         const [addUserIds, removeUserIds] = await Promise.all([
             this.authorizeUsers(claims.installationId, input.add),
             this.authorizeUsers(claims.installationId, input.remove),
@@ -1094,6 +1326,7 @@ export class PluginService {
         runtimeToken: string,
         chatToken: string,
         input: {
+            visibility: "public" | "private";
             name: string;
             description?: string;
             idempotencyKey?: string;
@@ -1102,7 +1335,7 @@ export class PluginService {
         },
         agents?: PluginAgentRuntime,
     ) {
-        const claims = await this.authorizeChat(runtimeToken, chatToken, "channels:manage");
+        const claims = await this.authorizeChat(runtimeToken, chatToken, "channels:create");
         const memberUserIds = await this.authorizeUsers(claims.installationId, input.members);
         const clientMutationId = input.idempotencyKey
             ? `${claims.installationId}:${input.idempotencyKey}`
@@ -1111,6 +1344,7 @@ export class PluginService {
             throw new PluginError("not_ready", "AI agents are not enabled on this server");
         const created = await channelCreateWithMembers(this.executor, {
             actorUserId: claims.actorUserId,
+            kind: input.visibility === "public" ? "public_channel" : "private_channel",
             name: input.name,
             slug: pluginChannelSlug(input.name),
             topic: input.description,
@@ -1146,6 +1380,12 @@ export class PluginService {
         await this.publishHints(hints, [claims.actorUserId, ...memberUserIds]);
         return {
             chat: created.chat,
+            token: await this.tokens.issuePluginChatToken({
+                installationId: claims.installationId,
+                chatId: created.chat.id,
+                actorUserId: claims.actorUserId,
+                agentUserId: claims.agentUserId,
+            }),
             ...(initialMessage ? { initialMessage } : {}),
             sync: hints,
         };
@@ -1154,9 +1394,10 @@ export class PluginService {
     private async authorizeChat(
         runtimeToken: string,
         chatToken: string,
-        permission: PluginHostPermission,
+        permissions: PluginHostPermission | readonly PluginHostPermission[],
     ) {
-        const { installationId } = await this.authorizeHost(runtimeToken, permission);
+        const required = Array.isArray(permissions) ? permissions : [permissions];
+        const { installationId } = await this.authorizeHostPermissions(runtimeToken, required);
         let claims: Awaited<ReturnType<TokenService["verifyPluginChatToken"]>>;
         try {
             claims = await this.tokens.verifyPluginChatToken(chatToken);
@@ -1165,6 +1406,29 @@ export class PluginService {
         }
         if (claims.installationId !== installationId)
             throw new PluginError("forbidden", "Plugin chat token belongs to another installation");
+        return claims;
+    }
+
+    private async authorizeMessage(
+        runtimeToken: string,
+        messageToken: string,
+        messageId: string,
+        permission: PluginHostPermission,
+    ) {
+        const { installationId } = await this.authorizeHost(runtimeToken, permission);
+        let claims: Awaited<ReturnType<TokenService["verifyPluginMessageToken"]>>;
+        try {
+            claims = await this.tokens.verifyPluginMessageToken(messageToken);
+        } catch {
+            throw new PluginError("forbidden", "Plugin message token is invalid");
+        }
+        if (claims.installationId !== installationId)
+            throw new PluginError(
+                "forbidden",
+                "Plugin message token belongs to another installation",
+            );
+        if (claims.messageId !== messageId)
+            throw new PluginError("forbidden", "Plugin message token belongs to another message");
         return claims;
     }
 

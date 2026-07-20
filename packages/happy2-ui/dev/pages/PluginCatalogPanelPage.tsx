@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { PluginCatalogPanel, type PluginCatalogEntry } from "../../src/PluginCatalogPanel";
+import { GRANULAR_PERMISSION_SECTIONS } from "../../src/PluginCatalogPanel.fixtures";
 import { PluginUninstallDialog } from "../../src/PluginUninstallDialog";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
 const hello: PluginCatalogEntry = {
@@ -183,6 +184,47 @@ const brokenTools: PluginCatalogEntry = {
         detail: "The installed plugin path no longer exists remotely",
     },
 };
+// A worst-case package that declares every granular host capability across all
+// nine sections; its install and permission dialogs stress the long checklist.
+const orchestrator: PluginCatalogEntry = {
+    shortName: "orchestrator",
+    displayName: "Workspace Orchestrator",
+    description:
+        "Coordinates chats, messages, search, workspace files, environments, and other plugins on the user's behalf.",
+    version: "3.0.0",
+    skills: [],
+    mcp: { type: "stdio", container: "bundled" },
+    variables: [],
+    apiPermissions: GRANULAR_PERMISSION_SECTIONS,
+    installed: true,
+    installations: [
+        {
+            id: "ins-orch",
+            version: "3.0.0",
+            status: "ready",
+            grantedPermissions: [
+                "messages:history",
+                "messages:read",
+                "search:messages",
+                "commands:run",
+                "workspace:read",
+            ],
+        },
+    ],
+    pluginId: "plugin-orchestrator",
+};
+// A pre-selected subset spanning read-only and mutation classes in several
+// sections, used to show the checked state of the granular checklist.
+const orchestratorSelected: readonly string[] = [
+    "chats:update",
+    "messages:history",
+    "messages:read",
+    "search:messages",
+    "commands:run",
+    "workspace:read",
+    "workspace:write",
+    "plugins:request-install",
+];
 const imageOptions = [
     { value: "img-1", label: "daycare-full" },
     { value: "img-2", label: "daycare-minimal" },
@@ -190,10 +232,44 @@ const imageOptions = [
 function log(message: string) {
     console.info(`[blueprint] PluginCatalogPanel: ${message}`);
 }
+/**
+ * A bounded flex frame for specimens that host an open ModalOverlay. ModalOverlay
+ * is `position: fixed`; `transform: translateZ(0)` establishes a fixed-position
+ * containing block and `overflow: hidden` clips the scrim, so each dialog stays
+ * inside its own 720px specimen instead of covering the whole workbench.
+ */
+function ModalSpecimenFrame(props: { width: number; height: number; children: ReactNode }) {
+    return (
+        <div
+            style={{
+                display: "flex",
+                position: "relative",
+                width: `${props.width}px`,
+                height: `${props.height}px`,
+                overflow: "hidden",
+                transform: "translateZ(0)",
+            }}
+        >
+            {props.children}
+        </div>
+    );
+}
 export function PluginCatalogPanelPage() {
     const [installOpen, setInstallOpen] = useState<string>();
     const [values, setValues] = useState<Readonly<Record<string, string>>>({});
     const [imageId, setImageId] = useState<string>();
+    const [granularInstall, setGranularInstall] = useState<readonly string[]>([
+        "messages:history",
+        "search:messages",
+        "commands:run",
+    ]);
+    const [granularEdit, setGranularEdit] = useState<readonly string[]>(orchestratorSelected);
+    const toggle = (current: readonly string[], id: string, checked: boolean): readonly string[] =>
+        checked
+            ? current.includes(id)
+                ? current
+                : [...current, id]
+            : current.filter((value) => value !== id);
     return (
         <ComponentPage
             number="C-066"
@@ -255,14 +331,7 @@ export function PluginCatalogPanelPage() {
                 number="02"
                 stage="app"
             >
-                <div
-                    style={{
-                        display: "flex",
-                        position: "relative",
-                        width: "720px",
-                        height: "560px",
-                    }}
-                >
+                <ModalSpecimenFrame height={560} width={720}>
                     <PluginCatalogPanel
                         containerImageOptions={imageOptions}
                         draftContainerImageId="img-1"
@@ -272,7 +341,50 @@ export function PluginCatalogPanelPage() {
                         onSubmitInstall={() => log("submit")}
                         plugins={[runner]}
                     />
-                </div>
+                </ModalSpecimenFrame>
+            </Specimen>
+
+            <Specimen
+                detail="720×480 Electron minimum · all nine sections and 25 capabilities in one scrollable Modal body: fixed header/footer, section titles in server order, read-only before mutations, several capabilities pre-selected"
+                label="Install dialog — granular permissions at the minimum window"
+                number="02b"
+                stage="app"
+            >
+                <ModalSpecimenFrame height={480} width={720}>
+                    <PluginCatalogPanel
+                        draftPermissions={granularInstall}
+                        installOpen="orchestrator"
+                        onCloseInstall={() => log("close granular install")}
+                        onDraftPermissionToggle={(id, checked) =>
+                            setGranularInstall((current) => toggle(current, id, checked))
+                        }
+                        onSubmitInstall={() => log("submit granular install")}
+                        plugins={[orchestrator]}
+                    />
+                </ModalSpecimenFrame>
+                <DimensionRule label="720×480 · every permission reachable by scrolling the Modal body" />
+            </Specimen>
+
+            <Specimen
+                detail="720×480 · editing an installation's grant set: the granular checklist pre-checks the current grant, high-risk command and workspace descriptions stay readable, and Save commits the exact selected set"
+                label="Permissions dialog — granular grant editing"
+                number="02c"
+                stage="app"
+            >
+                <ModalSpecimenFrame height={480} width={720}>
+                    <PluginCatalogPanel
+                        draftPermissions={granularEdit}
+                        onClosePermissions={() => log("close granular permissions")}
+                        onDraftPermissionToggle={(id, checked) =>
+                            setGranularEdit((current) => toggle(current, id, checked))
+                        }
+                        onOpenPermissions={() => undefined}
+                        onSubmitPermissions={() => log("save granular permissions")}
+                        permissionsOpen="ins-orch"
+                        plugins={[orchestrator]}
+                    />
+                </ModalSpecimenFrame>
+                <DimensionRule label="720×480 · fixed header/footer, scrollable grant list" />
             </Specimen>
 
             <Specimen

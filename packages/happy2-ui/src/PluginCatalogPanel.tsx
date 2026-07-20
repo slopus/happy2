@@ -172,7 +172,11 @@ export function PluginPermissionFieldset(props: {
     return (
         <Box className="happy2-plugin-catalog-panel__permissions">
             {props.sections.map((section) => (
-                <Box className="happy2-plugin-catalog-panel__permission-section" key={section.id}>
+                <Box
+                    className="happy2-plugin-catalog-panel__permission-section"
+                    data-section-id={section.id}
+                    key={section.id}
+                >
                     <span className="happy2-plugin-catalog-panel__permission-section-title">
                         {section.displayName}
                     </span>

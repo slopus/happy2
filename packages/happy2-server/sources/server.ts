@@ -290,6 +290,12 @@ export async function buildServer(
             (await pluginCatalogLoad(join(dirname(fileURLToPath(import.meta.url)), "../plugins")));
         const pluginSecrets =
             services.pluginSecretProtector ?? pluginSecretProtector(config, Boolean(supplied));
+        workspaceService = new WorkspaceService(
+            executor,
+            livePubsub,
+            config.agents.defaultCwd,
+            (error) => app.log.error(error),
+        );
         pluginService = new PluginService(
             executor,
             livePubsub,
@@ -304,6 +310,7 @@ export async function buildServer(
             webhookTransport,
             `http://happy2.host.internal:${config.plugins.hostApiPort}`,
             services.pluginArchiveDownloader ?? new NodePluginArchiveDownloader(webhookUrlPolicy),
+            workspaceService,
             (error) => app.log.error(error),
         );
         agentService =
@@ -335,12 +342,6 @@ export async function buildServer(
         registerSetupRoutes(app, auth, executor, livePubsub, sandboxProviderCatalog, agentService);
         pluginBridge = new PluginMcpHttpBridge(pluginService, (error) => app.log.error(error));
         fileStorage = services.fileStorage ?? new FileStorage(config, executor);
-        workspaceService = new WorkspaceService(
-            executor,
-            livePubsub,
-            config.agents.defaultCwd,
-            (error) => app.log.error(error),
-        );
         registerFileRoutes(app, config, auth, executor, services.tokens, fileStorage);
         registerCollaborationRoutes(app, auth, executor, livePubsub, agentService);
         if (agentService) registerAgentRoutes(app, auth, agentService);

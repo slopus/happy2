@@ -264,6 +264,7 @@ describe("agent plugin chat capabilities", () => {
 
         const peopleInput = {
             name: "Feature briefing",
+            visibility: "private",
             description: "Context for the feature without starting an agent.",
             members: ["@feature_friend"],
             initialMessage: {
@@ -345,6 +346,7 @@ describe("agent plugin chat capabilities", () => {
 
         const agentCallId = rig.requestExternalToolCall(originRun.runId, createTool.name, {
             name: "Feature implementation",
+            visibility: "private",
             members: ["feature_friend"],
             initialMessage: {
                 audience: "agents",
@@ -600,7 +602,12 @@ function completedOutput(
 
 async function install(client: GymRequestClient): Promise<string> {
     const installed = await client.post("/v0/admin/plugins/chat-management/installPlugin", {
-        permissions: ["chats:update", "channels:manage"],
+        permissions: [
+            "channels:create",
+            "chats:members:add",
+            "chats:members:remove",
+            "chats:update",
+        ],
     });
     expect(installed.statusCode).toBe(202);
     const installationId = installed.json().installation.id as string;

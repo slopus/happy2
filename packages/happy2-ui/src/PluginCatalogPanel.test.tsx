@@ -19,6 +19,11 @@ import {
     type PluginCatalogEntry,
     type PluginPermissionSection,
 } from "./PluginCatalogPanel";
+import {
+    GRANULAR_PERMISSION_IDS,
+    GRANULAR_PERMISSION_SECTIONS,
+    GRANULAR_SECTION_TITLES,
+} from "./PluginCatalogPanel.fixtures";
 import { createRenderer } from "./testing";
 
 type Engine = "chromium" | "firefox" | "webkit";
@@ -171,6 +176,31 @@ const LONG_SKILL: PluginCatalogEntry = {
     apiPermissions: [],
     installed: false,
     installations: [],
+};
+
+// A worst-case package declaring every granular host capability across all nine
+// sections: the full checklist the install and permission dialogs must present
+// and keep reachable at the 720x480 Electron minimum.
+const GRANULAR_GRANTED: readonly string[] = [
+    "messages:history",
+    "messages:read",
+    "search:messages",
+    "commands:run",
+    "workspace:read",
+];
+const ORCHESTRATOR: PluginCatalogEntry = {
+    shortName: "orchestrator",
+    displayName: "Workspace Orchestrator",
+    description: "Coordinates chats, messages, search, workspace files, environments, and plugins.",
+    version: "3.0.0",
+    skills: [],
+    mcp: { type: "stdio", container: "bundled" },
+    variables: [],
+    apiPermissions: GRANULAR_PERMISSION_SECTIONS,
+    installed: true,
+    installations: [
+        { id: "ins-orch", version: "3.0.0", status: "ready", grantedPermissions: GRANULAR_GRANTED },
+    ],
 };
 
 const card = (shortName: string) =>
@@ -784,6 +814,247 @@ it("shows loading, error, and empty affordances", async () => {
     ).toContain("No plugins yet");
 
     await view.screenshot("PluginCatalogPanel.variants.test");
+}, 120_000);
+
+it("presents every granular permission section in one scrollable modal at the 720x480 minimum", async () => {
+    const toggles: [string, boolean][] = [];
+    const view = createRenderer()
+        .render(
+            () => (
+                <Frame width={720} height={480}>
+                    <PluginCatalogPanel
+                        data-testid="granular-install"
+                        draftPermissions={["messages:history", "search:messages", "commands:run"]}
+                        installOpen="orchestrator"
+                        onCloseInstall={() => undefined}
+                        onDraftPermissionToggle={(id, checked) => toggles.push([id, checked])}
+                        onSubmitInstall={() => undefined}
+                        plugins={[ORCHESTRATOR]}
+                    />
+                </Frame>
+            ),
+            { width: 720, height: 480, padding: 0 },
+        )
+        .render(
+            () => (
+                <Frame width={720} height={480}>
+                    <PluginCatalogPanel
+                        data-testid="granular-saving"
+                        draftPermissions={["commands:run"]}
+                        onSubmitPermissions={() => undefined}
+                        permissionsBusyInstallationIds={["ins-orch"]}
+                        permissionsOpen="ins-orch"
+                        plugins={[ORCHESTRATOR]}
+                    />
+                </Frame>
+            ),
+            { width: 720, height: 480, padding: 0 },
+        );
+    await view.ready();
+
+    const scope = (testId: string, selector: string) =>
+        view.$(`[data-testid="${testId}"] ${selector}`);
+    const sectionTitles = (testId: string) =>
+        Array.from(
+            scope(testId, ".happy2-plugin-catalog-panel__permissions").element.querySelectorAll(
+                ".happy2-plugin-catalog-panel__permission-section-title",
+            ),
+            (node) => node.textContent,
+        );
+    const groupLabels = (testId: string, sectionId: string) =>
+        Array.from(
+            scope(testId, `[data-section-id="${sectionId}"]`).element.querySelectorAll(
+                ".happy2-plugin-catalog-panel__permission-group-label",
+            ),
+            (node) => node.textContent,
+        );
+    const control = (testId: string, permissionId: string) =>
+        scope(testId, `[data-permission-id="${permissionId}"] [data-happy2-ui="checkbox-control"]`)
+            .element as HTMLInputElement;
+
+    // 1. Section ordering: all nine sections render once, in the server order.
+    expect(sectionTitles("granular-install")).toEqual([...GRANULAR_SECTION_TITLES]);
+    expect(
+        scope(
+            "granular-install",
+            ".happy2-plugin-catalog-panel__permissions",
+        ).element.querySelectorAll("[data-section-id]").length,
+    ).toBe(GRANULAR_SECTION_TITLES.length);
+    // Every one of the 25 granular capabilities renders its own row, in the exact
+    // section-then-access order the closed fixture declares.
+    const renderedPermissionIds = Array.from(
+        scope(
+            "granular-install",
+            ".happy2-plugin-catalog-panel__permissions",
+        ).element.querySelectorAll("[data-permission-id]"),
+        (node) => node.getAttribute("data-permission-id"),
+    );
+    expect(renderedPermissionIds).toEqual([...GRANULAR_PERMISSION_IDS]);
+    expect(renderedPermissionIds).toHaveLength(25);
+
+    // 2. Read-only precedes mutations, and only classes that exist appear.
+    expect(groupLabels("granular-install", "messages")).toEqual(["Read only", "Can make changes"]);
+    expect(groupLabels("granular-install", "channels")).toEqual(["Can make changes"]);
+    expect(groupLabels("granular-install", "search")).toEqual(["Read only"]);
+    expect(groupLabels("granular-install", "workspace")).toEqual(["Read only", "Can make changes"]);
+
+    // 3. The Modal body is the single full-bleed scrollport: it scrolls, has zero
+    //    margin/padding, grows, and no inner region owns the scroll instead.
+    const body = scope("granular-install", '[data-happy2-ui="modal-body"]');
+    const bodyEl = body.element as HTMLElement;
+    expect(body.computedStyles(["overflow", "margin", "padding"])).toEqual({
+        overflow: "auto",
+        margin: "0px",
+        padding: "0px",
+    });
+    expect(body.computedStyles(["flex-grow", "flex-shrink", "flex-basis"])).toEqual({
+        "flex-grow": "1",
+        "flex-shrink": "1",
+        "flex-basis": "auto",
+    });
+    expect(bodyEl.scrollHeight, "granular list overflows the body").toBeGreaterThan(
+        bodyEl.clientHeight,
+    );
+    expect(
+        scope("granular-install", ".happy2-plugin-catalog-panel__permissions").computedStyle(
+            "overflow",
+        ),
+        "the inner permission list never owns the scroll",
+    ).toBe("visible");
+    expect(
+        scope("granular-install", '[data-happy2-ui="modal-dialog"]').computedStyle("overflow"),
+        "the dialog clips; only its body scrolls",
+    ).toBe("hidden");
+
+    // 4. Header and footer are fixed (flex: none) and do not move while the body
+    //    scrolls the long checklist.
+    const header = scope("granular-install", '[data-happy2-ui="modal-header"]');
+    const footer = scope("granular-install", '[data-happy2-ui="modal-footer"]');
+    expect(header.computedStyle("flex-grow")).toBe("0");
+    expect(footer.computedStyle("flex-grow")).toBe("0");
+    const headerBefore = header.element.getBoundingClientRect().top;
+    const footerBefore = footer.element.getBoundingClientRect().bottom;
+    bodyEl.scrollTop = bodyEl.scrollHeight;
+    expect(header.element.getBoundingClientRect().top, "header stays pinned").toBeCloseTo(
+        headerBefore,
+        1,
+    );
+    expect(footer.element.getBoundingClientRect().bottom, "footer stays pinned").toBeCloseTo(
+        footerBefore,
+        1,
+    );
+
+    // 5. The last granular permission is reachable and its focus ring is not
+    //    clipped by the scrollport once scrolled into view.
+    const lastId = "plugins:request-uninstall";
+    const lastRow = scope("granular-install", `[data-permission-id="${lastId}"]`).element;
+    lastRow.scrollIntoView({ block: "end" });
+    const bodyRect = bodyEl.getBoundingClientRect();
+    const lastRect = lastRow.getBoundingClientRect();
+    expect(lastRect.bottom, "last permission scrolled inside the body").toBeLessThanOrEqual(
+        bodyRect.bottom + 0.5,
+    );
+    expect(lastRect.top).toBeGreaterThanOrEqual(bodyRect.top - 0.5);
+    const lastInput = control("granular-install", lastId);
+    lastInput.focus();
+    const lastBox = scope(
+        "granular-install",
+        `[data-permission-id="${lastId}"] [data-happy2-ui="checkbox-box"]`,
+    );
+    expect(lastBox.computedStyle("outline-style"), "focused checkbox shows a ring").not.toBe(
+        "none",
+    );
+    const offset = parseFloat(lastBox.computedStyle("outline-offset")) || 0;
+    const width = parseFloat(lastBox.computedStyle("outline-width")) || 0;
+    const boxRect = lastBox.element.getBoundingClientRect();
+    const clipTop = bodyRect.top - 0.5;
+    const clipBottom = bodyRect.bottom + 0.5;
+    const clipLeft = bodyRect.left - 0.5;
+    const clipRight = bodyRect.right + 0.5;
+    expect(boxRect.top - offset - width, "focus ring top not clipped").toBeGreaterThanOrEqual(
+        clipTop,
+    );
+    expect(boxRect.bottom + offset + width, "focus ring bottom not clipped").toBeLessThanOrEqual(
+        clipBottom,
+    );
+    expect(boxRect.left - offset - width, "focus ring left not clipped").toBeGreaterThanOrEqual(
+        clipLeft,
+    );
+    expect(boxRect.right + offset + width, "focus ring right not clipped").toBeLessThanOrEqual(
+        clipRight,
+    );
+
+    // 6. Pre-selected grant reflects props; toggling an unchecked capability emits
+    //    exactly one intent for that closed id.
+    expect(control("granular-install", "messages:history").checked).toBe(true);
+    expect(control("granular-install", "search:messages").checked).toBe(true);
+    expect(control("granular-install", "commands:run").checked).toBe(true);
+    expect(control("granular-install", "environments:manage").checked).toBe(false);
+    expect(control("granular-install", "plugins:request-uninstall").checked).toBe(false);
+    control("granular-install", "environments:manage").click();
+    expect(toggles.at(-1)).toEqual(["environments:manage", true]);
+    control("granular-install", "commands:run").click();
+    expect(toggles.at(-1)).toEqual(["commands:run", false]);
+
+    // 7. Typography and colors of the grouped checklist, including the high-risk
+    //    command and workspace descriptions, stay on the shared tokens.
+    const sectionTitle = scope(
+        "granular-install",
+        '[data-section-id="commands"] .happy2-plugin-catalog-panel__permission-section-title',
+    );
+    expect(
+        sectionTitle.computedStyles(["font-size", "font-weight", "text-transform", "color"]),
+    ).toEqual({
+        "font-size": "11px",
+        "font-weight": "600",
+        "text-transform": "uppercase",
+        color: "rgb(142, 142, 147)",
+    });
+    const groupLabel = scope(
+        "granular-install",
+        '[data-section-id="commands"] .happy2-plugin-catalog-panel__permission-group-label',
+    );
+    expect(groupLabel.computedStyles(["font-size", "font-weight", "color"])).toEqual({
+        "font-size": "12px",
+        "font-weight": "600",
+        color: "rgb(142, 142, 147)",
+    });
+    const commandName = scope(
+        "granular-install",
+        '[data-permission-id="commands:run"] .happy2-plugin-catalog-panel__permission-name',
+    );
+    expect(commandName.textMetrics().text).toBe("Run workspace commands");
+    expect(commandName.computedStyles(["font-size", "font-weight", "color"])).toEqual({
+        "font-size": "13px",
+        "font-weight": "500",
+        color: "rgb(0, 0, 0)",
+    });
+    const commandDescription = scope(
+        "granular-install",
+        '[data-permission-id="commands:run"] .happy2-plugin-catalog-panel__permission-description',
+    );
+    expect(commandDescription.element.textContent).toContain("bounded Bash command");
+    expect(commandDescription.computedStyles(["font-size", "color"])).toEqual({
+        "font-size": "12px",
+        color: "rgb(142, 142, 147)",
+    });
+    const workspaceWrite = scope(
+        "granular-install",
+        '[data-permission-id="workspace:write"] .happy2-plugin-catalog-panel__permission-description',
+    );
+    expect(workspaceWrite.element.textContent).toContain("expected content hash");
+    expect(workspaceWrite.computedStyle("color")).toBe("rgb(142, 142, 147)");
+
+    // 8. While a permission save is in flight the granular checkboxes and the save
+    //    action are disabled.
+    expect(control("granular-saving", "commands:run").disabled, "saving locks checkboxes").toBe(
+        true,
+    );
+    expect(control("granular-saving", "plugins:request-install").disabled).toBe(true);
+    const savingButton = modalFooterButton(view, "granular-saving", "Saving…");
+    expect(savingButton.disabled, "saving locks the save action").toBe(true);
+
+    await view.screenshot("PluginCatalogPanel.granular.test");
 }, 120_000);
 
 function modalSubmit(view: View, testId: string): HTMLButtonElement {

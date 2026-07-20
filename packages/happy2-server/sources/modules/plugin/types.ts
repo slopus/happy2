@@ -30,8 +30,23 @@ export interface PluginRemoteMcp {
 export type PluginMcp = PluginStdioMcp | PluginRemoteMcp;
 
 export type PluginHostPermission =
-    | "channels:manage"
+    | "channels:create"
+    | "chats:members:add"
+    | "chats:members:remove"
     | "chats:update"
+    | "chats:archive"
+    | "messages:send"
+    | "messages:delete"
+    | "messages:history"
+    | "messages:read"
+    | "reactions:add"
+    | "reactions:remove"
+    | "search:users"
+    | "search:messages"
+    | "search:chats"
+    | "commands:run"
+    | "workspace:read"
+    | "workspace:write"
     | "environments:read"
     | "environments:manage"
     | "environments:deactivate"
@@ -41,8 +56,23 @@ export type PluginHostPermission =
     | "plugins:request-install"
     | "plugins:request-uninstall";
 export const pluginHostPermissions: readonly PluginHostPermission[] = [
-    "channels:manage",
+    "channels:create",
+    "chats:members:add",
+    "chats:members:remove",
     "chats:update",
+    "chats:archive",
+    "messages:send",
+    "messages:delete",
+    "messages:history",
+    "messages:read",
+    "reactions:add",
+    "reactions:remove",
+    "search:users",
+    "search:messages",
+    "search:chats",
+    "commands:run",
+    "workspace:read",
+    "workspace:write",
     "environments:read",
     "environments:manage",
     "environments:deactivate",
@@ -60,7 +90,16 @@ export interface PluginApiPermissionDefinition {
 }
 
 export interface PluginApiPermissionSection {
-    id: "channels" | "chats" | "environments" | "plugins";
+    id:
+        | "channels"
+        | "chats"
+        | "messages"
+        | "reactions"
+        | "search"
+        | "commands"
+        | "workspace"
+        | "environments"
+        | "plugins";
     displayName: string;
     readOnly: PluginApiPermissionDefinition[];
     mutations: PluginApiPermissionDefinition[];

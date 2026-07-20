@@ -4,6 +4,7 @@ import { pluginInstallationListForHost } from "../modules/plugin/pluginInstallat
 import type { PluginService } from "../modules/plugin/service.js";
 import { CollaborationError } from "../modules/chat/types.js";
 import type { AgentService } from "../modules/agents/index.js";
+import { MAX_WORKSPACE_TEXT_FILE_BYTES, WorkspaceError } from "../modules/workspace/index.js";
 import {
     PluginError,
     pluginHostPermissions,
@@ -13,6 +14,7 @@ import {
 
 const MAX_ENVIRONMENT_NAME_LENGTH = 100;
 const MAX_DOCKERFILE_BYTES = 256 * 1024;
+const PLUGIN_HOST_BODY_BYTES = MAX_WORKSPACE_TEXT_FILE_BYTES * 3 + 64 * 1024;
 
 type PluginHostAgentService = Pick<
     AgentService,
@@ -32,7 +34,7 @@ export function createPluginHostApi(
     logger: boolean,
     agents?: PluginHostAgentService,
 ): FastifyInstance {
-    const app = Fastify({ logger });
+    const app = Fastify({ logger, bodyLimit: PLUGIN_HOST_BODY_BYTES });
     app.get("/environments", async (request, reply) => {
         try {
             await plugins.authorizeHost(bearerToken(request), "environments:read");
@@ -134,6 +136,159 @@ export function createPluginHostApi(
                 bearerToken(request),
                 requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
                 chatUpdateInput(request.body),
+            );
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/chats/archiveChat", async (request, reply) => {
+        try {
+            emptyBody(request.body);
+            return await plugins.chatArchive(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+            );
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/messages/send", async (request, reply) => {
+        try {
+            const result = await plugins.messageSend(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                messageSendInput(request.body),
+                agents,
+            );
+            return reply.code(201).send(result);
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.get("/messages/history", async (request, reply) => {
+        try {
+            return await plugins.messageHistory(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                messageHistoryInput(request.query),
+            );
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.get("/messages/:messageId", async (request, reply) => {
+        try {
+            return await plugins.messageRead(
+                bearerToken(request),
+                pathCuid2(request, "messageId"),
+                requiredHeader(
+                    request,
+                    "x-happy2-message-token",
+                    "Plugin message token is required",
+                ),
+            );
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/messages/:messageId/deleteMessage", async (request, reply) => {
+        try {
+            emptyBody(request.body);
+            return await plugins.messageDelete(
+                bearerToken(request),
+                pathCuid2(request, "messageId"),
+                requiredHeader(
+                    request,
+                    "x-happy2-message-token",
+                    "Plugin message token is required",
+                ),
+            );
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    for (const [path, active] of [
+        ["/messages/:messageId/addReaction", true],
+        ["/messages/:messageId/removeReaction", false],
+    ] as const)
+        app.post(path, async (request, reply) => {
+            try {
+                return await plugins.messageReactionSet(
+                    bearerToken(request),
+                    pathCuid2(request, "messageId"),
+                    requiredHeader(
+                        request,
+                        "x-happy2-message-token",
+                        "Plugin message token is required",
+                    ),
+                    { ...reactionInput(request.body), active },
+                );
+            } catch (error) {
+                const response = handled(reply, error);
+                if (response) return response;
+                throw error;
+            }
+        });
+    app.post("/search", async (request, reply) => {
+        try {
+            return await plugins.search(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                searchInput(request.body),
+            );
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.get("/workspace/file", async (request, reply) => {
+        try {
+            const query = queryRecord(request.query);
+            only(query, ["path"]);
+            return await plugins.workspaceFileRead(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                workspacePath(query.path),
+            );
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/workspace/writeFile", async (request, reply) => {
+        try {
+            const result = await plugins.workspaceFileWrite(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                workspaceWriteInput(request.body),
+            );
+            return reply.code(result.file.created ? 201 : 200).send(result);
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/commands/run", async (request, reply) => {
+        try {
+            return await plugins.workspaceCommandRun(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                commandInput(request.body),
             );
         } catch (error) {
             const response = handled(reply, error);
@@ -317,6 +472,13 @@ function pathIdentifier(request: FastifyRequest, name: string): string {
     return identifier((request.params as Record<string, unknown>)[name], name);
 }
 
+function pathCuid2(request: FastifyRequest, name: string): string {
+    const value = (request.params as Record<string, unknown>)[name];
+    if (typeof value !== "string" || !/^[a-z][a-z0-9]{23}$/.test(value))
+        throw new PluginHostRequestError(`${name} must be a CUID2 identifier`);
+    return value;
+}
+
 function emptyBody(value: unknown): void {
     if (value === undefined || value === null) return;
     if (typeof value !== "object" || Array.isArray(value) || Object.keys(value).length > 0)
@@ -371,6 +533,167 @@ function chatUpdateInput(value: unknown): { title?: string; description?: string
         ...(title === undefined ? {} : { title }),
         ...(description === undefined ? {} : { description }),
     };
+}
+
+function messageSendInput(value: unknown): {
+    text: string;
+    audience: "people" | "agents";
+    idempotencyKey?: string;
+} {
+    const body = bodyRecord(value);
+    onlyBodyKeys(body, ["text", "audience", "idempotencyKey"]);
+    const audience = body.audience ?? "people";
+    if (audience !== "people" && audience !== "agents")
+        throw new PluginHostRequestError("audience must be people or agents");
+    const idempotencyKey =
+        body.idempotencyKey === undefined
+            ? undefined
+            : requiredToken(body.idempotencyKey, "idempotencyKey", 128);
+    return {
+        text: requiredMessageText(body.text, "text"),
+        audience,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
+    };
+}
+
+function messageHistoryInput(value: unknown): {
+    beforeSequence?: number;
+    afterSequence?: number;
+    limit: number;
+} {
+    const query = queryRecord(value);
+    only(query, ["beforeSequence", "afterSequence", "limit"]);
+    const beforeSequence = optionalPositiveInteger(query.beforeSequence, "beforeSequence");
+    const afterSequence = optionalPositiveInteger(query.afterSequence, "afterSequence");
+    if (beforeSequence !== undefined && afterSequence !== undefined)
+        throw new PluginHostRequestError("beforeSequence and afterSequence are mutually exclusive");
+    const limit = optionalPositiveInteger(query.limit, "limit") ?? 50;
+    if (limit > 100) throw new PluginHostRequestError("limit must be at most 100");
+    return {
+        ...(beforeSequence === undefined ? {} : { beforeSequence }),
+        ...(afterSequence === undefined ? {} : { afterSequence }),
+        limit,
+    };
+}
+
+function reactionInput(value: unknown): { emoji?: string; customEmojiId?: string } {
+    const body = bodyRecord(value);
+    onlyBodyKeys(body, ["emoji", "customEmojiId"]);
+    const emoji =
+        body.emoji === undefined ? undefined : requiredTrimmedString(body.emoji, "emoji", 32);
+    const customEmojiId =
+        body.customEmojiId === undefined
+            ? undefined
+            : identifier(body.customEmojiId, "customEmojiId");
+    if (Boolean(emoji) === Boolean(customEmojiId))
+        throw new PluginHostRequestError("Provide exactly one of emoji or customEmojiId");
+    return {
+        ...(emoji ? { emoji } : {}),
+        ...(customEmojiId ? { customEmojiId } : {}),
+    };
+}
+
+function searchInput(value: unknown): {
+    query: string;
+    types: ("user" | "message" | "chat")[];
+    cursor?: string;
+    limit: number;
+} {
+    const body = bodyRecord(value);
+    onlyBodyKeys(body, ["query", "filters", "cursor", "limit"]);
+    const query = requiredTrimmedString(body.query, "query", 200);
+    const filters = body.filters ?? "all";
+    let types: ("user" | "message" | "chat")[];
+    if (filters === "all") types = ["user", "message", "chat"];
+    else {
+        if (!Array.isArray(filters) || filters.length === 0 || filters.length > 3)
+            throw new PluginHostRequestError(
+                "filters must be all or a non-empty array of users, messages, and chats",
+            );
+        const mapping = { users: "user", messages: "message", chats: "chat" } as const;
+        types = filters.map((filter) => {
+            if (typeof filter !== "string" || !(filter in mapping))
+                throw new PluginHostRequestError("filters contains an unknown entity type");
+            return mapping[filter as keyof typeof mapping];
+        });
+        if (new Set(types).size !== types.length)
+            throw new PluginHostRequestError("filters contains a duplicate entity type");
+    }
+    const limit = optionalPositiveInteger(body.limit, "limit") ?? 20;
+    if (limit > 50) throw new PluginHostRequestError("limit must be at most 50");
+    const cursor =
+        body.cursor === undefined ? undefined : requiredToken(body.cursor, "cursor", 1_024);
+    return { query, types, limit, ...(cursor ? { cursor } : {}) };
+}
+
+function workspaceWriteInput(value: unknown): {
+    path: string;
+    expectedHash: string | null;
+    content: string;
+} {
+    const body = bodyRecord(value);
+    onlyBodyKeys(body, ["path", "expectedHash", "content"]);
+    const expectedHash = body.expectedHash;
+    if (
+        expectedHash !== null &&
+        (typeof expectedHash !== "string" || !/^[a-f0-9]{64}$/.test(expectedHash))
+    )
+        throw new PluginHostRequestError("expectedHash must be a SHA-256 hash or null");
+    if (typeof body.content !== "string")
+        throw new PluginHostRequestError("content must be a string");
+    if (Buffer.byteLength(body.content, "utf8") > MAX_WORKSPACE_TEXT_FILE_BYTES)
+        throw new PluginHostRequestError("content exceeds the 4 MiB workspace file limit");
+    return { path: workspacePath(body.path), expectedHash, content: body.content };
+}
+
+function commandInput(value: unknown): {
+    command: string;
+    environment: Record<string, string>;
+} {
+    const body = bodyRecord(value);
+    onlyBodyKeys(body, ["command", "environment"]);
+    const command = requiredCommand(body.command);
+    const raw = body.environment === undefined ? {} : bodyRecord(body.environment, "environment");
+    if (Object.keys(raw).length > 64)
+        throw new PluginHostRequestError("environment has too many entries");
+    const environment: Record<string, string> = {};
+    for (const [key, item] of Object.entries(raw)) {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key))
+            throw new PluginHostRequestError(`environment key ${key} is invalid`);
+        if (typeof item !== "string" || item.length > 64 * 1024 || item.includes("\0"))
+            throw new PluginHostRequestError(`environment value ${key} is invalid`);
+        environment[key] = item;
+    }
+    return { command, environment };
+}
+
+function requiredCommand(value: unknown): string {
+    if (typeof value !== "string" || !value.trim() || value.length > 40_000)
+        throw new PluginHostRequestError("command must contain 1-40000 characters");
+    if (value.includes("\0") || hasControlCharacters(value, true))
+        throw new PluginHostRequestError("command contains unsupported characters");
+    return value;
+}
+
+function workspacePath(value: unknown): string {
+    if (typeof value !== "string" || !value || value.length > 16_384)
+        throw new PluginHostRequestError("path is invalid");
+    return value;
+}
+
+function queryRecord(value: unknown): Record<string, unknown> {
+    if (value === undefined) return {};
+    if (!value || typeof value !== "object" || Array.isArray(value))
+        throw new PluginHostRequestError("Query parameters are invalid");
+    return value as Record<string, unknown>;
+}
+
+function optionalPositiveInteger(value: unknown, name: string): number | undefined {
+    if (value === undefined) return undefined;
+    const parsed = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+    if (!Number.isSafeInteger(parsed) || Number(parsed) < 1)
+        throw new PluginHostRequestError(`${name} must be a positive integer`);
+    return Number(parsed);
 }
 
 function shortName(value: unknown): string {
@@ -441,6 +764,7 @@ function channelMembersUpdateInput(value: unknown): {
 }
 
 function channelCreateInput(value: unknown): {
+    visibility: "public" | "private";
     name: string;
     description?: string;
     idempotencyKey?: string;
@@ -448,7 +772,17 @@ function channelCreateInput(value: unknown): {
     initialMessage?: { audience: "agents" | "people"; text: string };
 } {
     const body = bodyRecord(value);
-    onlyBodyKeys(body, ["name", "description", "idempotencyKey", "members", "initialMessage"]);
+    onlyBodyKeys(body, [
+        "visibility",
+        "name",
+        "description",
+        "idempotencyKey",
+        "members",
+        "initialMessage",
+    ]);
+    const visibility = body.visibility ?? "public";
+    if (visibility !== "public" && visibility !== "private")
+        throw new PluginHostRequestError("visibility must be public or private");
     const name = requiredTrimmedString(body.name, "name", 100);
     let description: string | undefined;
     if (body.description !== undefined)
@@ -470,6 +804,7 @@ function channelCreateInput(value: unknown): {
         };
     }
     return {
+        visibility,
         name,
         ...(description ? { description } : {}),
         ...(idempotencyKey ? { idempotencyKey } : {}),
@@ -523,17 +858,12 @@ function requiredTrimmedString(value: unknown, name: string, maximum: number): s
     return normalized;
 }
 
-function requiredMessageText(value: unknown): string {
-    if (typeof value !== "string")
-        throw new PluginHostRequestError("initialMessage.text must be a string");
+function requiredMessageText(value: unknown, name = "initialMessage.text"): string {
+    if (typeof value !== "string") throw new PluginHostRequestError(`${name} must be a string`);
     if (value.length > 40_000)
-        throw new PluginHostRequestError(
-            "initialMessage.text must contain at most 40000 characters",
-        );
+        throw new PluginHostRequestError(`${name} must contain at most 40000 characters`);
     if (!value.trim() || hasControlCharacters(value, true))
-        throw new PluginHostRequestError(
-            "initialMessage.text is empty or contains unsupported characters",
-        );
+        throw new PluginHostRequestError(`${name} is empty or contains unsupported characters`);
     return value;
 }
 
@@ -584,6 +914,14 @@ function handled(reply: FastifyReply, error: unknown) {
             .send({ error: error.code, message: error.message });
     if (error instanceof PluginHostRequestError)
         return reply.code(400).send({ error: "invalid_request", message: error.message });
+    if (error instanceof WorkspaceError)
+        return reply
+            .code(error.code === "conflict" ? 409 : error.code === "not_found" ? 404 : 400)
+            .send({
+                error: `workspace_${error.code}`,
+                message: error.message,
+                ...(error.code === "conflict" ? { currentHash: error.currentVersion ?? null } : {}),
+            });
     return undefined;
 }
 

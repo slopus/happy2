@@ -74,6 +74,29 @@ describe("plugin runtime capability tokens", () => {
         await expect(tokens.verifyPluginChatToken(token)).rejects.toThrow();
     });
 
+    it("issues non-expiring message capabilities bound to one plugin installation", async () => {
+        const config = defaultConfig();
+        const keys = generateKeyPairSync("rsa", {
+            modulusLength: 2048,
+            publicKeyEncoding: { type: "spki", format: "pem" },
+            privateKeyEncoding: { type: "pkcs8", format: "pem" },
+        });
+        const tokens = await TokenService.create(config, keys);
+        const token = await tokens.issuePluginMessageToken({
+            installationId: "chat-management-installation",
+            messageId: "message-1",
+            actorUserId: "requesting-user",
+        });
+
+        expect(decodeJwt(token)).not.toHaveProperty("exp");
+        await expect(tokens.verifyPluginMessageToken(token)).resolves.toEqual({
+            installationId: "chat-management-installation",
+            messageId: "message-1",
+            actorUserId: "requesting-user",
+        });
+        await expect(tokens.verifyPluginUserToken(token)).rejects.toThrow();
+    });
+
     it("round-trips the bounded agent-call context separately from a user session", async () => {
         const config = defaultConfig();
         const keys = generateKeyPairSync("rsa", {

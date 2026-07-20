@@ -6,11 +6,25 @@ import {
 } from "../types.js";
 
 const definitions = {
-    "channels:manage": {
-        id: "channels:manage",
-        displayName: "Manage channels",
-        description: "Create channels and add or remove channel members.",
+    "channels:create": {
+        id: "channels:create",
+        displayName: "Create channels",
+        description: "Create public or private channels.",
         section: "channels",
+        access: "mutations",
+    },
+    "chats:members:add": {
+        id: "chats:members:add",
+        displayName: "Add chat members",
+        description: "Add signed users to a channel represented by a chat capability.",
+        section: "chats",
+        access: "mutations",
+    },
+    "chats:members:remove": {
+        id: "chats:members:remove",
+        displayName: "Remove chat members",
+        description: "Remove signed users from a channel represented by a chat capability.",
+        section: "chats",
         access: "mutations",
     },
     "chats:update": {
@@ -18,6 +32,98 @@ const definitions = {
         displayName: "Update current chat",
         description: "Change the current chat title and description.",
         section: "chats",
+        access: "mutations",
+    },
+    "chats:archive": {
+        id: "chats:archive",
+        displayName: "Archive chats",
+        description: "Archive a channel represented by a chat capability.",
+        section: "chats",
+        access: "mutations",
+    },
+    "messages:send": {
+        id: "messages:send",
+        displayName: "Send messages",
+        description: "Send a message as the user represented by a chat capability.",
+        section: "messages",
+        access: "mutations",
+    },
+    "messages:delete": {
+        id: "messages:delete",
+        displayName: "Delete messages",
+        description: "Delete a message represented by a signed message capability.",
+        section: "messages",
+        access: "mutations",
+    },
+    "messages:history": {
+        id: "messages:history",
+        displayName: "Read message history",
+        description: "Page message history in a chat without receiving entity capabilities.",
+        section: "messages",
+        access: "readOnly",
+    },
+    "messages:read": {
+        id: "messages:read",
+        displayName: "Read messages",
+        description: "Read one message represented by a signed message capability.",
+        section: "messages",
+        access: "readOnly",
+    },
+    "reactions:add": {
+        id: "reactions:add",
+        displayName: "Add reactions",
+        description: "Add a reaction as the user represented by the chat capability.",
+        section: "reactions",
+        access: "mutations",
+    },
+    "reactions:remove": {
+        id: "reactions:remove",
+        displayName: "Remove reactions",
+        description: "Remove the user's reaction from a signed message.",
+        section: "reactions",
+        access: "mutations",
+    },
+    "search:users": {
+        id: "search:users",
+        displayName: "Search users",
+        description: "Search visible users and receive installation-bound user capabilities.",
+        section: "search",
+        access: "readOnly",
+    },
+    "search:messages": {
+        id: "search:messages",
+        displayName: "Search messages",
+        description: "Search visible messages and receive installation-bound message capabilities.",
+        section: "search",
+        access: "readOnly",
+    },
+    "search:chats": {
+        id: "search:chats",
+        displayName: "Search chats",
+        description: "Search visible chats and receive installation-bound chat capabilities.",
+        section: "search",
+        access: "readOnly",
+    },
+    "commands:run": {
+        id: "commands:run",
+        displayName: "Run workspace commands",
+        description:
+            "Run a bounded Bash command in a chat workspace with explicit environment variables.",
+        section: "commands",
+        access: "mutations",
+    },
+    "workspace:read": {
+        id: "workspace:read",
+        displayName: "Read workspace files",
+        description: "Read UTF-8 files from a chat workspace.",
+        section: "workspace",
+        access: "readOnly",
+    },
+    "workspace:write": {
+        id: "workspace:write",
+        displayName: "Write workspace files",
+        description: "Write UTF-8 files when their expected content hash still matches.",
+        section: "workspace",
         access: "mutations",
     },
     "environments:read": {
@@ -97,6 +203,11 @@ export function pluginApiPermissionSections(
         [
             { id: "channels", displayName: "Channels" },
             { id: "chats", displayName: "Chats" },
+            { id: "messages", displayName: "Messages" },
+            { id: "reactions", displayName: "Reactions" },
+            { id: "search", displayName: "Search" },
+            { id: "commands", displayName: "Commands" },
+            { id: "workspace", displayName: "Workspace" },
             { id: "environments", displayName: "Environments" },
             { id: "plugins", displayName: "Plugins" },
         ] as const

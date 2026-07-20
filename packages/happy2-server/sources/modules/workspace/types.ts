@@ -44,6 +44,11 @@ export interface WorkspaceTextFile {
     readonly version: string;
 }
 
+export interface WorkspaceHashedTextFile extends WorkspaceTextFile {
+    /** SHA-256 of the exact UTF-8 file bytes. */
+    readonly sha256: string;
+}
+
 export interface WorkspaceTextEdit {
     /** UTF-16 string offset, matching JavaScript editor coordinates. */
     readonly start: number;
@@ -62,6 +67,21 @@ export interface WorkspaceFileWriteResult {
     readonly size: number;
     readonly version: string;
     readonly created: boolean;
+}
+
+export interface WorkspaceHashedFileWriteResult extends WorkspaceFileWriteResult {
+    readonly sha256: string;
+}
+
+export interface WorkspaceCommandResult {
+    readonly command: string;
+    readonly stdout: string;
+    readonly stderr: string;
+    readonly exitCode: number | null;
+    readonly signal: string | null;
+    readonly timedOut: boolean;
+    /** True when either output stream exceeded the bounded capture size. */
+    readonly outputLimitExceeded: boolean;
 }
 
 export interface WorkspaceFileDeleteResult {

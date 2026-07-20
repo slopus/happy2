@@ -7,6 +7,10 @@ import {
 import { UserError, type PreparedPluginSummary, type SystemPluginSummary } from "happy2-state";
 import { expect, it, onTestFinished } from "vitest";
 import "../styles.css";
+import {
+    GRANULAR_PERMISSION_SECTIONS,
+    GRANULAR_SECTION_TITLES,
+} from "../PluginCatalogPanel.fixtures";
 import { createRenderer } from "../testing";
 import { PluginsPage } from "./admin/PluginsPage";
 
@@ -75,6 +79,104 @@ function candidate(overrides: Partial<PreparedPluginSummary> = {}): PreparedPlug
         ...overrides,
     };
 }
+
+it("renders server-shaped granular permission sections and emits the exact selected closed grant set with stable dialog identity", async () => {
+    const outputs: unknown[] = [];
+    const plugins = owned(pluginsStoreFixtureCreate((event) => outputs.push(event)));
+    const install = owned(pluginInstallStoreFixtureCreate());
+    const images = owned(agentImagesStoreFixtureCreate());
+    const granular = systemPlugin({
+        apiPermissions: GRANULAR_PERMISSION_SECTIONS,
+        installations: [
+            {
+                id: "ins-1",
+                pluginId: "plugin-repo",
+                shortName: "repo-tools",
+                sourceVersion: "1.0.0",
+                packageDigest: "digest-1",
+                grantedPermissions: ["commands:run", "workspace:read"],
+                status: "ready",
+                installedAt: "2026-01-01T00:00:00.000Z",
+                updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+        ],
+    });
+    plugins.input({ type: "pluginsLoaded", plugins: [] });
+    plugins.input({ type: "systemPluginsLoaded", plugins: [granular] });
+    const view = createRenderer().render(
+        () => (
+            <div style={{ display: "flex", width: "1024px", height: "704px" }}>
+                <PluginsPage
+                    agentImagesStore={() => images.store}
+                    installStore={() => install.store}
+                    store={plugins.store}
+                />
+            </div>
+        ),
+        { width: 1024, height: 704 },
+    );
+    await view.ready();
+    outputs.length = 0;
+
+    // The installation exposes a Permissions action labelled with its grant count.
+    const trigger = view.container
+        .querySelector('[data-installation-id="ins-1"]')!
+        .querySelector<HTMLButtonElement>("button")!;
+    expect(trigger.textContent).toContain("Permissions · 2");
+    trigger.click();
+    await view.ready();
+
+    // The dialog renders all nine server sections, in order, from the wire shape.
+    const dialog = view.container.querySelector('[data-happy2-ui="modal-dialog"]')!;
+    const sectionTitles = Array.from(
+        dialog.querySelectorAll(".happy2-plugin-catalog-panel__permission-section-title"),
+        (node) => node.textContent,
+    );
+    expect(sectionTitles).toEqual([...GRANULAR_SECTION_TITLES]);
+
+    const control = (permissionId: string) =>
+        dialog.querySelector<HTMLInputElement>(
+            `[data-permission-id="${permissionId}"] [data-happy2-ui="checkbox-control"]`,
+        )!;
+    // The current grant set is pre-checked; nothing else is.
+    expect(control("commands:run").checked).toBe(true);
+    expect(control("workspace:read").checked).toBe(true);
+    expect(control("search:messages").checked).toBe(false);
+    expect(control("plugins:request-uninstall").checked).toBe(false);
+
+    // Edit the grant: drop a read-only capability and add a search capability.
+    control("workspace:read").click();
+    await view.ready();
+    control("search:messages").click();
+    await view.ready();
+    const searchInput = control("search:messages");
+    searchInput.focus();
+    expect(document.activeElement).toBe(searchInput);
+
+    // An unrelated authoritative notification must not disturb the open dialog,
+    // its DOM identity, its focused control, or the in-progress draft.
+    plugins.input({ type: "systemPluginsLoaded", plugins: [granular] });
+    await view.ready();
+    expect(view.container.querySelector('[data-happy2-ui="modal-dialog"]')).toBe(dialog);
+    expect(document.activeElement).toBe(control("search:messages"));
+    expect(control("workspace:read").checked).toBe(false);
+    expect(control("search:messages").checked).toBe(true);
+    expect(control("commands:run").checked).toBe(true);
+
+    // Saving commits exactly the selected closed permission set, in order.
+    const save = Array.from(
+        dialog.querySelectorAll<HTMLButtonElement>('[data-happy2-ui="modal-footer"] button'),
+    ).find((button) => button.textContent?.includes("Save permissions"))!;
+    save.click();
+    await view.ready();
+    expect(outputs).toEqual([
+        {
+            type: "pluginPermissionsUpdateSubmitted",
+            installationId: "ins-1",
+            permissions: ["commands:run", "search:messages"],
+        },
+    ]);
+}, 120_000);
 
 it("starts automatic update checks on mount, never duplicates them, and stops on unmount", async () => {
     const outputs: string[] = [];

@@ -20,6 +20,9 @@ import {
     WorkspaceError,
     type ChatWorkspaceTarget,
     type WorkspaceDirectoryPage,
+    type WorkspaceCommandResult,
+    type WorkspaceHashedFileWriteResult,
+    type WorkspaceHashedTextFile,
     type WorkspaceFileDeleteResult,
     type WorkspaceFileWriteResult,
     type WorkspaceGitStatus,
@@ -41,6 +44,8 @@ const MAX_PRELOAD_DEPTH = 3;
 const MAX_PRELOAD_PATHS = 2_500;
 const MAX_PRELOAD_PATH_BYTES = 192 * 1024;
 const MAX_WARM_WORKSPACE_INDEXES = 8;
+const WORKSPACE_COMMAND_TIMEOUT_MS = 30_000;
+const WORKSPACE_COMMAND_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 export const MAX_WORKSPACE_TEXT_FILE_BYTES = 4 * 1024 * 1024;
 
 /**
@@ -78,6 +83,7 @@ interface WorkspaceCursor {
     readonly treeGeneration: number;
 }
 interface IndexedTextFile extends WorkspaceTextFile {
+    readonly sha256: string;
     readonly fullPath: string;
     readonly mode: number;
 }
@@ -119,6 +125,14 @@ export class WorkspaceService {
         const index = await this.authorizedIndex(input.userId, input.chatId);
         return index.getFile(canonicalFilePath(input.path));
     }
+    async getFileWithHash(input: {
+        userId: string;
+        chatId: string;
+        path: string;
+    }): Promise<WorkspaceHashedTextFile> {
+        const index = await this.authorizedIndex(input.userId, input.chatId);
+        return index.getFileWithHash(canonicalFilePath(input.path));
+    }
     async writeFile(input: {
         userId: string;
         chatId: string;
@@ -128,12 +142,36 @@ export class WorkspaceService {
         patch?: WorkspaceTextPatch;
     }): Promise<WorkspaceFileWriteResult> {
         const index = await this.authorizedIndex(input.userId, input.chatId);
-        return index.writeFile({
+        const { sha256: _, ...result } = await index.writeFile({
             path: canonicalFilePath(input.path),
             expectedVersion: input.expectedVersion,
             content: input.content,
             patch: input.patch,
         });
+        return result;
+    }
+    async writeFileByHash(input: {
+        userId: string;
+        chatId: string;
+        path: string;
+        expectedHash: string | null;
+        content: string;
+    }): Promise<WorkspaceHashedFileWriteResult> {
+        const index = await this.authorizedIndex(input.userId, input.chatId);
+        return index.writeFile({
+            path: canonicalFilePath(input.path),
+            expectedHash: input.expectedHash,
+            content: input.content,
+        });
+    }
+    async runCommand(input: {
+        userId: string;
+        chatId: string;
+        command: string;
+        environment: Readonly<Record<string, string>>;
+    }): Promise<WorkspaceCommandResult> {
+        const index = await this.authorizedIndex(input.userId, input.chatId);
+        return index.runCommand(input.command, input.environment);
     }
     async deleteFile(input: {
         userId: string;
@@ -422,15 +460,22 @@ class WorkspaceIndex {
         const file = await this.readTextFile(path);
         return publicTextFile(file);
     }
+    async getFileWithHash(path: string): Promise<WorkspaceHashedTextFile> {
+        this.ensureWatcher();
+        const file = await this.readTextFile(path);
+        return { ...publicTextFile(file), sha256: file.sha256 };
+    }
     async writeFile(input: {
         path: string;
-        expectedVersion: string | null;
+        expectedVersion?: string | null;
+        expectedHash?: string | null;
         content?: string;
         patch?: WorkspaceTextPatch;
-    }): Promise<WorkspaceFileWriteResult> {
+    }): Promise<WorkspaceHashedFileWriteResult> {
         return this.mutate(async () => {
             const current = await this.readTextFileIfPresent(input.path);
-            assertExpectedVersion(current, input.expectedVersion);
+            if (input.expectedHash !== undefined) assertExpectedHash(current, input.expectedHash);
+            else assertExpectedVersion(current, input.expectedVersion ?? null);
             const nextContent = nextFileContent(current?.content ?? "", input);
             assertTextFileSize(nextContent);
             if (current?.content === nextContent)
@@ -438,6 +483,7 @@ class WorkspaceIndex {
                     path: current.path,
                     size: current.size,
                     version: current.version,
+                    sha256: current.sha256,
                     created: false,
                 };
             await this.replaceTextFile(input.path, nextContent, current);
@@ -448,9 +494,68 @@ class WorkspaceIndex {
                 path: written.path,
                 size: written.size,
                 version: written.version,
+                sha256: written.sha256,
                 created: current === undefined,
             };
         });
+    }
+    async runCommand(
+        command: string,
+        environment: Readonly<Record<string, string>>,
+    ): Promise<WorkspaceCommandResult> {
+        const result = await new Promise<{
+            error?: {
+                code?: string | number;
+                killed?: boolean;
+                signal?: string;
+            };
+            stdout: string;
+            stderr: string;
+        }>((resolve) => {
+            execFile(
+                "/bin/bash",
+                ["-c", command],
+                {
+                    cwd: this.realRoot,
+                    encoding: "utf8",
+                    env: {
+                        ...environment,
+                        HOME: this.realRoot,
+                        LANG: process.env.LANG ?? "C.UTF-8",
+                        PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+                    },
+                    maxBuffer: WORKSPACE_COMMAND_MAX_BUFFER_BYTES,
+                    timeout: WORKSPACE_COMMAND_TIMEOUT_MS,
+                },
+                (error, stdout, stderr) =>
+                    resolve({
+                        ...(error
+                            ? {
+                                  error: {
+                                      code: error.code,
+                                      killed: error.killed,
+                                      signal: error.signal,
+                                  },
+                              }
+                            : {}),
+                        stdout: String(stdout),
+                        stderr: String(stderr),
+                    }),
+            );
+        });
+        const code = result.error?.code;
+        const outputLimitExceeded = code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER";
+        return {
+            command,
+            stdout: result.stdout,
+            stderr: result.stderr,
+            exitCode: typeof code === "number" ? code : result.error ? null : 0,
+            signal: result.error?.signal ?? null,
+            timedOut: Boolean(
+                !outputLimitExceeded && result.error?.killed && result.error.signal === "SIGTERM",
+            ),
+            outputLimitExceeded,
+        };
     }
     async deleteFile(input: {
         path: string;
@@ -532,6 +637,7 @@ class WorkspaceIndex {
                 content,
                 size: buffer.byteLength,
                 version: `${observedNs.toString().padStart(20, "0")}.${hash}`,
+                sha256: hash,
                 fullPath,
                 mode: Number(metadata.mode & 0o777n),
             };
@@ -910,6 +1016,17 @@ function assertExpectedVersion(
     )
         return;
     throw workspaceConflict(current?.version ?? null);
+}
+function assertExpectedHash(
+    current: IndexedTextFile | undefined,
+    expectedHash: string | null,
+): void {
+    if (
+        (expectedHash === null && current === undefined) ||
+        (expectedHash !== null && current?.sha256 === expectedHash)
+    )
+        return;
+    throw workspaceConflict(current?.sha256 ?? null);
 }
 function workspaceConflict(currentVersion: string | null): WorkspaceError {
     return new WorkspaceError(

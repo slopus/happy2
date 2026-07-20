@@ -177,7 +177,13 @@ describe("plugin package catalog", () => {
                 dockerfile: "container/Dockerfile",
                 command: "/plugin/worker",
                 args: ["--serve"],
-                permissions: ["channels:manage", "chats:update", "plugins:list"],
+                permissions: [
+                    "channels:create",
+                    "chats:members:add",
+                    "chats:members:remove",
+                    "chats:update",
+                    "plugins:list",
+                ],
             },
         });
         await expect(pluginCatalogLoad(root)).resolves.toMatchObject({});
@@ -185,7 +191,13 @@ describe("plugin package catalog", () => {
             dockerfile: "container/Dockerfile",
             command: "/plugin/worker",
             args: ["--serve"],
-            permissions: ["channels:manage", "chats:update", "plugins:list"],
+            permissions: [
+                "channels:create",
+                "chats:members:add",
+                "chats:members:remove",
+                "chats:update",
+                "plugins:list",
+            ],
         });
 
         const deniedRoot = await temporaryDirectory();

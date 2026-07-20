@@ -305,10 +305,31 @@ export interface PluginVariableDefinition {
 
 /** The closed set of host API capabilities a plugin may be granted against this server. */
 export type PluginHostPermission =
+    | "channels:create"
+    | "chats:members:add"
+    | "chats:members:remove"
     | "chats:update"
+    | "chats:archive"
+    | "messages:send"
+    | "messages:delete"
+    | "messages:history"
+    | "messages:read"
+    | "reactions:add"
+    | "reactions:remove"
+    | "search:users"
+    | "search:messages"
+    | "search:chats"
+    | "commands:run"
+    | "workspace:read"
+    | "workspace:write"
+    | "environments:read"
+    | "environments:manage"
+    | "environments:deactivate"
     | "plugins:list"
     | "plugins:install"
-    | "plugins:uninstall";
+    | "plugins:uninstall"
+    | "plugins:request-install"
+    | "plugins:request-uninstall";
 
 /** One grantable capability inside an API permission section, split by access class on the section. */
 export interface PluginApiPermissionDefinition {
@@ -323,7 +344,16 @@ export interface PluginApiPermissionDefinition {
  * capabilities appear, so an empty section list means the package requests none.
  */
 export interface PluginApiPermissionSection {
-    readonly id: "chats" | "plugins";
+    readonly id:
+        | "channels"
+        | "chats"
+        | "messages"
+        | "reactions"
+        | "search"
+        | "commands"
+        | "workspace"
+        | "environments"
+        | "plugins";
     readonly displayName: string;
     readonly readOnly: readonly PluginApiPermissionDefinition[];
     readonly mutations: readonly PluginApiPermissionDefinition[];

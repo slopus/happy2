@@ -145,8 +145,11 @@ each configured process, not persisted in the image or container definition.
 
 `container.permissions` declares the exact host API capabilities a package may
 request. Permissions are grouped for presentation by API section:
-`channels:manage` is a mutating permission in `channels`, `chats:update` is a
-mutating permission in `chats`, `environments:read` is read-only and
+`channels:create`, `chats:members:add`, `chats:members:remove`, `chats:update`,
+and `chats:archive` independently grant their named mutations. Messages split
+send, delete, history, and single-message reads; reactions split add and remove;
+search splits users, messages, and chats; and commands plus workspace reads and
+writes each have their own grant. `environments:read` is read-only and
 `environments:manage` creates and selects environments, and
 `environments:deactivate` separately deactivates unused custom environments.
 Deactivation retains the immutable manifest and Dockerfile, and creating the
@@ -168,12 +171,11 @@ later with `POST /v0/admin/pluginInstallations/:installationId/updatePermissions
 Changing a grant invalidates the current runtime token and restarts the local
 container with a new token, so stale tokens cannot retain revoked access.
 
-The isolated plugin host listener provides environment listing, Dockerfile reads,
-creation, default selection, and safe deactivation alongside `GET /plugins`,
-`POST /plugins/install`, `POST /plugins/uninstall`, `POST /channels/updateMembers`,
-`POST /channels/createChannel`, and the chat-update route. Each route
-requires its matching capability. Plugin-triggered installs must also choose a
-subset of the target package's declared permissions.
+The isolated plugin host listener provides environment and plugin management
+alongside capability-scoped chat, message, search, command, and workspace
+routes. Each route requires its exact capability; a combined membership or
+search request requires every capability used by that request. Plugin-triggered
+installs must also choose a subset of the target package's declared permissions.
 
 The bundled `hello` package is the minimal skill-plus-MCP example. The bundled
 `plugin-developer` package contributes a comprehensive Happy2 plugin-development
@@ -487,14 +489,45 @@ Remote endpoints are rechecked.
   corresponding host permission. The two mutation-request endpoints also
   require an active contextual agent-call token.
 - `POST /channels/updateMembers` adds or removes signed user capabilities from
-  the current chat. It requires `channels:manage`, rejects direct messages, and
-  applies the triggering user's ordinary channel-manager authorization.
-- `POST /channels/createChannel` creates a private channel owned by the
-  triggering user, adds signed user capabilities as initial members, and may
-  post either a people-only opening message or an agent-audience prompt that
-  starts the calling agent. It also requires `channels:manage` and accepts an
-  optional `idempotencyKey` so a retried local request replays the same channel
-  and opening message instead of creating duplicates.
+  the chat selected by `X-Happy2-Chat-Token`. Non-empty `add` and `remove`
+  arrays independently require `chats:members:add` and
+  `chats:members:remove`. Direct messages remain immutable, and the triggering
+  user's ordinary channel-manager authorization still applies.
+- `POST /channels/createChannel` requires `channels:create`. It creates a
+  public channel by default; `visibility: "private"` creates a private channel.
+  It accepts signed initial members, an optional people or agent opening
+  message, and an optional `idempotencyKey`. The response includes a signed
+  chat token for the new channel.
+- `POST /chats/archiveChat` requires `chats:archive` and archives the channel
+  selected by `X-Happy2-Chat-Token`, including the current channel when its
+  current-call token is used. Normal manager, main-channel, and DM rules apply.
+- `POST /messages/send` requires `messages:send`, sends as the human bound to
+  the chat token, and returns a signed message token. `GET /messages/history`
+  requires `messages:history` and deliberately returns no entity tokens.
+  `GET /messages/:messageId` and `POST /messages/:messageId/deleteMessage`
+  require a CUID2 path ID, the matching `X-Happy2-Message-Token`, and their
+  separate `messages:read` or `messages:delete` grant.
+- `POST /messages/:messageId/addReaction` and `removeReaction` use that same
+  message capability and independently require `reactions:add` or
+  `reactions:remove`.
+- `POST /search` accepts `filters: "all"` or any non-empty subset of `users`,
+  `messages`, and `chats`. Each filter requires its corresponding
+  `search:users`, `search:messages`, or `search:chats` grant. Every result carries
+  an installation-bound signed token for that entity. These tokens deliberately
+  let the installation use its other granted capabilities across every returned
+  entity the bound human can still access; they are not limited to the chat that
+  initiated the plugin call. Durable actions always re-check the human's current
+  authorization.
+- `GET /workspace/file` requires `workspace:read`. `POST /workspace/writeFile`
+  requires `workspace:write` and compares `expectedHash` with the current
+  SHA-256 before replacing UTF-8 content; a conflict returns `currentHash`.
+- `POST /commands/run` requires `commands:run` and runs Bash in the chat
+  workspace with only the submitted environment plus a minimal process
+  environment. This is an explicit local-operator capability: it executes as the
+  server's OS user and can reach outside the workspace through the submitted
+  command, so installations should receive it only when host shell access is
+  intended. Execution is capped at 30 seconds and 4 MiB per output stream;
+  `outputLimitExceeded` distinguishes truncated output from `timedOut`.
 
 Container processes receive `HAPPY2_PLUGIN_API_URL` and
 `HAPPY2_PLUGIN_API_TOKEN`. The URL is always
