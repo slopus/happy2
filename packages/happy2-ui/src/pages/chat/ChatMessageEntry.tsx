@@ -11,6 +11,8 @@ import { emojiItems, type LiveThreadMessage, type WorkspaceEntry } from "./chatP
 export interface ChatMessageEntryProps {
     entry: WorkspaceEntry;
     grouped: boolean;
+    /** The entry is the viewer's own message → right-aligned accent bubble. */
+    own?: boolean;
     audienceLabel?: string;
     avatarUrl?: string;
     images: MessageImage[];
@@ -53,6 +55,7 @@ export function ChatMessageEntry(props: ChatMessageEntryProps): ReactNode {
             onMenuSelect={(action) => props.onMenuSelect(entry, action)}
             onReactionSelect={(emoji) => props.onReactionSelect(entry, emoji)}
             onReplySelect={() => props.onReplySelect(entry)}
+            own={props.own}
             reactionOptions={emojiItems}
             reactions={entry.reactions}
             replyCount={entry.replyCount}

@@ -47,6 +47,12 @@ export type SidebarProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
     brand?: boolean;
     composeLabel?: string;
     footer?: ReactNode;
+    /**
+     * Drill-down mode: replaces the brand/title heading with a back button to
+     * the left of `title`, and animates the body in. Use for a pushed detail
+     * level such as the administration sub-navigation.
+     */
+    onBack?: () => void;
     onCompose?: () => void;
     onItemSelect: (id: string) => void;
     onSectionAction?: (sectionId: string) => void;
@@ -153,6 +159,7 @@ export function Sidebar(props: SidebarProps) {
         "className",
         "composeLabel",
         "footer",
+        "onBack",
         "onCompose",
         "onItemSelect",
         "onSectionAction",
@@ -165,43 +172,70 @@ export function Sidebar(props: SidebarProps) {
         <nav
             {...rest}
             className={["happy2-sidebar", local.className].filter(Boolean).join(" ")}
+            data-back={local.onBack ? "" : undefined}
             data-happy2-ui="sidebar"
             style={local.style}
         >
             <header className="happy2-sidebar__header" data-happy2-ui="sidebar-header">
-                <div className="happy2-sidebar__heading" data-happy2-ui="sidebar-heading">
-                    {local.brand ? (
-                        <span className="happy2-sidebar__title-row">
-                            <span className="happy2-sidebar__title" data-happy2-ui="sidebar-title">
-                                Happy
+                {local.onBack ? (
+                    <div className="happy2-sidebar__heading" data-happy2-ui="sidebar-heading">
+                        <button
+                            aria-label="Back"
+                            className="happy2-sidebar__back"
+                            data-happy2-ui="sidebar-back"
+                            onClick={local.onBack}
+                            type="button"
+                        >
+                            <Icon name="chevron-right" size={16} />
+                        </button>
+                        <span
+                            className="happy2-sidebar__title happy2-sidebar__title--back"
+                            data-happy2-ui="sidebar-title"
+                        >
+                            {local.title}
+                        </span>
+                    </div>
+                ) : (
+                    <div className="happy2-sidebar__heading" data-happy2-ui="sidebar-heading">
+                        {local.brand ? (
+                            <span className="happy2-sidebar__title-row">
                                 <span
-                                    className="happy2-sidebar__title-suffix"
-                                    data-happy2-ui="sidebar-title-suffix"
+                                    className="happy2-sidebar__title"
+                                    data-happy2-ui="sidebar-title"
                                 >
-                                    {" "}
-                                    2
+                                    Happy
+                                    <span
+                                        className="happy2-sidebar__title-suffix"
+                                        data-happy2-ui="sidebar-title-suffix"
+                                    >
+                                        {" "}
+                                        2
+                                    </span>
                                 </span>
                             </span>
-                        </span>
-                    ) : (
-                        <span className="happy2-sidebar__title-row">
-                            <span className="happy2-sidebar__title" data-happy2-ui="sidebar-title">
-                                {local.title}
+                        ) : (
+                            <span className="happy2-sidebar__title-row">
+                                <span
+                                    className="happy2-sidebar__title"
+                                    data-happy2-ui="sidebar-title"
+                                >
+                                    {local.title}
+                                </span>
+                                <span className="happy2-sidebar__title-chevron" aria-hidden="true">
+                                    <Icon name="chevron-down" size={14} />
+                                </span>
                             </span>
-                            <span className="happy2-sidebar__title-chevron" aria-hidden="true">
-                                <Icon name="chevron-down" size={14} />
+                        )}
+                        {local.subtitle ? (
+                            <span
+                                className="happy2-sidebar__subtitle"
+                                data-happy2-ui="sidebar-subtitle"
+                            >
+                                {local.subtitle}
                             </span>
-                        </span>
-                    )}
-                    {local.subtitle ? (
-                        <span
-                            className="happy2-sidebar__subtitle"
-                            data-happy2-ui="sidebar-subtitle"
-                        >
-                            {local.subtitle}
-                        </span>
-                    ) : null}
-                </div>
+                        ) : null}
+                    </div>
+                )}
             </header>
             <div className="happy2-sidebar__body" data-happy2-ui="sidebar-body">
                 <div className="happy2-sidebar__body-content" data-happy2-ui="sidebar-body-content">

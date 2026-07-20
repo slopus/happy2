@@ -9,6 +9,7 @@ import {
     PluginPermissionCard,
     Sidebar,
     type ContextItem,
+    type SidebarSection,
 } from "./ChatPageComponents.js";
 import type {
     AgentActivityState,
@@ -93,7 +94,22 @@ export type ChatPageProps = {
         kind: "agent" | "channel";
         nonce: number;
     };
-    rail: ReactNode;
+    /** @deprecated the feature rail was removed; retained for existing callers/tests. */
+    rail?: ReactNode;
+    /** Top-of-sidebar workspace navigation rows (Chat, Home, …, Administration). */
+    navSection?: SidebarSection;
+    /** The active workspace nav row id, when the current view is not a conversation. */
+    navActiveId?: string;
+    onNavSelect?(id: string): void;
+    /** Profile + appearance control pinned to the bottom of the sidebar. */
+    sidebarFooter?: ReactNode;
+    /**
+     * Renders another primary view (admin, files, …) in the main workspace while
+     * the chat sidebar stays visible, so the channel list is always present.
+     */
+    workspaceOverride?: ReactNode;
+    /** Replaces the chat sidebar with a pushed detail level (e.g. admin sub-nav). */
+    sidebarOverride?: ReactNode;
     /** Shows the administration entry when effective permissions expose a section. */
     canOpenAdmin?: boolean;
 };
@@ -744,7 +760,10 @@ export function ChatPage(props: ChatPageProps) {
             }
             return;
         }
-        if (!activeConversationId() && chats.length) selectConversation(chats[0]!.id, true);
+        // Don't auto-open a chat while a non-conversation view (admin, files, …)
+        // owns the workspace, or the drill-down would bounce back to a chat.
+        if (!props.workspaceOverride && !activeConversationId() && chats.length)
+            selectConversation(chats[0]!.id, true);
     });
     useLayoutEffect(() => {
         const snapshot = chatSnapshot();
@@ -839,36 +858,46 @@ export function ChatPage(props: ChatPageProps) {
     return (
         <>
             <AppShell
-                rail={props.rail}
                 windowControls={props.windowControls}
                 sidebar={
-                    <Sidebar
-                        activeItemId={activeConversationId()}
-                        brand
-                        footer={
-                            props.canOpenAdmin ? (
-                                <Button
-                                    className="happy2-chat-page__admin-link"
-                                    fullWidth
-                                    icon="settings"
-                                    onClick={props.actions.adminOpen}
-                                    size="small"
-                                    variant="ghost"
-                                >
-                                    Administration
-                                </Button>
-                            ) : null
-                        }
-                        composeLabel="New chat"
-                        onCompose={() => setComposeOpen(true)}
-                        onItemSelect={selectConversation}
-                        onSectionAction={(sectionId) => {
-                            if (sectionId === "agents") setAgentCreateOpen(true);
-                            if (sectionId === "channels") setDirectoryOpen(true);
-                            if (sectionId === "dms") setDirectMessageOpen(true);
-                        }}
-                        sections={sidebarSections}
-                    />
+                    props.sidebarOverride ?? (
+                        <Sidebar
+                            activeItemId={activeConversationId() || props.navActiveId || ""}
+                            brand
+                            footer={
+                                props.sidebarFooter ??
+                                (props.canOpenAdmin ? (
+                                    <Button
+                                        className="happy2-chat-page__admin-link"
+                                        fullWidth
+                                        icon="settings"
+                                        onClick={props.actions.adminOpen}
+                                        size="small"
+                                        variant="ghost"
+                                    >
+                                        Administration
+                                    </Button>
+                                ) : null)
+                            }
+                            composeLabel="New chat"
+                            onCompose={() => setComposeOpen(true)}
+                            onItemSelect={(id) => {
+                                if (props.navSection?.items.some((item) => item.id === id))
+                                    props.onNavSelect?.(id);
+                                else selectConversation(id);
+                            }}
+                            onSectionAction={(sectionId) => {
+                                if (sectionId === "agents") setAgentCreateOpen(true);
+                                if (sectionId === "channels") setDirectoryOpen(true);
+                                if (sectionId === "dms") setDirectMessageOpen(true);
+                            }}
+                            sections={
+                                props.navSection
+                                    ? [props.navSection, ...sidebarSections]
+                                    : sidebarSections
+                            }
+                        />
+                    )
                 }
                 panel={
                     panelMode() === "thread" ? (
@@ -984,76 +1013,80 @@ export function ChatPage(props: ChatPageProps) {
                     ) : undefined
                 }
             >
-                <ChatConversation
-                    activeConversationId={activeConversationId()}
-                    activities={activeAgentActivity()}
-                    activityNow={activityNow}
-                    busy={busy()}
-                    composerAudience={
-                        audienceRoutingActive() ? composerSnapshot()?.audience : undefined
-                    }
-                    composerCompactHint={liveComposerCompactHint()}
-                    composerDisabled={!activeConversationId()}
-                    composerHint={liveComposerHint()}
-                    composerMentions={mentionCandidates()}
-                    composerPending={composerSnapshot()?.submission.status === "pending" || busy()}
-                    composerSendEnabled={
-                        draft().trim().length > 0 || pendingAttachments().length > 0
-                    }
-                    composerValue={draft()}
-                    terminal={terminalState}
-                    terminalAvailable={Boolean(terminalAgent() && props.actions.terminalOpen)}
-                    terminalHeight={terminalHeight}
-                    contextItems={composerContext}
-                    conversation={conversation}
-                    joinVisible={Boolean(
-                        activeChat()?.kind !== "dm" &&
-                        activeChat() &&
-                        !activeChat()?.membershipRole,
-                    )}
-                    menuItems={
-                        activeConversationId() && channelModel.menuItems().length > 0
-                            ? channelModel.menuItems()
-                            : undefined
-                    }
-                    messageEntries={[
-                        ...conversationEntries().map((entry, index, list) =>
-                            renderEntry(entry, index, list),
-                        ),
-                        ...pluginRequestEntries(),
-                    ]}
-                    onAudienceChange={(audience) =>
-                        props.composer?.getState().audienceUpdate(audience)
-                    }
-                    onContextRemove={(id) =>
-                        props.composer?.getState().attachmentRemove(id.replace(/^file:/u, ""))
-                    }
-                    onComposerFocusChange={(focused) =>
-                        props.composer?.getState().focusUpdate(focused)
-                    }
-                    onFilesSelected={(files) => void uploadFiles(files)}
-                    onInfoOpen={() => infoModel.open()}
-                    onJoin={() => void channelModel.join()}
-                    onMenuSelect={channelModel.menuSelect}
-                    onSend={sendMessage}
-                    onStarToggle={channelModel.starToggle}
-                    onValueChange={updateDraft}
-                    onWorkspaceToggle={toggleFilesPanel}
-                    onTerminalClose={() => props.actions.terminalClose?.()}
-                    onTerminalHeightChange={(height) =>
-                        setTerminalHeight(Math.max(160, Math.min(560, height)))
-                    }
-                    onTerminalOpen={() => {
-                        const agent = terminalAgent();
-                        if (agent) props.actions.terminalOpen?.(agent.id);
-                    }}
-                    onTerminalInput={(data) => props.terminal?.getState().terminalWrite(data)}
-                    onTerminalReconnect={() => props.terminal?.getState().terminalReconnect()}
-                    onTerminalResize={(cols, rows) =>
-                        props.terminal?.getState().terminalResize(cols, rows)
-                    }
-                    starred={channelModel.starred()}
-                />
+                {props.workspaceOverride ?? (
+                    <ChatConversation
+                        activeConversationId={activeConversationId()}
+                        activities={activeAgentActivity()}
+                        activityNow={activityNow}
+                        busy={busy()}
+                        composerAudience={
+                            audienceRoutingActive() ? composerSnapshot()?.audience : undefined
+                        }
+                        composerCompactHint={liveComposerCompactHint()}
+                        composerDisabled={!activeConversationId()}
+                        composerHint={liveComposerHint()}
+                        composerMentions={mentionCandidates()}
+                        composerPending={
+                            composerSnapshot()?.submission.status === "pending" || busy()
+                        }
+                        composerSendEnabled={
+                            draft().trim().length > 0 || pendingAttachments().length > 0
+                        }
+                        composerValue={draft()}
+                        terminal={terminalState}
+                        terminalAvailable={Boolean(terminalAgent() && props.actions.terminalOpen)}
+                        terminalHeight={terminalHeight}
+                        contextItems={composerContext}
+                        conversation={conversation}
+                        joinVisible={Boolean(
+                            activeChat()?.kind !== "dm" &&
+                            activeChat() &&
+                            !activeChat()?.membershipRole,
+                        )}
+                        menuItems={
+                            activeConversationId() && channelModel.menuItems().length > 0
+                                ? channelModel.menuItems()
+                                : undefined
+                        }
+                        messageEntries={[
+                            ...conversationEntries().map((entry, index, list) =>
+                                renderEntry(entry, index, list),
+                            ),
+                            ...pluginRequestEntries(),
+                        ]}
+                        onAudienceChange={(audience) =>
+                            props.composer?.getState().audienceUpdate(audience)
+                        }
+                        onContextRemove={(id) =>
+                            props.composer?.getState().attachmentRemove(id.replace(/^file:/u, ""))
+                        }
+                        onComposerFocusChange={(focused) =>
+                            props.composer?.getState().focusUpdate(focused)
+                        }
+                        onFilesSelected={(files) => void uploadFiles(files)}
+                        onInfoOpen={() => infoModel.open()}
+                        onJoin={() => void channelModel.join()}
+                        onMenuSelect={channelModel.menuSelect}
+                        onSend={sendMessage}
+                        onStarToggle={channelModel.starToggle}
+                        onValueChange={updateDraft}
+                        onWorkspaceToggle={toggleFilesPanel}
+                        onTerminalClose={() => props.actions.terminalClose?.()}
+                        onTerminalHeightChange={(height) =>
+                            setTerminalHeight(Math.max(160, Math.min(560, height)))
+                        }
+                        onTerminalOpen={() => {
+                            const agent = terminalAgent();
+                            if (agent) props.actions.terminalOpen?.(agent.id);
+                        }}
+                        onTerminalInput={(data) => props.terminal?.getState().terminalWrite(data)}
+                        onTerminalReconnect={() => props.terminal?.getState().terminalReconnect()}
+                        onTerminalResize={(cols, rows) =>
+                            props.terminal?.getState().terminalResize(cols, rows)
+                        }
+                        starred={channelModel.starred()}
+                    />
+                )}
             </AppShell>
             {workspaceModel.openPath() ? (
                 <ChatWorkspaceEditor
@@ -1181,6 +1214,12 @@ export function ChatPage(props: ChatPageProps) {
                 avatarUrl={avatarFor(message?.senderId, message?.photoFileId)}
                 files={message ? mediaModel.files(message) : []}
                 grouped={message ? messagesGrouped(list, index, message) : false}
+                own={
+                    message !== undefined &&
+                    !message.agent &&
+                    message.senderId !== undefined &&
+                    message.senderId === user()?.id
+                }
                 images={message ? mediaModel.images(message) : []}
                 menuItems={message ? messageActions.menuItems(message) : []}
                 profile={message ? infoModel.messageProfile(message) : undefined}

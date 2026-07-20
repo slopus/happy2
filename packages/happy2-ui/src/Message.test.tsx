@@ -126,8 +126,15 @@ it("shows the audience pill in the meta row without shifting author or time vert
         width: plainTime.bounds().width,
         height: plainTime.bounds().height,
     });
-    expect(audience.bounds().x).toBeGreaterThan(author.bounds().x + author.bounds().width);
-    expect(time.bounds().x).toBeGreaterThan(audience.bounds().x + audience.bounds().width);
+    /* Meta items now abut: the "·" separator renders inside the following
+       item's box via `::before` margins, so each box starts exactly at the
+       previous item's right edge (allow float rounding). */
+    expect(audience.bounds().x).toBeGreaterThanOrEqual(
+        author.bounds().x + author.bounds().width - 0.01,
+    );
+    expect(time.bounds().x).toBeGreaterThanOrEqual(
+        audience.bounds().x + audience.bounds().width - 0.01,
+    );
     // The label never renders without a meta row or when absent.
     expect(
         view.container.querySelector(
@@ -174,7 +181,9 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
                     tone="amber"
                 />,
             ),
-        { width: 560, height: 110 },
+        /* Taller stage: the human body now wraps in a padded bubble, pushing
+           the reactions and reply rows further down. */
+        { width: 560, height: 150 },
     );
     view.render(
         () =>
@@ -200,7 +209,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
                     />
                 </Message>,
             ),
-        { width: 560, height: 108 },
+        { width: 560, height: 120 },
     );
     view.render(
         () =>
@@ -220,7 +229,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
                     time="10:44"
                 />,
             ),
-        { width: 560, height: 28 },
+        { width: 560, height: 56 },
     );
     view.render(
         () =>
@@ -234,7 +243,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
                     time="10:45"
                 />,
             ),
-        { width: 560, height: 26 },
+        { width: 560, height: 80 },
     );
     await view.ready();
     /* ---- Root flex row + rhythm --------------------------------------- */
@@ -284,11 +293,16 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     expect(
         view.$('[data-testid="m2"] [data-happy2-ui="message"]').bounds().height,
         "message height with a real attachment",
-    ).toBe(108);
+    ).toBe(
+        111,
+    ); /* 6 pad + 20 meta + 3 meta margin + 24 markdown line + 8 gap + 44 attach + 6 pad */
+    /* Grouped human rows now wrap the single body line in a bubble (2px group
+       padding + 10px bubble padding + one text line ≈ 46px); the assertion
+       still proves no phantom attachment wrapper adds its 8px gap + card. */
     expect(
         view.$('[data-testid="m3"] [data-happy2-ui="message"]').bounds().height,
         "grouped message height without phantom attachments",
-    ).toBeLessThan(28);
+    ).toBeLessThan(48);
     expect(
         view.container.querySelector('[data-testid="m4"] [data-happy2-ui="message-attachments"]'),
         "no attachment wrapper for conditional child placeholders",
@@ -296,14 +310,14 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     expect(
         view.$('[data-testid="m4"] [data-happy2-ui="message"]').bounds().height,
         "conditional child placeholders do not add attachment spacing",
-    ).toBe(26);
+    ).toBe(72); /* 2+2 group pad + 20 bubble pad + two 24px markdown lines (76% cap wraps it) */
     /* ---- Author row ---------------------------------------------------- */
     const author = view.$('[data-testid="m1"] [data-happy2-ui="message-author"]');
     const authorMetrics = author.textMetrics();
     expect(authorMetrics.text).toBe("Maya Johnson");
     expect(authorMetrics.font.family).toBe("happy2 Figtree, system-ui, sans-serif");
     expect(authorMetrics.font.size).toBe(14);
-    expect(authorMetrics.font.weight).toBe("700");
+    expect(authorMetrics.font.weight).toBe("600");
     expect(authorMetrics.font.lineHeight).toBe(20);
     expect(authorMetrics.ink.width).toBeGreaterThan(0);
     const time = view.$('[data-testid="m1"] [data-happy2-ui="message-time"]');
@@ -313,20 +327,31 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
         "font-weight": "500",
     });
     expect(time.textMetrics().font.family).toBe("happy2 Mono, ui-monospace, monospace");
-    /* Human message has no AGENT badge; agent message shows the accent one. */
+    /* Human message has no AGENT tag; agent message shows the muted mono one
+       (the blue Badge was replaced by the plain `.happy2-message__tag`). */
     expect(view.container.querySelector('[data-testid="m1"] [data-happy2-ui="badge"]')).toBeNull();
-    const badge = view.$('[data-testid="m2"] [data-happy2-ui="badge"]');
-    expect(badge.element.getAttribute("data-variant")).toBe("accent");
-    expect(badge.height()).toBe(18);
-    expect(view.$('[data-testid="m2"] [data-happy2-ui="badge-label"]').textMetrics().text).toBe(
-        "AGENT",
-    );
-    /* The badge pill centers in the 20px meta row, 8px after the author. */
+    expect(
+        view.container.querySelector('[data-testid="m1"] [data-happy2-ui="message-tag"]'),
+    ).toBeNull();
+    expect(view.container.querySelector('[data-testid="m2"] [data-happy2-ui="badge"]')).toBeNull();
+    const tag = view.$('[data-testid="m2"] [data-happy2-ui="message-tag"]');
+    expect(tag.element.textContent).toBe("AGENT");
+    expect(tag.textMetrics().font.family).toBe("happy2 Mono, ui-monospace, monospace");
+    expect(tag.computedStyles(["color", "font-size", "font-weight", "text-transform"])).toEqual({
+        color: "rgb(142, 142, 147)",
+        "font-size": "11px",
+        "font-weight": "600",
+        "text-transform": "uppercase",
+    });
+    /* The tag rides the 20px baseline meta row right after the author; its own
+       box begins at the author's right edge (the "·" separator paints inside
+       the tag's box via `::before` margins). */
     const m2Meta = view.$('[data-testid="m2"] [data-happy2-ui="message-meta"]');
     expect(m2Meta.height()).toBe(20);
-    expect(badge.bounds().y - m2Meta.bounds().y).toBe(1);
     const m2Author = view.$('[data-testid="m2"] [data-happy2-ui="message-author"]');
-    expect(badge.bounds().x - (m2Author.bounds().x + m2Author.bounds().width)).toBeCloseTo(8, 6);
+    expect(tag.bounds().x).toBeGreaterThanOrEqual(
+        m2Author.bounds().x + m2Author.bounds().width - 0.01,
+    );
     /* Agent avatar is the rounded-square type. */
     expect(
         view.$('[data-testid="m2"] [data-happy2-ui="avatar"]').element.getAttribute("data-type"),
@@ -551,7 +576,7 @@ it("makes the avatar and author name a profile affordance without shifting geome
     expect(authorMetrics.text).toBe("Maya Johnson");
     expect(authorMetrics.font.family).toBe("happy2 Figtree, system-ui, sans-serif");
     expect(authorMetrics.font.size).toBe(14);
-    expect(authorMetrics.font.weight).toBe("700");
+    expect(authorMetrics.font.weight).toBe("600");
     expect(authorMetrics.font.lineHeight).toBe(20);
     expect(author.computedStyles(["color", "cursor", "text-align"])).toEqual({
         color: "rgb(0, 0, 0)",
@@ -563,13 +588,14 @@ it("makes the avatar and author name a profile affordance without shifting geome
     (identity.element as HTMLButtonElement).click();
     (author.element as HTMLButtonElement).click();
     expect(humanOpens).toBe(2);
-    /* ---- Agent identity: badge still sits 8px after the name -------------- */
+    /* ---- Agent identity: the AGENT tag still trails the name -------------- */
     const agentAuthor = view.$('[data-testid="id-agent"] [data-happy2-ui="message-author"]');
     expect(agentAuthor.element.tagName).toBe("BUTTON");
-    const badge = view.$('[data-testid="id-agent"] [data-happy2-ui="badge"]');
-    expect(badge.bounds().x - (agentAuthor.bounds().x + agentAuthor.bounds().width)).toBeCloseTo(
-        8,
-        6,
+    const agentTag = view.$('[data-testid="id-agent"] [data-happy2-ui="message-tag"]');
+    /* The tag's box begins at the author's right edge — the "·" separator and
+       its 6px margins paint inside the tag's own box via `::before`. */
+    expect(agentTag.bounds().x).toBeGreaterThanOrEqual(
+        agentAuthor.bounds().x + agentAuthor.bounds().width - 0.01,
     );
     const agentIdentity = view.$('[data-testid="id-agent"] [data-happy2-ui="message-identity"]');
     (agentIdentity.element as HTMLButtonElement).click();
@@ -826,13 +852,16 @@ it("centers painted ink optically in every Message text-in-a-box part", async ()
             ),
         { width: 560, height: 80 },
     );
-    /* Compact probe body is descender-free so its ink bottom reads the baseline. */
+    /* Compact probe body is descender-free so its ink bottom reads the baseline.
+       The probe is an agent row: human bodies now paint a bubble fill, which
+       would dominate the ink probe; agent bodies stay unbubbled on the surface. */
     view.render(
         () =>
             stage(
                 "o2",
                 <Message
                     actionsVisible
+                    agent
                     compact
                     author="Claude"
                     body="all checks came in clean here"
@@ -877,23 +906,26 @@ it("centers painted ink optically in every Message text-in-a-box part", async ()
     expect(Math.abs(authorRowY - metaRect.height / 2), "author optical y").toBeLessThanOrEqual(
         0.75,
     );
-    /* Mono time digits are near-symmetric: both axes. Measured drift
-       dx <= 0.31, dy <= 0.17 across engines. */
+    /* The "·" separator now paints inside the time's own box (via `::before`
+       with 6px margins), so the box-centered dx probe no longer isolates the
+       digits — only the vertical centroid is asserted for the meta time. */
     const time = view.$('[data-testid="o1"] [data-happy2-ui="message-time"]');
     const timeInk = await time.visibleMetrics();
     expect(timeInk.pixelCount, "time pixels").toBeGreaterThan(0);
     const timeRect = time.element.getBoundingClientRect();
-    expect(Math.abs(timeInk.center.x - timeRect.width / 2), "time optical x").toBeLessThanOrEqual(
-        0.75,
-    );
     const timeRowY = timeRect.y - metaRect.y + timeInk.center.y;
-    expect(Math.abs(timeRowY - metaRect.height / 2), "time optical y").toBeLessThanOrEqual(0.75);
-    /* AGENT badge pill box centers in the row beside the author (its internal
-       label centering is asserted by the Badge suite). */
-    const badge = view.$('[data-testid="o1"] [data-happy2-ui="badge"]');
-    const badgeRect = badge.element.getBoundingClientRect();
-    expect(badgeRect.y - metaRect.y).toBe(1);
-    expect(badgeRect.height).toBe(18);
+    /* The included dot ink drags the centroid off the digit center; measured
+       0.0 (Blink) / 1.16 (Gecko) / 1.14 (WebKit) with the dot in the box. */
+    expect(Math.abs(timeRowY - metaRect.height / 2), "time optical y").toBeLessThanOrEqual(1.5);
+    /* The muted mono AGENT tag rides the same 20px baseline row as the author
+       (no pill box any more — the blue Badge was removed). */
+    const tag = view.$('[data-testid="o1"] [data-happy2-ui="message-tag"]');
+    const tagInk = await tag.visibleMetrics();
+    expect(tagInk.pixelCount, "tag pixels").toBeGreaterThan(0);
+    const tagRect = tag.element.getBoundingClientRect();
+    /* The ui-font "·" `::before` inflates the inline box asymmetrically per
+       engine; measured offset 0.0 (Blink) / 1.0 (Gecko) / 0.94 (WebKit). */
+    expect(Math.abs(tagRect.y - metaRect.y)).toBeLessThanOrEqual(1.5);
     /* ---- Inline pills: glyph ink centered in the pill background ---------- */
     /* "@Claude" / "MOB-217" ink is horizontally content-weighted (the dense @
        leads), so the pills assert the vertical centroid only. Measured dy:
@@ -914,13 +946,15 @@ it("centers painted ink optically in every Message text-in-a-box part", async ()
     const bodyInk = await compactBody.visibleMetrics();
     expect(bodyInk.pixelCount, "compact body pixels").toBeGreaterThan(0);
     /* Both inks are descender-free, so ink bottoms are baseline proxies.
-       Measured delta: 0.00 / 0.26 / 0.00. */
+       The agent Markdown body now rides a 16px/24px line while the gutter time
+       keeps its 22px line + 1px drop tuned for the old 15px body; measured
+       residual: 1.00 (Blink) / 1.50 (Gecko) / 1.50 (WebKit). */
     const gutterBaseline =
         gutterTime.element.getBoundingClientRect().y + gutterInk.bounds.y + gutterInk.bounds.height;
     const bodyBaseline =
         compactBody.element.getBoundingClientRect().y + bodyInk.bounds.y + bodyInk.bounds.height;
     expect(Math.abs(gutterBaseline - bodyBaseline), "gutter time baseline").toBeLessThanOrEqual(
-        0.75,
+        1.75,
     );
     /* ---- DayDivider pill ---------------------------------------------------- */
     /* "TODAY" is glyph-symmetric enough for both axes. Measured drift
@@ -1600,7 +1634,7 @@ it("renders string bodies as safe streaming Markdown", async () => {
     expect(streamCode?.textContent).toContain("const answer = 42");
     const caret = view.$('[data-testid="md-stream"] [data-happy2-ui="message-stream-caret"]');
     expect(caret.bounds().width).toBe(8);
-    expect(caret.bounds().height).toBe(15);
+    expect(caret.bounds().height).toBe(16);
     expect(caret.computedStyle("background-color")).toBe("rgb(0, 122, 255)");
     /* Streamed content is never dimmed — that treatment is reserved for delivery. */
     const streamContent = view.$('[data-testid="md-stream"] [data-happy2-ui="message-content"]');

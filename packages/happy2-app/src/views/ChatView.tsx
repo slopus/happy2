@@ -5,6 +5,7 @@ import {
     type ChatPageActions,
     type ChatPageNavigation,
     type ChatPagePanel,
+    type SidebarSection,
 } from "happy2-ui";
 import type {
     AgentTraceHandle,
@@ -29,7 +30,16 @@ export type ChatViewProps = {
         nonce: number;
     };
     windowControls?: boolean;
-    rail: ReactNode;
+    /** @deprecated the feature rail was removed; retained for existing callers/tests. */
+    rail?: ReactNode;
+    navSection?: SidebarSection;
+    navActiveId?: string;
+    onNavSelect?: (id: string) => void;
+    sidebarFooter?: ReactNode;
+    /** Non-conversation primary view rendered in the workspace while the sidebar stays. */
+    workspaceOverride?: ReactNode;
+    /** Replaces the chat sidebar with a pushed detail level (admin sub-nav). */
+    sidebarOverride?: ReactNode;
     canOpenAdmin: boolean;
     adminStartSection: AdminPageSection;
 };
@@ -302,9 +312,14 @@ export function ChatView(props: ChatViewProps) {
             composer={resources.composer}
             createRequest={props.createRequest}
             directory={state.directory()}
+            navActiveId={props.navActiveId}
+            navSection={props.navSection}
             navigation={pageNavigation()}
-            rail={props.rail}
+            onNavSelect={props.onNavSelect}
             sidebar={state.sidebar()}
+            sidebarFooter={props.sidebarFooter}
+            sidebarOverride={props.sidebarOverride}
+            workspaceOverride={props.workspaceOverride}
             thread={resources.thread}
             trace={resources.trace}
             terminal={resources.terminal}

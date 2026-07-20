@@ -7,12 +7,12 @@ import {
     sidebarStoreFixtureCreate,
 } from "happy2-state/testing";
 import { Avatar } from "../../src/Avatar";
+import { Button } from "../../src/Button";
 import {
     ChatPage,
     type ChatPageActions,
     type ChatPageNavigation,
 } from "../../src/pages/chat/ChatPage";
-import { Rail } from "../../src/Rail";
 import { ComponentPage, FullScreenSpecimen } from "../kit";
 const chat: ChatSummary = {
     id: "chat-blueprint",
@@ -184,20 +184,43 @@ export function ChatStorePage() {
                     chat={chatSurface.store}
                     composer={composer}
                     directory={directory.store}
+                    navActiveId=""
+                    navSection={{
+                        id: "workspace",
+                        items: [
+                            {
+                                id: "admin",
+                                kind: "view",
+                                icon: "settings",
+                                label: "Administration",
+                            },
+                        ],
+                    }}
                     navigation={navigation}
-                    rail={
-                        <Rail
-                            activeItemId="chat"
-                            footer={<Avatar initials="AL" online size="sm" tone="mint" />}
-                            items={[
-                                { icon: "inbox", id: "inbox", label: "Inbox" },
-                                { icon: "chat", id: "chat", label: "Chat" },
-                                { icon: "files", id: "files", label: "Files" },
-                            ]}
-                            onItemSelect={() => undefined}
-                        />
-                    }
+                    onNavSelect={() => undefined}
                     sidebar={sidebar.store}
+                    sidebarFooter={
+                        <div
+                            style={{
+                                alignItems: "center",
+                                display: "flex",
+                                gap: "4px",
+                                width: "100%",
+                            }}
+                        >
+                            <button className="happy2-sidebar__profile" type="button">
+                                <Avatar initials="AL" online size="sm" tone="mint" />
+                                <span className="happy2-sidebar__profile-name">Ada Lovelace</span>
+                            </button>
+                            <Button
+                                aria-label="Use dark appearance"
+                                icon="moon"
+                                iconOnly
+                                size="small"
+                                variant="ghost"
+                            />
+                        </div>
+                    }
                     user={{ id: "user-blueprint", firstName: "Ada" }}
                 />
             </FullScreenSpecimen>

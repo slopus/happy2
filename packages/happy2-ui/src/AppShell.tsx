@@ -5,7 +5,8 @@ export type AppShellProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     children: ReactNode;
     panel?: ReactNode;
     panelWidth?: number;
-    rail: ReactNode;
+    /** Optional 64px feature rail. When omitted the content spans the full body. */
+    rail?: ReactNode;
     sidebar?: ReactNode;
     style?: CSSProperties;
     titleBar?: ReactNode;
@@ -58,9 +59,11 @@ export function AppShell(props: AppShellProps) {
                 </div>
             ) : null}
             <div className="happy2-app-shell__body" data-happy2-ui="app-shell-body">
-                <div className="happy2-app-shell__rail" data-happy2-ui="app-shell-rail">
-                    {local.rail}
-                </div>
+                {local.rail ? (
+                    <div className="happy2-app-shell__rail" data-happy2-ui="app-shell-rail">
+                        {local.rail}
+                    </div>
+                ) : null}
                 <div className="happy2-app-shell__content" data-happy2-ui="app-shell-content">
                     <main className="happy2-app-shell__main" data-happy2-ui="app-shell-main">
                         {local.sidebar ? (

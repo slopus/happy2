@@ -91,6 +91,93 @@
     margin-bottom: 8px;
 }
 
+/* ---- Back / drill-down header ----------------------------------------- */
+
+.happy2-sidebar[data-back] .happy2-sidebar__heading {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+}
+
+.happy2-sidebar__back {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin-left: -6px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--happy2-radius-sm);
+    background: transparent;
+    color: var(--happy2-text-secondary);
+    cursor: pointer;
+    appearance: none;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
+}
+
+/* Mirror the right chevron into a back (left) chevron. */
+.happy2-sidebar__back svg {
+    transform: scaleX(-1);
+}
+
+.happy2-sidebar__back:hover {
+    background: var(--happy2-bg-hover);
+    color: var(--happy2-text);
+}
+
+.happy2-sidebar__back:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: -2px;
+}
+
+.happy2-sidebar__title--back {
+    font-weight: 700;
+}
+
+/* Drill-in morph: the "Administration" title rises from the row position up
+   into the header while the back chevron eases in from the left and the sub-nav
+   settles in below it — so the tapped row reads as flying up into a back header.
+   The distance (26px) is one row + gap, matching the row's original offset. */
+@media (prefers-reduced-motion: no-preference) {
+    .happy2-sidebar[data-back] .happy2-sidebar__back {
+        animation: happy2-sidebar-back-in 260ms ease both;
+    }
+
+    .happy2-sidebar[data-back] .happy2-sidebar__title--back {
+        animation: happy2-sidebar-title-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .happy2-sidebar[data-back] .happy2-sidebar__body-content {
+        animation: happy2-sidebar-detail-body 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        animation-delay: 40ms;
+    }
+}
+
+@keyframes happy2-sidebar-back-in {
+    from {
+        opacity: 0;
+        transform: translateX(-6px);
+    }
+}
+
+@keyframes happy2-sidebar-title-rise {
+    from {
+        opacity: 0;
+        transform: translateY(26px);
+    }
+}
+
+@keyframes happy2-sidebar-detail-body {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+}
+
 .happy2-sidebar__compose {
     justify-content: flex-start;
     border-radius: var(--happy2-radius-md);
@@ -363,8 +450,50 @@
     flex: none;
     align-items: center;
     height: 56px;
-    padding: 0 16px;
+    padding: 0 12px;
     border-top: 1px solid var(--happy2-border);
+}
+
+/* Profile control pinned in the sidebar footer: avatar + name that opens the
+   viewer's profile, grows to fill the row beside a trailing control. */
+.happy2-sidebar__profile {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    margin: 0;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: var(--happy2-radius-sm);
+    background: transparent;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    text-align: left;
+    cursor: pointer;
+    appearance: none;
+    transition: background-color 120ms ease;
+}
+
+.happy2-sidebar__profile:hover {
+    background: var(--happy2-bg-hover);
+}
+
+.happy2-sidebar__profile:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: -2px;
+}
+
+.happy2-sidebar__profile-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 20px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 /*

@@ -18,7 +18,6 @@ import { Button } from "../../Button";
 import { DataTable, type DataTableColumn, type DataTableRow } from "../../DataTable";
 import { EmptyState } from "../../EmptyState";
 import { StoreSurface } from "../../StoreSurface";
-import { Tabs, type TabItem } from "../../Tabs";
 import { Toolbar } from "../../Toolbar";
 import { UserPasswordResetDialog } from "../../UserPasswordResetDialog";
 import { AgentImagesPage } from "./AgentImagesPage";
@@ -60,16 +59,6 @@ export type AdminPageSection =
     | "secrets"
     | "plugins"
     | "roles";
-const allTabs: TabItem[] = [
-    { id: "users", label: "Users", icon: "users" },
-    { id: "reports", label: "Reports", icon: "shield" },
-    { id: "automations", label: "Automations", icon: "zap" },
-    { id: "integrations", label: "Integrations", icon: "link" },
-    { id: "images", label: "Agent images", icon: "spark" },
-    { id: "secrets", label: "Agent secrets", icon: "shield" },
-    { id: "plugins", label: "Plugins", icon: "braces" },
-    { id: "roles", label: "Roles", icon: "shield" },
-];
 const columns: Record<string, DataTableColumn[]> = {
     users: [
         { id: "name", header: "Name" },
@@ -176,9 +165,6 @@ function adminPageContent(
     store?: AdminStore,
 ) {
     const tab = () => props.activeSection;
-    const tabs = allTabs.filter(
-        (item) => !props.sections || props.sections.includes(item.id as AdminPageSection),
-    );
     const loadable =
         tab() === "users"
             ? snapshot?.users
@@ -232,14 +218,6 @@ function adminPageContent(
                 subtitle="Live workspace data"
                 title="Admin"
             />
-            <Tabs
-                activeId={tab()}
-                onSelect={(id) => {
-                    props.onSectionChange(id as AdminPageSection);
-                    setQuery("");
-                }}
-                tabs={tabs}
-            />
             <Box
                 style={{
                     flex: "1 1 0%",
@@ -247,13 +225,9 @@ function adminPageContent(
                     overflow: "auto",
                 }}
             >
-                <Box
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        padding: "16px",
-                    }}
-                >
+                {/* Section navigation lives in the sidebar; keying by section id
+                    remounts the standalone section component so it animates in. */}
+                <Box key={tab()} className="happy2-admin-page__section">
                     {tab() === "images" ? (
                         <AgentImagesPage
                             canManage={props.canManageImages}

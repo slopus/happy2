@@ -1,5 +1,11 @@
 import { type ReactNode } from "react";
-import { AppShell, EmptyState, type AdminPageSection, type FilesPageFilter } from "happy2-ui";
+import {
+    AppShell,
+    EmptyState,
+    type AdminPageSection,
+    type FilesPageFilter,
+    type SidebarSection,
+} from "happy2-ui";
 import type { HappyState } from "happy2-state";
 import type { AuthSession } from "./AuthGate";
 import type { DesktopNavigation, DesktopRoute } from "../navigation/desktopRouteTypes";
@@ -19,7 +25,12 @@ export interface DesktopPrimarySurfaceProps {
     };
     navigation: DesktopNavigation;
     platform?: "desktop" | "web";
-    rail: ReactNode;
+    navSection?: SidebarSection;
+    navActiveId: string;
+    onNavSelect: (id: string) => void;
+    sidebarFooter: ReactNode;
+    /** Admin drill-down sidebar, present only while the admin route is active. */
+    adminSidebar?: ReactNode;
     route: DesktopRoute;
     session?: AuthSession;
     state: HappyState;
@@ -46,26 +57,32 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
         const value = primary();
         return value.kind === "onboarding" ? value : undefined;
     };
-    const shell = (child: ReactNode) => (
-        <AppShell rail={props.rail} windowControls={props.windowControls}>
-            {child}
-        </AppShell>
-    );
-    return primary().kind === "conversation" ? (
+    // Every primary view renders through ChatView so the chat sidebar (channel
+    // list, DMs, agents) stays visible; non-conversation views mount in the
+    // workspace via workspaceOverride.
+    const chatView = (override?: ReactNode, sidebarOverride?: ReactNode) => (
         <ChatView
             adminStartSection={props.adminSections[0] ?? "users"}
             canOpenAdmin={props.adminSections.length > 0}
             createRequest={props.createRequest}
+            navActiveId={props.navActiveId}
+            navSection={props.navSection}
             navigation={props.navigation}
+            onNavSelect={props.onNavSelect}
             platform={props.platform}
-            rail={props.rail}
             route={props.route}
-            windowControls={props.windowControls}
             session={props.session}
+            sidebarFooter={props.sidebarFooter}
+            sidebarOverride={sidebarOverride}
             state={props.state}
+            windowControls={props.windowControls}
+            workspaceOverride={override}
         />
+    );
+    return primary().kind === "conversation" ? (
+        chatView()
     ) : primary().kind === "files" ? (
-        shell(
+        chatView(
             <FilesView
                 filter={props.route.files.filter as FilesPageFilter}
                 onFilterChange={(filter) =>
@@ -88,15 +105,19 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
             />,
         )
     ) : primary().kind === "home" ? (
-        shell(<HomeView navigation={props.navigation} route={props.route} state={props.state} />)
+        chatView(<HomeView navigation={props.navigation} route={props.route} state={props.state} />)
     ) : primary().kind === "activity" ? (
-        shell(<InboxView navigation={props.navigation} route={props.route} state={props.state} />)
+        chatView(
+            <InboxView navigation={props.navigation} route={props.route} state={props.state} />,
+        )
     ) : primary().kind === "threads" ? (
-        shell(<ThreadsView navigation={props.navigation} route={props.route} state={props.state} />)
+        chatView(
+            <ThreadsView navigation={props.navigation} route={props.route} state={props.state} />,
+        )
     ) : primary().kind === "calls" ? (
-        shell(<CallsView state={props.state} />)
+        chatView(<CallsView state={props.state} />)
     ) : adminPrimary() ? (
-        shell(
+        chatView(
             adminSectionAllowed() ? (
                 <AdminView
                     canAssignSecrets={props.canAssignSecrets}
@@ -123,9 +144,14 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
                     title="Administration unavailable"
                 />
             ),
+            props.adminSidebar,
         )
     ) : primary().kind === "settings" ? (
-        shell(<SettingsView session={props.session} state={props.state} />)
+        // Settings is a focused account surface, not a chat workspace view — it
+        // renders standalone without the chat sidebar.
+        <AppShell windowControls={props.windowControls}>
+            <SettingsView session={props.session} state={props.state} />
+        </AppShell>
     ) : onboardingPrimary() ? (
         <ServerOnboarding
             navigation={props.navigation}

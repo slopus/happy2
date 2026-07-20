@@ -41,6 +41,20 @@
     --happy2-bg-code: #f6f8fa;
     --happy2-bg-window: none;
 
+    /* Chat message bubbles. Own (outgoing) sits on a quiet dark charcoal fill
+       with white text; incoming humans use a neutral raised fill on the
+       surface; agents render on the surface without a bubble. own-inset tints
+       inline code so it stays legible on the dark fill. */
+    --happy2-bubble-own: #3a3a36;
+    --happy2-bubble-own-text: #ffffff;
+    --happy2-bubble-own-inset: rgb(255 255 255 / 0.16);
+    --happy2-bubble-neutral: #f0f0f2;
+
+    /* Maximum width for the centered chat column and its composer. Wide enough
+       to feel roomy on a desktop window; it only centers once the surface grows
+       past this, otherwise the column spans the available width. */
+    --happy2-chat-measure: 1040px;
+
     --happy2-border: #eaeaea;
     --happy2-border-strong: #d1d1d6;
 
@@ -125,6 +139,11 @@
         --happy2-bg-code: #161b22;
         --happy2-bg-window: none;
 
+        --happy2-bubble-own: #48484a;
+        --happy2-bubble-own-text: #ffffff;
+        --happy2-bubble-own-inset: rgb(255 255 255 / 0.18);
+        --happy2-bubble-neutral: #2c2c2e;
+
         --happy2-border: #38383a;
         --happy2-border-strong: #48484a;
 
@@ -189,6 +208,10 @@
     --happy2-bg-hover: rgb(255 255 255 / 0.08);
     --happy2-bg-code: #161b22;
     --happy2-bg-window: none;
+    --happy2-bubble-own: #48484a;
+    --happy2-bubble-own-text: #ffffff;
+    --happy2-bubble-own-inset: rgb(255 255 255 / 0.18);
+    --happy2-bubble-neutral: #2c2c2e;
     --happy2-border: #38383a;
     --happy2-border-strong: #48484a;
     --happy2-text: #ffffff;

@@ -18,13 +18,6 @@ function createFakeServer() {
     );
     return server;
 }
-function railItem(container: HTMLElement, id: string): HTMLButtonElement {
-    const item = container.querySelector<HTMLButtonElement>(
-        `[data-happy2-ui="rail-item"][data-item-id="${id}"]`,
-    );
-    if (!item) throw new Error(`rail item ${id} not found`);
-    return item;
-}
 function chatPrimarySurface(container: HTMLElement): HTMLElement {
     const surface = container.querySelector<HTMLElement>('[data-happy2-ui="channel-header"]');
     if (!surface) throw new Error("chat primary surface not found");
@@ -125,27 +118,6 @@ describe("persistent desktop routing", () => {
         expect(screen.queryByRole("button", { name: "Administration" })).toBeNull();
     });
 
-    it("routes every rail destination through the URL-owned desktop model", async () => {
-        const screen = render(<App />);
-        await waitFor(() =>
-            expect(screen.container.querySelectorAll('[data-happy2-ui="rail-item"]')).toHaveLength(
-                6,
-            ),
-        );
-        for (const [id, path, label] of [
-            ["home", "/home", "You’re all caught up"],
-            ["activity", "/activity", "No activity yet"],
-            ["threads", "/threads", "No threads yet"],
-            ["files", "/files", "No shared files"],
-            ["calls", "/calls", "No calls yet"],
-        ] as const) {
-            fireEvent.click(railItem(screen.container, id));
-            await waitFor(() => {
-                expect(location.pathname).toBe(path);
-                expect(screen.container.textContent).toContain(label);
-            });
-        }
-    });
     it("turns activity rows into message, thread, and call destinations with human context", async () => {
         history.replaceState(null, "", "/activity");
         const state = happyStateCreate();
@@ -270,7 +242,7 @@ describe("persistent desktop routing", () => {
         await waitFor(() =>
             expect(
                 screen.container.querySelector<HTMLImageElement>(
-                    '[data-happy2-ui="rail-footer"] [data-happy2-ui="avatar-image"]',
+                    '[data-happy2-ui="sidebar-profile"] [data-happy2-ui="avatar-image"]',
                 )?.src,
             ).toContain("blob:avatar-new"),
         );
@@ -642,7 +614,9 @@ describe("persistent desktop routing", () => {
                 '[data-happy2-ui="command-palette-input"]',
             );
         // A stable focused control stands in for whatever was focused at open time.
-        const opener = railItem(screen.container, "home");
+        const opener = screen.container.querySelector<HTMLButtonElement>(
+            '[data-happy2-ui="sidebar-profile"]',
+        )!;
         opener.focus();
         expect(document.activeElement).toBe(opener);
         // The production shortcut listener is on `window`; keep the opener focused
@@ -682,7 +656,9 @@ describe("persistent desktop routing", () => {
             screen.container.querySelector<HTMLInputElement>(
                 '[data-happy2-ui="command-palette-input"]',
             );
-        const opener = railItem(screen.container, "home");
+        const opener = screen.container.querySelector<HTMLButtonElement>(
+            '[data-happy2-ui="sidebar-profile"]',
+        )!;
         // Close button.
         opener.focus();
         window.dispatchEvent(

@@ -109,59 +109,54 @@ export function ChatConversation(props: ChatConversationProps) {
             <MessageList intro={props.conversation.intro} virtualize>
                 {props.messageEntries}
             </MessageList>
-            <Box
-                style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "8px",
-                    padding: "0 20px 16px",
-                }}
-            >
-                {props.activities.length > 0 ? (
-                    <AgentActivityStrip
-                        now={props.activityNow}
-                        // Rig subagent/terminal ids are only unique per agent, so
-                        // two concurrently active agents need namespaced row keys.
-                        subagents={props.activities.flatMap((activity) =>
-                            activity.subagents.map((subagent) => ({
-                                ...subagent,
-                                id: `${activity.agentUserId}:${subagent.id}`,
-                            })),
-                        )}
-                        terminals={props.activities.flatMap((activity) =>
-                            activity.backgroundTerminals.map((terminal) => ({
-                                ...terminal,
-                                id: `${activity.agentUserId}:${terminal.id}`,
-                            })),
-                        )}
+            <Box className="happy2-chat-conversation__dock">
+                <Box className="happy2-chat-conversation__compose">
+                    {props.activities.length > 0 ? (
+                        <AgentActivityStrip
+                            now={props.activityNow}
+                            // Rig subagent/terminal ids are only unique per agent, so
+                            // two concurrently active agents need namespaced row keys.
+                            subagents={props.activities.flatMap((activity) =>
+                                activity.subagents.map((subagent) => ({
+                                    ...subagent,
+                                    id: `${activity.agentUserId}:${subagent.id}`,
+                                })),
+                            )}
+                            terminals={props.activities.flatMap((activity) =>
+                                activity.backgroundTerminals.map((terminal) => ({
+                                    ...terminal,
+                                    id: `${activity.agentUserId}:${terminal.id}`,
+                                })),
+                            )}
+                        />
+                    ) : null}
+                    <input
+                        hidden
+                        multiple
+                        onChange={(event) => props.onFilesSelected(event.currentTarget.files)}
+                        ref={fileInput}
+                        type="file"
                     />
-                ) : null}
-                <input
-                    hidden
-                    multiple
-                    onChange={(event) => props.onFilesSelected(event.currentTarget.files)}
-                    ref={fileInput}
-                    type="file"
-                />
-                <Composer
-                    audience={props.composerAudience}
-                    contextItems={props.contextItems}
-                    disabled={props.composerDisabled}
-                    emoji={emojiItems}
-                    compactHint={props.composerCompactHint}
-                    hint={props.composerHint}
-                    mentions={props.composerMentions}
-                    onAttachFile={() => fileInput.current?.click()}
-                    onAudienceChange={props.onAudienceChange}
-                    onContextRemove={props.onContextRemove}
-                    onFocusChange={props.onComposerFocusChange}
-                    onSend={props.onSend}
-                    onValueChange={props.onValueChange}
-                    pending={props.composerPending}
-                    placeholder={props.conversation.composerPlaceholder}
-                    sendEnabled={props.composerSendEnabled}
-                    value={props.composerValue}
-                />
+                    <Composer
+                        audience={props.composerAudience}
+                        contextItems={props.contextItems}
+                        disabled={props.composerDisabled}
+                        emoji={emojiItems}
+                        compactHint={props.composerCompactHint}
+                        hint={props.composerHint}
+                        mentions={props.composerMentions}
+                        onAttachFile={() => fileInput.current?.click()}
+                        onAudienceChange={props.onAudienceChange}
+                        onContextRemove={props.onContextRemove}
+                        onFocusChange={props.onComposerFocusChange}
+                        onSend={props.onSend}
+                        onValueChange={props.onValueChange}
+                        pending={props.composerPending}
+                        placeholder={props.conversation.composerPlaceholder}
+                        sendEnabled={props.composerSendEnabled}
+                        value={props.composerValue}
+                    />
+                </Box>
             </Box>
             {props.terminal ? (
                 <TerminalPanel

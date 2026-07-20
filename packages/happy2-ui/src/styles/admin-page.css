@@ -1,0 +1,25 @@
+/*
+ * Administration page. The section navigation lives in the sidebar drill-down
+ * (not an in-page tab bar), so each section is a standalone component swapped in
+ * the workspace. Switching sections remounts the content (keyed by section id),
+ * which replays a short settle-in animation that mirrors the sidebar drill-in.
+ */
+
+.happy2-admin-page__section {
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .happy2-admin-page__section {
+        animation: happy2-admin-section-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+}
+
+@keyframes happy2-admin-section-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+}

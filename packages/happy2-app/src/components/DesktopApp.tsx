@@ -1,12 +1,15 @@
 import { useLayoutEffect, useReducer } from "react";
 import {
     Avatar,
-    Rail,
+    Box,
+    Button,
+    Sidebar,
     StoreSurface,
     ThemeScope,
     type AdminPageSection,
-    type RailItem,
+    type IconName,
     type SearchResultType,
+    type SidebarSection,
     type ThemeMode,
 } from "happy2-ui";
 import { permissionAllowed, type HappyState, type PermissionsSnapshot } from "happy2-state";
@@ -26,14 +29,17 @@ export interface DesktopAppProps {
     session?: AuthSession;
     state: HappyState;
 }
-const railItems: RailItem[] = [
-    { id: "home", icon: "home", label: "Home" },
-    { id: "chat", icon: "chat", label: "Chat" },
-    { id: "activity", icon: "bell", label: "Activity" },
-    { id: "threads", icon: "thread", label: "Threads" },
-    { id: "files", icon: "files", label: "Files" },
-    { id: "calls", icon: "mic", label: "Calls" },
-];
+/** Label + icon for each administration sub-section, used by the drill-down sidebar. */
+const adminSectionMeta: Record<AdminPageSection, { label: string; icon: IconName }> = {
+    users: { label: "Users", icon: "users" },
+    reports: { label: "Reports", icon: "shield" },
+    automations: { label: "Automations", icon: "zap" },
+    integrations: { label: "Integrations", icon: "link" },
+    images: { label: "Agent images", icon: "spark" },
+    secrets: { label: "Agent secrets", icon: "shield" },
+    plugins: { label: "Plugins", icon: "braces" },
+    roles: { label: "Roles", icon: "shield" },
+};
 /** Composes the persistent route owner, primary surface, and independent overlay layer. */
 export function DesktopApp(props: DesktopAppProps) {
     const route = useDesktopNavigation(props.navigation);
@@ -42,13 +48,9 @@ export function DesktopApp(props: DesktopAppProps) {
             currentAppearance === "dark" ? "light" : "dark",
         "system" as ThemeMode,
     );
-    const [createRequest, requestCreateNext] = useReducer(
-        (request: { kind: "agent" | "channel"; nonce: number }, kind: "agent" | "channel") => ({
-            kind,
-            nonce: request.nonce + 1,
-        }),
-        { kind: "agent", nonce: 0 },
-    );
+    // Channel/agent creation is driven by the sidebar's per-section "+" actions
+    // and the New chat composer, so the surface takes a stable create request.
+    const createRequest = { kind: "agent" as const, nonce: 0 };
     const user = () => props.session?.user;
     const userName = () => user()?.firstName ?? "Profile";
     const userInitials = () => user()?.firstName?.slice(0, 2).toUpperCase() ?? "?";
@@ -62,23 +64,12 @@ export function DesktopApp(props: DesktopAppProps) {
         if (desktopRouteFormat(next) === desktopRouteFormat(route)) return;
         props.navigation.navigate(next);
     }
-    function railSelect(id: string) {
-        const current = route.primary;
-        if (id === "chat")
-            primaryOpen(
-                current.kind === "conversation"
-                    ? current
-                    : { kind: "conversation", conversationKind: "chat" },
-            );
-        else if (id === "home" || id === "activity" || id === "threads" || id === "calls")
-            primaryOpen({ kind: id });
-        else if (id === "files") primaryOpen({ kind: "files" });
-    }
-    function requestCreate(kind: "agent" | "channel") {
-        if (route.primary.kind !== "conversation")
-            primaryOpen({ kind: "conversation", conversationKind: "chat" });
-        queueMicrotask(() => requestCreateNext(kind));
-    }
+    const chatOpen = () =>
+        primaryOpen(
+            route.primary.kind === "conversation"
+                ? route.primary
+                : { kind: "conversation", conversationKind: "chat" },
+        );
     /** Updates the live palette query, keeping the palette open when the query is cleared. */
     function searchChange(value: string) {
         if (route.overlay?.kind !== "search") return;
@@ -142,44 +133,44 @@ export function DesktopApp(props: DesktopAppProps) {
     const systemAppearance = () =>
         window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     const appearance = () => (themeMode === "system" ? systemAppearance() : themeMode);
-    const rail = () => (
-        <Rail
-            activeItemId={activeRailId() ?? ""}
-            appearance={appearance()}
-            footer={
+    const profileOpen = () =>
+        props.navigation.navigate({
+            ...route,
+            overlay: { kind: "profile", userId: user()?.id ?? "me" },
+        });
+    const appearanceToggle = () =>
+        themeModeSelect(themeMode === "system" ? systemAppearance() : themeMode);
+    /** Profile control + appearance toggle pinned to the bottom of the sidebar. */
+    const sidebarFooter = (
+        <Box style={{ display: "flex", alignItems: "center", gap: "4px", width: "100%" }}>
+            <button
+                aria-label="Open profile"
+                className="happy2-sidebar__profile"
+                data-happy2-ui="sidebar-profile"
+                onClick={profileOpen}
+                type="button"
+            >
                 <Avatar
                     aria-label={`${userName()} — online`}
                     imageUrl={user()?.avatarUrl}
                     initials={userInitials()}
                     online
-                    size="md"
+                    size="sm"
                     tone="brand"
                 />
-            }
-            footerLabel="Open profile"
-            items={railItems}
-            onFooterSelect={() =>
-                props.navigation.navigate({
-                    ...route,
-                    overlay: { kind: "profile", userId: user()?.id ?? "me" },
-                })
-            }
-            onItemSelect={railSelect}
-            onAppearanceToggle={() =>
-                themeModeSelect(themeMode === "system" ? systemAppearance() : themeMode)
-            }
-            primaryAction={{
-                icon: "plus",
-                label: "Create",
-                menuItems: [
-                    { id: "agent", icon: "spark", kind: "item", label: "New agent" },
-                    { id: "channel", icon: "hash", kind: "item", label: "New channel" },
-                ],
-                onMenuSelect: (id) => {
-                    if (id === "agent" || id === "channel") requestCreate(id);
-                },
-            }}
-        />
+                <span className="happy2-sidebar__profile-name">{userName()}</span>
+            </button>
+            <Button
+                aria-label={
+                    appearance() === "dark" ? "Use light appearance" : "Use dark appearance"
+                }
+                icon={appearance() === "dark" ? "sun" : "moon"}
+                iconOnly
+                onClick={appearanceToggle}
+                size="small"
+                variant="ghost"
+            />
+        </Box>
     );
     const windowControls = () => props.platform === "desktop";
     return (
@@ -188,21 +179,71 @@ export function DesktopApp(props: DesktopAppProps) {
                 const allowed = (permission: Parameters<typeof permissionAllowed>[1]) =>
                     permissionAllowed(permissions, permission);
                 const adminSections = adminSectionsProject(permissions);
+                const canOpenAdmin = adminSections.length > 0;
+                // The sidebar's only workspace nav row is Administration; every
+                // other destination is chat. Selecting it pushes the admin
+                // drill-down sidebar (adminSidebar) below.
+                const navSection: SidebarSection | undefined = canOpenAdmin
+                    ? {
+                          id: "workspace",
+                          items: [
+                              {
+                                  id: "admin",
+                                  kind: "view",
+                                  icon: "settings",
+                                  label: "Administration",
+                              },
+                          ],
+                      }
+                    : undefined;
+                const navSelect = (id: string) => {
+                    if (id === "admin")
+                        primaryOpen({ kind: "admin", section: adminSections[0] ?? "users" });
+                    else chatOpen();
+                };
+                const adminRoute = route.primary.kind === "admin" ? route.primary : undefined;
+                const adminSidebar =
+                    adminRoute && canOpenAdmin ? (
+                        <Sidebar
+                            activeItemId={adminRoute.section}
+                            footer={sidebarFooter}
+                            onBack={chatOpen}
+                            onItemSelect={(id) =>
+                                primaryOpen({ kind: "admin", section: id as AdminPageSection })
+                            }
+                            sections={[
+                                {
+                                    id: "admin-sections",
+                                    items: adminSections.map((section) => ({
+                                        id: section,
+                                        kind: "view" as const,
+                                        icon: adminSectionMeta[section].icon,
+                                        label: adminSectionMeta[section].label,
+                                    })),
+                                },
+                            ]}
+                            title="Administration"
+                        />
+                    ) : undefined;
                 return (
                     <ThemeScope mode={themeMode}>
                         <DesktopPrimarySurface
                             adminSections={adminSections}
+                            adminSidebar={adminSidebar}
                             canAssignSecrets={allowed("assignSecrets")}
                             canManageImages={allowed("manageImages")}
                             canManageSecrets={allowed("manageSecrets")}
                             canViewRoleMembers={allowed("manageAdminRoles")}
                             canResetPasswords={allowed("resetPasswords")}
                             createRequest={createRequest}
+                            navActiveId={activeRailId() ?? ""}
+                            navSection={navSection}
                             navigation={props.navigation}
+                            onNavSelect={navSelect}
                             platform={props.platform}
-                            rail={rail()}
                             route={route}
                             session={props.session}
+                            sidebarFooter={sidebarFooter}
                             state={props.state}
                             windowControls={windowControls()}
                         />

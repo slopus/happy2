@@ -44,6 +44,44 @@ export function MessagePage() {
             title="Message · MessageList · DayDivider · SystemNotice"
         >
             <Specimen
+                detail="Own (outgoing) → dark bubble, right, no avatar · incoming human → neutral bubble, left · agent → no bubble, on surface"
+                label="Message — bubble variants"
+                number="00"
+                stage="app"
+            >
+                <div style={column}>
+                    {channelFrame(
+                        <>
+                            <Message
+                                agent
+                                author="Codex"
+                                body="Deploy is green — cold-start retry landed and the device farm is clear."
+                                initials="CX"
+                                time="10:51"
+                                tone="mint"
+                            />
+                            <Message
+                                author="Maya Johnson"
+                                body="Nice. Can you cut the release notes?"
+                                time="10:52"
+                                tone="amber"
+                            />
+                            <Message
+                                actionsVisible
+                                author="Steve"
+                                body="On it — publishing in five."
+                                own
+                                time="10:53"
+                                tone="ocean"
+                            />
+                            <Message author="Steve" body="Done ✅" grouped own time="10:54" />
+                        </>,
+                    )}
+                    <DimensionRule label="10px radius bubbles · own accent right · human neutral left · agent unbubbled" />
+                </div>
+            </Specimen>
+
+            <Specimen
                 detail="6px 20px row · 36px avatar + 12px gap · author 14/700 · time 11 mono · body 15/22"
                 label="Message — rich body segments"
                 number="01"

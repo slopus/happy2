@@ -243,6 +243,69 @@ export function SidebarPage() {
             </Specimen>
 
             <Specimen
+                detail="Drill-down level: back button + title replace the brand; body animates in. Used for the administration sub-navigation."
+                label="Back / drill-down header"
+                number="01b"
+                stage="app"
+            >
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <Frame height={460}>
+                        <Sidebar
+                            activeItemId="users"
+                            footer={<FooterUser />}
+                            onBack={() => {}}
+                            onItemSelect={() => {}}
+                            sections={[
+                                {
+                                    id: "admin",
+                                    items: [
+                                        {
+                                            id: "users",
+                                            kind: "view",
+                                            icon: "users",
+                                            label: "Users",
+                                        },
+                                        {
+                                            id: "reports",
+                                            kind: "view",
+                                            icon: "shield",
+                                            label: "Reports",
+                                        },
+                                        {
+                                            id: "automations",
+                                            kind: "view",
+                                            icon: "zap",
+                                            label: "Automations",
+                                        },
+                                        {
+                                            id: "integrations",
+                                            kind: "view",
+                                            icon: "link",
+                                            label: "Integrations",
+                                        },
+                                        {
+                                            id: "plugins",
+                                            kind: "view",
+                                            icon: "braces",
+                                            label: "Plugins",
+                                        },
+                                        {
+                                            id: "roles",
+                                            kind: "view",
+                                            icon: "shield",
+                                            label: "Roles",
+                                        },
+                                    ],
+                                },
+                            ]}
+                            title="Administration"
+                        />
+                    </Frame>
+                    <DimensionRule label="back chevron 28px · title 15/700 · sub-nav rows" />
+                </div>
+            </Specimen>
+
+            <Specimen
                 detail="Active = raised + 600 · unread = 700 + dot · direct mention = numeric CountBadge · meta 11px muted"
                 label="Row treatments and kinds"
                 number="02"

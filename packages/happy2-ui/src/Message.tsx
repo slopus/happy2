@@ -12,7 +12,7 @@ import {
     type ReactNode,
 } from "react";
 import { Avatar, type ToneName } from "./Avatar";
-import { Badge, ReactionChip } from "./Badge";
+import { ReactionChip } from "./Badge";
 import { Button } from "./Button";
 import { EmojiPicker, type EmojiItem } from "./EmojiPicker";
 import { Icon, type IconName } from "./Icon";
@@ -103,6 +103,13 @@ export type MessageProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     onReactionAdd?: () => void;
     onReactionSelect?: (emoji: string) => void;
     onReplySelect?: () => void;
+    /**
+     * The viewer's own outgoing message. Renders as a right-aligned accent
+     * bubble with no avatar and no author name — only humans send, so an `own`
+     * message is never also an `agent`. Incoming human messages (neither flag)
+     * render as a left neutral bubble; agents render on the surface unbubbled.
+     */
+    own?: boolean;
     reactions?: MessageReaction[];
     /** Emoji available in the hover reaction picker. IDs are passed to `onReactionSelect`. */
     reactionOptions?: EmojiItem[];
@@ -178,6 +185,7 @@ export function Message(props: MessageProps) {
         "onReactionAdd",
         "onReactionSelect",
         "onReplySelect",
+        "own",
         "reactions",
         "reactionOptions",
         "replyCount",
@@ -288,11 +296,42 @@ export function Message(props: MessageProps) {
             window.removeEventListener("resize", onViewportChange);
         };
     }, [closePopovers, menuOpen, reactionOpen]);
+    const bodyNode = !local.body ? null : isMarkdownBody() ? (
+        <div
+            className="happy2-message__body happy2-message__body--markdown"
+            data-markdown=""
+            data-happy2-ui="message-body"
+        >
+            {markdownBody}
+            {local.generationStatus === "streaming" ? (
+                <span
+                    aria-hidden="true"
+                    className="happy2-message__caret"
+                    data-happy2-ui="message-stream-caret"
+                />
+            ) : null}
+            {local.generationStatus === "failed" ? (
+                <span
+                    aria-label="Generation failed"
+                    className="happy2-message__gen-failed"
+                    data-happy2-ui="message-generation-failed"
+                    role="img"
+                />
+            ) : null}
+        </div>
+    ) : (
+        <div className="happy2-message__body" data-happy2-ui="message-body">
+            {segments().map((segment, index) => (
+                <span key={`${segment.kind}-${index}`}>{renderSegment(segment)}</span>
+            ))}
+        </div>
+    );
     return (
         <div
             {...rest}
             className={["happy2-message", local.className].filter(Boolean).join(" ")}
             data-agent={local.agent ? "" : undefined}
+            data-own={local.own ? "" : undefined}
             data-actions-visible={local.actionsVisible ? "" : undefined}
             data-compact={grouped() ? "" : undefined}
             data-delivery-state={deliveryState()}
@@ -337,7 +376,9 @@ export function Message(props: MessageProps) {
                 )}
             </div>
             <div className="happy2-message__content" data-happy2-ui="message-content">
-                {!grouped() ? (
+                {/* Own messages carry no meta row — the accent bubble on the
+                    right is identity enough; no author, time, or audience pill. */}
+                {!grouped() && !local.own ? (
                     <div className="happy2-message__meta" data-happy2-ui="message-meta">
                         {local.onAuthorSelect ? (
                             <button
@@ -357,7 +398,11 @@ export function Message(props: MessageProps) {
                                 {local.author}
                             </span>
                         )}
-                        {local.agent ? <Badge label="AGENT" variant="accent" /> : null}
+                        {local.agent ? (
+                            <span className="happy2-message__tag" data-happy2-ui="message-tag">
+                                AGENT
+                            </span>
+                        ) : null}
                         {local.audienceLabel ? (
                             <span
                                 className="happy2-message__audience"
@@ -371,40 +416,22 @@ export function Message(props: MessageProps) {
                         </span>
                     </div>
                 ) : null}
-                {local.body ? (
-                    isMarkdownBody() ? (
-                        <div
-                            className="happy2-message__body happy2-message__body--markdown"
-                            data-markdown=""
-                            data-happy2-ui="message-body"
+                {bodyNode && local.own ? (
+                    <div
+                        className="happy2-message__bubble-line"
+                        data-happy2-ui="message-bubble-line"
+                    >
+                        <span
+                            className="happy2-message__aside-time"
+                            data-happy2-ui="message-aside-time"
                         >
-                            {markdownBody}
-                            {local.generationStatus === "streaming" ? (
-                                <span
-                                    aria-hidden="true"
-                                    className="happy2-message__caret"
-                                    data-happy2-ui="message-stream-caret"
-                                />
-                            ) : null}
-                            {local.generationStatus === "failed" ? (
-                                <span
-                                    aria-label="Generation failed"
-                                    className="happy2-message__gen-failed"
-                                    data-happy2-ui="message-generation-failed"
-                                    role="img"
-                                />
-                            ) : null}
-                        </div>
-                    ) : (
-                        <div className="happy2-message__body" data-happy2-ui="message-body">
-                            {segments().map((segment, index) => (
-                                <span key={`${segment.kind}-${index}`}>
-                                    {renderSegment(segment)}
-                                </span>
-                            ))}
-                        </div>
-                    )
-                ) : null}
+                            {local.gutterTime ?? local.time}
+                        </span>
+                        {bodyNode}
+                    </div>
+                ) : (
+                    bodyNode
+                )}
                 {local.images && local.images.length > 0 ? (
                     <div
                         className="happy2-message__media"

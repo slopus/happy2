@@ -5,6 +5,41 @@
     min-height: 0;
 }
 
+/*
+ * Center the scrolling column at a readable measure. The scrollport itself
+ * stays full-bleed (DESIGN → full-bleed scrollports): only its inner content
+ * wrapper caps its width and centers, so message rows, dividers, and the intro
+ * share one centered column while the scrollbar runs edge to edge.
+ */
+.happy2-chat-conversation .happy2-message-list__content {
+    width: 100%;
+    max-width: var(--happy2-chat-measure);
+    margin-inline: auto;
+}
+
+/*
+ * Composer dock: a solid full-width bar grounded on the surface with a top
+ * hairline, so the column reads as ending above it and nothing shows through.
+ * Its inner compose column centers at the same measure as the message column.
+ */
+.happy2-chat-conversation__dock {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    background: var(--happy2-bg-surface);
+    border-top: 1px solid var(--happy2-border);
+}
+
+.happy2-chat-conversation__compose {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: var(--happy2-chat-measure);
+    margin: 0 auto;
+    padding: 12px 20px 16px;
+}
+
 .happy2-terminal-panel {
     box-sizing: border-box;
     display: flex;

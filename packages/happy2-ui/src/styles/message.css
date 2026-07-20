@@ -32,10 +32,6 @@
     transition: background-color 120ms ease;
 }
 
-.happy2-message:hover {
-    background: var(--happy2-bg-hover);
-}
-
 /* Consecutive (grouped) messages tighten into one turn: symmetric, smaller
    vertical padding than a fresh author group, so a run of follow-ups reads as
    one block and the single line of body text stays centered in its hover row. */
@@ -103,6 +99,14 @@
     opacity: 1;
 }
 
+/* A bubbled (incoming human) grouped row insets its body by the bubble's 10px
+   top padding, so drop the gutter time by the same amount to keep it on the
+   bubble's first text line. Agent rows are unbubbled and keep the base offset;
+   own rows hide the gutter entirely. */
+.happy2-message:not([data-agent]) .happy2-message__gutter-time {
+    margin-top: 10px;
+}
+
 .happy2-message__content {
     display: flex;
     flex: 1 1 0%;
@@ -110,20 +114,40 @@
     min-width: 0;
 }
 
+/* Minimal meta line: author, then muted mono secondary items (AGENT tag,
+   audience, time) separated by faint dots — no colored badge. */
 .happy2-message__meta {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    align-items: baseline;
     height: 20px;
-    margin-bottom: 2px;
+    margin-bottom: 3px;
+}
+
+.happy2-message__meta > * + *::before {
+    content: "·";
+    margin: 0 6px;
+    color: var(--happy2-text-faint);
+    font-family: var(--happy2-font-ui);
+    font-weight: 400;
 }
 
 .happy2-message__author {
     display: block;
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 20px;
     color: var(--happy2-text);
+    white-space: nowrap;
+}
+
+.happy2-message__tag {
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 20px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--happy2-text-muted);
     white-space: nowrap;
 }
 
@@ -249,6 +273,112 @@
     text-decoration: underline;
 }
 
+/* ---- Bubbles ---------------------------------------------------------- */
+/*
+ * Incoming humans and the viewer's own messages wrap their body in a chat
+ * bubble; agents stay full-width on the surface so long-form Markdown, code,
+ * and tables keep reading like a document. The bubble radius is 10px and its
+ * vertical padding equals that radius, so any inline pill (mention/code) begins
+ * at or outside the corner field and stays an independent rounded shape — the
+ * bubble creates no nested-corner obligation against arbitrary body content.
+ */
+.happy2-message:not([data-agent]) .happy2-message__body {
+    width: fit-content;
+    max-width: 76%;
+    padding: 10px 12px;
+    border-radius: var(--happy2-radius-md);
+}
+
+/* Own (outgoing): accent bubble, no avatar, right-aligned content column. */
+.happy2-message[data-own] .happy2-message__gutter {
+    display: none;
+}
+
+.happy2-message[data-own] .happy2-message__content {
+    align-items: flex-end;
+}
+
+.happy2-message[data-own] .happy2-message__body {
+    background: var(--happy2-bubble-own);
+    color: var(--happy2-bubble-own-text);
+}
+
+/* Own bubble + its hover time sit on one right-justified line so the 11px mono
+   time reveals immediately to the left of the accent bubble. The line spans the
+   full content width, so the body's 76% cap resolves against the column. */
+.happy2-message__bubble-line {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+}
+
+.happy2-message__aside-time {
+    flex: none;
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 22px;
+    color: var(--happy2-text-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    /* Sits a hair above the bubble's baseline padding; matches gutter-time. */
+    margin-bottom: 10px;
+    opacity: 0;
+    transition: opacity 100ms ease;
+}
+
+.happy2-message:hover .happy2-message__aside-time,
+.happy2-message:focus-within .happy2-message__aside-time,
+.happy2-message[data-actions-visible] .happy2-message__aside-time {
+    opacity: 1;
+}
+
+/* Incoming human: neutral raised bubble on the left. */
+.happy2-message:not([data-agent]):not([data-own]) .happy2-message__body {
+    background: var(--happy2-bubble-neutral);
+    color: var(--happy2-text);
+}
+
+/* Hover toolbar flips to the left edge so it never sits over the right bubble. */
+.happy2-message[data-own] > .happy2-message__actions {
+    right: auto;
+    left: 20px;
+}
+
+/* Every ink stays legible on the accent fill of an own bubble. Inline code
+   carries no fill (matching the body), so it just inherits the on-accent text;
+   the segment pills keep a tint so they stay visible. */
+.happy2-message[data-own] .happy2-message__mention,
+.happy2-message[data-own] .happy2-message__code,
+.happy2-message[data-own] .happy2-message__body--markdown code {
+    background: var(--happy2-bubble-own-inset);
+    color: var(--happy2-bubble-own-text);
+}
+
+.happy2-message[data-own] .happy2-message__link,
+.happy2-message[data-own] .happy2-message__body--markdown a {
+    color: var(--happy2-bubble-own-text);
+    text-decoration: underline;
+}
+
+.happy2-message[data-own] .happy2-message__body--markdown pre {
+    background: var(--happy2-bubble-own-inset);
+    border-color: transparent;
+}
+
+.happy2-message[data-own] .happy2-message__body--markdown pre code {
+    background: transparent;
+    color: var(--happy2-bubble-own-text);
+}
+
+.happy2-message[data-own] .happy2-message__body--markdown blockquote {
+    border-left-color: var(--happy2-bubble-own-text);
+    color: var(--happy2-bubble-own-text);
+}
+
 /* ---- Markdown body (string / agent-streamed content) ------------------ */
 
 /*
@@ -272,9 +402,12 @@
     margin-top: 8px;
 }
 
+/* Body type ramp adopted from the original Happy Markdown view: 16px/24px
+   paragraphs, headings that peak at h2, underlined body-color links, and
+   unfilled inline code. */
 .happy2-message__body--markdown p {
-    font-size: 15px;
-    line-height: 22px;
+    font-size: 16px;
+    line-height: 24px;
 }
 
 /* A marker following a paragraph belongs to its final text line. Markdown
@@ -292,28 +425,30 @@
 .happy2-message__body--markdown h5,
 .happy2-message__body--markdown h6 {
     color: var(--happy2-text);
-    font-weight: 700;
+    font-weight: 600;
     line-height: 24px;
 }
 
+/* h1 stays compact but heavy; h2 is the largest heading; h3 carries a taller
+   line. Mirrors the original Happy heading ramp. */
 .happy2-message__body--markdown h1 {
-    font-size: 19px;
-    font-weight: 800;
+    font-size: 16px;
+    font-weight: 900;
 }
 
 .happy2-message__body--markdown h2 {
-    font-size: 17px;
-    font-weight: 800;
+    font-size: 20px;
 }
 
 .happy2-message__body--markdown h3 {
-    font-size: 15px;
+    font-size: 16px;
+    line-height: 28px;
 }
 
 .happy2-message__body--markdown h4,
 .happy2-message__body--markdown h5,
 .happy2-message__body--markdown h6 {
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .happy2-message__body--markdown strong {
@@ -333,74 +468,77 @@
     max-width: 100%;
     overflow-x: auto;
     border-collapse: collapse;
-    font-size: 14px;
-    line-height: 20px;
+    font-size: 16px;
+    line-height: 24px;
 }
 
 .happy2-message__body--markdown th,
 .happy2-message__body--markdown td {
     border: 1px solid var(--happy2-border);
-    padding: 6px 8px;
+    padding: 8px 12px;
     text-align: left;
-    white-space: nowrap;
+    vertical-align: top;
 }
 
 .happy2-message__body--markdown th {
     background: var(--happy2-bg-inset);
     color: var(--happy2-text);
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .happy2-message__body--markdown ul,
 .happy2-message__body--markdown ol {
-    padding-left: 20px;
-    font-size: 15px;
-    line-height: 22px;
+    padding-left: 24px;
+    font-size: 16px;
+    line-height: 24px;
 }
 
 .happy2-message__body--markdown li + li {
-    margin-top: 2px;
+    margin-top: 6px;
 }
 
+/* Links carry no accent — the original view underlines them in the body text
+   color so they read as links without introducing a second brand color. */
 .happy2-message__body--markdown a,
 .happy2-message__md-link {
-    color: var(--happy2-accent);
-    text-decoration: none;
+    color: var(--happy2-text);
+    text-decoration: underline;
     cursor: pointer;
     overflow-wrap: anywhere;
 }
 
 .happy2-message__body--markdown a:hover,
 .happy2-message__md-link:hover {
-    color: var(--happy2-accent-strong);
-    text-decoration: underline;
+    opacity: 0.8;
 }
 
+/* Inline code: mono, a touch smaller than the body, on a subtle raised fill. */
 .happy2-message__body--markdown code {
     font-family: var(--happy2-font-mono);
-    font-size: 13px;
-    background: var(--happy2-bg-inset);
+    font-size: 14px;
+    background: var(--happy2-bg-raised);
     border-radius: 4px;
     padding: 1px 5px;
+    color: var(--happy2-text);
 }
 
+/* Fenced code: a neutral raised card. The <pre> is the edge-to-edge scrollport
+   and its inner <code> carries the 16px inset so the right pad survives
+   horizontal scroll instead of being clipped by the overflow boundary. */
 .happy2-message__body--markdown pre {
-    background: var(--happy2-bg-code);
-    border: 1px solid var(--happy2-border);
+    background: var(--happy2-bg-raised);
     border-radius: 8px;
     overflow-x: auto;
     max-width: 100%;
 }
 
-/* The <pre> is the scrollport (edge-to-edge, no padding); its inner <code>
-   block carries the 10px/12px inset so the right pad survives horizontal
-   scroll instead of being clipped by the overflow boundary. */
 .happy2-message__body--markdown pre code {
     display: block;
     background: transparent;
     border-radius: 0;
-    padding: 10px 12px;
+    padding: 16px;
     color: var(--happy2-text);
+    font-size: 14px;
     line-height: 20px;
     white-space: pre;
 }
@@ -425,7 +563,7 @@
 .happy2-message__caret {
     display: inline-flex;
     width: 8px;
-    height: 15px;
+    height: 16px;
     background: var(--happy2-accent);
     border-radius: 2px;
     vertical-align: text-bottom;
