@@ -83,7 +83,14 @@ it("authorizes exact chat Rig terminals and carries protocol input resize reconn
                 })
         ).statusCode,
     ).toBe(404);
-    for (const body of [null, [], { cols: 80, rows: 24, unexpected: true }]) {
+    expect(
+        (
+            await server.as(owner).post(createPath, "null", {
+                headers: { "content-type": "application/json" },
+            })
+        ).statusCode,
+    ).toBe(400);
+    for (const body of [[], { cols: 80, rows: 24, unexpected: true }]) {
         expect((await server.as(owner).post(createPath, body)).statusCode).toBe(400);
     }
 
@@ -174,7 +181,9 @@ it("authorizes exact chat Rig terminals and carries protocol input resize reconn
 
     const stopPath = `${terminalPath}/stopTerminal`;
     expect((await server.as(owner).post(stopPath, { unexpected: true })).statusCode).toBe(400);
-    const stopped = await server.as(owner).post(stopPath, null);
+    const stopped = await server.as(owner).post(stopPath, "null", {
+        headers: { "content-type": "application/json" },
+    });
     expect(stopped.json().terminal).toMatchObject({
         exitCode: 0,
         rows: 41,
