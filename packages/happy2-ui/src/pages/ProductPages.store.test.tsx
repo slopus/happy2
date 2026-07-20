@@ -128,7 +128,19 @@ it("renders AdminPage without materializing optional admin subpages", async () =
     const plugins = owned(pluginsStoreFixtureCreate());
     const install = owned(pluginInstallStoreFixtureCreate());
     const roles = owned(rolesStoreFixtureCreate());
-    admin.input({ type: "adminLoading" });
+    admin.input({
+        type: "usersLoaded",
+        users: [
+            {
+                id: "user-without-reset-grant",
+                username: "member",
+                firstName: "Workspace",
+                lastName: "Member",
+                role: "member",
+                kind: "human",
+            },
+        ],
+    });
     let imageAccesses = 0;
     let secretAccesses = 0;
     let pluginAccesses = 0;
@@ -163,7 +175,86 @@ it("renders AdminPage without materializing optional admin subpages", async () =
     );
     await view.ready();
     expect(view.container.textContent).toContain("Admin");
+    expect(view.container.textContent).not.toContain("Reset password");
     expect([imageAccesses, secretAccesses, pluginAccesses, installAccesses]).toEqual([0, 0, 0, 0]);
+});
+
+it("opens a generated password handoff from each authorized user row and submits its exact secret", async () => {
+    const outputs: Array<{
+        type: string;
+        userId: string;
+        submissionId: number;
+        password: string;
+    }> = [];
+    const admin = owned(adminStoreFixtureCreate((event) => outputs.push(event)));
+    const images = owned(agentImagesStoreFixtureCreate());
+    const secrets = owned(agentSecretsStoreFixtureCreate());
+    const plugins = owned(pluginsStoreFixtureCreate());
+    const install = owned(pluginInstallStoreFixtureCreate());
+    const roles = owned(rolesStoreFixtureCreate());
+    admin.input({
+        type: "usersLoaded",
+        users: [
+            {
+                id: "user-ada",
+                username: "ada",
+                firstName: "Ada",
+                lastName: "Lovelace",
+                role: "member",
+                kind: "human",
+            },
+        ],
+    });
+    const view = createRenderer();
+    view.render(
+        () => (
+            <AdminPage
+                activeSection="users"
+                agentImagesStore={() => images.store}
+                agentSecretsStore={() => secrets.store}
+                canResetPasswords
+                onSectionChange={() => undefined}
+                pluginInstallStore={() => install.store}
+                pluginsStore={() => plugins.store}
+                rolesStore={() => roles.store}
+                sections={["users"]}
+                store={() => admin.store}
+            />
+        ),
+        { width: 1024, height: 704 },
+    );
+    await view.ready();
+
+    const open = view.container.querySelector<HTMLButtonElement>(
+        'button[aria-label="Reset password for Ada Lovelace"]',
+    )!;
+    expect(open).not.toBeNull();
+    open.click();
+    await expect.poll(() => view.container.textContent).toContain("Generated password");
+    const reset = admin.store.getState().userPasswordReset;
+    expect(reset).toMatchObject({ type: "open", status: "ready", userId: "user-ada" });
+    if (reset.type !== "open") throw new Error("Expected an open password reset.");
+    expect(reset.password).toHaveLength(20);
+    expect(view.container.textContent).toContain(reset.password);
+    const dialog = view.container.querySelector('[data-testid="password-reset"]');
+    admin.input({ type: "adminLoading", sections: ["users"] });
+    await expect.poll(() => view.container.textContent).toContain(reset.password);
+    expect(view.container.querySelector('[data-testid="password-reset"]')).toBe(dialog);
+
+    Array.from(
+        view.container.querySelectorAll<HTMLButtonElement>('[data-testid="password-reset"] button'),
+    )
+        .find((button) => button.textContent?.trim() === "Reset password")!
+        .click();
+    expect(outputs).toEqual([
+        {
+            type: "userPasswordResetSubmitted",
+            userId: "user-ada",
+            submissionId: 1,
+            password: reset.password,
+        },
+    ]);
+    expect(admin.store.getState().userPasswordReset).toMatchObject({ status: "submitting" });
 });
 
 it("renders a permission-scoped admin subpage without materializing the legacy admin store", async () => {

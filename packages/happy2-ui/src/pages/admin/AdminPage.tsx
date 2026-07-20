@@ -14,11 +14,13 @@ import type {
 import { Badge } from "../../Badge";
 import { Banner } from "../../Banner";
 import { Box } from "../../Box";
+import { Button } from "../../Button";
 import { DataTable, type DataTableColumn, type DataTableRow } from "../../DataTable";
 import { EmptyState } from "../../EmptyState";
 import { StoreSurface } from "../../StoreSurface";
 import { Tabs, type TabItem } from "../../Tabs";
 import { Toolbar } from "../../Toolbar";
+import { UserPasswordResetDialog } from "../../UserPasswordResetDialog";
 import { AgentImagesPage } from "./AgentImagesPage";
 import { AgentSecretsPage } from "./AgentSecretsPage";
 import { PluginsPage } from "./PluginsPage";
@@ -47,6 +49,7 @@ export interface AdminPageProps {
     canManageSecrets?: boolean;
     canAssignSecrets?: boolean;
     canViewRoleMembers?: boolean;
+    canResetPasswords?: boolean;
 }
 export type AdminPageSection =
     | "users"
@@ -96,24 +99,81 @@ const columns: Record<string, DataTableColumn[]> = {
 /** Complete admin page with independently materialized catalog, image, and secret stores. */
 export function AdminPage(props: AdminPageProps) {
     const [query, setQuery] = useState("");
+    const [passwordRevealed, setPasswordRevealed] = useState(true);
+    const [passwordCopied, setPasswordCopied] = useState(false);
+    const [passwordCopyError, setPasswordCopyError] = useState<string>();
+    const passwordUi: PasswordResetUi = {
+        revealed: passwordRevealed,
+        copied: passwordCopied,
+        copyError: passwordCopyError,
+        open(store, userId) {
+            setPasswordRevealed(true);
+            setPasswordCopied(false);
+            setPasswordCopyError(undefined);
+            store.getState().userPasswordResetOpen(userId);
+        },
+        close(store) {
+            setPasswordRevealed(true);
+            setPasswordCopied(false);
+            setPasswordCopyError(undefined);
+            store.getState().userPasswordResetClose();
+        },
+        regenerate(store) {
+            setPasswordRevealed(true);
+            setPasswordCopied(false);
+            setPasswordCopyError(undefined);
+            store.getState().userPasswordResetRegenerate();
+        },
+        toggleReveal() {
+            setPasswordRevealed((value) => !value);
+        },
+        async copy(password) {
+            try {
+                if (!navigator.clipboard?.writeText)
+                    throw new Error("Clipboard access is unavailable.");
+                await navigator.clipboard.writeText(password);
+                setPasswordCopied(true);
+                setPasswordCopyError(undefined);
+            } catch (error) {
+                setPasswordCopied(false);
+                setPasswordCopyError(
+                    error instanceof Error ? error.message : "Clipboard access is unavailable.",
+                );
+            }
+        },
+    };
     const independent =
         props.activeSection === "images" ||
         props.activeSection === "secrets" ||
         props.activeSection === "plugins" ||
         props.activeSection === "roles";
-    if (independent) return adminPageContent(props, query, setQuery);
+    if (independent) return adminPageContent(props, query, setQuery, passwordUi);
+    const store = props.store();
     return (
-        <StoreSurface store={props.store()}>
-            {(snapshot) => adminPageContent(props, query, setQuery, snapshot)}
+        <StoreSurface store={store}>
+            {(snapshot) => adminPageContent(props, query, setQuery, passwordUi, snapshot, store)}
         </StoreSurface>
     );
+}
+
+interface PasswordResetUi {
+    readonly revealed: boolean;
+    readonly copied: boolean;
+    readonly copyError?: string;
+    open(store: AdminStore, userId: string): void;
+    close(store: AdminStore): void;
+    regenerate(store: AdminStore): void;
+    toggleReveal(): void;
+    copy(password: string): Promise<void>;
 }
 
 function adminPageContent(
     props: AdminPageProps,
     query: string,
     setQuery: (value: string) => void,
+    passwordUi: PasswordResetUi,
     snapshot?: ReturnType<AdminStore["getState"]>,
+    store?: AdminStore,
 ) {
     const tab = () => props.activeSection;
     const tabs = allTabs.filter(
@@ -153,6 +213,7 @@ function adminPageContent(
         const state = loadable;
         return state?.type === "error" ? state.error.message : undefined;
     })();
+    const passwordReset = snapshot?.userPasswordReset;
     return (
         <Box
             style={{
@@ -224,6 +285,7 @@ function adminPageContent(
                     ) : loadable?.type !== "error" ? (
                         loadable?.type === "ready" ? (
                             <DataTable
+                                actionsWidth={props.canResetPasswords ? 160 : undefined}
                                 columns={columns[tab()] ?? []}
                                 empty={
                                     <EmptyState
@@ -236,6 +298,21 @@ function adminPageContent(
                                         size="inline"
                                         title={needle ? "No matches" : `No ${tab()} yet`}
                                     />
+                                }
+                                rowActions={
+                                    tab() === "users" && props.canResetPasswords && store
+                                        ? (row) => (
+                                              <Button
+                                                  aria-label={`Reset password for ${userLabel(snapshot?.users, row.id)}`}
+                                                  icon="shield"
+                                                  onClick={() => passwordUi.open(store, row.id)}
+                                                  size="small"
+                                                  variant="ghost"
+                                              >
+                                                  Reset password
+                                              </Button>
+                                          )
+                                        : undefined
                                 }
                                 rows={rows}
                             />
@@ -253,8 +330,36 @@ function adminPageContent(
                     )}
                 </Box>
             </Box>
+            {passwordReset?.type === "open" && store ? (
+                <UserPasswordResetDialog
+                    copied={passwordUi.copied}
+                    copyError={passwordUi.copyError}
+                    displayName={passwordReset.displayName}
+                    error={passwordReset.error?.message}
+                    onClose={() => passwordUi.close(store)}
+                    onCopy={() => void passwordUi.copy(passwordReset.password)}
+                    onRegenerate={() => passwordUi.regenerate(store)}
+                    onSubmit={() => store.getState().userPasswordResetSubmit()}
+                    onToggleReveal={() => passwordUi.toggleReveal()}
+                    password={passwordReset.password}
+                    revealed={passwordUi.revealed}
+                    revokedSessionCount={passwordReset.revokedSessionCount}
+                    status={passwordReset.status}
+                    username={passwordReset.username}
+                />
+            ) : null}
         </Box>
     );
+}
+
+function userLabel(
+    users: ReturnType<AdminStore["getState"]>["users"] | undefined,
+    userId: string,
+): string {
+    if (users?.type !== "ready") return userId;
+    const user = users.value.find((value) => value.id === userId);
+    if (!user) return userId;
+    return [user.firstName, user.lastName].filter(Boolean).join(" ") || `@${user.username}`;
 }
 function userRows(users: readonly AdminUserSummary[]): DataTableRow[] {
     return users.map((user) => ({

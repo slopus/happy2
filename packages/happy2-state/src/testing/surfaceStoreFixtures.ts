@@ -121,8 +121,10 @@ export function directoryStoreFixtureCreate(): SurfaceStoreFixture<DirectoryStor
     return fixtureCreate(store, (event) => store.getState().directoryInput(event));
 }
 
-export function adminStoreFixtureCreate(): SurfaceStoreFixture<AdminStore, AdminInput> {
-    const store = adminStoreCreate();
+export function adminStoreFixtureCreate(
+    output: (event: import("../modules/admin/adminState.js").AdminOutput) => void = () => undefined,
+): SurfaceStoreFixture<AdminStore, AdminInput> {
+    const store = adminStoreCreate(output);
     return fixtureCreate(store, (event) => store.getState().adminInput(event));
 }
 

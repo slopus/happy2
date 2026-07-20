@@ -93,9 +93,10 @@ import {
 } from "./modules/search/searchState.js";
 import { directoryLoad } from "./modules/directory/directoryState.js";
 import { directoryStoreCreate, type DirectoryStore } from "./modules/directory/directoryState.js";
-import { adminLoad } from "./modules/admin/adminState.js";
+import { adminLoad, adminOutputRoute } from "./modules/admin/adminState.js";
 import {
     adminStoreCreate,
+    type AdminOutput,
     type AdminSection,
     type AdminStore,
 } from "./modules/admin/adminState.js";
@@ -211,6 +212,7 @@ export type HappyStateEvent =
     | AgentSecretsOutput
     | PluginsOutput
     | RolesOutput
+    | AdminOutput
     | PluginInstallOutput
     | SetupOutput;
 
@@ -393,7 +395,7 @@ export class HappyState implements AsyncDisposable, Disposable {
         const missing = requested.filter((value) => !this.adminSections.has(value));
         for (const value of missing) this.adminSections.add(value);
         if (!this.adminBinding) {
-            this.adminBinding = adminStoreCreate();
+            this.adminBinding = adminStoreCreate((event) => this.eventRoute(event));
         }
         if (this.runtime.connected && missing.length)
             this.runtime.background(
@@ -960,6 +962,15 @@ export class HappyState implements AsyncDisposable, Disposable {
                                 identities: this.identities,
                                 secrets: this.agentSecretsBinding!,
                             },
+                            event,
+                        ),
+                    );
+                return;
+            case "userPasswordResetSubmitted":
+                if (this.adminBinding)
+                    this.backgroundIfConnected(() =>
+                        adminOutputRoute(
+                            { runtime: this.runtime, admin: this.adminBinding! },
                             event,
                         ),
                     );

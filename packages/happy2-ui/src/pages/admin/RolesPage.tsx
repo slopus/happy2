@@ -48,6 +48,10 @@ const permissionPresentation: Record<Permission, { label: string; description: s
         label: "Manage roles & grants",
         description: "Create roles and change member roles and permissions.",
     },
+    resetPasswords: {
+        label: "Reset passwords",
+        description: "Generate replacement passwords and revoke the user's existing sessions.",
+    },
 };
 const permissionLabel = (permission: Permission): string =>
     permissionPresentation[permission]?.label ?? permission;

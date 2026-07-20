@@ -10,6 +10,7 @@ export interface AdminViewProps {
     canManageSecrets: boolean;
     canAssignSecrets: boolean;
     canViewRoleMembers: boolean;
+    canResetPasswords: boolean;
     onSectionChange: (section: AdminPageSection) => void;
 }
 
@@ -27,6 +28,7 @@ export function AdminView(props: AdminViewProps) {
             canManageImages={props.canManageImages}
             canManageSecrets={props.canManageSecrets}
             canViewRoleMembers={props.canViewRoleMembers}
+            canResetPasswords={props.canResetPasswords}
             onSectionChange={props.onSectionChange}
             pluginIconUrl={icons.iconUrl}
             pluginInstallStore={() => props.state.pluginInstall()}

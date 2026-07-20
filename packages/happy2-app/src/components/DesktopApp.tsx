@@ -213,6 +213,7 @@ export function DesktopApp(props: DesktopAppProps) {
                             canManageImages={allowed("manageImages")}
                             canManageSecrets={allowed("manageSecrets")}
                             canViewRoleMembers={allowed("manageAdminRoles")}
+                            canResetPasswords={allowed("resetPasswords")}
                             createRequest={createRequest}
                             navigation={props.navigation}
                             platform={props.platform}

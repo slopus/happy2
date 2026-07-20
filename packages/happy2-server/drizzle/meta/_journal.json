@@ -225,6 +225,13 @@
             "when": 1784444400000,
             "tag": "0031_agent_image_deactivation",
             "breakpoints": true
+        },
+        {
+            "idx": 32,
+            "version": "6",
+            "when": 1784448000000,
+            "tag": "0032_password_reset_permission",
+            "breakpoints": true
         }
     ]
 }

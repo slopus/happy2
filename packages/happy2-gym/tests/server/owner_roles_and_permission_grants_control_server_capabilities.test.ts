@@ -10,9 +10,12 @@ const allPermissions = [
     "managePlugins",
     "viewAllMembers",
     "manageAdminRoles",
+    "resetPasswords",
 ];
 
-const adminPermissions = allPermissions.filter((permission) => permission !== "manageAdminRoles");
+const adminPermissions = allPermissions.filter(
+    (permission) => permission !== "manageAdminRoles" && permission !== "resetPasswords",
+);
 
 describe("owner, roles, and direct permission grants control server capabilities", () => {
     it("creates immutable built-in roles, makes the server creator allow-all, and joins every human as a member", async () => {

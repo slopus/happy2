@@ -232,6 +232,7 @@ export const backendOperations = {
     unassignUserRole: post("/v0/admin/users/:userId/unassignRole"),
     getAdminUsers: get("/v0/admin/users"),
     updateAdminUser: post("/v0/admin/users/:userId/updateUser"),
+    resetAdminUserPassword: sensitivePost("/v0/admin/users/:userId/resetPassword"),
     banUser: post("/v0/admin/users/:userId/banUser"),
     unbanUser: post("/v0/admin/users/:userId/unbanUser"),
     deleteUser: post("/v0/admin/users/:userId/deleteUser"),
@@ -971,6 +972,7 @@ export interface KnownBackendResults {
     getFiles: { readonly files: readonly FileSummary[]; readonly nextCursor?: string };
     getAdminUsers: { readonly users: readonly AdminUserSummary[] };
     updateAdminUser: { readonly user: AdminUserSummary; readonly sync?: unknown };
+    resetAdminUserPassword: { readonly revokedSessionCount: number };
     getRoles: {
         readonly permissions: readonly Permission[];
         readonly roles: readonly RoleSummary[];

@@ -30,6 +30,7 @@ export interface DesktopPrimarySurfaceProps {
     canManageSecrets: boolean;
     canAssignSecrets: boolean;
     canViewRoleMembers: boolean;
+    canResetPasswords: boolean;
 }
 /** Selects one primary desktop surface; overlays are deliberately hosted by its parent. */
 export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
@@ -104,6 +105,7 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
                     canManageImages={props.canManageImages}
                     canManageSecrets={props.canManageSecrets}
                     canViewRoleMembers={props.canViewRoleMembers}
+                    canResetPasswords={props.canResetPasswords}
                     onSectionChange={(section: AdminPageSection) =>
                         props.navigation.navigate({
                             ...props.route,

@@ -6,6 +6,7 @@ export const permissions = [
     "managePlugins",
     "viewAllMembers",
     "manageAdminRoles",
+    "resetPasswords",
 ] as const;
 
 export type Permission = (typeof permissions)[number];

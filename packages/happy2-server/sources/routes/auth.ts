@@ -6,6 +6,7 @@ import type { User } from "../modules/user/types.js";
 import type { DrizzleExecutor } from "../modules/drizzle.js";
 import { permissionGetEffective } from "../modules/permission/permissionGetEffective.js";
 import { setupGetRegistrationAvailability } from "../modules/setup/index.js";
+import { CollaborationError } from "../modules/chat/types.js";
 
 export function registerAuthRoutes(
     app: FastifyInstance,
@@ -85,6 +86,30 @@ export function registerAuthRoutes(
         app.post("/v0/auth/password/login", async (request, reply) => {
             const result = await auth.loginPassword(request.body, request);
             return result ? result : reply.code(401).send({ error: "invalid_credentials" });
+        });
+        app.post("/v0/admin/users/:userId/resetPassword", async (request, reply) => {
+            const userId = identifier((request.params as { userId?: unknown }).userId);
+            if (!userId) return reply.code(400).send({ error: "invalid_request" });
+            try {
+                const result = await auth.resetPassword(userId, request.body, request);
+                if (result === "unauthorized")
+                    return reply.code(401).send({ error: "unauthorized" });
+                if (result === "invalid")
+                    return reply.code(400).send({ error: "invalid_password" });
+                return result;
+            } catch (error) {
+                if (error instanceof CollaborationError)
+                    return reply
+                        .code(
+                            error.code === "forbidden"
+                                ? 403
+                                : error.code === "not_found"
+                                  ? 404
+                                  : 400,
+                        )
+                        .send({ error: error.code, message: error.message });
+                throw error;
+            }
         });
     }
 
@@ -187,4 +212,14 @@ function isUniqueConstraint(error: unknown): boolean {
         current = details.cause;
     }
     return false;
+}
+
+function identifier(value: unknown): string | undefined {
+    if (typeof value !== "string" || !value || value.length > 128 || value.trim() !== value)
+        return undefined;
+    for (const character of value) {
+        const code = character.codePointAt(0)!;
+        if (code < 0x20 || code === 0x7f) return undefined;
+    }
+    return value;
 }

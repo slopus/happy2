@@ -56,6 +56,7 @@
 @import "./styles/policy-control.css";
 @import "./styles/secret-reveal.css";
 @import "./styles/development-token-modal.css";
+@import "./styles/user-password-reset-dialog.css";
 @import "./styles/emoji-picker.css";
 @import "./styles/automation-card.css";
 @import "./styles/moderation-report-card.css";

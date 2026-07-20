@@ -11,6 +11,7 @@ import { oidcStateConsume } from "./oidcStateConsume.js";
 import { magicLinkCreate } from "./magicLinkCreate.js";
 import { magicLinkConsume } from "./magicLinkConsume.js";
 import { accountRegisterPassword } from "./accountRegisterPassword.js";
+import { accountResetPassword } from "./accountResetPassword.js";
 import { accountFindPassword } from "./accountFindPassword.js";
 import { accountFindOrCreateOidc } from "./accountFindOrCreateOidc.js";
 import { accountFindOidc } from "./accountFindOidc.js";
@@ -165,6 +166,22 @@ export class AuthService {
         )
             return undefined;
         return this.issue(account.id, request);
+    }
+    async resetPassword(
+        targetUserId: string,
+        body: unknown,
+        request: FastifyRequest,
+    ): Promise<{ revokedSessionCount: number } | "invalid" | "unauthorized"> {
+        const current = await this.authenticate(request);
+        if (!current) return "unauthorized";
+        const password = validatedPasswordReset(body);
+        if (!password) return "invalid";
+        return accountResetPassword(this.executor, this.passwordPepper!, {
+            actorUserId: current.user.id,
+            targetUserId,
+            password,
+            context: { request: requestMetadata(request) },
+        });
     }
     async createProfile(
         body: unknown,
@@ -330,6 +347,11 @@ function email(body: unknown): string | undefined {
 function validatedPassword(body: unknown): string | undefined {
     const result = value(body, "password");
     return result && result.length >= 12 && result.length <= 1024 ? result : undefined;
+}
+function validatedPasswordReset(body: unknown): string | undefined {
+    if (!body || typeof body !== "object" || Array.isArray(body)) return undefined;
+    const keys = Object.keys(body);
+    return keys.length === 1 && keys[0] === "password" ? validatedPassword(body) : undefined;
 }
 function optional(value: string | undefined, maximum: number): string | undefined {
     const normalized = value?.trim();

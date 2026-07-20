@@ -57,6 +57,7 @@ import { ModalPage } from "./pages/ModalPage";
 import { ModalOverlayPage } from "./pages/ModalOverlayPage";
 import { DefaultAgentFormPage } from "./pages/DefaultAgentFormPage";
 import { DevelopmentTokenModalPage } from "./pages/DevelopmentTokenModalPage";
+import { UserPasswordResetDialogPage } from "./pages/UserPasswordResetDialogPage";
 import { ModerationReportCardPage } from "./pages/ModerationReportCardPage";
 import { NotificationListPage } from "./pages/NotificationListPage";
 import { OnboardingScreenPage } from "./pages/OnboardingScreenPage";
@@ -91,6 +92,12 @@ type BlueprintPage = {
 const components: BlueprintPage[] = [
     { id: "box", label: "Box", number: "C-001", page: BoxPage },
     { id: "terminal-panel", label: "Terminal panel", number: "C-078", page: TerminalPanelPage },
+    {
+        id: "user-password-reset-dialog",
+        label: "User password reset dialog",
+        number: "C-079",
+        page: UserPasswordResetDialogPage,
+    },
     { id: "icon", label: "Icon", number: "C-002", page: IconPage },
     { id: "button", label: "Button", number: "C-003", page: ButtonPage },
     { id: "avatar", label: "Avatar", number: "C-004", page: AvatarPage },

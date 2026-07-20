@@ -29,7 +29,8 @@ export type Permission =
     | "assignImagesToChats"
     | "managePlugins"
     | "viewAllMembers"
-    | "manageAdminRoles";
+    | "manageAdminRoles"
+    | "resetPasswords";
 
 export interface EffectivePermissions {
     readonly allowed: readonly Permission[];
