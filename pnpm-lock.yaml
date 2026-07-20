@@ -59,6 +59,9 @@ importers:
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
+      yjs:
+        specifier: ^13.6.31
+        version: 13.6.31
     devDependencies:
       '@eslint/css':
         specifier: ^1.4.0
