@@ -215,6 +215,11 @@ export {
     type DocumentsPanelProps,
 } from "./DocumentsPanel";
 export {
+    DocumentSurface,
+    type DocumentSurfaceParticipant,
+    type DocumentSurfaceProps,
+} from "./DocumentSurface";
+export {
     DataTable,
     type DataTableAlign,
     type DataTableColumn,

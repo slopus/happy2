@@ -59,9 +59,9 @@ describe("collaborative document updates", () => {
         const replayed = await asOwner.post(`/v0/documents/${documentId}/applyUpdates`, firstBatch);
         expect(replayed.statusCode).toBe(200);
         expect(replayed.json()).toMatchObject({ acceptedSequence: "1", replayed: true });
-        expect((await asOwner.get(`/v0/documents/${documentId}`)).json().document.latestSequence).toBe(
-            "1",
-        );
+        expect(
+            (await asOwner.get(`/v0/documents/${documentId}`)).json().document.latestSequence,
+        ).toBe("1");
 
         const partnerHint = await partnerFrames.until((frame) => frame.name === "document.updated");
         expect(partnerHint.data).toMatchObject({ chatId, documentId, sequence: "1" });
@@ -71,7 +71,9 @@ describe("collaborative document updates", () => {
         Y.applyUpdate(partnerDoc, decode(snapshot.json().snapshot.update as string));
         expect(partnerDoc.getText("content").toString()).toBe("Hello from the owner. ");
         const beforePartner = Y.encodeStateVector(partnerDoc);
-        partnerDoc.getText("content").insert(partnerDoc.getText("content").length, "And the partner.");
+        partnerDoc
+            .getText("content")
+            .insert(partnerDoc.getText("content").length, "And the partner.");
         const second = await asPartner.post(`/v0/documents/${documentId}/applyUpdates`, {
             clientUpdateId: "partner-batch-1",
             updates: [encode(Y.encodeStateAsUpdate(partnerDoc, beforePartner))],
@@ -89,7 +91,8 @@ describe("collaborative document updates", () => {
         });
         expect(ownerDifference.json().snapshot).toBeUndefined();
         expect(ownerDifference.json().updates).toHaveLength(1);
-        for (const entry of ownerDifference.json().updates) Y.applyUpdate(ownerDoc, decode(entry.update));
+        for (const entry of ownerDifference.json().updates)
+            Y.applyUpdate(ownerDoc, decode(entry.update));
         expect(ownerDoc.getText("content").toString()).toBe(
             "Hello from the owner. And the partner.",
         );

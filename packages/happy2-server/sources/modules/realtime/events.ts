@@ -466,7 +466,10 @@ function assertDocumentPresenceSnapshot(
         } catch {
             throw new Error("Document presence state must be JSON serializable");
         }
-        if (encoded === undefined || Buffer.byteLength(encoded) > limits.maxDocumentPresenceStateBytes)
+        if (
+            encoded === undefined ||
+            Buffer.byteLength(encoded) > limits.maxDocumentPresenceStateBytes
+        )
             throw new Error(
                 `Document presence state exceeds ${limits.maxDocumentPresenceStateBytes} bytes`,
             );

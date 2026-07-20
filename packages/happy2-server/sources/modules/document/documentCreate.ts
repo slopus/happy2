@@ -7,7 +7,11 @@ import { documentUpdates, documents } from "../schema.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { documentProjection } from "./impl/documentProjection.js";
-import { documentEmptyUpdate, documentUpdateDecode, documentUpdatesMerge } from "./impl/updateCodec.js";
+import {
+    documentEmptyUpdate,
+    documentUpdateDecode,
+    documentUpdatesMerge,
+} from "./impl/updateCodec.js";
 import {
     DOCUMENT_FORMATS,
     MAX_DOCUMENT_TITLE_LENGTH,
@@ -44,7 +48,11 @@ export async function documentCreate(
         input.initialUpdate === undefined
             ? undefined
             : documentUpdatesMerge([
-                  documentUpdateDecode(input.initialUpdate, "initialUpdate", MAX_DOCUMENT_UPDATE_BYTES),
+                  documentUpdateDecode(
+                      input.initialUpdate,
+                      "initialUpdate",
+                      MAX_DOCUMENT_UPDATE_BYTES,
+                  ),
               ]);
     return withTransaction(executor, async (tx) => {
         if (!(await chatCanPost(tx, input.actorUserId, input.chatId)))

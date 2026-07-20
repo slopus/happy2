@@ -76,9 +76,7 @@ it("renders seeded blocks, applies remote updates in place, and announces local 
         "Updated: Everything in this page syncs live to every member of the channel.",
     );
     expect(
-        document.querySelector(
-            '[data-happy2-ui="document-editor"] [data-content-type="heading"]',
-        ),
+        document.querySelector('[data-happy2-ui="document-editor"] [data-content-type="heading"]'),
     ).toBe(headingNode);
 
     await view.screenshot("DocumentEditor.test");
@@ -97,9 +95,7 @@ it("honors the read-only flag on the underlying contenteditable surface", async 
         { width: 520, height: 320 },
     );
     await frames(3);
-    const editable = document.querySelector(
-        '[data-happy2-ui="document-editor"] [contenteditable]',
-    );
+    const editable = document.querySelector('[data-happy2-ui="document-editor"] [contenteditable]');
     expect(editable?.getAttribute("contenteditable")).toBe("false");
     expect(view.$('[data-happy2-ui="document-editor"]').bounds().width).toBe(520);
 });

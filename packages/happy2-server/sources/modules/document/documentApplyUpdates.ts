@@ -121,7 +121,12 @@ export async function documentApplyUpdates(
                 snapshotSequence,
                 updatedAt,
             })
-            .where(and(eq(documents.id, input.documentId), eq(documents.lastSequence, row.lastSequence)))
+            .where(
+                and(
+                    eq(documents.id, input.documentId),
+                    eq(documents.lastSequence, row.lastSequence),
+                ),
+            )
             .returning();
         if (!updated) throw new CollaborationError("conflict", "Document changed concurrently");
         return {

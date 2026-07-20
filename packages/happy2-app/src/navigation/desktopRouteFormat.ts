@@ -24,6 +24,7 @@ export function desktopRouteFormat(route: DesktopRoute): string {
         else if (overlay.kind === "profile") search.set("profile", overlay.userId);
         else if (overlay.kind === "file") search.set("file", overlay.fileId);
         else if (overlay.kind === "workspace-file") search.set("path", overlay.path);
+        else if (overlay.kind === "document") search.set("document", overlay.documentId);
     }
     if (route.primary.kind === "files") {
         if (route.files.filter !== "all") search.set("filter", route.files.filter);

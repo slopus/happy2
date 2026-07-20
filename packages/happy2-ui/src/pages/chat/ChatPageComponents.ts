@@ -11,6 +11,8 @@ export { Box } from "../../Box.js";
 export { Button } from "../../Button.js";
 export { ChannelHeader } from "../../ChannelHeader.js";
 export { Composer, type ContextItem, type Mentionable } from "../../Composer.js";
+export { DocumentSurface } from "../../DocumentSurface.js";
+export { DocumentsPanel } from "../../DocumentsPanel.js";
 export { EmptyState } from "../../EmptyState.js";
 export { FileAttachment } from "../../FileAttachment.js";
 export { FileEditor } from "../../FileEditor.js";

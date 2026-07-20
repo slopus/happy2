@@ -91,9 +91,7 @@ describe("collaborative documents across the real server boundary", () => {
         await ownerState.documentRename(created.id, "Live page v2");
         await waitFor(() => {
             const documents = partnerList.getState().documents;
-            return (
-                documents.type === "ready" && documents.value[0]?.title === "Live page v2"
-            );
+            return documents.type === "ready" && documents.value[0]?.title === "Live page v2";
         }, "partner list shows the renamed title");
     });
 });

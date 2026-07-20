@@ -123,6 +123,7 @@ function panelQueryParse(
     const inspector = search.get("inspector");
     if (inspector === "info") return { kind: "info" };
     if (inspector === "workspace") return { kind: "workspace" };
+    if (inspector === "documents") return { kind: "documents" };
     return undefined;
 }
 
@@ -151,6 +152,13 @@ function overlayQueryParse(
         search.get("path")
     )
         return { kind: "workspace-file", chatId: primary.chatId, path: search.get("path")! };
+    if (
+        kind === "document" &&
+        primary.kind === "conversation" &&
+        primary.chatId &&
+        search.get("document")
+    )
+        return { kind: "document", chatId: primary.chatId, documentId: search.get("document")! };
     return undefined;
 }
 

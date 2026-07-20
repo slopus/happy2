@@ -45,13 +45,15 @@ export type DesktopPanelRoute =
     | { readonly kind: "profile"; readonly userId: string }
     | { readonly kind: "thread"; readonly rootMessageId: string }
     | { readonly kind: "trace"; readonly messageId: string }
-    | { readonly kind: "workspace" };
+    | { readonly kind: "workspace" }
+    | { readonly kind: "documents" };
 
 export type DesktopOverlayRoute =
     | { readonly kind: "search"; readonly query: string }
     | { readonly kind: "profile"; readonly userId: string }
     | { readonly kind: "file"; readonly fileId: string }
-    | { readonly kind: "workspace-file"; readonly chatId: string; readonly path: string };
+    | { readonly kind: "workspace-file"; readonly chatId: string; readonly path: string }
+    | { readonly kind: "document"; readonly chatId: string; readonly documentId: string };
 
 export interface DesktopRoute {
     readonly primary: DesktopPrimaryRoute;

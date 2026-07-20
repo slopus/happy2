@@ -1,10 +1,6 @@
 import * as Y from "yjs";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import {
-    type DocumentPresenceEntry,
-    type DocumentSummary,
-    type UserError,
-} from "../../types.js";
+import { type DocumentPresenceEntry, type DocumentSummary, type UserError } from "../../types.js";
 import { type Loadable } from "../chat/chatState.js";
 import { type StateRuntime, userError } from "../runtime/runtimeState.js";
 
@@ -256,10 +252,7 @@ export async function documentFlush(
  * active participant's lease renewed ahead of the server TTL, so remote
  * cursors stay live without a request per keystroke.
  */
-export function documentPresenceSchedule(
-    context: DocumentActionContext,
-    documentId: string,
-): void {
+export function documentPresenceSchedule(context: DocumentActionContext, documentId: string): void {
     const binding = context.documentGet(documentId);
     if (!binding) return;
     const timer = timers(binding);

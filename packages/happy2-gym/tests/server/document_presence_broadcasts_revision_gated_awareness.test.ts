@@ -124,9 +124,9 @@ describe("collaborative document presence", () => {
         expect(leaveEvent.data).toMatchObject({
             presence: { clientId: "owner-editor-1", active: false },
         });
-        expect((await asPartner.get(`/v0/documents/${documentId}/presence`)).json().presence).toEqual(
-            [],
-        );
+        expect(
+            (await asPartner.get(`/v0/documents/${documentId}/presence`)).json().presence,
+        ).toEqual([]);
 
         partnerStream.abort();
         await partnerFrames.cancel();

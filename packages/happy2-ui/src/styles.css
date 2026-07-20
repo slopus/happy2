@@ -51,6 +51,7 @@
 @import "./styles/file-panel.css";
 @import "./styles/file-editor.css";
 @import "./styles/document-editor.css";
+@import "./styles/document-surface.css";
 @import "./styles/documents-panel.css";
 @import "./styles/media-gallery.css";
 @import "./styles/file-attachment.css";

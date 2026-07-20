@@ -90,6 +90,12 @@ function chatPageActionsCreate(overrides: Partial<ChatPageActions> = {}): ChatPa
         workspaceFileOpen: () => undefined,
         workspaceFileReload: () => undefined,
         workspaceFileClose: () => undefined,
+        documentsOpen: () => undefined,
+        documentsClose: () => undefined,
+        documentOpen: () => undefined,
+        documentClose: () => undefined,
+        documentCreate: async () => undefined,
+        documentRename: async () => undefined,
         fileUpload: async () => ({
             id: "file-1",
             kind: "file",

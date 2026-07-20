@@ -4,10 +4,7 @@ import { type DrizzleExecutor } from "../drizzle.js";
 import { documentUpdates } from "../schema.js";
 import { documentProjection } from "./impl/documentProjection.js";
 import { documentRowGet } from "./impl/documentRowGet.js";
-import {
-    DOCUMENT_DIFFERENCE_MAX_LIMIT,
-    type DocumentDifference,
-} from "./types.js";
+import { DOCUMENT_DIFFERENCE_MAX_LIMIT, type DocumentDifference } from "./types.js";
 
 /**
  * Returns the sequenced updates a client is missing after its cursor, falling back to
@@ -34,7 +31,10 @@ export async function documentGetDifference(
         .select({ sequence: documentUpdates.sequence, update: documentUpdates.update })
         .from(documentUpdates)
         .where(
-            and(eq(documentUpdates.documentId, input.documentId), gt(documentUpdates.sequence, floor)),
+            and(
+                eq(documentUpdates.documentId, input.documentId),
+                gt(documentUpdates.sequence, floor),
+            ),
         )
         .orderBy(asc(documentUpdates.sequence))
         .limit(limit + 1);

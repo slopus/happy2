@@ -52,6 +52,15 @@ describe("desktop route model", () => {
                 files,
             },
         ],
+        [
+            "/channels/chat-9?inspector=documents&overlay=document&document=doc-3",
+            {
+                primary: { kind: "conversation", conversationKind: "channel", chatId: "chat-9" },
+                panel: { kind: "documents" },
+                overlay: { kind: "document", chatId: "chat-9", documentId: "doc-3" },
+                files,
+            },
+        ],
     ])("round-trips %s", (logical, expected) => {
         expect(desktopRouteParse(`https://happy.test${logical}`)).toEqual(expected);
         expect(desktopRouteFormat(expected)).toBe(logical);
@@ -77,6 +86,19 @@ describe("desktop route model", () => {
         expect(
             desktopRouteParse("https://happy.test/files?overlay=workspace-file&path=.env"),
         ).toEqual({ primary: { kind: "files" }, files });
+    });
+
+    it("does not restore a document overlay without its conversation identity", () => {
+        expect(
+            desktopRouteParse("https://happy.test/files?overlay=document&document=doc-3"),
+        ).toEqual({ primary: { kind: "files" }, files });
+        expect(
+            desktopRouteFormat({
+                primary: { kind: "conversation", conversationKind: "channel", chatId: "chat-1" },
+                overlay: { kind: "document", chatId: "chat-2", documentId: "doc-3" },
+                files,
+            }),
+        ).toBe("/channels/chat-1");
     });
 
     it("normalizes layer combinations that cannot round-trip through a URL", () => {

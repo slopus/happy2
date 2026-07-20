@@ -1,9 +1,6 @@
 import { CollaborationError } from "../chat/types.js";
 import { type DrizzleExecutor } from "../drizzle.js";
-import {
-    DEFAULT_REALTIME_LIMITS,
-    type DocumentPresenceSnapshot,
-} from "../realtime/index.js";
+import { DEFAULT_REALTIME_LIMITS, type DocumentPresenceSnapshot } from "../realtime/index.js";
 import { documentRowGet } from "./impl/documentRowGet.js";
 import { type DocumentPresenceTracker } from "./presenceTracker.js";
 import { DOCUMENT_PRESENCE_DEFAULT_TTL_MS } from "./types.js";

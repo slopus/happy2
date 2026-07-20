@@ -45,6 +45,7 @@ export interface ChatConversationProps {
     onStarToggle(): void;
     onValueChange(value: string): void;
     onWorkspaceToggle(): void;
+    onDocumentsToggle(): void;
     terminal?: TerminalSnapshot;
     terminalAvailable: boolean;
     terminalHeight: number;
@@ -68,6 +69,16 @@ export function ChatConversation(props: ChatConversationProps) {
                                 icon="terminal"
                                 iconOnly
                                 onClick={props.onTerminalOpen}
+                                size="small"
+                                variant="ghost"
+                            />
+                        ) : null}
+                        {props.activeConversationId ? (
+                            <Button
+                                aria-label="Documents"
+                                icon="doc"
+                                iconOnly
+                                onClick={props.onDocumentsToggle}
                                 size="small"
                                 variant="ghost"
                             />

@@ -4,6 +4,7 @@ import {
     AppShell,
     Banner,
     Button,
+    DocumentsPanel,
     Lightbox,
     ModalOverlay,
     PluginPermissionCard,
@@ -21,6 +22,8 @@ import type {
     DeepReadonly,
     DirectoryStore,
     DirectoryUserProjection,
+    DocumentListStore,
+    DocumentStore,
     SidebarStore,
     SidebarChatProjection,
     ThreadHandle,
@@ -49,6 +52,7 @@ import { ChatDirectMessageDialog } from "./ChatDirectMessageDialog.js";
 import { ChatMessageEditDialog } from "./ChatMessageEditDialog.js";
 import { ChatInfoPanel } from "./ChatInfoPanel.js";
 import { ChatThreadPanel } from "./ChatThreadPanel.js";
+import { ChatDocumentOverlay } from "./ChatDocumentOverlay.js";
 import { ChatWorkspaceEditor } from "./ChatWorkspaceEditor.js";
 import { ChatWorkspacePanel } from "./ChatWorkspacePanel.js";
 import { useChatWorkspaceModel } from "./chatWorkspaceModel.js";
@@ -85,6 +89,8 @@ export type ChatPageProps = {
     terminal?: TerminalStore;
     workspace?: WorkspaceStore;
     workspaceFile?: WorkspaceFileStore;
+    documentList?: DocumentListStore;
+    document?: DocumentStore;
     actions: ChatPageActions;
     navigation: ChatPageNavigation;
     /** Filters sidebar rows locally; global search must not drive this prop. */
@@ -147,11 +153,15 @@ export type ChatPagePanel =
       }
     | {
           readonly kind: "workspace";
+      }
+    | {
+          readonly kind: "documents";
       };
 export interface ChatPageNavigation {
     readonly chatId?: string;
     readonly panel?: ChatPagePanel;
     readonly workspaceFilePath?: string;
+    readonly documentId?: string;
 }
 export interface ChatPageActions {
     adminOpen(): void;
@@ -168,6 +178,12 @@ export interface ChatPageActions {
     workspaceFileOpen(chatId: string, path: string): void;
     workspaceFileReload(chatId: string, path: string): void;
     workspaceFileClose(): void;
+    documentsOpen(): void;
+    documentsClose(): void;
+    documentOpen(chatId: string, documentId: string): void;
+    documentClose(): void;
+    documentCreate(chatId: string): Promise<void>;
+    documentRename(documentId: string, title: string): Promise<void>;
     fileUpload(body: FormData): Promise<import("happy2-state").UploadedFile>;
     fileDownload(fileId: string): Promise<ArrayBuffer>;
     filePreviewDownload(fileId: string): Promise<ArrayBuffer>;
@@ -211,6 +227,7 @@ export function ChatPage(props: ChatPageProps) {
     const threadChatState = useOptionalStoreSnapshot(threadChat);
     const traceState = useOptionalStoreSnapshot(props.trace);
     const terminalState = useOptionalStoreSnapshot(props.terminal);
+    const documentListState = useOptionalStoreSnapshot(props.documentList);
     const sidebarSnapshot = () => sidebarState;
     const directorySnapshot = () => directoryState;
     const chatSnapshot = () => chatState;
@@ -261,11 +278,12 @@ export function ChatPage(props: ChatPageProps) {
         return panel?.kind === "thread" ? panel.rootMessageId : undefined;
     };
     const threadDraft = threadState?.draft ?? "";
-    const panelMode = (): "info" | "thread" | "trace" | "files" | undefined => {
+    const panelMode = (): "info" | "thread" | "trace" | "files" | "documents" | undefined => {
         const panel = activePanel();
         if (panel?.kind === "thread") return "thread";
         if (panel?.kind === "trace") return "trace";
         if (panel?.kind === "info" || panel?.kind === "profile") return "info";
+        if (panel?.kind === "documents") return "documents";
         return panel?.kind === "workspace" ? "files" : undefined;
     };
     const workspaceModel = useChatWorkspaceModel({
@@ -859,6 +877,15 @@ export function ChatPage(props: ChatPageProps) {
             workspaceModel.panelClose();
         } else openFilesPanel();
     }
+    function toggleDocumentsPanel() {
+        if (panelMode() === "documents") props.actions.documentsClose();
+        else props.actions.documentsOpen();
+    }
+    function memberDisplayName(userId: string): string | undefined {
+        const members = chatSnapshot()?.members;
+        if (members?.type !== "ready") return undefined;
+        return members.value.find((member) => member.id === userId)?.displayName;
+    }
     function previewDirectoryChannel(id: string) {
         setDirectoryOpen(false);
         selectConversation(id);
@@ -1025,6 +1052,38 @@ export function ChatPage(props: ChatPageProps) {
                                     : undefined
                             }
                         />
+                    ) : panelMode() === "documents" ? (
+                        <DocumentsPanel
+                            data-testid="chat-documents-panel"
+                            documents={
+                                documentListState?.documents.type === "ready"
+                                    ? documentListState.documents.value.map((entry) => ({
+                                          id: entry.id,
+                                          title: entry.title,
+                                          detail: `Edited ${entry.updatedAt.slice(0, 10)}`,
+                                      }))
+                                    : []
+                            }
+                            error={
+                                documentListState?.documents.type === "error"
+                                    ? documentListState.documents.error.message
+                                    : undefined
+                            }
+                            loading={
+                                documentListState === undefined ||
+                                documentListState.documents.type === "loading" ||
+                                documentListState.documents.type === "unloaded"
+                            }
+                            onClose={() => props.actions.documentsClose()}
+                            onCreate={() => {
+                                const chatId = activeConversationId();
+                                if (chatId) void props.actions.documentCreate(chatId);
+                            }}
+                            onOpen={(documentId) => {
+                                const chatId = activeConversationId();
+                                if (chatId) props.actions.documentOpen(chatId, documentId);
+                            }}
+                        />
                     ) : undefined
                 }
             >
@@ -1086,6 +1145,7 @@ export function ChatPage(props: ChatPageProps) {
                         onStarToggle={channelModel.starToggle}
                         onValueChange={updateDraft}
                         onWorkspaceToggle={toggleFilesPanel}
+                        onDocumentsToggle={toggleDocumentsPanel}
                         onTerminalClose={() => props.actions.terminalClose?.()}
                         onTerminalHeightChange={(height) =>
                             setTerminalHeight(Math.max(160, Math.min(560, height)))
@@ -1121,6 +1181,18 @@ export function ChatPage(props: ChatPageProps) {
                     path={workspaceModel.openPath()!}
                     saving={workspaceModel.fileSaving()}
                     status={workspaceModel.fileStatus()}
+                />
+            ) : null}
+            {props.navigation.documentId && props.document ? (
+                <ChatDocumentOverlay
+                    document={props.document}
+                    memberName={memberDisplayName}
+                    onClose={() => props.actions.documentClose()}
+                    onRename={(title) => {
+                        const documentId = props.navigation.documentId;
+                        if (documentId) void props.actions.documentRename(documentId, title);
+                    }}
+                    user={user()}
                 />
             ) : null}
             {directoryOpen ? (

@@ -11,6 +11,8 @@ import type {
     AgentTraceHandle,
     ChatHandle,
     ComposerStore,
+    DocumentHandle,
+    DocumentListHandle,
     HappyState,
     ThreadHandle,
     TerminalHandle,
@@ -52,12 +54,16 @@ type ChatResources = {
     workspace?: WorkspaceHandle;
     workspaceFile?: WorkspaceFileHandle;
     terminal?: TerminalHandle;
+    documentList?: DocumentListHandle;
+    document?: DocumentHandle;
     chatId?: string;
     conversationKind?: "chat" | "channel";
     threadId?: string;
     traceMessageId?: string;
     workspaceChatId?: string;
     workspaceFileKey?: string;
+    documentListChatId?: string;
+    documentId?: string;
 };
 /** Owns route-keyed HappyState leases while the reusable ChatPage remains props-only. */
 export function ChatView(props: ChatViewProps) {
@@ -71,6 +77,8 @@ export function ChatView(props: ChatViewProps) {
         props.route.primary.kind === "conversation" ? props.route.primary : undefined;
     const workspaceFileRoute =
         props.route.overlay?.kind === "workspace-file" ? props.route.overlay : undefined;
+    const documentRoute =
+        props.route.overlay?.kind === "document" ? props.route.overlay : undefined;
     const nextChatId = conversation?.chatId;
     const nextConversationKind = conversation?.conversationKind;
     const nextThreadId =
@@ -83,6 +91,8 @@ export function ChatView(props: ChatViewProps) {
         workspaceFileRoute?.chatId && workspaceFileRoute.path
             ? `${workspaceFileRoute.chatId}\u0000${workspaceFileRoute.path}`
             : undefined;
+    const nextDocumentListChatId = props.route.panel?.kind === "documents" ? nextChatId : undefined;
+    const nextDocumentId = documentRoute?.documentId;
     const resourcesCommit = (next: ChatResources) => {
         resourcesRef.current = next;
         resourcesReplace(next);
@@ -165,6 +175,22 @@ export function ChatView(props: ChatViewProps) {
                         : undefined,
             });
         }
+        if (next.documentListChatId !== nextDocumentListChatId) {
+            next.documentList?.[Symbol.dispose]();
+            replace({
+                documentListChatId: nextDocumentListChatId,
+                documentList: nextDocumentListChatId
+                    ? state.documentListOpen(nextDocumentListChatId)
+                    : undefined,
+            });
+        }
+        if (next.documentId !== nextDocumentId) {
+            next.document?.[Symbol.dispose]();
+            replace({
+                documentId: nextDocumentId,
+                document: nextDocumentId ? state.documentOpen(nextDocumentId) : undefined,
+            });
+        }
         if (changed) resourcesCommit(next);
     }, [
         state,
@@ -175,6 +201,8 @@ export function ChatView(props: ChatViewProps) {
         nextWorkspaceChatId,
         nextWorkspaceFileKey,
         workspaceFileRoute,
+        nextDocumentListChatId,
+        nextDocumentId,
     ]);
     useLayoutEffect(
         () => () => {
@@ -184,6 +212,8 @@ export function ChatView(props: ChatViewProps) {
             current.workspaceFile?.[Symbol.dispose]();
             current.workspace?.[Symbol.dispose]();
             current.terminal?.[Symbol.dispose]();
+            current.documentList?.[Symbol.dispose]();
+            current.document?.[Symbol.dispose]();
             current.chat?.[Symbol.dispose]();
             if (current.chatId) state.composerRelease(current.chatId);
             resourcesRef.current = {};
@@ -244,6 +274,23 @@ export function ChatView(props: ChatViewProps) {
             });
         },
         workspaceFileClose: () => props.navigation.close("overlay"),
+        documentsOpen: () => panelOpen({ kind: "documents" }),
+        documentsClose: () => props.navigation.close("panel"),
+        documentOpen(selectedChatId, documentId) {
+            props.navigation.navigate({
+                ...props.route,
+                overlay: { kind: "document", chatId: selectedChatId, documentId },
+            });
+        },
+        documentClose: () => props.navigation.close("overlay"),
+        async documentCreate(selectedChatId) {
+            const document = await state.documentCreate(selectedChatId, { title: "" });
+            props.navigation.navigate({
+                ...props.route,
+                overlay: { kind: "document", chatId: selectedChatId, documentId: document.id },
+            });
+        },
+        documentRename: (documentId, title) => state.documentRename(documentId, title),
         fileUpload: (body) => state.fileUpload(body),
         fileDownload: (fileId) => state.fileDownload(fileId),
         filePreviewDownload: (fileId) => state.filePreviewDownload(fileId),
@@ -302,6 +349,8 @@ export function ChatView(props: ChatViewProps) {
             chatId: selected?.chatId,
             panel: props.route.panel,
             workspaceFilePath: file?.chatId === selected?.chatId ? file?.path : undefined,
+            documentId:
+                documentRoute?.chatId === selected?.chatId ? documentRoute?.documentId : undefined,
         };
     };
     return (
@@ -329,6 +378,8 @@ export function ChatView(props: ChatViewProps) {
             user={props.session?.user ?? { id: "local-user", firstName: "Happy" }}
             workspace={resources.workspace}
             workspaceFile={resources.workspaceFile}
+            documentList={resources.documentList}
+            document={resources.document}
         />
     );
 }
