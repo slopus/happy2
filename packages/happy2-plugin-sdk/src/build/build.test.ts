@@ -53,10 +53,11 @@ describe("plugin build helpers", () => {
             if (data[offset + 3]) expect([...data.subarray(offset, offset + 3)]).toEqual([0, 0, 0]);
     });
 
-    it("builds a self-contained app and copies conventional skills", async () => {
+    it("builds a self-contained app without plugin build dependencies", async () => {
         const root = await mkdtemp(join(tmpdir(), "happy2-sdk-skills-"));
         await mkdir(join(root, "src"), { recursive: true });
         await mkdir(join(root, "skills/example"), { recursive: true });
+        await writeFile(join(root, "package.json"), '{"type":"module"}\n', "utf8");
         await writeFile(join(root, "src/server.ts"), "export const ready = true;\n", "utf8");
         await writeFile(join(root, "src/label.ts"), 'export const label = "Built app";\n', "utf8");
         await writeFile(
@@ -66,7 +67,7 @@ describe("plugin build helpers", () => {
         );
         await writeFile(
             join(root, "src/app.ts"),
-            'import "./app.css"; import { label } from "./label.js"; document.body.dataset.label = label; document.body.dataset.template = "$& </script><script src=\\"inside-a-string.js\\"></script>";\n',
+            'import "./app.css"; import { label } from "./label.js"; document.body.dataset.label = label; document.body.dataset.template = "$& </script><script src=\\"inside-a-string.js\\"></script>"; document.getElementById("root").className = "flex rounded-xl p-4";\n',
             "utf8",
         );
         await writeFile(
@@ -90,6 +91,8 @@ describe("plugin build helpers", () => {
         const app = await readFile(join(result.outputDirectory, "apps/example.html"), "utf8");
         expect(app).toContain("Built app");
         expect(app).toContain("$&");
+        expect(app).toContain(".flex{display:flex}");
+        expect(app).toContain(".rounded-xl");
         expect(app).not.toMatch(/<link\b(?=[^>]*\brel="stylesheet")/);
         expect(app.match(/<\/script>/g)).toHaveLength(1);
         expect(app.match(/<\/style>/g)).toHaveLength(1);

@@ -10,6 +10,8 @@ import {
     writeFile,
 } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import sharp from "sharp";
 import { build as viteBuild, type Plugin } from "vite";
@@ -20,6 +22,7 @@ import type { PluginBuildConfig } from "./config.js";
 import { createPluginManifest } from "./manifest.js";
 
 const SAFE_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const TAILWIND_STYLESHEET = fileURLToPath(import.meta.resolve("tailwindcss/index.css"));
 const DEFAULT_DOCKERFILE = `FROM node:24-alpine
 
 WORKDIR /plugin
@@ -120,12 +123,19 @@ async function buildApps(
             const entry = await packageFile(root, typeof raw === "string" ? raw : raw.entry);
             const appTemporary = resolve(temporaryRoot, name);
             const htmlEntry = resolve(appTemporary, "index.html");
+            const stylesheetEntry = resolve(appTemporary, "styles.css");
             const appOutput = resolve(appTemporary, "output");
             await mkdir(appTemporary, { recursive: true });
             const source = relative(dirname(htmlEntry), entry).split(sep).join("/");
+            const pluginSource = relative(dirname(stylesheetEntry), root).split(sep).join("/");
+            await writeFile(
+                stylesheetEntry,
+                `@import "tailwindcss" source(${JSON.stringify(pluginSource)});\n`,
+                "utf8",
+            );
             await writeFile(
                 htmlEntry,
-                `<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="${source.startsWith(".") ? source : `./${source}`}"></script></body></html>`,
+                `<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="./styles.css"></head><body><div id="root"></div><script type="module" src="${source.startsWith(".") ? source : `./${source}`}"></script></body></html>`,
                 "utf8",
             );
             await viteBuild({
@@ -146,7 +156,12 @@ async function buildApps(
                 },
                 configFile: false,
                 logLevel: "warn",
-                plugins: [react(), htmlSafeInlineCss(), viteSingleFile()],
+                plugins: [react(), tailwindcss(), htmlSafeInlineCss(), viteSingleFile()],
+                resolve: {
+                    // Plugin packages consume Tailwind through the SDK and do
+                    // not need to install or configure it themselves.
+                    alias: [{ find: /^tailwindcss$/, replacement: TAILWIND_STYLESHEET }],
+                },
                 root: appTemporary,
             });
             const emitted = await readdir(appOutput);

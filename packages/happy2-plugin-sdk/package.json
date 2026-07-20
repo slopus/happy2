@@ -23,9 +23,11 @@
     "dependencies": {
         "@modelcontextprotocol/ext-apps": "^1.7.4",
         "@modelcontextprotocol/sdk": "^1.29.0",
+        "@tailwindcss/vite": "^4.3.2",
         "@vitejs/plugin-react": "^6.0.3",
         "react": "^19.2.7",
         "sharp": "^0.35.3",
+        "tailwindcss": "^4.3.2",
         "vite": "^8.1.4",
         "vite-plugin-singlefile": "^2.3.3",
         "zod": "^4.3.6"

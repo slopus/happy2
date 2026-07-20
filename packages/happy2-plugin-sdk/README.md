@@ -34,10 +34,13 @@ export default definePluginConfig({
 });
 ```
 
-`happy2-plugin-build` bundles `src/server.ts` as Node 24 ESM, bundles every React entry as a
-self-contained HTML document, copies `skills/`, validates and normalizes declared UI masks to exact
-40×40 black/alpha PNGs, and emits the installable tree at `dist/plugin`. It also generates the
-manifest, module marker, and isolated container Dockerfile.
+`happy2-plugin-build` bundles `src/server.ts` as Node 24 ESM and bundles every app entry with the
+SDK's shared Vite, React, Tailwind CSS v4, and single-file pipeline. Plugin apps can use statically
+detectable Tailwind classes directly in TSX without installing those build dependencies or adding
+Vite, PostCSS, or Tailwind configuration. Each app is emitted as one self-contained HTML document.
+The builder also copies `skills/`, validates and normalizes declared UI masks to exact 40×40
+black/alpha PNGs, and emits the installable tree at `dist/plugin` with its manifest, module marker,
+and isolated container Dockerfile.
 
 ## Server and app APIs
 
