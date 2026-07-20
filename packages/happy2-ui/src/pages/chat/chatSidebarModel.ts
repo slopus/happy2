@@ -74,6 +74,29 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
         }
         return items;
     }
+    /**
+     * Keeps every composed agent conversation directly under the server-managed
+     * main conversation. If search removes that main row, matching conversations
+     * stay reachable at the top level instead of appearing as orphaned children.
+     */
+    function agentItems(
+        projections: readonly DeepReadonly<SidebarChatProjection>[],
+        ordered: (
+            values: readonly DeepReadonly<SidebarChatProjection>[],
+        ) => DeepReadonly<SidebarChatProjection>[],
+    ): SidebarItem[] {
+        const agents = projections.filter(
+            (projection) => projection.chat.kind === "dm" && isAgentConversation(projection),
+        );
+        const main = agents.find((projection) => projection.chat.isDefaultAgentConversation);
+        if (!main) return ordered(agents).map((projection) => item(projection));
+        return [
+            item(main),
+            ...ordered(agents.filter((projection) => projection.id !== main.id)).map((projection) =>
+                item(projection, 1),
+            ),
+        ];
+    }
     const sections: SidebarSection[] = (() => {
         const needle = options.search().trim().toLowerCase();
         const projections = chats().filter(
@@ -108,12 +131,7 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
                 label: "Agents",
                 action: { icon: "plus", label: "New agent" },
                 empty: { actionLabel: "New agent", description: "No agent chats yet." },
-                items: ordered(
-                    projections.filter(
-                        (projection) =>
-                            projection.chat.kind === "dm" && isAgentConversation(projection),
-                    ),
-                ).map(item),
+                items: agentItems(projections, ordered),
             },
         ];
     })();

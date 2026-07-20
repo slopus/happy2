@@ -91,6 +91,7 @@ it("places the default-agent conversation in the agents section and projects dis
         "Build agent",
         agent,
     );
+    const secondAgentChat = projection(chat("second-agent-chat", "dm"), "Review agent", agent);
     const humanChat = projection(
         chat("human-chat", "dm", { unreadCount: 4 }),
         "Grace Hopper",
@@ -103,7 +104,7 @@ it("places the default-agent conversation in the agents section and projects dis
     let activeId = "";
     let sidebar: SidebarSnapshot = {
         status: { type: "ready" },
-        chats: [agentChat, defaultAgentChat, humanChat, channel],
+        chats: [agentChat, secondAgentChat, defaultAgentChat, humanChat, channel],
     };
     const directory: DirectorySnapshot = {
         status: { type: "ready", value: true },
@@ -127,14 +128,25 @@ it("places the default-agent conversation in the agents section and projects dis
     expect(model.sections.map((section) => section.items.map((item) => item.label))).toEqual([
         ["Engineering"],
         ["Grace Hopper"],
-        ["Build agent", "Happy"],
+        ["Happy", "Build agent", "Review agent"],
     ]);
     expect(model.sections[1]!.items[0]).toMatchObject({ unread: true, badge: undefined });
-    expect(model.sections[2]!.items[0]).toMatchObject({ unread: true, badge: 2 });
-    expect(model.sections[2]!.items[1]).toMatchObject({ label: "Happy", unread: true, badge: 1 });
+    expect(model.sections[2]!.items[0]).toMatchObject({
+        label: "Happy",
+        depth: undefined,
+        unread: true,
+        badge: 1,
+    });
+    expect(model.sections[2]!.items[1]).toMatchObject({
+        label: "Build agent",
+        depth: 1,
+        unread: true,
+        badge: 2,
+    });
+    expect(model.sections[2]!.items[2]).toMatchObject({ label: "Review agent", depth: 1 });
     activeId = "agent-chat";
     model = createModel();
-    expect(model.sections[2]!.items[0]).toMatchObject({ unread: false, badge: undefined });
+    expect(model.sections[2]!.items[1]).toMatchObject({ unread: false, badge: undefined });
     const changedAgent = projection(
         { ...agentChat.chat, unreadCount: 8, mentionCount: 3 },
         "Release agent",
@@ -143,15 +155,49 @@ it("places the default-agent conversation in the agents section and projects dis
     activeId = "";
     sidebar = {
         status: { type: "ready" },
-        chats: [changedAgent, defaultAgentChat, humanChat, channel],
+        chats: [changedAgent, secondAgentChat, defaultAgentChat, humanChat, channel],
     };
     model = createModel();
-    expect(model.sections[2]!.items[0]).toMatchObject({
+    expect(model.sections[2]!.items[1]).toMatchObject({
         label: "Release agent",
         unread: true,
         badge: 3,
     });
-    expect(model.sections[2]!.items.map((item) => item.label)).toEqual(["Release agent", "Happy"]);
+    expect(model.sections[2]!.items.map((item) => item.label)).toEqual([
+        "Happy",
+        "Release agent",
+        "Review agent",
+    ]);
+    expect(model.sections[2]!.items.map((item) => item.depth)).toEqual([undefined, 1, 1]);
+});
+
+it("keeps agent conversations top-level when search omits the main chat", () => {
+    const model = chatSidebarModelCreate({
+        user: () => ({ id: "human-1", firstName: "Ada" }),
+        activeConversationId: () => "",
+        search: () => "build",
+        sidebarSnapshot: () => ({
+            status: { type: "ready" },
+            chats: [
+                projection(
+                    chat("happy-chat", "dm", { isDefaultAgentConversation: true }),
+                    "Happy",
+                    happy,
+                ),
+                projection(chat("agent-chat", "dm"), "Build agent", agent),
+            ],
+        }),
+        directorySnapshot: () => ({
+            status: { type: "ready", value: true },
+            users: [],
+            channels: [],
+        }),
+        avatarFor: () => undefined,
+    });
+
+    expect(model.sections.find((section) => section.id === "agents")!.items).toMatchObject([
+        { id: "agent-chat", depth: undefined },
+    ]);
 });
 
 it("nests child channels under their parent, flags archives, and rescues orphaned children", () => {
