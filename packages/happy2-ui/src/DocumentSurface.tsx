@@ -4,6 +4,7 @@ import { Button } from "./Button";
 import { DocumentDeleteDialog } from "./DocumentDeleteDialog";
 import {
     DocumentEditor,
+    type DocumentEditorCommentUser,
     type DocumentEditorPresence,
     type DocumentEditorPresencePayload,
     type DocumentEditorUser,
@@ -38,6 +39,12 @@ export interface DocumentSurfaceProps {
     readonly onPresence?: (payload: DocumentEditorPresencePayload) => void;
     readonly editable?: boolean;
     readonly theme?: "light" | "dark";
+    /** The local user's stable id; enables inline comment threads. */
+    readonly commentUserId?: string;
+    /** Resolves comment author ids to display identities. */
+    readonly commentUsersResolve?: (
+        userIds: readonly string[],
+    ) => Promise<readonly DocumentEditorCommentUser[]>;
 }
 
 const SAVE_LABELS = {
@@ -72,6 +79,8 @@ export function DocumentSurface(props: DocumentSurfaceProps) {
             );
         return (
             <DocumentEditor
+                commentUserId={props.commentUserId}
+                commentUsersResolve={props.commentUsersResolve}
                 editable={props.editable}
                 onPresence={props.onPresence}
                 presence={props.presence}

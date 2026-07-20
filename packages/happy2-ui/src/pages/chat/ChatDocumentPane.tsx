@@ -46,6 +46,16 @@ export function ChatDocumentPane(props: ChatDocumentPaneProps) {
     }));
     return (
         <DocumentSurface
+            commentUserId={props.user.id}
+            commentUsersResolve={async (userIds) =>
+                userIds.map((id) => ({
+                    id,
+                    username:
+                        id === props.user.id
+                            ? props.user.firstName
+                            : (props.memberName(id) ?? "Someone"),
+                }))
+            }
             data-testid="chat-document-surface"
             editable={snapshot.document.type === "ready"}
             error={snapshot.document.type === "error" ? snapshot.document.error.message : undefined}

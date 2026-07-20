@@ -222,6 +222,8 @@ export { FormRow, type FormRowAlign, type FormRowLayout, type FormRowProps } fro
 export {
     DocumentEditor,
     documentFragmentName,
+    documentThreadsName,
+    type DocumentEditorCommentUser,
     type DocumentEditorPresence,
     type DocumentEditorPresencePayload,
     type DocumentEditorProps,

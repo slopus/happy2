@@ -6,6 +6,12 @@ import { ComponentPage, Specimen } from "../kit";
 const emptyDoc = new Y.Doc();
 const richDoc = documentEditorSeedDoc();
 const readOnlyDoc = documentEditorSeedDoc();
+const commentsDoc = documentEditorSeedDoc();
+
+const commentUsers: Record<string, string> = {
+    "user-ada": "Ada Lovelace",
+    "user-grace": "Grace Hopper",
+};
 
 export function DocumentEditorPage() {
     return (
@@ -39,6 +45,26 @@ export function DocumentEditorPage() {
                             data-testid="document-editor-content"
                             user={{ name: "Ada", color: "#2baccc" }}
                             ydoc={richDoc}
+                        />
+                    </div>
+                </Specimen>
+                <Specimen
+                    detail="Select text to add an inline comment thread, stored in the same Y.Doc"
+                    label="Comments"
+                    number="C-080-D"
+                >
+                    <div style={{ display: "flex", width: 520, height: 340 }}>
+                        <DocumentEditor
+                            commentUserId="user-ada"
+                            commentUsersResolve={async (userIds) =>
+                                userIds.map((id) => ({
+                                    id,
+                                    username: commentUsers[id] ?? "Someone",
+                                }))
+                            }
+                            data-testid="document-editor-comments"
+                            user={{ name: "Ada", color: "#2baccc" }}
+                            ydoc={commentsDoc}
                         />
                     </div>
                 </Specimen>

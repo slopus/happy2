@@ -1,5 +1,10 @@
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
+import {
+    CommentsExtension,
+    DefaultThreadStoreAuth,
+    YjsThreadStore,
+} from "@blocknote/core/comments";
 import { useEffectEvent, useLayoutEffect, useMemo, useRef } from "react";
 import {
     Awareness,
@@ -12,11 +17,21 @@ import * as Y from "yjs";
 /** Shared type name of the BlockNote fragment inside a collaborative document Y.Doc. */
 export const documentFragmentName = "document";
 
+/** Shared type name of the comment-thread map inside a collaborative document Y.Doc. */
+export const documentThreadsName = "threads";
+
 const remotePresenceOrigin = "happy2-remote-presence";
 
 export interface DocumentEditorUser {
     readonly name: string;
     readonly color: string;
+}
+
+/** One resolved comment author identity shown on threads and reactions. */
+export interface DocumentEditorCommentUser {
+    readonly id: string;
+    readonly username: string;
+    readonly avatarUrl?: string;
 }
 
 /**
@@ -47,6 +62,16 @@ export interface DocumentEditorProps {
     onPresence?: (payload: DocumentEditorPresencePayload) => void;
     editable?: boolean;
     theme?: "light" | "dark";
+    /**
+     * The local user's stable id. Providing it enables inline comment threads,
+     * stored in the same collaborative Y.Doc so they sync and persist with the
+     * document content.
+     */
+    commentUserId?: string;
+    /** Resolves comment author ids to display identities; used with commentUserId. */
+    commentUsersResolve?: (
+        userIds: readonly string[],
+    ) => Promise<readonly DocumentEditorCommentUser[]>;
     "data-testid"?: string;
 }
 
@@ -61,6 +86,36 @@ export function DocumentEditor(props: DocumentEditorProps) {
     // exactly when the underlying Y.Doc changes, never on ordinary re-renders,
     // or cursors and undo history would reset while typing.
     const awareness = useMemo(() => new Awareness(props.ydoc), [props.ydoc]);
+    const commentUsersResolve = useEffectEvent(
+        async (
+            userIds: string[],
+        ): Promise<{ id: string; username: string; avatarUrl: string }[]> => {
+            const users = (await props.commentUsersResolve?.(userIds)) ?? [];
+            return userIds.map((id) => {
+                const user = users.find((candidate) => candidate.id === id);
+                return {
+                    id,
+                    username: user?.username ?? "Someone",
+                    avatarUrl: user?.avatarUrl ?? "",
+                };
+            });
+        },
+    );
+    const commentUserId = props.commentUserId;
+    const comments = useMemo(
+        () =>
+            commentUserId
+                ? CommentsExtension({
+                      threadStore: new YjsThreadStore(
+                          commentUserId,
+                          props.ydoc.getMap(documentThreadsName),
+                          new DefaultThreadStoreAuth(commentUserId, "editor"),
+                      ),
+                      resolveUsers: (userIds) => commentUsersResolve(userIds),
+                  })
+                : undefined,
+        [props.ydoc, commentUserId],
+    );
     const editor = useCreateBlockNote(
         {
             collaboration: {
@@ -69,8 +124,9 @@ export function DocumentEditor(props: DocumentEditorProps) {
                 user: { name: props.user.name, color: props.user.color },
                 showCursorLabels: "activity",
             },
+            ...(comments ? { extensions: [comments] } : {}),
         },
-        [props.ydoc, awareness],
+        [props.ydoc, awareness, comments],
     );
 
     const presenceEmit = useEffectEvent((payload: DocumentEditorPresencePayload) =>

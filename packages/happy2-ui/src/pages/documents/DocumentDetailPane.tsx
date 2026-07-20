@@ -49,6 +49,14 @@ export function DocumentDetailPane(props: DocumentDetailPaneProps) {
     }));
     return (
         <DocumentSurface
+            commentUserId={props.user.id}
+            commentUsersResolve={async (userIds) =>
+                userIds.map((id) => ({
+                    id,
+                    username:
+                        id === props.user.id ? props.user.firstName : (memberName(id) ?? "Someone"),
+                }))
+            }
             data-testid="documents-detail-surface"
             editable={snapshot.document.type === "ready"}
             error={snapshot.document.type === "error" ? snapshot.document.error.message : undefined}
