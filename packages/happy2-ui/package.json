@@ -22,8 +22,13 @@
         "clean": "rm -rf dist coverage"
     },
     "dependencies": {
+        "@blocknote/core": "^0.51.4",
+        "@blocknote/mantine": "^0.51.4",
+        "@blocknote/react": "^0.51.4",
         "@fontsource-variable/figtree": "^5.2.10",
         "@fontsource-variable/jetbrains-mono": "^5.2.8",
+        "@mantine/core": "^9.4.1",
+        "@mantine/hooks": "^9.4.1",
         "@tanstack/react-virtual": "^3.14.6",
         "happy2-state": "workspace:*",
         "react": "19.2.7",
@@ -31,6 +36,8 @@
         "react-markdown": "^10.1.0",
         "remark-gfm": "^4.0.1",
         "thumbhash": "^0.1.1",
+        "y-protocols": "^1.0.7",
+        "yjs": "^13.6.31",
         "zustand": "5.0.14"
     },
     "devDependencies": {

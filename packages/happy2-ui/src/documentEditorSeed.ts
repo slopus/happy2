@@ -1,0 +1,20 @@
+import * as Y from "yjs";
+
+/*
+ * Deterministic BlockNote content captured once as a base64 Yjs update
+ * (heading, formatted paragraph, three bullets). Blueprint fixtures and
+ * rendering tests apply it to fresh Y.Docs so every session and engine shows
+ * the identical document without network or editor bootstrapping.
+ */
+export const documentEditorSeedUpdate =
+    "AS+u8oH8BQAHAQhkb2N1bWVudAMKYmxvY2tHcm91cAcArvKB/AUAAw5ibG9ja0NvbnRhaW5lcgcArvKB/AUBAwdoZWFkaW5nBwCu8oH8BQIGBACu8oH8BQMQTGF1bmNoIGNoZWNrbGlzdCgArvKB/AUCD2JhY2tncm91bmRDb2xvcgF3B2RlZmF1bHQoAK7ygfwFAgl0ZXh0Q29sb3IBdwdkZWZhdWx0KACu8oH8BQINdGV4dEFsaWdubWVudAF3BGxlZnQoAK7ygfwFAgVsZXZlbAF9ASgArvKB/AUCDGlzVG9nZ2xlYWJsZQF5KACu8oH8BQECaWQBdyQ2NDAyYjNlOC0wZmYyLTQ1YTItOWJlZC02ZjlkNTE5YjAyNjCHrvKB/AUBAw5ibG9ja0NvbnRhaW5lcgcArvKB/AUaAwlwYXJhZ3JhcGgHAK7ygfwFGwYEAK7ygfwFHB5FdmVyeXRoaW5nIGluIHRoaXMgcGFnZSBzeW5jcyCGrvKB/AU6BGJvbGQCe32ErvKB/AU7BGxpdmWGrvKB/AU/BGJvbGQEbnVsbISu8oH8BUAgIHRvIGV2ZXJ5IG1lbWJlciBvZiB0aGUgY2hhbm5lbC4oAK7ygfwFGw9iYWNrZ3JvdW5kQ29sb3IBdwdkZWZhdWx0KACu8oH8BRsJdGV4dENvbG9yAXcHZGVmYXVsdCgArvKB/AUbDXRleHRBbGlnbm1lbnQBdwRsZWZ0KACu8oH8BRoCaWQBdyRjMTEzN2NhZS0wNjk4LTQwZDgtOGI4YS02NTgxMTQxZTMzMTGHrvKB/AUaAw5ibG9ja0NvbnRhaW5lcgcArvKB/AVlAw5idWxsZXRMaXN0SXRlbQcArvKB/AVmBgQArvKB/AVnFlNoaXAgdGhlIHNlcnZlciBtb2R1bGUoAK7ygfwFZg9iYWNrZ3JvdW5kQ29sb3IBdwdkZWZhdWx0KACu8oH8BWYJdGV4dENvbG9yAXcHZGVmYXVsdCgArvKB/AVmDXRleHRBbGlnbm1lbnQBdwRsZWZ0KACu8oH8BWUCaWQBdyQ5YWE3NmQyOC05NmI5LTRhNmItYmYyYS0wYWUwYTM3M2ViODOHrvKB/AVlAw5ibG9ja0NvbnRhaW5lcgcArvKB/AWCAQMOYnVsbGV0TGlzdEl0ZW0HAK7ygfwFgwEGBACu8oH8BYQBFldpcmUgdGhlIHN0YXRlIHNlc3Npb24oAK7ygfwFgwEPYmFja2dyb3VuZENvbG9yAXcHZGVmYXVsdCgArvKB/AWDAQl0ZXh0Q29sb3IBdwdkZWZhdWx0KACu8oH8BYMBDXRleHRBbGlnbm1lbnQBdwRsZWZ0KACu8oH8BYIBAmlkAXckZTEyMTc3ZDItMzJlNS00YjY3LWJmNzQtOWRjZDI0N2M2ZWExh67ygfwFggEDDmJsb2NrQ29udGFpbmVyBwCu8oH8BZ8BAw5idWxsZXRMaXN0SXRlbQcArvKB/AWgAQYEAK7ygfwFoQEYUmVuZGVyIGl0IHdpdGggQmxvY2tOb3RlKACu8oH8BaABD2JhY2tncm91bmRDb2xvcgF3B2RlZmF1bHQoAK7ygfwFoAEJdGV4dENvbG9yAXcHZGVmYXVsdCgArvKB/AWgAQ10ZXh0QWxpZ25tZW50AXcEbGVmdCgArvKB/AWfAQJpZAF3JDc4OTg5NzlhLTQ1ODktNGNhMC1hNTg0LTFmMzZhODE1MDIyZQA=";
+
+/** A fresh Y.Doc carrying the deterministic seeded BlockNote content. */
+export function documentEditorSeedDoc(): Y.Doc {
+    const ydoc = new Y.Doc();
+    Y.applyUpdate(
+        ydoc,
+        Uint8Array.from(atob(documentEditorSeedUpdate), (char) => char.charCodeAt(0)),
+    );
+    return ydoc;
+}

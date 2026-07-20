@@ -1,0 +1,48 @@
+@import "@blocknote/mantine/style.css";
+
+/*
+ * The BlockNote surface adopts happy2 tokens through BlockNote's own theming
+ * custom properties, so the third-party stylesheet above never introduces raw
+ * product colors of its own.
+ */
+.happy2-document-editor {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    background: var(--happy2-bg-surface);
+}
+
+.happy2-document-editor .bn-container {
+    --bn-font-family: var(--happy2-font-ui);
+    --bn-border-radius: var(--happy2-radius-md);
+    --bn-colors-editor-text: var(--happy2-text);
+    --bn-colors-editor-background: var(--happy2-bg-surface);
+    --bn-colors-menu-text: var(--happy2-text);
+    --bn-colors-menu-background: var(--happy2-bg-chrome);
+    --bn-colors-tooltip-text: var(--happy2-text);
+    --bn-colors-tooltip-background: var(--happy2-bg-raised);
+    --bn-colors-hovered-text: var(--happy2-text);
+    --bn-colors-hovered-background: var(--happy2-bg-hover);
+    --bn-colors-selected-text: var(--happy2-text-on-accent);
+    --bn-colors-selected-background: var(--happy2-accent);
+    --bn-colors-disabled-text: var(--happy2-text-muted);
+    --bn-colors-disabled-background: var(--happy2-bg-inset);
+    --bn-colors-border: var(--happy2-border);
+    --bn-colors-side-menu: var(--happy2-text-muted);
+    --bn-colors-shadow: var(--happy2-border-strong);
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.happy2-document-editor .bn-editor {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    overflow-y: auto;
+    padding-inline: 48px;
+    padding-block: 24px;
+}

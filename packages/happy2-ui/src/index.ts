@@ -202,6 +202,19 @@ export {
 export { ThreadPanel, type ThreadPanelProps } from "./ThreadPanel";
 export { FormRow, type FormRowAlign, type FormRowLayout, type FormRowProps } from "./FormRow";
 export {
+    DocumentEditor,
+    documentFragmentName,
+    type DocumentEditorPresence,
+    type DocumentEditorPresencePayload,
+    type DocumentEditorProps,
+    type DocumentEditorUser,
+} from "./DocumentEditor";
+export {
+    DocumentsPanel,
+    type DocumentsPanelEntry,
+    type DocumentsPanelProps,
+} from "./DocumentsPanel";
+export {
     DataTable,
     type DataTableAlign,
     type DataTableColumn,

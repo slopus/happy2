@@ -84,6 +84,8 @@ import { ThreadPanelPage } from "./pages/ThreadPanelPage";
 import { TitleBarPage } from "./pages/TitleBarPage";
 import { ToolbarPage } from "./pages/ToolbarPage";
 import { TerminalPanelPage } from "./pages/TerminalPanelPage";
+import { DocumentEditorPage } from "./pages/DocumentEditorPage";
+import { DocumentsPanelPage } from "./pages/DocumentsPanelPage";
 type BlueprintPage = {
     id: string;
     label: string;
@@ -93,6 +95,8 @@ type BlueprintPage = {
 const components: BlueprintPage[] = [
     { id: "box", label: "Box", number: "C-001", page: BoxPage },
     { id: "terminal-panel", label: "Terminal panel", number: "C-078", page: TerminalPanelPage },
+    { id: "document-editor", label: "Document editor", number: "C-080", page: DocumentEditorPage },
+    { id: "documents-panel", label: "Documents panel", number: "C-081", page: DocumentsPanelPage },
     {
         id: "user-password-reset-dialog",
         label: "User password reset dialog",
