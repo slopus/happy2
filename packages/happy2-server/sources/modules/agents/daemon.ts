@@ -122,6 +122,7 @@ export interface RigEvent {
         call?: ExternalToolCall;
         message?: RigMessage;
         runId?: string;
+        title?: string;
         subagent?: RigSubagentSummary;
     };
 }

@@ -45,6 +45,7 @@ import { agentEffortGetContext } from "../agent/agentEffortGetContext.js";
 import { agentEffortBindingList } from "../agent/agentEffortBindingList.js";
 import { agentCreate } from "../agent/agentCreate.js";
 import { agentConversationCreate } from "../agent/agentConversationCreate.js";
+import { agentConversationTitleApply } from "../agent/agentConversationTitleApply.js";
 import { agentDefaultRepair } from "../agent/agentDefaultRepair.js";
 import { agentChatListUnfinishedIds } from "../agent/agentChatListUnfinishedIds.js";
 import { agentChatGetContext } from "../agent/agentChatGetContext.js";
@@ -1384,6 +1385,14 @@ export class AgentService {
     }
     private async applyGlobalEvent(entry: RigGlobalEvent): Promise<void> {
         const event = entry.event;
+        if (event.type === "session_title_changed" && typeof event.data.title === "string") {
+            const hint = await agentConversationTitleApply(this.executor, {
+                sessionId: event.sessionId,
+                title: event.data.title,
+            });
+            if (hint) await this.publishAgentHint(hint);
+            return;
+        }
         if (event.type === "external_tool_call_requested" && event.data.call) {
             const call = event.data.call;
             const result = call.skill
@@ -2404,6 +2413,7 @@ class AgentImageBuildOutput {
     }
 }
 function isRelevantRigEvent(event: RigEvent): boolean {
+    if (event.type === "session_title_changed" && typeof event.data.title === "string") return true;
     if (event.type === "external_tool_call_requested" && event.data.call) return true;
     if (!event.data.runId) return false;
     return (

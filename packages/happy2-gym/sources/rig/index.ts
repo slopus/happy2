@@ -93,6 +93,8 @@ interface MockSession {
     status: string;
     subagents: Map<string, MockRigSubagent>;
     terminals: Map<string, MockTerminal>;
+    title?: string;
+    titleStatus: "idle" | "generating" | "ready" | "error";
 }
 
 export interface MockRigSubagent {
@@ -566,6 +568,16 @@ export class MockRigDaemon implements AsyncDisposable {
             this.append(session, "tasks_changed", { tasks: [], update: index });
     }
 
+    emitSessionTitle(sessionId: string, title: string): void {
+        const session = this.requireSession(sessionId);
+        session.title = title;
+        session.titleStatus = "ready";
+        this.append(session, "session_title_changed", {
+            status: session.titleStatus,
+            title,
+        });
+    }
+
     pauseGlobalEventDelivery(): void {
         this.globalEventDeliveryPaused = true;
     }
@@ -797,6 +809,7 @@ export class MockRigDaemon implements AsyncDisposable {
                 status: "idle",
                 subagents: new Map(),
                 terminals: new Map(),
+                titleStatus: "idle",
             };
             this.sessions.set(id, session);
             this.createdCwds.push(String(body.cwd));
@@ -1452,6 +1465,8 @@ function snapshot(session: MockSession) {
         backgroundProcesses: session.backgroundProcesses,
         snapshot: { messages: session.messages },
         status: session.status,
+        ...(session.title ? { title: session.title } : {}),
+        titleStatus: session.titleStatus,
     };
 }
 
