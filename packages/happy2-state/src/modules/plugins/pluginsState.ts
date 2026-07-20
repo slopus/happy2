@@ -501,13 +501,11 @@ async function installationDiagnosticsFetch(
         });
     } catch (error) {
         if (requireMaterialized && !open()) return;
-        context.plugins
-            .getState()
-            .pluginsInput({
-                type: "installationDiagnosticsFailed",
-                installationId,
-                error: userError(error),
-            });
+        context.plugins.getState().pluginsInput({
+            type: "installationDiagnosticsFailed",
+            installationId,
+            error: userError(error),
+        });
     }
 }
 
