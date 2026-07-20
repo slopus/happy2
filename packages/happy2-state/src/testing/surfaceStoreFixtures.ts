@@ -8,6 +8,8 @@ import type {
 } from "../modules/agent-images/agentImagesState.js";
 import { agentTraceStoreCreate } from "../modules/agent-trace/agentTraceState.js";
 import type { AgentTraceInput, AgentTraceStore } from "../modules/agent-trace/agentTraceState.js";
+import { mcpAppStoreCreate } from "../modules/mcp-apps/mcpAppState.js";
+import type { McpAppInput, McpAppStore } from "../modules/mcp-apps/mcpAppState.js";
 import { setupStoreCreate } from "../modules/setup/setupState.js";
 import type { SetupInput, SetupOutput, SetupStore } from "../modules/setup/setupState.js";
 import { agentSecretsStoreCreate } from "../modules/agent-secrets/agentSecretsState.js";
@@ -197,6 +199,14 @@ export function agentTraceStoreFixtureCreate(
 ): SurfaceStoreFixture<AgentTraceStore, AgentTraceInput> {
     const store = agentTraceStoreCreate(messageId);
     return fixtureCreate(store, (event) => store.getState().agentTraceInput(event));
+}
+
+export function mcpAppStoreFixtureCreate(
+    messageId: string,
+    callId: string,
+): SurfaceStoreFixture<McpAppStore, McpAppInput> {
+    const store = mcpAppStoreCreate(messageId, callId);
+    return fixtureCreate(store, (event) => store.getState().mcpAppInput(event));
 }
 
 export function threadStoreFixtureCreate(

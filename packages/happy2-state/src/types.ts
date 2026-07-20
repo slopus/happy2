@@ -174,6 +174,73 @@ export interface AgentTurnTraceDetails extends AgentTurnTraceSummary {
     readonly entries: readonly AgentTurnTraceEntrySummary[];
 }
 
+export type McpAppStatus = "in_progress" | "completed" | "failed";
+
+/** One interactive MCP App attached to an assistant message, summarized inline. */
+export interface McpAppSummary {
+    readonly callId: string;
+    readonly toolName: string;
+    readonly resourceUri: string;
+    readonly status: McpAppStatus;
+}
+
+/**
+ * Standardized MCP Apps resource metadata (`io.modelcontextprotocol/ui`) that the
+ * host enforces around the sandboxed app: the connect/resource CSP allowlists,
+ * the extra iframe permissions the app requested, the optional trusted origin,
+ * and the app's border preference.
+ */
+export interface McpAppResourceMeta {
+    readonly ui: {
+        readonly csp?: {
+            readonly connectDomains?: readonly string[];
+            readonly resourceDomains?: readonly string[];
+            readonly frameDomains?: readonly string[];
+            readonly baseUriDomains?: readonly string[];
+        };
+        readonly permissions?: {
+            readonly camera?: Readonly<Record<string, never>>;
+            readonly microphone?: Readonly<Record<string, never>>;
+            readonly geolocation?: Readonly<Record<string, never>>;
+            readonly clipboardWrite?: Readonly<Record<string, never>>;
+        };
+        readonly domain?: string;
+        readonly prefersBorder?: boolean;
+    };
+}
+
+/** The server-snapshotted, validated HTML resource an MCP App renders. */
+export interface McpAppResource {
+    readonly html: string;
+    readonly contentHashSha256: string;
+    readonly meta: McpAppResourceMeta;
+}
+
+/** The durable tool call an MCP App renders, including its stored result. */
+export interface McpAppDetails {
+    readonly callId: string;
+    readonly toolName: string;
+    readonly resourceUri: string;
+    readonly arguments: Readonly<Record<string, unknown>>;
+    readonly status: McpAppStatus;
+    readonly result?: Readonly<Record<string, unknown>>;
+}
+
+/** The full on-demand view backing one MCP App surface: its call plus resource. */
+export interface McpAppView {
+    readonly app: McpAppDetails;
+    readonly resource: McpAppResource;
+}
+
+/**
+ * Raw MCP `tools/call` result proxied back to a sandboxed app. The host forwards
+ * it opaquely to the app frame, so only the transport-relevant shape is typed.
+ */
+export type McpToolResult = Readonly<Record<string, unknown>>;
+
+/** Raw MCP `resources/read` result proxied back to a sandboxed app. */
+export type McpResourceReadResult = Readonly<Record<string, unknown>>;
+
 export interface MessageSummary {
     readonly id: string;
     readonly chatId: string;
@@ -203,6 +270,8 @@ export interface MessageSummary {
           };
     readonly generationStatus?: "streaming" | "complete" | "failed";
     readonly agentTrace?: AgentTurnTraceSummary;
+    /** Interactive MCP Apps this assistant message rendered, summarized inline. */
+    readonly mcpApps?: readonly McpAppSummary[];
     readonly quotedMessage?: {
         readonly id: string;
         readonly senderUserId?: string;

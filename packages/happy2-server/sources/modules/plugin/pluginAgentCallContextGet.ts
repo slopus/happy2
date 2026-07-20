@@ -8,12 +8,13 @@ export async function pluginAgentCallContextGet(
     executor: DrizzleExecutor,
     sessionId: string,
     callId: string,
-): Promise<PluginAgentCallContext> {
+): Promise<PluginAgentCallContext & { userMessageId: string }> {
     const [row] = await executor
         .select({
             actorUserId: messages.senderUserId,
             agentUserId: agentTurns.agentUserId,
             chatId: agentTurns.chatId,
+            userMessageId: agentTurns.userMessageId,
         })
         .from(agentTurns)
         .innerJoin(messages, eq(messages.id, agentTurns.userMessageId))
@@ -40,5 +41,6 @@ export async function pluginAgentCallContextGet(
         callId,
         chatId: row.chatId,
         sessionId,
+        userMessageId: row.userMessageId,
     };
 }

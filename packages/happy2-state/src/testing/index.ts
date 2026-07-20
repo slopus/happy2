@@ -25,6 +25,7 @@ export {
     chatStoreFixtureCreate,
     directoryStoreFixtureCreate,
     filesStoreFixtureCreate,
+    mcpAppStoreFixtureCreate,
     notificationsStoreFixtureCreate,
     permissionsStoreFixtureCreate,
     pluginInstallStoreFixtureCreate,

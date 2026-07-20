@@ -9,6 +9,7 @@ export interface ReadyPluginMcpTool {
     title?: string;
     description?: string;
     inputSchema: Record<string, unknown>;
+    meta?: Record<string, unknown>;
 }
 
 /**
@@ -26,6 +27,7 @@ export async function pluginMcpToolsListReady(
             title: pluginMcpTools.title,
             description: pluginMcpTools.description,
             inputSchemaJson: pluginMcpTools.inputSchemaJson,
+            metaJson: pluginMcpTools.metaJson,
         })
         .from(pluginMcpTools)
         .innerJoin(pluginInstallations, eq(pluginInstallations.id, pluginMcpTools.installationId))
@@ -44,6 +46,7 @@ export async function pluginMcpToolsListReady(
         ...(row.title ? { title: row.title } : {}),
         ...(row.description ? { description: row.description } : {}),
         inputSchema: jsonObject(row.inputSchemaJson),
+        ...(row.metaJson ? { meta: jsonObject(row.metaJson) } : {}),
     }));
 }
 

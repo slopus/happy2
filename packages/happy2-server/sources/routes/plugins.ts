@@ -395,6 +395,65 @@ export function registerPluginRoutes(
         },
     );
 
+    app.get("/v0/messages/:messageId/mcpApps/:callId", async (request, reply) => {
+        const actorUserId = await actor(auth, request, reply);
+        if (!actorUserId) return;
+        try {
+            return await plugins.getMcpApp({
+                actorUserId,
+                assistantMessageId: pathIdentifier(request, "messageId"),
+                callId: pathOpaqueIdentifier(request, "callId"),
+            });
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.post("/v0/messages/:messageId/mcpApps/:callId/callTool", async (request, reply) => {
+        const actorUserId = await actor(auth, request, reply);
+        if (!actorUserId) return;
+        try {
+            const body = object(request.body, "Request body");
+            only(body, ["name", "arguments"]);
+            const name = body.name;
+            if (typeof name !== "string" || !name || name.length > 256)
+                throw new RequestError("name must be a valid MCP tool name");
+            const argumentsValue = object(body.arguments, "arguments");
+            return {
+                result: await plugins.callMcpAppTool({
+                    actorUserId,
+                    assistantMessageId: pathIdentifier(request, "messageId"),
+                    callId: pathOpaqueIdentifier(request, "callId"),
+                    name,
+                    arguments: argumentsValue,
+                }),
+            };
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.post("/v0/messages/:messageId/mcpApps/:callId/readResource", async (request, reply) => {
+        const actorUserId = await actor(auth, request, reply);
+        if (!actorUserId) return;
+        try {
+            const body = object(request.body, "Request body");
+            only(body, ["uri"]);
+            if (typeof body.uri !== "string" || !body.uri || body.uri.length > 2_048)
+                throw new RequestError("uri must be a valid MCP resource URI");
+            return {
+                result: await plugins.readMcpAppResource({
+                    actorUserId,
+                    assistantMessageId: pathIdentifier(request, "messageId"),
+                    callId: pathOpaqueIdentifier(request, "callId"),
+                    uri: body.uri,
+                }),
+            };
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
     const mcp = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
         const current = await auth.authenticate(request);
         if (!current) {
@@ -467,6 +526,13 @@ function pathShortName(request: FastifyRequest): string {
 function pathIdentifier(request: FastifyRequest, name: string): string {
     const value = object(request.params, "Path parameters")[name];
     if (typeof value !== "string" || !/^[a-z0-9]+$/.test(value) || value.length > 128)
+        throw new RequestError(`${name} is invalid`);
+    return value;
+}
+
+function pathOpaqueIdentifier(request: FastifyRequest, name: string): string {
+    const value = object(request.params, "Path parameters")[name];
+    if (typeof value !== "string" || !/^[A-Za-z0-9._-]+$/.test(value) || value.length > 128)
         throw new RequestError(`${name} is invalid`);
     return value;
 }

@@ -72,6 +72,8 @@ export interface SyncCoordinatorContext extends SidebarLoadContext {
     chatsGet(): Iterable<readonly [string, ChatStore]>;
     agentTraceReconcile(message: MessageSummary): void;
     agentTracesInvalidate(): void;
+    mcpAppReconcile(message: MessageSummary): void;
+    mcpAppsInvalidate(): void;
     /** Reloads a retained chat's plugin management requests after a plugin.* chat update. */
     chatPluginRequestsReconcile(chatId: string): void;
     /** Reconciles a materialized coarse thread list when a child or its parent timeline changed. */
@@ -248,7 +250,10 @@ export class SyncCoordinator {
             });
             // Losing a chat revokes access to its traces; open panels must
             // revalidate through the GET instead of keeping cached details.
-            if (difference.removedChatIds.length > 0) this.context.agentTracesInvalidate();
+            if (difference.removedChatIds.length > 0) {
+                this.context.agentTracesInvalidate();
+                this.context.mcpAppsInvalidate();
+            }
             for (const chat of difference.changedChats) {
                 const binding = this.context.chatGet(chat.id);
                 if (!binding) continue;
@@ -301,6 +306,7 @@ export class SyncCoordinator {
                 item: messageItemProject(this.context.identities, message),
             });
             this.context.agentTraceReconcile(message);
+            this.context.mcpAppReconcile(message);
         }
         // Plugin management updates carry no projection in the difference; the
         // retained request list reconciles through its own durable read.

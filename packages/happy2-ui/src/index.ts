@@ -240,6 +240,8 @@ export {
     type BuildProgressPanelProps,
     type BuildProgressStatus,
 } from "./BuildProgressPanel";
+export { McpAppShell, type McpAppShellProps, type McpAppShellStatus } from "./McpAppShell";
+export type { McpAppLogEntry, McpAppLogLevel, McpAppSize } from "./mcpAppProtocol";
 export {
     ProfileCard,
     type ProfileCardProps,
@@ -323,6 +325,7 @@ export {
     type ChatPagePanel,
     type ChatPageProps,
     type ChatPageUser,
+    type McpAppRenderInput,
 } from "./pages/chat/ChatPage";
 export {
     PermissionChecklist,

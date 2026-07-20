@@ -19,6 +19,7 @@ import type {
 } from "happy2-state";
 import type { AuthSession } from "../components/AuthGate";
 import type { DesktopNavigation, DesktopRoute } from "../navigation/desktopRouteTypes";
+import { MessageApp } from "./MessageApp";
 export type ChatViewProps = {
     platform?: "desktop" | "web";
     session?: AuthSession;
@@ -316,6 +317,7 @@ export function ChatView(props: ChatViewProps) {
             navSection={props.navSection}
             navigation={pageNavigation()}
             onNavSelect={props.onNavSelect}
+            renderMcpApp={(input) => <MessageApp input={input} state={state} />}
             sidebar={state.sidebar()}
             sidebarFooter={props.sidebarFooter}
             sidebarOverride={props.sidebarOverride}

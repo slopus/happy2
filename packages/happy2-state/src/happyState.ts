@@ -8,6 +8,16 @@ import {
     type AgentTraceOpenContext,
     type AgentTraceStore,
 } from "./modules/agent-trace/agentTraceState.js";
+import {
+    mcpAppLoad,
+    mcpAppOpen,
+    mcpAppResourceRead,
+    mcpAppStoreCreate,
+    mcpAppToolCall,
+    type McpAppHandle,
+    type McpAppOpenContext,
+    type McpAppStore,
+} from "./modules/mcp-apps/mcpAppState.js";
 import { chatLoad } from "./modules/chat/chatState.js";
 import { chatMembersLoad } from "./modules/chat/chatState.js";
 import { chatPinsLoad } from "./modules/chat/chatState.js";
@@ -251,6 +261,7 @@ export class HappyState implements AsyncDisposable, Disposable {
     private readonly workspaceFiles = new StoreRegistry<string, WorkspaceFileStore>();
     private readonly threadSurfaces = new StoreRegistry<string, ThreadStore>();
     private readonly agentTraces = new StoreRegistry<string, AgentTraceStore>();
+    private readonly mcpApps = new StoreRegistry<string, McpAppStore>();
     private readonly sidebarBinding = sidebarStoreCreate();
     private filesBinding?: FilesStore;
     private searchBinding?: SearchStore;
@@ -280,7 +291,8 @@ export class HappyState implements AsyncDisposable, Disposable {
         WorkspaceOpenContext &
         WorkspaceFileOpenContext &
         ThreadOpenContext &
-        AgentTraceOpenContext;
+        AgentTraceOpenContext &
+        McpAppOpenContext;
     private disposed = false;
     private readonly unknownSyncArea: (area: string) => void;
     private readonly eventListener: (event: HappyStateEvent) => void;
@@ -336,6 +348,17 @@ export class HappyState implements AsyncDisposable, Disposable {
                 this.agentTraces.getOrCreate(messageId, () => agentTraceStoreCreate(messageId)),
             agentTraceRelease: (messageId) => this.agentTraces.release(messageId),
             agentTraceLoad: (messageId) => this.agentTraceLoad(messageId),
+            mcpAppAcquire: (messageId, callId) =>
+                this.mcpApps.getOrCreate(mcpAppKey(messageId, callId), () =>
+                    mcpAppStoreCreate(messageId, callId),
+                ),
+            mcpAppRelease: (messageId, callId) =>
+                this.mcpApps.release(mcpAppKey(messageId, callId)),
+            mcpAppLoad: (messageId, callId) => this.mcpAppLoad(messageId, callId),
+            mcpAppToolCall: (messageId, callId, name, args) =>
+                mcpAppToolCall(this.runtime, messageId, callId, name, args),
+            mcpAppResourceRead: (messageId, callId, uri) =>
+                mcpAppResourceRead(this.runtime, messageId, callId, uri),
         };
         this.sync = new SyncCoordinator({
             runtime: this.runtime,
@@ -348,6 +371,8 @@ export class HappyState implements AsyncDisposable, Disposable {
             chatsGet: () => this.chatEntries(),
             agentTraceReconcile: (message) => this.agentTraceReconcile(message),
             agentTracesInvalidate: () => this.agentTracesReload(),
+            mcpAppReconcile: (message) => this.mcpAppReconcile(message),
+            mcpAppsInvalidate: () => this.mcpAppsReload(),
             chatPluginRequestsReconcile: (chatId) => this.chatPluginRequestsReconcile(chatId),
             threadListChatsReconcile: (chatIds) => this.threadListChatsReconcile(chatIds),
             areaReconcile: (area) => this.areaReconcile(area),
@@ -578,6 +603,11 @@ export class HappyState implements AsyncDisposable, Disposable {
 
     agentTraceOpen(messageId: string): AgentTraceHandle {
         return agentTraceOpen(this.context, messageId);
+    }
+
+    /** Opens one deduplicated MCP App surface for an assistant message's tool call. */
+    mcpAppOpen(messageId: string, callId: string): McpAppHandle {
+        return mcpAppOpen(this.context, messageId, callId);
     }
 
     threads(): ThreadsStore {
@@ -832,6 +862,7 @@ export class HappyState implements AsyncDisposable, Disposable {
         this.composerAudiences.clear();
         this.threadSurfaces.dispose();
         this.agentTraces.dispose();
+        this.mcpApps.dispose();
         this.settingsCoordinator?.[Symbol.dispose]();
         this.identities.clear();
         this.sidebarChats.clear();
@@ -1246,6 +1277,51 @@ export class HappyState implements AsyncDisposable, Disposable {
         for (const [messageId] of this.agentTraces.values()) this.agentTraceLoad(messageId);
     }
 
+    private mcpAppLoad(messageId: string, callId: string): void {
+        this.runtime.background(
+            mcpAppLoad(
+                {
+                    runtime: this.runtime,
+                    mcpAppGet: (id, call) => this.mcpApps.get(mcpAppKey(id, call)),
+                },
+                messageId,
+                callId,
+            ),
+        );
+    }
+
+    /**
+     * Revalidates every materialized MCP App surface for one assistant message
+     * when its summary hints at newer durable app state, so an open app
+     * reconciles the tool status and stored result through the GET endpoint
+     * rather than trusting the delivery hint. An app whose call status matches
+     * the already-loaded view is left untouched so text-only stream ticks do not
+     * refetch; an app dropped from the summary (deleted or revoked) is not
+     * force-reloaded here because chat reset and removal already invalidate it.
+     */
+    private mcpAppReconcile(message: MessageSummary): void {
+        for (const app of message.mcpApps ?? []) {
+            const binding = this.mcpApps.get(mcpAppKey(message.id, app.callId));
+            if (!binding) continue;
+            const current = binding.getState().view;
+            if (current.type === "ready" && current.value.app.status === app.status) continue;
+            this.mcpAppLoad(message.id, app.callId);
+        }
+    }
+
+    /**
+     * Revalidates every materialized MCP App surface after a reconcile path that
+     * bypasses per-message differences (chat reset, full resynchronization, or
+     * chat removal), mirroring the agent-trace revalidation so an open app
+     * cannot keep rendering stale or access-revoked content from cache.
+     */
+    private mcpAppsReload(): void {
+        for (const [, binding] of this.mcpApps.values()) {
+            const { messageId, callId } = binding.getState();
+            this.mcpAppLoad(messageId, callId);
+        }
+    }
+
     private composerAudienceRemember(scopeId: string): void {
         const snapshot = this.composers.get(scopeId)?.getState();
         if (!snapshot?.audience) return;
@@ -1310,6 +1386,7 @@ export class HappyState implements AsyncDisposable, Disposable {
                 chatReconcile: (chatId) => {
                     this.chatLoad(chatId);
                     this.agentTracesReload();
+                    this.mcpAppsReload();
                 },
                 workspaceReconcile: (chatId) => this.workspaceReconcile(chatId),
                 callsReconcile: () => {
@@ -1429,6 +1506,7 @@ export class HappyState implements AsyncDisposable, Disposable {
             this.threadResolve(parentChatId, rootMessageId);
         }
         this.agentTracesReload();
+        this.mcpAppsReload();
         const files = this.filesBinding;
         if (files && files.getState().status.type !== "unloaded")
             this.runtime.background(filesLoad({ runtime: this.runtime, files }));
@@ -1643,6 +1721,10 @@ export function happyStateCreate(options: HappyStateOptions = {}): HappyState {
 
 function workspaceFileKey(chatId: string, path: string): string {
     return `${chatId}\u0000${path}`;
+}
+
+function mcpAppKey(messageId: string, callId: string): string {
+    return threadKey(messageId, callId);
 }
 
 function threadKey(parentChatId: string, rootMessageId: string): string {

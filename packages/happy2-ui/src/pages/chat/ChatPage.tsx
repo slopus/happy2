@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
     AgentTracePanel,
     AppShell,
@@ -112,7 +112,22 @@ export type ChatPageProps = {
     sidebarOverride?: ReactNode;
     /** Shows the administration entry when effective permissions expose a section. */
     canOpenAdmin?: boolean;
+    /**
+     * Renders one interactive MCP App attached to an assistant message. The app
+     * owns its own materialized surface store, so happy2-app supplies the node;
+     * ChatPage only routes the per-message app summaries from its single chat
+     * subscription and never subscribes an app store per row.
+     */
+    renderMcpApp?: (input: McpAppRenderInput) => ReactNode;
 };
+/** The identity and inline summary of one MCP App handed to the app renderer. */
+export interface McpAppRenderInput {
+    readonly messageId: string;
+    readonly callId: string;
+    readonly toolName: string;
+    readonly resourceUri: string;
+    readonly status: "in_progress" | "completed" | "failed";
+}
 export type ChatPageConversationKind = "chat" | "channel";
 export type ChatPagePanel =
     | {
@@ -1206,9 +1221,26 @@ export function ChatPage(props: ChatPageProps) {
         list: readonly WorkspaceEntry[],
     ): ReactNode {
         const message = entry.kind === "message" ? entry : undefined;
+        const server = message?.serverMessage;
+        const apps = server?.mcpApps ?? [];
+        const appNodes =
+            props.renderMcpApp && server && apps.length > 0
+                ? apps.map((app) => (
+                      <Fragment key={app.callId}>
+                          {props.renderMcpApp!({
+                              messageId: server.id,
+                              callId: app.callId,
+                              toolName: app.toolName,
+                              resourceUri: app.resourceUri,
+                              status: app.status,
+                          })}
+                      </Fragment>
+                  ))
+                : undefined;
         return (
             <ChatMessageEntry
                 key={entry.id}
+                appNodes={appNodes}
                 entry={entry}
                 audienceLabel={message ? messageAudienceLabel(message) : undefined}
                 avatarUrl={avatarFor(message?.senderId, message?.photoFileId)}

@@ -7,6 +7,7 @@ import { messageRevisions, messages, messageSearchDocuments, notifications } fro
 
 import { advanceChatMutation } from "./advanceChatMutation.js";
 import { syncSequenceNextWithTimestamp } from "../../sync/syncSequenceNextWithTimestamp.js";
+import { pluginMcpAppsDeleteForMessage } from "../../plugin/pluginMcpAppsDeleteForMessage.js";
 /**
  * Tombstones moderated messages and clears messageSearchDocuments, messageRevisions, and notifications.
  * Reusing the report action transaction keeps visible history, search, badges, chat points, and moderation evidence on one outcome.
@@ -55,6 +56,7 @@ export async function removeMessageInTransaction(
     await tx.delete(messageSearchDocuments).where(eq(messageSearchDocuments.messageId, messageId));
     await tx.delete(messageRevisions).where(eq(messageRevisions.messageId, messageId));
     await tx.delete(notifications).where(eq(notifications.messageId, messageId));
+    await pluginMcpAppsDeleteForMessage(tx, messageId);
     return {
         chatId,
         sync: {

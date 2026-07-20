@@ -26,6 +26,7 @@ import { messageIsPast } from "./messageIsPast.js";
 
 import { chatGetAccess } from "../chat/chatGetAccess.js";
 import { asAgentTurnTrace } from "../chat/asAgentTurnTrace.js";
+import { pluginMcpAppListForMessage } from "../plugin/pluginMcpAppListForMessage.js";
 /**
  * Builds a message only for a viewer with chat access, collapsing deleted or expired content while expanding visible sender, files, reactions, mentions, receipts, quotes, and thread state.
  * Rechecking forwarded-chat visibility and suppressing related content on tombstones prevents indirect projections from bypassing chat, expiry, or file rules.
@@ -253,6 +254,10 @@ export async function messageGetProjection(
                       traceBackgroundTerminalsJson:
                           row.agent_turn_trace_background_terminals_json ?? "[]",
                   })
+                : undefined,
+        mcpApps:
+            !deleted && row.agent_turn_user_message_id
+                ? await pluginMcpAppListForMessage(executor, messageId)
                 : undefined,
         quotedMessage: row.quoted_message_id
             ? {

@@ -1,0 +1,135 @@
+/*
+ * C-080 McpAppShell — host surface for one interactive MCP App attached to an
+ * assistant message. A flex column card: a header (glyph, tool name, status
+ * chip) over a body that is either the sandboxed app frame, a loading state, or
+ * a failure state. Border-box everywhere, integer px on the 4px grid.
+ */
+
+.happy2-mcp-app,
+.happy2-mcp-app *,
+.happy2-mcp-app::before,
+.happy2-mcp-app::after {
+    box-sizing: border-box;
+}
+
+.happy2-mcp-app {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    background: var(--happy2-bg-surface);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-md);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    overflow: hidden;
+}
+
+/* ---- Header ----------------------------------------------------------- */
+
+.happy2-mcp-app__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    flex: none;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--happy2-border);
+    background: var(--happy2-bg-raised);
+}
+
+.happy2-mcp-app__glyph {
+    display: flex;
+    flex: none;
+    color: var(--happy2-accent);
+}
+
+.happy2-mcp-app__title {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--happy2-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 18px;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.happy2-mcp-app__chip {
+    flex: none;
+}
+
+/* ---- App frame -------------------------------------------------------- */
+
+.happy2-mcp-app__frame {
+    display: flex;
+    width: 100%;
+    background: var(--happy2-bg-surface);
+}
+
+/* A bordered app keeps a hairline gutter so its own chrome reads as distinct. */
+.happy2-mcp-app__frame[data-bordered] {
+    padding: 8px;
+}
+
+.happy2-mcp-app__host-frame {
+    flex: 1 1 auto;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    background: transparent;
+}
+
+.happy2-mcp-app__frame[data-bordered] .happy2-mcp-app__host-frame {
+    border: 1px solid var(--happy2-border);
+    /* Inner radius parallels the 10px card corner minus the 1px border + 8px
+       pad inset (see DESIGN.md "Nested rounded corners"): max(0, 10 - 9) = 1px. */
+    border-radius: 1px;
+}
+
+/* ---- Loading state ---------------------------------------------------- */
+
+.happy2-mcp-app__loading,
+.happy2-mcp-app__error {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px;
+}
+
+.happy2-mcp-app__loading-text {
+    color: var(--happy2-text-muted);
+    font-size: 13px;
+    line-height: 18px;
+}
+
+/*
+ * Static progress ring: one accent arc on a strong hairline track. Deliberately
+ * un-animated so the fixture and screenshots stay deterministic; a consuming app
+ * may add rotation outside the measurement surface.
+ */
+.happy2-mcp-app__spinner {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--happy2-border-strong);
+    border-top-color: var(--happy2-accent);
+    border-radius: var(--happy2-radius-pill);
+}
+
+/* ---- Failure state ---------------------------------------------------- */
+
+.happy2-mcp-app__error {
+    justify-content: space-between;
+}
+
+.happy2-mcp-app__error-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--happy2-danger);
+    font-size: 13px;
+    line-height: 18px;
+}

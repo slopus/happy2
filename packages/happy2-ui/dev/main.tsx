@@ -34,6 +34,7 @@ import { MemberAccessPanelPage } from "./pages/MemberAccessPanelPage";
 import { PluginInstallDialogPage } from "./pages/PluginInstallDialogPage";
 import { PluginUninstallDialogPage } from "./pages/PluginUninstallDialogPage";
 import { PluginPermissionCardPage } from "./pages/PluginPermissionCardPage";
+import { McpAppShellPage } from "./pages/McpAppShellPage";
 import { ComposerPage } from "./pages/ComposerPage";
 import { DataTablePage } from "./pages/DataTablePage";
 import { DiffSnippetPage } from "./pages/DiffSnippetPage";
@@ -283,6 +284,7 @@ const components: BlueprintPage[] = [
         number: "C-077",
         page: PluginPermissionCardPage,
     },
+    { id: "mcp-app-shell", label: "MCP app shell", number: "C-080", page: McpAppShellPage },
 ];
 const fullScreens: BlueprintPage[] = [
     { id: "settings-store", label: "Settings", number: "P-001", page: SettingsStorePage },

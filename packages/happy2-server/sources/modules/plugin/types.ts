@@ -317,7 +317,31 @@ export interface PluginMcpToolSummary {
     inputSchema: Record<string, unknown>;
     outputSchema?: Record<string, unknown>;
     annotations?: Record<string, unknown>;
+    meta?: Record<string, unknown>;
     syncedAt: string;
+}
+
+export interface PluginMcpAppSummary {
+    callId: string;
+    toolName: string;
+    resourceUri: string;
+    status: "in_progress" | "completed" | "failed";
+}
+
+export interface PluginMcpAppContext extends PluginMcpAppSummary {
+    sessionId: string;
+    installationId: string;
+    arguments: Record<string, unknown>;
+    result?: Record<string, unknown>;
+    chatId: string;
+    agentUserId: string;
+    actor: {
+        id: string;
+        username: string;
+        firstName: string;
+        lastName?: string;
+        kind: "human" | "agent";
+    };
 }
 
 export interface PreparedPluginSummary {

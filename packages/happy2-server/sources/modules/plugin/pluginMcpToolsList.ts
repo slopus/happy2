@@ -35,6 +35,7 @@ export async function pluginMcpToolsList(
             inputSchema: jsonObject(row.inputSchemaJson),
             ...(row.outputSchemaJson ? { outputSchema: jsonObject(row.outputSchemaJson) } : {}),
             ...(row.annotationsJson ? { annotations: jsonObject(row.annotationsJson) } : {}),
+            ...(row.metaJson ? { meta: jsonObject(row.metaJson) } : {}),
             syncedAt: row.syncedAt,
         })),
     };

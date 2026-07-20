@@ -7,6 +7,7 @@ import { messageRevisions, messages, messageSearchDocuments, notifications } fro
 
 import { chatAdvanceWithSequence } from "../chat/chatAdvanceWithSequence.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
+import { pluginMcpAppsDeleteForMessage } from "../plugin/pluginMcpAppsDeleteForMessage.js";
 
 /**
  * Tombstones due ephemeral messages and clears their messageSearchDocuments, messageRevisions, and notifications in bounded batches.
@@ -51,6 +52,7 @@ export async function messageExpireDue(
                     .where(eq(messageSearchDocuments.messageId, messageId));
                 await tx.delete(messageRevisions).where(eq(messageRevisions.messageId, messageId));
                 await tx.delete(notifications).where(eq(notifications.messageId, messageId));
+                await pluginMcpAppsDeleteForMessage(tx, messageId);
                 changedChats.set(chatId, mutation.pts);
             }
         }

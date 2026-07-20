@@ -25,6 +25,11 @@ export interface ChatMessageEntryProps {
         onOpen: () => void;
     }>;
     traceOpen?: boolean;
+    /**
+     * Interactive MCP App surfaces attached to this assistant message, supplied
+     * by the application because each owns its own materialized surface store.
+     */
+    appNodes?: ReactNode;
     onProfileOpen(profile: InfoPanelProfile): void;
     onImageOpen(message: LiveThreadMessage, imageId: string): void;
     onMenuSelect(message: LiveThreadMessage, action: string): void;
@@ -93,6 +98,7 @@ export function ChatMessageEntry(props: ChatMessageEntryProps): ReactNode {
                     variant="chat"
                 />
             ))}
+            {props.appNodes}
         </Message>
     );
 }

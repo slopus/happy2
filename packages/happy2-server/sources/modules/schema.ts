@@ -837,6 +837,53 @@ export const pluginFunctionResults = sqliteTable(
     (table) => [primaryKey({ columns: [table.sessionId, table.callId] })],
 );
 
+export const pluginMcpAppCalls = sqliteTable(
+    "plugin_mcp_app_calls",
+    {
+        sessionId: text("session_id").notNull(),
+        callId: text("call_id").notNull(),
+        userMessageId: text("user_message_id")
+            .notNull()
+            .references(() => messages.id, { onDelete: "cascade" }),
+        agentUserId: text("agent_user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        installationId: text("installation_id")
+            .notNull()
+            .references(() => pluginInstallations.id, { onDelete: "cascade" }),
+        toolName: text("tool_name").notNull(),
+        resourceUri: text("resource_uri").notNull(),
+        argumentsJson: text("arguments_json").notNull(),
+        status: text("status").notNull().default("in_progress"),
+        resultJson: text("result_json"),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [
+        primaryKey({ columns: [table.sessionId, table.callId] }),
+        index("plugin_mcp_app_calls_turn_index").on(table.userMessageId, table.agentUserId),
+        index("plugin_mcp_app_calls_installation_index").on(table.installationId),
+    ],
+);
+
+export const pluginMcpAppResources = sqliteTable(
+    "plugin_mcp_app_resources",
+    {
+        installationId: text("installation_id")
+            .notNull()
+            .references(() => pluginInstallations.id, { onDelete: "cascade" }),
+        uri: text("uri").notNull(),
+        html: text("html").notNull(),
+        contentHashSha256: text("content_hash_sha256").notNull(),
+        cspJson: text("csp_json"),
+        permissionsJson: text("permissions_json"),
+        domain: text("domain"),
+        prefersBorder: integer("prefers_border", { mode: "boolean" }),
+        syncedAt: text("synced_at").notNull(),
+    },
+    (table) => [primaryKey({ columns: [table.installationId, table.uri] })],
+);
+
 export const pluginMcpTools = sqliteTable(
     "plugin_mcp_tools",
     {
@@ -849,6 +896,7 @@ export const pluginMcpTools = sqliteTable(
         inputSchemaJson: text("input_schema_json").notNull(),
         outputSchemaJson: text("output_schema_json"),
         annotationsJson: text("annotations_json"),
+        metaJson: text("meta_json"),
         syncedAt: text("synced_at").notNull(),
     },
     (table) => [primaryKey({ columns: [table.installationId, table.name] })],
@@ -1503,6 +1551,8 @@ export const schema = {
     pluginInstallations,
     pluginInstallationVariables,
     pluginFunctionResults,
+    pluginMcpAppCalls,
+    pluginMcpAppResources,
     pluginMcpTools,
     pluginSkills,
     pluginManagementRequests,

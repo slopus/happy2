@@ -38,8 +38,12 @@ import { pluginInstallationPermissionsUpdate } from "./pluginInstallationPermiss
 import { pluginInstallationGetContainerName } from "./pluginInstallationGetContainerName.js";
 import { pluginAgentCallContextGet } from "./pluginAgentCallContextGet.js";
 import { pluginRemoveMissingBuiltins } from "./pluginRemoveMissingBuiltins.js";
-import { pluginMcpToolsReplace, type PluginMcpToolInput } from "./pluginMcpToolsReplace.js";
+import { pluginMcpCatalogReplace, type PluginMcpToolInput } from "./pluginMcpCatalogReplace.js";
 import { pluginMcpToolsListReady } from "./pluginMcpToolsListReady.js";
+import { pluginMcpAppBegin } from "./pluginMcpAppBegin.js";
+import { pluginMcpAppComplete } from "./pluginMcpAppComplete.js";
+import { pluginMcpAppGet } from "./pluginMcpAppGet.js";
+import { pluginMcpAppResourceGet } from "./pluginMcpAppResourceGet.js";
 import { pluginSkillsListReady } from "./pluginSkillsListReady.js";
 import { pluginSkillsListInstalled } from "./pluginSkillsListInstalled.js";
 import { pluginApiPermissionSections } from "./impl/apiPermissions.js";
@@ -48,6 +52,14 @@ import type { PluginSkillSourceRecord } from "./impl/pluginSkillSource.js";
 import { pluginContainerInstanceAuthorize } from "./pluginContainerInstanceAuthorize.js";
 import { pluginContainerInstanceInvalidate } from "./pluginContainerInstanceInvalidate.js";
 import { pluginUninstall } from "./pluginUninstall.js";
+import {
+    MCP_APP_EXTENSION_ID,
+    MCP_APP_RESOURCE_MIME_TYPE,
+    type McpAppResourceInput,
+    mcpAppResourceInput,
+    mcpAppToolUi,
+    mcpAppToolVisibleTo,
+} from "./impl/mcpApp.js";
 import { pluginArchiveExtract } from "./archive.js";
 import { pluginPackageLoadSource } from "./catalog.js";
 import { pluginManagementRequestBeginInstall } from "./pluginManagementRequestBeginInstall.js";
@@ -98,6 +110,8 @@ const FUNCTION_EXECUTION_TIMEOUT_MS = 30_000;
 const MAX_RIG_PLUGIN_FUNCTIONS = 128;
 const MAX_RIG_PLUGIN_SKILLS = 128;
 const PREPARATION_TTL_MS = 15 * 60_000;
+const MAX_MCP_APP_HTML_BYTES = 4 * 1024 * 1024;
+const MAX_ACTIVE_MCP_APP_OPERATIONS_PER_ACTOR = 16;
 const PLUGIN_CHAT_META_KEY = "happy2/chat";
 const PLUGIN_USERS_META_KEY = "happy2/users";
 
@@ -119,6 +133,11 @@ interface PreparedPlugin {
     secretHash: Buffer;
 }
 
+interface PluginMcpCatalogInput {
+    tools: PluginMcpToolInput[];
+    resources: McpAppResourceInput[];
+}
+
 /** Coordinates durable plugin installs with asynchronous container preparation, MCP health probes, restart recovery, and local connection creation. */
 export class PluginService {
     private readonly activations = new Map<
@@ -127,6 +146,7 @@ export class PluginService {
     >();
     private readonly commandHandles = new Map<string, PluginLocalCommandHandle>();
     private readonly preparations = new Map<string, PreparedPlugin>();
+    private readonly activeMcpAppOperationsByActor = new Map<string, number>();
     private closed = false;
 
     constructor(
@@ -806,7 +826,9 @@ export class PluginService {
 
     async listFunctions(signal?: AbortSignal): Promise<readonly PluginFunctionDefinition[]> {
         signal?.throwIfAborted();
-        const tools = await pluginMcpToolsListReady(this.executor);
+        const tools = (await pluginMcpToolsListReady(this.executor)).filter((tool) =>
+            mcpAppToolVisibleTo(tool.meta, "model"),
+        );
         if (tools.length > MAX_RIG_PLUGIN_FUNCTIONS)
             throw new PluginFunctionCatalogError(
                 `Installed plugins expose ${tools.length} MCP tools, exceeding Rig's ${MAX_RIG_PLUGIN_FUNCTIONS}-function limit`,
@@ -916,7 +938,7 @@ export class PluginService {
         functionName: string,
         args: unknown,
         context: PluginCallContext,
-        agentCall: PluginAgentCallContext,
+        agentCall: PluginAgentCallContext & { userMessageId: string },
         signal: AbortSignal,
     ): Promise<PluginFunctionResult> {
         const installationId = pluginFunctionInstallationId(functionName);
@@ -934,6 +956,23 @@ export class PluginService {
                 pluginFunctionName(installationId, tool.name) === functionName,
         );
         if (!cached) throw new Error("The plugin no longer exposes this cached function");
+        if (!mcpAppToolVisibleTo(cached.meta, "model"))
+            throw new Error("The plugin function is not visible to the model");
+        const appUi = mcpAppToolUi(cached.meta);
+        const argumentsValue = jsonArguments(args);
+        if (appUi.resourceUri) {
+            const hint = await pluginMcpAppBegin(this.executor, {
+                sessionId: agentCall.sessionId,
+                callId: agentCall.callId,
+                userMessageId: agentCall.userMessageId,
+                agentUserId: agentCall.agentUserId,
+                installationId,
+                toolName: cached.name,
+                resourceUri: appUi.resourceUri,
+                arguments: argumentsValue,
+            });
+            if (hint) await this.publish(hint).catch(this.onError);
+        }
         const chatToken = await this.tokens.issuePluginChatToken({
             installationId,
             chatId: context.chatId,
@@ -950,31 +989,212 @@ export class PluginService {
             })),
         );
         const result = await this.withClient(installationId, signal, agentCall, async (client) => {
-            const result = await client.callTool({
-                name: cached.name,
-                arguments: jsonArguments(args),
-                _meta: {
-                    [PLUGIN_CHAT_META_KEY]: {
-                        id: context.chatId,
-                        token: chatToken,
-                        triggeredByUserId: context.triggeredByUserId,
+            try {
+                const result = await client.callTool({
+                    name: cached.name,
+                    arguments: argumentsValue,
+                    _meta: {
+                        [PLUGIN_CHAT_META_KEY]: {
+                            id: context.chatId,
+                            token: chatToken,
+                            triggeredByUserId: context.triggeredByUserId,
+                        },
+                        [PLUGIN_USERS_META_KEY]: referencedUsers,
                     },
-                    [PLUGIN_USERS_META_KEY]: referencedUsers,
-                },
-            });
-            if (result.isError)
+                });
+                if (appUi.resourceUri) {
+                    const hint = await pluginMcpAppComplete(this.executor, {
+                        sessionId: agentCall.sessionId,
+                        callId: agentCall.callId,
+                        status: result.isError ? "failed" : "completed",
+                        result,
+                    });
+                    if (hint) await this.publish(hint).catch(this.onError);
+                }
+                if (result.isError)
+                    return {
+                        status: "failed" as const,
+                        error: {
+                            code: "plugin_mcp_error",
+                            message: mcpErrorMessage(result.content),
+                            data: appUi.resourceUri ? modelVisibleMcpResult(result) : result,
+                        },
+                    };
                 return {
-                    status: "failed" as const,
-                    error: {
-                        code: "plugin_mcp_error",
-                        message: mcpErrorMessage(result.content),
-                        data: result,
-                    },
+                    status: "completed" as const,
+                    output: appUi.resourceUri ? modelVisibleMcpResult(result) : result,
                 };
-            return { status: "completed" as const, output: result };
+            } catch (error) {
+                if (appUi.resourceUri) {
+                    const hint = await pluginMcpAppComplete(this.executor, {
+                        sessionId: agentCall.sessionId,
+                        callId: agentCall.callId,
+                        status: "failed",
+                        result: {
+                            isError: true,
+                            content: [{ type: "text", text: errorMessage(error) }],
+                        },
+                    });
+                    if (hint) await this.publish(hint).catch(this.onError);
+                }
+                throw error;
+            }
         });
         if (!result) throw new Error("The plugin does not expose MCP tools");
         return result;
+    }
+
+    async getMcpApp(input: {
+        actorUserId: string;
+        assistantMessageId: string;
+        callId: string;
+        signal?: AbortSignal;
+    }) {
+        return this.withMcpAppOperation(
+            input.actorUserId,
+            "MCP App load",
+            input.signal,
+            async () => {
+                const app = await pluginMcpAppGet(
+                    this.executor,
+                    input.actorUserId,
+                    input.assistantMessageId,
+                    input.callId,
+                );
+                const resource = await pluginMcpAppResourceGet(
+                    this.executor,
+                    app.installationId,
+                    app.resourceUri,
+                );
+                return {
+                    app: {
+                        callId: app.callId,
+                        toolName: app.toolName,
+                        resourceUri: app.resourceUri,
+                        arguments: app.arguments,
+                        status: app.status,
+                        ...(app.result ? { result: app.result } : {}),
+                    },
+                    resource: {
+                        html: resource.html,
+                        contentHashSha256: resource.contentHashSha256,
+                        meta: {
+                            ui: {
+                                ...(resource.csp ? { csp: resource.csp } : {}),
+                                ...(resource.permissions
+                                    ? { permissions: resource.permissions }
+                                    : {}),
+                                ...(resource.domain ? { domain: resource.domain } : {}),
+                                ...(resource.prefersBorder === undefined
+                                    ? {}
+                                    : { prefersBorder: resource.prefersBorder }),
+                            },
+                        },
+                    },
+                };
+            },
+        );
+    }
+
+    async callMcpAppTool(input: {
+        actorUserId: string;
+        assistantMessageId: string;
+        callId: string;
+        name: string;
+        arguments: Readonly<Record<string, unknown>>;
+        signal?: AbortSignal;
+    }) {
+        return this.withMcpAppOperation(
+            input.actorUserId,
+            "MCP App tool execution",
+            input.signal,
+            async (operationSignal) => {
+                const app = await pluginMcpAppGet(
+                    this.executor,
+                    input.actorUserId,
+                    input.assistantMessageId,
+                    input.callId,
+                );
+                const tool = (await pluginMcpToolsListReady(this.executor)).find(
+                    (candidate) =>
+                        candidate.installationId === app.installationId &&
+                        candidate.name === input.name,
+                );
+                if (!tool || !mcpAppToolVisibleTo(tool.meta, "app"))
+                    throw new PluginError("forbidden", "MCP tool is not available to this app");
+                const chatToken = await this.tokens.issuePluginChatToken({
+                    installationId: app.installationId,
+                    chatId: app.chatId,
+                    actorUserId: input.actorUserId,
+                    agentUserId: app.agentUserId,
+                });
+                const userToken = await this.tokens.issuePluginUserToken({
+                    installationId: app.installationId,
+                    userId: input.actorUserId,
+                });
+                const result = await this.withClient(
+                    app.installationId,
+                    operationSignal,
+                    undefined,
+                    (client) =>
+                        client.callTool({
+                            name: tool.name,
+                            arguments: input.arguments,
+                            _meta: {
+                                [PLUGIN_CHAT_META_KEY]: {
+                                    id: app.chatId,
+                                    token: chatToken,
+                                    triggeredByUserId: input.actorUserId,
+                                },
+                                [PLUGIN_USERS_META_KEY]: [
+                                    {
+                                        ...app.actor,
+                                        triggeredTurn: false,
+                                        token: userToken,
+                                    },
+                                ],
+                            },
+                        }),
+                );
+                if (!result) throw new PluginError("not_found", "Plugin does not expose MCP tools");
+                return result;
+            },
+        );
+    }
+
+    async readMcpAppResource(input: {
+        actorUserId: string;
+        assistantMessageId: string;
+        callId: string;
+        uri: string;
+        signal?: AbortSignal;
+    }) {
+        if (!input.uri || input.uri.length > 2_048)
+            throw new PluginError("broken_configuration", "MCP resource URI is invalid");
+        return this.withMcpAppOperation(
+            input.actorUserId,
+            "MCP App resource read",
+            input.signal,
+            async (operationSignal) => {
+                const app = await pluginMcpAppGet(
+                    this.executor,
+                    input.actorUserId,
+                    input.assistantMessageId,
+                    input.callId,
+                );
+                const result = await this.withClient(
+                    app.installationId,
+                    operationSignal,
+                    undefined,
+                    (client) => client.readResource({ uri: input.uri }),
+                );
+                if (!result) throw new PluginError("not_found", "MCP resource was not found");
+                const serialized = JSON.stringify(result);
+                if (Buffer.byteLength(serialized, "utf8") > MAX_MCP_APP_HTML_BYTES)
+                    throw new PluginError("broken_configuration", "MCP resource is too large");
+                return result;
+            },
+        );
     }
 
     private skillSources(
@@ -1653,7 +1873,7 @@ export class PluginService {
                       url: configuration.url,
                       urlPolicy: this.urlPolicy,
                   });
-        const client = new Client({ name: "happy2-plugin-functions", version: "1.0.0" });
+        const client = mcpAppClient("happy2-plugin-functions");
         try {
             await client.connect(transport);
             signal?.throwIfAborted();
@@ -1693,8 +1913,13 @@ export class PluginService {
             }
             if (configuration.type === "remote") {
                 await this.status(installationId, "starting", "Checking the remote MCP server.");
-                const tools = await this.probeRemote(configuration, signal);
-                const hint = await pluginMcpToolsReplace(this.executor, installationId, tools);
+                const catalog = await this.probeRemote(configuration, signal);
+                const hint = await pluginMcpCatalogReplace(
+                    this.executor,
+                    installationId,
+                    catalog.tools,
+                    catalog.resources,
+                );
                 await this.publish(hint).catch(this.onError);
                 await this.status(
                     installationId,
@@ -1771,8 +1996,13 @@ export class PluginService {
                 await commandSurviveStartup(commandHandle.wait, signal);
             }
             if (configuration.mcp) {
-                const tools = await this.probeLocal(configuration, environment, signal);
-                const hint = await pluginMcpToolsReplace(this.executor, installationId, tools);
+                const catalog = await this.probeLocal(configuration, environment, signal);
+                const hint = await pluginMcpCatalogReplace(
+                    this.executor,
+                    installationId,
+                    catalog.tools,
+                    catalog.resources,
+                );
                 await this.publish(hint).catch(this.onError);
             }
             await this.status(
@@ -1817,8 +2047,8 @@ export class PluginService {
         configuration: Extract<PluginRuntimeConfiguration, { type: "local" }>,
         environment: Readonly<Record<string, string>>,
         signal: AbortSignal,
-    ): Promise<PluginMcpToolInput[]> {
-        if (!configuration.mcp) return [];
+    ): Promise<PluginMcpCatalogInput> {
+        if (!configuration.mcp) return { tools: [], resources: [] };
         const transport = await this.runtime.openLocal(
             {
                 containerName: configuration.containerName,
@@ -1834,8 +2064,8 @@ export class PluginService {
     private async discoverTools(
         transport: Transport,
         signal: AbortSignal,
-    ): Promise<PluginMcpToolInput[]> {
-        const client = new Client({ name: "happy2-plugin-health", version: "1.0.0" });
+    ): Promise<PluginMcpCatalogInput> {
+        const client = mcpAppClient("happy2-plugin-health");
         try {
             await withTimeout(
                 client.connect(transport),
@@ -1862,6 +2092,7 @@ export class PluginService {
                         inputSchema: tool.inputSchema,
                         ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
                         ...(tool.annotations ? { annotations: tool.annotations } : {}),
+                        ...(tool._meta ? { meta: tool._meta } : {}),
                     })),
                 );
                 if (tools.length > MAX_PLUGIN_MCP_TOOLS)
@@ -1882,7 +2113,52 @@ export class PluginService {
                         "Plugin MCP tool pagination has too many pages",
                     );
             } while (cursor);
-            return tools;
+            const resourceUris = [
+                ...new Set(
+                    tools.flatMap((tool) => {
+                        const uri = mcpAppToolUi(tool.meta).resourceUri;
+                        return uri ? [uri] : [];
+                    }),
+                ),
+            ];
+            const resources: McpAppResourceInput[] = [];
+            for (const uri of resourceUris) {
+                const resource = await withTimeout(
+                    client.readResource({ uri }),
+                    HEALTH_TIMEOUT_MS,
+                    "MCP App resource discovery",
+                    signal,
+                );
+                if (resource.contents.length !== 1)
+                    throw new PluginError(
+                        "broken_configuration",
+                        "MCP App resource must return exactly one content item",
+                    );
+                const content = resource.contents[0]!;
+                if (content.uri !== uri || content.mimeType !== MCP_APP_RESOURCE_MIME_TYPE)
+                    throw new PluginError(
+                        "broken_configuration",
+                        `MCP App resource must match its ui:// URI and use ${MCP_APP_RESOURCE_MIME_TYPE}`,
+                    );
+                const html =
+                    "text" in content
+                        ? content.text
+                        : Buffer.from(content.blob, "base64").toString("utf8");
+                if (Buffer.byteLength(html, "utf8") > MAX_MCP_APP_HTML_BYTES)
+                    throw new PluginError(
+                        "broken_configuration",
+                        "MCP App HTML resource is too large",
+                    );
+                resources.push(
+                    mcpAppResourceInput(
+                        uri,
+                        html,
+                        createHash("sha256").update(html).digest("hex"),
+                        plainJsonObject(content._meta),
+                    ),
+                );
+            }
+            return { tools, resources };
         } finally {
             await client.close().catch(() => transport.close());
         }
@@ -1891,7 +2167,7 @@ export class PluginService {
     private async probeRemote(
         configuration: Extract<PluginRuntimeConfiguration, { type: "remote" }>,
         signal: AbortSignal,
-    ): Promise<PluginMcpToolInput[]> {
+    ): Promise<PluginMcpCatalogInput> {
         return this.discoverTools(
             new RemotePluginMcpTransport({
                 headers: configuration.headers,
@@ -1903,6 +2179,25 @@ export class PluginService {
             }),
             signal,
         );
+    }
+
+    private async withMcpAppOperation<T>(
+        actorUserId: string,
+        name: string,
+        signal: AbortSignal | undefined,
+        action: (signal: AbortSignal) => Promise<T>,
+    ): Promise<T> {
+        const active = this.activeMcpAppOperationsByActor.get(actorUserId) ?? 0;
+        if (active >= MAX_ACTIVE_MCP_APP_OPERATIONS_PER_ACTOR)
+            throw new PluginError("not_ready", "Too many MCP App operations are active");
+        this.activeMcpAppOperationsByActor.set(actorUserId, active + 1);
+        try {
+            return await withOperationTimeout(FUNCTION_EXECUTION_TIMEOUT_MS, name, signal, action);
+        } finally {
+            const remaining = (this.activeMcpAppOperationsByActor.get(actorUserId) ?? 1) - 1;
+            if (remaining === 0) this.activeMcpAppOperationsByActor.delete(actorUserId);
+            else this.activeMcpAppOperationsByActor.set(actorUserId, remaining);
+        }
     }
 
     private async status(
@@ -2018,6 +2313,32 @@ function pluginChannelSlug(name: string): string {
 function pluginFunctionInstallationId(functionName: string): string | undefined {
     const match = /^plugin_([a-z0-9]+)_/u.exec(functionName);
     return match?.[1];
+}
+
+function mcpAppClient(name: string): Client {
+    return new Client(
+        { name, version: "1.0.0" },
+        {
+            capabilities: {
+                extensions: {
+                    [MCP_APP_EXTENSION_ID]: { mimeTypes: [MCP_APP_RESOURCE_MIME_TYPE] },
+                },
+            },
+        },
+    );
+}
+
+function plainJsonObject(value: unknown): Record<string, unknown> {
+    return value && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
+}
+
+function modelVisibleMcpResult(result: Readonly<Record<string, unknown>>): Record<string, unknown> {
+    return {
+        ...(result.content === undefined ? {} : { content: result.content }),
+        ...(typeof result.isError === "boolean" ? { isError: result.isError } : {}),
+    };
 }
 
 function jsonArguments(value: unknown): Record<string, unknown> {

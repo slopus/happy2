@@ -8,6 +8,9 @@ import type {
     ChatPinSummary,
     ChatSummary,
     FileSummary,
+    McpAppView,
+    McpResourceReadResult,
+    McpToolResult,
     MessageSummary,
     NotificationSummary,
     PresenceSettingsSummary,
@@ -112,6 +115,16 @@ const post = <P extends string>(
     path,
     rawBodyKey,
 });
+// App-initiated MCP tools/call and resources/read are proxied plugin RPCs, not
+// durable mutations: they must never be retried or carry an idempotency key,
+// because a plugin tool can be non-idempotent and a retry would double-execute.
+const rpcPost = <P extends string>(
+    path: P,
+): OperationSpec & { readonly path: P; readonly idempotency: false } => ({
+    method: "POST",
+    path,
+    idempotency: false,
+});
 const secretPost = <P extends string>(
     path: P,
 ): OperationSpec & { readonly path: P; readonly idempotency: false } => ({
@@ -160,6 +173,9 @@ export const backendOperations = {
     getThread: get("/v0/messages/:messageId/thread"),
     createThread: post("/v0/messages/:messageId/createThread"),
     getMessageAgentTrace: get("/v0/messages/:messageId/agentTrace"),
+    getMcpApp: get("/v0/messages/:messageId/mcpApps/:callId"),
+    callMcpAppTool: rpcPost("/v0/messages/:messageId/mcpApps/:callId/callTool"),
+    readMcpAppResource: rpcPost("/v0/messages/:messageId/mcpApps/:callId/readResource"),
     getThreads: get("/v0/threads", ["before", "unreadOnly", "limit"]),
     getNotifications: get("/v0/notifications", ["before", "unreadOnly", "limit"]),
     markNotificationsRead: post("/v0/notifications/markRead"),
@@ -516,6 +532,18 @@ export interface KnownBackendInputs {
         readonly agentUserIds?: readonly string[];
     };
     createThread: { readonly messageId: string };
+    getMcpApp: { readonly messageId: string; readonly callId: string };
+    callMcpAppTool: {
+        readonly messageId: string;
+        readonly callId: string;
+        readonly name: string;
+        readonly arguments: Readonly<Record<string, unknown>>;
+    };
+    readMcpAppResource: {
+        readonly messageId: string;
+        readonly callId: string;
+        readonly uri: string;
+    };
     updateThreadFollow: { readonly chatId: string; readonly followed: boolean };
     deleteMessage: { readonly messageId: string };
     editMessage: {
@@ -963,6 +991,9 @@ export interface KnownBackendResults {
     getMessage: { readonly message: MessageSummary };
     getThread: { readonly chat: ChatSummary };
     getMessageAgentTrace: { readonly trace: AgentTurnTraceDetails };
+    getMcpApp: McpAppView;
+    callMcpAppTool: { readonly result: McpToolResult };
+    readMcpAppResource: { readonly result: McpResourceReadResult };
     getThreads: { readonly threads: readonly ChatSummary[]; readonly nextCursor?: string };
     getNotifications: {
         readonly notifications: readonly NotificationSummary[];

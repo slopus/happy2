@@ -129,6 +129,7 @@ export type {
     AgentTraceSnapshot,
     AgentTraceStore,
 } from "./modules/agent-trace/agentTraceState.js";
+export type { McpAppHandle, McpAppSnapshot, McpAppStore } from "./modules/mcp-apps/mcpAppState.js";
 export type {
     ThreadsSnapshot,
     ThreadsOutput,

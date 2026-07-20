@@ -1,0 +1,17 @@
+{
+    "schemaVersion": 1,
+    "version": "1.0.0",
+    "displayName": "Movie Catalog",
+    "shortName": "movie-catalog",
+    "description": "Finds movies through the public Studio Ghibli no-auth catalog and presents them as an interactive MCP App.",
+    "variables": [],
+    "container": {
+        "dockerfile": "container/Dockerfile",
+        "permissions": []
+    },
+    "mcp": {
+        "type": "stdio",
+        "command": "node",
+        "args": ["/plugin/server.mjs"]
+    }
+}
