@@ -879,3 +879,93 @@ it("renders a photo avatar in the leading lane when a row supplies imageUrl", as
         ).toBeNull();
     }
 }, 120_000);
+
+/*
+ * Child channels render directly under their parent, one 16px indent level
+ * deeper, keeping their own stable `data-item-id`. Archived rows keep their
+ * position and remain clickable but dim uniformly to 0.55 opacity so the state
+ * reads distinctly from an ordinary resting (already secondary-grey) row.
+ */
+it("nests child channels under their parent and dims archived rows", async () => {
+    const selected: string[] = [];
+    const view = createRenderer();
+    view.render(
+        () => (
+            <Sidebar
+                activeItemId="ios"
+                data-testid="nested"
+                onItemSelect={(id) => selected.push(id)}
+                sections={[
+                    {
+                        id: "channels",
+                        items: [
+                            { id: "launch", kind: "channel", label: "launch-week" },
+                            { depth: 1, id: "ios", kind: "channel", label: "ios-rollout" },
+                            {
+                                archived: true,
+                                depth: 1,
+                                id: "legacy",
+                                kind: "channel",
+                                label: "legacy-notes",
+                            },
+                            {
+                                archived: true,
+                                id: "fires",
+                                kind: "channel",
+                                label: "support-fires",
+                            },
+                        ],
+                        label: "Channels",
+                    },
+                ]}
+                title="Nesting"
+            />
+        ),
+        { width: 360, height: 260 },
+    );
+    await view.ready();
+
+    const row = (id: string) => view.$(`[data-testid="nested"] [data-item-id="${id}"]`);
+    const leading = (id: string) =>
+        view.$(
+            `[data-testid="nested"] [data-item-id="${id}"] [data-happy2-ui="sidebar-item-leading"]`,
+        );
+
+    /* ---- Indentation --------------------------------------------------- */
+    expect(row("launch").computedStyle("padding-left"), "parent padding").toBe("10px");
+    expect(row("launch").element.getAttribute("data-depth"), "parent depth attr").toBeNull();
+    expect(row("ios").computedStyle("padding-left"), "child padding").toBe("26px");
+    expect(row("ios").element.getAttribute("data-depth"), "child depth attr").toBe("1");
+    expect(row("legacy").computedStyle("padding-left"), "archived child padding").toBe("26px");
+    /* The 16px indent shifts the child's leading lane exactly one level right. */
+    expect(
+        leading("ios").bounds().x - leading("launch").bounds().x,
+        "child leading indent",
+    ).toBeCloseTo(16, 1);
+
+    /* ---- Archived dimming ---------------------------------------------- */
+    expect(row("launch").computedStyle("opacity"), "resting opacity").toBe("1");
+    expect(row("ios").computedStyle("opacity"), "active child opacity").toBe("1");
+    expect(row("legacy").computedStyle("opacity"), "archived child opacity").toBe("0.55");
+    expect(row("fires").computedStyle("opacity"), "archived top-level opacity").toBe("0.55");
+    /* Every row still paints its label; dimming never blanks the capture. */
+    for (const id of ["launch", "ios", "legacy", "fires"]) {
+        const label = view.$(
+            `[data-testid="nested"] [data-item-id="${id}"] [data-happy2-ui="sidebar-item-label"]`,
+        );
+        expect((await label.visibleMetrics()).pixelCount, `${id} label paints`).toBeGreaterThan(0);
+    }
+
+    /* ---- Order + stable identity + click ------------------------------- */
+    const ordered = [
+        ...view.container.querySelectorAll('[data-testid="nested"] [data-item-id]'),
+    ].map((node) => node.getAttribute("data-item-id"));
+    expect(ordered, "parent precedes its children").toEqual(["launch", "ios", "legacy", "fires"]);
+    const archivedRow = row("fires").element as HTMLButtonElement;
+    archivedRow.click();
+    expect(selected, "archived rows stay clickable").toEqual(["fires"]);
+    (row("legacy").element as HTMLButtonElement).click();
+    expect(selected).toEqual(["fires", "legacy"]);
+
+    await view.screenshot("Sidebar.nested");
+}, 120_000);

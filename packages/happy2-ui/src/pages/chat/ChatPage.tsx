@@ -12,6 +12,7 @@ import {
 } from "./ChatPageComponents.js";
 import type {
     AgentActivityState,
+    AgentModelsStore,
     AgentTraceStore,
     ChatSummary,
     ChatStore,
@@ -41,6 +42,7 @@ import {
 import { ChatMessageEntry } from "./ChatMessageEntry.js";
 import { ChatAgentCreateDialog } from "./ChatAgentCreateDialog.js";
 import { ChatChannelCreateDialog } from "./ChatChannelCreateDialog.js";
+import { ChatChildChannelCreateDialog } from "./ChatChildChannelCreateDialog.js";
 import { ChatDirectoryDialog } from "./ChatDirectoryDialog.js";
 import { ChatDirectMessageDialog } from "./ChatDirectMessageDialog.js";
 import { ChatMessageEditDialog } from "./ChatMessageEditDialog.js";
@@ -73,6 +75,8 @@ export type ChatPageProps = {
     user: ChatPageUser;
     sidebar: SidebarStore;
     directory: DirectoryStore;
+    /** On-demand agent-model catalog for the child-channel model picker. */
+    agentModels?: AgentModelsStore;
     chat?: ChatStore;
     composer?: ComposerStore;
     thread?: ThreadHandle;
@@ -146,6 +150,11 @@ export interface ChatPageActions {
     chatLeave(chatId: string): Promise<void>;
     chatStarSet(chatId: string, starred: boolean): Promise<void>;
     channelCreate(input: import("happy2-state").CreateChannelInput): Promise<void>;
+    channelCreateChild(input: import("happy2-state").CreateChildChannelInput): Promise<void>;
+    channelArchive(chatId: string): Promise<void>;
+    channelUnarchive(chatId: string): Promise<void>;
+    /** Loads the agent-model catalog before a model picker renders. */
+    agentModelsLoad(): Promise<void>;
     channelUpdate(chatId: string, input: import("happy2-state").ChannelUpdateInput): Promise<void>;
     channelDefaultAgentUpdate(chatId: string, agentUserId: string): Promise<void>;
     agentCreate(input: import("happy2-state").CreateAgentInput): Promise<void>;
@@ -163,6 +172,7 @@ export function ChatPage(props: ChatPageProps) {
     const avatarImages = useAvatarImages(props.actions);
     const sidebarState = useStoreSnapshot(props.sidebar);
     const directoryState = useStoreSnapshot(props.directory);
+    const agentModelsState = useOptionalStoreSnapshot(props.agentModels);
     const chatState = useOptionalStoreSnapshot(props.chat);
     const composerState = useOptionalStoreSnapshot(props.composer);
     const threadState = useOptionalStoreSnapshot(props.thread);
@@ -181,6 +191,7 @@ export function ChatPage(props: ChatPageProps) {
     }
     const [busyCount, setBusyCount] = useState(0);
     const [createOpen, setCreateOpen] = useState(false);
+    const [childCreateParentId, setChildCreateParentId] = useState<string | undefined>(undefined);
     const [agentCreateOpen, setAgentCreateOpen] = useState(false);
     const [directoryOpen, setDirectoryOpen] = useState(false);
     const [composeOpen, setComposeOpen] = useState(false);
@@ -197,7 +208,11 @@ export function ChatPage(props: ChatPageProps) {
         | undefined
         | {
               kind: "channel";
-              name: string;
+              // Slug is globally unique (server-enforced), so it disambiguates a
+              // newly created channel from an existing same-named one. parentChatId
+              // is carried for child channels so selection targets the new child.
+              slug: string;
+              parentChatId?: string;
           }
         | {
               kind: "agent";
@@ -400,8 +415,24 @@ export function ChatPage(props: ChatPageProps) {
     });
     async function channelCreate(input: Parameters<typeof creationModel.channelCreate>[0]) {
         if (!(await creationModel.channelCreate(input))) return;
-        pendingSelection.current = { kind: "channel", name: input.name };
+        pendingSelection.current = { kind: "channel", slug: input.slug };
         setCreateOpen(false);
+    }
+    async function childCreate(input: {
+        name: string;
+        slug: string;
+        topic?: string;
+        agentModelId?: string;
+    }) {
+        const parentChatId = childCreateParentId;
+        if (!parentChatId) return;
+        if (!(await creationModel.channelCreateChild({ ...input, parentChatId }))) return;
+        pendingSelection.current = { kind: "channel", slug: input.slug, parentChatId };
+        setChildCreateParentId(undefined);
+    }
+    function childCreateOpen(parentChatId: string) {
+        setChildCreateParentId(parentChatId);
+        void props.actions.agentModelsLoad().catch(showError);
     }
     async function agentCreate(name: string, username: string) {
         if (!(await creationModel.agentCreate(name, username))) return;
@@ -475,6 +506,7 @@ export function ChatPage(props: ChatPageProps) {
         actions: props.actions,
         onInfoOpen: () => infoModel.open(),
         onLeave: () => props.actions.chatSelect("", "chat"),
+        onChildCreate: childCreateOpen,
         onError: showError,
     });
     const conversationEntries = () =>
@@ -695,7 +727,12 @@ export function ChatPage(props: ChatPageProps) {
         const pending = pendingSelection.current;
         if (pending) {
             const match = chats.find((projection) => {
-                if (pending.kind === "channel") return projection.chat.name === pending.name;
+                if (pending.kind === "channel")
+                    return (
+                        projection.chat.slug === pending.slug &&
+                        (pending.parentChatId === undefined ||
+                            projection.chat.parentChatId === pending.parentChatId)
+                    );
                 const peer = projection.participants.find((person) => person.id !== user()?.id);
                 return pending.kind === "agent"
                     ? peer?.username === pending.username
@@ -1091,6 +1128,28 @@ export function ChatPage(props: ChatPageProps) {
                     isServerAdmin={isServerAdmin()}
                     onClose={() => setCreateOpen(false)}
                     onCreate={(input) => void channelCreate(input)}
+                />
+            ) : null}
+            {childCreateParentId ? (
+                <ChatChildChannelCreateDialog
+                    busy={busy()}
+                    defaultModelId={agentModelsState?.defaultModelId}
+                    models={(agentModelsState?.models ?? []).map((model) => ({
+                        value: model.id,
+                        label: model.name,
+                    }))}
+                    modelsError={
+                        agentModelsState?.status.type === "error"
+                            ? agentModelsState.status.error.message
+                            : undefined
+                    }
+                    modelsLoading={agentModelsState?.status.type === "loading"}
+                    onClose={() => setChildCreateParentId(undefined)}
+                    onCreate={(input) => void childCreate(input)}
+                    parentName={
+                        sidebarChats().find((projection) => projection.id === childCreateParentId)
+                            ?.displayName
+                    }
                 />
             ) : null}
             {mediaModel.lightbox

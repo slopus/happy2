@@ -2,13 +2,14 @@ import { CollaborationError, type MutationHint } from "./types.js";
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 
 import { agentRigBindings, chatMembers, chats, users } from "../schema.js";
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { chatHint } from "./chatHint.js";
 
 import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { chatRequireManager } from "./chatRequireManager.js";
 import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
+import { chatDescendantIds } from "./impl/chatDescendantIds.js";
 
 /**
  * Removes a managed chatMembers identity, repairs chats ownership when necessary, and detaches agentRigBindings that depended on the membership.
@@ -26,8 +27,8 @@ export async function channelMemberRemove(
 }> {
     return withTransaction(executor, async (tx) => {
         const access = await chatRequireManager(tx, input.actorUserId, input.chatId);
-        if (access.parentMessageId)
-            throw new CollaborationError("invalid", "Thread membership is inherited");
+        if (access.parentMessageId || access.parentChatId)
+            throw new CollaborationError("invalid", "Nested chat membership is inherited");
         if (access.kind === "dm")
             throw new CollaborationError("invalid", "Direct-message membership is fixed");
         if (access.isMain)
@@ -163,11 +164,12 @@ export async function channelMemberRemove(
             kind: "removed",
             replacementOwnerUserId,
         });
+        const affectedChatIds = [input.chatId, ...(await chatDescendantIds(tx, input.chatId))];
         await tx
             .delete(agentRigBindings)
             .where(
                 and(
-                    eq(agentRigBindings.chatId, input.chatId),
+                    inArray(agentRigBindings.chatId, affectedChatIds),
                     eq(agentRigBindings.userId, input.userId),
                 ),
             );

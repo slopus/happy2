@@ -12,6 +12,7 @@ import type { WebhookUrlPolicy } from "../integrations/ssrf.js";
 import type { WebhookTransport } from "../integrations/types.js";
 import type { TokenService } from "../auth/tokens.js";
 import { chatUpdateMetadata, type ChatMetadataSummary } from "../chat/chatUpdateMetadata.js";
+import { channelCreateChild } from "../chat/channelCreateChild.js";
 import { channelCreateWithMembers } from "../chat/channelCreateWithMembers.js";
 import { channelMembersUpdate } from "../chat/channelMembersUpdate.js";
 import { channelSetArchived } from "../chat/channelSetArchived.js";
@@ -101,6 +102,7 @@ const PLUGIN_CHAT_META_KEY = "happy2/chat";
 const PLUGIN_USERS_META_KEY = "happy2/users";
 
 interface PluginAgentRuntime {
+    modelRequireAvailable(modelId: string): Promise<void>;
     prepareTurns(input: {
         actorUserId: string;
         agentUserIds: readonly string[];
@@ -1388,6 +1390,43 @@ export class PluginService {
             }),
             ...(initialMessage ? { initialMessage } : {}),
             sync: hints,
+        };
+    }
+
+    async channelCreateChild(
+        runtimeToken: string,
+        chatToken: string,
+        input: {
+            name: string;
+            description?: string;
+            agentModelId?: string;
+        },
+        agents?: PluginAgentRuntime,
+    ) {
+        const claims = await this.authorizeChat(runtimeToken, chatToken, "channels:create-child");
+        if (input.agentModelId) {
+            if (!agents)
+                throw new PluginError("not_ready", "AI agents are not enabled on this server");
+            await agents.modelRequireAvailable(input.agentModelId);
+        }
+        const created = await channelCreateChild(this.executor, {
+            actorUserId: claims.actorUserId,
+            parentChatId: claims.chatId,
+            name: input.name,
+            slug: pluginChannelSlug(input.name),
+            topic: input.description,
+            agentModelId: input.agentModelId,
+        });
+        await this.publishHints([created.hint], created.memberUserIds);
+        return {
+            chat: created.chat,
+            token: await this.tokens.issuePluginChatToken({
+                installationId: claims.installationId,
+                chatId: created.chat.id,
+                actorUserId: claims.actorUserId,
+                agentUserId: claims.agentUserId,
+            }),
+            sync: created.hint,
         };
     }
 

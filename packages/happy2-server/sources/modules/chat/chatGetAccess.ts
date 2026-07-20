@@ -8,7 +8,7 @@ import { chatSelection } from "./impl/chatSelection.js";
 
 /**
  * Builds a chat projection for an active account-backed user when membership is present or, if allowed, the chat and every parent are live public channels.
- * Recursively requiring access through parent-message ancestry prevents a deleted or revoked ancestor from leaving a deeper thread reachable.
+ * Recursively requiring access through parent-message and parent-channel ancestry prevents a deleted or revoked ancestor from leaving a nested chat reachable.
  */
 export async function chatGetAccess(
     executor: DrizzleExecutor,
@@ -50,19 +50,17 @@ export async function chatGetAccess(
     if (!row) return undefined;
     const chat = asChat(row);
     let inheritedArchivedAt: string | undefined;
-    if (chat.parentMessageId) {
-        const [parent] = await executor
-            .select({ chatId: messages.chatId })
-            .from(messages)
-            .where(eq(messages.id, chat.parentMessageId))
-            .limit(1);
-        if (!parent) return undefined;
-        const parentAccess = await chatGetAccess(
-            executor,
-            userId,
-            parent.chatId,
-            requireMembership,
-        );
+    if (chat.parentMessageId || chat.parentChatId) {
+        const parentChatId = chat.parentChatId
+            ? chat.parentChatId
+            : await executor
+                  .select({ chatId: messages.chatId })
+                  .from(messages)
+                  .where(eq(messages.id, chat.parentMessageId!))
+                  .limit(1)
+                  .then((rows) => rows[0]?.chatId);
+        if (!parentChatId) return undefined;
+        const parentAccess = await chatGetAccess(executor, userId, parentChatId, requireMembership);
         if (!parentAccess) return undefined;
         inheritedArchivedAt = parentAccess.archivedAt;
     }

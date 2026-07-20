@@ -17,6 +17,7 @@ export interface ChatSummary {
     id: string;
     kind: ChatKind;
     parentMessageId?: string;
+    parentChatId?: string;
     name?: string;
     slug?: string;
     topic?: string;
@@ -27,6 +28,7 @@ export interface ChatSummary {
     isMain: boolean;
     autoJoin: boolean;
     defaultAgentUserId?: string;
+    agentModelId?: string;
     isDefaultAgentConversation: boolean;
     archivedAt?: string;
     retentionMode: "inherit" | "forever" | "duration";

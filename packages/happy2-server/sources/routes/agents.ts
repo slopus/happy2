@@ -27,6 +27,22 @@ export function registerAgentRoutes(
     agents: AgentService,
 ): void {
     registerTerminalWebSocket(app, auth, agents);
+    app.get(
+        "/v0/agentModels",
+        authenticated(auth, async (request) => {
+            emptyQuery(request);
+            const catalog = await agents.modelCatalog();
+            return {
+                defaultModelId: catalog.defaultModelId,
+                models: catalog.models.map((model) => ({
+                    id: model.id,
+                    name: model.name,
+                    thinkingLevels: [...model.thinkingLevels],
+                    defaultThinkingLevel: model.defaultThinkingLevel,
+                })),
+            };
+        }),
+    );
     app.post(
         "/v0/chats/:chatId/agents/:agentUserId/terminals/createTerminal",
         authenticated(auth, async (request, reply, actorUserId) => {

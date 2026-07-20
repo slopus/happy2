@@ -58,6 +58,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { Duplex } from "node:stream";
 import type { RemoteTerminalSummary } from "@slopus/rig/dist/terminal/index.js";
+import type { ModelCatalog } from "@slopus/rig/dist/protocol/index.js";
 import type {
     AgentTurnBackgroundTerminalSummary,
     AgentTurnSubagentSummary,
@@ -295,6 +296,14 @@ export class AgentService {
     }
     async createAgentConversation(input: { actorUserId: string; agentUserId: string }) {
         return agentConversationCreate(this.executor, input);
+    }
+    async modelCatalog(): Promise<ModelCatalog> {
+        return this.daemon.modelCatalog(this.shutdown.signal);
+    }
+    async modelRequireAvailable(modelId: string): Promise<void> {
+        const catalog = await this.modelCatalog();
+        if (!catalog.models.some((model) => model.id === modelId))
+            throw new CollaborationError("invalid", "Agent model is not available");
     }
     async start(): Promise<void> {
         await agentImageEnsureDefinitions(
@@ -630,29 +639,40 @@ export class AgentService {
             previousSessionId: string;
             sessionId: string;
         }> = [];
+        const createdContainerNames = new Set<string>();
         let committed = false;
         const runtime = await this.sandboxRuntime();
         try {
-            for (const binding of context.bindings) {
+            const bindingGroups = new Map<string, typeof context.bindings>();
+            for (const binding of context.bindings)
+                bindingGroups.set(binding.containerName, [
+                    ...(bindingGroups.get(binding.containerName) ?? []),
+                    binding,
+                ]);
+            for (const bindings of bindingGroups.values()) {
+                const first = bindings[0];
+                if (!first) continue;
                 const containerName = agentContainerName();
                 await runtime.createSandbox(
                     {
                         agentUserId: input.agentUserId,
                         containerName,
-                        homeDirectory: join(binding.cwd, "..", "home"),
+                        homeDirectory: join(first.cwd, "..", "home"),
                         imageId: context.image.id,
                         imageTag: context.image.dockerTag,
                         security: AGENT_CONTAINER_SECURITY,
-                        workspaceDirectory: binding.cwd,
+                        workspaceDirectory: first.cwd,
                     },
                     this.shutdown.signal,
                 );
-                try {
+                createdContainerNames.add(containerName);
+                for (const binding of bindings) {
                     const session = await this.daemon.createSession(
                         binding.cwd,
                         containerName,
                         binding.effort ?? context.user.agentEffort,
                         this.shutdown.signal,
+                        binding.agentModelId,
                     );
                     replacements.push({
                         chatId: binding.chatId,
@@ -662,9 +682,6 @@ export class AgentService {
                         previousSessionId: binding.sessionId,
                         sessionId: session.id,
                     });
-                } catch (error) {
-                    await runtime.removeSandbox(containerName);
-                    throw error;
                 }
             }
             const result = await agentImageCommitChange(this.executor, {
@@ -674,16 +691,21 @@ export class AgentService {
             });
             if (!result.sync) {
                 await Promise.all(
-                    replacements.map(({ containerName }) => runtime.removeSandbox(containerName)),
+                    [...createdContainerNames].map((containerName) =>
+                        runtime.removeSandbox(containerName),
+                    ),
                 );
                 return {
                     user: result.user,
                 };
             }
             committed = true;
+            const previousContainerNames = new Set(
+                replacements.map(({ previousContainerName }) => previousContainerName),
+            );
             await Promise.allSettled(
-                replacements.map(({ previousContainerName }) =>
-                    runtime.removeSandbox(previousContainerName),
+                [...previousContainerNames].map((containerName) =>
+                    runtime.removeSandbox(containerName),
                 ),
             ).then((results) => {
                 for (const result of results)
@@ -697,7 +719,9 @@ export class AgentService {
         } catch (error) {
             if (!committed)
                 await Promise.allSettled(
-                    replacements.map(({ containerName }) => runtime.removeSandbox(containerName)),
+                    [...createdContainerNames].map((containerName) =>
+                        runtime.removeSandbox(containerName),
+                    ),
                 ).then((results) => {
                     for (const result of results)
                         if (result.status === "rejected") this.onError(result.reason);
@@ -946,6 +970,13 @@ export class AgentService {
         const key = `${context.agentUserId}:${chatId}`;
         const pending = this.bindingCreations.get(key);
         if (pending) return pending;
+        const parentBinding = context.parentChatId
+            ? await this.ensureAgentBinding(actorUserId, context.parentChatId, agentUserId)
+            : undefined;
+        if (context.parentChatId && !parentBinding)
+            throw new CollaborationError("conflict", "Parent agent conversation is not ready");
+        const concurrent = this.bindingCreations.get(key);
+        if (concurrent) return concurrent;
         const creation = this.serializeAgentConfiguration(context.agentUserId, async () => {
             const latest = await agentChatGetContext(
                 this.executor,
@@ -959,6 +990,47 @@ export class AgentService {
                 const effort = latest.binding.effort ?? latest.agentDefaultEffort;
                 if (effort) await this.reconcileSessionEffort(latest.binding.sessionId, effort);
                 return latest.binding;
+            }
+            if (latest.parentChatId) {
+                if (latest.parentChatId !== context.parentChatId || !parentBinding)
+                    throw new CollaborationError(
+                        "conflict",
+                        "Child channel parent changed while starting its agent",
+                    );
+                const parent = await agentChatGetContext(
+                    this.executor,
+                    actorUserId,
+                    latest.parentChatId,
+                    latest.agentUserId,
+                );
+                const shared = parent?.binding ?? parentBinding;
+                if (!parent || parent.image.id !== latest.image.id)
+                    throw new CollaborationError(
+                        "conflict",
+                        "Parent and child agent environments do not match",
+                    );
+                const session = await this.daemon.createSession(
+                    shared.cwd,
+                    shared.containerName,
+                    latest.agentDefaultEffort,
+                    this.shutdown.signal,
+                    latest.agentModelId,
+                );
+                const binding = await agentChatBind(this.executor, {
+                    actorUserId,
+                    agentUserId: latest.agentUserId,
+                    chatId,
+                    containerName: shared.containerName,
+                    cwd: shared.cwd,
+                    effort: session.effort,
+                    imageId: latest.image.id,
+                    sessionId: session.id,
+                });
+                await this.reconcileSecretBindings({
+                    agentUserId: latest.agentUserId,
+                    chatId,
+                });
+                return binding;
             }
             const sandbox = sandboxDirectories(
                 this.defaultCwd,
@@ -997,6 +1069,7 @@ export class AgentService {
                     containerName,
                     latest.agentDefaultEffort,
                     this.shutdown.signal,
+                    latest.agentModelId,
                 );
                 const binding = await agentChatBind(this.executor, {
                     actorUserId,

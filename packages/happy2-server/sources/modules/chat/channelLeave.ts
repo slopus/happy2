@@ -24,8 +24,8 @@ export async function channelLeave(
     return withTransaction(executor, async (tx) => {
         const access = await chatGetAccess(tx, actorUserId, chatId, true);
         if (!access) throw new CollaborationError("not_found", "Chat was not found");
-        if (access.parentMessageId)
-            throw new CollaborationError("invalid", "Thread membership is inherited");
+        if (access.parentMessageId || access.parentChatId)
+            throw new CollaborationError("invalid", "Nested chat membership is inherited");
         if (access.kind === "dm")
             throw new CollaborationError("invalid", "This chat's membership is fixed");
         if (access.isMain)

@@ -18,6 +18,7 @@ const SQUARE_PNG = Buffer.from(
 
 const ALL_PERMISSIONS = [
     "channels:create",
+    "channels:create-child",
     "chats:members:add",
     "chats:members:remove",
     "chats:archive",
@@ -163,6 +164,25 @@ describe("granular plugin host collaboration capabilities", () => {
             const privateChatToken = privateChannel.json().token as string;
             fullChatToken = privateChatToken;
             const privateHeaders = headers(runtimeToken, privateChatToken);
+
+            const childChannel = await server.pluginHost().post(
+                "/channels/createChildChannel",
+                {
+                    name: "PluginSearchNeedle child",
+                    description: "Independent child conversation in the parent workspace.",
+                    agentModelId: "gym/alternate-agent",
+                },
+                privateHeaders,
+            );
+            expect(childChannel.statusCode).toBe(201);
+            expect(childChannel.json()).toMatchObject({
+                chat: {
+                    kind: "private_channel",
+                    parentChatId: privateChatId,
+                    agentModelId: "gym/alternate-agent",
+                },
+                token: expect.any(String),
+            });
 
             const added = await server
                 .pluginHost()
@@ -409,9 +429,14 @@ describe("granular plugin host collaboration capabilities", () => {
             const denied = await server
                 .pluginHost()
                 .post("/messages/send", { text: "must not send" }, authorization);
+            const deniedChild = await server
+                .pluginHost()
+                .post("/channels/createChildChannel", { name: "Must not create" }, authorization);
             expect(history.statusCode).toBe(200);
             expect(denied.statusCode).toBe(403);
             expect(denied.json().message).toContain("messages:send");
+            expect(deniedChild.statusCode).toBe(403);
+            expect(deniedChild.json().message).toContain("channels:create-child");
             const users = await server
                 .pluginHost()
                 .post("/search", { query: "plugin_api_member", filters: ["users"] }, authorization);

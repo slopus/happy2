@@ -28,10 +28,10 @@ export async function channelJoinPublic(
         const access = await chatGetAccess(tx, actorUserId, chatId, false);
         if (!access || access.kind !== "public_channel")
             throw new CollaborationError("not_found", "Public channel was not found");
-        if (access.parentMessageId)
+        if (access.parentMessageId || access.parentChatId)
             throw new CollaborationError(
                 "invalid",
-                "Join the parent channel to access its threads",
+                "Join the parent channel to access its nested chats",
             );
         if (access.membershipRole)
             throw new CollaborationError("conflict", "Already joined this channel");

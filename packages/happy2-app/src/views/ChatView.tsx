@@ -250,6 +250,10 @@ export function ChatView(props: ChatViewProps) {
         chatLeave: (selectedChatId) => state.chatLeave(selectedChatId),
         chatStarSet: (selectedChatId, starred) => state.chatStarSet(selectedChatId, starred),
         channelCreate: (input) => state.channelCreate(input),
+        channelCreateChild: (input) => state.channelCreateChild(input),
+        channelArchive: (selectedChatId) => state.channelArchive(selectedChatId),
+        channelUnarchive: (selectedChatId) => state.channelUnarchive(selectedChatId),
+        agentModelsLoad: () => state.agentModelsLoad(),
         channelUpdate: (selectedChatId, input) => state.channelUpdate(selectedChatId, input),
         channelDefaultAgentUpdate: (selectedChatId, agentUserId) =>
             state.channelDefaultAgentUpdate(selectedChatId, agentUserId),
@@ -292,6 +296,7 @@ export function ChatView(props: ChatViewProps) {
     return (
         <ChatPage
             actions={actions}
+            agentModels={state.agentModels()}
             canOpenAdmin={props.canOpenAdmin}
             chat={resources.chat}
             composer={resources.composer}

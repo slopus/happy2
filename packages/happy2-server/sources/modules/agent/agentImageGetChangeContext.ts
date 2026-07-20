@@ -1,7 +1,7 @@
 import { CollaborationError, type UserSummary } from "../chat/types.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 
-import { agentImages, agentRigBindings, agentTurns, users } from "../schema.js";
+import { agentImages, agentRigBindings, agentTurns, chats, users } from "../schema.js";
 
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { asUser } from "../chat/asUser.js";
@@ -24,6 +24,7 @@ export async function agentImageGetChangeContext(
 ): Promise<{
     bindings: Array<{
         chatId: string;
+        agentModelId?: string;
         containerName: string;
         cwd: string;
         effort?: string;
@@ -65,12 +66,14 @@ export async function agentImageGetChangeContext(
         executor
             .select({
                 chatId: agentRigBindings.chatId,
+                agentModelId: chats.agentModelId,
                 containerName: agentRigBindings.containerName,
                 cwd: agentRigBindings.cwd,
                 effort: agentRigBindings.effort,
                 sessionId: agentRigBindings.sessionId,
             })
             .from(agentRigBindings)
+            .innerJoin(chats, eq(chats.id, agentRigBindings.chatId))
             .where(eq(agentRigBindings.userId, input.agentUserId))
             .orderBy(agentRigBindings.chatId),
         executor
@@ -101,6 +104,7 @@ export async function agentImageGetChangeContext(
     return {
         bindings: bindings.map((binding) => ({
             chatId: binding.chatId,
+            ...(binding.agentModelId ? { agentModelId: binding.agentModelId } : {}),
             containerName: binding.containerName,
             cwd: binding.cwd,
             ...(binding.effort ? { effort: binding.effort } : {}),

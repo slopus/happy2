@@ -2,7 +2,9 @@ import { type AgentExecutionImage } from "./agentExecutionImage.js";
 export interface AgentChatContext {
     agentUserId: string;
     agentDefaultEffort?: string;
+    agentModelId?: string;
     chatId: string;
+    parentChatId?: string;
     image: AgentExecutionImage;
     sandboxScope: {
         kind: "users" | "chats";

@@ -14,7 +14,9 @@ import type {
     GetDaemonConfigResponse,
     HealthResponse,
     ListSecretsResponse,
+    ListModelsResponse,
     ListSubagentsResponse,
+    ModelCatalog,
     ProtocolSession,
     SubagentSummary,
     RegisterSecretRequest,
@@ -171,6 +173,7 @@ export class RigDaemonClient {
         containerName: string,
         effort?: string,
         signal?: AbortSignal,
+        modelId?: string,
     ): Promise<{ effort: string; id: string }> {
         const response = await this.connectedRequest<CreateSessionResponse>(
             "POST",
@@ -179,6 +182,7 @@ export class RigDaemonClient {
                 cwd,
                 docker: { container: containerName, workingDirectory: "/workspace" },
                 ...(effort ? { effort } : {}),
+                ...(modelId ? { modelId } : {}),
                 // Rig's durable external functions intentionally require Full access. The
                 // agent remains bounded by Happy's dedicated OCI sandbox and cannot reach
                 // the plugin process directly; Happy owns and resolves every function call.
@@ -187,6 +191,16 @@ export class RigDaemonClient {
             signal,
         );
         return { id: response.session.id, effort: sessionEffort(response.session).effort };
+    }
+
+    async modelCatalog(signal?: AbortSignal): Promise<ModelCatalog> {
+        const response = await this.connectedRequest<ListModelsResponse>(
+            "GET",
+            "/models",
+            undefined,
+            signal,
+        );
+        return response.catalog;
     }
 
     async effortConfiguration(

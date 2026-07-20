@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+    type AnySQLiteColumn,
     index,
     integer,
     primaryKey,
@@ -401,6 +402,9 @@ export const chats = sqliteTable("chats", {
     parentMessageId: text("parent_message_id").references(() => messages.id, {
         onDelete: "restrict",
     }),
+    parentChatId: text("parent_chat_id").references((): AnySQLiteColumn => chats.id, {
+        onDelete: "restrict",
+    }),
     createdByUserId: text("created_by_user_id"),
     dmKey: text("dm_key"),
     pts: integer("pts").notNull().default(0),
@@ -431,6 +435,7 @@ export const chats = sqliteTable("chats", {
     defaultAgentUserId: text("default_agent_user_id").references(() => users.id, {
         onDelete: "restrict",
     }),
+    agentModelId: text("agent_model_id"),
     isDefaultAgentConversation: integer("is_default_agent_conversation").notNull().default(0),
 });
 

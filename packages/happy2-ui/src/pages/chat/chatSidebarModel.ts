@@ -21,13 +21,15 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
         options.sidebarSnapshot().chats;
     const users = (): readonly DeepReadonly<DirectoryUserProjection>[] =>
         options.directorySnapshot().users;
-    function item(projection: DeepReadonly<SidebarChatProjection>): SidebarItem {
+    function item(projection: DeepReadonly<SidebarChatProjection>, depth = 0): SidebarItem {
         const chat = projection.chat;
         const peer = projection.participants.find((person) => person.id !== options.user().id);
         const agentConversation = isAgentConversation(projection);
         const inactive = chat.id !== options.activeConversationId();
         return {
+            archived: chat.archivedAt !== undefined ? true : undefined,
             badge: inactive && chat.mentionCount > 0 ? chat.mentionCount : undefined,
+            depth: depth > 0 ? depth : undefined,
             id: chat.id,
             imageUrl: options.avatarFor(peer?.id, projection.avatarFileId),
             initials: peer ? identityInitials(peer) : projection.displayName.slice(0, 2),
@@ -40,6 +42,37 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
             tone: toneFor(peer?.id ?? chat.id),
             unread: inactive && chat.unreadCount > 0,
         };
+    }
+    /**
+     * Orders channels so each child renders directly under its parent, one indent
+     * level deeper. A child whose parent is absent from the current (searched)
+     * projection set stays reachable as a top-level row rather than disappearing.
+     */
+    function channelItems(
+        projections: readonly DeepReadonly<SidebarChatProjection>[],
+        ordered: (
+            values: readonly DeepReadonly<SidebarChatProjection>[],
+        ) => DeepReadonly<SidebarChatProjection>[],
+    ): SidebarItem[] {
+        const channels = projections.filter((projection) => projection.chat.kind !== "dm");
+        const present = new Set(channels.map((projection) => projection.chat.id));
+        const childrenByParent = new Map<string, DeepReadonly<SidebarChatProjection>[]>();
+        const roots: DeepReadonly<SidebarChatProjection>[] = [];
+        for (const projection of channels) {
+            const parentId = projection.chat.parentChatId;
+            if (parentId !== undefined && present.has(parentId)) {
+                const bucket = childrenByParent.get(parentId) ?? [];
+                bucket.push(projection);
+                childrenByParent.set(parentId, bucket);
+            } else roots.push(projection);
+        }
+        const items: SidebarItem[] = [];
+        for (const root of ordered(roots)) {
+            items.push(item(root, 0));
+            for (const childProjection of ordered(childrenByParent.get(root.chat.id) ?? []))
+                items.push(item(childProjection, 1));
+        }
+        return items;
     }
     const sections: SidebarSection[] = (() => {
         const needle = options.search().trim().toLowerCase();
@@ -56,9 +89,7 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
                 label: "Channels",
                 action: { icon: "plus", label: "Add channel" },
                 empty: { actionLabel: "Create", description: "No channels yet." },
-                items: ordered(
-                    projections.filter((projection) => projection.chat.kind !== "dm"),
-                ).map(item),
+                items: channelItems(projections, ordered),
             },
             {
                 id: "dms",

@@ -44,5 +44,12 @@ export async function chatList(executor: DrizzleExecutor, userId: string): Promi
             desc(chats.updatedAt),
             asc(chats.id),
         );
-    return rows.map(asChat);
+    const projected = rows.map(asChat);
+    const archivedById = new Map(projected.map((chat) => [chat.id, chat.archivedAt]));
+    return projected.map((chat) => ({
+        ...chat,
+        archivedAt:
+            chat.archivedAt ??
+            (chat.parentChatId ? archivedById.get(chat.parentChatId) : undefined),
+    }));
 }

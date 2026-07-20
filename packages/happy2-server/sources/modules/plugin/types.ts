@@ -31,6 +31,7 @@ export type PluginMcp = PluginStdioMcp | PluginRemoteMcp;
 
 export type PluginHostPermission =
     | "channels:create"
+    | "channels:create-child"
     | "chats:members:add"
     | "chats:members:remove"
     | "chats:update"
@@ -57,6 +58,7 @@ export type PluginHostPermission =
     | "plugins:request-uninstall";
 export const pluginHostPermissions: readonly PluginHostPermission[] = [
     "channels:create",
+    "channels:create-child",
     "chats:members:add",
     "chats:members:remove",
     "chats:update",

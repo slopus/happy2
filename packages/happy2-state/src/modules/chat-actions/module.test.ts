@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
+import type { ChatSummary } from "../../types.js";
 import type { StateRuntime } from "../runtime/runtimeState.js";
 import { sidebarStoreCreate } from "../sidebar/sidebarState.js";
 import { chat } from "../../../tests/fixtures.js";
 import { agentCreate } from "./chatActionsState.js";
 import { agentEffortChange } from "./chatActionsState.js";
 import { agentEffortLoad } from "./chatActionsState.js";
+import { channelArchive } from "./chatActionsState.js";
 import { channelCreate } from "./chatActionsState.js";
+import { channelCreateChild } from "./chatActionsState.js";
+import { channelUnarchive } from "./chatActionsState.js";
 import { channelUpdate } from "./chatActionsState.js";
 import type { ChatActionContext } from "./chatActionsState.js";
 import { chatJoin } from "./chatActionsState.js";
@@ -82,6 +86,63 @@ describe("chat actions module", () => {
             effort: "high",
         });
         expect(sidebar.getState().chats).toEqual([]);
+    });
+
+    it("maps child-channel creation and archive toggles onto their authoritative operations", async () => {
+        const parent = chat({ id: "parent-1", name: "Parent", slug: "parent" });
+        const child = chat({
+            id: "child-1",
+            name: "Child",
+            slug: "child",
+            parentChatId: parent.id,
+            agentModelId: "gym/alternate-agent",
+        });
+        const operation = vi.fn(async (name: string) => {
+            if (name === "createChildChannel") return { chat: child };
+            return { chat: { ...parent, archivedAt: name === "archiveChannel" ? "t" : undefined } };
+        });
+        const upserts: unknown[] = [];
+        const context = {
+            runtime: { operation } as unknown as StateRuntime,
+            sidebar: {
+                getState: () => ({ sidebarInput: (event: unknown) => upserts.push(event) }),
+            } as never,
+            chatGet: () => undefined,
+            sidebarChatProject: async (value: ChatSummary) => ({
+                chat: value,
+                id: value.id,
+                displayName: value.name ?? value.id,
+                participants: [],
+            }),
+        } satisfies ChatActionContext;
+        await channelCreateChild(context, {
+            parentChatId: parent.id,
+            name: "Child",
+            slug: "child",
+            agentModelId: "gym/alternate-agent",
+        });
+        await channelArchive(context, child.id);
+        await channelUnarchive(context, child.id);
+        expect(operation.mock.calls).toEqual([
+            [
+                "createChildChannel",
+                {
+                    chatId: parent.id,
+                    name: "Child",
+                    slug: "child",
+                    agentModelId: "gym/alternate-agent",
+                },
+            ],
+            ["archiveChannel", { chatId: child.id }],
+            ["unarchiveChannel", { chatId: child.id }],
+        ]);
+        expect(upserts[0]).toMatchObject({
+            type: "chatSummaryUpserted",
+            chat: {
+                id: child.id,
+                chat: { parentChatId: parent.id, agentModelId: "gym/alternate-agent" },
+            },
+        });
     });
 
     it("projects effort failures only into a retained chat", async () => {

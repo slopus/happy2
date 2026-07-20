@@ -38,6 +38,16 @@ export async function channelUpdate(
         const access = await chatRequireManager(tx, input.actorUserId, input.chatId);
         if (access.kind === "dm")
             throw new CollaborationError("invalid", "Direct messages cannot use channel settings");
+        if (
+            access.parentChatId &&
+            (input.kind !== undefined ||
+                input.isListed !== undefined ||
+                input.autoJoin !== undefined)
+        )
+            throw new CollaborationError(
+                "invalid",
+                "Child channel visibility and membership policy are inherited",
+            );
         if (input.autoJoin !== undefined) await userRequireServerAdmin(tx, input.actorUserId);
         if (input.autoJoin === true && access.archivedAt)
             throw new CollaborationError("invalid", "Archived channels cannot auto-join new users");

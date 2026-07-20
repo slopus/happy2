@@ -19,6 +19,7 @@ export async function chatWorkspaceGetTarget(
         return {
             chatId: chat.id,
             source: "channel",
+            ...(chat.parentChatId ? { workspaceChatId: chat.parentChatId } : {}),
         };
     const bindings = await executor
         .select({

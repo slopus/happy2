@@ -13,6 +13,14 @@ const definitions = {
         section: "channels",
         access: "mutations",
     },
+    "channels:create-child": {
+        id: "channels:create-child",
+        displayName: "Create child channels",
+        description:
+            "Create a private child channel under the current channel with inherited access and an independent agent session.",
+        section: "channels",
+        access: "mutations",
+    },
     "chats:members:add": {
         id: "chats:members:add",
         displayName: "Add chat members",

@@ -1,9 +1,9 @@
 import { type DrizzleTransaction } from "../../drizzle.js";
 
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { chats, messages } from "../../schema.js";
 
-/** Returns every live descendant chat breadth-first from parent-message links. */
+/** Returns every live descendant chat breadth-first from parent-message and parent-channel links. */
 export async function chatDescendantIds(
     tx: DrizzleTransaction,
     ancestorChatId: string,
@@ -15,8 +15,13 @@ export async function chatDescendantIds(
         const rows = await tx
             .select({ id: chats.id })
             .from(chats)
-            .innerJoin(messages, eq(messages.id, chats.parentMessageId))
-            .where(and(inArray(messages.chatId, frontier), isNull(chats.deletedAt)));
+            .leftJoin(messages, eq(messages.id, chats.parentMessageId))
+            .where(
+                and(
+                    or(inArray(chats.parentChatId, frontier), inArray(messages.chatId, frontier)),
+                    isNull(chats.deletedAt),
+                ),
+            );
         const next: string[] = [];
         for (const row of rows) {
             if (seen.has(row.id)) continue;

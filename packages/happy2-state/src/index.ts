@@ -80,6 +80,10 @@ export type {
     DirectoryStore,
     DirectoryUserProjection,
 } from "./modules/directory/directoryState.js";
+export type {
+    AgentModelsSnapshot,
+    AgentModelsStore,
+} from "./modules/agent-models/agentModelsState.js";
 export type { AdminSection, AdminSnapshot, AdminStore } from "./modules/admin/adminState.js";
 export type {
     AgentImagesSnapshot,

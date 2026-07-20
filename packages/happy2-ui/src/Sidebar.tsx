@@ -5,7 +5,11 @@ import { CountBadge } from "./Badge";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
 export type SidebarItem = {
+    /** Marks a row as archived; the row keeps its position but paints muted. */
+    archived?: boolean;
     badge?: number;
+    /** Nesting level. `0`/absent is top level; each level adds `SIDEBAR_ROW_INDENT` of left inset. */
+    depth?: number;
     icon?: IconName;
     id: string;
     imageUrl?: string;
@@ -18,6 +22,10 @@ export type SidebarItem = {
     tone?: ToneName;
     unread?: boolean;
 };
+/** Left inset of the row content at depth 0 (matches the CSS `padding-left`). */
+export const SIDEBAR_ROW_PADDING_X = 10;
+/** Additional left inset applied per nesting level so children sit under their parent. */
+export const SIDEBAR_ROW_INDENT = 16;
 export type SidebarSection = {
     action?: {
         icon: IconName;
@@ -56,6 +64,7 @@ function SidebarRow(props: { active: boolean; item: SidebarItem; onSelect: (id: 
     const item = () => props.item;
     const unread = () => item().unread === true;
     const mentioned = () => (item().badge ?? 0) > 0;
+    const depth = () => Math.max(0, item().depth ?? 0);
     const showStatus = () =>
         item().kind === "agent" && item().status !== undefined && !unread() && !mentioned();
     const showMeta = () => item().meta !== undefined && !unread() && !mentioned() && !showStatus();
@@ -64,12 +73,19 @@ function SidebarRow(props: { active: boolean; item: SidebarItem; onSelect: (id: 
             aria-current={props.active ? "page" : undefined}
             className="happy2-sidebar__item"
             data-active={props.active ? "" : undefined}
+            data-archived={item().archived ? "" : undefined}
+            data-depth={depth() > 0 ? String(depth()) : undefined}
             data-item-id={item().id}
             data-kind={item().kind}
             data-mentioned={mentioned() ? "" : undefined}
             data-happy2-ui="sidebar-item"
             data-unread={unread() ? "" : undefined}
             onClick={() => props.onSelect(item().id)}
+            style={
+                depth() > 0
+                    ? { paddingLeft: SIDEBAR_ROW_PADDING_X + depth() * SIDEBAR_ROW_INDENT }
+                    : undefined
+            }
             type="button"
         >
             <span className="happy2-sidebar__item-leading" data-happy2-ui="sidebar-item-leading">

@@ -295,6 +295,15 @@
 .happy2-sidebar__item[data-kind="action"] {
     color: var(--happy2-text-muted);
 }
+/* Archived channels stay in place and clickable but dim uniformly so the state
+   reads distinctly from an ordinary resting (already secondary-grey) row. The
+   uniform alpha keeps every child glyph's optical centroid unchanged. */
+.happy2-sidebar__item[data-archived] {
+    opacity: 0.55;
+}
+.happy2-sidebar__item[data-archived] .happy2-sidebar__item-label {
+    font-weight: 500;
+}
 
 .happy2-sidebar__item-badge {
     flex: none;

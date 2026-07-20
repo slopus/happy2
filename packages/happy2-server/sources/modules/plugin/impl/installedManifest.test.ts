@@ -33,12 +33,18 @@ describe("installedManifest", () => {
                         args: [],
                         permissions: [
                             "channels:create",
+                            "channels:create-child",
                             "chats:members:add",
                             "chats:members:remove",
                         ],
                     },
                 }),
             ).container?.permissions,
-        ).toEqual(["channels:create", "chats:members:add", "chats:members:remove"]);
+        ).toEqual([
+            "channels:create",
+            "channels:create-child",
+            "chats:members:add",
+            "chats:members:remove",
+        ]);
     });
 });

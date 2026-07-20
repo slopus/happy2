@@ -1,6 +1,7 @@
 import { ApiResponseError } from "./api.js";
 import type { ClientTransport, HttpRequest } from "./transport.js";
 import type {
+    AgentModelCatalog,
     AgentTurnTraceDetails,
     CallSummary,
     ChatBookmarkSummary,
@@ -167,6 +168,8 @@ export const backendOperations = {
     createAgent: post("/v0/chats/createAgent"),
     createAgentConversation: post("/v0/chats/createAgentConversation"),
     createChannel: post("/v0/chats/createChannel"),
+    createChildChannel: post("/v0/chats/:chatId/createChildChannel"),
+    getAgentModels: get("/v0/agentModels"),
     updateChatTopic: post("/v0/chats/:chatId/updateTopic"),
     updateDefaultAgent: post("/v0/chats/:chatId/updateDefaultAgent"),
     updateChannel: post("/v0/chats/:chatId/updateChannel"),
@@ -443,6 +446,13 @@ export interface KnownBackendInputs {
         readonly name: string;
         readonly slug: string;
         readonly topic?: string | null;
+    };
+    createChildChannel: {
+        readonly chatId: string;
+        readonly name: string;
+        readonly slug: string;
+        readonly topic?: string | null;
+        readonly agentModelId?: string;
     };
     createAgent: { readonly name: string; readonly username: string };
     createAgentConversation: { readonly agentUserId: string };
@@ -1072,6 +1082,8 @@ export interface KnownBackendResults {
     createDirectMessage: ChatResult;
     createGroupDirectMessage: ChatResult;
     createChannel: ChatResult;
+    createChildChannel: ChatResult;
+    getAgentModels: AgentModelCatalog;
     createAgent: ChatResult;
     createAgentConversation: ChatResult;
     updateChatTopic: ChatResult;

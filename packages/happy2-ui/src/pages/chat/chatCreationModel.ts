@@ -31,6 +31,31 @@ export function chatCreationModelCreate(options: ChatCreationModelOptions) {
             options.onBusyFinish();
         }
     }
+    async function channelCreateChild(input: {
+        parentChatId: string;
+        name: string;
+        slug: string;
+        topic?: string;
+        agentModelId?: string;
+    }) {
+        if (!input.parentChatId || !input.name || !input.slug) return false;
+        options.onBusyStart();
+        try {
+            await options.actions.channelCreateChild({
+                parentChatId: input.parentChatId,
+                name: input.name,
+                slug: input.slug,
+                ...(input.topic ? { topic: input.topic } : {}),
+                ...(input.agentModelId ? { agentModelId: input.agentModelId } : {}),
+            });
+            return true;
+        } catch (error) {
+            options.onError(error);
+            return false;
+        } finally {
+            options.onBusyFinish();
+        }
+    }
     async function agentCreate(name: string, username: string) {
         options.onBusyStart();
         try {
@@ -55,7 +80,7 @@ export function chatCreationModelCreate(options: ChatCreationModelOptions) {
             options.onBusyFinish();
         }
     }
-    return { agentCreate, channelCreate, directMessageStart };
+    return { agentCreate, channelCreate, channelCreateChild, directMessageStart };
 }
 export function useChatCreateRequest(options: {
     request?: {

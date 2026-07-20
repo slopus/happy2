@@ -180,16 +180,21 @@ describe("agent plugin chat capabilities", () => {
                               remove: selectCapabilities(call.arguments.removeUsers, users),
                           },
                       }
-                    : {
-                          path: "/channels/createChannel",
-                          body: {
-                              ...call.arguments,
-                              idempotencyKey: `gym-${String(call.arguments.name)
-                                  .toLowerCase()
-                                  .replace(/[^a-z0-9]+/g, "-")}`,
-                              members: selectCapabilities(call.arguments.members, users),
-                          },
-                      };
+                    : call.name === "channel_child_create"
+                      ? {
+                            path: "/channels/createChildChannel",
+                            body: call.arguments,
+                        }
+                      : {
+                            path: "/channels/createChannel",
+                            body: {
+                                ...call.arguments,
+                                idempotencyKey: `gym-${String(call.arguments.name)
+                                    .toLowerCase()
+                                    .replace(/[^a-z0-9]+/g, "-")}`,
+                                members: selectCapabilities(call.arguments.members, users),
+                            },
+                        };
             const response = await server.pluginHost().post(request.path, request.body, {
                 headers: {
                     authorization: `Bearer ${runtimeToken}`,
@@ -364,7 +369,31 @@ describe("agent plugin chat capabilities", () => {
         const channelMembersTool = channelRun.externalTools.find(({ name }) =>
             name.includes(`plugin_${installationId}_channel_members_update_`),
         );
-        if (!channelMembersTool) throw new Error("New channel did not receive membership tool");
+        const childChannelTool = channelRun.externalTools.find(({ name }) =>
+            name.includes(`plugin_${installationId}_channel_child_create_`),
+        );
+        if (!channelMembersTool || !childChannelTool)
+            throw new Error("New channel did not receive its channel management tools");
+        const childCallId = rig.requestExternalToolCall(channelRun.runId, childChannelTool.name, {
+            name: "Feature parallel investigation",
+            description: "Shares the implementation workspace with an independent history.",
+            agentModelId: "gym/alternate-agent",
+        });
+        await waitFor(
+            () => rig.externalToolCalls.find(({ id }) => id === childCallId)?.status !== "pending",
+            "child channel creation",
+        );
+        const childResolution = completedOutput(childCallId, rig);
+        const childChat = childResolution.chat as {
+            id: string;
+            parentChatId: string;
+            agentModelId: string;
+        };
+        expect(childChat).toMatchObject({
+            parentChatId: agentChatId,
+            agentModelId: "gym/alternate-agent",
+        });
+        expect((await server.as(friend).get(`/v0/chats/${childChat.id}`)).statusCode).toBe(200);
         const updateCallId = rig.requestExternalToolCall(
             channelRun.runId,
             channelMembersTool.name,
@@ -384,6 +413,8 @@ describe("agent plugin chat capabilities", () => {
         });
         expect((await server.as(friend).get(`/v0/chats/${agentChatId}`)).statusCode).toBe(404);
         expect((await server.as(reviewer).get(`/v0/chats/${agentChatId}`)).statusCode).toBe(200);
+        expect((await server.as(friend).get(`/v0/chats/${childChat.id}`)).statusCode).toBe(404);
+        expect((await server.as(reviewer).get(`/v0/chats/${childChat.id}`)).statusCode).toBe(200);
     }, 30_000);
 });
 
@@ -479,6 +510,12 @@ class ChatManagementRuntime implements PluginMcpRuntime {
                                 name: "channel_create",
                                 title: "Create a channel",
                                 description: "Creates a channel with an optional initial message.",
+                                inputSchema: { type: "object", additionalProperties: false },
+                            },
+                            {
+                                name: "channel_child_create",
+                                title: "Create a child channel",
+                                description: "Creates a child channel under the current channel.",
                                 inputSchema: { type: "object", additionalProperties: false },
                             },
                         ],
@@ -604,6 +641,7 @@ async function install(client: GymRequestClient): Promise<string> {
     const installed = await client.post("/v0/admin/plugins/chat-management/installPlugin", {
         permissions: [
             "channels:create",
+            "channels:create-child",
             "chats:members:add",
             "chats:members:remove",
             "chats:update",

@@ -29,8 +29,8 @@ export async function channelMemberSetRole(
 }> {
     return withTransaction(executor, async (tx) => {
         const access = await chatRequireManager(tx, input.actorUserId, input.chatId);
-        if (access.parentMessageId)
-            throw new CollaborationError("invalid", "Thread membership is inherited");
+        if (access.parentMessageId || access.parentChatId)
+            throw new CollaborationError("invalid", "Nested chat membership is inherited");
         if (access.kind === "dm")
             throw new CollaborationError("invalid", "Direct-message roles are fixed");
         if (input.role === "owner" && !access.isServerAdmin && access.membershipRole !== "owner")

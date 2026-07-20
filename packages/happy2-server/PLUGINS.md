@@ -145,8 +145,9 @@ each configured process, not persisted in the image or container definition.
 
 `container.permissions` declares the exact host API capabilities a package may
 request. Permissions are grouped for presentation by API section:
-`channels:create`, `chats:members:add`, `chats:members:remove`, `chats:update`,
-and `chats:archive` independently grant their named mutations. Messages split
+`channels:create`, `channels:create-child`, `chats:members:add`,
+`chats:members:remove`, `chats:update`, and `chats:archive` independently grant
+their named mutations. Messages split
 send, delete, history, and single-message reads; reactions split add and remove;
 search splits users, messages, and chats; and commands plus workspace reads and
 writes each have their own grant. `environments:read` is read-only and
@@ -498,6 +499,12 @@ Remote endpoints are rechecked.
   It accepts signed initial members, an optional people or agent opening
   message, and an optional `idempotencyKey`. The response includes a signed
   chat token for the new channel.
+- `POST /channels/createChildChannel` requires `channels:create-child` and a
+  chat capability for the parent. It creates a private child with inherited
+  memberships and workspace access, an independent history and agent session,
+  and an optional validated `agentModelId`. The triggering human must still be
+  a manager of the top-level parent. The response includes a signed chat token
+  for the child.
 - `POST /chats/archiveChat` requires `chats:archive` and archives the channel
   selected by `X-Happy2-Chat-Token`, including the current channel when its
   current-call token is used. Normal manager, main-channel, and DM rules apply.

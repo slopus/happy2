@@ -15,6 +15,13 @@ export interface ChatSummary {
     readonly id: string;
     readonly kind: ChatKind;
     readonly parentMessageId?: string;
+    /**
+     * Parent channel of a child channel. Distinct from `parentMessageId` (which
+     * marks a message thread): a child channel is a first-class sidebar channel
+     * that shares its parent's container/workspace but keeps an independent
+     * history and may run a different agent model. Absent for top-level channels.
+     */
+    readonly parentChatId?: string;
     readonly name?: string;
     readonly slug?: string;
     readonly topic?: string;
@@ -25,6 +32,11 @@ export interface ChatSummary {
     readonly isMain: boolean;
     readonly autoJoin: boolean;
     readonly defaultAgentUserId?: string;
+    /**
+     * Agent model this channel's default agent runs. Child channels may select a
+     * model independent of their parent; absent means the server default model.
+     */
+    readonly agentModelId?: string;
     readonly isDefaultAgentConversation: boolean;
     readonly archivedAt?: string;
     readonly retentionMode: "inherit" | "forever" | "duration";
@@ -462,6 +474,27 @@ export interface CreateChannelInput {
     readonly slug: string;
     readonly topic?: string;
     readonly autoJoin?: boolean;
+}
+
+export interface CreateChildChannelInput {
+    readonly parentChatId: string;
+    readonly name: string;
+    readonly slug: string;
+    readonly topic?: string;
+    /** Optional agent model for the child's independent session; omit for the server default. */
+    readonly agentModelId?: string;
+}
+
+export interface AgentModelSummary {
+    readonly id: string;
+    readonly name: string;
+    readonly thinkingLevels: readonly string[];
+    readonly defaultThinkingLevel: string;
+}
+
+export interface AgentModelCatalog {
+    readonly defaultModelId: string;
+    readonly models: readonly AgentModelSummary[];
 }
 
 export interface CreateAgentInput {

@@ -34,7 +34,7 @@ async function handle(request) {
             result: {
                 protocolVersion: request.params?.protocolVersion ?? "2025-06-18",
                 capabilities: { tools: {} },
-                serverInfo: { name: "happy2-chat-management", version: "1.2.0" },
+                serverInfo: { name: "happy2-chat-management", version: "1.3.0" },
             },
         };
     }
@@ -154,6 +154,38 @@ async function handle(request) {
                             additionalProperties: false,
                         },
                     },
+                    {
+                        name: "channel_child_create",
+                        title: "Create a child channel",
+                        description:
+                            "Creates a private child channel under the current top-level channel. The child inherits the parent members and workspace while keeping an independent conversation and agent session.",
+                        inputSchema: {
+                            type: "object",
+                            properties: {
+                                name: {
+                                    type: "string",
+                                    minLength: 1,
+                                    maxLength: 100,
+                                    description: "Child channel title.",
+                                },
+                                description: {
+                                    type: "string",
+                                    minLength: 1,
+                                    maxLength: 500,
+                                    description: "Optional child channel description.",
+                                },
+                                agentModelId: {
+                                    type: "string",
+                                    minLength: 1,
+                                    maxLength: 128,
+                                    description:
+                                        "Optional available agent model ID for this child's independent session.",
+                                },
+                            },
+                            required: ["name"],
+                            additionalProperties: false,
+                        },
+                    },
                 ],
             },
         };
@@ -164,6 +196,8 @@ async function handle(request) {
         return { result: await updateChannelMembers(request.params) };
     if (request.method === "tools/call" && request.params?.name === "channel_create")
         return { result: await createChannel(request.params) };
+    if (request.method === "tools/call" && request.params?.name === "channel_child_create")
+        return { result: await createChildChannel(request.params) };
     return {
         error: { code: -32601, message: `Method not found: ${String(request.method)}` },
     };
@@ -223,6 +257,23 @@ async function createChannel(params) {
             {
                 type: "text",
                 text: `Created channel ${result.chat.id}${result.initialMessage ? " and posted its initial message" : ""}.`,
+            },
+        ],
+        structuredContent: result,
+    };
+}
+
+async function createChildChannel(params) {
+    const { chat } = capabilityContext(params);
+    const input = params.arguments;
+    if (!input || typeof input !== "object" || Array.isArray(input))
+        throw new Error("A child channel definition is required.");
+    const result = await callHost("/channels/createChildChannel", chat.token, input);
+    return {
+        content: [
+            {
+                type: "text",
+                text: `Created child channel ${result.chat.id}.`,
             },
         ],
         structuredContent: result,

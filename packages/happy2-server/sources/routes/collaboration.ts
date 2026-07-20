@@ -57,6 +57,7 @@ import { channelJoinPublic } from "../modules/chat/channelJoinPublic.js";
 import { channelDirectoryList } from "../modules/chat/channelDirectoryList.js";
 import { channelDelete } from "../modules/chat/channelDelete.js";
 import { channelCreate } from "../modules/chat/channelCreate.js";
+import { channelCreateChild } from "../modules/chat/channelCreateChild.js";
 import { channelDefaultAgentUpdate } from "../modules/chat/channelDefaultAgentUpdate.js";
 import { callParticipationUpdate } from "../modules/call/callParticipationUpdate.js";
 import { callList } from "../modules/call/callList.js";
@@ -334,6 +335,35 @@ export function registerCollaborationRoutes(
                 chat: result.chat,
                 sync: result.hint,
             });
+        }),
+    );
+    app.post(
+        "/v0/chats/:chatId/createChildChannel",
+        authenticated(auth, async (request, reply, userId) => {
+            const body = requestBody(request, ["name", "slug", "topic", "agentModelId"]);
+            const agentModelId = has(body, "agentModelId")
+                ? id(body.agentModelId, "agentModelId")
+                : undefined;
+            if (agentModelId) {
+                if (!agents)
+                    return reply.code(503).send({
+                        error: "agents_unavailable",
+                        message: "AI agents are not enabled on this Happy (2) server.",
+                    });
+                await agents.modelRequireAvailable(agentModelId);
+            }
+            const result = await channelCreateChild(executor, {
+                actorUserId: userId,
+                parentChatId: pathId(request, "chatId"),
+                name: trimmedString(body, "name", 100),
+                slug: channelSlug(body),
+                topic: nullableTrimmedString(body, "topic", 500),
+                agentModelId,
+            });
+            await publishHints(request, pubsub, [result.hint], {
+                userIds: result.memberUserIds,
+            });
+            return reply.code(201).send({ chat: result.chat, sync: result.hint });
         }),
     );
     app.post(

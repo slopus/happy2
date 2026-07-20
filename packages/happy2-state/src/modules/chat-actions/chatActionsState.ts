@@ -1,4 +1,9 @@
-import { type ChatSummary, type CreateAgentInput, type CreateChannelInput } from "../../types.js";
+import {
+    type ChatSummary,
+    type CreateAgentInput,
+    type CreateChannelInput,
+    type CreateChildChannelInput,
+} from "../../types.js";
 import { type ChatStore } from "../chat/chatState.js";
 import { type StateRuntime, userError } from "../runtime/runtimeState.js";
 import { type SidebarChatProjection, type SidebarStore } from "../sidebar/sidebarState.js";
@@ -75,6 +80,40 @@ export async function channelCreate(
     input: CreateChannelInput,
 ): Promise<void> {
     const result = await context.runtime.operation("createChannel", input);
+    await chatResultApply(context, result.chat);
+}
+
+/**
+ * Creates one child channel under `parentChatId` with a single idempotency key and
+ * publishes the authoritative child summary into the sidebar. The child inherits its
+ * parent's members and container while keeping an independent history; siblings and
+ * the parent's own archive cascade reconcile separately through the difference stream.
+ */
+export async function channelCreateChild(
+    context: ChatActionContext,
+    input: CreateChildChannelInput,
+): Promise<void> {
+    const { parentChatId, ...rest } = input;
+    const result = await context.runtime.operation("createChildChannel", {
+        chatId: parentChatId,
+        ...rest,
+    });
+    await chatResultApply(context, result.chat);
+}
+
+/**
+ * Archives one channel and reconciles its authoritative summary across retained surfaces.
+ * A parent archive cascades to its children on the server; those child summaries arrive
+ * independently through the difference stream, so this action only applies the target's result.
+ */
+export async function channelArchive(context: ChatActionContext, chatId: string): Promise<void> {
+    const result = await context.runtime.operation("archiveChannel", { chatId });
+    await chatResultApply(context, result.chat);
+}
+
+/** Restores one archived channel and reconciles its authoritative summary across retained surfaces. */
+export async function channelUnarchive(context: ChatActionContext, chatId: string): Promise<void> {
+    const result = await context.runtime.operation("unarchiveChannel", { chatId });
     await chatResultApply(context, result.chat);
 }
 

@@ -96,7 +96,9 @@ export async function agentChatGetContext(
     return {
         agentUserId: agent.userId,
         ...(agent.effort ? { agentDefaultEffort: agent.effort } : {}),
+        ...(access.agentModelId ? { agentModelId: access.agentModelId } : {}),
         chatId,
+        ...(access.parentChatId ? { parentChatId: access.parentChatId } : {}),
         image: {
             id: agent.imageId,
             dockerImageId: agent.dockerImageId,
@@ -104,7 +106,7 @@ export async function agentChatGetContext(
         },
         sandboxScope: {
             kind: access.kind === "dm" ? "users" : "chats",
-            id: human?.userId ?? chatId,
+            id: human?.userId ?? access.parentChatId ?? chatId,
             ...(access.kind === "dm" ? { conversationId: chatId } : {}),
         },
         ...(bound

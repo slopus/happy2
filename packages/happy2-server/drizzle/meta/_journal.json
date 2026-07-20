@@ -232,6 +232,13 @@
             "when": 1784448000000,
             "tag": "0032_password_reset_permission",
             "breakpoints": true
+        },
+        {
+            "idx": 33,
+            "version": "6",
+            "when": 1784451600000,
+            "tag": "0033_child_channels",
+            "breakpoints": true
         }
     ]
 }

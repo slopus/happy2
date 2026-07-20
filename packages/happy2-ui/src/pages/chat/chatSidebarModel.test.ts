@@ -154,6 +154,66 @@ it("places the default-agent conversation in the agents section and projects dis
     expect(model.sections[2]!.items.map((item) => item.label)).toEqual(["Release agent", "Happy"]);
 });
 
+it("nests child channels under their parent, flags archives, and rescues orphaned children", () => {
+    const parent = projection(chat("parent", "private_channel", { name: "Parent" }), "Parent");
+    const childActive = projection(
+        chat("child-a", "private_channel", { name: "Child A", parentChatId: "parent" }),
+        "Child A",
+    );
+    const childArchived = projection(
+        chat("child-b", "private_channel", {
+            name: "Child B",
+            parentChatId: "parent",
+            archivedAt: "2026-07-01T00:00:00.000Z",
+        }),
+        "Child B",
+    );
+    // Its parent is absent from the projection set (e.g. filtered by search),
+    // so it must stay reachable as a top-level row rather than disappearing.
+    const orphan = projection(
+        chat("orphan", "private_channel", { name: "Orphan", parentChatId: "missing" }),
+        "Orphan",
+    );
+    const archivedParent = projection(
+        chat("solo", "private_channel", {
+            name: "Solo",
+            archivedAt: "2026-07-02T00:00:00.000Z",
+        }),
+        "Solo",
+    );
+    const model = chatSidebarModelCreate({
+        user: () => ({ id: "human-1", firstName: "Ada" }),
+        activeConversationId: () => "",
+        search: () => "",
+        sidebarSnapshot: () => ({
+            status: { type: "ready" },
+            chats: [parent, childActive, childArchived, orphan, archivedParent],
+        }),
+        directorySnapshot: () => ({
+            status: { type: "ready", value: true },
+            users: [],
+            channels: [],
+        }),
+        avatarFor: () => undefined,
+    });
+    const channels = model.sections.find((section) => section.id === "channels")!.items;
+    expect(channels.map((item) => item.id)).toEqual([
+        "parent",
+        "child-a",
+        "child-b",
+        "orphan",
+        "solo",
+    ]);
+    expect(channels.map((item) => item.depth)).toEqual([undefined, 1, 1, undefined, undefined]);
+    expect(channels.map((item) => item.archived)).toEqual([
+        undefined,
+        undefined,
+        true,
+        undefined,
+        true,
+    ]);
+});
+
 it("keeps the default-agent conversation in Agents when member projection is unavailable", () => {
     const fallback = projection(
         chat("happy-chat", "dm", { isDefaultAgentConversation: true }),

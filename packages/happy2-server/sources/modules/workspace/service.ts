@@ -1246,7 +1246,9 @@ function isAlreadyExistsError(error: unknown): boolean {
 }
 async function workspaceRoot(target: ChatWorkspaceTarget, workspacesRoot: string): Promise<string> {
     const cwd =
-        target.source === "rig" ? target.cwd : join(workspacesRoot, "channels", target.chatId);
+        target.source === "rig"
+            ? target.cwd
+            : join(workspacesRoot, "channels", target.workspaceChatId ?? target.chatId);
     if (target.source === "channel")
         await mkdir(cwd, {
             recursive: true,

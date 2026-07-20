@@ -22,6 +22,7 @@ type PluginHostAgentService = Pick<
     | "deactivateAgentImage"
     | "getAgentImageDockerfileForHost"
     | "listAgentImagesForHost"
+    | "modelRequireAvailable"
     | "prepareTurns"
     | "setDefaultAgentImage"
     | "startTurn"
@@ -424,6 +425,21 @@ export function createPluginHostApi(
             throw error;
         }
     });
+    app.post("/channels/createChildChannel", async (request, reply) => {
+        try {
+            const result = await plugins.channelCreateChild(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                childChannelCreateInput(request.body),
+                agents,
+            );
+            return reply.code(201).send(result);
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
     app.setErrorHandler((error, request, reply) => {
         request.log.error(error);
         if (!reply.sent && !handled(reply, error))
@@ -810,6 +826,27 @@ function channelCreateInput(value: unknown): {
         ...(idempotencyKey ? { idempotencyKey } : {}),
         members,
         ...(initialMessage ? { initialMessage } : {}),
+    };
+}
+
+function childChannelCreateInput(value: unknown): {
+    name: string;
+    description?: string;
+    agentModelId?: string;
+} {
+    const body = bodyRecord(value);
+    onlyBodyKeys(body, ["name", "description", "agentModelId"]);
+    const name = requiredTrimmedString(body.name, "name", 100);
+    const description =
+        body.description === undefined
+            ? undefined
+            : requiredTrimmedString(body.description, "description", 500);
+    const agentModelId =
+        body.agentModelId === undefined ? undefined : identifier(body.agentModelId, "agentModelId");
+    return {
+        name,
+        ...(description ? { description } : {}),
+        ...(agentModelId ? { agentModelId } : {}),
     };
 }
 

@@ -81,6 +81,7 @@ import type {
     ChatSummary,
     CreateAgentInput,
     CreateChannelInput,
+    CreateChildChannelInput,
     MessageAudience,
     MessageSummary,
     SendMessageInput,
@@ -94,6 +95,11 @@ import {
 } from "./modules/search/searchState.js";
 import { directoryLoad } from "./modules/directory/directoryState.js";
 import { directoryStoreCreate, type DirectoryStore } from "./modules/directory/directoryState.js";
+import { agentModelsLoad } from "./modules/agent-models/agentModelsState.js";
+import {
+    agentModelsStoreCreate,
+    type AgentModelsStore,
+} from "./modules/agent-models/agentModelsState.js";
 import { adminLoad, adminOutputRoute } from "./modules/admin/adminState.js";
 import {
     adminStoreCreate,
@@ -186,6 +192,9 @@ import { agentEffortChange } from "./modules/chat-actions/chatActionsState.js";
 import { agentEffortLoad } from "./modules/chat-actions/chatActionsState.js";
 import type { ChatActionContext } from "./modules/chat-actions/chatActionsState.js";
 import { channelCreate } from "./modules/chat-actions/chatActionsState.js";
+import { channelCreateChild } from "./modules/chat-actions/chatActionsState.js";
+import { channelArchive } from "./modules/chat-actions/chatActionsState.js";
+import { channelUnarchive } from "./modules/chat-actions/chatActionsState.js";
 import { channelDefaultAgentUpdate } from "./modules/chat-actions/chatActionsState.js";
 import { channelUpdate, type ChannelUpdateInput } from "./modules/chat-actions/chatActionsState.js";
 import { chatJoin } from "./modules/chat-actions/chatActionsState.js";
@@ -246,6 +255,7 @@ export class HappyState implements AsyncDisposable, Disposable {
     private filesBinding?: FilesStore;
     private searchBinding?: SearchStore;
     private directoryBinding?: DirectoryStore;
+    private agentModelsBinding?: AgentModelsStore;
     private adminBinding?: AdminStore;
     private readonly adminSections = new Set<AdminSection>();
     private setupBinding?: SetupStore;
@@ -388,6 +398,16 @@ export class HappyState implements AsyncDisposable, Disposable {
                 );
         }
         return this.directoryBinding;
+    }
+
+    agentModels(): AgentModelsStore {
+        if (!this.agentModelsBinding) this.agentModelsBinding = agentModelsStoreCreate();
+        return this.agentModelsBinding;
+    }
+
+    /** Fetches the agent-model catalog into the on-demand surface for a model picker. */
+    async agentModelsLoad(): Promise<void> {
+        await agentModelsLoad({ runtime: this.runtime, agentModels: this.agentModels() });
     }
 
     admin(section?: AdminSection): AdminStore {
@@ -746,6 +766,18 @@ export class HappyState implements AsyncDisposable, Disposable {
 
     async channelCreate(input: CreateChannelInput): Promise<void> {
         await channelCreate(this.chatActionContext(), input);
+    }
+
+    async channelCreateChild(input: CreateChildChannelInput): Promise<void> {
+        await channelCreateChild(this.chatActionContext(), input);
+    }
+
+    async channelArchive(chatId: string): Promise<void> {
+        await channelArchive(this.chatActionContext(), chatId);
+    }
+
+    async channelUnarchive(chatId: string): Promise<void> {
+        await channelUnarchive(this.chatActionContext(), chatId);
     }
 
     async agentCreate(input: CreateAgentInput): Promise<void> {
