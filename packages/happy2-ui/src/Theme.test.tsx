@@ -2,12 +2,13 @@ import { expect, it } from "vitest";
 import "./styles.css";
 import { AppShell } from "./AppShell";
 import { Button } from "./Button";
+import { ThemeScope } from "./ThemeScope";
 import { WindowDragRegion } from "./TitleBar";
 import { createRenderer } from "./testing";
 
 function shell(theme: "light" | "dark") {
     return (
-        <div className={`happy2-theme-${theme}`} style={{ height: "100%", width: "100%" }}>
+        <ThemeScope mode={theme}>
             <AppShell
                 data-testid={`${theme}-shell`}
                 rail={<div />}
@@ -17,7 +18,7 @@ function shell(theme: "light" | "dark") {
                     Continue
                 </Button>
             </AppShell>
-        </div>
+        </ThemeScope>
     );
 }
 
@@ -27,6 +28,11 @@ it("follows Happy's light and dark system palettes through shared component toke
         .render(() => shell("dark"), { height: 800, width: 1280 });
 
     await view.ready();
+
+    for (const theme of ["light", "dark"] as const) {
+        const scope = view.$(`[data-happy2-ui="theme-scope"].happy2-theme-${theme}`);
+        expect(scope.computedStyle("display")).toBe("contents");
+    }
 
     expect(
         view.$('[data-testid="light-shell"]').computedStyles(["background-color", "color"]),

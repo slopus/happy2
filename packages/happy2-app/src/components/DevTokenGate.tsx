@@ -1,4 +1,11 @@
-import { useLayoutEffect, useReducer, useRef, type CSSProperties, type FormEvent } from "react";
+import {
+    useCallback,
+    useLayoutEffect,
+    useReducer,
+    useRef,
+    type CSSProperties,
+    type FormEvent,
+} from "react";
 import type { ReactNode } from "react";
 import { happyStateCreate, type HappyState } from "happy2-state";
 import {
@@ -29,7 +36,8 @@ type DevTokenModel = {
     error?: string;
     pending: boolean;
 };
-const initialModel: DevTokenModel = { mode: "input", token: "", pending: false };
+type SessionResponse = Awaited<ReturnType<ReturnType<typeof createServerClient>["me"]>>;
+const initialModel: DevTokenModel = { mode: "loading", token: "", pending: true };
 /* The <form> is the single child of the OnboardingScreen form slot, so space its
    fields here — otherwise the token field butts up against the submit button. */
 const formStyle: CSSProperties = {
@@ -39,15 +47,12 @@ const formStyle: CSSProperties = {
 };
 /**
  * The authentication boundary for a cookie-authenticated web deployment. The user
- * types a development token, which is validated exactly once through a bearer
- * `Authorization: Bearer` header on the gateway's `/v0/auth/web/session` endpoint;
- * that single successful verification is what mints the HttpOnly `happy2_auth_token`
- * cookie (a direct `/v0/me` never does). Every request after that — including the
- * workspace state transport built here — carries no Authorization header and relies
- * on the browser attaching the cookie, so this component never reads or writes
- * `document.cookie` and never persists the token in `localStorage`. An invalid token
- * leaves the deployment unauthenticated on the same screen with an inline error, so
- * the only way forward is a token the backend accepts.
+ * first resumes a prior HttpOnly cookie with a bearer-free `/v0/me`. If that
+ * request is unauthenticated, the user types a development token and validates it
+ * once through `/v0/auth/web/session`; the gateway turns that bearer verification
+ * into the HttpOnly `happy2_auth_token` cookie. Every later request carries no
+ * Authorization header and relies on the browser attaching the cookie, so this
+ * component never reads or writes `document.cookie` or persists the token.
  */
 export function DevTokenGate(props: DevTokenGateProps) {
     const clientRef = useRef<ReturnType<typeof createServerClient> | undefined>(undefined);
@@ -60,7 +65,8 @@ export function DevTokenGate(props: DevTokenGateProps) {
     const { mode, token, user, state, error, pending } = model;
     const stateRef = useRef<HappyState | undefined>(undefined);
     const avatarUrlRef = useRef<string | undefined>(undefined);
-    async function loadAvatar(profile: User, workspace: HappyState): Promise<User> {
+    const sessionResumeStarted = useRef(false);
+    const loadAvatar = useCallback(async (profile: User, workspace: HappyState): Promise<User> => {
         if (!profile.photoFileId) return profile;
         try {
             if (avatarUrlRef.current) URL.revokeObjectURL(avatarUrlRef.current);
@@ -70,7 +76,7 @@ export function DevTokenGate(props: DevTokenGateProps) {
         } catch {
             return profile;
         }
-    }
+    }, []);
     async function setAvatar(photoFileId: string): Promise<void> {
         const current = user;
         const workspace = state;
@@ -80,6 +86,37 @@ export function DevTokenGate(props: DevTokenGateProps) {
         avatarUrlRef.current = URL.createObjectURL(new Blob([contents]));
         update({ user: { ...current, photoFileId, avatarUrl: avatarUrlRef.current } });
     }
+    /* This callback's stable identity ensures the one-time resume effect cannot run
+       again merely because its model update renders the gate. */
+    const sessionStart = useCallback(
+        async (response: SessionResponse) => {
+            let nextState: HappyState | undefined;
+            try {
+                nextState = happyStateCreate({
+                    initialPermissions: response.permissions,
+                    transport: createAuthenticatedTransport(props.serverUrl),
+                });
+                await nextState.syncStart();
+                const profile = await loadAvatar(response.user, nextState);
+                stateRef.current?.[Symbol.dispose]();
+                stateRef.current = nextState;
+                update({ state: nextState, user: profile, mode: "ready", pending: false });
+            } catch (reason) {
+                nextState?.[Symbol.dispose]();
+                throw reason;
+            }
+        },
+        [loadAvatar, props.serverUrl],
+    );
+    const sessionResume = useCallback(async () => {
+        try {
+            await sessionStart(await client.me());
+        } catch (reason) {
+            if (reason instanceof ServerError && reason.status === 401)
+                update({ mode: "input", pending: false });
+            else update({ mode: "input", pending: false, error: tokenError(reason) });
+        }
+    }, [client, sessionStart]);
     /* Validate the typed token with one bearer `/v0/auth/web/session`, which is the
        request the gateway converts into the HttpOnly cookie, then build a bearer-free
        transport so every later call authenticates through that cookie. A rejected
@@ -90,20 +127,9 @@ export function DevTokenGate(props: DevTokenGateProps) {
         const value = token.trim();
         if (!value || pending) return;
         update({ pending: true, error: undefined, mode: "loading" });
-        let nextState: HappyState | undefined;
         try {
-            const response = await client.webSession(value);
-            nextState = happyStateCreate({
-                initialPermissions: response.permissions,
-                transport: createAuthenticatedTransport(props.serverUrl),
-            });
-            await nextState.syncStart();
-            const profile = await loadAvatar(response.user, nextState);
-            stateRef.current?.[Symbol.dispose]();
-            stateRef.current = nextState;
-            update({ state: nextState, user: profile, mode: "ready", pending: false });
+            await sessionStart(await client.webSession(value));
         } catch (reason) {
-            nextState?.[Symbol.dispose]();
             update({ mode: "input", pending: false, error: tokenError(reason) });
         }
     }
@@ -114,6 +140,11 @@ export function DevTokenGate(props: DevTokenGateProps) {
         },
         [],
     );
+    useLayoutEffect(() => {
+        if (sessionResumeStarted.current) return;
+        sessionResumeStarted.current = true;
+        void sessionResume();
+    }, [sessionResume]);
     const renderGate = () => (
         <>
             {props.showWindowDragRegion ? <WindowDragRegion /> : null}

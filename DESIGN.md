@@ -39,11 +39,16 @@ must not read the app's feature store or navigate by itself.
 ## Theme
 
 Happy (2) follows the original Happy app's native, neutral visual language. It
-uses the system appearance automatically: light mode has white and grouped
-near-white surfaces with black primary actions; dark mode has black and
-near-black surfaces with white primary actions. System blue communicates
-selection, links, and keyboard focus; system green, orange, and red carry
-success, warning, and destructive meaning. The tokens live in
+uses the system appearance automatically by default: light mode has white and
+grouped near-white surfaces with black primary actions; dark mode has black and
+near-black surfaces with white primary actions. A product surface may offer a
+controlled light/dark override only through the reusable `happy2-ui` theme
+scope, such as the compact appearance control in the feature rail. The override
+must affect one stable application tree, use the existing token palettes, and
+remain fully keyboard accessible; it must not create a duplicate themed tree or
+introduce component-specific colors. System blue communicates selection, links,
+and keyboard focus; system green, orange, and red carry success, warning, and
+destructive meaning. The tokens live in
 `packages/happy2-ui/src/theme.css` and are the only source of color and
 typography in the system. Components must consume `var(--happy2-*)` custom
 properties; a raw hex value in component CSS is a defect.
@@ -62,12 +67,13 @@ Core values (see `theme.css` for the full set):
 | Radii | controls 6 px, content 8 px, cards 10 px, large shells 14 px, pills 999 |
 
 Text colors are solid (not alpha) so rendering tests can assert exact `rgb()`
-values in every engine. The `prefers-color-scheme` media query is the runtime
-theme selector. `.happy2-theme-light` and `.happy2-theme-dark` exist only as
-deterministic blueprint/test overrides; product code must not own a separate
-theme toggle or duplicate theme tree. Identity colors for avatars come from the
-named `--happy2-tone-*` gradient presets; product code selects a tone name and
-never passes raw CSS colors or utility classes for identity.
+values in every engine. The `prefers-color-scheme` media query is the default
+runtime selector. `ThemeScope` applies `.happy2-theme-light` or
+`.happy2-theme-dark` to a single stable product tree when the user selects an
+explicit appearance; the same classes remain available for deterministic
+blueprint and test fixtures. Identity colors for avatars come from the named
+`--happy2-tone-*` gradient presets; product code selects a tone name and never
+passes raw CSS colors or utility classes for identity.
 
 ## Grid and dimensions
 

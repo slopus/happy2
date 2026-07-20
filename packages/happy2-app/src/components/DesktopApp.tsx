@@ -3,10 +3,12 @@ import {
     Avatar,
     Rail,
     StoreSurface,
+    ThemeScope,
     TitleBar,
     type AdminPageSection,
     type RailItem,
     type SearchResultType,
+    type ThemeMode,
 } from "happy2-ui";
 import { permissionAllowed, type HappyState, type PermissionsSnapshot } from "happy2-state";
 import type { AuthSession } from "./AuthGate";
@@ -36,6 +38,11 @@ const railItems: RailItem[] = [
 /** Composes the persistent route owner, primary surface, and independent overlay layer. */
 export function DesktopApp(props: DesktopAppProps) {
     const route = useDesktopNavigation(props.navigation);
+    const [themeMode, themeModeSelect] = useReducer(
+        (_mode: ThemeMode, currentAppearance: "dark" | "light") =>
+            currentAppearance === "dark" ? "light" : "dark",
+        "system" as ThemeMode,
+    );
     const [createRequest, requestCreateNext] = useReducer(
         (request: { kind: "agent" | "channel"; nonce: number }, kind: "agent" | "channel") => ({
             kind,
@@ -142,9 +149,13 @@ export function DesktopApp(props: DesktopAppProps) {
         if (primary.kind === "onboarding") return undefined;
         return primary.kind;
     };
+    const systemAppearance = () =>
+        window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    const appearance = () => (themeMode === "system" ? systemAppearance() : themeMode);
     const rail = () => (
         <Rail
             activeItemId={activeRailId() ?? ""}
+            appearance={appearance()}
             footer={
                 <Avatar
                     aria-label={`${userName()} — online`}
@@ -164,6 +175,9 @@ export function DesktopApp(props: DesktopAppProps) {
                 })
             }
             onItemSelect={railSelect}
+            onAppearanceToggle={() =>
+                themeModeSelect(themeMode === "system" ? systemAppearance() : themeMode)
+            }
             primaryAction={{
                 icon: "plus",
                 label: "Create",
@@ -192,7 +206,7 @@ export function DesktopApp(props: DesktopAppProps) {
                     permissionAllowed(permissions, permission);
                 const adminSections = adminSectionsProject(permissions);
                 return (
-                    <>
+                    <ThemeScope mode={themeMode}>
                         <DesktopPrimarySurface
                             adminSections={adminSections}
                             canAssignSecrets={allowed("assignSecrets")}
@@ -217,7 +231,7 @@ export function DesktopApp(props: DesktopAppProps) {
                             session={props.session}
                             state={props.state}
                         />
-                    </>
+                    </ThemeScope>
                 );
             }}
         </StoreSurface>

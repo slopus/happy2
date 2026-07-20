@@ -19,7 +19,7 @@ const AUTHORIZATION_BEARER = /^Bearer ([A-Za-z0-9._-]{1,4096})$/;
  * only on that browser cookie. Cloudflare Access never takes this path because
  * its own cookies already authenticate the request. Local dev omits `Secure`.
  */
-function authenticationCookieProxy(target: string): ProxyOptions {
+function authenticationCookieProxy(target: string, cookieDomain: string | undefined): ProxyOptions {
     return {
         target,
         changeOrigin: true,
@@ -36,7 +36,8 @@ function authenticationCookieProxy(target: string): ProxyOptions {
                 if (!match) return;
                 const cookie =
                     `${AUTHENTICATION_COOKIE}=${match[1]}; HttpOnly; Path=/; ` +
-                    `SameSite=Strict; Max-Age=${AUTHENTICATION_COOKIE_MAX_AGE_SECONDS}`;
+                    `SameSite=Strict; Max-Age=${AUTHENTICATION_COOKIE_MAX_AGE_SECONDS}` +
+                    (cookieDomain ? `; Domain=${cookieDomain}` : "");
                 const existing = proxyRes.headers["set-cookie"];
                 proxyRes.headers["set-cookie"] = existing ? [...existing, cookie] : [cookie];
             });
@@ -63,7 +64,7 @@ export default defineConfig(({ mode }) => {
         server: {
             proxy: {
                 "/v0/auth/web/session": {
-                    ...authenticationCookieProxy(backendUrl),
+                    ...authenticationCookieProxy(backendUrl, env.HAPPY2_WEB_AUTH_COOKIE_DOMAIN),
                 },
                 "/v0": { target: backendUrl, changeOrigin: true, ws: true },
             },

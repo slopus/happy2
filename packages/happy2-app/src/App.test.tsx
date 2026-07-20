@@ -66,6 +66,22 @@ beforeEach(() => {
     history.replaceState(null, "", "/chats");
 });
 describe("persistent desktop routing", () => {
+    it("changes the stable desktop theme scope from the rail appearance control", async () => {
+        const screen = render(<App />);
+        const toggle = await screen.findByRole("button", { name: /Use (light|dark) appearance/ });
+        const scope = screen.container.querySelector<HTMLElement>('[data-happy2-ui="theme-scope"]');
+        if (!scope) throw new Error("theme scope not found");
+        expect(scope.className).toBe("happy2-theme-scope");
+
+        const requestedAppearance =
+            toggle.getAttribute("aria-pressed") === "true" ? "light" : "dark";
+        fireEvent.click(toggle);
+        await waitFor(() =>
+            expect(scope.classList.contains(`happy2-theme-${requestedAppearance}`)).toBe(true),
+        );
+        expect(screen.container.querySelector('[data-happy2-ui="theme-scope"]')).toBe(scope);
+    });
+
     it("opens the first administration section granted by effective permissions", async () => {
         const state = happyStateCreate({
             initialPermissions: { allowed: ["managePlugins"], owner: false },

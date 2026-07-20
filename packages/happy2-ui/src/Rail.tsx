@@ -31,14 +31,18 @@ export type RailPrimaryAction =
           onMenuSelect: (id: string) => void;
           onSelect?: never;
       };
+export type RailAppearance = "dark" | "light";
 export type RailProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
     activeItemId: string;
+    /** Current explicit appearance; renders a compact toggle when paired with its handler. */
+    appearance?: RailAppearance;
     brand?: ReactNode;
     footer?: ReactNode;
     footerLabel?: string;
     items: RailItem[];
     onFooterSelect?: () => void;
     onItemSelect: (id: string) => void;
+    onAppearanceToggle?: () => void;
     /** Prominent accent action (usually "+") pinned above the footer profile. */
     primaryAction?: RailPrimaryAction;
     style?: CSSProperties;
@@ -51,6 +55,7 @@ export type RailProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
 export function Rail(props: RailProps) {
     const {
         activeItemId,
+        appearance,
         brand,
         className,
         footer,
@@ -58,6 +63,7 @@ export function Rail(props: RailProps) {
         items,
         onFooterSelect,
         onItemSelect,
+        onAppearanceToggle,
         primaryAction,
         style,
         ...rest
@@ -144,6 +150,25 @@ export function Rail(props: RailProps) {
                     </button>
                 ))}
             </div>
+            {appearance && onAppearanceToggle ? (
+                <div className="happy2-rail__appearance" data-happy2-ui="rail-appearance">
+                    <button
+                        aria-label={
+                            appearance === "dark" ? "Use light appearance" : "Use dark appearance"
+                        }
+                        aria-pressed={appearance === "dark"}
+                        className="happy2-rail__appearance-toggle"
+                        data-happy2-ui="rail-appearance-toggle"
+                        onClick={onAppearanceToggle}
+                        title={
+                            appearance === "dark" ? "Use light appearance" : "Use dark appearance"
+                        }
+                        type="button"
+                    >
+                        <Icon name={appearance === "dark" ? "sun" : "moon"} size={16} />
+                    </button>
+                </div>
+            ) : null}
             {primaryAction || footer ? (
                 <div className="happy2-rail__footer" data-happy2-ui="rail-footer">
                     {primaryAction ? (

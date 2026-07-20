@@ -148,6 +148,44 @@
     padding-top: 10px;
 }
 
+/* Appearance is a compact independent action pinned immediately above the
+ * footer action group, preserving the profile's bottom clearance. */
+.happy2-rail__appearance {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    margin-top: auto;
+    margin-bottom: 10px;
+}
+
+.happy2-rail__appearance-toggle {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--happy2-radius-pill);
+    background: transparent;
+    color: var(--happy2-text-muted);
+    appearance: none;
+    cursor: pointer;
+}
+
+.happy2-rail__appearance-toggle:hover {
+    background: var(--happy2-bg-hover);
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-rail__appearance-toggle:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: 2px;
+}
+
 /* Primary create action — avatar-sized, pinned above the profile. */
 .happy2-rail__primary-wrap {
     position: relative;

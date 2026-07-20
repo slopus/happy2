@@ -107,6 +107,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
     const onFooterSelect = vi.fn();
     const onItemSelect = vi.fn();
     const onPrimarySelect = vi.fn();
+    const onAppearanceToggle = vi.fn();
     const view = createRenderer();
 
     /* Each surface pairs the contract fixture with a duplicate used for the
@@ -193,6 +194,19 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
         ),
         { width: 240, height: 360 },
     );
+    view.render(
+        () => (
+            <Rail
+                activeItemId="inbox"
+                appearance="dark"
+                data-testid="rail-appearance"
+                items={items.slice(0, 2)}
+                onAppearanceToggle={onAppearanceToggle}
+                onItemSelect={() => {}}
+            />
+        ),
+        { width: 64, height: 220 },
+    );
     await view.ready();
 
     /* ---- Root contract ------------------------------------------------- */
@@ -263,6 +277,30 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
             '[data-testid="rail-custom"] [data-happy2-ui="rail-brand-image"]',
         ),
     ).toHaveLength(0);
+
+    /* ---- Appearance -------------------------------------------------------- */
+
+    const appearanceToggle = view.$(
+        '[data-testid="rail-appearance"] [data-happy2-ui="rail-appearance-toggle"]',
+    );
+    expect(appearanceToggle.bounds().width).toBe(28);
+    expect(appearanceToggle.bounds().height).toBe(28);
+    expect(appearanceToggle.element.getAttribute("aria-label")).toBe("Use light appearance");
+    expect(appearanceToggle.element.getAttribute("aria-pressed")).toBe("true");
+    expect(
+        view
+            .$(
+                '[data-testid="rail-appearance"] [data-happy2-ui="rail-appearance-toggle"] [data-happy2-ui="icon"]',
+            )
+            .element.getAttribute("data-name"),
+    ).toBe("sun");
+    expect(appearanceToggle.computedStyles(["border-radius", "color", "cursor"])).toEqual({
+        "border-radius": "999px",
+        color: "rgb(142, 142, 147)",
+        cursor: "pointer",
+    });
+    (appearanceToggle.element as HTMLButtonElement).click();
+    expect(onAppearanceToggle).toHaveBeenCalledTimes(1);
     expect(view.$('[data-testid="rail-custom"] [data-testid="custom-brand"]').bounds().width).toBe(
         34,
     );

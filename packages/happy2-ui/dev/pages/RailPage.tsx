@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Avatar } from "../../src/Avatar";
 import { Rail, type RailItem } from "../../src/Rail";
+import { ThemeScope } from "../../src/ThemeScope";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
 const items: RailItem[] = [
     { badge: 12, icon: "inbox", id: "inbox", label: "Inbox" },
@@ -16,6 +17,7 @@ const row: Record<string, string> = {
 };
 export function RailPage() {
     const [activeId, setActiveId] = useState("inbox");
+    const [appearance, setAppearance] = useState<"dark" | "light">("light");
     return (
         <ComponentPage
             number="C-008"
@@ -117,6 +119,27 @@ export function RailPage() {
                         />
                     </div>
                 </div>
+            </Specimen>
+
+            <Specimen
+                detail="28px moon/sun action · keyboard-visible focus ring · switches the shared token scope"
+                label="Appearance override"
+                number="04"
+                stage="chrome"
+            >
+                <ThemeScope mode={appearance}>
+                    <div style={{ height: "300px" }}>
+                        <Rail
+                            activeItemId="chat"
+                            appearance={appearance}
+                            items={items.slice(0, 3)}
+                            onAppearanceToggle={() =>
+                                setAppearance((current) => (current === "dark" ? "light" : "dark"))
+                            }
+                            onItemSelect={setActiveId}
+                        />
+                    </div>
+                </ThemeScope>
             </Specimen>
         </ComponentPage>
     );

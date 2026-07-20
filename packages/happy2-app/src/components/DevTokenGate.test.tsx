@@ -11,10 +11,10 @@ import type { AuthSession } from "./AuthGate";
  * a direct `/v0/me` never mints one. Every request after that omits the
  * Authorization header and rides the cookie the browser attaches — which
  * JavaScript never sees. These tests prove that boundary: nothing is requested
- * until the user submits a token, the bootstrap `/v0/auth/web/session` is the only
- * request carrying a bearer, a direct `/v0/me` is never issued during bootstrap, no
- * auth-method/setup probe runs, the gate never writes `document.cookie` or the
- * session-token localStorage key, and an invalid token leaves the deployment
+ * on a refresh the gate resumes that cookie through a bearer-free `/v0/me`; without
+ * a cookie, the bootstrap `/v0/auth/web/session` is the only request carrying a
+ * bearer. No auth-method/setup probe runs, the gate never writes `document.cookie`
+ * or the session-token localStorage key, and an invalid token leaves the deployment
  * unauthenticated on the same screen. The gate is rendered with a minimal child
  * that reads the session, so a successful load exercises no downstream product
  * surface and raises no React runtime or error-boundary console errors. */
@@ -121,6 +121,7 @@ const meOk: Handler = () =>
         user: { id: "u_ada", firstName: "Ada", username: "ada", kind: "human" },
         permissions: { allowed: [], owner: false },
     });
+const meUnauthorized: Handler = () => json({ error: "unauthorized" }, 401);
 
 const workspaceRoutes: Record<string, Handler> = {
     // The gateway's cookie-establishment endpoint; a direct /v0/me stays available
@@ -143,14 +144,32 @@ afterEach(() => {
 });
 
 describe("DevTokenGate cookie authentication", () => {
-    it("waits for the user to type a token, then bootstraps the cookie with a single bearer /v0/auth/web/session", async () => {
+    it("resumes an existing HttpOnly cookie through a bearer-free /v0/me", async () => {
         const { writes: storageWrites } = stubLocalStorage();
         const cookieWrites = spyCookieWrites();
         const { fetchMock, screen } = renderGate(workspaceRoutes);
 
-        // Nothing is requested until the user acts: no immediate login on mount.
-        expect(screen.getByTestId("dev-token-gate-screen")).toBeTruthy();
-        expect(fetchMock).not.toHaveBeenCalled();
+        expect((await screen.findByTestId("session-user")).textContent).toBe("Ada");
+        expect(screen.getByTestId("session-dev-tokens").textContent).toBe("true");
+        const meCalls = callsTo(fetchMock, "GET", "/v0/me");
+        expect(meCalls).toHaveLength(1);
+        expect(authHeader(meCalls[0]![1] ?? {})).toBeUndefined();
+        expect(callsTo(fetchMock, "GET", "/v0/auth/web/session")).toHaveLength(0);
+        expect(cookieWrites).toHaveLength(0);
+        expect(storageWrites.filter((write) => write.key === bearerKey)).toHaveLength(0);
+    });
+
+    it("prompts for a token only when no cookie exists, then bootstraps a session", async () => {
+        const { writes: storageWrites } = stubLocalStorage();
+        const cookieWrites = spyCookieWrites();
+        const { fetchMock, screen } = renderGate({
+            ...workspaceRoutes,
+            "GET /v0/me": meUnauthorized,
+        });
+
+        // The bearer-free cookie probe rejects, exposing the development-token gate.
+        expect(await screen.findByTestId("dev-token-gate-screen")).toBeTruthy();
+        expect(callsTo(fetchMock, "GET", "/v0/me")).toHaveLength(1);
         // The submit stays disabled until a token is present.
         const submit = screen.getByRole("button", { name: "Sign in" }) as HTMLButtonElement;
         expect(submit.disabled).toBe(true);
@@ -168,8 +187,8 @@ describe("DevTokenGate cookie authentication", () => {
         const sessionCalls = callsTo(fetchMock, "GET", "/v0/auth/web/session");
         expect(sessionCalls).toHaveLength(1);
         expect(authHeader(sessionCalls[0]![1] ?? {})).toBe(`Bearer ${developmentToken}`);
-        // …a direct /v0/me is never issued during bootstrap (it mints no cookie)…
-        expect(callsTo(fetchMock, "GET", "/v0/me")).toHaveLength(0);
+        // The initial bearer-free /v0/me checks only an existing cookie; it never mints one.
+        expect(callsTo(fetchMock, "GET", "/v0/me")).toHaveLength(1);
         // …and every other request omits the bearer, relying on the HttpOnly cookie.
         for (const [input, init] of fetchMock.mock.calls) {
             if (new URL(input as string, location.href).pathname === "/v0/auth/web/session")
@@ -192,6 +211,7 @@ describe("DevTokenGate cookie authentication", () => {
         let sessionCalls = 0;
         const { fetchMock, screen } = renderGate({
             ...workspaceRoutes,
+            "GET /v0/me": meUnauthorized,
             "GET /v0/auth/web/session": (init) => {
                 sessionCalls += 1;
                 // The first (rejected) token 401s; a later valid token succeeds.
@@ -199,6 +219,7 @@ describe("DevTokenGate cookie authentication", () => {
             },
         });
 
+        await screen.findByTestId("dev-token-gate-screen");
         typeToken(screen, "happy2_dev_wrong");
         fireEvent.submit(tokenField(screen).closest("form")!);
 
@@ -216,13 +237,13 @@ describe("DevTokenGate cookie authentication", () => {
         fireEvent.submit(tokenField(screen).closest("form")!);
         expect((await screen.findByTestId("session-user")).textContent).toBe("Ada");
 
-        // Both attempts hit /v0/auth/web/session with the typed token; a direct
-        // /v0/me was never issued and nothing else carried a bearer.
+        // Both attempts hit /v0/auth/web/session with the typed token; the one
+        // direct /v0/me was the initial bearer-free cookie-resume probe.
         const sessionRequests = callsTo(fetchMock, "GET", "/v0/auth/web/session");
         expect(sessionRequests).toHaveLength(2);
         expect(authHeader(sessionRequests[0]![1] ?? {})).toBe("Bearer happy2_dev_wrong");
         expect(authHeader(sessionRequests[1]![1] ?? {})).toBe(`Bearer ${developmentToken}`);
-        expect(callsTo(fetchMock, "GET", "/v0/me")).toHaveLength(0);
+        expect(callsTo(fetchMock, "GET", "/v0/me")).toHaveLength(1);
         for (const [input, init] of fetchMock.mock.calls) {
             if (new URL(input as string, location.href).pathname === "/v0/auth/web/session")
                 continue;
@@ -234,8 +255,8 @@ describe("DevTokenGate cookie authentication", () => {
 });
 
 describe("App development-token wiring", () => {
-    it("selects the cookie gate with no probe or password sign-in path, without mounting the workspace", async () => {
-        const fetchMock = routedFetch(workspaceRoutes);
+    it("selects the cookie gate after the bearer-free resume probe fails, without mounting the workspace", async () => {
+        const fetchMock = routedFetch({ ...workspaceRoutes, "GET /v0/me": meUnauthorized });
         vi.stubGlobal("fetch", fetchMock);
         stubLocalStorage();
 
@@ -249,10 +270,10 @@ describe("App development-token wiring", () => {
         expect(screen.container.querySelector('input[type="password"]')).toBeNull();
         expect(screen.queryByRole("button", { name: "Create account" })).toBeNull();
 
-        // Nothing is fetched before the user types a token: no probe, no login.
+        // Only the cookie-resume probe runs before the user types a token.
         expect(callsTo(fetchMock, "GET", "/v0/auth/methods")).toHaveLength(0);
         expect(callsTo(fetchMock, "GET", "/v0/setup/status")).toHaveLength(0);
         expect(callsTo(fetchMock, "GET", "/v0/auth/web/session")).toHaveLength(0);
-        expect(callsTo(fetchMock, "GET", "/v0/me")).toHaveLength(0);
+        expect(callsTo(fetchMock, "GET", "/v0/me")).toHaveLength(1);
     });
 });

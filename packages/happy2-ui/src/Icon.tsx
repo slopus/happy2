@@ -45,6 +45,8 @@ export type IconName =
     | "terminal"
     | "filter"
     | "edit"
+    | "sun"
+    | "moon"
     | "dot";
 export type IconProps = {
     name: IconName;
@@ -311,6 +313,13 @@ const glyphs: Record<IconName, () => ReactNode> = {
             <path d="M12.1 5.25l3 3" />
         </>
     ),
+    sun: () => (
+        <>
+            <circle cx="10" cy="10" r="3.25" />
+            <path d="M10 2.7v1.6M10 15.7v1.6M2.7 10h1.6M15.7 10h1.6M4.85 4.85l1.15 1.15M14 14l1.15 1.15M15.15 4.85 14 6M6 14l-1.15 1.15" />
+        </>
+    ),
+    moon: () => <path d="M18.15 11A6.8 6.8 0 0 1 9 1.85 7.1 7.1 0 1 0 18.15 11Z" />,
     dot: () => <circle cx="10" cy="10" r="3" fill="currentColor" stroke="none" />,
 };
 export const iconNames = Object.keys(glyphs) as IconName[];

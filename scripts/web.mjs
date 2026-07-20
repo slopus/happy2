@@ -1,39 +1,32 @@
 import { spawn } from "node:child_process";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 
-const endpoint = "https://happy.bulkovo.com";
+const endpoint = "https://happy-api.bulkovo.com";
 
-const port = process.env.CONDUCTOR_PORT ?? process.env.PORT ?? "5173";
-if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65_535) {
+const appPort = process.env.CONDUCTOR_PORT ?? process.env.PORT;
+if (appPort && (!/^\d+$/.test(appPort) || Number(appPort) < 1 || Number(appPort) > 65_535)) {
     throw new Error("CONDUCTOR_PORT or PORT must be a valid web-server port.");
 }
 
 const workspace = resolve(import.meta.dirname, "..");
-const child = spawn(
-    "pnpm",
-    [
-        "--filter",
-        "happy2-web",
-        "exec",
-        "vite",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        port,
-        "--strictPort",
-    ],
-    {
-        cwd: workspace,
-        env: {
-            ...process.env,
-            VITE_HAPPY2_SERVER_URL: endpoint,
-            // This standalone workspace preview is intentionally development-token
-            // gated. The full `pnpm dev` stack keeps its regular password auth flow.
-            VITE_HAPPY2_REQUIRE_DEVELOPMENT_TOKEN: "1",
-        },
-        stdio: "inherit",
+const portless = join(workspace, "node_modules", ".bin", "portless");
+const portlessArguments = ["run", "--name", "happy2-web"];
+if (appPort) portlessArguments.push("--app-port", appPort);
+portlessArguments.push("node", "scripts/dev-web.mjs");
+const child = spawn(portless, portlessArguments, {
+    cwd: workspace,
+    env: {
+        ...process.env,
+        VITE_HAPPY2_SERVER_URL: endpoint,
+        // This standalone workspace preview is intentionally development-token
+        // gated. The full `pnpm dev` stack keeps its regular password auth flow.
+        VITE_HAPPY2_REQUIRE_DEVELOPMENT_TOKEN: "1",
+        // The worktree preview uses a subdomain, so persist its session at the
+        // parent preview domain as well.
+        HAPPY2_WEB_AUTH_COOKIE_DOMAIN: "happy2-web.localhost",
     },
-);
+    stdio: "inherit",
+});
 
 for (const signal of ["SIGHUP", "SIGINT", "SIGTERM"]) process.on(signal, () => child.kill(signal));
 

@@ -105,6 +105,12 @@
     --happy2-z-overlay: 1000;
 }
 
+/* ThemeScope intentionally has no layout box: it is a stable token boundary
+ * around an app tree, not another application shell. */
+.happy2-theme-scope {
+    display: contents;
+}
+
 @media (prefers-color-scheme: dark) {
     :root {
         color-scheme: dark;
