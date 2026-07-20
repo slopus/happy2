@@ -131,7 +131,10 @@ function renderAppPage(
     if (view.type !== "ready") return <PluginAppView status="loading" title="App" />;
     const { app, resource, hostContext } = view.value;
     const glyph = (
-        <PluginAssetGlyph maskUrl={props.masks.maskUrl(app.pluginId, app.assetId)} size={24} />
+        <PluginAssetGlyph
+            maskUrl={props.masks.maskUrl(app.installationId, app.assetId)}
+            size={24}
+        />
     );
     const requestFullscreen = (mode: McpAppDisplayMode): McpAppDisplayMode => {
         if (mode === "fullscreen") {
@@ -214,7 +217,10 @@ function renderManage(nav: PluginNavigationSurface, masks: PluginAssetMasks): Re
             title: app.title,
             description: app.description,
             glyph: (
-                <PluginAssetGlyph maskUrl={masks.maskUrl(app.pluginId, app.assetId)} size={20} />
+                <PluginAssetGlyph
+                    maskUrl={masks.maskUrl(app.installationId, app.assetId)}
+                    size={20}
+                />
             ),
             hidden: app.hidden,
             available: app.available,

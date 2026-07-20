@@ -26,9 +26,9 @@ export async function pluginInstallationGetRuntimeConfiguration(
             id: pluginInstallations.id,
             pluginId: plugins.id,
             shortName: plugins.shortName,
-            manifestJson: plugins.manifestJson,
-            packageDigest: plugins.packageDigest,
-            packageDirectory: plugins.packageDirectory,
+            manifestJson: pluginInstallations.manifestJson,
+            packageDigest: pluginInstallations.packageDigest,
+            packageDirectory: pluginInstallations.packageDirectory,
             containerName: pluginInstallations.containerName,
             containerInstanceId: pluginInstallations.containerInstanceId,
             grantedPermissionsJson: pluginInstallations.grantedPermissionsJson,
@@ -62,6 +62,7 @@ export async function pluginInstallationGetRuntimeConfiguration(
         .from(pluginInstallationVariables)
         .where(eq(pluginInstallationVariables.installationId, installationId));
     const environment: Record<string, string> = {};
+    const secretValues: string[] = [];
     for (const definition of manifest.variables) {
         const variable = variableRows.find(({ key }) => key === definition.key);
         if (!variable || variable.kind !== definition.kind)
@@ -80,6 +81,7 @@ export async function pluginInstallationGetRuntimeConfiguration(
                     variable.secretCiphertext,
                     { installationId, key: definition.key },
                 );
+                secretValues.push(environment[definition.key]!);
             } catch {
                 throw new PluginError(
                     "broken_configuration",
@@ -153,6 +155,7 @@ export async function pluginInstallationGetRuntimeConfiguration(
             ? { mcp: { command: manifest.mcp.command, args: manifest.mcp.args } }
             : {}),
         environment,
+        secretValues,
         containerName: row.containerName,
         containerInstanceId: row.containerInstanceId ?? undefined,
         imageTag,

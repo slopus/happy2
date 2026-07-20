@@ -138,7 +138,10 @@ function renderOverlay(
             description={app.description}
             displayMode={displayMode}
             glyph={
-                <PluginAssetGlyph maskUrl={masks.maskUrl(app.pluginId, app.assetId)} size={24} />
+                <PluginAssetGlyph
+                    maskUrl={masks.maskUrl(app.installationId, app.assetId)}
+                    size={24}
+                />
             }
             hostContext={hostContext}
             onClose={props.onClose}

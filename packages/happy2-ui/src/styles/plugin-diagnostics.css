@@ -1,0 +1,113 @@
+/*
+ * C-069 PluginDiagnosticsViewer — read-only per-installation failure/log surface.
+ *
+ * A single flex column (8px gap) on the code surface: a header (status badge +
+ * updated label), an optional human detail line, the stored terminal failure,
+ * and captured runtime output as an inert, scrollable, wrapping monospace block.
+ * Border-box everywhere, integer px on the 4px grid.
+ */
+
+.happy2-plugin-diagnostics,
+.happy2-plugin-diagnostics *,
+.happy2-plugin-diagnostics::before,
+.happy2-plugin-diagnostics::after {
+    box-sizing: border-box;
+}
+
+.happy2-plugin-diagnostics {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    padding: 12px;
+    background: var(--happy2-bg-inset);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-sm);
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-plugin-diagnostics__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.happy2-plugin-diagnostics__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.happy2-plugin-diagnostics__updated {
+    margin-left: auto;
+    color: var(--happy2-text-muted);
+    font-size: 11px;
+    line-height: 14px;
+    font-variant-numeric: lining-nums tabular-nums;
+}
+
+.happy2-plugin-diagnostics__detail {
+    color: var(--happy2-text-secondary);
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.happy2-plugin-diagnostics__failure {
+    color: var(--happy2-danger);
+    font-size: 12px;
+    line-height: 16px;
+    word-break: break-word;
+}
+
+.happy2-plugin-diagnostics__note {
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.happy2-plugin-diagnostics__error-text {
+    color: var(--happy2-danger);
+    font-size: 12px;
+    line-height: 16px;
+    word-break: break-word;
+}
+
+/* Scrollport: edge-to-edge, no padding; the inner <code> carries the inset. */
+.happy2-plugin-diagnostics__output {
+    margin: 0;
+    max-height: 200px;
+    overflow: auto;
+    background: var(--happy2-bg-code);
+    border-radius: var(--happy2-radius-sm);
+    color: var(--happy2-text-secondary);
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    line-height: 18px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Inner content block carries the 12px inset off the scrollport. */
+.happy2-plugin-diagnostics__output-inner {
+    display: block;
+    font: inherit;
+    color: inherit;
+    white-space: inherit;
+    word-break: inherit;
+    padding: 12px;
+}
+
+/*
+ * Static progress ring: one accent arc on a strong hairline track. Deliberately
+ * un-animated so fixtures and screenshots stay deterministic.
+ */
+.happy2-plugin-diagnostics__spinner {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--happy2-border-strong);
+    border-top-color: var(--happy2-accent);
+    border-radius: var(--happy2-radius-pill);
+}

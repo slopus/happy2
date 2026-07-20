@@ -22,7 +22,7 @@ export async function pluginInstallationListForHost(
             id: pluginInstallations.id,
             pluginId: pluginInstallations.pluginId,
             shortName: plugins.shortName,
-            version: plugins.sourceVersion,
+            version: pluginInstallations.sourceVersion,
             status: pluginInstallations.status,
         })
         .from(pluginInstallations)

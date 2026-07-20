@@ -5,7 +5,7 @@ import type { PluginSkillSourceRecord } from "./impl/pluginSkillSource.js";
 
 /**
  * Lists the immutable package snapshots for plugins with at least one ready installation so agent submissions can discover their skills without depending on the mutable built-in catalog.
- * Distinct package projection collapses repeated installations of one plugin while preserving a deterministic install order for collision detection and Rig catalogs.
+ * Each installation retains its own package snapshot so independently upgraded skill versions remain isolated and deterministic.
  */
 export async function pluginSkillsListReady(
     executor: DrizzleExecutor,
@@ -15,15 +15,15 @@ export async function pluginSkillsListReady(
             pluginId: plugins.id,
             installedAt: plugins.installedAt,
             shortName: plugins.shortName,
-            packageDigest: plugins.packageDigest,
-            packageDirectory: plugins.packageDirectory,
+            packageDigest: pluginInstallations.packageDigest,
+            packageDirectory: pluginInstallations.packageDirectory,
             name: pluginSkills.name,
             description: pluginSkills.description,
             directory: pluginSkills.directory,
         })
         .from(pluginSkills)
-        .innerJoin(plugins, eq(plugins.id, pluginSkills.pluginId))
-        .innerJoin(pluginInstallations, eq(pluginInstallations.pluginId, plugins.id))
+        .innerJoin(pluginInstallations, eq(pluginInstallations.id, pluginSkills.installationId))
+        .innerJoin(plugins, eq(plugins.id, pluginInstallations.pluginId))
         .where(eq(pluginInstallations.status, "ready"))
         .orderBy(plugins.installedAt, plugins.id, pluginSkills.name);
 }

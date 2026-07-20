@@ -19,6 +19,7 @@ export async function pluginInstallationUpdateStatus(
         status: PluginInstallationStatus;
         detail: string;
         error?: string;
+        diagnosticOutput?: string;
         runtimeImageTag?: string;
         containerInstanceId?: string | null;
     },
@@ -31,6 +32,7 @@ export async function pluginInstallationUpdateStatus(
                 status: input.status,
                 statusDetail: input.detail,
                 lastError: input.error ?? null,
+                diagnosticOutput: input.diagnosticOutput ?? null,
                 runtimeImageTag: input.runtimeImageTag,
                 containerInstanceId: input.containerInstanceId,
                 syncSequence: sequence,

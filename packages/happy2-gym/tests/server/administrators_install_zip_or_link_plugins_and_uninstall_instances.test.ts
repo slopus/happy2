@@ -74,6 +74,21 @@ describe("external Happy2 plugin packages", () => {
 
         const installationId = linked.json().installation.id as string;
         const secondInstallationId = secondLinked.json().installation.id as string;
+        for (const unsupportedInstallationId of [
+            installationId,
+            uploaded.json().installation.id as string,
+        ]) {
+            const check = await server
+                .as(admin)
+                .post(`/v0/admin/pluginInstallations/${unsupportedInstallationId}/checkForUpdate`);
+            expect(sseEvents(check.payload).at(-1)).toEqual({
+                event: "failed",
+                data: {
+                    error: "unsupported_source",
+                    message: "This plugin source cannot be checked remotely",
+                },
+            });
+        }
         const removed = await server
             .as(admin)
             .post(`/v0/admin/pluginInstallations/${installationId}/uninstallPlugin`, {});
@@ -222,6 +237,19 @@ function replaceAllBytes(input: Buffer, from: string, to: string): Buffer {
         replacement.copy(result, index);
         offset = index + replacement.length;
     }
+}
+
+function sseEvents(payload: string): Array<{ event: string; data: Record<string, unknown> }> {
+    return payload
+        .split("\n\n")
+        .filter(Boolean)
+        .map((frame) => {
+            const lines = frame.split("\n");
+            return {
+                event: lines.find((line) => line.startsWith("event: "))!.slice(7),
+                data: JSON.parse(lines.find((line) => line.startsWith("data: "))!.slice(6)),
+            };
+        });
 }
 
 async function zipEntries(entries: Array<[string, Buffer]>): Promise<Buffer> {

@@ -342,11 +342,14 @@ A GitHub URL may identify a repository or one `tree/<ref>` URL. The root
 packages have content-addressed source identities and cannot be checked for a
 remote update.
 
-`POST /v0/admin/systemPlugins/:pluginId/checkForUpdate` is also an SSE endpoint.
-It downloads and verifies the same selected remote path, emits progress, then a
-`checked` event containing installed and remote versions/digests plus
-`updateAvailable`. Built-ins are compared with the current catalog. The check is
-read-only; a changed package requires an explicit future upgrade flow.
+`POST /v0/admin/pluginInstallations/:installationId/checkForUpdate` is also an
+SSE endpoint. It downloads and verifies the same selected remote path, emits
+progress, then a `checked` event containing that installation's current and
+remote versions/digests plus `updateAvailable`. Built-ins are compared with the
+current catalog. `POST
+/v0/admin/pluginInstallations/:installationId/updatePlugin` explicitly upgrades
+only the selected installation. Its package snapshot, manifest, skills, assets,
+permissions, and runtime lifecycle remain independent of sibling installations.
 
 ## Installation and lifecycle
 

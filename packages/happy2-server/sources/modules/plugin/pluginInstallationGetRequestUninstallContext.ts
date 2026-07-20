@@ -22,8 +22,8 @@ export async function pluginInstallationGetRequestUninstallContext(
             displayName: plugins.displayName,
             shortName: plugins.shortName,
             description: plugins.description,
-            packageDigest: plugins.packageDigest,
-            packageDirectory: plugins.packageDirectory,
+            packageDigest: pluginInstallations.packageDigest,
+            packageDirectory: pluginInstallations.packageDirectory,
             sourceKind: plugins.sourceKind,
             sourceReference: plugins.sourceReference,
         })

@@ -149,13 +149,13 @@ export function registerAppSurfaceRoutes(
         }
     });
 
-    app.get("/v0/plugins/:pluginId/uiAssets/:assetId", async (request, reply) => {
+    app.get("/v0/pluginInstallations/:installationId/uiAssets/:assetId", async (request, reply) => {
         const viewerUserId = await actor(auth, request, reply);
         if (!viewerUserId) return;
         try {
             const asset = await plugins.getUiAsset(
                 viewerUserId,
-                pathIdentifier(request, "pluginId"),
+                pathIdentifier(request, "installationId"),
                 pathIdentifier(request, "assetId"),
             );
             return reply

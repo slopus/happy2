@@ -63,6 +63,7 @@ describe("server upgrades with legacy plugin permissions", () => {
                             join(packageDirectory, "plugin.json"),
                             JSON.stringify(packageManifest),
                         );
+                        const legacyPackageDigest = await packageDigest(packageDirectory);
                         await client.execute({
                             sql: `UPDATE plugins
                                   SET source_version = ?, manifest_json = ?, package_digest = ?
@@ -70,15 +71,19 @@ describe("server upgrades with legacy plugin permissions", () => {
                             args: [
                                 "1.1.0",
                                 JSON.stringify(manifest),
-                                await packageDigest(packageDirectory),
+                                legacyPackageDigest,
                                 installation.pluginId,
                             ],
                         });
                         await client.execute({
                             sql: `UPDATE plugin_installations
-                                  SET granted_permissions_json = ?, status = ?, last_error = ?
+                                  SET source_version = ?, manifest_json = ?, package_digest = ?,
+                                      granted_permissions_json = ?, status = ?, last_error = ?
                                   WHERE id = ?`,
                             args: [
+                                "1.1.0",
+                                JSON.stringify(manifest),
+                                legacyPackageDigest,
                                 JSON.stringify(["chats:update", "channels:manage"]),
                                 "ready",
                                 null,
@@ -118,7 +123,7 @@ describe("server upgrades with legacy plugin permissions", () => {
             const client = createClient({ url: databaseUrl });
             try {
                 const persisted = await client.execute({
-                    sql: `SELECT p.manifest_json, i.granted_permissions_json, i.status
+                    sql: `SELECT i.manifest_json, i.granted_permissions_json, i.status
                           FROM plugins p
                           JOIN plugin_installations i ON i.plugin_id = p.id
                           WHERE i.id = ?`,
@@ -135,11 +140,62 @@ describe("server upgrades with legacy plugin permissions", () => {
             } finally {
                 client.close();
             }
+
+            const updated = await asAdmin.post(
+                `/v0/admin/pluginInstallations/${installation.id}/updatePlugin`,
+            );
+            expect(updated.statusCode).toBe(200);
+            expect(sseEvents(updated.payload).at(-1)).toMatchObject({
+                event: "updated",
+                data: {
+                    update: {
+                        pluginId: installation.pluginId,
+                        installationId: installation.id,
+                        previous: { version: "1.1.0" },
+                        current: { version: expect.any(String) },
+                    },
+                },
+            });
+            await waitForPlugin(asAdmin, installation.id, "ready");
+            expect(runtime.prepares).toBe(2);
+
+            const repaired = createClient({ url: databaseUrl });
+            try {
+                const persisted = await repaired.execute({
+                    sql: `SELECT i.manifest_json, i.granted_permissions_json, i.status
+                          FROM plugins p
+                          JOIN plugin_installations i ON i.plugin_id = p.id
+                          WHERE i.id = ?`,
+                    args: [installation.id],
+                });
+                expect(
+                    JSON.parse(String(persisted.rows[0]?.manifest_json)).container.permissions,
+                ).not.toContain("channels:manage");
+                expect(JSON.parse(String(persisted.rows[0]?.granted_permissions_json))).toEqual([
+                    "chats:update",
+                ]);
+                expect(persisted.rows[0]?.status).toBe("ready");
+            } finally {
+                repaired.close();
+            }
         } finally {
             await rm(databaseDirectory, { force: true, recursive: true });
         }
     });
 });
+
+function sseEvents(payload: string): Array<{ event: string; data: Record<string, any> }> {
+    return payload
+        .split("\n\n")
+        .filter(Boolean)
+        .map((frame) => {
+            const lines = frame.split("\n");
+            return {
+                event: lines.find((line) => line.startsWith("event: "))!.slice(7),
+                data: JSON.parse(lines.find((line) => line.startsWith("data: "))!.slice(6)),
+            };
+        });
+}
 
 class HealthyPluginRuntime implements PluginMcpRuntime {
     prepares = 0;

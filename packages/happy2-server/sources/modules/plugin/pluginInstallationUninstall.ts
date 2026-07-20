@@ -21,7 +21,13 @@ export async function pluginInstallationUninstall(
         actorUserId?: string;
         actorInstallationId?: string;
     },
-): Promise<{ hint: MutationHint; pluginId: string; pluginRemoved: boolean }> {
+): Promise<{
+    hint: MutationHint;
+    packageDirectory: string;
+    pluginId: string;
+    pluginPackageDirectory: string;
+    pluginRemoved: boolean;
+}> {
     return withTransaction(executor, async (tx) => {
         if (input.actorUserId) await userRequirePermission(tx, input.actorUserId, "managePlugins");
         else if (!input.actorInstallationId)
@@ -31,7 +37,9 @@ export async function pluginInstallationUninstall(
                 id: pluginInstallations.id,
                 pluginId: pluginInstallations.pluginId,
                 shortName: plugins.shortName,
-                sourceVersion: plugins.sourceVersion,
+                sourceVersion: pluginInstallations.sourceVersion,
+                packageDirectory: pluginInstallations.packageDirectory,
+                pluginPackageDirectory: plugins.packageDirectory,
             })
             .from(pluginInstallations)
             .innerJoin(plugins, eq(pluginInstallations.pluginId, plugins.id))
@@ -74,6 +82,8 @@ export async function pluginInstallationUninstall(
                 areas: ["plugins", "apps", "contributions"],
             },
             pluginId: installation.pluginId,
+            packageDirectory: installation.packageDirectory,
+            pluginPackageDirectory: installation.pluginPackageDirectory,
             pluginRemoved,
         };
     });

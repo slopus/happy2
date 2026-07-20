@@ -14,6 +14,7 @@ import "./styles/text-field.css";
 import "./styles/form-row.css";
 import "./styles/select.css";
 import "./styles/plugin-catalog-panel.css";
+import "./styles/plugin-diagnostics.css";
 import {
     PluginCatalogPanel,
     type PluginCatalogEntry,
@@ -122,7 +123,6 @@ const PROJECT_SEARCH: PluginCatalogEntry = {
     apiPermissions: PERMISSIONS,
     installed: true,
     installedVersion: "2.0.0",
-    updateAvailable: true,
     installations: [
         {
             id: "ins-3",
@@ -300,7 +300,8 @@ it("holds PluginCatalogPanel layout, capability badges, installation health, and
             (node) => node.textContent,
         );
     expect(badgeLabels("hello")).toEqual(["Installed"]);
-    expect(badgeLabels("project-search")).toEqual(["Installed", "Update v2.1.0"]);
+    // Update affordances now live on each installation, not the package name row.
+    expect(badgeLabels("project-search")).toEqual(["Installed"]);
     expect(badgeLabels("task-runner")).toEqual([]);
 
     // Capability badges: skills count and MCP mode.
@@ -382,12 +383,22 @@ it("holds PluginCatalogPanel layout, capability badges, installation health, and
             (node) => node.textContent,
         ),
     ).toEqual(["Ready", "Preparing"]);
+    // Two installations at the same v1.0.0 are disambiguated by a compact stable
+    // short id derived from each id, with the full id available via its title.
+    const shortIds = Array.from(
+        installations.element.querySelectorAll('[data-happy2-ui="plugin-installation-id"]'),
+        (node) => [node.textContent, node.getAttribute("title")],
+    );
+    expect(shortIds).toEqual([
+        ["#ins-1", "ins-1"],
+        ["#ins-2", "ins-2"],
+    ]);
     const failed = view.$(`${card("project-search")} [data-installation-id="ins-3"]`);
+    // A failed installation shows its stored diagnostic detail inline as a legible line.
     expect(
-        failed.element
-            .querySelector(".happy2-plugin-catalog-panel__installation-health")!
-            .getAttribute("title"),
+        failed.element.querySelector('[data-happy2-ui="plugin-installation-detail"]')!.textContent,
     ).toBe("MCP initialize timed out.");
+    expect(failed.element.getAttribute("data-installation-status")).toBe("failed");
     expect(
         failed.element.querySelector('[data-happy2-ui="badge"]')!.getAttribute("data-variant"),
     ).toBe("danger");
@@ -1056,6 +1067,146 @@ it("presents every granular permission section in one scrollable modal at the 72
 
     await view.screenshot("PluginCatalogPanel.granular.test");
 }, 120_000);
+
+const UPDATABLE: PluginCatalogEntry = {
+    id: "system:plugin-updatable",
+    shortName: "updatable-tools",
+    displayName: "Updatable Tools",
+    description: "A GitHub package with an available per-installation update.",
+    version: "1.0.0",
+    skills: [],
+    variables: [],
+    apiPermissions: [],
+    installed: true,
+    installations: [
+        {
+            id: "ins-up",
+            version: "1.0.0",
+            status: "ready",
+            updateCheck: { status: "checked", updateAvailable: true, remoteVersion: "1.4.0" },
+        },
+    ],
+    pluginId: "plugin-updatable",
+    sourceLabel: "GitHub",
+    installable: false,
+};
+
+const BROKEN: PluginCatalogEntry = {
+    id: "system:plugin-broken",
+    shortName: "broken-tools",
+    displayName: "Broken Tools",
+    description: "A quarantined installation that stays visible and unloaded.",
+    version: "0.3.0",
+    skills: [],
+    variables: [],
+    apiPermissions: [],
+    installed: true,
+    installations: [
+        {
+            id: "ins-broken",
+            version: "0.3.0",
+            status: "broken_configuration",
+            detail: "The installed manifest declares an unsupported permission.",
+            updateCheck: { status: "failed", detail: "The remote source no longer exists" },
+            diagnosticsOpen: true,
+            diagnostics: {
+                status: "broken_configuration",
+                detail: "The installed manifest declares an unsupported permission.",
+                failure: "Quarantined: unknown host permission 'legacy:admin'.",
+                output: "[boot] validating permissions\n[error] unknown permission legacy:admin",
+            },
+        },
+    ],
+    pluginId: "plugin-broken",
+    sourceLabel: "GitHub",
+    installable: false,
+};
+
+it("manages each installation individually: update, retry, uninstall, and inert diagnostics", async () => {
+    const updated: string[] = [];
+    const retried: string[] = [];
+    const uninstalled: string[] = [];
+    const toggled: [string, boolean][] = [];
+    const checked: string[] = [];
+    const view = createRenderer().render(
+        () => (
+            <div
+                style={{ width: "880px", height: "560px", background: "#f5f5f5", display: "flex" }}
+            >
+                <PluginCatalogPanel
+                    data-testid="panel"
+                    onInstallationCheckUpdate={(id) => checked.push(id)}
+                    onInstallationDiagnosticsToggle={(id, open) => toggled.push([id, open])}
+                    onInstallationRetry={(id) => retried.push(id)}
+                    onInstallationUninstall={(id) => uninstalled.push(id)}
+                    onInstallationUpdate={(id) => updated.push(id)}
+                    plugins={[UPDATABLE, BROKEN]}
+                />
+            </div>
+        ),
+        { width: 880, height: 560 },
+    );
+    await view.ready();
+
+    const installation = (id: string) =>
+        view.$(`[data-installation-id="${id}"]`).element as HTMLElement;
+    const action = (id: string, testId: string) =>
+        installation(id).querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`);
+
+    // The updatable installation offers an Update action labelled with the remote
+    // version; retry is absent for a healthy installation.
+    const updateButton = action("ins-up", "plugin-installation-update")!;
+    expect(updateButton.textContent).toContain("Update to v1.4.0");
+    expect(action("ins-up", "plugin-installation-retry")).toBeNull();
+    updateButton.click();
+    expect(updated).toEqual(["ins-up"]);
+    action("ins-up", "plugin-installation-uninstall")!.click();
+    expect(uninstalled).toEqual(["ins-up"]);
+
+    // The broken installation stays visible and unloaded: a danger status badge,
+    // a failed update check with a Check again action, Retry, and an inert
+    // diagnostics/log viewer that never renders HTML. With the viewer open the
+    // status detail moves into it rather than duplicating on the inline row.
+    const broken = installation("ins-broken");
+    expect(broken.getAttribute("data-installation-status")).toBe("broken_configuration");
+    expect(
+        broken.querySelector('[data-happy2-ui="plugin-installation-detail"]'),
+        "inline detail is suppressed while the diagnostics viewer is open",
+    ).toBeNull();
+    expect(
+        broken.querySelector('[data-happy2-ui="plugin-diagnostics-detail"]')!.textContent,
+    ).toContain("unsupported permission");
+    action("ins-broken", "plugin-installation-retry")!.click();
+    expect(retried).toEqual(["ins-broken"]);
+    broken.querySelector<HTMLButtonElement>("button")!; // has at least one action
+    checkAgain(broken).click();
+    expect(checked).toEqual(["ins-broken"]);
+
+    // The diagnostics viewer renders the stored failure and captured output as
+    // inert text: the output lives inside a <pre><code> and contains no elements.
+    const viewer = broken.querySelector('[data-happy2-ui="plugin-diagnostics"]')!;
+    expect(viewer.querySelector('[data-happy2-ui="plugin-diagnostics-failure"]')!.textContent).toBe(
+        "Quarantined: unknown host permission 'legacy:admin'.",
+    );
+    const output = viewer.querySelector('[data-happy2-ui="plugin-diagnostics-output"]')!;
+    expect(output.tagName.toLowerCase()).toBe("pre");
+    expect(output.querySelector("code")!.textContent).toContain("unknown permission legacy:admin");
+    expect(output.querySelectorAll("*")).toHaveLength(1); // only the <code>, no injected markup
+
+    // Toggling the log viewer closed emits the collapse intent for that id.
+    action("ins-broken", "plugin-installation-diagnostics")!.click();
+    expect(toggled).toEqual([["ins-broken", false]]);
+
+    await view.screenshot("PluginCatalogPanel.installation.test");
+}, 120_000);
+
+function checkAgain(scope: HTMLElement): HTMLButtonElement {
+    const match = Array.from(scope.querySelectorAll<HTMLButtonElement>("button")).find((button) =>
+        button.textContent?.includes("Check again"),
+    );
+    if (!match) throw new Error("No “Check again” button in the installation actions.");
+    return match;
+}
 
 function modalSubmit(view: View, testId: string): HTMLButtonElement {
     return modalFooterButton(view, testId, "Install plugin");

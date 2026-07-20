@@ -105,6 +105,8 @@ export type {
     PluginsSnapshot,
     PluginsStore,
     PluginUpdateCheckState,
+    PluginInstallationUpdateState,
+    PluginDiagnosticsState,
 } from "./modules/plugins/pluginsState.js";
 export {
     permissionAllowed,

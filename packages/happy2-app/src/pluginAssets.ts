@@ -8,12 +8,13 @@ type Entry = {
 
 export interface PluginAssetMasks {
     /**
-     * Reactive same-origin blob URL for a plugin's authenticated monochrome PNG
-     * asset, keyed by `(pluginId, assetId)`. Returns `undefined` until the bytes
-     * are downloaded and permanently for an asset that fails to load. The URL is
-     * meant to be painted as a `currentColor` mask by `PluginAssetGlyph`.
+     * Reactive same-origin blob URL for an installation's authenticated
+     * monochrome PNG asset, keyed by `(installationId, assetId)`. Returns
+     * `undefined` until the bytes are downloaded and permanently for an asset
+     * that fails to load. The URL is meant to be painted as a `currentColor`
+     * mask by `PluginAssetGlyph`.
      */
-    maskUrl(pluginId?: string, assetId?: string): string | undefined;
+    maskUrl(installationId?: string, assetId?: string): string | undefined;
 }
 
 /**
@@ -34,14 +35,14 @@ export function usePluginAssetMasks(state: HappyState | undefined): PluginAssetM
     const [requested] = useReducer((value: Set<string>) => value, new Set<string>());
     const [urls] = useReducer((value: Set<string>) => value, new Set<string>());
     const disposed = useRef(false);
-    async function load(key: string, pluginId: string, assetId: string) {
+    async function load(key: string, installationId: string, assetId: string) {
         const model = state;
         if (!model) {
             requested.delete(key);
             return;
         }
         try {
-            const contents = await model.pluginUiAssetRead(pluginId, assetId);
+            const contents = await model.pluginUiAssetRead(installationId, assetId);
             if (disposed.current) return;
             const url = URL.createObjectURL(new Blob([contents], { type: "image/png" }));
             urls.add(url);
@@ -50,11 +51,11 @@ export function usePluginAssetMasks(state: HappyState | undefined): PluginAssetM
             if (!disposed.current) storeUpdate({ key, value: { failed: true } });
         }
     }
-    function resolve(key: string, pluginId: string, assetId: string): string | undefined {
+    function resolve(key: string, installationId: string, assetId: string): string | undefined {
         const entry = store[key];
         if (!entry && !requested.has(key)) {
             requested.add(key);
-            queueMicrotask(() => void load(key, pluginId, assetId));
+            queueMicrotask(() => void load(key, installationId, assetId));
         }
         return entry?.url;
     }
@@ -67,9 +68,9 @@ export function usePluginAssetMasks(state: HappyState | undefined): PluginAssetM
         };
     }, [urls]);
     return {
-        maskUrl(pluginId?: string, assetId?: string): string | undefined {
-            if (!pluginId || !assetId) return undefined;
-            return resolve(`${pluginId}\u0000${assetId}`, pluginId, assetId);
+        maskUrl(installationId?: string, assetId?: string): string | undefined {
+            if (!installationId || !assetId) return undefined;
+            return resolve(`${installationId}\u0000${assetId}`, installationId, assetId);
         },
     };
 }

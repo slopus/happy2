@@ -19,16 +19,20 @@ export async function pluginSkillPackageListReady(
         .select({
             pluginId: plugins.id,
             shortName: plugins.shortName,
-            packageDigest: plugins.packageDigest,
-            packageDirectory: plugins.packageDirectory,
+            packageDigest: pluginInstallations.packageDigest,
+            packageDirectory: pluginInstallations.packageDirectory,
             sourceKind: plugins.sourceKind,
             sourceReference: plugins.sourceReference,
         })
         .from(plugins)
         .innerJoin(pluginInstallations, eq(pluginInstallations.pluginId, plugins.id))
         .where(eq(pluginInstallations.status, "ready"))
-        .groupBy(plugins.id)
-        .orderBy(plugins.shortName, plugins.id);
+        .groupBy(
+            plugins.id,
+            pluginInstallations.packageDigest,
+            pluginInstallations.packageDirectory,
+        )
+        .orderBy(plugins.shortName, plugins.id, pluginInstallations.packageDigest);
     return rows.map((row) => {
         if (
             row.sourceKind !== "builtin" &&

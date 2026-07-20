@@ -39,12 +39,12 @@ export interface ContributionSurface {
 
 function assetGlyphFactory(
     masks: PluginAssetMasks,
-    pluginId: string,
+    installationId: string,
     size: number,
 ): (assetId: string) => ReactNode {
     // Not a component: a data callback that resolves one asset id to a glyph node.
     return function assetGlyph(assetId: string): ReactNode {
-        return <PluginAssetGlyph maskUrl={masks.maskUrl(pluginId, assetId)} size={size} />;
+        return <PluginAssetGlyph maskUrl={masks.maskUrl(installationId, assetId)} size={size} />;
     };
 }
 
@@ -65,7 +65,7 @@ export function PluginInlineContribution(props: {
         pluginActionUiState(
             surface.actionStates.get(pluginActionStateKey(contribution.id, actionId)),
         );
-    const glyph = assetGlyphFactory(masks, contribution.pluginId, 16);
+    const glyph = assetGlyphFactory(masks, contribution.installationId, 16);
     if (spec.kind === "section")
         return (
             <PluginContributionSection
@@ -119,7 +119,7 @@ export function PluginMenuContribution(props: {
             ...(value === undefined ? {} : { value }),
             ...(messageId ? { messageId } : {}),
         });
-    const glyph = assetGlyphFactory(masks, contribution.pluginId, 16);
+    const glyph = assetGlyphFactory(masks, contribution.installationId, 16);
     const kind = spec.kind;
     return (
         <PluginContributionMenuButton
@@ -163,7 +163,7 @@ export function PluginMenuContribution(props: {
             triggerGlyph={
                 spec.kind === "button" ? (
                     <PluginAssetGlyph
-                        maskUrl={masks.maskUrl(contribution.pluginId, spec.assetId)}
+                        maskUrl={masks.maskUrl(contribution.installationId, spec.assetId)}
                         size={16}
                     />
                 ) : undefined

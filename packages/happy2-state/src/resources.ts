@@ -526,13 +526,39 @@ export interface PreparedPluginSummary {
     readonly image: PluginImageSummary;
 }
 
-/** The read-only result of one remote update check for an installed system plugin. */
+/** The read-only result of one remote update check for a single installed plugin installation. */
 export interface PluginUpdateCheck {
+    readonly installationId: string;
     readonly pluginId: string;
     readonly checkedAt: string;
     readonly updateAvailable: boolean;
     readonly installed: { readonly version: string; readonly packageDigest: string };
     readonly remote: { readonly version: string; readonly packageDigest: string };
+}
+
+/** The result of committing a remote update to one plugin installation. */
+export interface PluginUpdateResult {
+    readonly installationId: string;
+    readonly pluginId: string;
+    readonly updatedAt: string;
+    readonly previous: { readonly version: string; readonly packageDigest: string };
+    readonly current: { readonly version: string; readonly packageDigest: string };
+}
+
+/**
+ * The latest durable lifecycle failure and bounded runtime output for one
+ * installation. Diagnostic text is inert output captured server-side; it never
+ * contains variable values, secrets, or unrelated server logs.
+ */
+export interface PluginInstallationDiagnostics {
+    readonly installationId: string;
+    readonly pluginId: string;
+    readonly displayName: string;
+    readonly status: PluginInstallationStatus;
+    readonly detail?: string;
+    readonly error?: string;
+    readonly output?: string;
+    readonly updatedAt: string;
 }
 
 export interface IntegrationSummary {

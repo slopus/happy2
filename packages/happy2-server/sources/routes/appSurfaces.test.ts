@@ -75,7 +75,7 @@ describe("plugin app surface routes", () => {
 
         const asset = await app.inject({
             method: "GET",
-            url: "/v0/plugins/plugin-1/uiAssets/todo-mark",
+            url: "/v0/pluginInstallations/installation-1/uiAssets/todo-mark",
             headers,
         });
         expect(asset.statusCode).toBe(200);

@@ -427,7 +427,7 @@ describe("system plugin installation and MCP health", () => {
         ).toEqual(SQUARE_PNG);
     }, 30_000);
 
-    it("removes a failed local runtime while retaining its package for restart recovery", async () => {
+    it("preserves failed runtime diagnostics and retries one installation explicitly", async () => {
         const root = await temporaryDirectory();
         await writeStdioPlugin(root);
         const runtime = new MockPluginMcpRuntime();
@@ -449,17 +449,55 @@ describe("system plugin installation and MCP health", () => {
         expect(runtime.removals).toContain(
             `happy2-plugin-${installed.json().installation.id as string}`,
         );
+        const installationId = installed.json().installation.id as string;
+        expect(
+            (await server.get(`/v0/admin/pluginInstallations/${installationId}/diagnostics`))
+                .statusCode,
+        ).toBe(401);
+        const diagnostics = await server
+            .as(admin)
+            .get(`/v0/admin/pluginInstallations/${installationId}/diagnostics`);
+        expect(diagnostics.statusCode).toBe(200);
+        expect(diagnostics.json().diagnostics).toMatchObject({
+            installationId,
+            status: "failed",
+            error: "Mock MCP process did not start",
+            output: expect.stringContaining("native module failed to load"),
+        });
+        expect(JSON.stringify(diagnostics.json())).not.toContain("recovery-secret");
+        expect(diagnostics.json().diagnostics.output).toContain("[REDACTED]");
 
         runtime.failOpen = false;
-        await server.restart();
-        await waitForStatus(server, admin, installed.json().installation.id as string, "ready");
+        const retried = await server
+            .as(admin)
+            .post(`/v0/admin/pluginInstallations/${installationId}/retryPlugin`);
+        expect(retried.statusCode).toBe(202);
+        expect(retried.json().installation).toMatchObject({
+            id: installationId,
+            status: "preparing",
+        });
+        await waitForStatus(server, admin, installationId, "ready");
+        expect(
+            (
+                await server
+                    .as(admin)
+                    .get(`/v0/admin/pluginInstallations/${installationId}/diagnostics`)
+            ).json().diagnostics,
+        ).toMatchObject({ installationId, status: "ready" });
+        expect(
+            (
+                await server
+                    .as(admin)
+                    .get(`/v0/admin/pluginInstallations/${installationId}/diagnostics`)
+            ).json().diagnostics.output,
+        ).toBeUndefined();
 
         runtime.failOpen = true;
         const removalsBeforeAdoptionFailure = runtime.removals.length;
         await server.restart();
-        await waitForStatus(server, admin, installed.json().installation.id as string, "failed");
+        await waitForStatus(server, admin, installationId, "failed");
         expect(runtime.removals.slice(removalsBeforeAdoptionFailure)).toContain(
-            `happy2-plugin-${installed.json().installation.id as string}`,
+            `happy2-plugin-${installationId}`,
         );
     }, 30_000);
 
@@ -616,9 +654,19 @@ class MockPluginMcpRuntime implements PluginMcpRuntime {
         };
     }
 
-    async openLocal(input: PluginLocalOpenInput) {
+    async openLocal(
+        input: PluginLocalOpenInput,
+        _signal?: AbortSignal,
+        onStderr?: (chunk: string) => void,
+    ) {
         this.opens.push(structuredClone(input));
-        if (this.failOpen) throw new Error("Mock MCP process did not start");
+        if (this.failOpen) {
+            const secret = input.environment.STDIO_TOKEN;
+            const split = Math.max(1, Math.floor(secret.length / 2));
+            onStderr?.(`Error: native module failed to load token=${secret.slice(0, split)}`);
+            onStderr?.(`${secret.slice(split)}\n    at plugin/server.js:42\n`);
+            throw new Error("Mock MCP process did not start");
+        }
         type McpTransport = Awaited<ReturnType<PluginMcpRuntime["openLocal"]>>;
         const transport: McpTransport = {
             async start() {},

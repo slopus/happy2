@@ -24,7 +24,6 @@ import {
 } from "./types.js";
 import { pluginInstallationSelection } from "./impl/installationSelection.js";
 import { asPluginInstallation } from "./impl/asInstallation.js";
-import { installedManifest } from "./impl/installedManifest.js";
 import { effectiveContainer } from "./impl/effectiveContainer.js";
 import { pluginPermissionsValidate } from "./impl/apiPermissions.js";
 import { pluginUiAssetsReplace } from "./pluginUiAssetsReplace.js";
@@ -67,8 +66,8 @@ export async function pluginInstall(
         const [existing] = await tx
             .select({
                 id: plugins.id,
-                manifestJson: plugins.manifestJson,
                 packageDigest: plugins.packageDigest,
+                packageDirectory: plugins.packageDirectory,
             })
             .from(plugins)
             .where(
@@ -91,24 +90,25 @@ export async function pluginInstall(
                 `A different plugin source already uses ${input.plugin.manifest.shortName}`,
             );
         let pluginId: string;
-        let manifest: PluginManifest;
+        const manifest: PluginManifest = input.plugin.manifest;
+        let packageDirectory: string;
         let pluginCreated = false;
         if (existing) {
-            if (
-                input.plugin.source.kind !== "builtin" &&
-                existing.packageDigest !== input.plugin.packageDigest
-            )
-                throw new PluginError(
-                    "conflict",
-                    "This remote plugin changed after preparation; prepare its installed version again",
-                );
             pluginId = existing.id;
-            manifest = installedManifest(existing.manifestJson);
+            packageDirectory =
+                existing.packageDigest === input.plugin.packageDigest
+                    ? existing.packageDirectory
+                    : (input.candidate?.packageDirectory ??
+                      (() => {
+                          throw new Error(
+                              "A new plugin version requires a persisted package candidate",
+                          );
+                      })());
         } else {
             if (!input.candidate)
                 throw new Error("A new system plugin requires a persisted package candidate");
             pluginId = input.candidate.pluginId;
-            manifest = input.plugin.manifest;
+            packageDirectory = input.candidate.packageDirectory;
             await tx.insert(plugins).values({
                 id: pluginId,
                 displayName: manifest.displayName,
@@ -129,18 +129,8 @@ export async function pluginInstall(
                 imageChecksumSha256: input.plugin.image.checksumSha256,
                 installedByUserId: input.actorUserId,
             });
-            if (input.plugin.skills.length > 0)
-                await tx.insert(pluginSkills).values(
-                    input.plugin.skills.map((skill) => ({
-                        pluginId,
-                        name: skill.name,
-                        description: skill.description,
-                        directory: skill.directory,
-                    })),
-                );
             pluginCreated = true;
         }
-        if (pluginCreated) await pluginUiAssetsReplace(tx, pluginId, input.plugin.uiAssets);
 
         const definitions = manifest.variables;
         const mcp = manifest.mcp;
@@ -188,6 +178,10 @@ export async function pluginInstall(
             .values({
                 id,
                 pluginId,
+                sourceVersion: manifest.version,
+                packageDigest: input.plugin.packageDigest,
+                manifestJson: JSON.stringify(manifest),
+                packageDirectory,
                 containerImageId: input.containerImageId,
                 containerName: localContainer ? `happy2-plugin-${id}` : null,
                 grantedPermissionsJson: JSON.stringify(grantedPermissions),
@@ -200,6 +194,16 @@ export async function pluginInstall(
             })
             .returning({ id: pluginInstallations.id });
         if (!created) throw new Error("Plugin installation was not created");
+        if (input.plugin.skills.length > 0)
+            await tx.insert(pluginSkills).values(
+                input.plugin.skills.map((skill) => ({
+                    installationId: id,
+                    name: skill.name,
+                    description: skill.description,
+                    directory: skill.directory,
+                })),
+            );
+        await pluginUiAssetsReplace(tx, id, input.plugin.uiAssets);
         for (const definition of definitions) {
             const value = input.variables[definition.key]!;
             await tx.insert(pluginInstallationVariables).values({

@@ -11,9 +11,16 @@ export async function pluginFindBySource(
     executor: DrizzleExecutor,
     sourceKind: PluginSourceKind,
     sourceReference: string,
-): Promise<{ id: string; packageDigest: string } | undefined> {
+): Promise<
+    { id: string; packageDigest: string; packageDirectory: string; shortName: string } | undefined
+> {
     const [row] = await executor
-        .select({ id: plugins.id, packageDigest: plugins.packageDigest })
+        .select({
+            id: plugins.id,
+            packageDigest: plugins.packageDigest,
+            packageDirectory: plugins.packageDirectory,
+            shortName: plugins.shortName,
+        })
         .from(plugins)
         .where(
             and(eq(plugins.sourceKind, sourceKind), eq(plugins.sourceReference, sourceReference)),

@@ -81,7 +81,7 @@ function baseServer(apps: PluginAppSummary[], contributions: PluginContributionS
     server.respond("GET", /^\/v0\/apps\/[^/]+$/u, jsonResponse(200, appView(apps[0]!)));
     server.respond(
         "GET",
-        /^\/v0\/plugins\/.+\/uiAssets\/.+$/u,
+        /^\/v0\/pluginInstallations\/.+\/uiAssets\/.+$/u,
         jsonResponse(404, { error: "no asset" }),
     );
     return server;

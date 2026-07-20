@@ -245,7 +245,7 @@ export function DesktopApp(props: DesktopAppProps) {
                                 ).map((app) => ({
                                     id: app.id,
                                     title: app.title,
-                                    maskUrl: masks.maskUrl(app.pluginId, app.assetId),
+                                    maskUrl: masks.maskUrl(app.installationId, app.assetId),
                                     available: app.available,
                                 }))}
                                 menu={sidebarMenuContributions(nav, masks)}

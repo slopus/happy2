@@ -46,7 +46,11 @@ export interface PluginMcpRuntime {
         containerName: string,
         signal?: AbortSignal,
     ): Promise<PluginLocalCommandHandle>;
-    openLocal(input: PluginLocalOpenInput, signal?: AbortSignal): Promise<Transport>;
+    openLocal(
+        input: PluginLocalOpenInput,
+        signal?: AbortSignal,
+        onStderr?: (chunk: string) => void,
+    ): Promise<Transport>;
     isLocalRunning?(
         containerName: string,
         installationId: string,
@@ -109,7 +113,11 @@ export class SandboxPluginMcpRuntime implements PluginMcpRuntime {
         };
     }
 
-    async openLocal(input: PluginLocalOpenInput, signal?: AbortSignal): Promise<Transport> {
+    async openLocal(
+        input: PluginLocalOpenInput,
+        signal?: AbortSignal,
+        onStderr?: (chunk: string) => void,
+    ): Promise<Transport> {
         const provider = await this.localProvider();
         let handle: SandboxTerminalHandle;
         try {
@@ -127,7 +135,7 @@ export class SandboxPluginMcpRuntime implements PluginMcpRuntime {
                 error instanceof Error ? error.message : "Plugin environment is invalid",
             );
         }
-        return new NdjsonStreamTransport(handle);
+        return new NdjsonStreamTransport(handle, onStderr);
     }
 
     async startLocalCommand(

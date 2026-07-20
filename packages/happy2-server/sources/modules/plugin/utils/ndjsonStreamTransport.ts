@@ -14,7 +14,10 @@ export class NdjsonStreamTransport implements Transport {
     private started = false;
     private closed = false;
 
-    constructor(private readonly handle: SandboxTerminalHandle) {}
+    constructor(
+        private readonly handle: SandboxTerminalHandle,
+        private readonly onStderr?: (chunk: string) => void,
+    ) {}
 
     async start(): Promise<void> {
         if (this.started) throw new Error("Plugin MCP transport was already started");
@@ -23,7 +26,8 @@ export class NdjsonStreamTransport implements Transport {
         this.handle.stdout.on("data", (chunk: string) => this.read(chunk));
         this.handle.stdout.on("error", (error) => this.onerror?.(error));
         this.handle.stdin.on("error", (error) => this.onerror?.(error));
-        this.handle.stderr.on("data", () => undefined);
+        this.handle.stderr.setEncoding("utf8");
+        this.handle.stderr.on("data", (chunk: string) => this.onStderr?.(chunk));
         void this.handle.wait.then(
             ({ exitCode, signal }) => {
                 if (this.closed) return;

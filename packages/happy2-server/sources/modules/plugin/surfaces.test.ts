@@ -163,7 +163,7 @@ describe("durable plugin surfaces", () => {
         executor = createDatabase(client);
         await serverSchemaMigrate(client);
         await seed(executor);
-        await pluginUiAssetsReplace(executor, "plugin-one", [asset("todo"), asset("add")]);
+        await pluginUiAssetsReplace(executor, "installation-one", [asset("todo"), asset("add")]);
     });
 
     afterEach(async () => {
@@ -306,14 +306,16 @@ describe("durable plugin surfaces", () => {
                 definition: contributionDefinition("composerIcon", button("model_only")),
             }),
         ).rejects.toThrow("not visible to apps");
-        await expect(pluginUiAssetGet(executor, "plugin-one", "todo")).resolves.toMatchObject({
-            shortName: "todos",
-            packageDigest: "digest",
-            packageDirectory: "/tmp/plugin-one",
-            sourceKind: "builtin",
-            sourceReference: "builtin:todos",
-            relativePath: "assets/todo.png",
-        });
+        await expect(pluginUiAssetGet(executor, "installation-one", "todo")).resolves.toMatchObject(
+            {
+                shortName: "todos",
+                packageDigest: "digest",
+                packageDirectory: "/tmp/plugin-one",
+                sourceKind: "builtin",
+                sourceReference: "builtin:todos",
+                relativePath: "assets/todo.png",
+            },
+        );
     });
 
     it("lists global and current-chat contributions while enforcing current membership", async () => {
@@ -338,7 +340,7 @@ describe("durable plugin surfaces", () => {
         await expect(
             pluginContributionList(executor, { viewerUserId: "user-one", chatId: "chat-one" }),
         ).resolves.toHaveLength(2);
-        await pluginUiAssetsReplace(executor, "plugin-one", [asset("todo")]);
+        await pluginUiAssetsReplace(executor, "installation-one", [asset("todo")]);
         expect(
             (
                 await pluginContributionList(executor, {
@@ -498,6 +500,10 @@ async function seed(executor: DrizzleExecutor) {
     await executor.insert(pluginInstallations).values({
         id: "installation-one",
         pluginId: "plugin-one",
+        sourceVersion: "1.0.0",
+        packageDigest: "digest",
+        manifestJson: "{}",
+        packageDirectory: "/tmp/plugin-one",
         status: "ready",
         grantedPermissionsJson: "[]",
     });

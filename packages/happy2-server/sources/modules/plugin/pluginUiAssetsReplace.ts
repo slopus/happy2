@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import type { DrizzleExecutor } from "../drizzle.js";
 import { withTransaction } from "../drizzle.js";
-import { plugins, pluginUiAssets } from "../schema.js";
+import { pluginInstallations, pluginUiAssets } from "../schema.js";
 import type { MutationHint } from "../chat/types.js";
 import { pluginSurfaceMutationRecord } from "./impl/surfaceMutation.js";
 import { PluginError } from "./types.js";
@@ -17,34 +17,34 @@ export interface PluginUiAssetMetadataInput {
 }
 
 /**
- * Replaces one plugin package's validated pluginUiAssets catalog and advances the plugins sync sequence with an availability event.
+ * Replaces one installation package's validated pluginUiAssets catalog and advances its sync sequence with an availability event.
  * The transaction makes asset metadata replacement and dependent app invalidation one durable package boundary.
  */
 export async function pluginUiAssetsReplace(
     executor: DrizzleExecutor,
-    pluginId: string,
+    installationId: string,
     assets: readonly PluginUiAssetMetadataInput[],
 ): Promise<MutationHint> {
     const rows = assetsParse(assets);
     return withTransaction(executor, async (tx) => {
-        const [plugin] = await tx
-            .select({ id: plugins.id })
-            .from(plugins)
-            .where(eq(plugins.id, pluginId))
+        const [installation] = await tx
+            .select({ id: pluginInstallations.id })
+            .from(pluginInstallations)
+            .where(eq(pluginInstallations.id, installationId))
             .limit(1);
-        if (!plugin) throw new PluginError("not_found", "Plugin was not found");
-        await tx.delete(pluginUiAssets).where(eq(pluginUiAssets.pluginId, pluginId));
+        if (!installation) throw new PluginError("not_found", "Plugin installation was not found");
+        await tx.delete(pluginUiAssets).where(eq(pluginUiAssets.installationId, installationId));
         if (rows.length)
-            await tx.insert(pluginUiAssets).values(rows.map((row) => ({ pluginId, ...row })));
+            await tx.insert(pluginUiAssets).values(rows.map((row) => ({ installationId, ...row })));
         const mutation = await pluginSurfaceMutationRecord(tx, {
             area: "apps",
             kind: "plugin.ui_assets_replaced",
-            entityId: pluginId,
+            entityId: installationId,
         });
         await tx
-            .update(plugins)
+            .update(pluginInstallations)
             .set({ syncSequence: mutation.sequence, updatedAt: sql`CURRENT_TIMESTAMP` })
-            .where(eq(plugins.id, pluginId));
+            .where(eq(pluginInstallations.id, installationId));
         return { ...mutation.hint, areas: ["apps", "contributions"] };
     });
 }

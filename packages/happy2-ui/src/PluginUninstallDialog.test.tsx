@@ -24,7 +24,7 @@ it("confirms the destructive uninstall with its full blast radius, pending, and 
                 >
                     <PluginUninstallDialog
                         data-testid="confirm"
-                        installationCount={3}
+                        installationVersion="2.1.0"
                         onCancel={() => cancelled.push(1)}
                         onConfirm={() => confirmed.push(1)}
                         pluginName="Project Search"
@@ -46,7 +46,8 @@ it("confirms the destructive uninstall with its full blast radius, pending, and 
                 >
                     <PluginUninstallDialog
                         data-testid="pending"
-                        installationCount={1}
+                        installationVersion="2.0.0"
+                        lastInstallation
                         onCancel={() => undefined}
                         onConfirm={() => undefined}
                         pending
@@ -69,8 +70,8 @@ it("confirms the destructive uninstall with its full blast radius, pending, and 
                 >
                     <PluginUninstallDialog
                         data-testid="failed"
-                        error="System plugin was not found"
-                        installationCount={2}
+                        error="Plugin installation was not found"
+                        installationVersion="1.2.0"
                         onCancel={() => undefined}
                         onConfirm={() => confirmed.push(2)}
                         pluginName="Uploaded Tools"
@@ -87,20 +88,22 @@ it("confirms the destructive uninstall with its full blast radius, pending, and 
     expect(dialog.bounds().width).toBe(360);
     expect(dialog.element.getAttribute("data-tone")).toBe("danger");
 
-    // The copy names the plugin, its source, the exact installation count, and
-    // every class of destroyed data including persistent /workspace contents.
+    // The copy names the plugin, its source, the exact installation version, and
+    // every class of destroyed data including persistent /workspace contents. It
+    // also states that other installations of the plugin are left in place.
     const message = view.$('[data-testid="confirm"] [data-happy2-ui="plugin-uninstall-message"]');
-    expect(message.element.textContent).toContain("all 3 installations");
-    expect(message.element.textContent).toContain("Project Search");
+    expect(message.element.textContent).toContain("v2.1.0 installation of Project Search");
     expect(message.element.textContent).toContain("(GitHub)");
-    expect(message.element.textContent).toContain("dedicated containers");
+    expect(message.element.textContent).toContain("dedicated container");
     expect(message.element.textContent).toContain("configured secrets");
     expect(message.element.textContent).toContain("/workspace");
+    expect(message.element.textContent).toContain("left in place");
     expect(message.element.textContent).toContain("cannot be undone");
+    // The last installation removes the plugin and its stored package too.
     expect(
         view.$('[data-testid="pending"] [data-happy2-ui="plugin-uninstall-message"]').element
             .textContent,
-    ).toContain("its 1 installation");
+    ).toContain("last installation");
 
     // The destructive action is the danger variant and routes the callback;
     // cancel stays a ghost action.
@@ -140,7 +143,7 @@ it("confirms the destructive uninstall with its full blast radius, pending, and 
     // A terminal failure renders a danger banner above the message for retry.
     expect(
         view.$('[data-testid="failed"] [data-testid="plugin-uninstall-error"]').element.textContent,
-    ).toContain("System plugin was not found");
+    ).toContain("Plugin installation was not found");
     view.container
         .querySelector<HTMLButtonElement>(
             '[data-testid="failed"] [data-testid="plugin-uninstall-confirm"]',

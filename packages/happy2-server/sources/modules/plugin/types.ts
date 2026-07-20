@@ -243,6 +243,17 @@ export interface PluginInstallationSummary {
     readyAt?: string;
 }
 
+export interface PluginInstallationDiagnostics {
+    installationId: string;
+    pluginId: string;
+    displayName: string;
+    status: PluginInstallationStatus;
+    detail?: string;
+    error?: string;
+    output?: string;
+    updatedAt: string;
+}
+
 export interface PluginFunctionDefinition {
     description: string;
     label: string;
@@ -400,11 +411,20 @@ export interface PreparedPluginSummary {
 }
 
 export interface PluginUpdateCheck {
+    installationId: string;
     pluginId: string;
     checkedAt: string;
     updateAvailable: boolean;
     installed: { version: string; packageDigest: string };
     remote: { version: string; packageDigest: string };
+}
+
+export interface PluginUpdateResult {
+    installationId: string;
+    pluginId: string;
+    updatedAt: string;
+    previous: { version: string; packageDigest: string };
+    current: { version: string; packageDigest: string };
 }
 
 interface PluginRuntimePackage {
@@ -422,6 +442,7 @@ export type PluginRuntimeConfiguration = PluginRuntimePackage &
               command?: { command: string; args: string[] };
               mcp?: { command: string; args: string[] };
               environment: Readonly<Record<string, string>>;
+              secretValues: readonly string[];
               containerName: string;
               containerInstanceId?: string;
               imageTag: string;

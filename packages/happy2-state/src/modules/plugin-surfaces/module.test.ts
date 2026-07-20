@@ -331,13 +331,13 @@ describe("plugin surfaces", () => {
     it("reads authenticated plugin icon bytes without exposing an asset URL", async () => {
         const server = createFakeServer();
         const png = new Uint8Array([137, 80, 78, 71]).buffer;
-        server.respond("GET", "/v0/plugins/plugin-1/uiAssets/plus", {
+        server.respond("GET", "/v0/pluginInstallations/installation-1/uiAssets/plus", {
             status: 200,
             body: png,
             headers: { "content-type": "image/png", etag: "digest" },
         });
         const runtime = new StateRuntime({ transport: server.transport });
-        await expect(pluginUiAssetRead(runtime, "plugin-1", "plus")).resolves.toEqual(png);
+        await expect(pluginUiAssetRead(runtime, "installation-1", "plus")).resolves.toEqual(png);
         runtime.stop();
     });
 

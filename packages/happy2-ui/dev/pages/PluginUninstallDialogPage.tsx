@@ -16,18 +16,18 @@ export function PluginUninstallDialogPage() {
     return (
         <ComponentPage
             number="C-076"
-            summary="Destructive uninstall confirmation in a 360px danger modal. The copy names the exact blast radius: every installation (by count when known), dedicated containers, the stored package, configured secrets, and all persistent /workspace plugin data."
+            summary="Destructive per-installation uninstall confirmation in a 360px danger modal. The copy names the exact blast radius for one installation: its dedicated container, configured secrets, and persistent /workspace data — and, when it is the plugin's last installation, the stored package too."
             title="PluginUninstallDialog"
         >
             <Specimen
-                detail="danger tone · installation count named in the message · danger confirm action"
-                label="Confirmation"
+                detail="danger tone · one installation named by version · other installations left in place · danger confirm action"
+                label="Confirmation — not the last installation"
                 number="01"
                 stage="app"
             >
                 {frame(
                     <PluginUninstallDialog
-                        installationCount={3}
+                        installationVersion="2.1.0"
                         onCancel={() => log("cancel")}
                         onConfirm={() => log("confirm")}
                         pluginName="Project Search"
@@ -38,14 +38,15 @@ export function PluginUninstallDialogPage() {
             </Specimen>
 
             <Specimen
-                detail="singular installation copy"
-                label="Single installation"
+                detail="the plugin's last installation: the plugin and stored package are removed too"
+                label="Last installation"
                 number="02"
                 stage="app"
             >
                 {frame(
                     <PluginUninstallDialog
-                        installationCount={1}
+                        installationVersion="2.0.0"
+                        lastInstallation
                         onCancel={() => log("cancel")}
                         onConfirm={() => log("confirm")}
                         pluginName="Linked Tools"
@@ -62,7 +63,7 @@ export function PluginUninstallDialogPage() {
             >
                 {frame(
                     <PluginUninstallDialog
-                        installationCount={2}
+                        installationVersion="1.0.0"
                         onCancel={() => log("cancel")}
                         onConfirm={() => log("confirm")}
                         pending
@@ -80,8 +81,8 @@ export function PluginUninstallDialogPage() {
             >
                 {frame(
                     <PluginUninstallDialog
-                        error="System plugin was not found"
-                        installationCount={2}
+                        error="Plugin installation was not found"
+                        installationVersion="1.0.0"
                         onCancel={() => log("cancel")}
                         onConfirm={() => log("confirm")}
                         pluginName="Uploaded Tools"

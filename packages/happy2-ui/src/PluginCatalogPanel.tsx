@@ -10,6 +10,7 @@ import { FormRow } from "./FormRow";
 import { Icon } from "./Icon";
 import { Modal } from "./Modal";
 import { ModalOverlay } from "./ModalOverlay";
+import { PluginDiagnosticsViewer } from "./PluginDiagnosticsViewer";
 import { Select, type SelectOption } from "./Select";
 import { TextField } from "./TextField";
 export type PluginInstallationStatus =
@@ -18,15 +19,45 @@ export type PluginInstallationStatus =
     | "ready"
     | "broken_configuration"
     | "failed";
+export type PluginUpdateBadge =
+    | { status: "checking"; detail?: string }
+    | { status: "checked"; updateAvailable: boolean; remoteVersion: string }
+    | { status: "failed"; detail: string };
+/** On-demand diagnostics/log content and load state for one installation. */
+export type PluginDiagnosticsView = {
+    loading?: boolean;
+    /** Terminal read failure. */
+    error?: string;
+    status?: PluginInstallationStatus;
+    detail?: string;
+    failure?: string;
+    output?: string;
+    updatedLabel?: string;
+};
 export type PluginInstallationItem = {
     id: string;
     /** The immutable package version this installation is pinned to. */
     version: string;
     status: PluginInstallationStatus;
-    /** Optional bounded diagnostic text (statusDetail or lastError). */
+    /** Optional bounded diagnostic text (statusDetail or lastError) shown inline. */
     detail?: string;
     /** Host permission ids currently granted to this installation. */
     grantedPermissions?: readonly string[];
+    /** The latest per-installation remote update check. */
+    updateCheck?: PluginUpdateBadge;
+    /** True while this installation's update commit is streaming; carries a progress line. */
+    updating?: boolean;
+    updateProgress?: string;
+    /** Terminal failure of the last update commit for this installation. */
+    updateError?: string;
+    /** True while this installation's retry request is in flight. */
+    retrying?: boolean;
+    /** True while this installation's uninstall request is in flight. */
+    uninstalling?: boolean;
+    /** True when the inline diagnostics viewer is expanded for this installation. */
+    diagnosticsOpen?: boolean;
+    /** Diagnostics content/state; supplied once the viewer is opened. */
+    diagnostics?: PluginDiagnosticsView;
 };
 export type PluginVariableField = {
     key: string;
@@ -46,10 +77,6 @@ export type PluginPermissionSection = {
     readOnly: readonly PluginPermissionDefinition[];
     mutations: readonly PluginPermissionDefinition[];
 };
-export type PluginUpdateBadge =
-    | { status: "checking"; detail?: string }
-    | { status: "checked"; updateAvailable: boolean; remoteVersion: string }
-    | { status: "failed"; detail: string };
 export type PluginCatalogEntry = {
     /** Stable row identity when shortName alone is not unique; defaults to shortName. */
     id?: string;
@@ -69,16 +96,14 @@ export type PluginCatalogEntry = {
     installed: boolean;
     /** The immutable installed version when it differs from the catalog. */
     installedVersion?: string;
-    updateAvailable?: boolean;
+    /** Independent installations of this package, each managed on its own. */
     installations: readonly PluginInstallationItem[];
-    /** The durable system plugin ID; enables the uninstall action. */
+    /** The durable system plugin ID. */
     pluginId?: string;
     /** Display label of an external package source, e.g. "GitHub · owner/repo". */
     sourceLabel?: string;
     /** False for externally sourced rows that cannot be reinstalled from the catalog. */
     installable?: boolean;
-    /** The latest automatic remote update check for this installed package. */
-    updateCheck?: PluginUpdateBadge;
 };
 export type PluginCatalogPanelProps = {
     className?: string;
@@ -121,10 +146,16 @@ export type PluginCatalogPanelProps = {
     onSubmitPermissions?: () => void;
     /** Renders the "Install plugin" entry point for external packages in the header. */
     onOpenExternalInstall?: () => void;
-    /** Plugin IDs with an in-flight uninstall; their action disables. */
-    uninstallingPluginIds?: readonly string[];
-    /** Renders an Uninstall action on entries that carry a pluginId. */
-    onUninstall?: (pluginId: string) => void;
+    /** Downloads and commits the available remote update for one installation. */
+    onInstallationUpdate?: (installationId: string) => void;
+    /** Re-runs the remote update comparison for one installation after a failed check. */
+    onInstallationCheckUpdate?: (installationId: string) => void;
+    /** Retries activation of a failed or broken installation in place. */
+    onInstallationRetry?: (installationId: string) => void;
+    /** Uninstalls one installation (the destructive confirmation is owned by the consumer). */
+    onInstallationUninstall?: (installationId: string) => void;
+    /** Expands or collapses the inline diagnostics viewer for one installation. */
+    onInstallationDiagnosticsToggle?: (installationId: string, open: boolean) => void;
 };
 const statusLabels: Record<PluginInstallationStatus, string> = {
     preparing: "Preparing",
@@ -219,6 +250,14 @@ export function PluginPermissionFieldset(props: {
         </Box>
     );
 }
+/**
+ * A compact, stable short code for one installation, derived from its opaque id,
+ * so two installations at the same version and status are visually distinct. The
+ * full id remains available through the row's title/aria-label.
+ */
+export function installationShortId(id: string): string {
+    return `#${id.slice(-6)}`;
+}
 function updateCheckLabel(check: PluginUpdateBadge): string {
     if (check.status === "checking") return "Checking for update…";
     if (check.status === "failed") return "Update check failed";
@@ -228,6 +267,182 @@ function updateCheckVariant(check: PluginUpdateBadge): BadgeVariant {
     if (check.status === "checking") return "info";
     if (check.status === "failed") return "danger";
     return check.updateAvailable ? "warning" : "neutral";
+}
+/**
+ * One independent installation's management block: live health, its own remote
+ * update check and Update action, an in-place Retry for a broken/failed
+ * installation, an inline diagnostics/log viewer, per-installation permissions,
+ * and an individual Uninstall. Presentational and controlled; every mutation is
+ * scoped to this installation id.
+ */
+export function PluginInstallationRow(props: {
+    installation: PluginInstallationItem;
+    permissionsBusy?: boolean;
+    onOpenPermissions?: (installationId: string) => void;
+    onUpdate?: (installationId: string) => void;
+    onCheckUpdate?: (installationId: string) => void;
+    onRetry?: (installationId: string) => void;
+    onUninstall?: (installationId: string) => void;
+    onDiagnosticsToggle?: (installationId: string, open: boolean) => void;
+}) {
+    const installation = props.installation;
+    const check = installation.updateCheck;
+    const remoteVersion = check?.status === "checked" ? check.remoteVersion : undefined;
+    const updateAvailable = check?.status === "checked" && check.updateAvailable;
+    const broken =
+        installation.status === "failed" || installation.status === "broken_configuration";
+    const busy = installation.updating || installation.retrying || installation.uninstalling;
+    const grants = installation.grantedPermissions?.length ?? 0;
+    return (
+        <Box
+            className="happy2-plugin-catalog-panel__installation"
+            data-happy2-ui="plugin-catalog-installation"
+            data-installation-id={installation.id}
+            data-installation-status={installation.status}
+        >
+            <Box className="happy2-plugin-catalog-panel__installation-summary">
+                <span className="happy2-plugin-catalog-panel__installation-health">
+                    <Badge
+                        label={statusLabels[installation.status]}
+                        variant={statusVariants[installation.status]}
+                    />
+                    <span className="happy2-plugin-catalog-panel__installation-version">
+                        v{installation.version}
+                    </span>
+                    <span
+                        aria-label={`Installation ${installation.id}`}
+                        className="happy2-plugin-catalog-panel__installation-code"
+                        data-happy2-ui="plugin-installation-id"
+                        title={installation.id}
+                    >
+                        {installationShortId(installation.id)}
+                    </span>
+                </span>
+                {check ? (
+                    <span
+                        data-happy2-ui="plugin-installation-update-check"
+                        title={
+                            check.status === "failed" || check.status === "checking"
+                                ? check.detail
+                                : undefined
+                        }
+                    >
+                        <Badge
+                            label={updateCheckLabel(check)}
+                            variant={updateCheckVariant(check)}
+                        />
+                    </span>
+                ) : null}
+            </Box>
+            {installation.detail && !installation.diagnosticsOpen ? (
+                <span
+                    className="happy2-plugin-catalog-panel__installation-detail"
+                    data-happy2-ui="plugin-installation-detail"
+                >
+                    {installation.detail}
+                </span>
+            ) : null}
+            {installation.updating ? (
+                <span
+                    className="happy2-plugin-catalog-panel__installation-progress"
+                    data-happy2-ui="plugin-installation-progress"
+                >
+                    {installation.updateProgress ?? "Updating…"}
+                </span>
+            ) : installation.updateError ? (
+                <span
+                    className="happy2-plugin-catalog-panel__installation-error"
+                    data-happy2-ui="plugin-installation-update-error"
+                >
+                    {installation.updateError}
+                </span>
+            ) : null}
+            <Box className="happy2-plugin-catalog-panel__installation-actions">
+                {props.onUpdate && updateAvailable ? (
+                    <Button
+                        data-testid="plugin-installation-update"
+                        disabled={busy}
+                        icon="arrow-right"
+                        onClick={() => props.onUpdate?.(installation.id)}
+                        size="small"
+                        variant="primary"
+                    >
+                        {installation.updating ? "Updating…" : `Update to v${remoteVersion ?? ""}`}
+                    </Button>
+                ) : null}
+                {props.onCheckUpdate && check?.status === "failed" ? (
+                    <Button
+                        disabled={busy}
+                        onClick={() => props.onCheckUpdate?.(installation.id)}
+                        size="small"
+                        variant="ghost"
+                    >
+                        Check again
+                    </Button>
+                ) : null}
+                {props.onRetry && broken ? (
+                    <Button
+                        data-testid="plugin-installation-retry"
+                        disabled={busy}
+                        onClick={() => props.onRetry?.(installation.id)}
+                        size="small"
+                        variant="secondary"
+                    >
+                        {installation.retrying ? "Retrying…" : "Retry"}
+                    </Button>
+                ) : null}
+                {props.onOpenPermissions ? (
+                    <Button
+                        disabled={props.permissionsBusy || busy}
+                        icon="shield"
+                        onClick={() => props.onOpenPermissions?.(installation.id)}
+                        size="small"
+                        variant="ghost"
+                    >
+                        {grants > 0 ? `Permissions · ${grants}` : "Permissions"}
+                    </Button>
+                ) : null}
+                {props.onDiagnosticsToggle ? (
+                    <Button
+                        data-testid="plugin-installation-diagnostics"
+                        icon="terminal"
+                        onClick={() =>
+                            props.onDiagnosticsToggle?.(
+                                installation.id,
+                                !installation.diagnosticsOpen,
+                            )
+                        }
+                        size="small"
+                        variant="ghost"
+                    >
+                        {installation.diagnosticsOpen ? "Hide logs" : "Logs"}
+                    </Button>
+                ) : null}
+                {props.onUninstall ? (
+                    <Button
+                        data-testid="plugin-installation-uninstall"
+                        disabled={busy}
+                        onClick={() => props.onUninstall?.(installation.id)}
+                        size="small"
+                        variant="danger"
+                    >
+                        {installation.uninstalling ? "Uninstalling…" : "Uninstall"}
+                    </Button>
+                ) : null}
+            </Box>
+            {installation.diagnosticsOpen ? (
+                <PluginDiagnosticsViewer
+                    detail={installation.diagnostics?.detail}
+                    error={installation.diagnostics?.error}
+                    failure={installation.diagnostics?.failure}
+                    loading={installation.diagnostics?.loading}
+                    output={installation.diagnostics?.output}
+                    status={installation.diagnostics?.status ?? installation.status}
+                    updatedLabel={installation.diagnostics?.updatedLabel}
+                />
+            ) : null}
+        </Box>
+    );
 }
 /**
  * C-066 PluginCatalogPanel — the administrator surface for the server plugin
@@ -270,8 +485,11 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
         "onClosePermissions",
         "onSubmitPermissions",
         "onOpenExternalInstall",
-        "uninstallingPluginIds",
-        "onUninstall",
+        "onInstallationUpdate",
+        "onInstallationCheckUpdate",
+        "onInstallationRetry",
+        "onInstallationUninstall",
+        "onInstallationDiagnosticsToggle",
     ]);
     const title = () => local.title ?? "Plugins";
     const busy = (shortName: string) => local.busyShortNames?.includes(shortName) ?? false;
@@ -382,30 +600,6 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
                                                     variant="outline"
                                                 />
                                             ) : null}
-                                            {plugin.updateAvailable ? (
-                                                <Badge
-                                                    label={`Update v${plugin.version}`}
-                                                    variant="warning"
-                                                />
-                                            ) : null}
-                                            {plugin.updateCheck ? (
-                                                <span
-                                                    data-happy2-ui="plugin-catalog-update-check"
-                                                    title={
-                                                        plugin.updateCheck.status === "failed" ||
-                                                        plugin.updateCheck.status === "checking"
-                                                            ? plugin.updateCheck.detail
-                                                            : undefined
-                                                    }
-                                                >
-                                                    <Badge
-                                                        label={updateCheckLabel(plugin.updateCheck)}
-                                                        variant={updateCheckVariant(
-                                                            plugin.updateCheck,
-                                                        )}
-                                                    />
-                                                </span>
-                                            ) : null}
                                         </Box>
                                         <span className="happy2-plugin-catalog-panel__description">
                                             {plugin.description}
@@ -462,52 +656,23 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
                                                 data-happy2-ui="plugin-catalog-installations"
                                             >
                                                 {plugin.installations.map((installation) => (
-                                                    <Box
-                                                        className="happy2-plugin-catalog-panel__installation"
-                                                        data-installation-id={installation.id}
+                                                    <PluginInstallationRow
+                                                        installation={installation}
                                                         key={installation.id}
-                                                    >
-                                                        <span
-                                                            className="happy2-plugin-catalog-panel__installation-health"
-                                                            title={installation.detail}
-                                                        >
-                                                            <Badge
-                                                                label={
-                                                                    statusLabels[
-                                                                        installation.status
-                                                                    ]
-                                                                }
-                                                                variant={
-                                                                    statusVariants[
-                                                                        installation.status
-                                                                    ]
-                                                                }
-                                                            />
-                                                            <span className="happy2-plugin-catalog-panel__installation-version">
-                                                                v{installation.version}
-                                                            </span>
-                                                        </span>
-                                                        {local.onOpenPermissions ? (
-                                                            <Button
-                                                                disabled={permissionsBusy(
-                                                                    installation.id,
-                                                                )}
-                                                                icon="shield"
-                                                                onClick={() =>
-                                                                    local.onOpenPermissions?.(
-                                                                        installation.id,
-                                                                    )
-                                                                }
-                                                                size="small"
-                                                                variant="ghost"
-                                                            >
-                                                                {(installation.grantedPermissions
-                                                                    ?.length ?? 0) > 0
-                                                                    ? `Permissions · ${installation.grantedPermissions!.length}`
-                                                                    : "Permissions"}
-                                                            </Button>
-                                                        ) : null}
-                                                    </Box>
+                                                        onCheckUpdate={
+                                                            local.onInstallationCheckUpdate
+                                                        }
+                                                        onDiagnosticsToggle={
+                                                            local.onInstallationDiagnosticsToggle
+                                                        }
+                                                        onOpenPermissions={local.onOpenPermissions}
+                                                        onRetry={local.onInstallationRetry}
+                                                        onUninstall={local.onInstallationUninstall}
+                                                        onUpdate={local.onInstallationUpdate}
+                                                        permissionsBusy={permissionsBusy(
+                                                            installation.id,
+                                                        )}
+                                                    />
                                                 ))}
                                             </Box>
                                         ) : null}
@@ -530,27 +695,6 @@ export function PluginCatalogPanel(props: PluginCatalogPanelProps) {
                                                       : "Install"}
                                             </Button>
                                         ) : null}
-                                        {local.onUninstall && plugin.pluginId
-                                            ? ((pluginId) => (
-                                                  <Button
-                                                      data-testid="plugin-catalog-uninstall"
-                                                      disabled={
-                                                          local.uninstallingPluginIds?.includes(
-                                                              pluginId,
-                                                          ) ?? false
-                                                      }
-                                                      onClick={() => local.onUninstall?.(pluginId)}
-                                                      size="small"
-                                                      variant="danger"
-                                                  >
-                                                      {local.uninstallingPluginIds?.includes(
-                                                          pluginId,
-                                                      )
-                                                          ? "Uninstalling…"
-                                                          : "Uninstall"}
-                                                  </Button>
-                                              ))(plugin.pluginId)
-                                            : null}
                                     </Box>
                                 </Box>
                             ))}

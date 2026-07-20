@@ -895,6 +895,11 @@ export const pluginInstallations = sqliteTable(
         status: text("status").notNull().default("preparing"),
         statusDetail: text("status_detail"),
         lastError: text("last_error"),
+        diagnosticOutput: text("diagnostic_output"),
+        sourceVersion: text("source_version").notNull(),
+        packageDigest: text("package_digest").notNull(),
+        manifestJson: text("manifest_json").notNull(),
+        packageDirectory: text("package_directory").notNull(),
         installedByUserId: text("installed_by_user_id").references(() => users.id, {
             onDelete: "set null",
         }),
@@ -910,9 +915,9 @@ export const pluginInstallations = sqliteTable(
 export const pluginUiAssets = sqliteTable(
     "plugin_ui_assets",
     {
-        pluginId: text("plugin_id")
+        installationId: text("installation_id")
             .notNull()
-            .references(() => plugins.id, { onDelete: "cascade" }),
+            .references(() => pluginInstallations.id, { onDelete: "cascade" }),
         assetId: text("asset_id").notNull(),
         relativePath: text("relative_path").notNull(),
         contentType: text("content_type").notNull(),
@@ -924,7 +929,7 @@ export const pluginUiAssets = sqliteTable(
         updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
     },
     (table) => [
-        primaryKey({ columns: [table.pluginId, table.assetId] }),
+        primaryKey({ columns: [table.installationId, table.assetId] }),
         index("plugin_ui_assets_checksum_index").on(table.checksumSha256),
         check("plugin_ui_assets_asset_id_check", sql`length(${table.assetId}) between 1 and 64`),
         check(
@@ -1163,14 +1168,14 @@ export const appPresentationPreferences = sqliteTable(
 export const pluginSkills = sqliteTable(
     "plugin_skills",
     {
-        pluginId: text("plugin_id")
+        installationId: text("installation_id")
             .notNull()
-            .references(() => plugins.id, { onDelete: "cascade" }),
+            .references(() => pluginInstallations.id, { onDelete: "cascade" }),
         name: text("name").notNull(),
         description: text("description").notNull(),
         directory: text("directory").notNull(),
     },
-    (table) => [primaryKey({ columns: [table.pluginId, table.name] })],
+    (table) => [primaryKey({ columns: [table.installationId, table.name] })],
 );
 
 export const pluginInstallationVariables = sqliteTable(

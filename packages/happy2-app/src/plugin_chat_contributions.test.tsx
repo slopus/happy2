@@ -205,7 +205,7 @@ it("shows chat/composer contributions for the active chat and releases them on n
     );
     server.respond("GET", "/v0/apps", jsonResponse(200, { apps: [] }));
     server.respond("GET", /^\/v0\/contributions(\?|$)/u, jsonResponse(200, { contributions }));
-    server.respond("GET", /^\/v0\/plugins\/.+\/uiAssets\/.+$/u, jsonResponse(404, {}));
+    server.respond("GET", /^\/v0\/pluginInstallations\/.+\/uiAssets\/.+$/u, jsonResponse(404, {}));
 
     const state = happyStateCreate({ transport: server.transport });
     await state.syncStart();

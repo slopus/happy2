@@ -5,6 +5,26 @@ import type { SandboxTerminalHandle } from "../../sandbox/index.js";
 import { NdjsonStreamTransport } from "./ndjsonStreamTransport.js";
 
 describe("NdjsonStreamTransport", () => {
+    it("forwards stderr chunks to the installation diagnostic collector", async () => {
+        const stdin = new PassThrough();
+        const stdout = new PassThrough();
+        const stderr = new PassThrough();
+        const wait = new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
+            (resolve) => stdin.once("finish", () => resolve({ exitCode: 0, signal: null })),
+        );
+        const chunks: string[] = [];
+        const transport = new NdjsonStreamTransport(
+            { stdin, stdout, stderr, wait, close: () => undefined },
+            (chunk) => chunks.push(chunk),
+        );
+        await transport.start();
+
+        stderr.write("Error: native module failed to load\n");
+
+        expect(chunks).toEqual(["Error: native module failed to load\n"]);
+        await transport.close();
+    });
+
     it("limits individual frames rather than a chunk containing several valid frames", async () => {
         const stdin = new PassThrough();
         const stdout = new PassThrough();

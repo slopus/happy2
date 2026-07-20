@@ -113,7 +113,7 @@ export async function pluginAppInstanceProjectionList(
         .leftJoin(
             pluginUiAssets,
             and(
-                eq(pluginUiAssets.pluginId, pluginInstallations.pluginId),
+                eq(pluginUiAssets.installationId, pluginInstallations.id),
                 eq(pluginUiAssets.assetId, pluginAppInstances.assetId),
             ),
         )

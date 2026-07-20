@@ -54,6 +54,7 @@ describe("external plugins across happy2-state and the real server", () => {
             sourceKind: "github",
         });
         const pluginId = installedStep.installation.pluginId;
+        const installationId = installedStep.installation.id;
         expect(plugins.getState().systemPlugins).toMatchObject({
             type: "ready",
             value: [{ id: pluginId, shortName: "alpha-tools", sourceKind: "github" }],
@@ -78,7 +79,7 @@ describe("external plugins across happy2-state and the real server", () => {
         ]);
         plugins.getState().updateChecksStart();
         await state.whenIdle();
-        expect(plugins.getState().updateChecks.get(pluginId)).toMatchObject({
+        expect(plugins.getState().updateChecks.get(installationId)).toMatchObject({
             status: "checked",
             update: {
                 updateAvailable: true,
@@ -87,8 +88,8 @@ describe("external plugins across happy2-state and the real server", () => {
             },
         });
 
-        // Uninstall removes the system plugin with every linked installation.
-        plugins.getState().pluginUninstall(pluginId);
+        // Uninstalling the last installation removes the plugin durably.
+        plugins.getState().installationUninstall(installationId);
         await state.whenIdle();
         expect(plugins.getState().uninstalling).toEqual([]);
         expect(plugins.getState().actionError).toBeUndefined();

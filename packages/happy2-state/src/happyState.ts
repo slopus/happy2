@@ -201,6 +201,7 @@ import {
     pluginsLoad,
     pluginsOutputRoute,
     pluginsUpdateChecksStop,
+    pluginsUpdateStreamsStop,
 } from "./modules/plugins/pluginsState.js";
 import { chatPluginRequestDecide, chatPluginRequestsLoad } from "./modules/chat/chatState.js";
 import {
@@ -853,9 +854,9 @@ export class HappyState implements AsyncDisposable, Disposable {
         return pluginAppOpen(this.context, instanceId);
     }
 
-    /** Loads one authenticated plugin icon as PNG bytes for a UI-owned blob URL. */
-    async pluginUiAssetRead(pluginId: string, assetId: string): Promise<ArrayBuffer> {
-        return pluginUiAssetRead(this.runtime, pluginId, assetId);
+    /** Loads one authenticated plugin icon as PNG bytes for a UI-owned blob URL, scoped to the installation. */
+    async pluginUiAssetRead(installationId: string, assetId: string): Promise<ArrayBuffer> {
+        return pluginUiAssetRead(this.runtime, installationId, assetId);
     }
 
     /** Opens native contributions visible in one chat, including global contributions. */
@@ -1105,7 +1106,10 @@ export class HappyState implements AsyncDisposable, Disposable {
         if (this.disposed) return;
         this.disposed = true;
         syncStop(this.sync);
-        if (this.pluginsBinding) pluginsUpdateChecksStop(this.pluginsBinding);
+        if (this.pluginsBinding) {
+            pluginsUpdateChecksStop(this.pluginsBinding);
+            pluginsUpdateStreamsStop(this.pluginsBinding);
+        }
         if (this.pluginInstallBinding) pluginInstallPrepareStop(this.pluginInstallBinding);
         this.portShareLease.dispose();
         this.runtime.stop();
@@ -1333,7 +1337,11 @@ export class HappyState implements AsyncDisposable, Disposable {
                     );
                 return;
             case "pluginInstallSubmitted":
-            case "pluginUninstallSubmitted":
+            case "installationUninstallSubmitted":
+            case "installationRetrySubmitted":
+            case "installationUpdateSubmitted":
+            case "installationUpdateCheckSubmitted":
+            case "installationDiagnosticsRequested":
             case "pluginUpdateChecksStarted":
             case "pluginPermissionsUpdateSubmitted":
                 if (this.pluginsBinding)

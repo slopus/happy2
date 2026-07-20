@@ -2,9 +2,11 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import {
     type PluginCatalogItem,
     type PluginHostPermission,
+    type PluginInstallationDiagnostics,
     type PluginInstallationSummary,
     type PluginPrepareProgress,
     type PluginUpdateCheck,
+    type PluginUpdateResult,
     type SystemPluginSummary,
 } from "../../resources.js";
 import { UserError } from "../../types.js";
@@ -18,8 +20,11 @@ export interface PluginsActionContext {
 
 const generations = new WeakMap<PluginsStore, number>();
 
-/** One cancel function per system plugin whose update-check stream is currently open. */
+/** One cancel function per installation whose update-check stream is currently open. */
 const updateCheckStreams = new WeakMap<PluginsStore, Map<string, () => void>>();
+
+/** One cancel function per installation whose update-commit stream is currently open. */
+const updateStreams = new WeakMap<PluginsStore, Map<string, () => void>>();
 
 /**
  * Loads the administrator plugin surface: the built-in catalog with per-package
@@ -44,6 +49,8 @@ export async function pluginsLoad(context: PluginsActionContext): Promise<void> 
                 context.plugins
                     .getState()
                     .pluginsInput({ type: "pluginsLoaded", plugins: result.plugins });
+                if (context.plugins.getState().updateChecksActive)
+                    context.runtime.background(pluginsUpdateChecksEnsure(context));
             } catch (error) {
                 if (current())
                     context.plugins
@@ -72,10 +79,11 @@ export async function pluginsLoad(context: PluginsActionContext): Promise<void> 
 
 /**
  * Routes one typed plugins-surface intent to its durable server action: catalog
- * installs, permission replacements, system-plugin uninstalls, and the automatic
- * update-check watch that runs only while the plugin-management surface is visible.
- * Every durable mutation reconciles the whole surface afterwards so installations,
- * grants, and health stay authoritative.
+ * installs, permission replacements, per-installation upgrades, retries,
+ * uninstalls, on-demand diagnostics, and the automatic update-check watch that
+ * runs only while the plugin-management surface is visible. Every durable
+ * mutation reconciles the whole surface afterwards so installations, grants, and
+ * health stay authoritative.
  */
 export async function pluginsOutputRoute(
     context: PluginsActionContext,
@@ -125,21 +133,62 @@ export async function pluginsOutputRoute(
             }
             return;
         }
-        case "pluginUninstallSubmitted": {
+        case "installationUninstallSubmitted": {
             try {
-                await context.runtime.operation("uninstallPlugin", { pluginId: event.pluginId });
-                updateCheckStreamCancel(context.plugins, event.pluginId);
-                context.plugins
-                    .getState()
-                    .pluginsInput({ type: "pluginUninstalled", pluginId: event.pluginId });
+                await context.runtime.operation("uninstallPluginInstallation", {
+                    installationId: event.installationId,
+                });
+                updateCheckStreamCancel(context.plugins, event.installationId);
+                updateStreamCancel(context.plugins, event.installationId);
+                context.plugins.getState().pluginsInput({
+                    type: "installationUninstalled",
+                    installationId: event.installationId,
+                });
                 await pluginsLoad(context);
             } catch (error) {
                 context.plugins.getState().pluginsInput({
-                    type: "pluginUninstallFailed",
-                    pluginId: event.pluginId,
+                    type: "installationUninstallFailed",
+                    installationId: event.installationId,
                     error: userError(error),
                 });
             }
+            return;
+        }
+        case "installationRetrySubmitted": {
+            try {
+                const result = await context.runtime.operation("retryPluginInstallation", {
+                    installationId: event.installationId,
+                });
+                context.plugins.getState().pluginsInput({
+                    type: "installationRetried",
+                    installation: result.installation,
+                });
+                await pluginsLoad(context);
+                // The retry may have persisted new lastError/diagnosticOutput; refresh
+                // an open Logs panel in place without a close/reopen.
+                installationDiagnosticsRefresh(context, event.installationId);
+            } catch (error) {
+                context.plugins.getState().pluginsInput({
+                    type: "installationRetryFailed",
+                    installationId: event.installationId,
+                    error: userError(error),
+                });
+                installationDiagnosticsRefresh(context, event.installationId);
+            }
+            return;
+        }
+        case "installationUpdateSubmitted": {
+            await updateStreamOpen(context, event.installationId);
+            return;
+        }
+        case "installationUpdateCheckSubmitted": {
+            const streams = updateCheckStreamsFor(context.plugins);
+            updateCheckStreamCancel(context.plugins, event.installationId);
+            await updateCheckStreamOpen(context, streams, event.installationId);
+            return;
+        }
+        case "installationDiagnosticsRequested": {
+            await installationDiagnosticsFetch(context, event.installationId, false);
             return;
         }
         case "pluginUpdateChecksStarted": {
@@ -154,32 +203,31 @@ export async function pluginsOutputRoute(
 }
 
 /**
- * Opens one read-only update-check stream for every installed system plugin
- * that can be compared against its source and has no current result for its
+ * Opens one read-only update-check stream for every installed installation whose
+ * source can be compared remotely and that has no current result for its
  * installed package digest. Progress and terminal results land through the
- * private writer; streams stay registered so stopping the watch or
- * uninstalling the plugin cancels them. Resolves once every stream it opened
- * has terminated or been cancelled.
+ * private writer; streams stay registered so stopping the watch or uninstalling
+ * the installation cancels them. Resolves once every stream it opened has
+ * terminated or been cancelled.
  */
 export async function pluginsUpdateChecksEnsure(context: PluginsActionContext): Promise<void> {
     const snapshot = context.plugins.getState();
-    if (!snapshot.updateChecksActive || snapshot.systemPlugins.type !== "ready") return;
+    if (!snapshot.updateChecksActive) return;
     if (!context.runtime.active) return;
     const streams = updateCheckStreamsFor(context.plugins);
     const pending: Promise<void>[] = [];
-    for (const plugin of snapshot.systemPlugins.value) {
-        if (plugin.sourceKind === "upload") continue;
-        if (streams.has(plugin.id)) continue;
-        const existing = snapshot.updateChecks.get(plugin.id);
+    for (const installation of installationsToCheck(snapshot)) {
+        if (streams.has(installation.id)) continue;
+        const existing = snapshot.updateChecks.get(installation.id);
         if (
             existing &&
             !(
                 existing.status === "checked" &&
-                existing.update.installed.packageDigest !== plugin.packageDigest
+                existing.update.installed.packageDigest !== installation.packageDigest
             )
         )
             continue;
-        pending.push(updateCheckStreamOpen(context, streams, plugin.id));
+        pending.push(updateCheckStreamOpen(context, streams, installation.id));
     }
     await Promise.all(pending);
 }
@@ -188,14 +236,43 @@ export async function pluginsUpdateChecksEnsure(context: PluginsActionContext): 
 export function pluginsUpdateChecksStop(plugins: PluginsStore): void {
     const streams = updateCheckStreams.get(plugins);
     if (!streams) return;
+    // Each cancel deletes its own entry; Map iteration tolerates that, and the
+    // trailing clear() covers any entry a cancel chose not to remove.
     for (const cancel of streams.values()) cancel();
     streams.clear();
+}
+
+/** Cancels every open update-commit stream; the state is being disposed. */
+export function pluginsUpdateStreamsStop(plugins: PluginsStore): void {
+    const streams = updateStreams.get(plugins);
+    if (!streams) return;
+    for (const cancel of streams.values()) cancel();
+    streams.clear();
+}
+
+/** The installations whose remote source supports an update comparison, deduplicated by id. */
+function installationsToCheck(snapshot: PluginsSnapshot): readonly EligibleInstallation[] {
+    if (snapshot.systemPlugins.type !== "ready") return [];
+    const result: EligibleInstallation[] = [];
+    for (const plugin of snapshot.systemPlugins.value)
+        for (const installation of plugin.installations) {
+            const sourceKind = installation.sourceKind ?? plugin.sourceKind;
+            // Uploaded packages have no remote source and are never checked.
+            if (sourceKind === "upload" || sourceKind === "archive") continue;
+            result.push({ id: installation.id, packageDigest: installation.packageDigest });
+        }
+    return result;
+}
+
+interface EligibleInstallation {
+    readonly id: string;
+    readonly packageDigest: string;
 }
 
 function updateCheckStreamOpen(
     context: PluginsActionContext,
     streams: Map<string, () => void>,
-    pluginId: string,
+    installationId: string,
 ): Promise<void> {
     let terminalResolve!: () => void;
     const terminal = new Promise<void>((resolve) => {
@@ -205,20 +282,22 @@ function updateCheckStreamOpen(
     const settle = () => {
         if (settled) return;
         settled = true;
-        streams.delete(pluginId);
+        streams.delete(installationId);
         terminalResolve();
     };
-    context.plugins.getState().pluginsInput({ type: "pluginUpdateCheckStarted", pluginId });
+    context.plugins
+        .getState()
+        .pluginsInput({ type: "installationUpdateCheckStarted", installationId });
     const cancel = context.runtime.operationStream(
-        "checkPluginUpdate",
-        { pluginId },
+        "checkPluginInstallationUpdate",
+        { installationId },
         {
             onEvent: (event) => {
                 if (settled) return;
                 if (event.event === "progress") {
                     context.plugins.getState().pluginsInput({
-                        type: "pluginUpdateCheckProgressed",
-                        pluginId,
+                        type: "installationUpdateCheckProgressed",
+                        installationId,
                         progress: event.data as PluginPrepareProgress,
                     });
                     return;
@@ -226,8 +305,8 @@ function updateCheckStreamOpen(
                 if (event.event === "checked") {
                     const data = event.data as { readonly update: PluginUpdateCheck };
                     context.plugins.getState().pluginsInput({
-                        type: "pluginUpdateChecked",
-                        pluginId,
+                        type: "installationUpdateChecked",
+                        installationId,
                         update: data.update,
                     });
                     settle();
@@ -239,8 +318,8 @@ function updateCheckStreamOpen(
                         readonly message?: string;
                     };
                     context.plugins.getState().pluginsInput({
-                        type: "pluginUpdateCheckFailed",
-                        pluginId,
+                        type: "installationUpdateCheckFailed",
+                        installationId,
                         error: new UserError(
                             data.message ?? "The update check failed.",
                             data.error,
@@ -252,8 +331,8 @@ function updateCheckStreamOpen(
             onEnd: () => {
                 if (settled) return;
                 context.plugins.getState().pluginsInput({
-                    type: "pluginUpdateCheckFailed",
-                    pluginId,
+                    type: "installationUpdateCheckFailed",
+                    installationId,
                     error: new UserError("The update check ended before a result arrived."),
                 });
                 settle();
@@ -262,18 +341,111 @@ function updateCheckStreamOpen(
                 if (settled) return;
                 context.plugins
                     .getState()
-                    .pluginsInput({ type: "pluginUpdateCheckFailed", pluginId, error });
+                    .pluginsInput({ type: "installationUpdateCheckFailed", installationId, error });
                 settle();
             },
         },
     );
-    streams.set(pluginId, () => {
+    streams.set(installationId, () => {
         settled = true;
-        streams.delete(pluginId);
+        streams.delete(installationId);
         cancel();
         terminalResolve();
     });
-    if (settled) streams.delete(pluginId);
+    if (settled) streams.delete(installationId);
+    return terminal;
+}
+
+/**
+ * Opens one update-commit stream for a single installation. Progress lands
+ * through the private writer; a terminal `updated` reconciles the surface and a
+ * `failed` result becomes a displayable per-installation error. The stream is
+ * registered so unwatching or uninstalling cancels it.
+ */
+function updateStreamOpen(context: PluginsActionContext, installationId: string): Promise<void> {
+    const streams = updateStreamsFor(context.plugins);
+    if (streams.has(installationId)) return Promise.resolve();
+    let terminalResolve!: () => void;
+    const terminal = new Promise<void>((resolve) => {
+        terminalResolve = resolve;
+    });
+    let settled = false;
+    const settle = () => {
+        if (settled) return;
+        settled = true;
+        streams.delete(installationId);
+        terminalResolve();
+        // A terminal update result may have persisted new lastError/diagnosticOutput;
+        // refresh an open Logs panel in place without a close/reopen.
+        installationDiagnosticsRefresh(context, installationId);
+    };
+    context.plugins.getState().pluginsInput({ type: "installationUpdateStarted", installationId });
+    const cancel = context.runtime.operationStream(
+        "updatePluginInstallation",
+        { installationId },
+        {
+            onEvent: (event) => {
+                if (settled) return;
+                if (event.event === "progress") {
+                    context.plugins.getState().pluginsInput({
+                        type: "installationUpdateProgressed",
+                        installationId,
+                        progress: event.data as PluginPrepareProgress,
+                    });
+                    return;
+                }
+                if (event.event === "updated") {
+                    const data = event.data as { readonly update: PluginUpdateResult };
+                    context.plugins.getState().pluginsInput({
+                        type: "installationUpdated",
+                        installationId,
+                        update: data.update,
+                    });
+                    settle();
+                    context.runtime.background(pluginsLoad(context));
+                    return;
+                }
+                if (event.event === "failed") {
+                    const data = event.data as {
+                        readonly error?: string;
+                        readonly message?: string;
+                    };
+                    context.plugins.getState().pluginsInput({
+                        type: "installationUpdateFailed",
+                        installationId,
+                        error: new UserError(
+                            data.message ?? "The plugin update failed.",
+                            data.error,
+                        ),
+                    });
+                    settle();
+                }
+            },
+            onEnd: () => {
+                if (settled) return;
+                context.plugins.getState().pluginsInput({
+                    type: "installationUpdateFailed",
+                    installationId,
+                    error: new UserError("The plugin update ended before a result arrived."),
+                });
+                settle();
+            },
+            onError: (error) => {
+                if (settled) return;
+                context.plugins
+                    .getState()
+                    .pluginsInput({ type: "installationUpdateFailed", installationId, error });
+                settle();
+            },
+        },
+    );
+    streams.set(installationId, () => {
+        settled = true;
+        streams.delete(installationId);
+        cancel();
+        terminalResolve();
+    });
+    if (settled) streams.delete(installationId);
     return terminal;
 }
 
@@ -286,9 +458,70 @@ function updateCheckStreamsFor(plugins: PluginsStore): Map<string, () => void> {
     return streams;
 }
 
-function updateCheckStreamCancel(plugins: PluginsStore, pluginId: string): void {
-    const cancel = updateCheckStreams.get(plugins)?.get(pluginId);
+function updateStreamsFor(plugins: PluginsStore): Map<string, () => void> {
+    let streams = updateStreams.get(plugins);
+    if (!streams) {
+        streams = new Map();
+        updateStreams.set(plugins, streams);
+    }
+    return streams;
+}
+
+function updateCheckStreamCancel(plugins: PluginsStore, installationId: string): void {
+    const cancel = updateCheckStreams.get(plugins)?.get(installationId);
     if (cancel) cancel();
+}
+
+function updateStreamCancel(plugins: PluginsStore, installationId: string): void {
+    const cancel = updateStreams.get(plugins)?.get(installationId);
+    if (cancel) cancel();
+}
+
+/**
+ * Reads durable diagnostics for one installation and lands the result through the
+ * private writer. When `requireMaterialized` is set, a result is only written if a
+ * diagnostics panel is still open for that installation, so a background refresh
+ * never resurrects a panel the user closed (or an installation that was removed).
+ */
+async function installationDiagnosticsFetch(
+    context: PluginsActionContext,
+    installationId: string,
+    requireMaterialized: boolean,
+): Promise<void> {
+    const open = () => context.plugins.getState().diagnostics.has(installationId);
+    try {
+        const result = await context.runtime.operation("getPluginInstallationDiagnostics", {
+            installationId,
+        });
+        if (requireMaterialized && !open()) return;
+        context.plugins.getState().pluginsInput({
+            type: "installationDiagnosticsLoaded",
+            installationId,
+            diagnostics: result.diagnostics,
+        });
+    } catch (error) {
+        if (requireMaterialized && !open()) return;
+        context.plugins
+            .getState()
+            .pluginsInput({
+                type: "installationDiagnosticsFailed",
+                installationId,
+                error: userError(error),
+            });
+    }
+}
+
+/**
+ * Re-reads diagnostics only for an already-materialized panel, in the background
+ * and without flashing a loading state, so a retry or update terminal refreshes an
+ * open Logs view in place. A closed panel is left untouched.
+ */
+function installationDiagnosticsRefresh(
+    context: PluginsActionContext,
+    installationId: string,
+): void {
+    if (!context.plugins.getState().diagnostics.has(installationId)) return;
+    context.runtime.background(installationDiagnosticsFetch(context, installationId, true));
 }
 
 /** Creates the plugin catalog surface; secret variable values exist only transiently inside the typed install output event. */
@@ -300,9 +533,12 @@ export function pluginsStoreCreate(
         systemPlugins: { type: "unloaded" },
         installing: [],
         uninstalling: [],
+        retrying: [],
         updatingPermissions: [],
         updateChecksActive: false,
         updateChecks: new Map(),
+        updating: new Map(),
+        diagnostics: new Map(),
         pluginInstall(shortName, variables, permissions, containerImageId): void {
             set((snapshot) => ({
                 ...snapshot,
@@ -332,14 +568,45 @@ export function pluginsStoreCreate(
                 permissions: [...permissions],
             });
         },
-        pluginUninstall(pluginId): void {
-            if (get().uninstalling.includes(pluginId)) return;
+        installationUninstall(installationId): void {
+            if (get().uninstalling.includes(installationId)) return;
             set((snapshot) => ({
                 ...snapshot,
-                uninstalling: [...snapshot.uninstalling, pluginId],
+                uninstalling: [...snapshot.uninstalling, installationId],
                 actionError: undefined,
             }));
-            output({ type: "pluginUninstallSubmitted", pluginId });
+            output({ type: "installationUninstallSubmitted", installationId });
+        },
+        installationRetry(installationId): void {
+            if (get().retrying.includes(installationId)) return;
+            set((snapshot) => ({
+                ...snapshot,
+                retrying: [...snapshot.retrying, installationId],
+                actionError: undefined,
+            }));
+            output({ type: "installationRetrySubmitted", installationId });
+        },
+        installationUpdate(installationId): void {
+            const current = get().updating.get(installationId);
+            if (current?.status === "updating") return;
+            set((snapshot) => ({
+                ...snapshot,
+                updating: mapSet(snapshot.updating, installationId, { status: "updating" }),
+                actionError: undefined,
+            }));
+            output({ type: "installationUpdateSubmitted", installationId });
+        },
+        installationUpdateCheck(installationId): void {
+            output({ type: "installationUpdateCheckSubmitted", installationId });
+        },
+        installationDiagnosticsLoad(installationId): void {
+            const current = get().diagnostics.get(installationId);
+            if (current?.status === "loading") return;
+            set((snapshot) => ({
+                ...snapshot,
+                diagnostics: mapSet(snapshot.diagnostics, installationId, { status: "loading" }),
+            }));
+            output({ type: "installationDiagnosticsRequested", installationId });
         },
         updateChecksStart(): void {
             if (get().updateChecksActive) return;
@@ -431,63 +698,133 @@ export function pluginsStoreCreate(
                             ),
                             actionError: event.error,
                         };
-                    case "pluginUninstalled":
+                    case "installationRetried":
                         return {
                             ...snapshot,
-                            uninstalling: snapshot.uninstalling.filter(
-                                (pluginId) => pluginId !== event.pluginId,
+                            retrying: snapshot.retrying.filter(
+                                (installationId) => installationId !== event.installation.id,
                             ),
-                            systemPlugins:
-                                snapshot.systemPlugins.type === "ready"
-                                    ? {
-                                          type: "ready",
-                                          value: snapshot.systemPlugins.value.filter(
-                                              (plugin) => plugin.id !== event.pluginId,
-                                          ),
-                                      }
-                                    : snapshot.systemPlugins,
-                            catalog: systemPluginRemove(snapshot.catalog, event.pluginId),
-                            updateChecks: mapDelete(snapshot.updateChecks, event.pluginId),
+                            catalog: installationUpsert(snapshot.catalog, event.installation),
+                            systemPlugins: systemInstallationUpsert(
+                                snapshot.systemPlugins,
+                                event.installation,
+                            ),
                             actionError: undefined,
                         };
-                    case "pluginUninstallFailed":
+                    case "installationRetryFailed":
                         return {
                             ...snapshot,
-                            uninstalling: snapshot.uninstalling.filter(
-                                (pluginId) => pluginId !== event.pluginId,
+                            retrying: snapshot.retrying.filter(
+                                (installationId) => installationId !== event.installationId,
                             ),
                             actionError: event.error,
                         };
-                    case "pluginUpdateCheckStarted":
+                    case "installationUninstalled":
                         return {
                             ...snapshot,
-                            updateChecks: mapSet(snapshot.updateChecks, event.pluginId, {
+                            uninstalling: snapshot.uninstalling.filter(
+                                (installationId) => installationId !== event.installationId,
+                            ),
+                            catalog: installationRemove(snapshot.catalog, event.installationId),
+                            systemPlugins: systemInstallationRemove(
+                                snapshot.systemPlugins,
+                                event.installationId,
+                            ),
+                            updateChecks: mapDelete(snapshot.updateChecks, event.installationId),
+                            updating: mapDelete(snapshot.updating, event.installationId),
+                            diagnostics: mapDelete(snapshot.diagnostics, event.installationId),
+                            actionError: undefined,
+                        };
+                    case "installationUninstallFailed":
+                        return {
+                            ...snapshot,
+                            uninstalling: snapshot.uninstalling.filter(
+                                (installationId) => installationId !== event.installationId,
+                            ),
+                            actionError: event.error,
+                        };
+                    case "installationUpdateStarted":
+                        return {
+                            ...snapshot,
+                            updating: mapSet(snapshot.updating, event.installationId, {
+                                status: "updating",
+                            }),
+                        };
+                    case "installationUpdateProgressed": {
+                        const current = snapshot.updating.get(event.installationId);
+                        if (current?.status !== "updating") return snapshot;
+                        return {
+                            ...snapshot,
+                            updating: mapSet(snapshot.updating, event.installationId, {
+                                status: "updating",
+                                progress: event.progress,
+                            }),
+                        };
+                    }
+                    case "installationUpdated":
+                        return {
+                            ...snapshot,
+                            updating: mapDelete(snapshot.updating, event.installationId),
+                            // The committed digest changed; drop the stale check result so
+                            // the next watch re-checks against the new package.
+                            updateChecks: mapDelete(snapshot.updateChecks, event.installationId),
+                            actionError: undefined,
+                        };
+                    case "installationUpdateFailed":
+                        return {
+                            ...snapshot,
+                            updating: mapSet(snapshot.updating, event.installationId, {
+                                status: "failed",
+                                error: event.error,
+                            }),
+                            actionError: event.error,
+                        };
+                    case "installationDiagnosticsLoaded":
+                        return {
+                            ...snapshot,
+                            diagnostics: mapSet(snapshot.diagnostics, event.installationId, {
+                                status: "ready",
+                                diagnostics: event.diagnostics,
+                            }),
+                        };
+                    case "installationDiagnosticsFailed":
+                        return {
+                            ...snapshot,
+                            diagnostics: mapSet(snapshot.diagnostics, event.installationId, {
+                                status: "failed",
+                                error: event.error,
+                            }),
+                        };
+                    case "installationUpdateCheckStarted":
+                        return {
+                            ...snapshot,
+                            updateChecks: mapSet(snapshot.updateChecks, event.installationId, {
                                 status: "checking",
                             }),
                         };
-                    case "pluginUpdateCheckProgressed": {
-                        const current = snapshot.updateChecks.get(event.pluginId);
+                    case "installationUpdateCheckProgressed": {
+                        const current = snapshot.updateChecks.get(event.installationId);
                         if (current?.status !== "checking") return snapshot;
                         return {
                             ...snapshot,
-                            updateChecks: mapSet(snapshot.updateChecks, event.pluginId, {
+                            updateChecks: mapSet(snapshot.updateChecks, event.installationId, {
                                 status: "checking",
                                 progress: event.progress,
                             }),
                         };
                     }
-                    case "pluginUpdateChecked":
+                    case "installationUpdateChecked":
                         return {
                             ...snapshot,
-                            updateChecks: mapSet(snapshot.updateChecks, event.pluginId, {
+                            updateChecks: mapSet(snapshot.updateChecks, event.installationId, {
                                 status: "checked",
                                 update: event.update,
                             }),
                         };
-                    case "pluginUpdateCheckFailed":
+                    case "installationUpdateCheckFailed":
                         return {
                             ...snapshot,
-                            updateChecks: mapSet(snapshot.updateChecks, event.pluginId, {
+                            updateChecks: mapSet(snapshot.updateChecks, event.installationId, {
                                 status: "failed",
                                 error: event.error,
                             }),
@@ -521,17 +858,36 @@ function installationUpsert(
     };
 }
 
-function systemPluginRemove(
+function installationRemove(
     catalog: Loadable<readonly PluginCatalogItem[]>,
-    pluginId: string,
+    installationId: string,
 ): Loadable<readonly PluginCatalogItem[]> {
     if (catalog.type !== "ready") return catalog;
-    if (!catalog.value.some((item) => item.systemPlugin?.id === pluginId)) return catalog;
+    if (
+        !catalog.value.some((item) =>
+            item.systemPlugin?.installations.some(
+                (installation) => installation.id === installationId,
+            ),
+        )
+    )
+        return catalog;
     return {
         type: "ready",
-        value: catalog.value.map((item) =>
-            item.systemPlugin?.id === pluginId ? { ...item, systemPlugin: undefined } : item,
-        ),
+        value: catalog.value.map((item) => {
+            if (
+                !item.systemPlugin ||
+                !item.systemPlugin.installations.some(
+                    (installation) => installation.id === installationId,
+                )
+            )
+                return item;
+            const installations = item.systemPlugin.installations.filter(
+                (installation) => installation.id !== installationId,
+            );
+            // The server removes the plugin row once its last installation is gone.
+            if (installations.length === 0) return { ...item, systemPlugin: undefined };
+            return { ...item, systemPlugin: { ...item.systemPlugin, installations } };
+        }),
     };
 }
 
@@ -555,32 +911,51 @@ function systemInstallationUpsert(
     };
 }
 
-function mapSet(
-    map: ReadonlyMap<string, PluginUpdateCheckState>,
-    key: string,
-    value: PluginUpdateCheckState,
-): ReadonlyMap<string, PluginUpdateCheckState> {
+function systemInstallationRemove(
+    plugins: Loadable<readonly SystemPluginSummary[]>,
+    installationId: string,
+): Loadable<readonly SystemPluginSummary[]> {
+    if (plugins.type !== "ready") return plugins;
+    if (
+        !plugins.value.some((plugin) =>
+            plugin.installations.some((installation) => installation.id === installationId),
+        )
+    )
+        return plugins;
+    return {
+        type: "ready",
+        value: plugins.value.flatMap((plugin) => {
+            if (!plugin.installations.some((installation) => installation.id === installationId))
+                return [plugin];
+            const installations = plugin.installations.filter(
+                (installation) => installation.id !== installationId,
+            );
+            // The server removes the plugin row once its last installation is gone.
+            if (installations.length === 0) return [];
+            return [{ ...plugin, installations }];
+        }),
+    };
+}
+
+function mapSet<V>(map: ReadonlyMap<string, V>, key: string, value: V): ReadonlyMap<string, V> {
     const next = new Map(map);
     next.set(key, value);
     return next;
 }
 
-function mapDelete(
-    map: ReadonlyMap<string, PluginUpdateCheckState>,
-    key: string,
-): ReadonlyMap<string, PluginUpdateCheckState> {
+function mapDelete<V>(map: ReadonlyMap<string, V>, key: string): ReadonlyMap<string, V> {
     if (!map.has(key)) return map;
     const next = new Map(map);
     next.delete(key);
     return next;
 }
 
-function mapWithout(
-    map: ReadonlyMap<string, PluginUpdateCheckState>,
-    remove: (state: PluginUpdateCheckState) => boolean,
-): ReadonlyMap<string, PluginUpdateCheckState> {
+function mapWithout<V>(
+    map: ReadonlyMap<string, V>,
+    remove: (state: V) => boolean,
+): ReadonlyMap<string, V> {
     if (![...map.values()].some(remove)) return map;
-    const next = new Map<string, PluginUpdateCheckState>();
+    const next = new Map<string, V>();
     for (const [key, state] of map) if (!remove(state)) next.set(key, state);
     return next;
 }
@@ -590,20 +965,35 @@ export type PluginUpdateCheckState =
     | { readonly status: "checked"; readonly update: PluginUpdateCheck }
     | { readonly status: "failed"; readonly error: UserError };
 
+export type PluginInstallationUpdateState =
+    | { readonly status: "updating"; readonly progress?: PluginPrepareProgress }
+    | { readonly status: "failed"; readonly error: UserError };
+
+export type PluginDiagnosticsState =
+    | { readonly status: "loading" }
+    | { readonly status: "ready"; readonly diagnostics: PluginInstallationDiagnostics }
+    | { readonly status: "failed"; readonly error: UserError };
+
 export interface PluginsSnapshot {
     readonly catalog: Loadable<readonly PluginCatalogItem[]>;
     /** Persisted system plugins, including externally sourced packages absent from the catalog. */
     readonly systemPlugins: Loadable<readonly SystemPluginSummary[]>;
     /** Catalog short names whose install request is still in flight. */
     readonly installing: readonly string[];
-    /** System plugin IDs whose uninstall request is still in flight. */
+    /** Installation IDs whose uninstall request is still in flight. */
     readonly uninstalling: readonly string[];
+    /** Installation IDs whose retry request is still in flight. */
+    readonly retrying: readonly string[];
     /** Installation IDs whose permission replacement is still in flight. */
     readonly updatingPermissions: readonly string[];
     /** True while the plugin-management surface is visible and automatic update checks run. */
     readonly updateChecksActive: boolean;
-    /** The latest automatic remote update check per system plugin ID. */
+    /** The latest automatic or manual remote update check per installation ID. */
     readonly updateChecks: ReadonlyMap<string, PluginUpdateCheckState>;
+    /** In-flight or failed update-commit operations per installation ID. */
+    readonly updating: ReadonlyMap<string, PluginInstallationUpdateState>;
+    /** On-demand diagnostics per installation ID. */
+    readonly diagnostics: ReadonlyMap<string, PluginDiagnosticsState>;
     readonly actionError?: UserError;
 }
 
@@ -620,7 +1010,11 @@ export type PluginsOutput =
           readonly installationId: string;
           readonly permissions: readonly PluginHostPermission[];
       }
-    | { readonly type: "pluginUninstallSubmitted"; readonly pluginId: string }
+    | { readonly type: "installationUninstallSubmitted"; readonly installationId: string }
+    | { readonly type: "installationRetrySubmitted"; readonly installationId: string }
+    | { readonly type: "installationUpdateSubmitted"; readonly installationId: string }
+    | { readonly type: "installationUpdateCheckSubmitted"; readonly installationId: string }
+    | { readonly type: "installationDiagnosticsRequested"; readonly installationId: string }
     | { readonly type: "pluginUpdateChecksStarted" }
     | { readonly type: "pluginUpdateChecksStopped" };
 
@@ -653,26 +1047,61 @@ export type PluginsInput =
           readonly installationId: string;
           readonly error: UserError;
       }
-    | { readonly type: "pluginUninstalled"; readonly pluginId: string }
     | {
-          readonly type: "pluginUninstallFailed";
-          readonly pluginId: string;
+          readonly type: "installationRetried";
+          readonly installation: PluginInstallationSummary;
+      }
+    | {
+          readonly type: "installationRetryFailed";
+          readonly installationId: string;
           readonly error: UserError;
       }
-    | { readonly type: "pluginUpdateCheckStarted"; readonly pluginId: string }
+    | { readonly type: "installationUninstalled"; readonly installationId: string }
     | {
-          readonly type: "pluginUpdateCheckProgressed";
-          readonly pluginId: string;
+          readonly type: "installationUninstallFailed";
+          readonly installationId: string;
+          readonly error: UserError;
+      }
+    | { readonly type: "installationUpdateStarted"; readonly installationId: string }
+    | {
+          readonly type: "installationUpdateProgressed";
+          readonly installationId: string;
           readonly progress: PluginPrepareProgress;
       }
     | {
-          readonly type: "pluginUpdateChecked";
-          readonly pluginId: string;
+          readonly type: "installationUpdated";
+          readonly installationId: string;
+          readonly update: PluginUpdateResult;
+      }
+    | {
+          readonly type: "installationUpdateFailed";
+          readonly installationId: string;
+          readonly error: UserError;
+      }
+    | {
+          readonly type: "installationDiagnosticsLoaded";
+          readonly installationId: string;
+          readonly diagnostics: PluginInstallationDiagnostics;
+      }
+    | {
+          readonly type: "installationDiagnosticsFailed";
+          readonly installationId: string;
+          readonly error: UserError;
+      }
+    | { readonly type: "installationUpdateCheckStarted"; readonly installationId: string }
+    | {
+          readonly type: "installationUpdateCheckProgressed";
+          readonly installationId: string;
+          readonly progress: PluginPrepareProgress;
+      }
+    | {
+          readonly type: "installationUpdateChecked";
+          readonly installationId: string;
           readonly update: PluginUpdateCheck;
       }
     | {
-          readonly type: "pluginUpdateCheckFailed";
-          readonly pluginId: string;
+          readonly type: "installationUpdateCheckFailed";
+          readonly installationId: string;
           readonly error: UserError;
       };
 
@@ -687,7 +1116,16 @@ export interface PluginsState extends PluginsSnapshot {
         installationId: string,
         permissions: readonly PluginHostPermission[],
     ): void;
-    pluginUninstall(pluginId: string): void;
+    /** Uninstalls one installation; the plugin disappears only when its last installation is gone. */
+    installationUninstall(installationId: string): void;
+    /** Retries activation of a failed or broken installation in place. */
+    installationRetry(installationId: string): void;
+    /** Downloads and commits the remote update for one installation, streaming progress. */
+    installationUpdate(installationId: string): void;
+    /** Re-runs the remote update comparison for one installation on demand. */
+    installationUpdateCheck(installationId: string): void;
+    /** Loads the durable diagnostics/log output for one installation on demand. */
+    installationDiagnosticsLoad(installationId: string): void;
     /** The plugin-management surface became visible; automatic update checks may run. */
     updateChecksStart(): void;
     /** The plugin-management surface is no longer visible; automatic update checks stop. */

@@ -217,17 +217,29 @@
 
 .happy2-plugin-catalog-panel__installations {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
+    flex-direction: column;
+    gap: 8px;
     min-width: 0;
-    padding-top: 2px;
+    padding-top: 4px;
 }
 
 .happy2-plugin-catalog-panel__installation {
     display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    background: var(--happy2-bg-inset);
+    border: 1px solid var(--happy2-border);
+    border-radius: var(--happy2-radius-sm);
+    min-width: 0;
+}
+
+.happy2-plugin-catalog-panel__installation-summary {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
+    min-width: 0;
 }
 
 .happy2-plugin-catalog-panel__installation-health {
@@ -242,6 +254,44 @@
     line-height: 16px;
     color: var(--happy2-text-muted);
     font-variant-numeric: tabular-nums;
+}
+
+.happy2-plugin-catalog-panel__installation-code {
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--happy2-text-muted);
+    letter-spacing: 0.02em;
+}
+
+.happy2-plugin-catalog-panel__installation-detail {
+    color: var(--happy2-text-secondary);
+    font-size: 12px;
+    line-height: 16px;
+    word-break: break-word;
+}
+
+.happy2-plugin-catalog-panel__installation-progress {
+    color: var(--happy2-text-muted);
+    font-family: var(--happy2-font-mono);
+    font-size: 12px;
+    line-height: 16px;
+    word-break: break-word;
+}
+
+.happy2-plugin-catalog-panel__installation-error {
+    color: var(--happy2-danger);
+    font-size: 12px;
+    line-height: 16px;
+    word-break: break-word;
+}
+
+.happy2-plugin-catalog-panel__installation-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
 }
 
 .happy2-plugin-catalog-panel__card-actions {

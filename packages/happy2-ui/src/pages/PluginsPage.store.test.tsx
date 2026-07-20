@@ -222,10 +222,10 @@ it("starts automatic update checks on mount, never duplicates them, and stops on
     // Authoritative reconciliation and check-progress notifications rerender
     // the page without restarting the watch or duplicating transport intent.
     plugins.input({ type: "systemPluginsLoaded", plugins: [systemPlugin()] });
-    plugins.input({ type: "pluginUpdateCheckStarted", pluginId: "plugin-repo" });
+    plugins.input({ type: "installationUpdateCheckStarted", installationId: "ins-1" });
     plugins.input({
-        type: "pluginUpdateCheckProgressed",
-        pluginId: "plugin-repo",
+        type: "installationUpdateCheckProgressed",
+        installationId: "ins-1",
         progress: { stage: "downloading", detail: "Downloading", receivedBytes: 1, totalBytes: 2 },
     });
     await view.ready();
@@ -271,26 +271,32 @@ it("keeps row DOM identity while automatic update checks stream through their st
     expect(row.textContent).toContain("Repo Tools");
     expect(row.textContent).toContain("GitHub");
 
+    const installation = () => view.container.querySelector('[data-installation-id="ins-1"]')!;
+    const firstInstallation = installation();
     const updateBadge = () =>
-        row.querySelector('[data-happy2-ui="plugin-catalog-update-check"]')?.textContent;
-    plugins.input({ type: "pluginUpdateCheckStarted", pluginId: "plugin-repo" });
+        row.querySelector('[data-happy2-ui="plugin-installation-update-check"]')?.textContent;
+    plugins.input({ type: "installationUpdateCheckStarted", installationId: "ins-1" });
     await view.ready();
     expect(view.container.querySelector('[data-plugin-short-name="repo-tools"]')).toBe(row);
+    expect(installation()).toBe(firstInstallation);
     expect(updateBadge()).toContain("Checking for update…");
     plugins.input({
-        type: "pluginUpdateCheckProgressed",
-        pluginId: "plugin-repo",
+        type: "installationUpdateCheckProgressed",
+        installationId: "ins-1",
         progress: { stage: "downloading", detail: "Downloading remote package" },
     });
     await view.ready();
     expect(
-        row.querySelector('[data-happy2-ui="plugin-catalog-update-check"]')!.getAttribute("title"),
+        row
+            .querySelector('[data-happy2-ui="plugin-installation-update-check"]')!
+            .getAttribute("title"),
     ).toBe("Downloading remote package");
 
     plugins.input({
-        type: "pluginUpdateChecked",
-        pluginId: "plugin-repo",
+        type: "installationUpdateChecked",
+        installationId: "ins-1",
         update: {
+            installationId: "ins-1",
             pluginId: "plugin-repo",
             checkedAt: "2026-01-02T00:00:00.000Z",
             updateAvailable: true,
@@ -300,24 +306,35 @@ it("keeps row DOM identity while automatic update checks stream through their st
     });
     await view.ready();
     expect(view.container.querySelector('[data-plugin-short-name="repo-tools"]')).toBe(row);
+    expect(installation()).toBe(firstInstallation);
     expect(updateBadge()).toContain("Update v1.1.0 available");
+    // The update becomes actionable on the installation itself.
+    expect(
+        installation().querySelector<HTMLButtonElement>(
+            '[data-testid="plugin-installation-update"]',
+        )!.textContent,
+    ).toContain("Update to v1.1.0");
 
     plugins.input({
-        type: "pluginUpdateCheckFailed",
-        pluginId: "plugin-repo",
+        type: "installationUpdateCheckFailed",
+        installationId: "ins-1",
         error: new UserError("The installed plugin path no longer exists remotely"),
     });
     await view.ready();
     expect(view.container.querySelector('[data-plugin-short-name="repo-tools"]')).toBe(row);
+    expect(installation()).toBe(firstInstallation);
     expect(updateBadge()).toContain("Update check failed");
     expect(
-        row.querySelector('[data-happy2-ui="plugin-catalog-update-check"]')!.getAttribute("title"),
+        row
+            .querySelector('[data-happy2-ui="plugin-installation-update-check"]')!
+            .getAttribute("title"),
     ).toBe("The installed plugin path no longer exists remotely");
 
     plugins.input({
-        type: "pluginUpdateChecked",
-        pluginId: "plugin-repo",
+        type: "installationUpdateChecked",
+        installationId: "ins-1",
         update: {
+            installationId: "ins-1",
             pluginId: "plugin-repo",
             checkedAt: "2026-01-02T00:00:00.000Z",
             updateAvailable: false,
@@ -327,6 +344,7 @@ it("keeps row DOM identity while automatic update checks stream through their st
     });
     await view.ready();
     expect(view.container.querySelector('[data-plugin-short-name="repo-tools"]')).toBe(row);
+    expect(installation()).toBe(firstInstallation);
     expect(updateBadge()).toContain("Up to date");
 }, 120_000);
 
@@ -369,7 +387,9 @@ it("projects a system plugin represented by the catalog once and keeps uninstall
     const rows = view.container.querySelectorAll('[data-plugin-short-name="repo-tools"]');
     expect(rows).toHaveLength(1);
     expect(rows[0]!.textContent).toContain("GitHub");
-    rows[0]!.querySelector<HTMLButtonElement>('[data-testid="plugin-catalog-uninstall"]')!.click();
+    rows[0]!
+        .querySelector<HTMLButtonElement>('[data-testid="plugin-installation-uninstall"]')!
+        .click();
     await view.ready();
     expect(
         view.container.querySelector('[data-happy2-ui="plugin-uninstall-message"]')!.textContent,
@@ -597,15 +617,17 @@ it("confirms destructive uninstall with pending, failure, and closing on complet
     expect(outputs).toEqual([{ type: "pluginUpdateChecksStarted" }]);
     outputs.length = 0;
 
-    // Opening the confirmation names the exact installation count.
+    // Opening the confirmation names the exact installation being removed.
     view.container
-        .querySelector<HTMLButtonElement>('[data-testid="plugin-catalog-uninstall"]')!
+        .querySelector<HTMLButtonElement>('[data-testid="plugin-installation-uninstall"]')!
         .click();
     await view.ready();
     const message = view.container.querySelector('[data-happy2-ui="plugin-uninstall-message"]')!;
-    expect(message.textContent).toContain("its 1 installation");
+    expect(message.textContent).toContain("v1.0.0 installation");
     expect(message.textContent).toContain("Repo Tools");
     expect(message.textContent).toContain("/workspace");
+    // It is the last installation, so the plugin and package are removed too.
+    expect(message.textContent).toContain("last installation");
 
     // Confirming routes the typed intent and disables the dialog while pending.
     const confirm = view.container.querySelector<HTMLButtonElement>(
@@ -613,36 +635,116 @@ it("confirms destructive uninstall with pending, failure, and closing on complet
     )!;
     confirm.click();
     await view.ready();
-    expect(outputs).toEqual([{ type: "pluginUninstallSubmitted", pluginId: "plugin-repo" }]);
+    expect(outputs).toEqual([{ type: "installationUninstallSubmitted", installationId: "ins-1" }]);
     expect(confirm.disabled).toBe(true);
     expect(confirm.textContent).toContain("Uninstalling…");
-    // The row action mirrors the pending state.
+    // The installation action mirrors the pending state.
     expect(
-        view.container.querySelector<HTMLButtonElement>('[data-testid="plugin-catalog-uninstall"]')!
-            .disabled,
+        view.container.querySelector<HTMLButtonElement>(
+            '[data-testid="plugin-installation-uninstall"]',
+        )!.disabled,
     ).toBe(true);
 
     // A terminal failure re-enables the dialog and shows the displayable error.
     plugins.input({
-        type: "pluginUninstallFailed",
-        pluginId: "plugin-repo",
-        error: new UserError("System plugin was not found"),
+        type: "installationUninstallFailed",
+        installationId: "ins-1",
+        error: new UserError("Plugin installation was not found"),
     });
     await view.ready();
     expect(
         view.container.querySelector('[data-testid="plugin-uninstall-error"]')!.textContent,
-    ).toContain("System plugin was not found");
+    ).toContain("Plugin installation was not found");
     expect(
         view.container.querySelector<HTMLButtonElement>('[data-testid="plugin-uninstall-confirm"]')!
             .disabled,
     ).toBe(false);
 
-    // A successful uninstall removes the plugin and closes the confirmation.
+    // A successful uninstall removes the last installation, dropping the plugin,
+    // and closes the confirmation.
     view.container
         .querySelector<HTMLButtonElement>('[data-testid="plugin-uninstall-confirm"]')!
         .click();
-    plugins.input({ type: "pluginUninstalled", pluginId: "plugin-repo" });
+    plugins.input({ type: "installationUninstalled", installationId: "ins-1" });
     await view.ready();
     expect(view.container.querySelector('[data-happy2-ui="modal-overlay"]')).toBeNull();
     expect(view.container.querySelector('[data-plugin-short-name="repo-tools"]')).toBeNull();
+}, 120_000);
+
+it("shows each installation's stable short id and refreshes an open Logs panel in place", async () => {
+    const plugins = owned(pluginsStoreFixtureCreate());
+    const install = owned(pluginInstallStoreFixtureCreate());
+    const images = owned(agentImagesStoreFixtureCreate());
+    plugins.input({ type: "pluginsLoaded", plugins: [] });
+    plugins.input({ type: "systemPluginsLoaded", plugins: [systemPlugin()] });
+    const view = createRenderer().render(
+        () => (
+            <div style={{ display: "flex", width: "880px" }}>
+                <PluginsPage
+                    agentImagesStore={() => images.store}
+                    installStore={() => install.store}
+                    store={plugins.store}
+                />
+            </div>
+        ),
+        { width: 880, height: 520 },
+    );
+    await view.ready();
+
+    // Each installation carries a compact stable short id derived from its full
+    // id, with the full id available through the title for disambiguation.
+    const installation = view.container.querySelector('[data-installation-id="ins-1"]')!;
+    const shortId = installation.querySelector('[data-happy2-ui="plugin-installation-id"]')!;
+    expect(shortId.textContent).toBe("#" + "ins-1".slice(-6));
+    expect(shortId.getAttribute("title")).toBe("ins-1");
+
+    // Open the Logs panel; a durable diagnostics read lands its first output.
+    installation
+        .querySelector<HTMLButtonElement>('[data-testid="plugin-installation-diagnostics"]')!
+        .click();
+    await view.ready();
+    plugins.input({
+        type: "installationDiagnosticsLoaded",
+        installationId: "ins-1",
+        diagnostics: {
+            installationId: "ins-1",
+            pluginId: "plugin-repo",
+            displayName: "Repo Tools",
+            status: "failed",
+            error: "container exited 1",
+            output: "first failure log",
+            updatedAt: "2026-01-02T00:00:00.000Z",
+        },
+    });
+    await view.ready();
+    const viewer = view.container.querySelector('[data-happy2-ui="plugin-diagnostics"]')!;
+    const outputNode = viewer.querySelector('[data-happy2-ui="plugin-diagnostics-output"]')!;
+    expect(outputNode.textContent).toContain("first failure log");
+    // The updatedAt is formatted for display as a concise, deterministic UTC stamp.
+    expect(viewer.querySelector('[data-happy2-ui="plugin-diagnostics-updated"]')!.textContent).toBe(
+        "Updated 2026-01-02 00:00 UTC",
+    );
+
+    // A refreshed diagnostics read (e.g. after a retry/update terminal) updates
+    // the same viewer and output DOM nodes in place — no remount, no reopen.
+    plugins.input({
+        type: "installationDiagnosticsLoaded",
+        installationId: "ins-1",
+        diagnostics: {
+            installationId: "ins-1",
+            pluginId: "plugin-repo",
+            displayName: "Repo Tools",
+            status: "starting",
+            output: "second attempt log",
+            updatedAt: "2026-01-03T00:00:00.000Z",
+        },
+    });
+    await view.ready();
+    expect(view.container.querySelector('[data-happy2-ui="plugin-diagnostics"]')).toBe(viewer);
+    expect(viewer.querySelector('[data-happy2-ui="plugin-diagnostics-output"]')).toBe(outputNode);
+    expect(outputNode.textContent).toContain("second attempt log");
+    expect(outputNode.textContent).not.toContain("first failure log");
+    expect(viewer.querySelector('[data-happy2-ui="plugin-diagnostics-updated"]')!.textContent).toBe(
+        "Updated 2026-01-03 00:00 UTC",
+    );
 }, 120_000);

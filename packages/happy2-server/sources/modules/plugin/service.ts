@@ -31,7 +31,7 @@ import { searchPageGet } from "../search/searchPageGet.js";
 import type { WorkspaceService } from "../workspace/index.js";
 import { pluginInstall } from "./pluginInstall.js";
 import { pluginFindBySource } from "./pluginFindBySource.js";
-import { pluginGetSource } from "./pluginGetSource.js";
+import { pluginInstallationGetSource } from "./pluginInstallationGetSource.js";
 import { pluginGetImage } from "./pluginGetImage.js";
 import { pluginAuthorizeManagement } from "./pluginAuthorizeManagement.js";
 import { pluginInstallationGetRuntimeConfiguration } from "./pluginInstallationGetRuntimeConfiguration.js";
@@ -41,6 +41,7 @@ import { pluginInstallationListIds } from "./pluginInstallationListIds.js";
 import { pluginInstallationListReadyMcpIds } from "./pluginInstallationListReadyMcpIds.js";
 import { pluginInstallationUpdateStatus } from "./pluginInstallationUpdateStatus.js";
 import { pluginInstallationPermissionsUpdate } from "./pluginInstallationPermissionsUpdate.js";
+import { pluginInstallationRetry } from "./pluginInstallationRetry.js";
 import { pluginInstallationGetContainerName } from "./pluginInstallationGetContainerName.js";
 import { pluginAgentCallContextGet } from "./pluginAgentCallContextGet.js";
 import { pluginRemoveMissingBuiltins } from "./pluginRemoveMissingBuiltins.js";
@@ -61,8 +62,6 @@ import { pluginContributionPut } from "./pluginContributionPut.js";
 import { pluginContributionDelete } from "./pluginContributionDelete.js";
 import { pluginContributionList } from "./pluginContributionList.js";
 import { pluginUiAssetGet } from "./pluginUiAssetGet.js";
-import { pluginUiAssetList } from "./pluginUiAssetList.js";
-import { pluginUiAssetsReplace } from "./pluginUiAssetsReplace.js";
 import { pluginSkillsListReady } from "./pluginSkillsListReady.js";
 import { pluginSkillsListInstalled } from "./pluginSkillsListInstalled.js";
 import { pluginApiPermissionSections } from "./impl/apiPermissions.js";
@@ -71,6 +70,8 @@ import type { PluginSkillSourceRecord } from "./impl/pluginSkillSource.js";
 import { pluginContainerInstanceAuthorize } from "./pluginContainerInstanceAuthorize.js";
 import { pluginContainerInstanceInvalidate } from "./pluginContainerInstanceInvalidate.js";
 import { pluginUninstall } from "./pluginUninstall.js";
+import { pluginUpdate } from "./pluginUpdate.js";
+import { pluginUpdatePlan } from "./pluginUpdatePlan.js";
 import {
     pluginContributionDefinitionParse,
     type PluginButtonControl,
@@ -129,6 +130,7 @@ import {
     type PluginSkillDefinition,
     type PluginUserCapability,
     type PluginUpdateCheck,
+    type PluginUpdateResult,
 } from "./types.js";
 
 const HEALTH_TIMEOUT_MS = 15_000;
@@ -149,6 +151,7 @@ const PLUGIN_INSTANCE_META_KEY = "happy2/instance";
 const PLUGIN_CONTRIBUTION_META_KEY = "happy2/contribution";
 const MAX_SURFACE_ARGUMENT_BYTES = 64 * 1024;
 const MAX_SURFACE_RESULT_BYTES = 256 * 1024;
+const MAX_PLUGIN_DIAGNOSTIC_CHARS = 64 * 1024;
 
 interface PluginAgentRuntime {
     modelRequireAvailable(modelId: string): Promise<void>;
@@ -211,33 +214,6 @@ export class PluginService {
 
     async start(): Promise<void> {
         await this.packages.cleanupTemporary();
-        for (const plugin of this.catalog.list()) {
-            const installed = await pluginFindBySource(
-                this.executor,
-                plugin.source.kind,
-                plugin.source.reference,
-            );
-            if (installed?.packageDigest !== plugin.packageDigest) continue;
-            const currentAssets = await pluginUiAssetList(this.executor, installed.id);
-            if (
-                currentAssets.length === plugin.uiAssets.length &&
-                plugin.uiAssets.every((asset, index) => {
-                    const current = currentAssets[index];
-                    return (
-                        current?.assetId === asset.id &&
-                        current.relativePath === asset.path &&
-                        current.contentType === asset.contentType &&
-                        current.byteSize === asset.size &&
-                        current.width === asset.width &&
-                        current.height === asset.height &&
-                        current.checksumSha256 === asset.checksumSha256
-                    );
-                })
-            )
-                continue;
-            const hint = await pluginUiAssetsReplace(this.executor, installed.id, plugin.uiAssets);
-            await this.publish(hint).catch(this.onError);
-        }
         for (const hint of await pluginManagementRequestRecoverProcessing(this.executor))
             await this.publish(hint).catch(this.onError);
         for (const requestId of await pluginManagementRequestListTerminalIds(this.executor))
@@ -272,8 +248,22 @@ export class PluginService {
         if (input.actorUserId) await pluginAuthorizeManagement(this.executor, input.actorUserId);
         else if (!input.actorInstallationId)
             throw new PluginError("forbidden", "Plugin installation authority is required");
-        const plugin = this.catalog.get(input.shortName);
-        if (!plugin) throw new PluginError("not_found", "Built-in plugin was not found");
+        const catalogPlugin = this.catalog.get(input.shortName);
+        if (!catalogPlugin) throw new PluginError("not_found", "Built-in plugin was not found");
+        const existing = await pluginFindBySource(
+            this.executor,
+            catalogPlugin.source.kind,
+            catalogPlugin.source.reference,
+        );
+        const plugin = existing
+            ? await this.packages.loadInstalled(
+                  existing.id,
+                  existing.packageDirectory,
+                  existing.shortName,
+                  existing.packageDigest,
+                  catalogPlugin.source,
+              )
+            : catalogPlugin;
         return this.installPackage({ ...input, plugin });
     }
 
@@ -337,13 +327,18 @@ export class PluginService {
             input.plugin.source.kind,
             input.plugin.source.reference,
         );
-        const candidateId = existing ? undefined : createId();
-        const candidate = candidateId
-            ? {
+        const candidateId = existing?.id ?? createId();
+        const candidate = existing
+            ? existing.packageDigest === input.plugin.packageDigest
+                ? undefined
+                : {
+                      pluginId: existing.id,
+                      ...(await this.packages.installUpdate(input.plugin, existing.id)),
+                  }
+            : {
                   pluginId: candidateId,
                   ...(await this.packages.install(input.plugin, candidateId)),
-              }
-            : undefined;
+              };
         let result: Awaited<ReturnType<typeof pluginInstall>>;
         try {
             result = await pluginInstall(this.executor, this.secrets, {
@@ -357,10 +352,12 @@ export class PluginService {
                 containerImageId: input.containerImageId,
             });
         } catch (error) {
-            if (candidateId) await this.packages.remove(candidateId);
+            if (candidate)
+                await (existing
+                    ? this.packages.removeUpdate(existing.id, candidate.packageDirectory)
+                    : this.packages.remove(candidateId));
             throw error;
         }
-        if (candidateId && !result.pluginCreated) await this.packages.remove(candidateId);
         await this.packages.workspaceDirectory(result.pluginId, installationId);
         await this.publish(result.hint).catch(this.onError);
         if (result.installation.status === "preparing") this.activate(installationId);
@@ -431,19 +428,19 @@ export class PluginService {
                 prepared.plugin.source.kind,
                 prepared.plugin.source.reference,
             );
-            if (existing && existing.packageDigest !== prepared.plugin.packageDigest)
-                throw new PluginError(
-                    "conflict",
-                    "This remote plugin has changed since its installed snapshot; update it before adding another installation",
-                );
             const installationId = createId();
-            const candidateId = existing ? undefined : createId();
-            const candidate = candidateId
-                ? {
+            const candidateId = existing?.id ?? createId();
+            const candidate = existing
+                ? existing.packageDigest === prepared.plugin.packageDigest
+                    ? undefined
+                    : {
+                          pluginId: existing.id,
+                          ...(await this.packages.installUpdate(prepared.plugin, existing.id)),
+                      }
+                : {
                       pluginId: candidateId,
                       ...(await this.packages.install(prepared.plugin, candidateId)),
-                  }
-                : undefined;
+                  };
             let result: Awaited<ReturnType<typeof pluginInstall>>;
             try {
                 result = await pluginInstall(this.executor, this.secrets, {
@@ -456,10 +453,12 @@ export class PluginService {
                     containerImageId: input.containerImageId,
                 });
             } catch (error) {
-                if (candidateId) await this.packages.remove(candidateId);
+                if (candidate)
+                    await (existing
+                        ? this.packages.removeUpdate(existing.id, candidate.packageDirectory)
+                        : this.packages.remove(candidateId));
                 throw error;
             }
-            if (candidateId && !result.pluginCreated) await this.packages.remove(candidateId);
             await this.packages.workspaceDirectory(result.pluginId, installationId);
             await this.publish(result.hint).catch(this.onError);
             if (result.installation.status === "preparing") this.activate(installationId);
@@ -502,7 +501,7 @@ export class PluginService {
 
     async checkForUpdate(
         actorUserId: string,
-        pluginId: string,
+        installationId: string,
         onProgress: (
             stage: string,
             detail: string,
@@ -510,58 +509,104 @@ export class PluginService {
         ) => void,
         signal?: AbortSignal,
     ): Promise<PluginUpdateCheck> {
-        const installed = await pluginGetSource(this.executor, actorUserId, pluginId);
-        let remotePackage: PluginPackage;
-        if (installed.source.kind === "builtin") {
-            const catalogPackage = this.catalog.get(installed.source.reference);
-            if (!catalogPackage)
-                throw new PluginError("not_found", "Built-in plugin is no longer in the catalog");
-            remotePackage = catalogPackage;
-        } else {
-            const remote = remotePluginSourceFromInstalled(installed.source);
-            onProgress("downloading", "Downloading the current remote plugin package.");
-            const downloaded = await this.archiveDownloader.download(remote.archiveUrl, {
-                signal,
-                onProgress: (bytes) =>
-                    onProgress("downloading", "Downloading remote package.", bytes),
-            });
-            const directory = await this.packages.createDownloadDirectory();
-            try {
-                onProgress("verifying", "Verifying the current remote plugin package.");
-                const candidates = await pluginArchiveExtract(
-                    downloaded.body,
-                    directory,
-                    remote.kind === "github" ? "github" : "zip",
-                );
-                const candidate =
-                    remote.packagePath === undefined
-                        ? candidates[0]
-                        : candidates.find(({ packagePath }) => packagePath === remote.packagePath);
-                if (!candidate)
-                    throw new PluginError(
-                        "invalid_package",
-                        "The installed plugin path no longer exists remotely",
-                    );
-                remotePackage = await pluginPackageLoadSource(
-                    candidate.directory,
-                    installed.source,
-                );
-            } finally {
-                await this.packages.removeDownloadDirectory(directory);
-            }
+        const installed = await pluginInstallationGetSource(
+            this.executor,
+            actorUserId,
+            installationId,
+        );
+        const remote = await this.updatePackageResolve(installed, onProgress, signal);
+        try {
+            if (remote.plugin.manifest.shortName !== installed.shortName)
+                throw new PluginError("invalid_package", "Remote plugin shortName changed");
+            return {
+                installationId,
+                pluginId: installed.pluginId,
+                checkedAt: new Date().toISOString(),
+                updateAvailable: remote.plugin.packageDigest !== installed.packageDigest,
+                installed: {
+                    version: installed.sourceVersion,
+                    packageDigest: installed.packageDigest,
+                },
+                remote: {
+                    version: remote.plugin.manifest.version,
+                    packageDigest: remote.plugin.packageDigest,
+                },
+            };
+        } finally {
+            await remote.cleanup();
         }
-        if (remotePackage.manifest.shortName !== installed.shortName)
-            throw new PluginError("invalid_package", "Remote plugin shortName changed");
-        return {
-            pluginId,
-            checkedAt: new Date().toISOString(),
-            updateAvailable: remotePackage.packageDigest !== installed.packageDigest,
-            installed: { version: installed.sourceVersion, packageDigest: installed.packageDigest },
-            remote: {
-                version: remotePackage.manifest.version,
-                packageDigest: remotePackage.packageDigest,
-            },
-        };
+    }
+
+    async updatePlugin(
+        actorUserId: string,
+        installationId: string,
+        onProgress: (
+            stage: string,
+            detail: string,
+            bytes?: { receivedBytes: number; totalBytes?: number },
+        ) => void,
+        signal?: AbortSignal,
+    ): Promise<PluginUpdateResult> {
+        const installed = await pluginInstallationGetSource(
+            this.executor,
+            actorUserId,
+            installationId,
+        );
+        const remote = await this.updatePackageResolve(installed, onProgress, signal);
+        try {
+            const plan = await pluginUpdatePlan(
+                this.executor,
+                actorUserId,
+                installationId,
+                remote.plugin,
+            );
+            onProgress("staging", "Staging the verified plugin update.");
+            const snapshot = await this.packages.installUpdate(remote.plugin, plan.pluginId);
+            let committed = false;
+            try {
+                onProgress("stopping", "Stopping the selected plugin installation.");
+                await this.stopActivation(installationId);
+                if (plan.containerName)
+                    await this.runtime.removeLocal(plan.containerName).catch(this.onError);
+                onProgress("updating", "Committing the updated plugin package.");
+                const result = await pluginUpdate(this.executor, {
+                    actorUserId,
+                    expectedPackageDigest: plan.currentPackageDigest,
+                    installationId,
+                    packageDirectory: snapshot.packageDirectory,
+                    replacement: remote.plugin,
+                });
+                committed = true;
+                await this.publish(result.hint).catch(this.onError);
+                this.activate(installationId);
+                if (result.previousPackageDirectory !== result.pluginPackageDirectory)
+                    await this.packages
+                        .removeUpdate(result.pluginId, result.previousPackageDirectory)
+                        .catch(this.onError);
+                return {
+                    installationId,
+                    pluginId: result.pluginId,
+                    updatedAt: new Date().toISOString(),
+                    previous: {
+                        version: installed.sourceVersion,
+                        packageDigest: installed.packageDigest,
+                    },
+                    current: {
+                        version: result.sourceVersion,
+                        packageDigest: remote.plugin.packageDigest,
+                    },
+                };
+            } catch (error) {
+                if (!committed && snapshot.created)
+                    await this.packages
+                        .removeUpdate(plan.pluginId, snapshot.packageDirectory)
+                        .catch(this.onError);
+                if (!committed) this.activate(installationId);
+                throw error;
+            }
+        } finally {
+            await remote.cleanup();
+        }
     }
 
     async updatePermissions(input: {
@@ -596,11 +641,26 @@ export class PluginService {
             if (containerName) await this.runtime.removeLocal(containerName);
             const result = await pluginInstallationUninstall(this.executor, input);
             if (result.pluginRemoved) await this.packages.remove(result.pluginId);
+            else if (result.packageDirectory !== result.pluginPackageDirectory)
+                await this.packages.removeUpdate(result.pluginId, result.packageDirectory);
             await this.publish(result.hint).catch(this.onError);
         } catch (error) {
             this.activate(input.installationId);
             throw error;
         }
+    }
+
+    async retryInstallation(input: {
+        actorUserId: string;
+        installationId: string;
+    }): Promise<PluginInstallationSummary> {
+        await this.stopActivation(input.installationId);
+        const result = await pluginInstallationRetry(this.executor, input);
+        if (result.containerName)
+            await this.runtime.removeLocal(result.containerName).catch(this.onError);
+        await this.publish(result.hint).catch(this.onError);
+        this.activate(input.installationId);
+        return result.installation;
     }
 
     private async downloadPackage(url: string) {
@@ -609,6 +669,55 @@ export class PluginService {
         } catch (error) {
             if (error instanceof PluginError) throw error;
             throw new PluginError("broken_configuration", errorMessage(error));
+        }
+    }
+
+    private async updatePackageResolve(
+        installed: Awaited<ReturnType<typeof pluginInstallationGetSource>>,
+        onProgress: (
+            stage: string,
+            detail: string,
+            bytes?: { receivedBytes: number; totalBytes?: number },
+        ) => void,
+        signal?: AbortSignal,
+    ): Promise<{ plugin: PluginPackage; cleanup(): Promise<void> }> {
+        if (installed.source.kind === "builtin") {
+            const plugin = this.catalog.get(installed.source.reference);
+            if (!plugin)
+                throw new PluginError("not_found", "Built-in plugin is no longer in the catalog");
+            return { plugin, async cleanup() {} };
+        }
+        const source = remotePluginSourceFromInstalled(installed.source);
+        onProgress("downloading", "Downloading the current remote plugin package.");
+        const downloaded = await this.archiveDownloader.download(source.archiveUrl, {
+            signal,
+            onProgress: (bytes) => onProgress("downloading", "Downloading remote package.", bytes),
+        });
+        const directory = await this.packages.createDownloadDirectory();
+        try {
+            onProgress("verifying", "Verifying the current remote plugin package.");
+            const candidates = await pluginArchiveExtract(
+                downloaded.body,
+                directory,
+                source.kind === "github" ? "github" : "zip",
+            );
+            const candidate =
+                source.packagePath === undefined
+                    ? candidates[0]
+                    : candidates.find(({ packagePath }) => packagePath === source.packagePath);
+            if (!candidate)
+                throw new PluginError(
+                    "invalid_package",
+                    "The installed plugin path no longer exists remotely",
+                );
+            const plugin = await pluginPackageLoadSource(candidate.directory, installed.source);
+            return {
+                plugin,
+                cleanup: () => this.packages.removeDownloadDirectory(directory),
+            };
+        } catch (error) {
+            await this.packages.removeDownloadDirectory(directory);
+            throw error;
         }
     }
 
@@ -1718,10 +1827,10 @@ export class PluginService {
         return { app, sync: result.hint };
     }
 
-    async getUiAsset(viewerUserId: string, pluginId: string, assetId: string) {
+    async getUiAsset(viewerUserId: string, installationId: string, assetId: string) {
         if (!(await userFindActive(this.executor, viewerUserId)))
             throw new PluginError("not_found", "Plugin UI asset was not found");
-        const asset = await pluginUiAssetGet(this.executor, pluginId, assetId);
+        const asset = await pluginUiAssetGet(this.executor, installationId, assetId);
         return {
             body: await this.packages.readUiAsset(asset),
             contentType: asset.contentType,
@@ -2734,6 +2843,8 @@ export class PluginService {
         let preparedContainerInstanceId: string | undefined;
         let commandHandle: PluginLocalCommandHandle | undefined;
         let buildContextDirectory: string | undefined;
+        let diagnosticOutput = "";
+        let diagnosticSecrets: readonly string[] = [];
         this.closeCommand(installationId);
         try {
             signal.throwIfAborted();
@@ -2747,6 +2858,7 @@ export class PluginService {
                 this.secrets,
                 installationId,
             );
+            if (configuration.type === "local") diagnosticSecrets = configuration.secretValues;
             try {
                 await this.packages.verify(
                     configuration.pluginId,
@@ -2825,6 +2937,7 @@ export class PluginService {
                 permissions: configuration.permissions,
             });
             const environment = this.runtimeEnvironment(configuration, token);
+            diagnosticSecrets = [...configuration.secretValues, token];
             await this.status(
                 installationId,
                 "starting",
@@ -2849,7 +2962,17 @@ export class PluginService {
                 await commandSurviveStartup(commandHandle.wait, signal);
             }
             if (configuration.mcp) {
-                const catalog = await this.probeLocal(configuration, environment, signal);
+                const catalog = await this.probeLocal(
+                    configuration,
+                    environment,
+                    signal,
+                    (chunk) => {
+                        diagnosticOutput = runtimeDiagnosticRedact(
+                            runtimeDiagnosticAppend(diagnosticOutput, chunk),
+                            diagnosticSecrets,
+                        );
+                    },
+                );
                 const hint = await pluginMcpCatalogReplace(
                     this.executor,
                     installationId,
@@ -2880,16 +3003,25 @@ export class PluginService {
                 await this.runtime.removeLocal(preparedContainerName).catch(this.onError);
             if (signal.aborted) return;
             const broken = error instanceof PluginError && error.code === "broken_configuration";
+            const message = runtimeDiagnosticRedact(errorMessage(error), diagnosticSecrets);
             await this.status(
                 installationId,
                 broken ? "broken_configuration" : "failed",
                 broken
                     ? "Plugin configuration must be corrected before it can start."
                     : "Plugin runtime failed to prepare or start.",
-                errorMessage(error),
+                message,
                 undefined,
                 preparedContainerInstanceId ? null : undefined,
+                diagnosticOutput || undefined,
             ).catch(this.onError);
+            const output = runtimeDiagnosticSummary(diagnosticOutput);
+            this.onError(
+                new Error(
+                    `plugin:activate installationId=${installationId} status=${broken ? "broken_configuration" : "failed"} message=${message}${output ? ` output=${JSON.stringify(output)}` : ""}`,
+                    { cause: error },
+                ),
+            );
         } finally {
             if (buildContextDirectory)
                 await this.packages.removeBuildContext(buildContextDirectory).catch(this.onError);
@@ -2900,6 +3032,7 @@ export class PluginService {
         configuration: Extract<PluginRuntimeConfiguration, { type: "local" }>,
         environment: Readonly<Record<string, string>>,
         signal: AbortSignal,
+        onStderr: (chunk: string) => void,
     ): Promise<PluginMcpCatalogInput> {
         if (!configuration.mcp) return { tools: [], resources: [] };
         const transport = await this.runtime.openLocal(
@@ -2910,6 +3043,7 @@ export class PluginService {
                 environment,
             },
             signal,
+            onStderr,
         );
         return this.discoverTools(transport, signal);
     }
@@ -3060,12 +3194,14 @@ export class PluginService {
         error?: string,
         runtimeImageTag?: string,
         containerInstanceId?: string | null,
+        diagnosticOutput?: string,
     ): Promise<void> {
         const hint = await pluginInstallationUpdateStatus(this.executor, {
             installationId,
             status,
             detail,
             error,
+            diagnosticOutput,
             runtimeImageTag,
             containerInstanceId,
         });
@@ -3491,6 +3627,34 @@ function abortError(): Error {
 function errorMessage(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
     return message.slice(0, 4_000);
+}
+
+function runtimeDiagnosticAppend(current: string, chunk: string): string {
+    const cleaned = chunk
+        .replace(/\u001b\[[0-?]*[ -/]*[@-~]/gu, "")
+        .replace(/\u0000/gu, "")
+        .replace(/\r\n?/gu, "\n");
+    const combined = current + cleaned;
+    if (combined.length <= MAX_PLUGIN_DIAGNOSTIC_CHARS) return combined;
+    const marker = "[Earlier runtime output omitted.]\n";
+    return marker + combined.slice(-(MAX_PLUGIN_DIAGNOSTIC_CHARS - marker.length));
+}
+
+function runtimeDiagnosticRedact(value: string, secrets: readonly string[]): string {
+    let redacted = value;
+    for (const secret of [...new Set(secrets.filter(Boolean))].sort(
+        (left, right) => right.length - left.length,
+    ))
+        redacted = redacted.split(secret).join("[REDACTED]");
+    return redacted;
+}
+
+function runtimeDiagnosticSummary(output: string): string | undefined {
+    const lines = output
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+    return lines.at(-1)?.slice(0, 500);
 }
 
 function preparedSummary(

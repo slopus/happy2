@@ -44,9 +44,13 @@ const projectSearch: PluginCatalogEntry = {
     ],
     installed: true,
     installedVersion: "2.0.0",
-    updateAvailable: true,
     installations: [
-        { id: "ins-3", version: "2.0.0", status: "starting" },
+        {
+            id: "ins-3",
+            version: "2.0.0",
+            status: "ready",
+            updateCheck: { status: "checked", updateAvailable: true, remoteVersion: "2.1.0" },
+        },
         {
             id: "ins-4",
             version: "2.0.0",
@@ -105,11 +109,17 @@ const linkedTools: PluginCatalogEntry = {
     skills: [],
     variables: [],
     installed: true,
-    installations: [{ id: "ins-9", version: "2.0.0", status: "ready" }],
+    installations: [
+        {
+            id: "ins-9",
+            version: "2.0.0",
+            status: "ready",
+            updateCheck: { status: "checked", updateAvailable: true, remoteVersion: "2.1.0" },
+        },
+    ],
     pluginId: "plugin-linked",
     sourceLabel: "ZIP URL",
     installable: false,
-    updateCheck: { status: "checked", updateAvailable: true, remoteVersion: "2.1.0" },
 };
 const repoTools: PluginCatalogEntry = {
     id: "system:plugin-repo",
@@ -121,14 +131,20 @@ const repoTools: PluginCatalogEntry = {
     mcp: { type: "remote", container: "none" },
     variables: [],
     installed: true,
-    installations: [{ id: "ins-10", version: "1.0.0", status: "starting" }],
+    installations: [
+        {
+            id: "ins-10",
+            version: "1.0.0",
+            status: "starting",
+            updateCheck: {
+                status: "checking",
+                detail: "Downloading the current remote plugin package.",
+            },
+        },
+    ],
     pluginId: "plugin-repo",
     sourceLabel: "GitHub",
     installable: false,
-    updateCheck: {
-        status: "checking",
-        detail: "Downloading the current remote plugin package.",
-    },
 };
 const currentTools: PluginCatalogEntry = {
     id: "system:plugin-current",
@@ -139,11 +155,17 @@ const currentTools: PluginCatalogEntry = {
     skills: [],
     variables: [],
     installed: true,
-    installations: [{ id: "ins-current", version: "1.2.0", status: "ready" }],
+    installations: [
+        {
+            id: "ins-current",
+            version: "1.2.0",
+            status: "ready",
+            updateCheck: { status: "checked", updateAvailable: false, remoteVersion: "1.2.0" },
+        },
+    ],
     pluginId: "plugin-current",
     sourceLabel: "GitHub",
     installable: false,
-    updateCheck: { status: "checked", updateAvailable: false, remoteVersion: "1.2.0" },
 };
 const uploadedTools: PluginCatalogEntry = {
     id: "system:plugin-uploaded",
@@ -154,7 +176,7 @@ const uploadedTools: PluginCatalogEntry = {
     skills: [],
     variables: [],
     installed: true,
-    installations: [{ id: "ins-11", version: "1.0.0", status: "ready" }],
+    installations: [{ id: "ins-11", version: "1.0.0", status: "ready", uninstalling: true }],
     pluginId: "plugin-uploaded",
     sourceLabel: "Uploaded ZIP",
     installable: false,
@@ -163,7 +185,7 @@ const brokenTools: PluginCatalogEntry = {
     id: "system:plugin-broken",
     shortName: "broken-tools",
     displayName: "Broken Tools",
-    description: "An external package whose remote update check failed.",
+    description: "An external package whose installed manifest is quarantined and unloaded.",
     version: "0.3.0",
     skills: [],
     variables: [],
@@ -172,17 +194,49 @@ const brokenTools: PluginCatalogEntry = {
         {
             id: "ins-12",
             version: "0.3.0",
-            status: "failed",
-            detail: "Container creation failed.",
+            status: "broken_configuration",
+            detail: "The installed manifest declares a permission the server no longer supports.",
+            updateCheck: {
+                status: "failed",
+                detail: "The installed plugin path no longer exists remotely",
+            },
+            diagnosticsOpen: true,
+            diagnostics: {
+                status: "broken_configuration",
+                detail: "The installed manifest declares a permission the server no longer supports.",
+                failure:
+                    "Quarantined: unknown host permission 'legacy:admin' in installed manifest.",
+                output: "[boot] loading manifest\n[boot] validating declared permissions\n[error] unknown permission legacy:admin\n[boot] installation quarantined and unloaded",
+                updatedLabel: "Updated 3m ago",
+            },
         },
     ],
     pluginId: "plugin-broken",
     sourceLabel: "GitHub",
     installable: false,
-    updateCheck: {
-        status: "failed",
-        detail: "The installed plugin path no longer exists remotely",
-    },
+};
+const updatingTools: PluginCatalogEntry = {
+    id: "system:plugin-updating",
+    shortName: "updating-tools",
+    displayName: "Updating Tools",
+    description: "A GitHub package committing an update over its own SSE stream.",
+    version: "1.0.0",
+    skills: [],
+    variables: [],
+    installed: true,
+    installations: [
+        {
+            id: "ins-13",
+            version: "1.0.0",
+            status: "ready",
+            updateCheck: { status: "checked", updateAvailable: true, remoteVersion: "1.4.0" },
+            updating: true,
+            updateProgress: "Committing the updated plugin package.",
+        },
+    ],
+    pluginId: "plugin-updating",
+    sourceLabel: "GitHub",
+    installable: false,
 };
 // A worst-case package that declares every granular host capability across all
 // nine sections; its install and permission dialogs stress the long checklist.
@@ -273,11 +327,11 @@ export function PluginCatalogPanelPage() {
     return (
         <ComponentPage
             number="C-066"
-            summary="Administrator plugin catalog: cards with a 40px icon slot, mono version, capability badges, an accent mono name and description for every Agent Skill the package provides, per-installation health badges, and a controlled install dialog collecting declared variables (masked secrets) plus an optional ready container-image selection."
+            summary="Administrator plugin catalog: cards with a 40px icon slot, mono version, capability badges, an accent mono name and description for every Agent Skill the package provides, a per-installation management block (health, its own update check/Update, Retry, Logs, and Uninstall), and a controlled install dialog collecting declared variables (masked secrets) plus an optional ready container-image selection."
             title="PluginCatalogPanel"
         >
             <Specimen
-                detail="card 16px padding · icon 40px radius 8 · name 14/600 · mono version 12px · accent mono skill name + description rows · status badges per installation"
+                detail="card 16px padding · icon 40px radius 8 · name 14/600 · mono version 12px · accent mono skill name + description rows · per-installation blocks with health, update check, and actions"
                 label="Catalog — installed, update available, and installable"
                 number="01"
                 stage="app"
@@ -294,6 +348,8 @@ export function PluginCatalogPanelPage() {
                         onDraftValueChange={(key, value) =>
                             setValues((current) => ({ ...current, [key]: value }))
                         }
+                        onInstallationRetry={(id) => log(`retry ${id}`)}
+                        onInstallationUpdate={(id) => log(`update ${id}`)}
                         onOpenInstall={(shortName) => {
                             setValues({});
                             setImageId(undefined);
@@ -419,24 +475,52 @@ export function PluginCatalogPanelPage() {
             </Specimen>
 
             <Specimen
-                detail="external rows: source badge, automatic update-check badges (update available, checking, up to date absent for uploads, failed with title detail), header Install plugin entry point, per-row Uninstall"
-                label="External plugins with automatic update status"
+                detail="external rows: per-installation update check (available/checking/up to date/failed), Update, Check again, streaming update progress, in-flight uninstall, and the header Install plugin entry point"
+                label="External plugins with per-installation update status"
                 number="05"
                 stage="app"
             >
                 <div style={{ display: "flex", width: "880px" }}>
                     <PluginCatalogPanel
+                        onInstallationCheckUpdate={(id) => log(`check ${id}`)}
+                        onInstallationDiagnosticsToggle={(id, open) => log(`logs ${id} ${open}`)}
+                        onInstallationRetry={(id) => log(`retry ${id}`)}
+                        onInstallationUninstall={(id) => log(`uninstall ${id}`)}
+                        onInstallationUpdate={(id) => log(`update ${id}`)}
                         onOpenExternalInstall={() => log("open external install")}
-                        onUninstall={(pluginId) => log(`uninstall ${pluginId}`)}
-                        plugins={[linkedTools, currentTools, repoTools, uploadedTools, brokenTools]}
+                        plugins={[
+                            linkedTools,
+                            currentTools,
+                            repoTools,
+                            updatingTools,
+                            uploadedTools,
+                        ]}
                         subtitle="Bundled packages plus plugins installed from uploads, ZIP URLs, and GitHub."
-                        uninstallingPluginIds={["plugin-uploaded"]}
                     />
                 </div>
             </Specimen>
 
             <Specimen
-                detail="C-068 hosted over the panel scrim: blast radius named with the installation count"
+                detail="a quarantined installation stays visible and unloaded, explains its failure, exposes an inert scrollable log viewer, and offers Retry alongside a failed update check"
+                label="Broken installation — diagnostics and recovery"
+                number="05b"
+                stage="app"
+            >
+                <div style={{ display: "flex", width: "880px" }}>
+                    <PluginCatalogPanel
+                        onInstallationCheckUpdate={(id) => log(`check ${id}`)}
+                        onInstallationDiagnosticsToggle={(id, open) => log(`logs ${id} ${open}`)}
+                        onInstallationRetry={(id) => log(`retry ${id}`)}
+                        onInstallationUninstall={(id) => log(`uninstall ${id}`)}
+                        onInstallationUpdate={(id) => log(`update ${id}`)}
+                        plugins={[brokenTools]}
+                        subtitle="A broken installation remains legible with a recovery path."
+                    />
+                </div>
+            </Specimen>
+
+            <Specimen
+                detail="C-068 hosted over the panel scrim: per-installation blast radius names the exact installation version and whether it is the plugin's last installation"
                 label="Uninstall confirmation"
                 number="06"
                 stage="app"
@@ -450,7 +534,7 @@ export function PluginCatalogPanelPage() {
                     }}
                 >
                     <PluginCatalogPanel
-                        onUninstall={(pluginId) => log(`uninstall ${pluginId}`)}
+                        onInstallationUninstall={(id) => log(`uninstall ${id}`)}
                         plugins={[linkedTools]}
                     />
                     <div
@@ -464,7 +548,8 @@ export function PluginCatalogPanelPage() {
                         }}
                     >
                         <PluginUninstallDialog
-                            installationCount={1}
+                            installationVersion="2.0.0"
+                            lastInstallation
                             onCancel={() => log("cancel uninstall")}
                             onConfirm={() => log("confirm uninstall")}
                             pluginName="Linked Tools"

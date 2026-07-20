@@ -16,7 +16,7 @@ export async function pluginInstallationListReadyMcpIds(
         .where(
             and(
                 eq(pluginInstallations.status, "ready"),
-                sql`json_type(${plugins.manifestJson}, '$.mcp') IS NOT NULL`,
+                sql`json_type(${pluginInstallations.manifestJson}, '$.mcp') IS NOT NULL`,
             ),
         )
         .orderBy(pluginInstallations.installedAt, pluginInstallations.id);

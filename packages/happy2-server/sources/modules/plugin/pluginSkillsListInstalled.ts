@@ -5,7 +5,7 @@ import type { PluginSkillSourceRecord } from "./impl/pluginSkillSource.js";
 
 /**
  * Lists durable skill metadata for plugin packages that still have an installation so a previously accepted Rig callback remains resolvable across runtime status changes and server restarts.
- * Distinct projection keeps repeated installations from making one static skill ambiguous while package deletion remains authoritative revocation.
+ * Each installation contributes its own immutable package snapshot so callbacks remain bound to the exact installed version.
  */
 export async function pluginSkillsListInstalled(
     executor: DrizzleExecutor,
@@ -15,14 +15,14 @@ export async function pluginSkillsListInstalled(
             pluginId: plugins.id,
             installedAt: plugins.installedAt,
             shortName: plugins.shortName,
-            packageDigest: plugins.packageDigest,
-            packageDirectory: plugins.packageDirectory,
+            packageDigest: pluginInstallations.packageDigest,
+            packageDirectory: pluginInstallations.packageDirectory,
             name: pluginSkills.name,
             description: pluginSkills.description,
             directory: pluginSkills.directory,
         })
         .from(pluginSkills)
-        .innerJoin(plugins, eq(plugins.id, pluginSkills.pluginId))
-        .innerJoin(pluginInstallations, eq(pluginInstallations.pluginId, plugins.id))
+        .innerJoin(pluginInstallations, eq(pluginInstallations.id, pluginSkills.installationId))
+        .innerJoin(plugins, eq(plugins.id, pluginInstallations.pluginId))
         .orderBy(plugins.installedAt, plugins.id, pluginSkills.name);
 }

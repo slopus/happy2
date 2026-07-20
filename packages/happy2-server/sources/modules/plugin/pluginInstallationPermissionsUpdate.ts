@@ -38,7 +38,7 @@ export async function pluginInstallationPermissionsUpdate(
         const [current] = await tx
             .select({
                 ...pluginInstallationSelection,
-                manifestJson: plugins.manifestJson,
+                manifestJson: pluginInstallations.manifestJson,
                 containerName: pluginInstallations.containerName,
             })
             .from(pluginInstallations)

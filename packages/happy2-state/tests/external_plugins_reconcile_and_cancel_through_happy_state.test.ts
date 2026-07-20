@@ -194,7 +194,7 @@ describe("external plugins reconcile and cancel through HappyState", () => {
         server.respond(
             "GET",
             "/v0/admin/systemPlugins",
-            jsonResponse(200, { plugins: [systemPlugin()] }),
+            jsonResponse(200, { plugins: [systemPlugin({ installations: [installation] })] }),
         );
         let prepareStream!: FakeStreamController;
         server.streamRoute("POST", "/v0/admin/pluginPackages/preparePlugin", (_request, s) => {
@@ -203,7 +203,7 @@ describe("external plugins reconcile and cancel through HappyState", () => {
         let checkStream!: FakeStreamController;
         server.streamRoute(
             "POST",
-            /^\/v0\/admin\/systemPlugins\/[^/]+\/checkForUpdate$/,
+            /^\/v0\/admin\/pluginInstallations\/[^/]+\/checkForUpdate$/,
             (_request, s) => {
                 checkStream = s;
             },

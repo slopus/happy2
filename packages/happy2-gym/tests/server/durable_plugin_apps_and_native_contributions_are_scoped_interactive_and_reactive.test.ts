@@ -388,10 +388,16 @@ describe("durable plugin apps and native contributions", () => {
             expect(rejectedCrossInstallation.statusCode).toBe(400);
 
             expect(
-                (await server.get(`/v0/plugins/${primary.pluginId}/uiAssets/todo`)).statusCode,
+                (
+                    await server.get(
+                        `/v0/pluginInstallations/${primary.installationId}/uiAssets/todo`,
+                    )
+                ).statusCode,
             ).toBe(401);
-            const asset = await asBob.get(`/v0/plugins/${primary.pluginId}/uiAssets/todo`);
-            expect(asset.statusCode).toBe(200);
+            const asset = await asBob.get(
+                `/v0/pluginInstallations/${primary.installationId}/uiAssets/todo`,
+            );
+            expect(asset.statusCode, asset.payload).toBe(200);
             expect(asset.headers["content-type"]).toBe("image/png");
             expect(asset.headers.etag).toMatch(/^"[a-f0-9]{64}"$/);
             await expect(sharp(asset.rawPayload).metadata()).resolves.toMatchObject({
@@ -574,7 +580,11 @@ describe("durable plugin apps and native contributions", () => {
             for (const id of remainingPrimaryIds)
                 expect((await asAlice.get(`/v0/apps/${id}`)).statusCode).toBe(404);
             expect(
-                (await asAlice.get(`/v0/plugins/${primary.pluginId}/uiAssets/todo`)).statusCode,
+                (
+                    await asAlice.get(
+                        `/v0/pluginInstallations/${primary.installationId}/uiAssets/todo`,
+                    )
+                ).statusCode,
             ).toBe(404);
             expect(
                 (await visibleApps(asAlice)).some(({ pluginId }) => pluginId === foreign.pluginId),

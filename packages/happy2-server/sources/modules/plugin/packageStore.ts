@@ -22,6 +22,12 @@ export interface PreparedPluginPackage {
     cleanup(): Promise<void>;
 }
 
+export interface InstalledPluginUpdatePackage {
+    created: boolean;
+    imageStorageKey: string;
+    packageDirectory: string;
+}
+
 /** Persists one exact package snapshot per system plugin so catalog changes cannot mutate installed metadata or files. */
 export class PluginPackageStore {
     constructor(private readonly root: string) {}
@@ -65,6 +71,33 @@ export class PluginPackageStore {
                 }
             }
             return {
+                packageDirectory: await realpath(destination),
+                imageStorageKey: `${pluginId}/plugin.png`,
+            };
+        } finally {
+            await rm(staging, { force: true, recursive: true });
+        }
+    }
+
+    async installUpdate(
+        plugin: PluginPackage,
+        pluginId: string,
+    ): Promise<InstalledPluginUpdatePackage> {
+        const destination = this.updatePath(pluginId, plugin.packageDigest, randomUUID());
+        await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
+        const staging = resolve(this.root, `.update-${pluginId}-${randomUUID()}`);
+        try {
+            await cp(plugin.directory, staging, {
+                recursive: true,
+                errorOnExist: true,
+                force: false,
+            });
+            const copied = await pluginPackageLoadSource(staging, plugin.source);
+            if (copied.packageDigest !== plugin.packageDigest)
+                throw new Error("Plugin package changed while its update snapshot was copied");
+            await rename(staging, destination);
+            return {
+                created: true,
                 packageDirectory: await realpath(destination),
                 imageStorageKey: `${pluginId}/plugin.png`,
             };
@@ -204,7 +237,20 @@ export class PluginPackageStore {
     }
 
     async remove(pluginId: string): Promise<void> {
-        await rm(this.path(pluginId), { force: true, recursive: true });
+        await Promise.all([
+            rm(this.path(pluginId), { force: true, recursive: true }),
+            rm(resolve(this.root, ".packages", pluginId), { force: true, recursive: true }),
+        ]);
+    }
+
+    async removeUpdate(pluginId: string, packageDirectory: string): Promise<void> {
+        const legacy = this.path(pluginId);
+        const target = resolve(packageDirectory);
+        if (target === legacy) return;
+        const updateRoot = resolve(this.root, ".packages", pluginId);
+        if (!target.startsWith(`${updateRoot}${sep}`))
+            throw new Error("Invalid plugin update package path");
+        await rm(target, { force: true, recursive: true });
     }
 
     async cleanupTemporary(): Promise<void> {
@@ -216,7 +262,8 @@ export class PluginPackageStore {
                     (entry) =>
                         entry.name === ".prepared" ||
                         entry.name.startsWith(".download-") ||
-                        entry.name.startsWith(".build-"),
+                        entry.name.startsWith(".build-") ||
+                        entry.name.startsWith(".update-"),
                 )
                 .map((entry) =>
                     rm(resolve(this.root, entry.name), { force: true, recursive: true }),
@@ -346,7 +393,7 @@ export class PluginPackageStore {
         await this.verify(pluginId, recordedDirectory, shortName, packageDigest);
         if (imageStorageKey !== `${pluginId}/plugin.png`)
             throw new Error("Installed plugin image storage key is invalid");
-        return readFile(join(this.path(pluginId), "plugin.png"));
+        return readFile(join(recordedDirectory, "plugin.png"));
     }
 
     async readUiAsset(asset: PluginUiAssetSummary): Promise<Buffer> {
@@ -407,19 +454,38 @@ export class PluginPackageStore {
         shortName: string,
         packageDigest: string,
     ): Promise<PluginPackage> {
-        const [canonicalRoot, storedDirectory, actualDirectory] = await Promise.all([
+        const [canonicalRoot, actualDirectory] = await Promise.all([
             realpath(this.root),
-            realpath(this.path(pluginId)),
             realpath(recordedDirectory),
         ]);
-        const expectedDirectory = resolve(canonicalRoot, pluginId);
-        if (storedDirectory !== expectedDirectory || actualDirectory !== expectedDirectory)
+        const legacyDirectory = resolve(canonicalRoot, pluginId);
+        const updateRoot = resolve(canonicalRoot, ".packages", pluginId);
+        const updateName = actualDirectory.startsWith(`${updateRoot}${sep}`)
+            ? actualDirectory.slice(updateRoot.length + 1)
+            : undefined;
+        if (
+            actualDirectory !== legacyDirectory &&
+            !new RegExp(`^${packageDigestHex(packageDigest)}-[a-f0-9-]{36}$`, "u").test(
+                updateName ?? "",
+            )
+        )
             throw new Error("Installed plugin package is outside the plugin package store");
         const source = await installedSource(actualDirectory, shortName);
         const plugin = await pluginPackageLoadInstalled(actualDirectory, source, shortName);
         if (plugin.packageDigest !== packageDigest)
             throw new Error("Installed plugin package no longer matches its recorded digest");
         return plugin;
+    }
+
+    private updatePath(pluginId: string, packageDigest: string, updateId: string): string {
+        this.path(pluginId);
+        if (!/^[a-f0-9-]{36}$/u.test(updateId)) throw new Error("Invalid plugin update id");
+        return resolve(
+            this.root,
+            ".packages",
+            pluginId,
+            `${packageDigestHex(packageDigest)}-${updateId}`,
+        );
     }
 
     private requestPath(requestId: string): string {
@@ -449,4 +515,10 @@ async function pathExists(path: string): Promise<boolean> {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
         throw error;
     }
+}
+
+function packageDigestHex(packageDigest: string): string {
+    const match = /^sha256:([a-f0-9]{64})$/u.exec(packageDigest);
+    if (!match) throw new Error("Invalid plugin package digest");
+    return match[1]!;
 }

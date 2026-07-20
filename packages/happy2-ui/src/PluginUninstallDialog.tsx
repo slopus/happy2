@@ -9,10 +9,15 @@ export type PluginUninstallDialogProps = {
     "data-testid"?: string;
     style?: CSSProperties;
     pluginName: string;
+    /** The version of the specific installation being removed. */
+    installationVersion?: string;
     /** Display label of the package source, e.g. "GitHub · owner/repo". */
     sourceLabel?: string;
-    /** Number of independent installations that will be deleted, when known. */
-    installationCount?: number;
+    /**
+     * True when this is the plugin's last installation, so removing it also
+     * removes the plugin and its stored package entirely.
+     */
+    lastInstallation?: boolean;
     /** The uninstall request is in flight; actions disable. */
     pending?: boolean;
     /** Terminal uninstall failure, shown inside the dialog for retry. */
@@ -21,31 +26,30 @@ export type PluginUninstallDialogProps = {
     onCancel?: () => void;
 };
 /**
- * C-068 PluginUninstallDialog — the destructive confirmation for removing a
- * system plugin. It states exactly what is deleted: every independent
- * installation (named by count when known), their dedicated containers, the
- * immutable package snapshot, and all persistent `/workspace` plugin data.
- * Presentational and fully controlled; the consumer owns the uninstall
- * request and supplies pending/failure state.
+ * C-068 PluginUninstallDialog — the destructive confirmation for removing one
+ * plugin installation. It states exactly what is deleted: this installation, its
+ * dedicated container, its configured secrets, and its persistent `/workspace`
+ * plugin data — and, when it is the plugin's last installation, the stored
+ * package too. Presentational and fully controlled; the consumer owns the
+ * uninstall request and supplies pending/failure state.
  */
 export function PluginUninstallDialog(props: PluginUninstallDialogProps) {
     const [local, rest] = partitionComponentProps(props, [
         "className",
         "style",
         "pluginName",
+        "installationVersion",
         "sourceLabel",
-        "installationCount",
+        "lastInstallation",
         "pending",
         "error",
         "onConfirm",
         "onCancel",
     ]);
-    const installations = () =>
-        local.installationCount === undefined
-            ? "every installation"
-            : local.installationCount === 1
-              ? "its 1 installation"
-              : `all ${local.installationCount} installations`;
+    const target = () =>
+        local.installationVersion
+            ? `the v${local.installationVersion} installation of ${local.pluginName}`
+            : `this installation of ${local.pluginName}`;
     return (
         <Modal
             {...rest}
@@ -67,14 +71,14 @@ export function PluginUninstallDialog(props: PluginUninstallDialogProps) {
                         onClick={() => local.onConfirm?.()}
                         variant="danger"
                     >
-                        {local.pending ? "Uninstalling…" : "Uninstall plugin"}
+                        {local.pending ? "Uninstalling…" : "Uninstall installation"}
                     </Button>
                 </Box>
             }
             icon="close"
             onClose={local.pending ? undefined : local.onCancel}
             size="small"
-            title={`Uninstall ${local.pluginName}?`}
+            title={`Uninstall this installation?`}
             tone="danger"
         >
             <Box className="happy2-plugin-uninstall-dialog__body">
@@ -91,10 +95,14 @@ export function PluginUninstallDialog(props: PluginUninstallDialogProps) {
                     className="happy2-plugin-uninstall-dialog__message"
                     data-happy2-ui="plugin-uninstall-message"
                 >
-                    This permanently deletes {installations()} of {local.pluginName}
-                    {local.sourceLabel ? ` (${local.sourceLabel})` : ""}, including their dedicated
-                    containers, the stored package, its configured secrets, and all persistent{" "}
-                    <code>/workspace</code> plugin data. This cannot be undone.
+                    This permanently deletes {target()}
+                    {local.sourceLabel ? ` (${local.sourceLabel})` : ""}, including its dedicated
+                    container, its configured secrets, and all persistent <code>/workspace</code>{" "}
+                    data for this installation.
+                    {local.lastInstallation
+                        ? " It is the last installation, so the plugin and its stored package are removed too."
+                        : " Other installations of this plugin are left in place."}{" "}
+                    This cannot be undone.
                 </span>
             </Box>
         </Modal>

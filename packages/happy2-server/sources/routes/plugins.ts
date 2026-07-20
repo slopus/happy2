@@ -6,6 +6,7 @@ import type { PluginCatalog } from "../modules/plugin/catalog.js";
 import { PluginMcpHttpBridge } from "../modules/plugin/httpBridge.js";
 import { pluginCatalogList } from "../modules/plugin/pluginCatalogList.js";
 import { pluginInstallationGetStatus } from "../modules/plugin/pluginInstallationGetStatus.js";
+import { pluginInstallationDiagnosticsGet } from "../modules/plugin/pluginInstallationDiagnosticsGet.js";
 import { pluginInstallationList } from "../modules/plugin/pluginInstallationList.js";
 import { pluginList } from "../modules/plugin/pluginList.js";
 import { pluginMcpToolsList } from "../modules/plugin/pluginMcpToolsList.js";
@@ -148,6 +149,24 @@ export function registerPluginRoutes(
         },
     );
 
+    app.post(
+        "/v0/admin/pluginInstallations/:installationId/retryPlugin",
+        async (request, reply) => {
+            const actorUserId = await actor(auth, request, reply);
+            if (!actorUserId) return;
+            try {
+                only(request.body === undefined ? {} : object(request.body, "Request body"), []);
+                const installation = await plugins.retryInstallation({
+                    actorUserId,
+                    installationId: pathIdentifier(request, "installationId"),
+                });
+                return reply.code(202).send({ installation });
+            } catch (error) {
+                return handled(reply, error) ?? Promise.reject(error);
+            }
+        },
+    );
+
     app.post("/v0/admin/plugins/installPlugin", async (request, reply) => {
         const actorUserId = await actor(auth, request, reply);
         if (!actorUserId) return;
@@ -170,6 +189,22 @@ export function registerPluginRoutes(
                 actorUserId,
                 pathIdentifier(request, "installationId"),
             );
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.get("/v0/admin/pluginInstallations/:installationId/diagnostics", async (request, reply) => {
+        const actorUserId = await actor(auth, request, reply);
+        if (!actorUserId) return;
+        try {
+            return {
+                diagnostics: await pluginInstallationDiagnosticsGet(
+                    executor,
+                    actorUserId,
+                    pathIdentifier(request, "installationId"),
+                ),
+            };
         } catch (error) {
             return handled(reply, error) ?? Promise.reject(error);
         }
@@ -259,28 +294,56 @@ export function registerPluginRoutes(
         }
     });
 
-    app.post("/v0/admin/systemPlugins/:pluginId/checkForUpdate", async (request, reply) => {
-        const actorUserId = await actor(auth, request, reply);
-        if (!actorUserId) return;
-        let pluginId: string;
-        try {
-            await pluginAuthorizeManagement(executor, actorUserId);
-            pluginId = pathIdentifier(request, "pluginId");
-            const body = request.body === undefined ? {} : object(request.body, "Request body");
-            only(body, []);
-        } catch (error) {
-            return handled(reply, error) ?? Promise.reject(error);
-        }
-        return eventStream(request, reply, async (send, signal) => {
-            const update = await plugins.checkForUpdate(
-                actorUserId,
-                pluginId,
-                (stage, detail, bytes) => send("progress", { stage, detail, ...bytes }),
-                signal,
-            );
-            send("checked", { update });
-        });
-    });
+    app.post(
+        "/v0/admin/pluginInstallations/:installationId/checkForUpdate",
+        async (request, reply) => {
+            const actorUserId = await actor(auth, request, reply);
+            if (!actorUserId) return;
+            let installationId: string;
+            try {
+                await pluginAuthorizeManagement(executor, actorUserId);
+                installationId = pathIdentifier(request, "installationId");
+                const body = request.body === undefined ? {} : object(request.body, "Request body");
+                only(body, []);
+            } catch (error) {
+                return handled(reply, error) ?? Promise.reject(error);
+            }
+            return eventStream(request, reply, async (send, signal) => {
+                const update = await plugins.checkForUpdate(
+                    actorUserId,
+                    installationId,
+                    (stage, detail, bytes) => send("progress", { stage, detail, ...bytes }),
+                    signal,
+                );
+                send("checked", { update });
+            });
+        },
+    );
+
+    app.post(
+        "/v0/admin/pluginInstallations/:installationId/updatePlugin",
+        async (request, reply) => {
+            const actorUserId = await actor(auth, request, reply);
+            if (!actorUserId) return;
+            let installationId: string;
+            try {
+                await pluginAuthorizeManagement(executor, actorUserId);
+                installationId = pathIdentifier(request, "installationId");
+                only(request.body === undefined ? {} : object(request.body, "Request body"), []);
+            } catch (error) {
+                return handled(reply, error) ?? Promise.reject(error);
+            }
+            return eventStream(request, reply, async (send, signal) => {
+                const update = await plugins.updatePlugin(
+                    actorUserId,
+                    installationId,
+                    (stage, detail, bytes) => send("progress", { stage, detail, ...bytes }),
+                    signal,
+                );
+                send("updated", { update });
+            });
+        },
+    );
 
     app.post("/v0/admin/systemPlugins/:pluginId/uninstallPlugin", async (request, reply) => {
         const actorUserId = await actor(auth, request, reply);

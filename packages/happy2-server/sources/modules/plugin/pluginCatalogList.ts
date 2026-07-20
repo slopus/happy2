@@ -26,6 +26,9 @@ export async function pluginCatalogList(
     );
     return catalog.list().map((plugin) => {
         const systemPlugin = systemByCatalogSource.get(plugin.manifest.shortName);
+        const pluginInstallations = systemPlugin
+            ? installations.filter(({ pluginId }) => pluginId === systemPlugin.id)
+            : [];
         const catalogMcp = plugin.manifest.mcp;
         const catalogContainer = effectiveContainer(plugin.manifest);
         const mcp = systemPlugin
@@ -69,10 +72,10 @@ export async function pluginCatalogList(
                 ? {
                       systemPlugin: {
                           ...systemPlugin,
-                          updateAvailable: systemPlugin.packageDigest !== plugin.packageDigest,
-                          installations: installations.filter(
-                              ({ pluginId }) => pluginId === systemPlugin.id,
+                          updateAvailable: pluginInstallations.some(
+                              ({ packageDigest }) => packageDigest !== plugin.packageDigest,
                           ),
+                          installations: pluginInstallations,
                       },
                   }
                 : {}),

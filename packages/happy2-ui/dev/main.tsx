@@ -35,6 +35,7 @@ import { MemberAccessPanelPage } from "./pages/MemberAccessPanelPage";
 import { PluginInstallDialogPage } from "./pages/PluginInstallDialogPage";
 import { PluginUninstallDialogPage } from "./pages/PluginUninstallDialogPage";
 import { PluginPermissionCardPage } from "./pages/PluginPermissionCardPage";
+import { PluginDiagnosticsViewerPage } from "./pages/PluginDiagnosticsViewerPage";
 import { McpAppShellPage } from "./pages/McpAppShellPage";
 import { ComposerPage } from "./pages/ComposerPage";
 import { DataTablePage } from "./pages/DataTablePage";
@@ -310,6 +311,12 @@ const components: BlueprintPage[] = [
         label: "Plugin permission card",
         number: "C-077",
         page: PluginPermissionCardPage,
+    },
+    {
+        id: "plugin-diagnostics-viewer",
+        label: "Plugin diagnostics viewer",
+        number: "C-069",
+        page: PluginDiagnosticsViewerPage,
     },
     { id: "mcp-app-shell", label: "MCP app shell", number: "C-080", page: McpAppShellPage },
 ];

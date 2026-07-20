@@ -41,8 +41,11 @@ export {
 } from "./AgentSecretPanel";
 export {
     PluginCatalogPanel,
+    PluginInstallationRow,
+    installationShortId,
     type PluginCatalogEntry,
     type PluginCatalogPanelProps,
+    type PluginDiagnosticsView,
     type PluginInstallationItem,
     type PluginInstallationStatus,
     type PluginUpdateBadge,
@@ -57,6 +60,11 @@ export {
     type PluginInstallDialogStep,
 } from "./PluginInstallDialog";
 export { PluginUninstallDialog, type PluginUninstallDialogProps } from "./PluginUninstallDialog";
+export {
+    PluginDiagnosticsViewer,
+    type PluginDiagnosticsStatus,
+    type PluginDiagnosticsViewerProps,
+} from "./PluginDiagnosticsViewer";
 export {
     PluginPermissionCard,
     type PluginPermissionAction,

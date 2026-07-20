@@ -60,6 +60,7 @@ import type {
     PortShareSummary,
     PluginCatalogItem,
     PluginHostPermission,
+    PluginInstallationDiagnostics,
     PluginInstallationSummary,
     PluginManagementRequestSummary,
     SystemPluginSummary,
@@ -191,7 +192,7 @@ export const backendOperations = {
     callMcpAppTool: rpcPost("/v0/messages/:messageId/mcpApps/:callId/callTool"),
     readMcpAppResource: rpcPost("/v0/messages/:messageId/mcpApps/:callId/readResource"),
     getPluginApps: get("/v0/apps"),
-    getPluginUiAsset: get("/v0/plugins/:pluginId/uiAssets/:assetId"),
+    getPluginUiAsset: get("/v0/pluginInstallations/:installationId/uiAssets/:assetId"),
     getPluginApp: get("/v0/apps/:instanceId"),
     callPluginAppTool: rpcPost("/v0/apps/:instanceId/callTool"),
     readPluginAppResource: rpcPost("/v0/apps/:instanceId/readResource"),
@@ -318,8 +319,17 @@ export const backendOperations = {
     preparePluginUpload: post("/v0/admin/pluginPackages/preparePlugin", "body"),
     preparePluginSource: post("/v0/admin/pluginPackages/preparePlugin"),
     installPreparedPlugin: post("/v0/admin/pluginPackages/installPlugin"),
-    checkPluginUpdate: post("/v0/admin/systemPlugins/:pluginId/checkForUpdate"),
-    uninstallPlugin: post("/v0/admin/systemPlugins/:pluginId/uninstallPlugin"),
+    checkPluginInstallationUpdate: post(
+        "/v0/admin/pluginInstallations/:installationId/checkForUpdate",
+    ),
+    updatePluginInstallation: post("/v0/admin/pluginInstallations/:installationId/updatePlugin"),
+    uninstallPluginInstallation: post(
+        "/v0/admin/pluginInstallations/:installationId/uninstallPlugin",
+    ),
+    retryPluginInstallation: post("/v0/admin/pluginInstallations/:installationId/retryPlugin"),
+    getPluginInstallationDiagnostics: get(
+        "/v0/admin/pluginInstallations/:installationId/diagnostics",
+    ),
     getPluginManagementRequests: get("/v0/chats/:chatId/pluginManagementRequests"),
     downloadPluginManagementRequestImage: get(
         "/v0/chats/:chatId/pluginManagementRequests/:requestId/image",
@@ -624,7 +634,7 @@ export interface KnownBackendInputs {
         readonly uri: string;
     };
     getPluginApp: { readonly instanceId: string };
-    getPluginUiAsset: { readonly pluginId: string; readonly assetId: string };
+    getPluginUiAsset: { readonly installationId: string; readonly assetId: string };
     callPluginAppTool: {
         readonly instanceId: string;
         readonly name: string;
@@ -777,8 +787,11 @@ export interface KnownBackendInputs {
         readonly permissions?: readonly PluginHostPermission[];
         readonly containerImageId?: string;
     };
-    checkPluginUpdate: { readonly pluginId: string };
-    uninstallPlugin: { readonly pluginId: string };
+    checkPluginInstallationUpdate: { readonly installationId: string };
+    updatePluginInstallation: { readonly installationId: string };
+    uninstallPluginInstallation: { readonly installationId: string };
+    retryPluginInstallation: { readonly installationId: string };
+    getPluginInstallationDiagnostics: { readonly installationId: string };
     updatePluginPermissions: {
         readonly installationId: string;
         readonly permissions: readonly PluginHostPermission[];
@@ -1227,11 +1240,10 @@ export interface KnownBackendResults {
     getSystemPlugins: { readonly plugins: readonly SystemPluginSummary[] };
     downloadSystemPluginImage: ArrayBuffer;
     installPreparedPlugin: { readonly installation: PluginInstallationSummary };
-    uninstallPlugin: {
-        readonly uninstalled: {
-            readonly pluginId: string;
-            readonly installationIds: readonly string[];
-        };
+    retryPluginInstallation: { readonly installation: PluginInstallationSummary };
+    uninstallPluginInstallation: { readonly uninstalled: true };
+    getPluginInstallationDiagnostics: {
+        readonly diagnostics: PluginInstallationDiagnostics;
     };
     getPluginManagementRequests: {
         readonly requests: readonly PluginManagementRequestSummary[];

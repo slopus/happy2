@@ -81,7 +81,7 @@ export async function pluginAppDependenciesRequire(
             .from(pluginUiAssets)
             .where(
                 and(
-                    eq(pluginUiAssets.pluginId, installation.pluginId),
+                    eq(pluginUiAssets.installationId, installation.installationId),
                     eq(pluginUiAssets.assetId, assetId),
                 ),
             )
@@ -105,7 +105,7 @@ export async function pluginContributionDependenciesRequire(
             .from(pluginUiAssets)
             .where(
                 and(
-                    eq(pluginUiAssets.pluginId, installation.pluginId),
+                    eq(pluginUiAssets.installationId, installation.installationId),
                     inArray(pluginUiAssets.assetId, [...dependencies.assets]),
                 ),
             );

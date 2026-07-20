@@ -288,6 +288,13 @@
             "when": 1785283200000,
             "tag": "0040_quarantine_legacy_plugin_permissions",
             "breakpoints": true
+        },
+        {
+            "idx": 41,
+            "version": "6",
+            "when": 1785369600000,
+            "tag": "0041_plugin_installation_diagnostics",
+            "breakpoints": true
         }
     ]
 }

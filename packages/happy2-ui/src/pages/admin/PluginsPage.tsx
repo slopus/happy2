@@ -3,7 +3,10 @@ import type {
     AgentImagesSnapshot,
     AgentImagesStore,
     PluginCatalogItem,
+    PluginDiagnosticsState,
     PluginHostPermission,
+    PluginInstallationSummary,
+    PluginInstallationUpdateState,
     PluginInstallSnapshot,
     PluginInstallStore,
     PluginsSnapshot,
@@ -16,6 +19,8 @@ import { ModalOverlay } from "../../ModalOverlay";
 import {
     PluginCatalogPanel,
     type PluginCatalogEntry,
+    type PluginDiagnosticsView,
+    type PluginInstallationItem,
     type PluginPermissionSection,
     type PluginUpdateBadge,
 } from "../../PluginCatalogPanel";
@@ -62,7 +67,10 @@ export function PluginsPage(props: PluginsPageProps) {
     const [externalValues, setExternalValues] = useState<Readonly<Record<string, string>>>({});
     const [externalImageId, setExternalImageId] = useState<string>();
     const [externalPermissions, setExternalPermissions] = useState<readonly string[]>([]);
-    const [uninstallPluginId, setUninstallPluginId] = useState<string>();
+    const [uninstallInstallationId, setUninstallInstallationId] = useState<string>();
+    const [diagnosticsOpen, setDiagnosticsOpen] = useState<ReadonlySet<string>>(
+        () => new Set<string>(),
+    );
     // Mount/unmount of this page is the visibility boundary for automatic
     // update checks: the ref cleanup stops all background check work the
     // moment the page leaves the screen.
@@ -81,17 +89,23 @@ export function PluginsPage(props: PluginsPageProps) {
                 const filteredExternal = external.filter((plugin) =>
                     externalMatches(plugin, needle),
                 );
+                const context: InstallationContext = {
+                    updateChecks: snapshot.updateChecks,
+                    updating: snapshot.updating,
+                    retrying: snapshot.retrying,
+                    uninstalling: snapshot.uninstalling,
+                    diagnostics: snapshot.diagnostics,
+                    diagnosticsOpen,
+                };
                 const plugins = [
-                    ...filtered.map((item) =>
-                        catalogEntry(item, snapshot.updateChecks, props.iconUrl),
-                    ),
+                    ...filtered.map((item) => catalogEntry(item, context, props.iconUrl)),
                     ...filteredExternal.map((plugin) =>
-                        externalEntry(plugin, snapshot.updateChecks, props.systemImageUrl),
+                        externalEntry(plugin, context, props.systemImageUrl),
                     ),
                 ];
-                const uninstallTarget = systemPlugins(snapshot).find(
-                    (plugin) => plugin.id === uninstallPluginId,
-                );
+                const uninstallTarget = uninstallInstallationId
+                    ? uninstallLookup(systemPlugins(snapshot), uninstallInstallationId)
+                    : undefined;
                 const actionError =
                     snapshot.actionError === dismissedError
                         ? undefined
@@ -105,9 +119,22 @@ export function PluginsPage(props: PluginsPageProps) {
                 const selectionNeeded = filtered.some(
                     (item) => item.mcp?.container === "selection_required",
                 );
+                const uninstallPending = Boolean(
+                    uninstallTarget &&
+                    snapshot.uninstalling.includes(uninstallTarget.installation.id),
+                );
                 const closeUninstall = () => {
                     setDismissedError(snapshot.actionError);
-                    setUninstallPluginId(undefined);
+                    setUninstallInstallationId(undefined);
+                };
+                const diagnosticsToggle = (installationId: string, open: boolean) => {
+                    if (open) store.installationDiagnosticsLoad(installationId);
+                    setDiagnosticsOpen((current) => {
+                        const next = new Set(current);
+                        if (open) next.add(installationId);
+                        else next.delete(installationId);
+                        return next;
+                    });
                 };
                 const panel = (imageOptions: readonly { value: string; label: string }[]) => (
                     <PluginCatalogPanel
@@ -177,15 +204,24 @@ export function PluginsPage(props: PluginsPageProps) {
                             );
                             setPermissionsOpen(undefined);
                         }}
-                        onUninstall={(pluginId) => {
+                        onInstallationCheckUpdate={(installationId) =>
+                            store.installationUpdateCheck(installationId)
+                        }
+                        onInstallationDiagnosticsToggle={diagnosticsToggle}
+                        onInstallationRetry={(installationId) =>
+                            store.installationRetry(installationId)
+                        }
+                        onInstallationUninstall={(installationId) => {
                             setDismissedError(snapshot.actionError);
-                            setUninstallPluginId(pluginId);
+                            setUninstallInstallationId(installationId);
                         }}
+                        onInstallationUpdate={(installationId) =>
+                            store.installationUpdate(installationId)
+                        }
                         plugins={plugins}
                         permissionsBusyInstallationIds={snapshot.updatingPermissions}
                         permissionsOpen={permissionsOpen}
                         subtitle="Bundled packages plus plugins installed from uploads, ZIP URLs, and GitHub."
-                        uninstallingPluginIds={snapshot.uninstalling}
                     />
                 );
                 return (
@@ -302,24 +338,25 @@ export function PluginsPage(props: PluginsPageProps) {
                             </StoreSurface>
                         ) : null}
                         {uninstallTarget ? (
-                            <ModalOverlay
-                                onDismiss={
-                                    snapshot.uninstalling.includes(uninstallTarget.id)
-                                        ? undefined
-                                        : closeUninstall
-                                }
-                            >
+                            <ModalOverlay onDismiss={uninstallPending ? undefined : closeUninstall}>
                                 <PluginUninstallDialog
                                     error={actionError}
-                                    installationCount={uninstallTarget.installations.length}
+                                    installationVersion={uninstallTarget.installation.sourceVersion}
+                                    lastInstallation={
+                                        uninstallTarget.plugin.installations.length <= 1
+                                    }
                                     onCancel={closeUninstall}
                                     onConfirm={() => {
                                         setDismissedError(snapshot.actionError);
-                                        store.pluginUninstall(uninstallTarget.id);
+                                        store.installationUninstall(
+                                            uninstallTarget.installation.id,
+                                        );
                                     }}
-                                    pending={snapshot.uninstalling.includes(uninstallTarget.id)}
-                                    pluginName={uninstallTarget.displayName}
-                                    sourceLabel={sourceKindLabels[uninstallTarget.sourceKind]}
+                                    pending={uninstallPending}
+                                    pluginName={uninstallTarget.plugin.displayName}
+                                    sourceLabel={
+                                        sourceKindLabels[uninstallTarget.plugin.sourceKind]
+                                    }
                                 />
                             </ModalOverlay>
                         ) : null}
@@ -411,6 +448,16 @@ function systemPlugins(snapshot: PluginsSnapshot): readonly SystemPluginSummary[
     if (snapshot.systemPlugins.type !== "ready") return [];
     return snapshot.systemPlugins.value;
 }
+/** Finds the plugin and installation targeted by a per-installation uninstall confirmation. */
+function uninstallLookup(
+    plugins: readonly SystemPluginSummary[],
+    installationId: string,
+): { plugin: SystemPluginSummary; installation: PluginInstallationSummary } | undefined {
+    for (const plugin of plugins)
+        for (const installation of plugin.installations)
+            if (installation.id === installationId) return { plugin, installation };
+    return undefined;
+}
 function catalogMatches(item: PluginCatalogItem, needle: string): boolean {
     return (
         !needle ||
@@ -440,12 +487,7 @@ function readyImageOptions(
         .filter((image) => image.status === "ready")
         .map((image) => ({ value: image.id, label: image.name }));
 }
-function updateBadge(
-    pluginId: string | undefined,
-    updateChecks: ReadonlyMap<string, PluginUpdateCheckState>,
-): PluginUpdateBadge | undefined {
-    if (!pluginId) return undefined;
-    const check = updateChecks.get(pluginId);
+function updateBadge(check: PluginUpdateCheckState | undefined): PluginUpdateBadge | undefined {
     if (!check) return undefined;
     if (check.status === "checking") return { status: "checking", detail: check.progress?.detail };
     if (check.status === "failed") return { status: "failed", detail: check.error.message };
@@ -455,9 +497,65 @@ function updateBadge(
         remoteVersion: check.update.remote.version,
     };
 }
+/** The per-installation UI context threaded from the snapshot and local view state. */
+interface InstallationContext {
+    readonly updateChecks: ReadonlyMap<string, PluginUpdateCheckState>;
+    readonly updating: ReadonlyMap<string, PluginInstallationUpdateState>;
+    readonly retrying: readonly string[];
+    readonly uninstalling: readonly string[];
+    readonly diagnostics: ReadonlyMap<string, PluginDiagnosticsState>;
+    readonly diagnosticsOpen: ReadonlySet<string>;
+}
+function diagnosticsView(state: PluginDiagnosticsState | undefined): PluginDiagnosticsView {
+    if (!state) return { loading: true };
+    if (state.status === "loading") return { loading: true };
+    if (state.status === "failed") return { error: state.error.message };
+    const diagnostics = state.diagnostics;
+    return {
+        status: diagnostics.status,
+        detail: diagnostics.detail,
+        failure: diagnostics.error,
+        output: diagnostics.output,
+        updatedLabel: diagnosticsUpdatedLabel(diagnostics.updatedAt),
+    };
+}
+/**
+ * A concise, timezone-independent "updated" stamp for the diagnostics header,
+ * formatted from the durable ISO timestamp in UTC so it is deterministic across
+ * machines and test runs. Returns undefined for a missing or unparseable value.
+ */
+export function diagnosticsUpdatedLabel(updatedAt: string | undefined): string | undefined {
+    if (!updatedAt) return undefined;
+    const instant = new Date(updatedAt);
+    if (Number.isNaN(instant.getTime())) return undefined;
+    const iso = instant.toISOString();
+    return `Updated ${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
+}
+function installationItem(
+    installation: PluginInstallationSummary,
+    context: InstallationContext,
+): PluginInstallationItem {
+    const update = context.updating.get(installation.id);
+    const open = context.diagnosticsOpen.has(installation.id);
+    return {
+        id: installation.id,
+        version: installation.sourceVersion,
+        status: installation.status,
+        detail: installation.lastError ?? installation.statusDetail,
+        grantedPermissions: installation.grantedPermissions,
+        updateCheck: updateBadge(context.updateChecks.get(installation.id)),
+        updating: update?.status === "updating",
+        updateProgress: update?.status === "updating" ? update.progress?.detail : undefined,
+        updateError: update?.status === "failed" ? update.error.message : undefined,
+        retrying: context.retrying.includes(installation.id),
+        uninstalling: context.uninstalling.includes(installation.id),
+        diagnosticsOpen: open,
+        diagnostics: open ? diagnosticsView(context.diagnostics.get(installation.id)) : undefined,
+    };
+}
 function catalogEntry(
     item: PluginCatalogItem,
-    updateChecks: ReadonlyMap<string, PluginUpdateCheckState>,
+    context: InstallationContext,
     iconUrl?: (shortName: string) => string | undefined,
 ): PluginCatalogEntry {
     return {
@@ -483,25 +581,19 @@ function catalogEntry(
             item.systemPlugin && item.systemPlugin.sourceVersion !== item.version
                 ? item.systemPlugin.sourceVersion
                 : undefined,
-        updateAvailable: item.systemPlugin?.updateAvailable ?? false,
-        installations: (item.systemPlugin?.installations ?? []).map((installation) => ({
-            id: installation.id,
-            version: installation.sourceVersion,
-            status: installation.status,
-            detail: installation.lastError ?? installation.statusDetail,
-            grantedPermissions: installation.grantedPermissions,
-        })),
+        installations: (item.systemPlugin?.installations ?? []).map((installation) =>
+            installationItem(installation, context),
+        ),
         pluginId: item.systemPlugin?.id,
         sourceLabel:
             item.systemPlugin && item.systemPlugin.sourceKind !== "builtin"
                 ? sourceKindLabels[item.systemPlugin.sourceKind]
                 : undefined,
-        updateCheck: updateBadge(item.systemPlugin?.id, updateChecks),
     };
 }
 function externalEntry(
     plugin: SystemPluginSummary,
-    updateChecks: ReadonlyMap<string, PluginUpdateCheckState>,
+    context: InstallationContext,
     systemImageUrl?: (pluginId: string) => string | undefined,
 ): PluginCatalogEntry {
     return {
@@ -521,17 +613,12 @@ function externalEntry(
         })),
         apiPermissions: plugin.apiPermissions,
         installed: true,
-        installations: plugin.installations.map((installation) => ({
-            id: installation.id,
-            version: installation.sourceVersion,
-            status: installation.status,
-            detail: installation.lastError ?? installation.statusDetail,
-            grantedPermissions: installation.grantedPermissions,
-        })),
+        installations: plugin.installations.map((installation) =>
+            installationItem(installation, context),
+        ),
         pluginId: plugin.id,
         sourceLabel: sourceKindLabels[plugin.sourceKind],
         installable: false,
-        updateCheck: updateBadge(plugin.id, updateChecks),
     };
 }
 

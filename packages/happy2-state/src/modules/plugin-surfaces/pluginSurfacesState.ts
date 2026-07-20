@@ -553,10 +553,10 @@ export async function pluginAppResourceRead(
 /** Reads one authorized monochrome PNG as bytes; the UI owns its blob URL lifetime. */
 export async function pluginUiAssetRead(
     runtime: StateRuntime,
-    pluginId: string,
+    installationId: string,
     assetId: string,
 ): Promise<ArrayBuffer> {
-    return runtime.operation("getPluginUiAsset", { pluginId, assetId });
+    return runtime.operation("getPluginUiAsset", { installationId, assetId });
 }
 
 export interface PluginAppOpenContext extends PluginAppActionContext {

@@ -156,6 +156,25 @@ describe("external plugin package lifecycle", () => {
             status: "ready",
         });
         const pluginId = installed.json().installation.pluginId as string;
+        const firstInstallationId = installed.json().installation.id as string;
+
+        const secondPrepared = await server
+            .as(admin)
+            .post("/v0/admin/pluginPackages/preparePlugin", {
+                source: { kind: "github", url: "https://github.com/example/toolbox" },
+            });
+        const secondAlpha = (
+            sseEvents(secondPrepared.payload).find(({ event }) => event === "selection_required")!
+                .data.candidates as Array<Record<string, unknown>>
+        )[0]!;
+        const secondInstalled = await server
+            .as(admin)
+            .post("/v0/admin/pluginPackages/installPlugin", {
+                preparedToken: secondAlpha.preparedToken,
+            });
+        expect(secondInstalled.statusCode).toBe(202);
+        const secondInstallationId = secondInstalled.json().installation.id as string;
+        expect(secondInstalled.json().installation.pluginId).toBe(pluginId);
 
         downloader.archive = githubZip([
             { shortName: "alpha-tools", version: "1.1.0" },
@@ -163,7 +182,7 @@ describe("external plugin package lifecycle", () => {
         ]);
         const checked = await server
             .as(admin)
-            .post(`/v0/admin/systemPlugins/${pluginId}/checkForUpdate`);
+            .post(`/v0/admin/pluginInstallations/${firstInstallationId}/checkForUpdate`);
         const checkEvents = sseEvents(checked.payload);
         const update = checkEvents.find(({ event }) => event === "checked")!.data.update as Record<
             string,
@@ -171,9 +190,53 @@ describe("external plugin package lifecycle", () => {
         >;
         expect(update).toMatchObject({
             pluginId,
+            installationId: firstInstallationId,
             updateAvailable: true,
             installed: { version: "1.0.0" },
             remote: { version: "1.1.0" },
+        });
+
+        const applied = await server
+            .as(admin)
+            .post(`/v0/admin/pluginInstallations/${firstInstallationId}/updatePlugin`);
+        const appliedEvents = sseEvents(applied.payload);
+        expect(appliedEvents.map(({ event }) => event)).toContain("progress");
+        expect(appliedEvents.at(-1)).toMatchObject({
+            event: "updated",
+            data: {
+                update: {
+                    pluginId,
+                    installationId: firstInstallationId,
+                    previous: { version: "1.0.0" },
+                    current: { version: "1.1.0" },
+                },
+            },
+        });
+        const updatedSystem = (await server.as(admin).get("/v0/admin/systemPlugins")).json()
+            .plugins[0];
+        expect(updatedSystem).toMatchObject({
+            id: pluginId,
+            sourceVersion: "1.0.0",
+            installations: expect.arrayContaining([
+                expect.objectContaining({ id: firstInstallationId, sourceVersion: "1.1.0" }),
+                expect.objectContaining({ id: secondInstallationId, sourceVersion: "1.0.0" }),
+            ]),
+        });
+        expect(updatedSystem.installations).toHaveLength(2);
+
+        const current = await server
+            .as(admin)
+            .post(`/v0/admin/pluginInstallations/${firstInstallationId}/checkForUpdate`);
+        expect(sseEvents(current.payload).at(-1)).toMatchObject({
+            event: "checked",
+            data: { update: { updateAvailable: false, installed: { version: "1.1.0" } } },
+        });
+        const siblingStillOutdated = await server
+            .as(admin)
+            .post(`/v0/admin/pluginInstallations/${secondInstallationId}/checkForUpdate`);
+        expect(sseEvents(siblingStillOutdated.payload).at(-1)).toMatchObject({
+            event: "checked",
+            data: { update: { updateAvailable: true, installed: { version: "1.0.0" } } },
         });
 
         const changedPreparation = await server
@@ -186,11 +249,16 @@ describe("external plugin package lifecycle", () => {
                 ({ event }) => event === "selection_required",
             )!.data.candidates as Array<Record<string, unknown>>
         )[0]!;
-        const conflict = await server.as(admin).post("/v0/admin/pluginPackages/installPlugin", {
-            preparedToken: changedAlpha.preparedToken,
+        const thirdInstallation = await server
+            .as(admin)
+            .post("/v0/admin/pluginPackages/installPlugin", {
+                preparedToken: changedAlpha.preparedToken,
+            });
+        expect(thirdInstallation.statusCode).toBe(202);
+        expect(thirdInstallation.json().installation).toMatchObject({
+            pluginId,
+            sourceVersion: "1.1.0",
         });
-        expect(conflict.statusCode).toBe(409);
-        expect(conflict.json()).toMatchObject({ error: "conflict" });
     });
 
     it("prefers a GitHub root plugin over nested plugin folders", async () => {
@@ -248,7 +316,7 @@ describe("external plugin package lifecycle", () => {
         const checked = await server
             .as(admin)
             .post(
-                `/v0/admin/systemPlugins/${installed.json().installation.pluginId}/checkForUpdate`,
+                `/v0/admin/pluginInstallations/${installed.json().installation.id}/checkForUpdate`,
             );
         expect(sseEvents(checked.payload).at(-1)).toMatchObject({
             event: "checked",
