@@ -2225,7 +2225,10 @@ export class PluginService {
             addUserIds,
             removeUserIds,
         });
-        await this.publishHints(result.hints, [...addUserIds, ...removeUserIds]);
+        await Promise.all(
+            result.userHints.map(({ userId, hint }) => this.publishHints([hint], [userId], true)),
+        );
+        await this.publishHints(result.hints, []);
         return {
             chatId: claims.chatId,
             addedUserIds: addUserIds,
@@ -2405,15 +2408,23 @@ export class PluginService {
         );
     }
 
-    private async publishHints(hints: readonly MutationHint[], userIds: readonly string[]) {
+    private async publishHints(
+        hints: readonly MutationHint[],
+        userIds: readonly string[],
+        usersOnly = false,
+    ) {
         const publications: Promise<void>[] = [];
         for (const hint of hints) {
             const event = { type: "sync" as const, ...hint };
-            const topics = new Set([
-                realtimeTopics.server,
-                ...hint.chats.map(({ chatId }) => realtimeTopics.chat(chatId)),
-                ...userIds.map((userId) => realtimeTopics.user(userId)),
-            ]);
+            const topics = new Set(
+                usersOnly
+                    ? userIds.map((userId) => realtimeTopics.user(userId))
+                    : [
+                          realtimeTopics.server,
+                          ...hint.chats.map(({ chatId }) => realtimeTopics.chat(chatId)),
+                          ...userIds.map((userId) => realtimeTopics.user(userId)),
+                      ],
+            );
             for (const topic of topics) publications.push(this.pubsub.publish(topic, event));
         }
         await Promise.allSettled(publications).then((results) => {

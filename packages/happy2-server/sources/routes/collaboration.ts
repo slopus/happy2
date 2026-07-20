@@ -90,6 +90,7 @@ type AuthenticatedHandler = (
 interface PublishAudience {
     server?: boolean;
     userIds?: readonly string[];
+    usersOnly?: boolean;
 }
 export function registerCollaborationRoutes(
     app: FastifyInstance,
@@ -544,9 +545,11 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, userId) => {
             emptyBody(request);
             const result = await channelJoinPublic(executor, userId, pathId(request, "chatId"));
-            await publishHints(request, pubsub, [result.hint], {
+            await publishHints(request, pubsub, [membershipUserHint(result)], {
                 userIds: [userId],
+                usersOnly: true,
             });
+            await publishHints(request, pubsub, [result.hint]);
             return {
                 chat: result.chat,
                 sync: result.hint,
@@ -558,9 +561,11 @@ export function registerCollaborationRoutes(
         authenticated(auth, async (request, _reply, userId) => {
             emptyBody(request);
             const result = await channelLeave(executor, userId, pathId(request, "chatId"));
-            await publishHints(request, pubsub, [result.hint], {
+            await publishHints(request, pubsub, [membershipUserHint(result)], {
                 userIds: [userId],
+                usersOnly: true,
             });
+            await publishHints(request, pubsub, [result.hint]);
             return {
                 sync: result.hint,
             };
@@ -577,9 +582,11 @@ export function registerCollaborationRoutes(
                 userId: addedUserId,
                 role: optionalEnumField(body, "role", ["owner", "admin", "member"] as const),
             });
-            await publishHints(request, pubsub, [result.hint], {
+            await publishHints(request, pubsub, [membershipUserHint(result)], {
                 userIds: [addedUserId],
+                usersOnly: true,
             });
+            await publishHints(request, pubsub, [result.hint]);
             return {
                 sync: result.hint,
             };
@@ -595,9 +602,11 @@ export function registerCollaborationRoutes(
                 chatId: pathId(request, "chatId"),
                 userId: removedUserId,
             });
-            await publishHints(request, pubsub, [result.hint], {
+            await publishHints(request, pubsub, [membershipUserHint(result)], {
                 userIds: [removedUserId],
+                usersOnly: true,
             });
+            await publishHints(request, pubsub, [result.hint]);
             return {
                 sync: result.hint,
             };
@@ -1570,11 +1579,13 @@ async function publishHints(
             ...hint,
         };
         const topics = new Set<RealtimeTopic>();
-        for (const chat of hint.chats) topics.add(realtimeTopics.chat(chat.chatId));
+        if (!audience.usersOnly)
+            for (const chat of hint.chats) topics.add(realtimeTopics.chat(chat.chatId));
         for (const userId of audience.userIds ?? []) topics.add(realtimeTopics.user(userId));
         if (
-            audience.server ||
-            hint.areas.some((area) => area !== "preferences" && area !== "drafts")
+            !audience.usersOnly &&
+            (audience.server ||
+                hint.areas.some((area) => area !== "preferences" && area !== "drafts"))
         )
             topics.add(realtimeTopics.server);
         for (const topic of topics)
@@ -1595,6 +1606,17 @@ async function publishHints(
                 "Could not publish realtime sync hint",
             );
     }
+}
+function membershipUserHint(result: {
+    hint: MutationHint;
+    documentsHint?: MutationHint;
+}): MutationHint {
+    return result.documentsHint
+        ? {
+              ...result.hint,
+              areas: [...new Set([...result.hint.areas, ...result.documentsHint.areas])],
+          }
+        : result.hint;
 }
 function requestBody(request: FastifyRequest, allowed: readonly string[]): Record<string, unknown> {
     const body = record(request.body, "Request body");

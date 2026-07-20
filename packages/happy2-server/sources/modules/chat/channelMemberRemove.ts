@@ -10,10 +10,11 @@ import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { chatRequireManager } from "./chatRequireManager.js";
 import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
 import { chatDescendantIds } from "./impl/chatDescendantIds.js";
+import { areaHint } from "./areaHint.js";
 
 /**
  * Removes a managed chatMembers identity, repairs chats ownership when necessary, and detaches agentRigBindings that depended on the membership.
- * The transaction prevents revoked users or agents from retaining channel authority through a stale role or runtime binding.
+ * The transaction prevents stale authority and targets an attachment-gated documents hint to the identity whose channel visibility was revoked.
  */
 export async function channelMemberRemove(
     executor: DrizzleExecutor,
@@ -24,6 +25,7 @@ export async function channelMemberRemove(
     },
 ): Promise<{
     hint: MutationHint;
+    documentsHint?: MutationHint;
 }> {
     return withTransaction(executor, async (tx) => {
         const access = await chatRequireManager(tx, input.actorUserId, input.chatId);
@@ -156,7 +158,7 @@ export async function channelMemberRemove(
                     isNull(chatMembers.leftAt),
                 ),
             );
-        await chatDescendantMembershipSync(tx, {
+        const documentsChanged = await chatDescendantMembershipSync(tx, {
             ancestorChatId: input.chatId,
             userId: input.userId,
             actorUserId: input.actorUserId,
@@ -175,6 +177,7 @@ export async function channelMemberRemove(
             );
         return {
             hint: chatHint(sequence, input.chatId, mutation.pts),
+            ...(documentsChanged ? { documentsHint: areaHint(sequence, "documents") } : {}),
         };
     });
 }

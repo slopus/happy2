@@ -2,12 +2,15 @@ import { type ChatRole } from "../types.js";
 import { type DrizzleTransaction } from "../../drizzle.js";
 
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { chatMembers, chats } from "../../schema.js";
+import { chatMembers, chats, documentChannelAttachments } from "../../schema.js";
 import { createId } from "@paralleldrive/cuid2";
 import { chatDescendantIds } from "./chatDescendantIds.js";
 import { syncEventInsert } from "../../sync/syncEventInsert.js";
 
-/** Mirrors one parent membership transition through every existing descendant chat. */
+/**
+ * Mirrors one parent membership transition through every existing descendant chat and records a
+ * targeted documents-area event when any affected chat has a document attachment.
+ */
 export async function chatDescendantMembershipSync(
     tx: DrizzleTransaction,
     input: {
@@ -19,9 +22,22 @@ export async function chatDescendantMembershipSync(
         role?: ChatRole;
         replacementOwnerUserId?: string;
     },
-): Promise<void> {
+): Promise<boolean> {
     const descendantIds = await chatDescendantIds(tx, input.ancestorChatId);
-    if (descendantIds.length === 0) return;
+    const [attachment] = await tx
+        .select({ chatId: documentChannelAttachments.chatId })
+        .from(documentChannelAttachments)
+        .where(inArray(documentChannelAttachments.chatId, [input.ancestorChatId, ...descendantIds]))
+        .limit(1);
+    if (attachment)
+        await syncEventInsert(tx, {
+            sequence: input.sequence,
+            kind: "document.membershipChanged",
+            entityId: input.userId,
+            actorUserId: input.actorUserId,
+            targetUserId: input.userId,
+        });
+    if (descendantIds.length === 0) return attachment !== undefined;
     if (input.kind === "joined") {
         for (const chatId of descendantIds)
             await tx
@@ -89,4 +105,5 @@ export async function chatDescendantMembershipSync(
             actorUserId: input.actorUserId,
             targetUserId: input.userId,
         });
+    return attachment !== undefined;
 }

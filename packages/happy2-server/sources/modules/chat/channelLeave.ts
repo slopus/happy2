@@ -9,10 +9,11 @@ import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
 import { chatGetAccess } from "./chatGetAccess.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
+import { areaHint } from "./areaHint.js";
 
 /**
  * Marks the actor's chatMembers membership left and transfers chats ownership when the departing user owns the channel.
- * Keeping role repair and sync delivery in one transition prevents an ownerless channel or a client that still grants the leaver access.
+ * Keeping role repair and attachment-gated documents sync in one transition prevents an ownerless channel or a client that retains revoked visibility.
  */
 export async function channelLeave(
     executor: DrizzleExecutor,
@@ -20,6 +21,7 @@ export async function channelLeave(
     chatId: string,
 ): Promise<{
     hint: MutationHint;
+    documentsHint?: MutationHint;
 }> {
     return withTransaction(executor, async (tx) => {
         const access = await chatGetAccess(tx, actorUserId, chatId, true);
@@ -83,7 +85,7 @@ export async function channelLeave(
                     isNull(chatMembers.leftAt),
                 ),
             );
-        await chatDescendantMembershipSync(tx, {
+        const documentsChanged = await chatDescendantMembershipSync(tx, {
             ancestorChatId: chatId,
             userId: actorUserId,
             actorUserId,
@@ -93,6 +95,7 @@ export async function channelLeave(
         });
         return {
             hint: chatHint(sequence, chatId, mutation.pts),
+            ...(documentsChanged ? { documentsHint: areaHint(sequence, "documents") } : {}),
         };
     });
 }

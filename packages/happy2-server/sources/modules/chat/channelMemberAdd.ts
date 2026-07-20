@@ -13,10 +13,11 @@ import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { requireActiveIdentityDb } from "./impl/requireActiveIdentityDb.js";
 import { chatRequireManager } from "./chatRequireManager.js";
 import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
+import { areaHint } from "./areaHint.js";
 
 /**
  * Adds or restores an active identity in chatMembers after checking the actor's management rights and the target's eligibility.
- * A fresh membership epoch and synchronized service event make the new access grant unambiguous to history and live clients.
+ * A fresh membership epoch, service event, and attachment-gated documents hint make the new access grant unambiguous to history and the affected user's clients.
  */
 export async function channelMemberAdd(
     executor: DrizzleExecutor,
@@ -28,6 +29,7 @@ export async function channelMemberAdd(
     },
 ): Promise<{
     hint: MutationHint;
+    documentsHint?: MutationHint;
 }> {
     return withTransaction(executor, async (tx) => {
         const access = await chatRequireManager(tx, input.actorUserId, input.chatId);
@@ -80,7 +82,7 @@ export async function channelMemberAdd(
                     leftAt: null,
                 },
             });
-        await chatDescendantMembershipSync(tx, {
+        const documentsChanged = await chatDescendantMembershipSync(tx, {
             ancestorChatId: input.chatId,
             userId: input.userId,
             actorUserId: input.actorUserId,
@@ -95,6 +97,7 @@ export async function channelMemberAdd(
         });
         return {
             hint: chatHint(sequence, input.chatId, service.pts),
+            ...(documentsChanged ? { documentsHint: areaHint(sequence, "documents") } : {}),
         };
     });
 }

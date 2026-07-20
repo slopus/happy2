@@ -11,10 +11,11 @@ import { chatGetAccess } from "./chatGetAccess.js";
 import { createUserAddedServiceMessageDb } from "./impl/createUserAddedServiceMessageDb.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
+import { areaHint } from "./areaHint.js";
 
 /**
  * Inserts or reactivates the actor's chatMembers row for a public, joinable channel and assigns a fresh membership epoch.
- * Recording the membership with its channel update prevents message access from opening before other clients learn that the user joined.
+ * Recording the membership, channel update, and attachment-gated documents hint together prevents the actor's clients from missing newly visible state.
  */
 export async function channelJoinPublic(
     executor: DrizzleExecutor,
@@ -23,6 +24,7 @@ export async function channelJoinPublic(
 ): Promise<{
     chat: ChatSummary;
     hint: MutationHint;
+    documentsHint?: MutationHint;
 }> {
     return withTransaction(executor, async (tx) => {
         const access = await chatGetAccess(tx, actorUserId, chatId, false);
@@ -64,7 +66,7 @@ export async function channelJoinPublic(
                     leftAt: null,
                 },
             });
-        await chatDescendantMembershipSync(tx, {
+        const documentsChanged = await chatDescendantMembershipSync(tx, {
             ancestorChatId: chatId,
             userId: actorUserId,
             actorUserId,
@@ -82,6 +84,7 @@ export async function channelJoinPublic(
         return {
             chat,
             hint: chatHint(sequence, chatId, service.pts),
+            ...(documentsChanged ? { documentsHint: areaHint(sequence, "documents") } : {}),
         };
     });
 }

@@ -7,7 +7,7 @@ import { CollaborationError } from "./types.js";
 
 /**
  * Applies a manager-authorized set of channel membership grants and revocations as one transaction using the standard membership invariants.
- * The batch boundary prevents a multi-user plugin request from leaving only a prefix of its requested membership change durable.
+ * The batch boundary prevents a partial plugin update and preserves each affected identity's separately targeted documents hint.
  */
 export async function channelMembersUpdate(
     executor: DrizzleExecutor,
@@ -17,9 +17,13 @@ export async function channelMembersUpdate(
         addUserIds: readonly string[];
         removeUserIds: readonly string[];
     },
-): Promise<{ hints: MutationHint[] }> {
+): Promise<{
+    hints: MutationHint[];
+    userHints: Array<{ userId: string; hint: MutationHint }>;
+}> {
     return withTransaction(executor, async (tx) => {
         const hints: MutationHint[] = [];
+        const userHints: Array<{ userId: string; hint: MutationHint }> = [];
         const addUserIds = new Set(input.addUserIds);
         const removeUserIds = new Set(input.removeUserIds);
         if (
@@ -36,6 +40,7 @@ export async function channelMembersUpdate(
                 userId,
             });
             hints.push(added.hint);
+            userHints.push({ userId, hint: membershipUserHint(added) });
         }
         for (const userId of removeUserIds) {
             const removed = await channelMemberRemove(tx, {
@@ -44,7 +49,20 @@ export async function channelMembersUpdate(
                 userId,
             });
             hints.push(removed.hint);
+            userHints.push({ userId, hint: membershipUserHint(removed) });
         }
-        return { hints };
+        return { hints, userHints };
     });
+}
+
+function membershipUserHint(result: {
+    hint: MutationHint;
+    documentsHint?: MutationHint;
+}): MutationHint {
+    return result.documentsHint
+        ? {
+              ...result.hint,
+              areas: [...new Set([...result.hint.areas, ...result.documentsHint.areas])],
+          }
+        : result.hint;
 }
