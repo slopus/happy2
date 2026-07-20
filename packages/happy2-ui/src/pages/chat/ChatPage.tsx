@@ -1167,6 +1167,10 @@ export function ChatPage(props: ChatPageProps) {
                             onValueChange={updateDraft}
                             onWorkspaceToggle={toggleFilesPanel}
                             onDocumentsToggle={toggleDocumentsPanel}
+                            onDocumentAdd={() => {
+                                const chatId = activeConversationId();
+                                if (chatId) void props.actions.documentCreate(chatId);
+                            }}
                             onTerminalClose={() => props.actions.terminalClose?.()}
                             onTerminalHeightChange={(height) =>
                                 setTerminalHeight(Math.max(160, Math.min(560, height)))

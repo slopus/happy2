@@ -213,6 +213,8 @@ export type ComposerProps = {
     hint?: string;
     /** Opens a host-owned attachment browser. Takes precedence over the native picker. */
     onAttachFile?: () => void;
+    /** Adds a collaborative document to the conversation. Hides the action when absent. */
+    onAddDocument?: () => void;
     /** Called for toggle clicks and Shift+Tab with the next audience. */
     onAudienceChange?: (audience: AudienceValue) => void;
     /** Receives files selected through the composer's native attachment picker. */
@@ -553,6 +555,17 @@ export function Composer(props: ComposerProps) {
                             icon="paperclip"
                             iconOnly
                             onClick={triggerAttachment}
+                            size="small"
+                            variant="ghost"
+                        />
+                    ) : null}
+                    {props.onAddDocument ? (
+                        <Button
+                            aria-label="Add document"
+                            disabled={busy}
+                            icon="doc"
+                            iconOnly
+                            onClick={() => props.onAddDocument?.()}
                             size="small"
                             variant="ghost"
                         />

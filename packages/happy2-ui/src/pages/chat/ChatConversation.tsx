@@ -46,6 +46,8 @@ export interface ChatConversationProps {
     onValueChange(value: string): void;
     onWorkspaceToggle(): void;
     onDocumentsToggle(): void;
+    /** Creates a document in this conversation from the composer action row. */
+    onDocumentAdd(): void;
     terminal?: TerminalSnapshot;
     terminalAvailable: boolean;
     terminalHeight: number;
@@ -157,6 +159,7 @@ export function ChatConversation(props: ChatConversationProps) {
                         hint={props.composerHint}
                         mentions={props.composerMentions}
                         onAttachFile={() => fileInput.current?.click()}
+                        onAddDocument={props.activeConversationId ? props.onDocumentAdd : undefined}
                         onAudienceChange={props.onAudienceChange}
                         onContextRemove={props.onContextRemove}
                         onFocusChange={props.onComposerFocusChange}
