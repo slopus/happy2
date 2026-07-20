@@ -178,7 +178,11 @@ describe("threads are nested ordinary chats", () => {
         ).toBe(201);
 
         expect(
-            (await asOwner.post(`/v0/chats/${parentChatId}/archiveChannel`, {})).statusCode,
+            (
+                await asOwner.post(`/v0/chats/${parentChatId}/archiveChannel`, {
+                    leave: true,
+                })
+            ).statusCode,
         ).toBe(200);
         expect(
             (
@@ -186,9 +190,13 @@ describe("threads are nested ordinary chats", () => {
                     text: "An archived ancestor makes every descendant read-only",
                 })
             ).statusCode,
-        ).toBe(403);
+        ).toBe(404);
         expect(
-            (await asOwner.post(`/v0/chats/${parentChatId}/unarchiveChannel`, {})).statusCode,
+            (
+                await asOwner.post(`/v0/chats/${parentChatId}/unarchiveChannel`, {
+                    join: true,
+                })
+            ).statusCode,
         ).toBe(200);
 
         expect((await asOwner.post(`/v0/messages/${firstReplyId}/deleteMessage`)).statusCode).toBe(
@@ -323,7 +331,9 @@ describe("threads are nested ordinary chats", () => {
             expect((await asSuccessor.get(`/v0/chats/${chatId}`)).json().chat).toMatchObject({
                 ownerUserId: successor.id,
             });
-            expect((await asCreator.get(`/v0/chats/${chatId}`)).statusCode).toBe(404);
+            const departedOwner = await asCreator.get(`/v0/chats/${chatId}`);
+            expect(departedOwner.statusCode).toBe(200);
+            expect(departedOwner.json().chat.membershipRole).toBeUndefined();
         }
     });
 

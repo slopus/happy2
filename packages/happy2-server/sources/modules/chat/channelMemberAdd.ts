@@ -37,7 +37,12 @@ export async function channelMemberAdd(
             throw new CollaborationError("invalid", "Nested chat membership is inherited");
         if (access.kind === "dm")
             throw new CollaborationError("invalid", "Direct-message membership is fixed");
-        if (input.role === "owner" && !access.isServerAdmin && access.membershipRole !== "owner")
+        if (
+            input.role === "owner" &&
+            !access.isServerAdmin &&
+            access.membershipRole !== "owner" &&
+            access.recoverableMembershipRole !== "owner"
+        )
             throw new CollaborationError("forbidden", "Only an owner can assign ownership");
         const identityKind = await requireActiveIdentityDb(tx, input.userId);
         if (identityKind === "agent") {
@@ -80,6 +85,7 @@ export async function channelMemberAdd(
                     syncSequence: sql`excluded.sync_sequence`,
                     joinedAt: sql`CURRENT_TIMESTAMP`,
                     leftAt: null,
+                    removedByUserId: null,
                 },
             });
         const documentsChanged = await chatDescendantMembershipSync(tx, {

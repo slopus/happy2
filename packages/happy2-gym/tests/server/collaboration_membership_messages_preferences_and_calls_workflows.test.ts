@@ -111,20 +111,30 @@ describe("collaboration membership, messages, personal organization, and calls",
             ).statusCode,
         ).toBe(200);
         expect((await asOwner.post(`/v0/chats/${privateChannelId}/leave`)).statusCode).toBe(200);
-        expect((await asOwner.get(`/v0/chats/${privateChannelId}`)).statusCode).toBe(404);
+        const departedOwner = await asOwner.get(`/v0/chats/${privateChannelId}`);
+        expect(departedOwner.statusCode).toBe(200);
+        expect(departedOwner.json().chat.membershipRole).toBeUndefined();
         expect((await asMember.get(`/v0/chats/${privateChannelId}`)).json().chat).toMatchObject({
             ownerUserId: member.id,
             membershipRole: "owner",
         });
         expect(
-            (await asMember.post(`/v0/chats/${privateChannelId}/archiveChannel`)).statusCode,
+            (
+                await asMember.post(`/v0/chats/${privateChannelId}/archiveChannel`, {
+                    leave: true,
+                })
+            ).statusCode,
         ).toBe(200);
         expect(
             (await asMember.post(`/v0/chats/${privateChannelId}/sendMessage`, { text: "blocked" }))
                 .statusCode,
-        ).toBe(403);
+        ).toBe(404);
         expect(
-            (await asMember.post(`/v0/chats/${privateChannelId}/unarchiveChannel`)).statusCode,
+            (
+                await asMember.post(`/v0/chats/${privateChannelId}/unarchiveChannel`, {
+                    join: true,
+                })
+            ).statusCode,
         ).toBe(200);
         expect(
             (await asMember.post(`/v0/chats/${privateChannelId}/deleteChannel`, {})).statusCode,
@@ -146,6 +156,24 @@ describe("collaboration membership, messages, personal organization, and calls",
         expect(joined.statusCode).toBe(200);
         expect(joined.json().chat.membershipRole).toBe("member");
         expect((await asOutsider.post(`/v0/chats/${publicChannelId}/join`)).statusCode).toBe(409);
+        expect(
+            (
+                await asAdmin.post(`/v0/chats/${publicChannelId}/removeMember`, {
+                    userId: outsider.id,
+                })
+            ).statusCode,
+        ).toBe(200);
+        expect((await asOutsider.post(`/v0/chats/${publicChannelId}/join`)).statusCode).toBe(404);
+        expect(
+            (
+                await asAdmin.post(`/v0/chats/${publicChannelId}/addMember`, {
+                    userId: outsider.id,
+                })
+            ).statusCode,
+        ).toBe(200);
+        expect((await asOutsider.get(`/v0/chats/${publicChannelId}`)).json().chat).toMatchObject({
+            membershipRole: "member",
+        });
     });
 
     it("keeps quoted replies and child-chat threads distinct while preserving edits, forwards, reactions, pins, and bookmarks", async () => {

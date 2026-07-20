@@ -12,8 +12,8 @@ import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSyn
 import { areaHint } from "./areaHint.js";
 
 /**
- * Marks the actor's chatMembers membership left and transfers chats ownership when the departing user owns the channel.
- * Keeping role repair and attachment-gated documents sync in one transition prevents an ownerless channel or a client that retains revoked visibility.
+ * Marks the actor's durable chatMembers membership voluntarily inactive and transfers chats ownership when another active owner exists.
+ * Preserving the row and clearing removal provenance keeps history readable and allows any departed member to rejoin with the same role.
  */
 export async function channelLeave(
     executor: DrizzleExecutor,
@@ -49,18 +49,15 @@ export async function channelLeave(
                 )
                 .orderBy(chatMembers.joinedAt, chatMembers.userId)
                 .limit(1);
-            if (!otherOwner)
-                throw new CollaborationError(
-                    "conflict",
-                    "Transfer channel ownership before leaving",
-                );
-            await tx
-                .update(chats)
-                .set({
-                    ownerUserId: otherOwner.userId,
-                })
-                .where(and(eq(chats.id, chatId), eq(chats.ownerUserId, actorUserId)));
-            replacementOwnerUserId = otherOwner.userId;
+            if (otherOwner) {
+                await tx
+                    .update(chats)
+                    .set({
+                        ownerUserId: otherOwner.userId,
+                    })
+                    .where(and(eq(chats.id, chatId), eq(chats.ownerUserId, actorUserId)));
+                replacementOwnerUserId = otherOwner.userId;
+            }
         }
         const sequence = await syncSequenceNext(tx);
         const mutation = await chatAdvanceWithSequence(
@@ -76,6 +73,7 @@ export async function channelLeave(
             .update(chatMembers)
             .set({
                 leftAt: sql`CURRENT_TIMESTAMP`,
+                removedByUserId: null,
                 syncSequence: sequence,
             })
             .where(

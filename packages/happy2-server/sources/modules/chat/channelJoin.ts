@@ -1,11 +1,11 @@
-import { type ChatSummary, CollaborationError, type MutationHint } from "./types.js";
+import { CollaborationError, type ChatRole, type ChatSummary, type MutationHint } from "./types.js";
 
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 
 import { chatHint } from "./chatHint.js";
 import { chatMembers } from "../schema.js";
 import { createId } from "@paralleldrive/cuid2";
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
 import { chatGetAccess } from "./chatGetAccess.js";
 import { createUserAddedServiceMessageDb } from "./impl/createUserAddedServiceMessageDb.js";
@@ -14,10 +14,10 @@ import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSyn
 import { areaHint } from "./areaHint.js";
 
 /**
- * Inserts or reactivates the actor's chatMembers row for a public, joinable channel and assigns a fresh membership epoch.
- * Recording the membership, channel update, and attachment-gated documents hint together prevents the actor's clients from missing newly visible state.
+ * Joins a discoverable public channel or a voluntarily departed private-channel membership by reactivating chatMembers with a fresh membership epoch.
+ * The transaction advances chats history, preserves the previous role, and rejects private memberships that a manager explicitly revoked.
  */
-export async function channelJoinPublic(
+export async function channelJoin(
     executor: DrizzleExecutor,
     actorUserId: string,
     chatId: string,
@@ -28,8 +28,14 @@ export async function channelJoinPublic(
 }> {
     return withTransaction(executor, async (tx) => {
         const access = await chatGetAccess(tx, actorUserId, chatId, false);
-        if (!access || access.kind !== "public_channel")
-            throw new CollaborationError("not_found", "Public channel was not found");
+        if (
+            !access ||
+            (access.kind !== "public_channel" &&
+                !(access.kind === "private_channel" && access.isRecoverableMember))
+        )
+            throw new CollaborationError("not_found", "Joinable channel was not found");
+        if (access.archivedAt)
+            throw new CollaborationError("conflict", "Unarchive the channel before joining");
         if (access.parentMessageId || access.parentChatId)
             throw new CollaborationError(
                 "invalid",
@@ -37,6 +43,18 @@ export async function channelJoinPublic(
             );
         if (access.membershipRole)
             throw new CollaborationError("conflict", "Already joined this channel");
+        const [previous] = await tx
+            .select({
+                role: chatMembers.role,
+                removedByUserId: chatMembers.removedByUserId,
+            })
+            .from(chatMembers)
+            .where(and(eq(chatMembers.chatId, chatId), eq(chatMembers.userId, actorUserId)))
+            .limit(1);
+        if (previous?.removedByUserId)
+            throw new CollaborationError("not_found", "Joinable channel was not found");
+        const previousRole = previous?.role as ChatRole | undefined;
+        const role: ChatRole = previousRole ?? "member";
         const sequence = await syncSequenceNext(tx);
         await chatAdvanceWithSequence(
             tx,
@@ -52,18 +70,20 @@ export async function channelJoinPublic(
             .values({
                 chatId,
                 userId: actorUserId,
-                role: "member",
+                role,
                 membershipEpoch: createId(),
                 syncSequence: sequence,
             })
             .onConflictDoUpdate({
                 target: [chatMembers.chatId, chatMembers.userId],
                 set: {
-                    role: "member",
+                    role,
                     membershipEpoch: sql`excluded.membership_epoch`,
                     syncSequence: sql`excluded.sync_sequence`,
                     joinedAt: sql`CURRENT_TIMESTAMP`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
                     leftAt: null,
+                    removedByUserId: null,
                 },
             });
         const documentsChanged = await chatDescendantMembershipSync(tx, {
@@ -72,7 +92,7 @@ export async function channelJoinPublic(
             actorUserId,
             sequence,
             kind: "joined",
-            role: "member",
+            role,
         });
         const service = await createUserAddedServiceMessageDb(tx, {
             sequence,

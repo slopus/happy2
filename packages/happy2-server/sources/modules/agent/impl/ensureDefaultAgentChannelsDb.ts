@@ -113,7 +113,7 @@ export async function ensureDefaultAgentChannelsDb(
             defaultAgentUserId: chats.defaultAgentUserId,
         })
         .from(chats)
-        .where(and(ne(chats.kind, "dm"), isNull(chats.deletedAt)));
+        .where(and(ne(chats.kind, "dm"), isNull(chats.deletedAt), isNull(chats.archivedAt)));
     for (const channel of channels) {
         for (const participant of [{ id: defaultAgentUserId, kind: "member.defaultAgentJoined" }]) {
             const [membership] = await executor

@@ -25,6 +25,7 @@ import { text } from "../chat/text.js";
 import { channelDirectoryList } from "../chat/channelDirectoryList.js";
 import { contactList } from "../user/contactList.js";
 import { messageGetProjection } from "../message/messageGetProjection.js";
+import { userIsServerAdmin } from "../chat/userIsServerAdmin.js";
 /**
  * Ranks visible people, channels, and message projections into one cursor-based search page.
  * Keeping visibility rules and cross-entity scoring together makes every search caller observe the same result ordering.
@@ -58,6 +59,7 @@ export async function searchPageGet(
     >;
     nextCursor?: string;
 }> {
+    const isServerAdmin = await userIsServerAdmin(executor, input.userId);
     const types = new Set(input.types ?? ["user", "channel", "message"]);
     const normalized = normalizeSearch(input.query);
     const cursorScope = `${normalized}\0${[...types].sort().join(",")}`;
@@ -157,7 +159,12 @@ export async function searchPageGet(
                         sql`datetime(${messages.expiresAt}) > CURRENT_TIMESTAMP`,
                     ),
                     isNull(chats.deletedAt),
-                    or(eq(chats.kind, "public_channel"), sql`${chatMembers.userId} IS NOT NULL`),
+                    or(
+                        eq(chats.kind, "public_channel"),
+                        sql`${chatMembers.userId} IS NOT NULL`,
+                        ...(isServerAdmin ? [eq(chats.kind, "private_channel")] : []),
+                        sql`exists (select 1 from chat_members recoverable_member where recoverable_member.chat_id = ${chats.id} and recoverable_member.user_id = ${input.userId} and recoverable_member.left_at is not null and recoverable_member.removed_by_user_id is null)`,
+                    ),
                 ),
             )
             .orderBy(

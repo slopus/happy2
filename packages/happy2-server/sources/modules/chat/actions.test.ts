@@ -33,7 +33,7 @@ import { chatGet } from "./chatGet.js";
 import { channelTopicUpdate } from "./channelTopicUpdate.js";
 import { channelMemberRemove } from "./channelMemberRemove.js";
 import { channelMemberAdd } from "./channelMemberAdd.js";
-import { channelJoinPublic } from "./channelJoinPublic.js";
+import { channelJoin } from "./channelJoin.js";
 import { channelCreate } from "./channelCreate.js";
 import { agentTurnTakeNext } from "../agent/agentTurnTakeNext.js";
 import { agentTurnComplete } from "../agent/agentTurnComplete.js";
@@ -360,7 +360,7 @@ describe("functional product actions", () => {
             name: "General",
             slug: "general",
         });
-        await channelJoinPublic(executor, grace.id, channel.chat.id);
+        await channelJoin(executor, grace.id, channel.chat.id);
         const root = await messageSend(executor, {
             actorUserId: ada.id,
             chatId: channel.chat.id,
@@ -433,7 +433,7 @@ describe("functional product actions", () => {
             name: "Read state",
             slug: "read-state",
         });
-        await channelJoinPublic(executor, grace.id, channel.chat.id);
+        await channelJoin(executor, grace.id, channel.chat.id);
         const sent = await messageSendAutomated(executor, {
             actorUserId: ada.id,
             chatId: channel.chat.id,

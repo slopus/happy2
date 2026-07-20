@@ -30,7 +30,11 @@ export async function channelDelete(
             throw new CollaborationError("invalid", "Direct messages cannot be deleted");
         if (access.isMain)
             throw new CollaborationError("invalid", "The main channel cannot be deleted");
-        if (!access.isServerAdmin && access.membershipRole !== "owner")
+        if (
+            !access.isServerAdmin &&
+            access.membershipRole !== "owner" &&
+            access.recoverableMembershipRole !== "owner"
+        )
             throw new CollaborationError("forbidden", "Only an owner can delete a channel");
         const descendantIds = await chatDescendantIds(tx, input.chatId);
         const deletedChatIds = [input.chatId, ...descendantIds];

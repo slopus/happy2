@@ -218,12 +218,15 @@ describe("stateful collaboration workflows", () => {
             slug: "backend-platform",
             topic: "Durable collaboration",
         });
-        await expectOk(asAdmin, `/v0/chats/${chatId}/archiveChannel`, { reason: "maintenance" });
+        await expectOk(asAdmin, `/v0/chats/${chatId}/archiveChannel`, {
+            reason: "maintenance",
+            leave: true,
+        });
         expect(
             (await asMember.post(`/v0/chats/${chatId}/sendMessage`, { text: "blocked" }))
                 .statusCode,
-        ).toBe(403);
-        await expectOk(asAdmin, `/v0/chats/${chatId}/unarchiveChannel`);
+        ).toBe(404);
+        await expectOk(asAdmin, `/v0/chats/${chatId}/unarchiveChannel`, { join: true });
 
         const search = await asMember.get("/v0/search?q=relase&limit=2");
         expect(search.statusCode).toBe(200);

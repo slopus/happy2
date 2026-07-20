@@ -40,7 +40,9 @@ export async function chatBookmarkDelete(
             bookmark.createdByUserId !== input.actorUserId &&
             !access.isServerAdmin &&
             access.membershipRole !== "owner" &&
-            access.membershipRole !== "admin"
+            access.membershipRole !== "admin" &&
+            access.recoverableMembershipRole !== "owner" &&
+            access.recoverableMembershipRole !== "admin"
         )
             throw new CollaborationError("forbidden", "Cannot delete this bookmark");
         const sequence = await syncSequenceNext(tx);

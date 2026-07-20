@@ -33,7 +33,12 @@ export async function channelMemberSetRole(
             throw new CollaborationError("invalid", "Nested chat membership is inherited");
         if (access.kind === "dm")
             throw new CollaborationError("invalid", "Direct-message roles are fixed");
-        if (input.role === "owner" && !access.isServerAdmin && access.membershipRole !== "owner")
+        if (
+            input.role === "owner" &&
+            !access.isServerAdmin &&
+            access.membershipRole !== "owner" &&
+            access.recoverableMembershipRole !== "owner"
+        )
             throw new CollaborationError("forbidden", "Only an owner can assign ownership");
         const [member] = await tx
             .select({

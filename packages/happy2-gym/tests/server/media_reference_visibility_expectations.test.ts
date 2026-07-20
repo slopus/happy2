@@ -9,7 +9,7 @@ import { createGymServer, type GymRequestClient } from "../../sources/index.js";
  * product surface.
  */
 describe("referenced media visibility expectations", () => {
-    it("should grant a private channel photo to every current channel member", async () => {
+    it("should preserve a private channel photo after leaving and revoke it after removal", async () => {
         await using server = await createGymServer();
         const owner = await server.createUser({ username: "channel_photo_owner" });
         const member = await server.createUser({ username: "channel_photo_member" });
@@ -43,6 +43,17 @@ describe("referenced media visibility expectations", () => {
         // Actual at the time of writing: 404 because channel photo references do not
         // participate in file authorization.
         expect((await asMember.get(`/v0/files/${photo.id}`)).statusCode).toBe(200);
+
+        expect((await asMember.post(`/v0/chats/${chatId}/leave`)).statusCode).toBe(200);
+        expect((await asMember.get(`/v0/files/${photo.id}`)).statusCode).toBe(200);
+        expect(
+            (
+                await asOwner.post(`/v0/chats/${chatId}/removeMember`, {
+                    userId: member.id,
+                })
+            ).statusCode,
+        ).toBe(200);
+        expect((await asMember.get(`/v0/files/${photo.id}`)).statusCode).toBe(404);
     });
 
     it("should grant a private bot photo to members who can see that bot's messages", async () => {

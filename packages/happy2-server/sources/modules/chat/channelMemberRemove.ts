@@ -13,8 +13,8 @@ import { chatDescendantIds } from "./impl/chatDescendantIds.js";
 import { areaHint } from "./areaHint.js";
 
 /**
- * Removes a managed chatMembers identity, repairs chats ownership when necessary, and detaches agentRigBindings that depended on the membership.
- * The transaction prevents stale authority and targets an attachment-gated documents hint to the identity whose channel visibility was revoked.
+ * Revokes a managed chatMembers relationship, repairs chats ownership when necessary, and detaches agentRigBindings that depended on it.
+ * Recording removal provenance blocks self-rejoin even when the target had already left voluntarily, while one transaction revokes descendant visibility and emits sync evidence.
  */
 export async function channelMemberRemove(
     executor: DrizzleExecutor,
@@ -64,7 +64,7 @@ export async function channelMemberRemove(
                 and(
                     eq(chatMembers.chatId, input.chatId),
                     eq(chatMembers.userId, input.userId),
-                    isNull(chatMembers.leftAt),
+                    isNull(chatMembers.removedByUserId),
                 ),
             )
             .limit(1);
@@ -149,13 +149,15 @@ export async function channelMemberRemove(
             .update(chatMembers)
             .set({
                 leftAt: sql`CURRENT_TIMESTAMP`,
+                removedByUserId: input.actorUserId,
                 syncSequence: sequence,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
             })
             .where(
                 and(
                     eq(chatMembers.chatId, input.chatId),
                     eq(chatMembers.userId, input.userId),
-                    isNull(chatMembers.leftAt),
+                    isNull(chatMembers.removedByUserId),
                 ),
             );
         const documentsChanged = await chatDescendantMembershipSync(tx, {

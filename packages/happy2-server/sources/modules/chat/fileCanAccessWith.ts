@@ -2,6 +2,7 @@ import { type DrizzleExecutor } from "../drizzle.js";
 import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
 
 import { files } from "../schema.js";
+import { userIsServerAdminDb } from "./impl/userIsServerAdminDb.js";
 
 /**
  * Reports access to a complete, non-infected file through public state, ownership, a visible product reference, or an unexpired principal grant.
@@ -12,6 +13,7 @@ export async function fileCanAccessWith(
     userId: string,
     fileId: string,
 ): Promise<boolean> {
+    const isServerAdmin = await userIsServerAdminDb(executor, userId);
     const [row] = await executor
         .select({
             id: files.id,
@@ -30,9 +32,9 @@ export async function fileCanAccessWith(
                     sql`exists (select 1 from server_settings s where s.photo_file_id = ${files.id})`,
                     sql`exists (select 1 from users u where u.photo_file_id = ${files.id} and u.deleted_at is null)`,
                     sql`exists (select 1 from bot_identities b where b.photo_file_id = ${files.id} and b.deleted_at is null and b.active = 1)`,
-                    sql`exists (select 1 from chats photo_chat left join chat_members photo_member on photo_member.chat_id = photo_chat.id and photo_member.user_id = ${userId} and photo_member.left_at is null where photo_chat.photo_file_id = ${files.id} and photo_chat.deleted_at is null and (photo_chat.kind = 'public_channel' or photo_member.user_id is not null))`,
-                    sql`exists (select 1 from file_access_grants g where g.file_id = ${files.id} and (g.expires_at is null or datetime(g.expires_at) > CURRENT_TIMESTAMP) and ((g.principal_type = 'user' and g.principal_id = ${userId}) or g.principal_type in ('server', 'custom_emoji') or (g.principal_type = 'chat' and exists (select 1 from chats grant_chat left join chat_members grant_member on grant_member.chat_id = grant_chat.id and grant_member.user_id = ${userId} and grant_member.left_at is null where grant_chat.id = g.principal_id and grant_chat.deleted_at is null and (grant_chat.kind = 'public_channel' or grant_member.user_id is not null)))))`,
-                    sql`exists (select 1 from message_attachments ma join messages m on m.id = ma.message_id join chats c on c.id = m.chat_id left join chat_members cm on cm.chat_id = c.id and cm.user_id = ${userId} and cm.left_at is null where ma.file_id = ${files.id} and m.deleted_at is null and (m.expires_at is null or datetime(m.expires_at) > CURRENT_TIMESTAMP) and c.deleted_at is null and (c.kind = 'public_channel' or cm.user_id is not null))`,
+                    sql`exists (select 1 from chats photo_chat left join chat_members photo_member on photo_member.chat_id = photo_chat.id and photo_member.user_id = ${userId} and photo_member.left_at is null where photo_chat.photo_file_id = ${files.id} and photo_chat.deleted_at is null and (photo_chat.kind = 'public_channel' or photo_member.user_id is not null or ${isServerAdmin} or exists (select 1 from chat_members recoverable_photo_member where recoverable_photo_member.chat_id = photo_chat.id and recoverable_photo_member.user_id = ${userId} and recoverable_photo_member.left_at is not null and recoverable_photo_member.removed_by_user_id is null)))`,
+                    sql`exists (select 1 from file_access_grants g where g.file_id = ${files.id} and (g.expires_at is null or datetime(g.expires_at) > CURRENT_TIMESTAMP) and ((g.principal_type = 'user' and g.principal_id = ${userId}) or g.principal_type in ('server', 'custom_emoji') or (g.principal_type = 'chat' and exists (select 1 from chats grant_chat left join chat_members grant_member on grant_member.chat_id = grant_chat.id and grant_member.user_id = ${userId} and grant_member.left_at is null where grant_chat.id = g.principal_id and grant_chat.deleted_at is null and (grant_chat.kind = 'public_channel' or grant_member.user_id is not null or ${isServerAdmin} or exists (select 1 from chat_members recoverable_grant_member where recoverable_grant_member.chat_id = grant_chat.id and recoverable_grant_member.user_id = ${userId} and recoverable_grant_member.left_at is not null and recoverable_grant_member.removed_by_user_id is null))))))`,
+                    sql`exists (select 1 from message_attachments ma join messages m on m.id = ma.message_id join chats c on c.id = m.chat_id left join chat_members cm on cm.chat_id = c.id and cm.user_id = ${userId} and cm.left_at is null where ma.file_id = ${files.id} and m.deleted_at is null and (m.expires_at is null or datetime(m.expires_at) > CURRENT_TIMESTAMP) and c.deleted_at is null and (c.kind = 'public_channel' or cm.user_id is not null or ${isServerAdmin} or exists (select 1 from chat_members recoverable_attachment_member where recoverable_attachment_member.chat_id = c.id and recoverable_attachment_member.user_id = ${userId} and recoverable_attachment_member.left_at is not null and recoverable_attachment_member.removed_by_user_id is null)))`,
                 ),
             ),
         )

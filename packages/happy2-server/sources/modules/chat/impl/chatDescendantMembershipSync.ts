@@ -58,6 +58,7 @@ export async function chatDescendantMembershipSync(
                         joinedAt: sql`CURRENT_TIMESTAMP`,
                         updatedAt: sql`CURRENT_TIMESTAMP`,
                         leftAt: null,
+                        removedByUserId: null,
                     },
                 });
     } else {
@@ -65,6 +66,7 @@ export async function chatDescendantMembershipSync(
             .update(chatMembers)
             .set({
                 leftAt: sql`CURRENT_TIMESTAMP`,
+                removedByUserId: input.kind === "removed" ? input.actorUserId : null,
                 syncSequence: input.sequence,
                 updatedAt: sql`CURRENT_TIMESTAMP`,
             })
@@ -72,7 +74,7 @@ export async function chatDescendantMembershipSync(
                 and(
                     inArray(chatMembers.chatId, descendantIds),
                     eq(chatMembers.userId, input.userId),
-                    isNull(chatMembers.leftAt),
+                    ...(input.kind === "left" ? [isNull(chatMembers.leftAt)] : []),
                 ),
             );
         if (input.replacementOwnerUserId) {

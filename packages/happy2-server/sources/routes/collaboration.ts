@@ -53,7 +53,7 @@ import { channelMemberSetRole } from "../modules/chat/channelMemberSetRole.js";
 import { channelMemberRemove } from "../modules/chat/channelMemberRemove.js";
 import { channelMemberAdd } from "../modules/chat/channelMemberAdd.js";
 import { channelLeave } from "../modules/chat/channelLeave.js";
-import { channelJoinPublic } from "../modules/chat/channelJoinPublic.js";
+import { channelJoin } from "../modules/chat/channelJoin.js";
 import { channelDirectoryList } from "../modules/chat/channelDirectoryList.js";
 import { channelDelete } from "../modules/chat/channelDelete.js";
 import { channelCreate } from "../modules/chat/channelCreate.js";
@@ -493,9 +493,9 @@ export function registerCollaborationRoutes(
             };
         }),
     );
-    for (const [path, archived] of [
-        ["archiveChannel", true],
-        ["unarchiveChannel", false],
+    for (const [path, archived, membershipFlag] of [
+        ["archiveChannel", true, "leave"],
+        ["unarchiveChannel", false, "join"],
     ] as const)
         app.post(
             `/v0/chats/:chatId/${path}`,
@@ -503,7 +503,7 @@ export function registerCollaborationRoutes(
                 const body =
                     request.body === undefined || request.body === null
                         ? {}
-                        : requestBody(request, ["reason"]);
+                        : requestBody(request, ["reason", membershipFlag]);
                 const result = await channelSetArchived(executor, {
                     actorUserId: userId,
                     chatId: pathId(request, "chatId"),
@@ -511,9 +511,13 @@ export function registerCollaborationRoutes(
                     reason: has(body, "reason")
                         ? (nullableTrimmedString(body, "reason", 500) ?? undefined)
                         : undefined,
+                    membership: has(body, membershipFlag)
+                        ? booleanField(body, membershipFlag)
+                        : false,
                 });
-                await publishHints(request, pubsub, [result.hint], {
+                await publishHints(request, pubsub, [membershipUserHint(result)], {
                     server: result.chat.kind === "public_channel",
+                    userIds: result.memberUserIds,
                 });
                 return {
                     chat: result.chat,
@@ -544,7 +548,7 @@ export function registerCollaborationRoutes(
         "/v0/chats/:chatId/join",
         authenticated(auth, async (request, _reply, userId) => {
             emptyBody(request);
-            const result = await channelJoinPublic(executor, userId, pathId(request, "chatId"));
+            const result = await channelJoin(executor, userId, pathId(request, "chatId"));
             await publishHints(request, pubsub, [membershipUserHint(result)], {
                 userIds: [userId],
                 usersOnly: true,

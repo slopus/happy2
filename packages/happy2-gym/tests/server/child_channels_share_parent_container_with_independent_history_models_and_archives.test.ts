@@ -276,20 +276,30 @@ describe("child channel runtime and lifecycle", () => {
             ).statusCode,
         ).toBe(400);
 
-        expect((await asOwner.post(`/v0/chats/${childChatId}/archiveChannel`)).statusCode).toBe(
-            200,
-        );
+        expect(
+            (
+                await asOwner.post(`/v0/chats/${childChatId}/archiveChannel`, {
+                    leave: true,
+                })
+            ).statusCode,
+        ).toBe(200);
         expect((await asOwner.get(`/v0/chats/${parentChatId}`)).json().chat.archivedAt).toBe(
             undefined,
         );
         expect((await asOwner.get(`/v0/chats/${childChatId}`)).json().chat.archivedAt).toEqual(
             expect.any(String),
         );
-        expect((await asOwner.post(`/v0/chats/${childChatId}/unarchiveChannel`)).statusCode).toBe(
-            200,
-        );
+        expect(
+            (
+                await asOwner.post(`/v0/chats/${childChatId}/unarchiveChannel`, {
+                    join: true,
+                })
+            ).statusCode,
+        ).toBe(200);
 
-        const parentArchived = await asOwner.post(`/v0/chats/${parentChatId}/archiveChannel`);
+        const parentArchived = await asOwner.post(`/v0/chats/${parentChatId}/archiveChannel`, {
+            leave: true,
+        });
         expect(parentArchived.statusCode).toBe(200);
         expect(parentArchived.json().sync.chats).toEqual(
             expect.arrayContaining([
@@ -306,10 +316,14 @@ describe("child channel runtime and lifecycle", () => {
                     text: "Blocked by the parent archive",
                 })
             ).statusCode,
-        ).toBe(403);
-        expect((await asOwner.post(`/v0/chats/${parentChatId}/unarchiveChannel`)).statusCode).toBe(
-            200,
-        );
+        ).toBe(404);
+        expect(
+            (
+                await asOwner.post(`/v0/chats/${parentChatId}/unarchiveChannel`, {
+                    join: true,
+                })
+            ).statusCode,
+        ).toBe(200);
         expect((await asOwner.get(`/v0/chats/${childChatId}`)).json().chat.archivedAt).toBe(
             undefined,
         );
