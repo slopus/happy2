@@ -78,6 +78,7 @@ import { registerAgentRoutes } from "./routes/agents.js";
 import { registerAutomationRoutes } from "./routes/automation.js";
 import { registerBasicRoutes } from "./routes/basic.js";
 import { registerCollaborationRoutes } from "./routes/collaboration.js";
+import { registerDocumentRoutes } from "./routes/documents.js";
 import { registerFileRoutes } from "./routes/files.js";
 import { registerIntegrationRoutes } from "./routes/integrations.js";
 import { registerOperationsRoutes } from "./routes/operations.js";
@@ -344,6 +345,7 @@ export async function buildServer(
         fileStorage = services.fileStorage ?? new FileStorage(config, executor);
         registerFileRoutes(app, config, auth, executor, services.tokens, fileStorage);
         registerCollaborationRoutes(app, auth, executor, livePubsub, agentService);
+        registerDocumentRoutes(app, auth, executor, livePubsub);
         if (agentService) registerAgentRoutes(app, auth, agentService);
         registerAutomationRoutes(app, auth, executor, automationRuntime, livePubsub);
         registerOperationsRoutes(app, auth, executor);

@@ -20,6 +20,8 @@ export interface RealtimeLimits {
     maxIceCandidateBytes: number;
     maxPresenceUsers: number;
     maxPresenceTtlMs: number;
+    maxDocumentPresenceStateBytes: number;
+    maxDocumentPresenceTtlMs: number;
 }
 
 export const DEFAULT_REALTIME_LIMITS: Readonly<RealtimeLimits> = Object.freeze({
@@ -34,6 +36,8 @@ export const DEFAULT_REALTIME_LIMITS: Readonly<RealtimeLimits> = Object.freeze({
     maxIceCandidateBytes: 8 * 1024,
     maxPresenceUsers: 10_000,
     maxPresenceTtlMs: 60_000,
+    maxDocumentPresenceStateBytes: 8 * 1024,
+    maxDocumentPresenceTtlMs: 30_000,
 });
 
 /** An unsigned SQLite INTEGER encoded losslessly for JSON transport. */
@@ -148,13 +152,48 @@ export interface WorkspaceChangedEvent {
     readonly occurredAt: number;
 }
 
+/**
+ * Hint that a collaborative document accepted new content. Clients reconcile
+ * durable content through the document getDifference endpoint, never from this event.
+ */
+export interface DocumentUpdatedEvent {
+    readonly type: "document.updated";
+    readonly chatId: string;
+    readonly documentId: string;
+    readonly sequence: RealtimeSequence;
+    readonly occurredAt: number;
+}
+
+/** One editing participant of a collaborative document, expired locally by each observer. */
+export interface DocumentPresenceSnapshot {
+    readonly documentId: string;
+    readonly userId: string;
+    readonly clientId: string;
+    /** Monotonic per client so stale out-of-order deliveries are discarded. */
+    readonly revision: number;
+    readonly active: boolean;
+    /** Opaque editor awareness payload (cursor, selection, identity). */
+    readonly state?: unknown;
+    /** Required while active so observers can expire a silent participant. */
+    readonly expiresAt?: number;
+}
+
+export interface DocumentPresenceEvent {
+    readonly type: "document.presence";
+    readonly chatId: string;
+    readonly presence: DocumentPresenceSnapshot;
+    readonly occurredAt: number;
+}
+
 export type RealtimeEvent =
     | SyncHintEvent
     | TypingEvent
     | AgentActivityEvent
     | PresenceEvent
     | CallSignalEvent
-    | WorkspaceChangedEvent;
+    | WorkspaceChangedEvent
+    | DocumentUpdatedEvent
+    | DocumentPresenceEvent;
 export type RealtimeEventType = RealtimeEvent["type"];
 
 export type RealtimeTopic =
@@ -322,6 +361,17 @@ export function assertRealtimeEvent(
             assertRealtimeId(event.chatId, "chat id", limits);
             assertTimestamp(event.occurredAt, "workspace change occurredAt");
             return;
+        case "document.updated":
+            assertRealtimeId(event.chatId, "chat id", limits);
+            assertRealtimeId(event.documentId, "document id", limits);
+            assertSequence(event.sequence, "document sequence");
+            assertTimestamp(event.occurredAt, "document update occurredAt");
+            return;
+        case "document.presence":
+            assertRealtimeId(event.chatId, "chat id", limits);
+            assertTimestamp(event.occurredAt, "document presence occurredAt");
+            assertDocumentPresenceSnapshot(event.presence, event.occurredAt, limits);
+            return;
         default:
             throw new Error("Invalid realtime event type");
     }
@@ -391,6 +441,48 @@ function assertPresenceSnapshot(snapshot: PresenceSnapshot, limits: RealtimeLimi
         )
             throw new Error(
                 `Presence expiry must be within ${limits.maxPresenceTtlMs} ms of last seen`,
+            );
+    }
+}
+
+function assertDocumentPresenceSnapshot(
+    snapshot: DocumentPresenceSnapshot,
+    occurredAt: number,
+    limits: RealtimeLimits,
+): void {
+    if (!snapshot || typeof snapshot !== "object")
+        throw new Error("Invalid document presence snapshot");
+    assertRealtimeId(snapshot.documentId, "document id", limits);
+    assertRealtimeId(snapshot.userId, "presence user id", limits);
+    assertRealtimeId(snapshot.clientId, "presence client id", limits);
+    if (!Number.isSafeInteger(snapshot.revision) || snapshot.revision < 0)
+        throw new Error("Document presence revision must be a non-negative integer");
+    if (typeof snapshot.active !== "boolean")
+        throw new Error("Document presence active must be a boolean");
+    if (snapshot.state !== undefined) {
+        let encoded: string;
+        try {
+            encoded = JSON.stringify(snapshot.state);
+        } catch {
+            throw new Error("Document presence state must be JSON serializable");
+        }
+        if (encoded === undefined || Buffer.byteLength(encoded) > limits.maxDocumentPresenceStateBytes)
+            throw new Error(
+                `Document presence state exceeds ${limits.maxDocumentPresenceStateBytes} bytes`,
+            );
+    }
+    if (snapshot.active && snapshot.expiresAt === undefined)
+        throw new Error("Active document presence requires expiresAt");
+    if (!snapshot.active && snapshot.expiresAt !== undefined)
+        throw new Error("Inactive document presence cannot have expiresAt");
+    if (snapshot.expiresAt !== undefined) {
+        assertTimestamp(snapshot.expiresAt, "document presence expiresAt");
+        if (
+            snapshot.expiresAt < occurredAt ||
+            snapshot.expiresAt - occurredAt > limits.maxDocumentPresenceTtlMs
+        )
+            throw new Error(
+                `Document presence expiry must be within ${limits.maxDocumentPresenceTtlMs} ms`,
             );
     }
 }

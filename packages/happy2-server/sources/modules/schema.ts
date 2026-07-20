@@ -576,6 +576,46 @@ export const drafts = sqliteTable(
     (table) => [primaryKey({ columns: [table.userId, table.chatId] })],
 );
 
+export const documents = sqliteTable(
+    "documents",
+    {
+        id: text("id").primaryKey().notNull(),
+        chatId: text("chat_id")
+            .notNull()
+            .references(() => chats.id, { onDelete: "cascade" }),
+        title: text("title").notNull().default(""),
+        format: text("format").notNull().default("blocknote"),
+        createdByUserId: text("created_by_user_id"),
+        snapshotUpdate: text("snapshot_update").notNull(),
+        snapshotSequence: integer("snapshot_sequence").notNull().default(0),
+        lastSequence: integer("last_sequence").notNull().default(0),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [index("documents_chat_id_idx").on(table.chatId)],
+);
+
+export const documentUpdates = sqliteTable(
+    "document_updates",
+    {
+        documentId: text("document_id")
+            .notNull()
+            .references(() => documents.id, { onDelete: "cascade" }),
+        sequence: integer("sequence").notNull(),
+        update: text("update").notNull(),
+        clientUpdateId: text("client_update_id").notNull(),
+        actorUserId: text("actor_user_id"),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [
+        primaryKey({ columns: [table.documentId, table.sequence] }),
+        uniqueIndex("document_updates_client_update_idx").on(
+            table.documentId,
+            table.clientUpdateId,
+        ),
+    ],
+);
+
 export const dataExportJobs = sqliteTable("data_export_jobs", {
     id: text("id").primaryKey().notNull(),
     requestedByUserId: text("requested_by_user_id"),
@@ -1526,6 +1566,8 @@ export const schema = {
     customEmojiRevisions,
     customEmojis,
     dataExportJobs,
+    documentUpdates,
+    documents,
     drafts,
     fileAccessGrants,
     fileDerivatives,

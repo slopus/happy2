@@ -61,7 +61,8 @@
         "smol-toml": "^1.4.2",
         "thumbhash": "^0.1.1",
         "ws": "^8.21.1",
-        "yaml": "^2.9.0"
+        "yaml": "^2.9.0",
+        "yjs": "^13.6.31"
     },
     "devDependencies": {
         "@babel/parser": "^7.29.7",

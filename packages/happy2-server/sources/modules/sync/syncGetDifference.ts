@@ -144,6 +144,7 @@ export async function syncGetDifference(
         else if (kind.startsWith("threadPreferences.")) areas.add("threads");
         else if (kind.startsWith("scheduled.")) areas.add("scheduled-messages");
         else if (kind.startsWith("draft.")) areas.add("drafts");
+        else if (kind.startsWith("document.")) areas.add("documents");
         else if (kind.startsWith("automation.")) areas.add("automations");
         else if (kind.startsWith("bot.")) areas.add("bots");
         else if (kind.startsWith("integration.")) areas.add("integrations");

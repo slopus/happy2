@@ -1,251 +1,258 @@
 {
-    "version": "7",
-    "dialect": "sqlite",
-    "entries": [
-        {
-            "idx": 0,
-            "version": "6",
-            "when": 1783770000000,
-            "tag": "0000_initial",
-            "breakpoints": true
-        },
-        {
-            "idx": 1,
-            "version": "6",
-            "when": 1783810000000,
-            "tag": "0001_accounts_profiles_files",
-            "breakpoints": true
-        },
-        {
-            "idx": 2,
-            "version": "6",
-            "when": 1783820000000,
-            "tag": "0002_file_visibility_and_uploader",
-            "breakpoints": true
-        },
-        {
-            "idx": 3,
-            "version": "6",
-            "when": 1783851113088,
-            "tag": "0003_collaboration",
-            "breakpoints": true
-        },
-        {
-            "idx": 4,
-            "version": "6",
-            "when": 1783877025268,
-            "tag": "0004_collaboration_expansion",
-            "breakpoints": true
-        },
-        {
-            "idx": 5,
-            "version": "6",
-            "when": 1783900000000,
-            "tag": "0005_ai_agents",
-            "breakpoints": true
-        },
-        {
-            "idx": 6,
-            "version": "6",
-            "when": 1784000000000,
-            "tag": "0006_rig_global_event_queue",
-            "breakpoints": true
-        },
-        {
-            "idx": 7,
-            "version": "6",
-            "when": 1784050000000,
-            "tag": "0007_rename_server_identity",
-            "breakpoints": true
-        },
-        {
-            "idx": 8,
-            "version": "6",
-            "when": 1784080000000,
-            "tag": "0008_agent_message_streaming",
-            "breakpoints": true
-        },
-        {
-            "idx": 9,
-            "version": "6",
-            "when": 1784167000000,
-            "tag": "0009_chat_workspace_binding_lookup",
-            "breakpoints": true
-        },
-        {
-            "idx": 10,
-            "version": "6",
-            "when": 1784170000000,
-            "tag": "0010_rig_secret_assignments",
-            "breakpoints": true
-        },
-        {
-            "idx": 11,
-            "version": "6",
-            "when": 1784220000000,
-            "tag": "0011_agent_image_changes",
-            "breakpoints": true
-        },
-        {
-            "idx": 12,
-            "version": "6",
-            "when": 1784230000000,
-            "tag": "0012_agent_effort",
-            "breakpoints": true
-        },
-        {
-            "idx": 13,
-            "version": "6",
-            "when": 1784250000000,
-            "tag": "0013_agent_turn_started_at",
-            "breakpoints": true
-        },
-        {
-            "idx": 14,
-            "version": "6",
-            "when": 1784260000000,
-            "tag": "0014_main_channels",
-            "breakpoints": true
-        },
-        {
-            "idx": 15,
-            "version": "6",
-            "when": 1784270000000,
-            "tag": "0015_durable_server_and_user_onboarding",
-            "breakpoints": true
-        },
-        {
-            "idx": 16,
-            "version": "6",
-            "when": 1784330000000,
-            "tag": "0016_default_agent",
-            "breakpoints": true
-        },
-        {
-            "idx": 17,
-            "version": "6",
-            "when": 1784340000000,
-            "tag": "0017_user_product_last_seen",
-            "breakpoints": true
-        },
-        {
-            "idx": 18,
-            "version": "6",
-            "when": 1784350000000,
-            "tag": "0018_threads_are_chats",
-            "breakpoints": true
-        },
-        {
-            "idx": 19,
-            "version": "6",
-            "when": 1784360000000,
-            "tag": "0019_channel_agent_audiences",
-            "breakpoints": true
-        },
-        {
-            "idx": 20,
-            "version": "6",
-            "when": 1784365000000,
-            "tag": "0020_plugins",
-            "breakpoints": true
-        },
-        {
-            "idx": 21,
-            "version": "6",
-            "when": 1784418000000,
-            "tag": "0021_plugin_function_results",
-            "breakpoints": true
-        },
-        {
-            "idx": 22,
-            "version": "6",
-            "when": 1784420000000,
-            "tag": "0022_plugin_container_runtime_tools",
-            "breakpoints": true
-        },
-        {
-            "idx": 23,
-            "version": "6",
-            "when": 1784421000000,
-            "tag": "0023_roles_and_permissions",
-            "breakpoints": true
-        },
-        {
-            "idx": 24,
-            "version": "6",
-            "when": 1784422000000,
-            "tag": "0024_session_bound_dev_tokens",
-            "breakpoints": true
-        },
-        {
-            "idx": 25,
-            "version": "6",
-            "when": 1784425000000,
-            "tag": "0025_plugin_skills",
-            "breakpoints": true
-        },
-        {
-            "idx": 26,
-            "version": "6",
-            "when": 1784426000000,
-            "tag": "0026_agent_turn_traces",
-            "breakpoints": true
-        },
-        {
-            "idx": 27,
-            "version": "6",
-            "when": 1784427000000,
-            "tag": "0027_chat_agent_effort",
-            "breakpoints": true
-        },
-        {
-            "idx": 28,
-            "version": "6",
-            "when": 1784430000000,
-            "tag": "0028_plugin_api_permissions",
-            "breakpoints": true
-        },
-        {
-            "idx": 29,
-            "version": "6",
-            "when": 1784433600000,
-            "tag": "0029_plugin_management_requests",
-            "breakpoints": true
-        },
-        {
-            "idx": 30,
-            "version": "6",
-            "when": 1784437200000,
-            "tag": "0030_personal_synced_drafts",
-            "breakpoints": true
-        },
-        {
-            "idx": 31,
-            "version": "6",
-            "when": 1784444400000,
-            "tag": "0031_agent_image_deactivation",
-            "breakpoints": true
-        },
-        {
-            "idx": 32,
-            "version": "6",
-            "when": 1784448000000,
-            "tag": "0032_password_reset_permission",
-            "breakpoints": true
-        },
-        {
-            "idx": 33,
-            "version": "6",
-            "when": 1784451600000,
-            "tag": "0033_child_channels",
-            "breakpoints": true
-        },
-        {
-            "idx": 34,
-            "version": "6",
-            "when": 1784455200000,
-            "tag": "0034_mcp_apps",
-            "breakpoints": true
-        }
-    ]
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1783770000000,
+      "tag": "0000_initial",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1783810000000,
+      "tag": "0001_accounts_profiles_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783820000000,
+      "tag": "0002_file_visibility_and_uploader",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1783851113088,
+      "tag": "0003_collaboration",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1783877025268,
+      "tag": "0004_collaboration_expansion",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1783900000000,
+      "tag": "0005_ai_agents",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1784000000000,
+      "tag": "0006_rig_global_event_queue",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1784050000000,
+      "tag": "0007_rename_server_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1784080000000,
+      "tag": "0008_agent_message_streaming",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1784167000000,
+      "tag": "0009_chat_workspace_binding_lookup",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1784170000000,
+      "tag": "0010_rig_secret_assignments",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1784220000000,
+      "tag": "0011_agent_image_changes",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1784230000000,
+      "tag": "0012_agent_effort",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1784250000000,
+      "tag": "0013_agent_turn_started_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1784260000000,
+      "tag": "0014_main_channels",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1784270000000,
+      "tag": "0015_durable_server_and_user_onboarding",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1784330000000,
+      "tag": "0016_default_agent",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1784340000000,
+      "tag": "0017_user_product_last_seen",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1784350000000,
+      "tag": "0018_threads_are_chats",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1784360000000,
+      "tag": "0019_channel_agent_audiences",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1784365000000,
+      "tag": "0020_plugins",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1784418000000,
+      "tag": "0021_plugin_function_results",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1784420000000,
+      "tag": "0022_plugin_container_runtime_tools",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1784421000000,
+      "tag": "0023_roles_and_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1784422000000,
+      "tag": "0024_session_bound_dev_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1784425000000,
+      "tag": "0025_plugin_skills",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1784426000000,
+      "tag": "0026_agent_turn_traces",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1784427000000,
+      "tag": "0027_chat_agent_effort",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1784430000000,
+      "tag": "0028_plugin_api_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1784433600000,
+      "tag": "0029_plugin_management_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1784437200000,
+      "tag": "0030_personal_synced_drafts",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1784444400000,
+      "tag": "0031_agent_image_deactivation",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1784448000000,
+      "tag": "0032_password_reset_permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1784451600000,
+      "tag": "0033_child_channels",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1784455200000,
+      "tag": "0034_mcp_apps",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1784851200000,
+      "tag": "0035_collaborative_documents",
+      "breakpoints": true
+    }
+  ]
 }
