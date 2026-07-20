@@ -11,7 +11,8 @@ layouts for mobile viewports.
 Treat each feature as one atomic, independently mergeable change, not as the
 lifetime of a Conductor workspace. A worktree may contain only one unmerged
 feature at a time. Do not begin the next feature until the current feature has
-been reviewed and pushed or merged to `main`.
+been pushed or merged to `main`; obtain review when its scope or risk warrants
+it under the review workflow below.
 
 After that merge, reuse the same workspace/worktree when convenient. It does
 not need to be recreated, checked out directly on `main`, or have a branch tip
@@ -24,31 +25,38 @@ is still unmerged.
 Build each feature in isolation, with an explicit boundary between its server
 and UI work. Do not mix unrelated features into the same implementation.
 
-## Claude Opus review workflow
+## Review workflow
 
-Never interrupt, terminate, cancel, or replace a running Claude reviewer because
-it is slow or has not produced intermediate output. Wait for Claude to finish,
-then use its completed result. Run review turns with Claude Opus at medium
-effort and streaming/verbose output so progress is visible.
+Review is not required for every edit. Reserve Claude Opus review for sizable
+or critical changes: security or authorization behavior, durable data or
+migrations, server API contracts, complex concurrency or synchronization,
+substantial UI flows, or broad/high-risk diffs. Opus is deliberately slow, so
+do not invoke it early, before the implementation and relevant tests are
+complete, or for a small, isolated, low-risk change.
 
-Every feature uses the following completion loop:
+For a quick independent review, ask GPT Luna at high effort instead. Use that
+option for focused, low-to-medium-risk diffs when a fast second look is useful.
+Routine mechanical, small, and low-risk changes may rely on the implementer's
+own verification and relevant automated checks without a separate review.
 
-1. Finish the isolated implementation and its required tests.
-2. Start a Claude Opus review of the complete task diff. Do not use
-   `ultrareview`/Ultracode for this gate.
-3. Address every actionable finding, rerun the relevant checks, and resume the
-   same persisted Opus session with a concrete account of the fixes. Do not
-   replace the reviewer with a fresh session.
-4. Repeat implementation/review turns until both Codex and Opus explicitly
-   agree that no task-blocking issue remains.
-5. Run repository-wide `pnpm format`, then the final required checks and sync
+When an Opus review is warranted:
+
+1. Finish the isolated implementation and its required tests, then review the
+   complete task diff with Claude Opus at medium effort and streaming/verbose
+   output. Do not use `ultrareview`/Ultracode for this gate.
+2. Address every actionable finding, rerun the relevant checks, and resume the
+   same persisted Opus session with a concrete account of the fixes.
+3. Repeat until both Codex and Opus explicitly agree that no task-blocking issue
+   remains. Never interrupt, terminate, cancel, or replace a running Claude
+   reviewer merely because it is slow or has not produced intermediate output.
+4. Run repository-wide `pnpm format`, then the final required checks and sync
    the task to `main` using the workflow below. Only after that merge may the
    same worktree begin the next feature.
 
-For Claude-owned UI tasks, Claude Opus performs the implementation and Codex
-performs the reciprocal review; resume the same Opus session for fixes until
-both agree. For GPT-owned server tasks, Opus is a read-only reviewer and must
-not implement server behavior.
+For Claude-owned UI tasks that warrant review, Codex performs the reciprocal
+review and Opus resumes the same session to address actionable findings. For
+GPT-owned server tasks, Opus is a read-only reviewer and must not implement
+server behavior.
 
 Backward compatibility is not a default product requirement. Prefer the clean
 new-server/backend and UI design unless the current task explicitly requires a
