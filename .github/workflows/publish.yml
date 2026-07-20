@@ -2,6 +2,8 @@ name: Publish to npm
 
 on:
     push:
+        branches:
+            - main
         tags:
             - "v*"
 
@@ -21,7 +23,7 @@ jobs:
         timeout-minutes: 30
 
         steps:
-            - name: Check out release tag
+            - name: Check out source
               uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
               with:
                   fetch-depth: 0
@@ -36,25 +38,53 @@ jobs:
                   registry-url: https://registry.npmjs.org
                   package-manager-cache: false
 
-            - name: Verify release tag
+            - name: Select publication channel
+              id: publication
               env:
+                  COMMIT_SHA: ${{ github.sha }}
                   RELEASE_TAG: ${{ github.ref_name }}
+                  REF_TYPE: ${{ github.ref_type }}
               run: |
                   PACKAGE_VERSION="$(node --input-type=module -e "import manifest from './package.json' with { type: 'json' }; process.stdout.write(manifest.version)")"
-                  test "$RELEASE_TAG" = "v$PACKAGE_VERSION" || {
-                    echo "Release tag $RELEASE_TAG does not match package version $PACKAGE_VERSION." >&2
-                    exit 1
-                  }
-                  git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
-                    echo "Release tag $RELEASE_TAG is not on the main branch." >&2
-                    exit 1
-                  }
+                  if [ "$REF_TYPE" = "tag" ]; then
+                    test "$RELEASE_TAG" = "v$PACKAGE_VERSION" || {
+                      echo "Release tag $RELEASE_TAG does not match package version $PACKAGE_VERSION." >&2
+                      exit 1
+                    }
+                    git merge-base --is-ancestor "$COMMIT_SHA" origin/main || {
+                      echo "Release tag $RELEASE_TAG is not on the main branch." >&2
+                      exit 1
+                    }
+                    echo "channel=latest" >> "$GITHUB_OUTPUT"
+                    echo "version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
+                    exit 0
+                  fi
+
+                  if git tag --points-at "$COMMIT_SHA" --list "v$PACKAGE_VERSION" | grep -qx "v$PACKAGE_VERSION"; then
+                    echo "The matching stable tag will publish this commit."
+                    echo "skip=true" >> "$GITHUB_OUTPUT"
+                    exit 0
+                  fi
+
+                  echo "channel=canary" >> "$GITHUB_OUTPUT"
+                  echo "version=$PACKAGE_VERSION-canary.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
 
             - name: Install dependencies
+              if: steps.publication.outputs.skip != 'true'
               run: pnpm install --frozen-lockfile
 
             - name: Validate release
+              if: steps.publication.outputs.channel == 'latest'
               run: pnpm run check:release
 
+            - name: Set canary version
+              if: steps.publication.outputs.channel == 'canary'
+              env:
+                  PACKAGE_VERSION: ${{ steps.publication.outputs.version }}
+              run: npm pkg set version="$PACKAGE_VERSION"
+
             - name: Publish package
-              run: npm publish --access public
+              if: steps.publication.outputs.skip != 'true'
+              env:
+                  CHANNEL: ${{ steps.publication.outputs.channel }}
+              run: npm publish --access public --tag "$CHANNEL"
