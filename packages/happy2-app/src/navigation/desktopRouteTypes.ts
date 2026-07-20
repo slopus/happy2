@@ -23,7 +23,7 @@ export type DesktopOnboardingStep =
     | "completion"
     | "waiting";
 
-export type DesktopFileFilter = "all" | "photo" | "video" | "gif" | "file" | "document";
+export type DesktopFileFilter = "all" | "photo" | "video" | "gif" | "file";
 
 export type DesktopPrimaryRoute =
     | {
@@ -36,6 +36,7 @@ export type DesktopPrimaryRoute =
     | { readonly kind: "threads" }
     | { readonly kind: "calls" }
     | { readonly kind: "files" }
+    | { readonly kind: "documents"; readonly documentId?: string }
     | { readonly kind: "apps"; readonly appId?: string }
     | { readonly kind: "settings"; readonly section: DesktopSettingsSection }
     | { readonly kind: "admin"; readonly section: DesktopAdminSection }

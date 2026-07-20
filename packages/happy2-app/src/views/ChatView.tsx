@@ -311,6 +311,9 @@ export function ChatView(props: ChatViewProps) {
             });
         },
         documentRename: (documentId, title) => state.documentRename(documentId, title),
+        documentAttach: (documentId, chatId) => state.documentAttach(documentId, chatId),
+        documentDetach: (documentId, chatId) => state.documentDetach(documentId, chatId),
+        documentDelete: (documentId) => state.documentDelete(documentId),
         fileUpload: (body) => state.fileUpload(body),
         fileDownload: (fileId) => state.fileDownload(fileId),
         filePreviewDownload: (fileId) => state.filePreviewDownload(fileId),
@@ -407,6 +410,7 @@ export function ChatView(props: ChatViewProps) {
             workspaceFile={resources.workspaceFile}
             documentList={resources.documentList}
             document={resources.document}
+            documents={state.documentCollection()}
         />
     );
     const contributionHandle = resources.chatContributions;

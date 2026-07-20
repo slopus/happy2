@@ -1,6 +1,6 @@
 import * as Y from "yjs";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { type DocumentPresenceEntry, type DocumentSummary, type UserError } from "../../types.js";
+import { UserError, type DocumentPresenceEntry, type DocumentSummary } from "../../types.js";
 import { type Loadable } from "../chat/chatState.js";
 import { type StateRuntime, userError } from "../runtime/runtimeState.js";
 
@@ -347,6 +347,50 @@ export async function documentCreate(
         ...(input.initialUpdate === undefined ? {} : { initialUpdate: input.initialUpdate }),
     });
     return result.document;
+}
+
+/**
+ * Creates one standalone document owned by the caller and attached to no
+ * channel; the collection surface reconciles through the documents-area hint.
+ */
+export async function documentStandaloneCreate(
+    context: { readonly runtime: StateRuntime },
+    input: { readonly title: string; readonly initialUpdate?: string },
+): Promise<DocumentSummary> {
+    const result = await context.runtime.operation("createStandaloneDocument", {
+        title: input.title,
+        ...(input.initialUpdate === undefined ? {} : { initialUpdate: input.initialUpdate }),
+    });
+    return result.document;
+}
+
+/**
+ * Attaches one document to a channel so its members gain access; already
+ * attached is treated as success so a repeated mention stays idempotent.
+ */
+export async function documentAttach(
+    context: { readonly runtime: StateRuntime },
+    documentId: string,
+    chatId: string,
+): Promise<void> {
+    try {
+        await context.runtime.operation("attachDocument", { documentId, chatId });
+    } catch (error) {
+        if (error instanceof UserError && error.code === "conflict") return;
+        throw error;
+    }
+}
+
+/**
+ * Detaches one document from a channel without deleting it; members of that
+ * channel lose access unless another attachment or ownership grants it.
+ */
+export async function documentDetach(
+    context: { readonly runtime: StateRuntime },
+    documentId: string,
+    chatId: string,
+): Promise<void> {
+    await context.runtime.operation("detachDocument", { documentId, chatId });
 }
 
 /**

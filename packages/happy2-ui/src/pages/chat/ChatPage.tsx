@@ -22,6 +22,7 @@ import type {
     DeepReadonly,
     DirectoryStore,
     DirectoryUserProjection,
+    DocumentCollectionStore,
     DocumentListStore,
     DocumentStore,
     SidebarStore,
@@ -92,6 +93,8 @@ export type ChatPageProps = {
     workspaceFile?: WorkspaceFileStore;
     documentList?: DocumentListStore;
     document?: DocumentStore;
+    /** The global visible document collection, feeding composer document mentions. */
+    documents?: DocumentCollectionStore;
     actions: ChatPageActions;
     navigation: ChatPageNavigation;
     /** Filters sidebar rows locally; global search must not drive this prop. */
@@ -199,6 +202,9 @@ export interface ChatPageActions {
     documentClose(): void;
     documentCreate(chatId: string): Promise<void>;
     documentRename(documentId: string, title: string): Promise<void>;
+    documentAttach(documentId: string, chatId: string): Promise<void>;
+    documentDetach(documentId: string, chatId: string): Promise<void>;
+    documentDelete(documentId: string): Promise<void>;
     fileUpload(body: FormData): Promise<import("happy2-state").UploadedFile>;
     fileDownload(fileId: string): Promise<ArrayBuffer>;
     filePreviewDownload(fileId: string): Promise<ArrayBuffer>;
@@ -243,6 +249,7 @@ export function ChatPage(props: ChatPageProps) {
     const traceState = useOptionalStoreSnapshot(props.trace);
     const terminalState = useOptionalStoreSnapshot(props.terminal);
     const documentListState = useOptionalStoreSnapshot(props.documentList);
+    const documentCollectionState = useOptionalStoreSnapshot(props.documents);
     const sidebarSnapshot = () => sidebarState;
     const directorySnapshot = () => directoryState;
     const chatSnapshot = () => chatState;
@@ -696,6 +703,33 @@ export function ChatPage(props: ChatPageProps) {
             name: person.displayName,
             tone: toneFor(person.id),
         }));
+    /*
+     * Documents join the composer's mention list under their own subsection.
+     * The id prefix distinguishes them from people when a mention is selected;
+     * choosing one attaches the document to the active channel.
+     */
+    const documentMentionCandidates = () => {
+        const documents = documentCollectionState?.documents;
+        if (documents?.type !== "ready") return [];
+        return documents.value.map((entry) => ({
+            id: `document:${entry.id}`,
+            initials: "",
+            kind: "document" as const,
+            name: entry.title || "Untitled document",
+        }));
+    };
+    const composerMentionCandidates = () => [
+        ...mentionCandidates(),
+        ...documentMentionCandidates(),
+    ];
+    const composerMentionSelect = (mention: { id: string }) => {
+        if (!mention.id.startsWith("document:")) return;
+        const chatId = activeConversationId();
+        if (!chatId) return;
+        void props.actions
+            .documentAttach(mention.id.slice("document:".length), chatId)
+            .catch(showError);
+    };
     const directoryAgents = () => directoryUsers().filter((person) => person.kind === "agent");
     const messageAudienceLabel = (message: LiveThreadMessage): string | undefined => {
         if (activeChat()?.kind === "dm") return undefined;
@@ -1126,6 +1160,13 @@ export function ChatPage(props: ChatPageProps) {
                                 const chatId = activeConversationId();
                                 if (chatId) void props.actions.documentCreate(chatId);
                             }}
+                            onDetach={(documentId) => {
+                                const chatId = activeConversationId();
+                                if (chatId)
+                                    void props.actions
+                                        .documentDetach(documentId, chatId)
+                                        .catch(showError);
+                            }}
                             onOpen={(documentId) => {
                                 const chatId = activeConversationId();
                                 if (chatId) props.actions.documentOpen(chatId, documentId);
@@ -1139,6 +1180,14 @@ export function ChatPage(props: ChatPageProps) {
                         document={props.document!}
                         memberName={memberDisplayName}
                         onClose={() => props.actions.documentClose()}
+                        onDelete={() => {
+                            const documentId = props.navigation.documentId;
+                            if (!documentId) return;
+                            void props.actions
+                                .documentDelete(documentId)
+                                .then(() => props.actions.documentClose())
+                                .catch(showError);
+                        }}
                         onRename={(title) => {
                             const documentId = props.navigation.documentId;
                             if (documentId) void props.actions.documentRename(documentId, title);
@@ -1158,7 +1207,7 @@ export function ChatPage(props: ChatPageProps) {
                             composerCompactHint={liveComposerCompactHint()}
                             composerDisabled={!activeConversationId()}
                             composerHint={liveComposerHint()}
-                            composerMentions={mentionCandidates()}
+                            composerMentions={composerMentionCandidates()}
                             composerPending={
                                 composerSnapshot()?.submission.status === "pending" || busy()
                             }
@@ -1213,10 +1262,7 @@ export function ChatPage(props: ChatPageProps) {
                             onValueChange={updateDraft}
                             onWorkspaceToggle={toggleFilesPanel}
                             onDocumentsToggle={toggleDocumentsPanel}
-                            onDocumentAdd={() => {
-                                const chatId = activeConversationId();
-                                if (chatId) void props.actions.documentCreate(chatId);
-                            }}
+                            onMentionSelect={composerMentionSelect}
                             portShare={portShareView()}
                             onTerminalClose={() => props.actions.terminalClose?.()}
                             onTerminalHeightChange={(height) =>

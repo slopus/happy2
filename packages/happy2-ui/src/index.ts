@@ -224,6 +224,12 @@ export {
     type DocumentSurfaceParticipant,
     type DocumentSurfaceProps,
 } from "./DocumentSurface";
+export { DocumentDeleteDialog, type DocumentDeleteDialogProps } from "./DocumentDeleteDialog";
+export { DocumentsPage, type DocumentsPageProps } from "./pages/documents/DocumentsPage";
+export {
+    DocumentDetailPane,
+    type DocumentDetailPaneProps,
+} from "./pages/documents/DocumentDetailPane";
 export {
     DataTable,
     type DataTableAlign,

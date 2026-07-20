@@ -344,6 +344,18 @@
     text-transform: uppercase;
 }
 
+.happy2-mention-picker__doc-glyph {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--happy2-radius-sm);
+    background: var(--happy2-bg-inset);
+    color: var(--happy2-text-secondary);
+}
+
 .happy2-mention-picker__row {
     display: flex;
     align-items: center;

@@ -13,6 +13,7 @@ import { AdminView } from "../views/AdminView";
 import { AppsView } from "../views/AppsView";
 import { CallsView } from "../views/CallsView";
 import { ChatView } from "../views/ChatView";
+import { DocumentsView } from "../views/DocumentsView";
 import { FilesView } from "../views/FilesView";
 import { HomeView } from "../views/HomeView";
 import { InboxView } from "../views/InboxView";
@@ -97,18 +98,6 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
                 onOpen={(fileId) =>
                     props.navigation.navigate({ ...props.route, overlay: { kind: "file", fileId } })
                 }
-                onDocumentOpen={(document) => {
-                    // A document overlay only survives normalization alongside its
-                    // own conversation, so opening from Files also selects the
-                    // channel the document is attached to.
-                    const chatId = document.channelAttachments[0]?.chatId;
-                    if (!chatId) return;
-                    props.navigation.navigate({
-                        ...props.route,
-                        primary: { kind: "conversation", conversationKind: "channel", chatId },
-                        overlay: { kind: "document", chatId, documentId: document.id },
-                    });
-                }}
                 onQueryChange={(query) =>
                     props.navigation.navigate(
                         { ...props.route, files: { ...props.route.files, query } },
@@ -117,6 +106,30 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
                 }
                 query={props.route.files.query}
                 state={props.state}
+            />,
+        )
+    ) : primary().kind === "documents" ? (
+        chatView(
+            <DocumentsView
+                documentId={
+                    primary().kind === "documents"
+                        ? (primary() as { documentId?: string }).documentId
+                        : undefined
+                }
+                onCloseDetail={() =>
+                    props.navigation.navigate({ ...props.route, primary: { kind: "documents" } })
+                }
+                onOpen={(documentId) =>
+                    props.navigation.navigate({
+                        ...props.route,
+                        primary: { kind: "documents", documentId },
+                    })
+                }
+                state={props.state}
+                user={{
+                    id: props.session?.user.id ?? "",
+                    firstName: props.session?.user.firstName ?? "You",
+                }}
             />,
         )
     ) : primary().kind === "home" ? (

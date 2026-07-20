@@ -1,7 +1,6 @@
-import type { DocumentStore } from "happy2-state";
-import { DocumentSurface } from "./ChatPageComponents.js";
-import { useStoreSnapshot } from "./chatStoreBindings.js";
-import type { ChatPageUser } from "./ChatPage.js";
+import type { DirectoryStore, DocumentStore } from "happy2-state";
+import { DocumentSurface } from "../../DocumentSurface";
+import { useStoreSnapshot } from "../chat/chatStoreBindings.js";
 
 const CURSOR_COLORS = ["#2baccc", "#7d5ba6", "#34c759", "#ff9500", "#ff3b30", "#007aff"];
 
@@ -11,23 +10,27 @@ function cursorColor(seed: string): string {
     return CURSOR_COLORS[Math.abs(hash) % CURSOR_COLORS.length]!;
 }
 
-export interface ChatDocumentPaneProps {
+export interface DocumentDetailPaneProps {
     document: DocumentStore;
-    user: ChatPageUser;
-    memberName(userId: string): string | undefined;
+    /** Resolves presence participants to display names outside any chat. */
+    directory: DirectoryStore;
+    user: { readonly id: string; readonly firstName: string };
     onClose(): void;
     onDelete?(): void;
     onRename(title: string): void;
 }
 
 /**
- * One collaborative document filling the conversation region, so a document is
- * read and edited where the channel's messages would otherwise be rather than
- * behind a modal. The opaque presence payloads relayed by the server are
- * unwrapped here into the editor's awareness entries.
+ * One collaborative document as the primary surface of the global Documents
+ * area. Identical collaboration behavior to the channel pane, but participant
+ * names resolve through the directory because there is no chat membership
+ * context here.
  */
-export function ChatDocumentPane(props: ChatDocumentPaneProps) {
+export function DocumentDetailPane(props: DocumentDetailPaneProps) {
     const snapshot = useStoreSnapshot(props.document);
+    const directory = useStoreSnapshot(props.directory);
+    const memberName = (userId: string): string | undefined =>
+        directory.users.find((person) => person.id === userId)?.displayName;
     const summary = snapshot.document.type === "ready" ? snapshot.document.value : undefined;
     const presence = snapshot.presence.map((entry) => {
         const state = entry.state as { update?: string; awarenessClientId?: number } | undefined;
@@ -41,12 +44,12 @@ export function ChatDocumentPane(props: ChatDocumentPaneProps) {
         };
     });
     const participants = snapshot.presence.map((entry) => ({
-        name: props.memberName(entry.userId) ?? "Someone",
+        name: memberName(entry.userId) ?? "Someone",
         color: cursorColor(entry.userId),
     }));
     return (
         <DocumentSurface
-            data-testid="chat-document-surface"
+            data-testid="documents-detail-surface"
             editable={snapshot.document.type === "ready"}
             error={snapshot.document.type === "error" ? snapshot.document.error.message : undefined}
             loading={snapshot.document.type === "loading" || snapshot.document.type === "unloaded"}

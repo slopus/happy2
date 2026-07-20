@@ -96,6 +96,9 @@ function chatPageActionsCreate(overrides: Partial<ChatPageActions> = {}): ChatPa
         documentClose: () => undefined,
         documentCreate: async () => undefined,
         documentRename: async () => undefined,
+        documentAttach: async () => undefined,
+        documentDetach: async () => undefined,
+        documentDelete: async () => undefined,
         fileUpload: async () => ({
             id: "file-1",
             kind: "file",

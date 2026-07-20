@@ -87,6 +87,8 @@ import { ToolbarPage } from "./pages/ToolbarPage";
 import { TerminalPanelPage } from "./pages/TerminalPanelPage";
 import { DocumentEditorPage } from "./pages/DocumentEditorPage";
 import { DocumentsPanelPage } from "./pages/DocumentsPanelPage";
+import { DocumentsPagePage } from "./pages/DocumentsPagePage";
+import { DocumentDeleteDialogPage } from "./pages/DocumentDeleteDialogPage";
 type BlueprintPage = {
     id: string;
     label: string;
@@ -98,6 +100,13 @@ const components: BlueprintPage[] = [
     { id: "terminal-panel", label: "Terminal panel", number: "C-078", page: TerminalPanelPage },
     { id: "document-editor", label: "Document editor", number: "C-080", page: DocumentEditorPage },
     { id: "documents-panel", label: "Documents panel", number: "C-081", page: DocumentsPanelPage },
+    { id: "documents-page", label: "Documents page", number: "C-140", page: DocumentsPagePage },
+    {
+        id: "document-delete-dialog",
+        label: "Document delete dialog",
+        number: "C-139",
+        page: DocumentDeleteDialogPage,
+    },
     {
         id: "user-password-reset-dialog",
         label: "User password reset dialog",

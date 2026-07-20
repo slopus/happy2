@@ -1,0 +1,20 @@
+.happy2-document-delete-dialog__body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    color: var(--happy2-text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-document-delete-dialog__message {
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-document-delete-dialog__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}

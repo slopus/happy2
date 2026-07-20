@@ -3,6 +3,7 @@ import * as Y from "yjs";
 import { createFakeServer, jsonResponse } from "../../testing/index.js";
 import { StateRuntime } from "../runtime/runtimeState.js";
 import {
+    documentAttach,
     documentFlush,
     documentLoad,
     documentPresenceSend,
@@ -238,4 +239,24 @@ describe("document session store", () => {
         documentSessionStop(store);
         runtime.stop();
     });
+});
+
+it("treats an already-attached conflict as success and surfaces other attach failures", async () => {
+    const server = createFakeServer();
+    server.respond(
+        "POST",
+        "/v0/documents/doc-1/attach",
+        jsonResponse(409, { error: "conflict", message: "Already attached" }),
+    );
+    const runtime = new StateRuntime({ transport: server.transport });
+    await expect(documentAttach({ runtime }, "doc-1", "chat-1")).resolves.toBeUndefined();
+    server.respond(
+        "POST",
+        "/v0/documents/doc-2/attach",
+        jsonResponse(404, { error: "not_found", message: "No such document" }),
+    );
+    await expect(documentAttach({ runtime }, "doc-2", "chat-1")).rejects.toMatchObject({
+        code: "not_found",
+    });
+    runtime.stop();
 });

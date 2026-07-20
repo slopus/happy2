@@ -1,6 +1,7 @@
-import { type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import * as Y from "yjs";
 import { Button } from "./Button";
+import { DocumentDeleteDialog } from "./DocumentDeleteDialog";
 import {
     DocumentEditor,
     type DocumentEditorPresence,
@@ -29,6 +30,8 @@ export interface DocumentSurfaceProps {
     readonly participants?: readonly DocumentSurfaceParticipant[];
     readonly onTitleCommit?: (title: string) => void;
     readonly onClose?: () => void;
+    /** Shows a trash header action; invoked only after the user confirms. */
+    readonly onDelete?: () => void;
     readonly ydoc: Y.Doc;
     readonly user: DocumentEditorUser;
     readonly presence?: readonly DocumentEditorPresence[];
@@ -52,6 +55,8 @@ const SAVE_LABELS = {
  * relay.
  */
 export function DocumentSurface(props: DocumentSurfaceProps) {
+    // Local UI state only: whether the destructive confirmation is showing.
+    const [deleteConfirming, setDeleteConfirming] = useState(false);
     const commitTitle = (value: string) => {
         const next = value.trim();
         if (next !== props.title) props.onTitleCommit?.(next);
@@ -128,6 +133,16 @@ export function DocumentSurface(props: DocumentSurfaceProps) {
                                 {(participant.name || "?").slice(0, 1).toUpperCase()}
                             </span>
                         ))}
+                        {props.onDelete ? (
+                            <Button
+                                aria-label="Delete document"
+                                icon="trash"
+                                iconOnly
+                                onClick={() => setDeleteConfirming(true)}
+                                size="small"
+                                variant="ghost"
+                            />
+                        ) : null}
                         {props.onClose ? (
                             <Button
                                 aria-label="Close document"
@@ -142,6 +157,17 @@ export function DocumentSurface(props: DocumentSurfaceProps) {
                 }
             />
             <div className="happy2-document-surface__body">{body()}</div>
+            {deleteConfirming ? (
+                <DocumentDeleteDialog
+                    data-testid="document-surface-delete-dialog"
+                    documentTitle={props.title}
+                    onCancel={() => setDeleteConfirming(false)}
+                    onConfirm={() => {
+                        setDeleteConfirming(false);
+                        props.onDelete?.();
+                    }}
+                />
+            ) : null}
         </section>
     );
 }

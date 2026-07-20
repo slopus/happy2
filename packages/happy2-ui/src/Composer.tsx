@@ -98,6 +98,8 @@ export type Mentionable = {
     description?: string;
     id: string;
     initials: string;
+    /** Documents render under their own subsection with a doc glyph. */
+    kind?: "person" | "document";
     name: string;
     status?: "ready" | "working";
     tone?: ToneName;
@@ -114,16 +116,77 @@ export type MentionPickerProps = {
     query: string;
     style?: CSSProperties;
 };
+/*
+ * People always precede documents so the flat keyboard-navigation order in the
+ * composer matches the picker's grouped rendering exactly.
+ */
 function filterMentions(mentions: Mentionable[], query: string) {
     const needle = query.trim().toLowerCase();
-    if (!needle) return mentions;
-    return mentions.filter((mention) => mention.name.toLowerCase().includes(needle));
+    const matched = needle
+        ? mentions.filter((mention) => mention.name.toLowerCase().includes(needle))
+        : mentions;
+    return [
+        ...matched.filter((mention) => mention.kind !== "document"),
+        ...matched.filter((mention) => mention.kind === "document"),
+    ];
 }
-/** 320px raised popover listing mention candidates, filtered by `query`. */
+/**
+ * 320px raised popover listing mention candidates, filtered by `query`.
+ * People render first under the primary heading; document candidates follow
+ * under their own "Documents" subsection with a doc glyph instead of an avatar.
+ */
 export function MentionPicker(props: MentionPickerProps) {
     const candidates = () => props.mentions ?? [];
     const filtered = () => filterMentions(candidates(), props.query);
     const activeId = () => props.activeId ?? filtered()[0]?.id;
+    const people = () => filtered().filter((mention) => mention.kind !== "document");
+    const documents = () => filtered().filter((mention) => mention.kind === "document");
+    const row = (mention: Mentionable) => (
+        <button
+            aria-selected={mention.id === activeId() ? "true" : "false"}
+            key={mention.id}
+            className="happy2-mention-picker__row"
+            data-active={mention.id === activeId() ? "" : undefined}
+            data-happy2-ui="mention-picker-row"
+            data-mention-id={mention.id}
+            onClick={() => props.onSelect(mention)}
+            role="option"
+            type="button"
+        >
+            {mention.kind === "document" ? (
+                <span
+                    className="happy2-mention-picker__doc-glyph"
+                    data-happy2-ui="mention-picker-doc-glyph"
+                >
+                    <Icon name="doc" size={14} />
+                </span>
+            ) : (
+                <Avatar initials={mention.initials} size="sm" tone={mention.tone} type="agent" />
+            )}
+            <span className="happy2-mention-picker__meta" data-happy2-ui="mention-picker-meta">
+                <span className="happy2-mention-picker__name" data-happy2-ui="mention-picker-name">
+                    {mention.name}
+                </span>
+                {mention.description ? (
+                    <span
+                        className="happy2-mention-picker__description"
+                        data-happy2-ui="mention-picker-description"
+                    >
+                        {mention.description}
+                    </span>
+                ) : null}
+            </span>
+            {mention.status
+                ? ((status) => (
+                      <Badge
+                          className="happy2-mention-picker__status"
+                          label={status}
+                          variant={status === "ready" ? "success" : "warning"}
+                      />
+                  ))(mention.status)
+                : null}
+        </button>
+    );
     return (
         <div
             aria-label={props.label ?? "Mentions"}
@@ -137,54 +200,18 @@ export function MentionPicker(props: MentionPickerProps) {
                 {props.label ?? "Mentions"}
             </div>
             {filtered().length > 0 ? (
-                filtered().map((mention) => (
-                    <button
-                        aria-selected={mention.id === activeId() ? "true" : "false"}
-                        key={mention.id}
-                        className="happy2-mention-picker__row"
-                        data-active={mention.id === activeId() ? "" : undefined}
-                        data-happy2-ui="mention-picker-row"
-                        data-mention-id={mention.id}
-                        onClick={() => props.onSelect(mention)}
-                        role="option"
-                        type="button"
-                    >
-                        <Avatar
-                            initials={mention.initials}
-                            size="sm"
-                            tone={mention.tone}
-                            type="agent"
-                        />
-                        <span
-                            className="happy2-mention-picker__meta"
-                            data-happy2-ui="mention-picker-meta"
+                <>
+                    {people().map(row)}
+                    {documents().length > 0 ? (
+                        <div
+                            className="happy2-mention-picker__header"
+                            data-happy2-ui="mention-picker-documents-header"
                         >
-                            <span
-                                className="happy2-mention-picker__name"
-                                data-happy2-ui="mention-picker-name"
-                            >
-                                {mention.name}
-                            </span>
-                            {mention.description ? (
-                                <span
-                                    className="happy2-mention-picker__description"
-                                    data-happy2-ui="mention-picker-description"
-                                >
-                                    {mention.description}
-                                </span>
-                            ) : null}
-                        </span>
-                        {mention.status
-                            ? ((status) => (
-                                  <Badge
-                                      className="happy2-mention-picker__status"
-                                      label={status}
-                                      variant={status === "ready" ? "success" : "warning"}
-                                  />
-                              ))(mention.status)
-                            : null}
-                    </button>
-                ))
+                            Documents
+                        </div>
+                    ) : null}
+                    {documents().map(row)}
+                </>
             ) : (
                 <div className="happy2-mention-picker__empty" data-happy2-ui="mention-picker-empty">
                     No mentions match “{props.query}”
@@ -220,8 +247,6 @@ export type ComposerProps = {
     hint?: string;
     /** Opens a host-owned attachment browser. Takes precedence over the native picker. */
     onAttachFile?: () => void;
-    /** Adds a collaborative document to the conversation. Hides the action when absent. */
-    onAddDocument?: () => void;
     /** Called for toggle clicks and Shift+Tab with the next audience. */
     onAudienceChange?: (audience: AudienceValue) => void;
     /** Receives files selected through the composer's native attachment picker. */
@@ -562,17 +587,6 @@ export function Composer(props: ComposerProps) {
                             icon="paperclip"
                             iconOnly
                             onClick={triggerAttachment}
-                            size="small"
-                            variant="ghost"
-                        />
-                    ) : null}
-                    {props.onAddDocument ? (
-                        <Button
-                            aria-label="Add document"
-                            disabled={busy}
-                            icon="doc"
-                            iconOnly
-                            onClick={() => props.onAddDocument?.()}
                             size="small"
                             variant="ghost"
                         />

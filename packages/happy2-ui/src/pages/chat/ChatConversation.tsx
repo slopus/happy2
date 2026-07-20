@@ -51,8 +51,8 @@ export interface ChatConversationProps {
     onValueChange(value: string): void;
     onWorkspaceToggle(): void;
     onDocumentsToggle(): void;
-    /** Creates a document in this conversation from the composer action row. */
-    onDocumentAdd(): void;
+    /** Fired when a mention is inserted; document mentions attach the document. */
+    onMentionSelect?(mention: Mentionable): void;
     portShare?: PortShareView;
     onPortShareOpen(): void;
     onPortShareDisable(): void;
@@ -180,7 +180,7 @@ export function ChatConversation(props: ChatConversationProps) {
                         hint={props.composerHint}
                         mentions={props.composerMentions}
                         onAttachFile={() => fileInput.current?.click()}
-                        onAddDocument={props.activeConversationId ? props.onDocumentAdd : undefined}
+                        onMentionSelect={props.onMentionSelect}
                         onAudienceChange={props.onAudienceChange}
                         onContextRemove={props.onContextRemove}
                         onFocusChange={props.onComposerFocusChange}

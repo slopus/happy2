@@ -11,6 +11,7 @@ it("holds DocumentsPanel header geometry, row content, and click intents", async
     const onOpen = vi.fn();
     const onCreate = vi.fn();
     const onClose = vi.fn();
+    const onDetach = vi.fn();
     const view = createRenderer().render(
         () => (
             <DocumentsPanel
@@ -18,6 +19,7 @@ it("holds DocumentsPanel header geometry, row content, and click intents", async
                 documents={DOCUMENTS}
                 onClose={onClose}
                 onCreate={onCreate}
+                onDetach={onDetach}
                 onOpen={onOpen}
             />
         ),
@@ -39,6 +41,14 @@ it("holds DocumentsPanel header geometry, row content, and click intents", async
 
     (rows[0] as HTMLButtonElement).click();
     expect(onOpen).toHaveBeenCalledWith("doc-1");
+    // The unlink affordance sits beside the row, revealed on hover; clicking it
+    // detaches without also opening the document.
+    const detach = document.querySelectorAll('[data-happy2-ui="documents-panel-row-detach"]');
+    expect(detach).toHaveLength(2);
+    expect(detach[0]?.getAttribute("aria-label")).toBe("Unlink Launch checklist from this channel");
+    (detach[1] as HTMLButtonElement).click();
+    expect(onDetach).toHaveBeenCalledWith("doc-2");
+    expect(onOpen).toHaveBeenCalledTimes(1);
     (document.querySelector('[aria-label="New document"]') as HTMLButtonElement).click();
     expect(onCreate).toHaveBeenCalledTimes(1);
     (document.querySelector('[aria-label="Close documents"]') as HTMLButtonElement).click();

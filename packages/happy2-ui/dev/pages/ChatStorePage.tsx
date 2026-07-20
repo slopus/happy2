@@ -64,6 +64,9 @@ const passiveActions: ChatPageActions = {
     documentClose: () => undefined,
     documentCreate: async () => undefined,
     documentRename: async () => undefined,
+    documentAttach: async () => undefined,
+    documentDetach: async () => undefined,
+    documentDelete: async () => undefined,
     fileUpload: async () => ({
         id: "file-blueprint",
         kind: "file",

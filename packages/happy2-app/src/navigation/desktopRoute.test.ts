@@ -36,6 +36,20 @@ describe("desktop route model", () => {
             },
         ],
         [
+            "/documents",
+            {
+                primary: { kind: "documents" },
+                files,
+            },
+        ],
+        [
+            "/documents/doc-12",
+            {
+                primary: { kind: "documents", documentId: "doc-12" },
+                files,
+            },
+        ],
+        [
             "/files/file-4?filter=video&filesQuery=demo",
             {
                 primary: { kind: "files" },

@@ -36,14 +36,7 @@ const onboardingSteps = new Set<DesktopOnboardingStep>([
     "completion",
     "waiting",
 ]);
-const fileFilters = new Set<DesktopFileFilter>([
-    "all",
-    "photo",
-    "video",
-    "gif",
-    "file",
-    "document",
-]);
+const fileFilters = new Set<DesktopFileFilter>(["all", "photo", "video", "gif", "file"]);
 
 /** Parses one hosted or file-protocol URL into the complete safe desktop navigation state. */
 export function desktopRouteParse(input: string | URL): DesktopRoute {
@@ -79,6 +72,7 @@ function primaryParse(segments: string[]): DesktopPrimaryRoute {
     if (head === "threads") return { kind: "threads" };
     if (head === "calls") return { kind: "calls" };
     if (head === "files") return { kind: "files" };
+    if (head === "documents") return { kind: "documents", ...(value ? { documentId: value } : {}) };
     if (head === "apps") return { kind: "apps", ...(value ? { appId: value } : {}) };
     if (head === "settings")
         return {

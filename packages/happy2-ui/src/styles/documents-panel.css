@@ -48,6 +48,47 @@
     flex-direction: column;
 }
 
+.happy2-documents-panel__item {
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+}
+
+.happy2-documents-panel__item .happy2-documents-panel__row {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.happy2-documents-panel__row-detach {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: var(--happy2-radius-sm);
+    background: transparent;
+    color: var(--happy2-text-secondary);
+    cursor: pointer;
+    opacity: 0;
+}
+
+.happy2-documents-panel__item:hover .happy2-documents-panel__row-detach,
+.happy2-documents-panel__row-detach:focus-visible {
+    opacity: 1;
+}
+
+.happy2-documents-panel__row-detach:hover {
+    background: var(--happy2-bg-hover);
+    color: var(--happy2-text);
+}
+
+.happy2-documents-panel__row-detach:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: -2px;
+}
+
 .happy2-documents-panel__row {
     display: flex;
     align-items: center;

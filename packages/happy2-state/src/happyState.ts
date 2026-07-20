@@ -19,8 +19,10 @@ import {
     type McpAppStore,
 } from "./modules/mcp-apps/mcpAppState.js";
 import {
+    documentAttach,
     documentCreate,
     documentDelete,
+    documentDetach,
     documentFlushSchedule,
     documentLeaveAnnounce,
     documentLoad,
@@ -28,6 +30,7 @@ import {
     documentPresenceSchedule,
     documentReconcile,
     documentRename,
+    documentStandaloneCreate,
     documentSessionStop,
     documentStoreCreate,
     documentSynchronize,
@@ -556,9 +559,38 @@ export class HappyState implements AsyncDisposable, Disposable {
         return documentRename(this.documentContext(), documentId, title);
     }
 
-    /** Deletes a document; lists reconcile through the documents-area sync hint. */
+    /** Deletes a document and reconciles every materialized document surface. */
     documentDelete(documentId: string): Promise<void> {
-        return documentDelete({ runtime: this.runtime }, documentId);
+        return documentDelete({ runtime: this.runtime }, documentId).then(() =>
+            this.documentsReconcile(),
+        );
+    }
+
+    /** Creates a standalone document attached to no channel. */
+    documentStandaloneCreate(input: {
+        readonly title: string;
+        readonly initialUpdate?: string;
+    }): Promise<DocumentSummary> {
+        return documentStandaloneCreate({ runtime: this.runtime }, input).then((document) => {
+            this.documentsReconcile();
+            return document;
+        });
+    }
+
+    /** Attaches a document to a channel; an existing attachment is treated as success. */
+    documentAttach(documentId: string, chatId: string): Promise<void> {
+        // The response confirms durable state changed; reconcile immediately
+        // rather than waiting for this client's own sync-hint echo.
+        return documentAttach({ runtime: this.runtime }, documentId, chatId).then(() =>
+            this.documentsReconcile(),
+        );
+    }
+
+    /** Detaches a document from a channel without deleting the document. */
+    documentDetach(documentId: string, chatId: string): Promise<void> {
+        return documentDetach({ runtime: this.runtime }, documentId, chatId).then(() =>
+            this.documentsReconcile(),
+        );
     }
 
     sidebar(): SidebarStore {

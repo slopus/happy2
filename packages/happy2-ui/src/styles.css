@@ -53,7 +53,8 @@
 @import "./styles/file-editor.css";
 @import "./styles/document-editor.css";
 @import "./styles/document-surface.css";
-@import "./styles/document-rows.css";
+@import "./styles/document-delete-dialog.css";
+@import "./styles/documents-page.css";
 @import "./styles/documents-panel.css";
 @import "./styles/media-gallery.css";
 @import "./styles/file-attachment.css";

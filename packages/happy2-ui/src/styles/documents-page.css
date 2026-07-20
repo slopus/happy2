@@ -1,0 +1,115 @@
+.happy2-documents-page {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    background: var(--happy2-bg-surface);
+}
+
+.happy2-documents-page__scroll {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.happy2-documents-page__body {
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+}
+
+.happy2-documents-page__list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    max-width: 720px;
+}
+
+.happy2-documents-page__item {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.happy2-documents-page__row {
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid transparent;
+    border-radius: var(--happy2-radius-md);
+    background: transparent;
+    color: var(--happy2-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.happy2-documents-page__row:hover {
+    background: var(--happy2-bg-hover);
+}
+
+.happy2-documents-page__row:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: -2px;
+}
+
+.happy2-documents-page__icon {
+    flex: 0 0 auto;
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-documents-page__text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 2px;
+}
+
+.happy2-documents-page__title {
+    font: 500 13px/1.4 var(--happy2-font-ui);
+    color: var(--happy2-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-documents-page__meta {
+    font: 400 12px/1.4 var(--happy2-font-ui);
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-documents-page__row-delete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: var(--happy2-radius-sm);
+    background: transparent;
+    color: var(--happy2-text-secondary);
+    cursor: pointer;
+    opacity: 0;
+}
+
+.happy2-documents-page__item:hover .happy2-documents-page__row-delete,
+.happy2-documents-page__row-delete:focus-visible {
+    opacity: 1;
+}
+
+.happy2-documents-page__row-delete:hover {
+    background: var(--happy2-bg-hover);
+    color: var(--happy2-danger-strong);
+}
+
+.happy2-documents-page__row-delete:focus-visible {
+    outline: var(--happy2-focus-ring);
+    outline-offset: -2px;
+}

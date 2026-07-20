@@ -29,6 +29,7 @@ export function DocumentsPanelPage() {
                             documents={DOCUMENTS}
                             onClose={noop}
                             onCreate={noop}
+                            onDetach={noop}
                             onOpen={noop}
                         />
                     </div>

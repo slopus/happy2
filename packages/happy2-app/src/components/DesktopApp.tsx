@@ -193,6 +193,7 @@ export function DesktopApp(props: DesktopAppProps) {
                 // pushes its drill-down sidebar (appsSidebar / adminSidebar).
                 const navItems: SidebarItem[] = [
                     { id: "apps", kind: "view", icon: "spark", label: "Apps" },
+                    { id: "documents", kind: "view", icon: "doc", label: "Documents" },
                 ];
                 if (canOpenAdmin)
                     navItems.push({
@@ -206,6 +207,7 @@ export function DesktopApp(props: DesktopAppProps) {
                     if (id === "admin")
                         primaryOpen({ kind: "admin", section: adminSections[0] ?? "users" });
                     else if (id === "apps") primaryOpen({ kind: "apps" });
+                    else if (id === "documents") primaryOpen({ kind: "documents" });
                     else chatOpen();
                 };
                 const adminRoute = route.primary.kind === "admin" ? route.primary : undefined;

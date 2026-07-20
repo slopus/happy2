@@ -46,6 +46,10 @@ function primaryPath(primary: DesktopPrimaryRoute): string {
         }
         case "apps":
             return primary.appId ? `/apps/${encodeURIComponent(primary.appId)}` : "/apps";
+        case "documents":
+            return primary.documentId
+                ? `/documents/${encodeURIComponent(primary.documentId)}`
+                : "/documents";
         case "settings":
             return `/settings/${primary.section}`;
         case "admin":

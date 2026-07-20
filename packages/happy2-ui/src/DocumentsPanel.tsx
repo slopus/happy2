@@ -25,6 +25,8 @@ export interface DocumentsPanelProps {
     readonly onOpen?: (documentId: string) => void;
     readonly onCreate?: () => void;
     readonly onClose?: () => void;
+    /** Unlinks a document from this channel without deleting it; shown on row hover. */
+    readonly onDetach?: (documentId: string) => void;
 }
 
 /**
@@ -46,6 +48,7 @@ export function DocumentsPanel(props: DocumentsPanelProps) {
         "onOpen",
         "onCreate",
         "onClose",
+        "onDetach",
     ]);
     const count = () => local.documents.length;
     const body = () => {
@@ -74,7 +77,7 @@ export function DocumentsPanel(props: DocumentsPanelProps) {
         return (
             <ul className="happy2-documents-panel__list">
                 {local.documents.map((entry) => (
-                    <li key={entry.id}>
+                    <li className="happy2-documents-panel__item" key={entry.id}>
                         <button
                             className="happy2-documents-panel__row"
                             data-happy2-ui="documents-panel-row"
@@ -93,6 +96,18 @@ export function DocumentsPanel(props: DocumentsPanelProps) {
                                 ) : null}
                             </span>
                         </button>
+                        {local.onDetach ? (
+                            <button
+                                aria-label={`Unlink ${entry.title || "Untitled document"} from this channel`}
+                                className="happy2-documents-panel__row-detach"
+                                data-happy2-ui="documents-panel-row-detach"
+                                onClick={() => local.onDetach?.(entry.id)}
+                                title="Unlink from channel"
+                                type="button"
+                            >
+                                <Icon name="close" size={14} />
+                            </button>
+                        ) : null}
                     </li>
                 ))}
             </ul>

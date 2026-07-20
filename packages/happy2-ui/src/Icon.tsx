@@ -47,6 +47,7 @@ export type IconName =
     | "edit"
     | "sun"
     | "moon"
+    | "trash"
     | "dot";
 export type IconProps = {
     name: IconName;
@@ -320,6 +321,15 @@ const glyphs: Record<IconName, () => ReactNode> = {
         </>
     ),
     moon: () => <path d="M18.15 11A6.8 6.8 0 0 1 9 1.85 7.1 7.1 0 1 0 18.15 11Z" />,
+    trash: () => (
+        <>
+            <path d="M3.7 5.9h12.6" />
+            <path d="M8.1 5.9V4.7a1.2 1.2 0 0 1 1.2 -1.2h1.4a1.2 1.2 0 0 1 1.2 1.2v1.2" />
+            <path d="M5.4 5.9l0.65 9.3a1.7 1.7 0 0 0 1.7 1.6h4.5a1.7 1.7 0 0 0 1.7 -1.6l0.65 -9.3" />
+            <path d="M8.5 9.3v4.4" />
+            <path d="M11.5 9.3v4.4" />
+        </>
+    ),
     dot: () => <circle cx="10" cy="10" r="3" fill="currentColor" stroke="none" />,
 };
 export const iconNames = Object.keys(glyphs) as IconName[];
