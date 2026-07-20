@@ -205,6 +205,34 @@ const definitions = {
         section: "plugins",
         access: "mutations",
     },
+    "port-sharing:read": {
+        id: "port-sharing:read",
+        displayName: "View shared ports",
+        description: "View active shared ports for a chat represented by a chat capability.",
+        section: "port-sharing",
+        access: "readOnly",
+    },
+    "port-sharing:expose": {
+        id: "port-sharing:expose",
+        displayName: "Expose agent ports",
+        description: "Expose one supported port from the agent represented by a chat capability.",
+        section: "port-sharing",
+        access: "mutations",
+    },
+    "port-sharing:disable": {
+        id: "port-sharing:disable",
+        displayName: "Disable shared ports",
+        description: "Disable an active shared port represented by a chat capability.",
+        section: "port-sharing",
+        access: "mutations",
+    },
+    "port-sharing:access": {
+        id: "port-sharing:access",
+        displayName: "Access shared ports",
+        description: "Create a member-scoped access token for an active shared port.",
+        section: "port-sharing",
+        access: "mutations",
+    },
 } as const satisfies Record<
     PluginHostPermission,
     {
@@ -234,6 +262,7 @@ export function pluginApiPermissionSections(
             { id: "environments", displayName: "Environments" },
             { id: "apps", displayName: "App surfaces" },
             { id: "plugins", displayName: "Plugins" },
+            { id: "port-sharing", displayName: "Port sharing" },
         ] as const
     ).flatMap((section) => {
         const definitionsForSection = requested.filter(

@@ -83,6 +83,8 @@ export interface SyncCoordinatorContext extends SidebarLoadContext {
     mcpAppsInvalidate(): void;
     /** Reloads a retained chat's plugin management requests after a plugin.* chat update. */
     chatPluginRequestsReconcile(chatId: string): void;
+    /** Reloads a retained chat's active port shares after a portShare.* chat update. */
+    chatPortSharesReconcile(chatId: string): void;
     /** Reconciles a materialized coarse thread list when a child or its parent timeline changed. */
     threadListChatsReconcile(chatIds: readonly string[]): void;
     /** Debounce-synchronizes an open document session hinted at newer durable content. */
@@ -334,6 +336,11 @@ export class SyncCoordinator {
         // retained request list reconciles through its own durable read.
         if (difference.updates.some((update) => update.kind.startsWith("plugin.")))
             this.context.chatPluginRequestsReconcile(chatId);
+        // Port-share create/disable (including plugin-initiated shares) advance the
+        // chat with a portShare.* update but carry no projection; the retained share
+        // list reconciles through its own durable read.
+        if (difference.updates.some((update) => update.kind.startsWith("portShare.")))
+            this.context.chatPortSharesReconcile(chatId);
     }
 
     private typingApply(event: Extract<RealtimeEvent, { type: "typing" }>): void {

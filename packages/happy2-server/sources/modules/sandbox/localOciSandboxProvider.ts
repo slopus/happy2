@@ -16,6 +16,7 @@ import type {
     SandboxTerminalHandle,
     SandboxTerminalInput,
 } from "./types.js";
+import { portShareContainerPorts } from "../port-share/types.js";
 
 const DEFAULT_PROBE_TIMEOUT_MS = 3_000;
 const MAX_COMMAND_OUTPUT = 32_768;
@@ -204,6 +205,7 @@ export class LocalOciSandboxProvider implements SandboxProvider {
             "TMPDIR=/tmp",
             "--workdir",
             "/workspace",
+            ...portShareContainerPorts.flatMap((port) => ["--publish", `127.0.0.1::${port}/tcp`]),
             "--entrypoint",
             "/bin/sh",
             input.imageTag,
@@ -278,6 +280,27 @@ export class LocalOciSandboxProvider implements SandboxProvider {
 
     async removeSandbox(containerName: string): Promise<void> {
         await this.run(["rm", "--force", containerName]).catch(() => undefined);
+    }
+
+    async resolveSandboxPort(
+        containerName: string,
+        containerPort: number,
+        signal?: AbortSignal,
+    ): Promise<{ host: "127.0.0.1"; port: number }> {
+        const result = await this.run(["port", containerName, `${containerPort}/tcp`], { signal });
+        const mappings = result.stdout
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean);
+        for (const mapping of mappings) {
+            const match = /^127\.0\.0\.1:(\d+)$/.exec(mapping);
+            const port = match ? Number(match[1]) : 0;
+            if (Number.isInteger(port) && port >= 1 && port <= 65_535)
+                return { host: "127.0.0.1", port };
+        }
+        throw new Error(
+            `${this.displayName} did not report a loopback mapping for container port ${containerPort}`,
+        );
     }
 
     async inspectPluginSandbox(

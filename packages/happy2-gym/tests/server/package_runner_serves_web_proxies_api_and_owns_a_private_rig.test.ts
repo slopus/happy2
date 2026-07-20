@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +16,7 @@ import {
     type StandaloneHappy2,
 } from "happy2-server";
 import { describe, expect, it } from "vitest";
+import { WebSocket, WebSocketServer } from "ws";
 
 const execute = promisify(execFile);
 
@@ -260,6 +261,85 @@ describe.sequential("the package runner", () => {
         }
     });
 
+    it("routes exactly one wildcard subdomain through the split web gateway", async () => {
+        const webRoot = await mkdtemp(join(tmpdir(), "happy2-web-port-sharing-"));
+        await writeFile(join(webRoot, "index.html"), "<!doctype html><title>Gateway</title>\n");
+        const upstream = createServer((request, response) => {
+            response.setHeader("content-type", "application/json");
+            response.end(JSON.stringify({ host: request.headers.host, url: request.url }));
+        });
+        const upstreamWebSockets = new WebSocketServer({ server: upstream });
+        upstreamWebSockets.on("connection", (socket, request) => {
+            socket.on("message", (message) => {
+                socket.send(`${request.headers.host}:${message.toString()}`);
+            });
+        });
+        await new Promise<void>((resolve, reject) => {
+            upstream.once("error", reject);
+            upstream.listen(0, "127.0.0.1", resolve);
+        });
+        let web: RunningHappy2 | undefined;
+        try {
+            const address = upstream.address() as AddressInfo;
+            web = await startWebHappy2({
+                backendUrl: `http://127.0.0.1:${address.port}`,
+                logger: false,
+                port: 0,
+                portSharingDomain: "*.Preview.Example.com.",
+                webRoot,
+            });
+            const proxied = await requestWithHost(
+                web.url,
+                "my-demo-a1b2c3.preview.example.com",
+                "/demo?theme=dark",
+            );
+            expect(proxied.statusCode).toBe(200);
+            expect(JSON.parse(proxied.body)).toEqual({
+                host: "my-demo-a1b2c3.preview.example.com",
+                url: "/demo?theme=dark",
+            });
+            expect(
+                await websocketWithHost(
+                    web.url,
+                    "my-demo-a1b2c3.preview.example.com",
+                    "/socket",
+                    "hello",
+                ),
+            ).toBe("my-demo-a1b2c3.preview.example.com:hello");
+            expect(
+                (
+                    await requestWithHost(
+                        web.url,
+                        "nested.my-demo-a1b2c3.preview.example.com",
+                        "/demo",
+                    )
+                ).statusCode,
+            ).toBe(404);
+        } finally {
+            await web?.close();
+            await new Promise<void>((resolve) => upstreamWebSockets.close(() => resolve()));
+            await new Promise<void>((resolve) => upstream.close(() => resolve()));
+            await rm(webRoot, { force: true, recursive: true });
+        }
+    });
+
+    it("rejects port sharing when the backend has no agent service", async () => {
+        await withSigningEnvironment(async () => {
+            const fixture = await createFixture(false);
+            fixture.config.portSharing = {
+                publicDomain: "preview.example.com",
+                publicUrl: "https://preview.example.com",
+            };
+            try {
+                await expect(startBackendHappy2(fixture.config, { logger: false })).rejects.toThrow(
+                    "requires the agent service",
+                );
+            } finally {
+                await rm(fixture.directory, { force: true, recursive: true });
+            }
+        });
+    });
+
     it("falls back to binary content when an upstream response omits its content type", async () => {
         const webRoot = await mkdtemp(join(tmpdir(), "happy2-web-content-type-"));
         await writeFile(join(webRoot, "index.html"), "<!doctype html><title>Gateway</title>\n");
@@ -378,6 +458,55 @@ async function registerUser(baseUrl: string): Promise<string> {
     });
     expect(profile.status).toBe(201);
     return temporaryToken;
+}
+
+async function requestWithHost(
+    serverUrl: string,
+    host: string,
+    path: string,
+): Promise<{ body: string; statusCode: number }> {
+    const address = new URL(serverUrl);
+    return new Promise((resolve, reject) => {
+        const request = httpRequest(
+            {
+                host: address.hostname,
+                port: Number(address.port),
+                path,
+                headers: { host },
+            },
+            (response) => {
+                const chunks: Buffer[] = [];
+                response.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+                response.on("end", () =>
+                    resolve({
+                        body: Buffer.concat(chunks).toString("utf8"),
+                        statusCode: response.statusCode ?? 0,
+                    }),
+                );
+            },
+        );
+        request.once("error", reject);
+        request.end();
+    });
+}
+
+async function websocketWithHost(
+    serverUrl: string,
+    host: string,
+    path: string,
+    message: string,
+): Promise<string> {
+    const url = new URL(path, serverUrl);
+    url.protocol = "ws:";
+    return new Promise((resolve, reject) => {
+        const socket = new WebSocket(url, { headers: { host } });
+        socket.once("open", () => socket.send(message));
+        socket.once("message", (reply) => {
+            socket.close();
+            resolve(reply.toString());
+        });
+        socket.once("error", reject);
+    });
 }
 
 async function uploadLargeFile(baseUrl: string, token: string): Promise<Response> {

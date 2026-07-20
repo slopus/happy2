@@ -114,6 +114,39 @@ Password responses also report the derived `signupEnabled`; OIDC responses repor
 The built-in plugin package, installation, container lifecycle, health, and MCP
 HTTP contracts are documented in [`PLUGINS.md`](./PLUGINS.md).
 
+## Agent port sharing
+
+Optional `[port_sharing]` configuration exposes one agent-container port per chat
+through a dedicated wildcard domain:
+
+```toml
+[port_sharing]
+public_domain = "preview.example.com"
+# Optional; defaults to https://preview.example.com.
+# public_url = "http://preview.example.com:8080"
+```
+
+Set `public_url` only when the externally visible scheme or port differs from
+the default HTTPS origin. Its hostname must still equal `public_domain`.
+
+Configure wildcard DNS and TLS for `*.preview.example.com` to reach the same
+Happy public listener. The standalone server forwards those hostnames through
+its web gateway; a separately deployed `happy2 web` process must also receive
+`--port-sharing-domain preview.example.com` (or
+`HAPPY2_PORT_SHARING_DOMAIN`). Container ports 3000 through 3010 are mapped to
+random loopback-only host ports. Plugins use separate read, expose, disable, and
+access permissions together with a signed chat capability, so a request cannot
+select another chat or agent through its body.
+
+Every preview request requires a one-hour RS256 token bound to the user, share,
+and subdomain. Happy checks live chat membership and the exact current agent
+container binding when issuing that token; an issued token remains valid for its
+one-hour lifetime even if membership later changes. Tokens work as Bearer credentials or through
+the host-only `happy2_port_share` HttpOnly cookie established at
+`GET /.happy2/auth/session`; callers should renew tokens and the cookie after the
+returned 15-minute `refreshAfter` time. Happy strips both credentials before
+forwarding HTTP or WebSocket traffic to the agent container.
+
 ## Server and user onboarding
 
 Every new database begins with durable server onboarding. `GET /v0/setup/status`

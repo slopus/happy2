@@ -203,8 +203,10 @@ installs must also choose a subset of the target package's declared permissions.
 The bundled `hello` package is the minimal skill-plus-MCP example. The bundled
 `plugin-developer` package contributes a comprehensive Happy2 plugin-development
 skill and MCP tools for listing installations and requesting linked install or
-uninstall approval from the current chat. Neither format is a Conductor or
-Codex plugin format.
+uninstall approval from the current chat. The bundled `port-sharing` package
+combines a workflow skill with tools for listing, exposing, probing,
+authenticating, and disabling the current chat agent's public preview. Neither
+format is a Conductor or Codex plugin format.
 
 ## Stdio MCP with a bundled container
 
@@ -557,6 +559,13 @@ Remote endpoints are rechecked.
   command, so installations should receive it only when host shell access is
   intended. Execution is capped at 30 seconds and 4 MiB per output stream;
   `outputLimitExceeded` distinguishes truncated output from `timedOut`.
+- `GET /port-shares`, `POST /port-shares/exposePort`, and the share-specific
+  disable/access-token actions require `port-sharing:read`,
+  `port-sharing:expose`, `port-sharing:disable`, and `port-sharing:access`
+  respectively. Every route also requires the installation-bound chat
+  capability in `X-Happy2-Chat-Token`; no request body can select a different
+  chat, agent, or container. One port from the fixed 3000-3010 range may be
+  public for a chat at a time.
 
 Container processes receive `HAPPY2_PLUGIN_API_URL` and
 `HAPPY2_PLUGIN_API_TOKEN`. The URL is always

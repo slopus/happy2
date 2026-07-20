@@ -5,6 +5,8 @@ import type { PluginService } from "../modules/plugin/service.js";
 import { CollaborationError } from "../modules/chat/types.js";
 import type { AgentService } from "../modules/agents/index.js";
 import { MAX_WORKSPACE_TEXT_FILE_BYTES, WorkspaceError } from "../modules/workspace/index.js";
+import type { PortShareService } from "../modules/port-share/service.js";
+import { PortShareError, portShareContainerPorts } from "../modules/port-share/types.js";
 import {
     PluginError,
     pluginHostPermissions,
@@ -34,6 +36,7 @@ export function createPluginHostApi(
     plugins: PluginService,
     logger: boolean,
     agents?: PluginHostAgentService,
+    portShares?: PortShareService,
 ): FastifyInstance {
     const app = Fastify({ logger, bodyLimit: PLUGIN_HOST_BODY_BYTES });
     app.post("/apps/putInstance", async (request, reply) => {
@@ -517,6 +520,86 @@ export function createPluginHostApi(
             throw error;
         }
     });
+    app.get("/port-shares", async (request, reply) => {
+        try {
+            const claims = await plugins.authorizeChatHost(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                "port-sharing:read",
+            );
+            return {
+                portShares: await requirePortShares(portShares).list(
+                    claims.actorUserId,
+                    claims.chatId,
+                ),
+            };
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/port-shares/exposePort", async (request, reply) => {
+        try {
+            const claims = await plugins.authorizeChatHost(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                "port-sharing:expose",
+            );
+            const body = bodyRecord(request.body);
+            onlyBodyKeys(body, ["name", "port"]);
+            const result = await requirePortShares(portShares).create({
+                actorUserId: claims.actorUserId,
+                agentUserId: claims.agentUserId,
+                chatId: claims.chatId,
+                name: requiredTrimmedString(body.name, "name", 80),
+                containerPort: portSharePort(body.port),
+            });
+            return reply.code(201).send(result);
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/port-shares/:portShareId/disablePortShare", async (request, reply) => {
+        try {
+            const claims = await plugins.authorizeChatHost(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                "port-sharing:disable",
+            );
+            emptyBody(request.body);
+            return await requirePortShares(portShares).disable({
+                actorUserId: claims.actorUserId,
+                chatId: claims.chatId,
+                portShareId: pathIdentifier(request, "portShareId"),
+            });
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.post("/port-shares/:portShareId/createAccessToken", async (request, reply) => {
+        try {
+            const claims = await plugins.authorizeChatHost(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                "port-sharing:access",
+            );
+            emptyBody(request.body);
+            return await requirePortShares(portShares).issueAccessToken({
+                actorUserId: claims.actorUserId,
+                chatId: claims.chatId,
+                portShareId: pathIdentifier(request, "portShareId"),
+            });
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
     app.setErrorHandler((error, request, reply) => {
         request.log.error(error);
         if (!reply.sent && !handled(reply, error))
@@ -541,6 +624,22 @@ function requireAgents(agents: PluginHostAgentService | undefined): PluginHostAg
             "Agent environments are unavailable on this server",
         );
     return agents;
+}
+
+function requirePortShares(portShares: PortShareService | undefined): PortShareService {
+    if (!portShares)
+        throw new PluginError("not_ready", "Port sharing is not configured on this server");
+    return portShares;
+}
+
+function portSharePort(value: unknown) {
+    if (
+        typeof value !== "number" ||
+        !Number.isInteger(value) ||
+        !portShareContainerPorts.includes(value as never)
+    )
+        throw new PluginHostRequestError("port must be an integer from 3000 through 3010");
+    return value as (typeof portShareContainerPorts)[number];
 }
 
 function hostEnvironment(image: { builtinKey?: string; id: string; name: string; status: string }) {
@@ -1033,6 +1132,20 @@ function handled(reply: FastifyReply, error: unknown) {
                       : error.code === "conflict"
                         ? 409
                         : 400,
+            )
+            .send({ error: error.code, message: error.message });
+    if (error instanceof PortShareError)
+        return reply
+            .code(
+                error.code === "not_found"
+                    ? 404
+                    : error.code === "forbidden"
+                      ? 403
+                      : error.code === "conflict"
+                        ? 409
+                        : error.code === "not_ready"
+                          ? 503
+                          : 400,
             )
             .send({ error: error.code, message: error.message });
     if (error instanceof PluginHostRequestError)

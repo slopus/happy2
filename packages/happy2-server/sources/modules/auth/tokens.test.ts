@@ -132,6 +132,30 @@ describe("plugin runtime capability tokens", () => {
         });
         await expect(service.verify(token)).rejects.toThrow();
     });
+
+    it("issues one-hour access tokens bound to one user and one port-share subdomain", async () => {
+        const config = defaultConfig();
+        const keys = generateKeyPairSync("rsa", {
+            modulusLength: 2048,
+            publicKeyEncoding: { type: "spki", format: "pem" },
+            privateKeyEncoding: { type: "pkcs8", format: "pem" },
+        });
+        const service = await TokenService.create(config, keys);
+        const token = await service.issuePortShareAccessToken({
+            userId: "member-user",
+            portShareId: "share-id",
+            subdomain: "docs-a1b2c3",
+        });
+        const payload = decodeJwt(token);
+
+        expect(Number(payload.exp) - Number(payload.iat)).toBe(3_600);
+        await expect(service.verifyPortShareAccessToken(token)).resolves.toEqual({
+            userId: "member-user",
+            portShareId: "share-id",
+            subdomain: "docs-a1b2c3",
+        });
+        await expect(service.verify(token)).rejects.toThrow();
+    });
 });
 
 function expectCapabilityExpiresWithinFiveMinutes(token: string): void {

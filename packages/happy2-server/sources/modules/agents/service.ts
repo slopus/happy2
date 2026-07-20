@@ -82,13 +82,18 @@ import {
     type RigTurnInspection,
 } from "./daemon.js";
 import { BUILTIN_AGENT_IMAGES } from "./builtin-images.js";
-import type { AgentImageBuildUpdate, AgentSandboxRuntimeResolver } from "../sandbox/types.js";
+import type {
+    AgentImageBuildUpdate,
+    AgentSandboxRuntime,
+    AgentSandboxRuntimeResolver,
+} from "../sandbox/types.js";
 import type {
     PluginFunctionDefinition,
     PluginFunctionResult,
     PluginCallContext,
     PluginSkillDefinition,
 } from "../plugin/types.js";
+import type { PortShareContainerPort } from "../port-share/types.js";
 import { agentTurnGetPluginContext } from "../agent/agentTurnGetPluginContext.js";
 import { pluginFunctionResultAcquire } from "../plugin/pluginFunctionResultAcquire.js";
 import { pluginFunctionResultComplete } from "../plugin/pluginFunctionResultComplete.js";
@@ -216,6 +221,10 @@ export class AgentService {
     private readonly pendingImageBuilds = new Set<string>();
     private readonly agentConfigurationMutations = new Map<string, Promise<unknown>>();
     private readonly secretMutations = new Map<string, Promise<unknown>>();
+    private readonly portShareTargets = new Map<
+        string,
+        Promise<{ host: "127.0.0.1"; port: number }>
+    >();
     private activeImageBuilds = 0;
     private readonly drains = new Map<string, Promise<void>>();
     private readonly turnStreams = new Map<string, ActiveAgentTurnStream>();
@@ -233,6 +242,44 @@ export class AgentService {
         private readonly pluginCapabilities: AgentPluginCapabilities | undefined,
         private readonly onError: (error: unknown) => void = () => undefined,
     ) {}
+    async resolvePortShareTarget(
+        containerName: string,
+        containerPort: PortShareContainerPort,
+    ): Promise<{ host: "127.0.0.1"; port: number }> {
+        const key = `${containerName}:${containerPort}`;
+        let pending = this.portShareTargets.get(key);
+        if (!pending) {
+            pending = this.resolveUncachedPortShareTarget(containerName, containerPort);
+            this.portShareTargets.set(key, pending);
+        }
+        try {
+            return await pending;
+        } catch (error) {
+            if (this.portShareTargets.get(key) === pending) this.portShareTargets.delete(key);
+            throw error;
+        }
+    }
+    private async resolveUncachedPortShareTarget(
+        containerName: string,
+        containerPort: PortShareContainerPort,
+    ): Promise<{ host: "127.0.0.1"; port: number }> {
+        const runtime = await this.sandboxRuntime();
+        if (!runtime.resolveSandboxPort)
+            throw new CollaborationError(
+                "conflict",
+                "The selected sandbox provider cannot expose agent ports",
+            );
+        return runtime.resolveSandboxPort(containerName, containerPort, this.shutdown.signal);
+    }
+    private async removeSandbox(
+        runtime: AgentSandboxRuntime,
+        containerName: string,
+    ): Promise<void> {
+        const prefix = `${containerName}:`;
+        for (const key of this.portShareTargets.keys())
+            if (key.startsWith(prefix)) this.portShareTargets.delete(key);
+        await runtime.removeSandbox(containerName);
+    }
     async createAgent(input: { actorUserId: string; name: string; username: string }) {
         if (!(await agentUsernameIsAvailable(this.executor, input.username)))
             throw new CollaborationError("conflict", "Agent username is already taken");
@@ -290,7 +337,7 @@ export class AgentService {
                 sessionId: session.id,
             });
         } catch (error) {
-            await runtime.removeSandbox(containerName);
+            await this.removeSandbox(runtime, containerName);
             throw error;
         }
     }
@@ -692,7 +739,7 @@ export class AgentService {
             if (!result.sync) {
                 await Promise.all(
                     [...createdContainerNames].map((containerName) =>
-                        runtime.removeSandbox(containerName),
+                        this.removeSandbox(runtime, containerName),
                     ),
                 );
                 return {
@@ -705,7 +752,7 @@ export class AgentService {
             );
             await Promise.allSettled(
                 [...previousContainerNames].map((containerName) =>
-                    runtime.removeSandbox(containerName),
+                    this.removeSandbox(runtime, containerName),
                 ),
             ).then((results) => {
                 for (const result of results)
@@ -720,7 +767,7 @@ export class AgentService {
             if (!committed)
                 await Promise.allSettled(
                     [...createdContainerNames].map((containerName) =>
-                        runtime.removeSandbox(containerName),
+                        this.removeSandbox(runtime, containerName),
                     ),
                 ).then((results) => {
                     for (const result of results)
@@ -1082,14 +1129,14 @@ export class AgentService {
                     sessionId: session.id,
                 });
                 if (binding.containerName !== containerName)
-                    await runtime.removeSandbox(containerName);
+                    await this.removeSandbox(runtime, containerName);
                 await this.reconcileSecretBindings({
                     agentUserId: latest.agentUserId,
                     chatId,
                 });
                 return binding;
             } catch (error) {
-                await runtime.removeSandbox(containerName);
+                await this.removeSandbox(runtime, containerName);
                 throw error;
             }
         });

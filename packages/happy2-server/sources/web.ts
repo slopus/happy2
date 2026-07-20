@@ -1,6 +1,7 @@
 import { access } from "node:fs/promises";
+import { isIP } from "node:net";
 import { join } from "node:path";
-import Fastify, { type FastifyRequest } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import proxy from "@fastify/http-proxy";
 import staticFiles from "@fastify/static";
 import type { ClientOptions } from "ws";
@@ -15,6 +16,7 @@ export interface WebOptions {
     host?: string;
     logger?: boolean;
     port?: number;
+    portSharingDomain?: string;
     trustedProxyHops?: number;
     webRoot?: string;
 }
@@ -22,6 +24,9 @@ export interface WebOptions {
 /** Serves the Happy (2) SPA and proxies its versioned API to a separate backend origin. */
 export async function startWebHappy2(options: WebOptions): Promise<RunningHappy2> {
     const backendUrl = normalizedBackendUrl(options.backendUrl);
+    const portSharingDomain = options.portSharingDomain
+        ? normalizedPortSharingDomain(options.portSharingDomain)
+        : undefined;
     const webRoot = options.webRoot ?? join(import.meta.dirname, "web");
     await access(join(webRoot, "index.html"));
 
@@ -30,6 +35,8 @@ export async function startWebHappy2(options: WebOptions): Promise<RunningHappy2
         trustProxy: options.trustedProxyHops ?? 0,
     });
     try {
+        if (portSharingDomain)
+            await registerPortShareGateway(gateway, backendUrl, portSharingDomain);
         gateway.get("/v0/auth/web/session", async (request, reply) => {
             const response = await fetch(`${backendUrl}/v0/auth/web/session`, {
                 headers: backendRequestHeaders(request),
@@ -108,6 +115,100 @@ export async function startWebHappy2(options: WebOptions): Promise<RunningHappy2
         await gateway.close().catch(() => undefined);
         throw error;
     }
+}
+
+async function registerPortShareGateway(
+    gateway: FastifyInstance,
+    backendUrl: string,
+    publicDomain: string,
+): Promise<void> {
+    const constraintName = "happy2PortShareHost";
+    const constraintValue = "port-share";
+    const hostConstraint: Parameters<typeof gateway.addConstraintStrategy>[0] = {
+        name: constraintName,
+        storage() {
+            const handlers = new Map();
+            return {
+                get(value) {
+                    return handlers.get(value) ?? null;
+                },
+                set(value, handler) {
+                    handlers.set(value, handler);
+                },
+            };
+        },
+        validate: () => true,
+        deriveConstraint: (request) =>
+            isPortShareHost(request.headers.host, publicDomain) ? constraintValue : undefined,
+        mustMatchWhenDerived: true,
+    };
+    gateway.addConstraintStrategy(hostConstraint);
+    await gateway.register(proxy, {
+        upstream: backendUrl,
+        prefix: "/",
+        rewritePrefix: "/",
+        constraints: { [constraintName]: constraintValue },
+        httpMethods: ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"],
+        websocket: true,
+        wsServerOptions: {
+            maxPayload: MAX_TERMINAL_WIRE_BYTES,
+            perMessageDeflate: false,
+        },
+        wsClientOptions: {
+            maxPayload: MAX_TERMINAL_WIRE_BYTES,
+            perMessageDeflate: false,
+            rewriteRequestHeaders: portShareGatewayWebSocketHeaders,
+        } as ClientOptions,
+        replyOptions: {
+            rewriteRequestHeaders: (request, headers) => ({
+                ...headers,
+                host: request.host,
+                "x-forwarded-for": request.ip,
+                "x-forwarded-proto": request.protocol,
+                "x-forwarded-host": request.host,
+            }),
+        },
+    });
+}
+
+function portShareGatewayWebSocketHeaders(
+    headers: NonNullable<ClientOptions["headers"]>,
+    request: FastifyRequest,
+): NonNullable<ClientOptions["headers"]> {
+    return {
+        ...headers,
+        host: request.host,
+        "x-forwarded-for": request.ip,
+        "x-forwarded-proto": request.protocol,
+        "x-forwarded-host": request.host,
+    };
+}
+
+function isPortShareHost(host: string | undefined, publicDomain: string): boolean {
+    if (!host) return false;
+    try {
+        const hostname = new URL(`http://${host}`).hostname.toLowerCase();
+        const suffix = `.${publicDomain.toLowerCase()}`;
+        const subdomain = hostname.endsWith(suffix) ? hostname.slice(0, -suffix.length) : "";
+        return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(subdomain);
+    } catch {
+        return false;
+    }
+}
+
+function normalizedPortSharingDomain(value: string): string {
+    const normalized = value.toLowerCase().replace(/^\*\./, "").replace(/\.$/, "");
+    if (
+        normalized === "localhost" ||
+        isIP(normalized) !== 0 ||
+        !normalized.includes(".") ||
+        normalized.length > 253 ||
+        !normalized
+            .split(".")
+            .every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))
+    )
+        throw new Error("portSharingDomain must be a valid DNS hostname");
+    return normalized;
 }
 
 function backendRequestHeaders(request: {

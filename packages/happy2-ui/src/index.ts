@@ -177,6 +177,11 @@ export {
 } from "./SegmentedControl";
 export { Banner, type BannerAction, type BannerProps, type BannerTone } from "./Banner";
 export {
+    PortShareControl,
+    type PortShareControlProps,
+    type PortShareControlVariant,
+} from "./PortShareControl";
+export {
     EmptyState,
     type EmptyStateAction,
     type EmptyStateProps,

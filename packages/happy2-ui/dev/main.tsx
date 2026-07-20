@@ -18,6 +18,7 @@ import { AuthScreenPage } from "./pages/AuthScreenPage";
 import { AvatarPage } from "./pages/AvatarPage";
 import { BadgePage } from "./pages/BadgePage";
 import { BannerPage } from "./pages/BannerPage";
+import { PortShareControlPage } from "./pages/PortShareControlPage";
 import { BoxPage } from "./pages/BoxPage";
 import { ButtonPage } from "./pages/ButtonPage";
 import { CallPanelPage } from "./pages/CallPanelPage";
@@ -130,6 +131,12 @@ const components: BlueprintPage[] = [
         page: SegmentedControlPage,
     },
     { id: "banner", label: "Banner", number: "C-023", page: BannerPage },
+    {
+        id: "port-share-control",
+        label: "Port share control",
+        number: "C-080",
+        page: PortShareControlPage,
+    },
     { id: "empty-state", label: "Empty state", number: "C-024", page: EmptyStatePage },
     { id: "tabs", label: "Tabs", number: "C-025", page: TabsPage },
     { id: "toolbar", label: "Toolbar", number: "C-026", page: ToolbarPage },

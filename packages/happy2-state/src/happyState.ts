@@ -201,6 +201,13 @@ import {
 } from "./modules/plugins/pluginsState.js";
 import { chatPluginRequestDecide, chatPluginRequestsLoad } from "./modules/chat/chatState.js";
 import {
+    chatPortShareDisable,
+    chatPortShareOpen,
+    chatPortSharesLoad,
+    type PortShareAccess,
+} from "./modules/chat/chatState.js";
+import { PortShareLeaseCoordinator } from "./modules/port-share-lease/portShareLeaseState.js";
+import {
     permissionsLoad,
     permissionsStoreCreate,
     type PermissionsStore,
@@ -302,6 +309,13 @@ export interface HappyStateOptions extends StateRuntimeOptions {
     readonly unknownSyncArea?: (area: string) => void;
     /** Authoritative permissions already returned by the session's `/v0/me` request. */
     readonly initialPermissions?: EffectivePermissions;
+    /**
+     * Opens a port share in an external browser window. Supplied by application
+     * code because reserving the window and performing the cross-origin cookie
+     * exchange are platform concerns; a client without it reports opens as a
+     * displayable failure instead.
+     */
+    readonly portShareAccess?: PortShareAccess;
 }
 
 /**
@@ -365,6 +379,8 @@ export class HappyState implements AsyncDisposable, Disposable {
     private disposed = false;
     private readonly unknownSyncArea: (area: string) => void;
     private readonly eventListener: (event: HappyStateEvent) => void;
+    private readonly portShareAccess?: PortShareAccess;
+    private readonly portShareLease: PortShareLeaseCoordinator;
 
     constructor(options: HappyStateOptions = {}) {
         const backgroundError =
@@ -372,9 +388,16 @@ export class HappyState implements AsyncDisposable, Disposable {
         this.eventListener = options.event ?? (() => undefined);
         this.unknownSyncArea = options.unknownSyncArea ?? (() => undefined);
         this.initialPermissions = options.initialPermissions;
+        this.portShareAccess = options.portShareAccess;
         this.runtime = new StateRuntime({
             ...options,
             onBackgroundError: options.onBackgroundError ?? backgroundError,
+        });
+        // Constructing the coordinator opens no timers or transport; a lease
+        // begins only after a port share is successfully opened.
+        this.portShareLease = new PortShareLeaseCoordinator({
+            runtime: this.runtime,
+            chatGet: (id) => this.chats.get(id),
         });
         this.drafts = new DraftCoordinator({
             runtime: this.runtime,
@@ -387,7 +410,13 @@ export class HappyState implements AsyncDisposable, Disposable {
                 this.chats.getOrCreate(chatId, () =>
                     chatStoreCreate(chatId, (event) => this.eventRoute(event)),
                 ),
-            chatRelease: (chatId) => this.chats.release(chatId),
+            chatRelease: (chatId) => {
+                const released = this.chats.release(chatId);
+                // A fully released chat surface can no longer host or reconcile a
+                // refresh lease, so its leases stop with it.
+                if (released) this.portShareLease.stopForChat(chatId);
+                return released;
+            },
             chatLoad: (chatId) => this.chatLoad(chatId),
             workspaceAcquire: (chatId) =>
                 this.workspaces.getOrCreate(chatId, () =>
@@ -484,6 +513,7 @@ export class HappyState implements AsyncDisposable, Disposable {
             mcpAppReconcile: (message) => this.mcpAppReconcile(message),
             mcpAppsInvalidate: () => this.mcpAppsReload(),
             chatPluginRequestsReconcile: (chatId) => this.chatPluginRequestsReconcile(chatId),
+            chatPortSharesReconcile: (chatId) => this.chatPortSharesReconcile(chatId),
             threadListChatsReconcile: (chatIds) => this.threadListChatsReconcile(chatIds),
             documentReconcile: (documentId, sequence) =>
                 documentReconcile(this.documentContext(), documentId, sequence),
@@ -1039,6 +1069,7 @@ export class HappyState implements AsyncDisposable, Disposable {
         syncStop(this.sync);
         if (this.pluginsBinding) pluginsUpdateChecksStop(this.pluginsBinding);
         if (this.pluginInstallBinding) pluginInstallPrepareStop(this.pluginInstallBinding);
+        this.portShareLease.dispose();
         this.runtime.stop();
         this.chats.dispose();
         this.workspaceFiles.dispose();
@@ -1310,6 +1341,30 @@ export class HappyState implements AsyncDisposable, Disposable {
             case "pluginRequestsRetained":
                 this.chatPluginRequestsLoad(event.chatId);
                 return;
+            case "portSharesRetained":
+                this.chatPortSharesLoad(event.chatId);
+                return;
+            case "portShareOpenSubmitted":
+                this.chatPortShareOpen(event.chatId, event.portShareId);
+                return;
+            case "portShareDisableSubmitted":
+                // Always run so a disconnected click settles the busy marker with a
+                // displayable error instead of hanging; the action itself performs
+                // no transport work while offline. On confirmed success it stops the
+                // exact share's refresh lease immediately via portShareDisabled,
+                // independent of the follow-up list read.
+                this.runtime.background(
+                    chatPortShareDisable(
+                        {
+                            ...this.chatLoadContext(),
+                            portShareDisabled: (chatId, portShareId) =>
+                                this.portShareLease.stopForShare(chatId, portShareId),
+                        },
+                        event.chatId,
+                        event.portShareId,
+                    ).then(() => this.portShareLeaseReconcile(event.chatId)),
+                );
+                return;
             case "pluginRequestDecisionSubmitted":
                 this.backgroundIfConnected(() =>
                     chatPluginRequestDecide(
@@ -1406,6 +1461,58 @@ export class HappyState implements AsyncDisposable, Disposable {
         // A full chat reload also covers reset paths where individual chat
         // updates were unavailable; a retained request list must not stale.
         this.chatPluginRequestsReconcile(chatId);
+        this.chatPortSharesReconcile(chatId);
+    }
+
+    private chatLoadContext() {
+        return {
+            runtime: this.runtime,
+            identities: this.identities,
+            chatGet: (id: string) => this.chats.get(id),
+        };
+    }
+
+    private chatPortSharesLoad(chatId: string): void {
+        if (!this.runtime.connected) return;
+        this.runtime.background(
+            chatPortSharesLoad(this.chatLoadContext(), chatId).then(() =>
+                this.portShareLeaseReconcile(chatId),
+            ),
+        );
+    }
+
+    /**
+     * Reserves the external window synchronously within the originating click, then completes the
+     * token issuance and cross-origin cookie exchange in the background. Reserving here (before any
+     * await) keeps the pop-up attributed to the user gesture.
+     */
+    private chatPortShareOpen(chatId: string, portShareId: string): void {
+        const target = this.portShareAccess?.reserve() ?? null;
+        this.runtime.background(
+            chatPortShareOpen(
+                {
+                    ...this.chatLoadContext(),
+                    portShareAccess: this.portShareAccess,
+                    portShareLeaseStart: (input) => this.portShareLease.start(input),
+                },
+                chatId,
+                portShareId,
+                target,
+            ),
+        );
+    }
+
+    /** Reloads active port shares only for a chat surface that has retained them. */
+    private chatPortSharesReconcile(chatId: string): void {
+        const shares = this.chats.get(chatId)?.getState().portShares;
+        if (shares?.type === "loading" || shares?.type === "ready") this.chatPortSharesLoad(chatId);
+    }
+
+    /** Stops refresh leases whose share left the durable active list of a retained chat surface. */
+    private portShareLeaseReconcile(chatId: string): void {
+        const shares = this.chats.get(chatId)?.getState().portShares;
+        if (shares?.type !== "ready") return;
+        this.portShareLease.reconcile(chatId, new Set(shares.value.map((share) => share.id)));
     }
 
     private chatPluginRequestsLoad(chatId: string): void {

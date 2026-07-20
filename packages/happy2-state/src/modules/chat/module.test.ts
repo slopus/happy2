@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PluginManagementRequestSummary } from "../../resources.js";
+import type { PluginManagementRequestSummary, PortShareSummary } from "../../resources.js";
 import { UserError } from "../../types.js";
 import { chat, message } from "../../../tests/fixtures.js";
 import { createFakeServer, jsonResponse } from "../../testing/index.js";
@@ -8,6 +8,12 @@ import { composerStoreCreate } from "../composer/composerState.js";
 import { StateRuntime } from "../runtime/runtimeState.js";
 import { chatMembersLoad } from "./chatState.js";
 import { chatPluginRequestDecide, chatPluginRequestsLoad } from "./chatState.js";
+import {
+    chatPortShareDisable,
+    chatPortShareOpen,
+    chatPortSharesLoad,
+    type PortShareAccessTarget,
+} from "./chatState.js";
 import { chatStoreCreate } from "./chatState.js";
 import { messageItemProject } from "./chatState.js";
 
@@ -489,5 +495,342 @@ describe("chat plugin management requests", () => {
             type: "ready",
             value: [{ id: "request1" }, { id: "request2", status: "approved" }],
         });
+    });
+});
+
+const sampleShare: PortShareSummary = {
+    id: "share-1",
+    chatId: "chat-1",
+    agentUserId: "agent-1",
+    containerPort: 3000,
+    name: "Documentation Preview",
+    subdomain: "documentation-preview-abc123",
+    createdByUserId: "user-1",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    url: "http://documentation-preview-abc123.preview.example",
+};
+
+describe("chat port shares", () => {
+    it("retains once, loads durably, and exposes the active share to both surfaces", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/portShares",
+            jsonResponse(200, { portShares: [sampleShare] }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport });
+        const output = vi.fn();
+        const binding = chatStoreCreate("chat-1", output);
+        binding.getState().portSharesRetain();
+        binding.getState().portSharesRetain();
+        expect(
+            output.mock.calls.filter(([event]) => event.type === "portSharesRetained"),
+        ).toHaveLength(1);
+        expect(binding.getState().portShares.type).toBe("loading");
+        const context = { runtime, identities: new IdentityCatalog(), chatGet: () => binding };
+        await chatPortSharesLoad(context, "chat-1");
+        expect(binding.getState().portShares).toMatchObject({
+            type: "ready",
+            value: [{ id: "share-1", name: "Documentation Preview", containerPort: 3000 }],
+        });
+        runtime.stop();
+    });
+
+    it("opens a share by issuing a scoped token, exchanging it, and navigating the reserved window", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/portShares",
+            jsonResponse(200, { portShares: [sampleShare] }),
+        );
+        server.respond(
+            "POST",
+            "/v0/portShares/share-1/createAccessToken",
+            jsonResponse(200, {
+                token: "scoped-token",
+                expiresAt: "2026-01-01T01:00:00.000Z",
+                refreshAfter: "2026-01-01T00:15:00.000Z",
+                portShare: sampleShare,
+            }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport });
+        const binding = chatStoreCreate("chat-1");
+        const context = { runtime, identities: new IdentityCatalog(), chatGet: () => binding };
+        await chatPortSharesLoad(context, "chat-1");
+
+        const navigate = vi.fn(async () => undefined);
+        const exchange = vi.fn(async () => undefined);
+        const release = vi.fn();
+        const target: PortShareAccessTarget = { navigate, exchange, release, closed: false };
+        const portShareLeaseStart = vi.fn();
+        binding.getState().portShareOpen("share-1");
+        expect(binding.getState().portShareOpeningIds).toEqual(["share-1"]);
+        await chatPortShareOpen({ ...context, portShareLeaseStart }, "chat-1", "share-1", target);
+        expect(navigate).toHaveBeenCalledWith(
+            "http://documentation-preview-abc123.preview.example",
+            "scoped-token",
+        );
+        expect(release).not.toHaveBeenCalled();
+        expect(binding.getState().portShareOpeningIds).toEqual([]);
+        expect(binding.getState().portShareActionError).toBeUndefined();
+        // The scoped token is never persisted into any snapshot field.
+        expect(JSON.stringify(binding.getState().portShares)).not.toContain("scoped-token");
+        // A successful open starts the refresh lease from the server refreshAfter.
+        expect(portShareLeaseStart).toHaveBeenCalledWith({
+            chatId: "chat-1",
+            portShareId: "share-1",
+            url: "http://documentation-preview-abc123.preview.example",
+            refreshAfter: "2026-01-01T00:15:00.000Z",
+            target,
+        });
+        runtime.stop();
+    });
+
+    it("reports a blocked pop-up as a displayable failure without issuing a token", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/portShares",
+            jsonResponse(200, { portShares: [sampleShare] }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport });
+        const binding = chatStoreCreate("chat-1");
+        const context = { runtime, identities: new IdentityCatalog(), chatGet: () => binding };
+        await chatPortSharesLoad(context, "chat-1");
+        binding.getState().portShareOpen("share-1");
+        await chatPortShareOpen(context, "chat-1", "share-1", null);
+        expect(binding.getState().portShareOpeningIds).toEqual([]);
+        expect(binding.getState().portShareActionError?.message).toContain("pop-ups");
+        // No access-token request left the client.
+        expect(server.requests.some((request) => request.path.includes("createAccessToken"))).toBe(
+            false,
+        );
+        runtime.stop();
+    });
+
+    it("releases the reserved window and surfaces the error when the exchange fails", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/portShares",
+            jsonResponse(200, { portShares: [sampleShare] }),
+        );
+        server.respond(
+            "POST",
+            "/v0/portShares/share-1/createAccessToken",
+            jsonResponse(200, {
+                token: "scoped-token",
+                expiresAt: "2026-01-01T01:00:00.000Z",
+                refreshAfter: "2026-01-01T00:15:00.000Z",
+                portShare: sampleShare,
+            }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport });
+        const binding = chatStoreCreate("chat-1");
+        const context = { runtime, identities: new IdentityCatalog(), chatGet: () => binding };
+        await chatPortSharesLoad(context, "chat-1");
+        const release = vi.fn();
+        const target: PortShareAccessTarget = {
+            navigate: vi.fn(async () => {
+                throw new UserError("The shared preview did not accept the session.");
+            }),
+            exchange: vi.fn(async () => undefined),
+            release,
+            closed: false,
+        };
+        binding.getState().portShareOpen("share-1");
+        await chatPortShareOpen(context, "chat-1", "share-1", target);
+        expect(release).toHaveBeenCalledTimes(1);
+        expect(binding.getState().portShareOpeningIds).toEqual([]);
+        expect(binding.getState().portShareActionError?.message).toBe(
+            "The shared preview did not accept the session.",
+        );
+        runtime.stop();
+    });
+
+    it("disables a share optimistically and reconciles its removal from the durable list", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/portShares",
+            jsonResponse(200, { portShares: [sampleShare] }),
+            jsonResponse(200, { portShares: [] }),
+        );
+        server.respond(
+            "POST",
+            "/v0/chats/chat-1/portShares/share-1/disablePortShare",
+            jsonResponse(200, {
+                portShare: { ...sampleShare, disabledAt: "2026-01-01T00:05:00.000Z" },
+            }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport });
+        const output = vi.fn();
+        const binding = chatStoreCreate("chat-1", output);
+        const context = { runtime, identities: new IdentityCatalog(), chatGet: () => binding };
+        await chatPortSharesLoad(context, "chat-1");
+        binding.getState().portShareDisable("share-1");
+        expect(binding.getState().portShareDisablingIds).toEqual(["share-1"]);
+        const submitted = output.mock.calls
+            .map(([event]) => event)
+            .find(({ type }) => type === "portShareDisableSubmitted");
+        expect(submitted).toMatchObject({ chatId: "chat-1", portShareId: "share-1" });
+        await chatPortShareDisable(context, "chat-1", "share-1");
+        expect(binding.getState().portShares).toMatchObject({ type: "ready", value: [] });
+        expect(binding.getState().portShareDisablingIds).toEqual([]);
+        runtime.stop();
+    });
+
+    it("keeps the busy marker and surfaces the error when a disable fails", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/portShares",
+            jsonResponse(200, { portShares: [sampleShare] }),
+        );
+        server.respond(
+            "POST",
+            "/v0/chats/chat-1/portShares/share-1/disablePortShare",
+            jsonResponse(409, { error: "conflict", message: "The share is already disabled." }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport, retry: { attempts: 1 } });
+        const binding = chatStoreCreate("chat-1");
+        const context = { runtime, identities: new IdentityCatalog(), chatGet: () => binding };
+        await chatPortSharesLoad(context, "chat-1");
+        binding.getState().portShareDisable("share-1");
+        await chatPortShareDisable(context, "chat-1", "share-1");
+        expect(binding.getState().portShareDisablingIds).toEqual([]);
+        expect(binding.getState().portShareActionError?.message).toBe(
+            "The share is already disabled.",
+        );
+        // The share remains on both surfaces because the disable never confirmed.
+        expect(binding.getState().portShares).toMatchObject({
+            type: "ready",
+            value: [{ id: "share-1" }],
+        });
+        runtime.stop();
+    });
+
+    it("preserves share references across an unchanged reconcile read and prunes stale busy markers", () => {
+        const binding = chatStoreCreate("chat-1");
+        binding.getState().chatInput({ type: "portSharesLoading" });
+        binding.getState().chatInput({ type: "portSharesLoaded", portShares: [sampleShare] });
+        const before = binding.getState().portShares;
+        binding
+            .getState()
+            .chatInput({ type: "portSharesLoaded", portShares: [{ ...sampleShare }] });
+        // An equivalent reload keeps the whole snapshot and per-share references stable.
+        expect(binding.getState().portShares).toBe(before);
+
+        binding.getState().portShareDisable("share-1");
+        expect(binding.getState().portShareDisablingIds).toEqual(["share-1"]);
+        // Once the share leaves the durable active list, its busy marker is pruned.
+        binding.getState().chatInput({ type: "portSharesLoaded", portShares: [] });
+        expect(binding.getState().portShareDisablingIds).toEqual([]);
+        expect(binding.getState().portShares).toMatchObject({ type: "ready", value: [] });
+    });
+
+    it("keeps a ready share list on screen when a reconcile read fails", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/portShares",
+            jsonResponse(200, { portShares: [sampleShare] }),
+            jsonResponse(500, { error: "internal", message: "boom" }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport, retry: { attempts: 1 } });
+        const binding = chatStoreCreate("chat-1");
+        const context = { runtime, identities: new IdentityCatalog(), chatGet: () => binding };
+        binding.getState().portSharesRetain();
+        await chatPortSharesLoad(context, "chat-1");
+        expect(binding.getState().portShares.type).toBe("ready");
+        await chatPortSharesLoad(context, "chat-1");
+        expect(binding.getState().portShares).toMatchObject({
+            type: "ready",
+            value: [{ id: "share-1" }],
+        });
+        runtime.stop();
+    });
+
+    it("clears the disabling marker on the disable success even when the follow-up reconcile read fails", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/portShares",
+            jsonResponse(200, { portShares: [sampleShare] }),
+            jsonResponse(500, { error: "internal", message: "boom" }),
+        );
+        server.respond(
+            "POST",
+            "/v0/chats/chat-1/portShares/share-1/disablePortShare",
+            jsonResponse(200, {
+                portShare: { ...sampleShare, disabledAt: "2026-01-01T00:05:00.000Z" },
+            }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport, retry: { attempts: 1 } });
+        const binding = chatStoreCreate("chat-1");
+        const context = { runtime, identities: new IdentityCatalog(), chatGet: () => binding };
+        await chatPortSharesLoad(context, "chat-1");
+        binding.getState().portShareDisable("share-1");
+        expect(binding.getState().portShareDisablingIds).toEqual(["share-1"]);
+        await chatPortShareDisable(context, "chat-1", "share-1");
+        // The busy marker cleared on the POST success and did not get stranded by
+        // the failing reconcile GET; the ready list stays coherent (SSE reconciles
+        // the removal later) and no spurious error is surfaced.
+        expect(binding.getState().portShareDisablingIds).toEqual([]);
+        expect(binding.getState().portShares).toMatchObject({
+            type: "ready",
+            value: [{ id: "share-1" }],
+        });
+        expect(binding.getState().portShareActionError).toBeUndefined();
+        runtime.stop();
+    });
+
+    it("settles a disable requested while disconnected with a displayable error and no transport work", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/chats/chat-1/portShares",
+            jsonResponse(200, { portShares: [sampleShare] }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport });
+        const binding = chatStoreCreate("chat-1");
+        const context = { runtime, identities: new IdentityCatalog(), chatGet: () => binding };
+        await chatPortSharesLoad(context, "chat-1");
+        binding.getState().portShareDisable("share-1");
+        expect(binding.getState().portShareDisablingIds).toEqual(["share-1"]);
+        // Disconnect before the action runs.
+        runtime.stop();
+        const offline = { runtime, identities: new IdentityCatalog(), chatGet: () => binding };
+        await chatPortShareDisable(offline, "chat-1", "share-1");
+        expect(binding.getState().portShareDisablingIds).toEqual([]);
+        expect(binding.getState().portShareActionError?.message).toContain("not connected");
+        // No disable POST was issued while offline.
+        expect(server.requests.some((request) => request.path.includes("disablePortShare"))).toBe(
+            false,
+        );
+    });
+
+    it("clears a stale action error when the active share identity changes and keeps it on an equivalent reconcile", () => {
+        const binding = chatStoreCreate("chat-1");
+        binding.getState().chatInput({ type: "portSharesLoaded", portShares: [sampleShare] });
+        binding.getState().chatInput({
+            type: "portShareOpenFailed",
+            portShareId: "share-1",
+            error: new UserError("Allow pop-ups for this app to open the shared preview."),
+        });
+        expect(binding.getState().portShareActionError).toBeDefined();
+
+        // An equivalent reconcile of the same active share keeps the error.
+        binding
+            .getState()
+            .chatInput({ type: "portSharesLoaded", portShares: [{ ...sampleShare }] });
+        expect(binding.getState().portShareActionError).toBeDefined();
+
+        // A durable read that replaces share A with share B drops the stale error.
+        binding.getState().chatInput({
+            type: "portSharesLoaded",
+            portShares: [{ ...sampleShare, id: "share-2", subdomain: "replacement-xyz789" }],
+        });
+        expect(binding.getState().portShareActionError).toBeUndefined();
     });
 });

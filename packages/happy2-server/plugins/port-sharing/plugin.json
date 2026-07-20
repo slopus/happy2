@@ -1,0 +1,22 @@
+{
+    "schemaVersion": 1,
+    "version": "1.0.0",
+    "displayName": "Port Sharing",
+    "shortName": "port-sharing",
+    "description": "Lets an agent expose, inspect, authenticate, verify, and disable a web server running on ports 3000 through 3010 in its current chat container.",
+    "variables": [],
+    "container": {
+        "dockerfile": "container/Dockerfile",
+        "permissions": [
+            "port-sharing:read",
+            "port-sharing:expose",
+            "port-sharing:disable",
+            "port-sharing:access"
+        ]
+    },
+    "mcp": {
+        "type": "stdio",
+        "command": "node",
+        "args": ["/plugin/server.mjs"]
+    }
+}

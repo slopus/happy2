@@ -81,6 +81,37 @@ Content-Type: application/json
 
 This endpoint has the same contextual-call requirement. It snapshots the installed plugin's validated name, description, and icon into a pending chat card. Removal begins only after a chat-member server administrator approves it.
 
+## Share the current chat agent's port
+
+Manifest permissions: `port-sharing:read` for listing, `port-sharing:expose` for
+creation, `port-sharing:disable` for disabling, and `port-sharing:access` for
+access-token creation.
+
+Each route also requires the installation-bound chat capability in
+`X-Happy2-Chat-Token`. The chat, triggering user, and agent are taken from that
+capability; request bodies cannot select another chat or container. Exactly one
+share may be active for a chat, and `port` must be an integer from 3000 through 3010.
+
+```http
+GET /port-shares
+POST /port-shares/exposePort
+POST /port-shares/:portShareId/disablePortShare
+POST /port-shares/:portShareId/createAccessToken
+Authorization: Bearer …
+X-Happy2-Chat-Token: …
+Content-Type: application/json
+
+{ "name": "Documentation Preview", "port": 3000 }
+```
+
+Creation returns a friendly hostname such as
+`documentation-preview-a1b2c3.preview.example.com`. Access-token creation uses
+an empty body and returns a one-hour RS256 bearer token for the triggering user,
+share, and subdomain, plus `refreshAfter` set 15 minutes after issuance. Treat
+that token as secret. It can be used directly to test the shared endpoint; a
+browser can exchange it for the host-only HttpOnly cookie with
+`GET /.happy2/auth/session` on the returned share URL.
+
 ## Trust model
 
 Manifest permissions are exact capabilities, not descriptive labels. Happy2 verifies the token signature, installation, container-incarnation ID, database health, and matching live OCI container on every host request. Stopping, replacing, failing, or uninstalling that incarnation invalidates the token without a process-local revocation list.

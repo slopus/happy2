@@ -143,6 +143,10 @@ Supported local host permissions:
 - `plugins:list`: read non-secret installed-plugin identity and health.
 - `plugins:request-install`: during a contextual agent tool call, stage a linked ZIP and create a durable approval in that exact chat.
 - `plugins:request-uninstall`: during a contextual agent tool call, create a durable approval to remove one exact installation.
+- `port-sharing:read`: list shared ports selected by a signed chat capability.
+- `port-sharing:expose`: expose one fixed port from the agent selected by a signed chat capability.
+- `port-sharing:disable`: disable a shared port selected by a signed chat capability.
+- `port-sharing:access`: issue a member-scoped access token for a shared port.
 
 The host API is capability-only and separate from the product API. It exposes neither user sessions nor arbitrary server routes.
 

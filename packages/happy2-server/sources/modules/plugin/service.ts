@@ -2343,6 +2343,15 @@ export class PluginService {
         };
     }
 
+    /** Authorizes one installation-bound chat capability for a dedicated host API route. */
+    async authorizeChatHost(
+        runtimeToken: string,
+        chatToken: string,
+        permissions: PluginHostPermission | readonly PluginHostPermission[],
+    ) {
+        return this.authorizeChat(runtimeToken, chatToken, permissions);
+    }
+
     private async authorizeChat(
         runtimeToken: string,
         chatToken: string,

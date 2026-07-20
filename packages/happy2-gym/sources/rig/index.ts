@@ -1284,10 +1284,16 @@ export class MockAgentSandboxRuntime implements AgentSandboxRuntime {
     readonly buildRequests: AgentImageBuildInput[] = [];
     readonly createdContainers: AgentSandboxCreateInput[] = [];
     readonly removedContainers: string[] = [];
+    portResolutionCount = 0;
     private buildsPaused = false;
     private readonly buildWaiters = new Set<() => void>();
     private readonly buildUpdates = new Set<(update: AgentImageBuildUpdate) => void>();
     private nextBuildFailure?: { error: unknown };
+    private portTarget?: number;
+
+    setPortTarget(port: number): void {
+        this.portTarget = port;
+    }
 
     pauseBuilds(): void {
         this.buildsPaused = true;
@@ -1339,6 +1345,19 @@ export class MockAgentSandboxRuntime implements AgentSandboxRuntime {
 
     async removeSandbox(containerName: string): Promise<void> {
         this.removedContainers.push(containerName);
+    }
+
+    async resolveSandboxPort(
+        containerName: string,
+        _containerPort: number,
+        signal?: AbortSignal,
+    ): Promise<{ host: "127.0.0.1"; port: number }> {
+        if (signal?.aborted) throw abortError();
+        if (!this.createdContainers.some((container) => container.containerName === containerName))
+            throw new Error(`Unknown mock sandbox ${containerName}`);
+        if (!this.portTarget) throw new Error("Mock sandbox has no configured port target");
+        this.portResolutionCount += 1;
+        return { host: "127.0.0.1", port: this.portTarget };
     }
 
     private waitForBuildResume(signal?: AbortSignal): Promise<void> {

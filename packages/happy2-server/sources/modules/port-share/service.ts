@@ -1,0 +1,191 @@
+import type { ServerConfig } from "../config/type.js";
+import type { DrizzleExecutor } from "../drizzle.js";
+import { realtimeTopics, type PubSub } from "../realtime/index.js";
+import type { TokenService } from "../auth/tokens.js";
+import { portShareAuthorizeUser } from "./portShareAuthorizeUser.js";
+import { portShareCreate } from "./portShareCreate.js";
+import { portShareDisable } from "./portShareDisable.js";
+import { portShareGetActiveBySubdomain } from "./portShareGetActiveBySubdomain.js";
+import { portShareList } from "./portShareList.js";
+import { portShareListActive } from "./portShareListActive.js";
+import { PortShareError, type PortShareContainerPort, type PortShareSummary } from "./types.js";
+
+export interface PortShareTargetResolver {
+    resolvePortShareTarget(
+        containerName: string,
+        containerPort: PortShareContainerPort,
+    ): Promise<{ host: "127.0.0.1"; port: number }>;
+}
+
+export interface PublicPortShare extends Omit<PortShareSummary, "containerName"> {
+    url: string;
+}
+
+export interface PortShareAccessToken {
+    token: string;
+    expiresAt: string;
+    refreshAfter: string;
+    portShare: PublicPortShare;
+}
+
+/** Coordinates the durable port-share actions, non-authoritative hostname cache, scoped JWTs, realtime hints, and local sandbox target resolution. */
+export class PortShareService {
+    private readonly bySubdomain = new Map<string, PortShareSummary>();
+    private readonly publicDomain: string;
+    private readonly publicUrl: URL;
+
+    constructor(
+        private readonly executor: DrizzleExecutor,
+        private readonly pubsub: PubSub,
+        private readonly tokens: TokenService,
+        config: Required<ServerConfig["portSharing"]>,
+        private readonly targets: PortShareTargetResolver,
+        private readonly onError: (error: unknown) => void = () => undefined,
+    ) {
+        this.publicDomain = config.publicDomain;
+        this.publicUrl = new URL(config.publicUrl);
+    }
+
+    async start(): Promise<void> {
+        this.bySubdomain.clear();
+        for (const share of await portShareListActive(this.executor))
+            this.bySubdomain.set(share.subdomain, share);
+    }
+
+    async create(input: {
+        actorUserId: string;
+        agentUserId: string;
+        chatId: string;
+        containerPort: PortShareContainerPort;
+        name: string;
+    }): Promise<{
+        portShare: PublicPortShare;
+        sync: Awaited<ReturnType<typeof portShareCreate>>["hint"];
+    }> {
+        const result = await portShareCreate(this.executor, input);
+        for (const [subdomain, share] of this.bySubdomain)
+            if (share.chatId === input.chatId) this.bySubdomain.delete(subdomain);
+        this.bySubdomain.set(result.portShare.subdomain, result.portShare);
+        await this.publish(result.hint);
+        return { portShare: this.publicShare(result.portShare), sync: result.hint };
+    }
+
+    async disable(input: { actorUserId: string; chatId: string; portShareId: string }): Promise<{
+        portShare: PublicPortShare;
+        sync: Awaited<ReturnType<typeof portShareDisable>>["hint"];
+    }> {
+        const result = await portShareDisable(this.executor, input);
+        this.bySubdomain.delete(result.portShare.subdomain);
+        await this.publish(result.hint);
+        return { portShare: this.publicShare(result.portShare), sync: result.hint };
+    }
+
+    async list(actorUserId: string, chatId: string): Promise<PublicPortShare[]> {
+        return (await portShareList(this.executor, actorUserId, chatId)).map((share) =>
+            this.publicShare(share),
+        );
+    }
+
+    async issueAccessToken(input: {
+        actorUserId: string;
+        portShareId: string;
+        chatId?: string;
+    }): Promise<PortShareAccessToken> {
+        const share = await portShareAuthorizeUser(
+            this.executor,
+            input.actorUserId,
+            input.portShareId,
+        );
+        if (!share || (input.chatId && share.chatId !== input.chatId))
+            throw new PortShareError("not_found", "Active port share was not found");
+        this.bySubdomain.set(share.subdomain, share);
+        const issuedAt = Date.now();
+        return {
+            token: await this.tokens.issuePortShareAccessToken({
+                userId: input.actorUserId,
+                portShareId: share.id,
+                subdomain: share.subdomain,
+            }),
+            refreshAfter: new Date(issuedAt + 15 * 60_000).toISOString(),
+            expiresAt: new Date(issuedAt + 60 * 60_000).toISOString(),
+            portShare: this.publicShare(share),
+        };
+    }
+
+    subdomainForHost(host: string | undefined): string | undefined {
+        const hostname = normalizedRequestHostname(host);
+        const suffix = `.${this.publicDomain}`;
+        if (!hostname?.endsWith(suffix)) return undefined;
+        const subdomain = hostname.slice(0, -suffix.length);
+        return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(subdomain) ? subdomain : undefined;
+    }
+
+    async authorize(
+        host: string | undefined,
+        token: string | undefined,
+    ): Promise<{ portShare: PublicPortShare; upstream: string; userId: string }> {
+        const subdomain = this.subdomainForHost(host);
+        if (!subdomain) throw new PortShareError("not_found", "Port share was not found");
+        if (!token) throw new PortShareError("forbidden", "Port-share access token is required");
+        let claims: Awaited<ReturnType<TokenService["verifyPortShareAccessToken"]>>;
+        try {
+            claims = await this.tokens.verifyPortShareAccessToken(token);
+        } catch {
+            throw new PortShareError("forbidden", "Port-share access token is invalid or expired");
+        }
+        if (claims.subdomain !== subdomain)
+            throw new PortShareError(
+                "forbidden",
+                "Port-share access token belongs to another host",
+            );
+        const cached = await this.cachedShare(subdomain);
+        if (!cached || cached.id !== claims.portShareId)
+            throw new PortShareError("not_found", "Active port share was not found");
+        const target = await this.targets.resolvePortShareTarget(
+            cached.containerName,
+            cached.containerPort,
+        );
+        return {
+            userId: claims.userId,
+            portShare: this.publicShare(cached),
+            upstream: `http://${target.host}:${target.port}`,
+        };
+    }
+
+    private async cachedShare(subdomain: string): Promise<PortShareSummary | undefined> {
+        const cached = this.bySubdomain.get(subdomain);
+        if (cached) return cached;
+        const share = await portShareGetActiveBySubdomain(this.executor, subdomain);
+        if (share) this.bySubdomain.set(subdomain, share);
+        return share;
+    }
+
+    private publicShare(share: PortShareSummary): PublicPortShare {
+        const url = new URL(this.publicUrl);
+        url.hostname = `${share.subdomain}.${this.publicDomain}`;
+        const { containerName: _, ...publicFields } = share;
+        return { ...publicFields, url: url.toString().replace(/\/$/, "") };
+    }
+
+    private async publish(
+        hint: Awaited<ReturnType<typeof portShareCreate>>["hint"],
+    ): Promise<void> {
+        const event = { type: "sync" as const, ...hint };
+        const results = await Promise.allSettled([
+            this.pubsub.publish(realtimeTopics.server, event),
+            ...hint.chats.map(({ chatId }) =>
+                this.pubsub.publish(realtimeTopics.chat(chatId), event),
+            ),
+        ]);
+        for (const result of results) if (result.status === "rejected") this.onError(result.reason);
+    }
+}
+
+function normalizedRequestHostname(host: string | undefined): string | undefined {
+    if (!host) return undefined;
+    try {
+        return new URL(`http://${host}`).hostname.toLowerCase();
+    } catch {
+        return undefined;
+    }
+}

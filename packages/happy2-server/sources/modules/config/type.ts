@@ -54,6 +54,12 @@ export interface ServerConfig {
         hostApiHost: string;
         hostApiPort: number;
     };
+    portSharing: {
+        /** Wildcard DNS suffix without a leading dot, for example preview.example.com. */
+        publicDomain?: string;
+        /** Public origin whose hostname is publicDomain; share subdomains replace that hostname. */
+        publicUrl?: string;
+    };
     security: {
         integrationSecretEnv: string;
         rateLimit: {

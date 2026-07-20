@@ -4,6 +4,7 @@ import {
     Button,
     FormRow,
     InfoPanel,
+    PortShareControl,
     SegmentedControl,
     Select,
     Switch,
@@ -12,6 +13,7 @@ import {
     type MemberItem,
     type SelectOption,
 } from "./ChatPageComponents.js";
+import type { PortShareView } from "./chatPageModels.js";
 const formStyle: CSSProperties = { display: "flex", flexDirection: "column" };
 const footerStyle: CSSProperties = {
     display: "flex",
@@ -47,12 +49,15 @@ export interface ChatInfoPanelProps {
     profile?: InfoPanelProfile;
     profileOverride?: InfoPanelProfile;
     title: string;
+    portShare?: PortShareView;
     onAutoJoinChange(value: boolean): void;
     onChannelNameChange(value: string): void;
     onChannelTopicChange(value: string): void;
     onClose(): void;
     onDefaultAgentChange?(agentUserId: string): void;
     onEffortChange(value: string): void;
+    onPortShareOpen(): void;
+    onPortShareDisable(): void;
     onSave(): void;
 }
 export function ChatInfoPanel(props: ChatInfoPanelProps) {
@@ -77,6 +82,24 @@ export function ChatInfoPanel(props: ChatInfoPanelProps) {
             }
             title={props.profileOverride?.name ?? props.title}
         >
+            {!props.profileOverride && props.portShare ? (
+                <FormRow
+                    control={
+                        <PortShareControl
+                            disabling={props.portShare.disabling}
+                            error={props.portShare.error}
+                            name={props.portShare.name}
+                            onDisable={props.onPortShareDisable}
+                            onOpen={props.onPortShareOpen}
+                            opening={props.portShare.opening}
+                            subtitle={props.portShare.subtitle}
+                            variant="bar"
+                        />
+                    }
+                    label="Port sharing"
+                    layout="stacked"
+                />
+            ) : null}
             {!props.profileOverride && !props.peer && props.canEdit ? (
                 <Box style={formStyle}>
                     <FormRow

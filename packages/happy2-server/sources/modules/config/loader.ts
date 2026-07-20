@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { isIP } from "node:net";
 import { parse } from "smol-toml";
 import { defaultConfig } from "./defaults.js";
 import type { OidcProviderConfig, ServerConfig, ServerRole } from "./type.js";
@@ -62,6 +63,7 @@ export function parseConfig(input: string, defaults: ServerConfig = defaultConfi
     const agents = table(root.agents ?? {}, "agents");
     const files = table(root.files ?? {}, "files");
     const plugins = table(root.plugins ?? {}, "plugins");
+    const portSharing = table(root.port_sharing ?? {}, "port_sharing");
     const pluginHostApiPort = boundedPositiveInteger(
         plugins.host_api_port,
         "plugins.host_api_port",
@@ -70,6 +72,40 @@ export function parseConfig(input: string, defaults: ServerConfig = defaultConfi
     );
     if (pluginHostApiPort === port)
         throw new Error("plugins.host_api_port must differ from server.port");
+    const portSharingPublicDomain = normalizedHostname(
+        string(portSharing.public_domain, "port_sharing.public_domain", true) ??
+            defaults.portSharing.publicDomain,
+        "port_sharing.public_domain",
+    );
+    const portSharingPublicUrl =
+        string(portSharing.public_url, "port_sharing.public_url", true) ??
+        defaults.portSharing.publicUrl;
+    if (!portSharingPublicDomain && portSharingPublicUrl)
+        throw new Error(
+            "port_sharing.public_domain is required when port_sharing.public_url is configured",
+        );
+    let normalizedPortSharingPublicUrl = portSharingPublicDomain
+        ? (portSharingPublicUrl ?? `https://${portSharingPublicDomain}`)
+        : undefined;
+    if (normalizedPortSharingPublicUrl) {
+        const url = new URL(normalizedPortSharingPublicUrl);
+        if (
+            (url.protocol !== "http:" && url.protocol !== "https:") ||
+            url.username ||
+            url.password ||
+            url.pathname !== "/" ||
+            url.search ||
+            url.hash
+        )
+            throw new Error(
+                "port_sharing.public_url must be an HTTP(S) origin without credentials, path, query, or fragment",
+            );
+        if (url.hostname !== portSharingPublicDomain)
+            throw new Error(
+                "port_sharing.public_url hostname must equal port_sharing.public_domain",
+            );
+        normalizedPortSharingPublicUrl = url.origin;
+    }
     const fileProvider = string(files.provider, "files.provider", true) ?? defaults.files.provider;
     if (fileProvider !== "local")
         throw new Error("files.provider must be local in this server build");
@@ -326,6 +362,10 @@ export function parseConfig(input: string, defaults: ServerConfig = defaultConfi
                 defaults.plugins.hostApiHost,
             hostApiPort: pluginHostApiPort,
         },
+        portSharing: {
+            publicDomain: portSharingPublicDomain,
+            publicUrl: normalizedPortSharingPublicUrl,
+        },
         security: {
             integrationSecretEnv:
                 string(security.integration_secret_env, "security.integration_secret_env", true) ??
@@ -384,6 +424,30 @@ export function parseConfig(input: string, defaults: ServerConfig = defaultConfi
             },
         },
     };
+}
+
+function normalizedHostname(value: string | undefined, path: string): string | undefined {
+    if (value === undefined) return undefined;
+    const normalized = value.toLowerCase().replace(/^\*\./, "").replace(/\.$/, "");
+    let url: URL;
+    try {
+        url = new URL(`http://${normalized}`);
+    } catch {
+        throw new Error(`${path} must be a valid DNS hostname`);
+    }
+    if (
+        url.hostname !== normalized ||
+        url.port ||
+        normalized === "localhost" ||
+        isIP(normalized) !== 0 ||
+        !normalized.includes(".") ||
+        normalized.length > 253 ||
+        !normalized
+            .split(".")
+            .every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))
+    )
+        throw new Error(`${path} must be a valid DNS hostname`);
+    return normalized;
 }
 
 function quota(value: unknown, path: string, fallback: number): number {

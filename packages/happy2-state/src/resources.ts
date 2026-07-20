@@ -742,3 +742,22 @@ export interface MessageRevision {
 export interface ForwardedMessagesResult {
     readonly messages: readonly MessageSummary[];
 }
+
+/**
+ * One member-visible port share: the durable, publicly reachable preview of a
+ * chat agent's container port. `url` is the ready-to-open wildcard host; the
+ * scoped access token that authorizes it is never part of this projection.
+ */
+export interface PortShareSummary {
+    readonly id: string;
+    readonly chatId: string;
+    readonly agentUserId: string;
+    readonly containerPort: number;
+    readonly name: string;
+    readonly subdomain: string;
+    readonly createdByUserId: string;
+    readonly createdAt: string;
+    readonly disabledAt?: string;
+    readonly disabledByUserId?: string;
+    readonly url: string;
+}

@@ -30,6 +30,7 @@ export {
 } from "../../Message.js";
 export { Modal } from "../../Modal.js";
 export { PluginPermissionCard } from "../../PluginPermissionCard.js";
+export { PortShareControl } from "../../PortShareControl.js";
 export { ModalOverlay } from "../../ModalOverlay.js";
 export { SegmentedControl } from "../../SegmentedControl.js";
 export { Select, type SelectOption } from "../../Select.js";

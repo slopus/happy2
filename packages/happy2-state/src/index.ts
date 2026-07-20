@@ -42,6 +42,8 @@ export type {
     ChatSnapshot,
     ChatStore,
     Loadable,
+    PortShareAccess,
+    PortShareAccessTarget,
     ReactionActors,
 } from "./modules/chat/chatState.js";
 export type {

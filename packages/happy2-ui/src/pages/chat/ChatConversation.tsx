@@ -7,6 +7,7 @@ import {
     ChannelHeader,
     Composer,
     MessageList,
+    PortShareControl,
     TerminalPanel,
     type ContextItem,
     type Mentionable,
@@ -14,7 +15,7 @@ import {
 } from "./ChatPageComponents.js";
 import type { TerminalSnapshot } from "happy2-state";
 import type { AudienceValue } from "../../AudienceToggle.js";
-import { emojiItems, type Conversation } from "./chatPageModels.js";
+import { emojiItems, type Conversation, type PortShareView } from "./chatPageModels.js";
 export interface ChatConversationProps {
     conversation: Conversation;
     activeConversationId: string;
@@ -52,6 +53,9 @@ export interface ChatConversationProps {
     onDocumentsToggle(): void;
     /** Creates a document in this conversation from the composer action row. */
     onDocumentAdd(): void;
+    portShare?: PortShareView;
+    onPortShareOpen(): void;
+    onPortShareDisable(): void;
     terminal?: TerminalSnapshot;
     terminalAvailable: boolean;
     terminalHeight: number;
@@ -69,6 +73,17 @@ export function ChatConversation(props: ChatConversationProps) {
             <ChannelHeader
                 actions={
                     <>
+                        {props.portShare ? (
+                            <PortShareControl
+                                disabling={props.portShare.disabling}
+                                error={props.portShare.error}
+                                name={props.portShare.name}
+                                onDisable={props.onPortShareDisable}
+                                onOpen={props.onPortShareOpen}
+                                opening={props.portShare.opening}
+                                variant="compact"
+                            />
+                        ) : null}
                         {props.activeConversationId && props.terminalAvailable ? (
                             <Button
                                 aria-label="Open terminal"

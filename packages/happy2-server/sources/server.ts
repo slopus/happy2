@@ -88,6 +88,9 @@ import { builtinPluginCatalogDirectory } from "./modules/plugin/builtinCatalog.j
 import { createPluginHostApi } from "./routes/pluginHost.js";
 import { registerPermissionRoutes } from "./routes/permissions.js";
 import { registerAppSurfaceRoutes } from "./routes/appSurfaces.js";
+import { PortShareService } from "./modules/port-share/service.js";
+import { registerPortShareRoutes } from "./routes/portShares.js";
+import { registerPortShareProxy } from "./routes/portShareProxy.js";
 
 const pluginHostApis = new WeakMap<FastifyInstance, FastifyInstance>();
 
@@ -232,6 +235,7 @@ export async function buildServer(
     let pluginService: PluginService | undefined;
     let pluginHostApi: FastifyInstance | undefined;
     let pluginBridge: PluginMcpHttpBridge | undefined;
+    let portShareService: PortShareService | undefined;
     let expiryTimer: NodeJS.Timeout | undefined;
     let pendingSweep: Promise<void> = Promise.resolve();
     if (productServer) {
@@ -327,11 +331,33 @@ export async function buildServer(
                       (error) => app.log.error(error),
                   )
                 : undefined);
+        if (config.portSharing.publicDomain && config.portSharing.publicUrl && !agentService)
+            throw new Error("Port sharing requires the agent service to be enabled");
+        if (config.portSharing.publicDomain && config.portSharing.publicUrl && agentService) {
+            portShareService = new PortShareService(
+                executor,
+                livePubsub,
+                services.tokens,
+                {
+                    publicDomain: config.portSharing.publicDomain,
+                    publicUrl: config.portSharing.publicUrl,
+                },
+                agentService,
+                (error) => app.log.error(error),
+            );
+            await portShareService.start();
+            registerPortShareRoutes(app, auth, portShareService);
+            await registerPortShareProxy(app, portShareService, {
+                appPublicUrl: config.server.publicUrl,
+                secureCookies: new URL(config.portSharing.publicUrl).protocol === "https:",
+            });
+        }
         pluginHostApi = createPluginHostApi(
             executor,
             pluginService,
             supplied?.logger ?? true,
             agentService,
+            portShareService,
         );
         pluginHostApis.set(app, pluginHostApi);
         app.addHook("onListen", async () => {

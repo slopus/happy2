@@ -50,6 +50,7 @@ export function defaultConfig(
             hostApiHost: "0.0.0.0",
             hostApiPort: 3001,
         },
+        portSharing: {},
         security: {
             integrationSecretEnv: "HAPPY2_INTEGRATION_SECRET",
             rateLimit: {

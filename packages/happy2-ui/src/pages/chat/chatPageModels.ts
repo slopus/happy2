@@ -7,6 +7,20 @@ import type {
 } from "happy2-state";
 import type { EmojiItem, ToneName } from "./ChatPageComponents.js";
 import type { IconName } from "../../Icon.js";
+/**
+ * The active chat port share projected for the header and info panel. A chat has
+ * at most one active share, so both surfaces render one `PortShareControl` driven
+ * by this view plus the shared open/disable handlers.
+ */
+export type PortShareView = {
+    id: string;
+    name: string;
+    subtitle?: string;
+    opening: boolean;
+    disabling: boolean;
+    error?: string;
+};
+
 export type Conversation = {
     composerPlaceholder: string;
     icon?: "hash" | "spark" | "inbox";

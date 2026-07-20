@@ -8,6 +8,7 @@ export type Happy2Command =
           backendUrl: string;
           host: string;
           port: number;
+          portSharingDomain?: string;
           trustedProxyHops: number;
       }
     | { kind: "help" }
@@ -34,6 +35,7 @@ export function parseHappy2Command(
                     help: { type: "boolean", short: "h" },
                     host: { type: "string" },
                     port: { type: "string" },
+                    "port-sharing-domain": { type: "string" },
                     "trusted-proxy-hops": { type: "string" },
                 },
             });
@@ -57,6 +59,13 @@ export function parseHappy2Command(
                     "web port",
                     65_535,
                 ),
+                ...((values["port-sharing-domain"] ?? environment.HAPPY2_PORT_SHARING_DOMAIN)
+                    ? {
+                          portSharingDomain:
+                              values["port-sharing-domain"] ??
+                              environment.HAPPY2_PORT_SHARING_DOMAIN!,
+                      }
+                    : {}),
                 trustedProxyHops: nonnegativeInteger(
                     values["trusted-proxy-hops"] ??
                         environment.HAPPY2_WEB_TRUSTED_PROXY_HOPS ??
@@ -96,7 +105,7 @@ export function happy2Usage(): string {
         "  happy2 [--config /path/to/happy2.toml]",
         "  happy2 backend [--config /path/to/happy2.toml]",
         "  happy2 web --backend-url http://backend:3000 [--host 127.0.0.1] [--port 3000]",
-        "             [--trusted-proxy-hops 0]",
+        "             [--port-sharing-domain preview.example.com] [--trusted-proxy-hops 0]",
         "  happy2 daemon start [--config /path/to/happy2.toml]",
         "  happy2 daemon stop",
         "  happy2 service start [--config /path/to/happy2.toml]",
@@ -105,7 +114,7 @@ export function happy2Usage(): string {
         "Without a mode, Happy (2) runs the backend and bundled web app together.",
         "The web mode serves only the bundled app and proxies /v0 to the backend URL.",
         "Web options may also use HAPPY2_BACKEND_URL, HAPPY2_WEB_HOST, HAPPY2_WEB_PORT,",
-        "and HAPPY2_WEB_TRUSTED_PROXY_HOPS.",
+        "HAPPY2_PORT_SHARING_DOMAIN, and HAPPY2_WEB_TRUSTED_PROXY_HOPS.",
     ].join("\n");
 }
 

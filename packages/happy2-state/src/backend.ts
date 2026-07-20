@@ -57,6 +57,7 @@ import type {
     ModerationReport,
     NotificationPreferences,
     Permission,
+    PortShareSummary,
     PluginCatalogItem,
     PluginHostPermission,
     PluginInstallationSummary,
@@ -249,6 +250,9 @@ export const backendOperations = {
     unpinMessage: post("/v0/messages/:messageId/unpinMessage"),
     getChatPins: get("/v0/chats/:chatId/pins"),
     getChatBookmarks: get("/v0/chats/:chatId/bookmarks"),
+    getChatPortShares: get("/v0/chats/:chatId/portShares"),
+    disablePortShare: post("/v0/chats/:chatId/portShares/:portShareId/disablePortShare"),
+    createPortShareAccessToken: secretPost("/v0/portShares/:portShareId/createAccessToken"),
     createChatBookmark: post("/v0/chats/:chatId/createBookmark"),
     deleteChatBookmark: post("/v0/chats/:chatId/deleteBookmark"),
 
@@ -664,6 +668,8 @@ export interface KnownBackendInputs {
         readonly emoji?: string | null;
     };
     deleteChatBookmark: { readonly chatId: string; readonly bookmarkId: string };
+    disablePortShare: { readonly chatId: string; readonly portShareId: string };
+    createPortShareAccessToken: { readonly portShareId: string };
     updateStatus: {
         readonly availability?: "automatic" | "online" | "away" | "dnd";
         readonly customStatusText?: string | null;
@@ -1143,6 +1149,14 @@ export interface KnownBackendResults {
     };
     getChatPins: { readonly pins: readonly ChatPinSummary[] };
     getChatBookmarks: { readonly bookmarks: readonly ChatBookmarkSummary[] };
+    getChatPortShares: { readonly portShares: readonly PortShareSummary[] };
+    disablePortShare: { readonly portShare: PortShareSummary; readonly sync?: unknown };
+    createPortShareAccessToken: {
+        readonly token: string;
+        readonly expiresAt: string;
+        readonly refreshAfter: string;
+        readonly portShare: PortShareSummary;
+    };
     getContacts: DirectoryUsersResult;
     getDirectoryUsers: DirectoryUsersResult;
     getDirectoryChannels: { readonly channels: readonly ChatSummary[] };

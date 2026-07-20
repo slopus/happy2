@@ -1,0 +1,4 @@
+interface:
+    display_name: "Happy2 Port Sharing"
+    short_description: "Expose and verify an agent web server"
+    default_prompt: "Expose the web server in this chat, verify the public preview, and report the URL."

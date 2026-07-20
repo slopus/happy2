@@ -67,6 +67,7 @@ const ENTITY_PREFIXES: Record<string, readonly string[]> = {
     operations: ["audit", "syncEvent", "user"],
     permission: ["permission", "role", "user"],
     plugin: ["plugin"],
+    "port-share": ["portShare"],
     presence: ["presence"],
     request: ["idempotency"],
     retention: ["retention"],

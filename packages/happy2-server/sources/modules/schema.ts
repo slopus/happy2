@@ -1216,6 +1216,42 @@ export const pluginMcpTools = sqliteTable(
     (table) => [primaryKey({ columns: [table.installationId, table.name] })],
 );
 
+export const portShares = sqliteTable(
+    "port_shares",
+    {
+        id: text("id").primaryKey().notNull(),
+        chatId: text("chat_id")
+            .notNull()
+            .references(() => chats.id, { onDelete: "cascade" }),
+        agentUserId: text("agent_user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        containerName: text("container_name").notNull(),
+        containerPort: integer("container_port").notNull(),
+        name: text("name").notNull(),
+        subdomain: text("subdomain").notNull(),
+        createdByUserId: text("created_by_user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+        disabledAt: text("disabled_at"),
+        disabledByUserId: text("disabled_by_user_id").references(() => users.id, {
+            onDelete: "set null",
+        }),
+    },
+    (table) => [
+        check(
+            "port_shares_container_port_check",
+            sql`${table.containerPort} BETWEEN 3000 AND 3010`,
+        ),
+        uniqueIndex("port_shares_subdomain_unique").on(table.subdomain),
+        uniqueIndex("port_shares_active_chat_unique")
+            .on(table.chatId)
+            .where(sql`${table.disabledAt} IS NULL`),
+        index("port_shares_chat_id_index").on(table.chatId),
+    ],
+);
+
 export const pluginManagementRequests = sqliteTable(
     "plugin_management_requests",
     {
@@ -1877,6 +1913,7 @@ export const schema = {
     pluginManagementRequests,
     pluginUiAssets,
     plugins,
+    portShares,
     rateLimitBuckets,
     reactions,
     retentionRuns,

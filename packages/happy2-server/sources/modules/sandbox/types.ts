@@ -102,6 +102,12 @@ export interface AgentSandboxRuntime {
     ): Promise<{ imageId: string }>;
     createSandbox(input: AgentSandboxCreateInput, signal?: AbortSignal): Promise<void>;
     removeSandbox(containerName: string): Promise<void>;
+    /** Resolves one fixed loopback-only host mapping for an agent container. */
+    resolveSandboxPort?(
+        containerName: string,
+        containerPort: number,
+        signal?: AbortSignal,
+    ): Promise<{ host: "127.0.0.1"; port: number }>;
 }
 
 /** Complete provider contract shared by local OCI drivers and future remote sandbox vendors. */

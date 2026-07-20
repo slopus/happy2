@@ -57,7 +57,11 @@ export type PluginHostPermission =
     | "plugins:install"
     | "plugins:uninstall"
     | "plugins:request-install"
-    | "plugins:request-uninstall";
+    | "plugins:request-uninstall"
+    | "port-sharing:read"
+    | "port-sharing:expose"
+    | "port-sharing:disable"
+    | "port-sharing:access";
 export const pluginHostPermissions: readonly PluginHostPermission[] = [
     "channels:create",
     "channels:create-child",
@@ -87,6 +91,10 @@ export const pluginHostPermissions: readonly PluginHostPermission[] = [
     "plugins:uninstall",
     "plugins:request-install",
     "plugins:request-uninstall",
+    "port-sharing:read",
+    "port-sharing:expose",
+    "port-sharing:disable",
+    "port-sharing:access",
 ];
 
 export interface PluginApiPermissionDefinition {
@@ -106,7 +114,8 @@ export interface PluginApiPermissionSection {
         | "workspace"
         | "environments"
         | "apps"
-        | "plugins";
+        | "plugins"
+        | "port-sharing";
     displayName: string;
     readOnly: PluginApiPermissionDefinition[];
     mutations: PluginApiPermissionDefinition[];

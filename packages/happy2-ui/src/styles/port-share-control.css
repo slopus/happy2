@@ -1,0 +1,126 @@
+/*
+ * C-080 PortShareControl — active chat port share control.
+ *
+ * `bar` (chat info panel): one vertically centered row — a fixed 16px link mark,
+ * a flex-column name/subtitle text block, then a right-pinned open + disable
+ * action group — with an optional danger error line beneath. `compact` (chat
+ * header): the same link mark plus the two icon buttons, no labels, so it rides
+ * the 56px header row. Tone and typography are theme tokens only; the mark turns
+ * danger when an action failed. Flexbox throughout.
+ */
+
+.happy2-port-share-control,
+.happy2-port-share-control * {
+    box-sizing: border-box;
+}
+
+.happy2-port-share-control {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+    text-align: left;
+}
+
+.happy2-port-share-control__row {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+}
+
+/* The panel row fills its allocated column so the name ellipsizes and the
+ * actions pin to the right; the header pair stays content-sized. */
+.happy2-port-share-control[data-variant="bar"] {
+    width: 100%;
+}
+
+.happy2-port-share-control[data-variant="bar"] .happy2-port-share-control__row {
+    min-height: 28px;
+}
+
+/* ---- Leading link mark ---------------------------------------------------- */
+
+.happy2-port-share-control__mark {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    color: var(--happy2-text-secondary);
+}
+
+.happy2-port-share-control[data-error] .happy2-port-share-control__mark {
+    color: var(--happy2-danger);
+}
+
+/* ---- Name / subtitle text block ------------------------------------------- */
+
+.happy2-port-share-control__text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.happy2-port-share-control__name {
+    display: block;
+    overflow: hidden;
+    color: var(--happy2-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-port-share-control__subtitle {
+    display: block;
+    overflow: hidden;
+    color: var(--happy2-text-muted);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- Actions -------------------------------------------------------------- */
+
+.happy2-port-share-control__actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+}
+
+/* ---- Error line (bar only) ------------------------------------------------ */
+
+.happy2-port-share-control__error {
+    display: block;
+    padding-left: 24px;
+    color: var(--happy2-danger);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 16px;
+}
+
+/* Compact errors are announced by assistive technology but not painted (the
+ * danger mark carries the visible signal in the space-constrained header). */
+.happy2-port-share-control__sr-error {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}

@@ -41,6 +41,7 @@ import {
     toneFor,
     type Conversation,
     type LiveThreadMessage,
+    type PortShareView,
     type WorkspaceEntry,
 } from "./chatPageModels.js";
 import { ChatMessageEntry } from "./ChatMessageEntry.js";
@@ -247,6 +248,30 @@ export function ChatPage(props: ChatPageProps) {
     const chatSnapshot = () => chatState;
     const composerSnapshot = () => composerState;
     const traceSnapshot = () => traceState;
+    // A chat has at most one active port share; both the header and info panel
+    // render the same view from the one owning chat snapshot.
+    const portShareView = (): PortShareView | undefined => {
+        const snapshot = chatSnapshot();
+        if (!snapshot || snapshot.portShares.type !== "ready") return undefined;
+        const share = snapshot.portShares.value[0];
+        if (!share) return undefined;
+        return {
+            id: share.id,
+            name: share.name,
+            subtitle: share.url.replace(/^https?:\/\//, ""),
+            opening: snapshot.portShareOpeningIds.includes(share.id),
+            disabling: snapshot.portShareDisablingIds.includes(share.id),
+            error: snapshot.portShareActionError?.message,
+        };
+    };
+    const portShareOpen = () => {
+        const share = portShareView();
+        if (share) props.chat?.getState().portShareOpen(share.id);
+    };
+    const portShareDisable = () => {
+        const share = portShareView();
+        if (share) props.chat?.getState().portShareDisable(share.id);
+    };
     const [statusHint, setStatusHint] = useState<string>();
     function showError(error: unknown) {
         setStatusHint(error instanceof Error ? error.message : "Something went wrong.");
@@ -1045,8 +1070,11 @@ export function ChatPage(props: ChatPageProps) {
                                     : undefined
                             }
                             onEffortChange={infoModel.effortChange}
+                            onPortShareDisable={portShareDisable}
+                            onPortShareOpen={portShareOpen}
                             onSave={() => void infoModel.save()}
                             peer={Boolean(infoModel.peer())}
+                            portShare={portShareView()}
                             profile={displayedProfile()}
                             profileOverride={routedProfile()}
                             title={conversation.title}
@@ -1178,6 +1206,8 @@ export function ChatPage(props: ChatPageProps) {
                             onInfoOpen={() => infoModel.open()}
                             onJoin={() => void channelModel.join()}
                             onMenuSelect={channelModel.menuSelect}
+                            onPortShareDisable={portShareDisable}
+                            onPortShareOpen={portShareOpen}
                             onSend={sendMessage}
                             onStarToggle={channelModel.starToggle}
                             onValueChange={updateDraft}
@@ -1187,6 +1217,7 @@ export function ChatPage(props: ChatPageProps) {
                                 const chatId = activeConversationId();
                                 if (chatId) void props.actions.documentCreate(chatId);
                             }}
+                            portShare={portShareView()}
                             onTerminalClose={() => props.actions.terminalClose?.()}
                             onTerminalHeightChange={(height) =>
                                 setTerminalHeight(Math.max(160, Math.min(560, height)))

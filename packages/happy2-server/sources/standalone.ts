@@ -35,6 +35,7 @@ export async function startStandaloneHappy2(
             host: config.server.host,
             logger: options.logger ?? true,
             port: config.server.port,
+            portSharingDomain: config.portSharing.publicDomain,
             trustedProxyHops: config.server.trustedProxyHops,
             webRoot: options.webRoot,
         });

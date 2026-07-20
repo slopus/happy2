@@ -20,6 +20,13 @@ directory = "plugins"
 host_api_host = "0.0.0.0"
 host_api_port = 3001
 
+# Optional public agent preview routing. Point wildcard DNS and TLS for
+# *.preview.example.com at the same public Happy listener.
+# [port_sharing]
+# public_domain = "preview.example.com"
+# Optional; defaults to https://preview.example.com.
+# public_url = "http://preview.example.com:8080"
+
 [database]
 # A local file works for one host. Use a shared libSQL endpoint when auth and
 # API are independently deployed, so every instance sees the same sessions.

@@ -154,6 +154,13 @@ directory = ".happy2/plugins"
 host_api_host = "0.0.0.0"
 host_api_port = 3001
 
+# Omit this table to disable public agent-port sharing. Configure wildcard DNS
+# and TLS for *.preview.example.com to reach the same Happy web listener.
+[port_sharing]
+public_domain = "preview.example.com"
+# Optional; defaults to https://preview.example.com.
+# public_url = "http://preview.example.com:8080"
+
 [security]
 # Name of the environment variable containing the integration encryption secret.
 integration_secret_env = "HAPPY2_INTEGRATION_SECRET"
@@ -244,6 +251,7 @@ Supported server and runner environment settings are:
 | `EMAIL_FROM` | Overrides `auth.magic_link.from`. |
 | `HAPPY2_BACKEND_URL` | Backend origin for the separate `happy2 web` command. |
 | `HAPPY2_WEB_HOST`, `HAPPY2_WEB_PORT`, `HAPPY2_WEB_TRUSTED_PROXY_HOPS` | Listener settings for `happy2 web`. |
+| `HAPPY2_PORT_SHARING_DOMAIN` | Wildcard port-sharing domain forwarded by a separately deployed `happy2 web` gateway. |
 
 `database.auth_token_env`, `security.integration_secret_env`, and each OIDC
 provider's `client_secret_env` may name additional environment variables.

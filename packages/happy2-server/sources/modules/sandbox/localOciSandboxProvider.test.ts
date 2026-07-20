@@ -59,6 +59,10 @@ describe("LocalOciSandboxProvider", () => {
         });
         terminal.stdin.end("exit\n");
         await expect(terminal.wait).resolves.toEqual({ exitCode: 0, signal: null });
+        await expect(provider.resolveSandboxPort("retry-mount-container", 3000)).resolves.toEqual({
+            host: "127.0.0.1",
+            port: 49152,
+        });
         await provider.removeSandbox("retry-mount-container");
 
         const calls = await recordedCalls(log);
@@ -112,6 +116,10 @@ describe("LocalOciSandboxProvider", () => {
             "TMPDIR=/tmp",
             "--workdir",
             "/workspace",
+            ...Array.from({ length: 11 }, (_, index) => 3000 + index).flatMap((port) => [
+                "--publish",
+                `127.0.0.1::${port}/tcp`,
+            ]),
             "--entrypoint",
             "/bin/sh",
             "happy2-agent:definition",
@@ -130,6 +138,11 @@ describe("LocalOciSandboxProvider", () => {
             "retry-mount-container",
             "/bin/sh",
             "-l",
+        ]);
+        expect(calls.map(({ args }) => args)).toContainEqual([
+            "port",
+            "retry-mount-container",
+            "3000/tcp",
         ]);
         expect(calls.at(-1)?.args).toEqual(["rm", "--force", "retry-mount-container"]);
     });
@@ -437,6 +450,7 @@ if (args[0] === "create" && args.includes("retry-mount-container") && !fs.exists
     process.exit(1);
 }
 if (args[0] === "image" && args[1] === "inspect") process.stdout.write("sha256:built-image\\n");
+if (args[0] === "port") process.stdout.write("127.0.0.1:49152\\n");
 if (args[0] === "inspect") process.stdout.write(JSON.stringify({
     Config: { Labels: {
         "dev.happy2.plugin-installation": "plugin-installation-id",

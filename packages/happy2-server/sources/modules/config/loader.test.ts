@@ -184,6 +184,48 @@ host_api_port = 3000
         ).toThrow("must differ from server.port");
     });
 
+    it("loads a wildcard port-sharing domain and infers its HTTPS public endpoint", () => {
+        expect(
+            parseConfig(`${base}
+[port_sharing]
+public_domain = "*.Preview.Example.com."
+`).portSharing,
+        ).toEqual({
+            publicDomain: "preview.example.com",
+            publicUrl: "https://preview.example.com",
+        });
+
+        const config = parseConfig(`${base}
+[port_sharing]
+public_domain = "preview.example.com"
+public_url = "http://preview.example.com:8080"
+`);
+        expect(config.portSharing).toEqual({
+            publicDomain: "preview.example.com",
+            publicUrl: "http://preview.example.com:8080",
+        });
+        expect(() =>
+            parseConfig(`${base}
+[port_sharing]
+public_url = "https://preview.example.com"
+`),
+        ).toThrow("public_domain is required");
+        expect(() =>
+            parseConfig(`${base}
+[port_sharing]
+public_domain = "preview.example.com"
+public_url = "https://other.example.com"
+`),
+        ).toThrow("hostname must equal");
+        expect(() =>
+            parseConfig(`${base}
+[port_sharing]
+public_domain = "127.0.0.1"
+public_url = "http://127.0.0.1"
+`),
+        ).toThrow("valid DNS hostname");
+    });
+
     it("rejects unsafe file pipeline limits", () => {
         expect(() =>
             parseConfig(`${base}

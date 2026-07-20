@@ -963,6 +963,85 @@ it("replaces the channel default agent from the info panel", async () => {
     await expect.poll(() => view.container.textContent).toContain("Default agent updated.");
 });
 
+it("renders one active port share in the header and info panel and routes open and disable to the owning chat store", async () => {
+    const sidebar = sidebarStoreFixtureCreate();
+    const directory = directoryStoreFixtureCreate();
+    const chatSurface = chatStoreFixtureCreate(chat.id);
+    onTestFinished(() => {
+        sidebar[Symbol.dispose]();
+        directory[Symbol.dispose]();
+        chatSurface[Symbol.dispose]();
+    });
+    sidebar.input({
+        type: "sidebarLoaded",
+        chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
+        sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+    });
+    chatSurface.input({ type: "chatLoaded", chat, messages: [], hasMoreMessages: false });
+    chatSurface.input({
+        type: "portSharesLoaded",
+        portShares: [
+            {
+                id: "share-1",
+                chatId: chat.id,
+                agentUserId: "agent-1",
+                containerPort: 3000,
+                name: "Documentation Preview",
+                subdomain: "documentation-preview-abc123",
+                createdByUserId: "user-1",
+                createdAt: "2026-01-01T00:00:00.000Z",
+                url: "http://documentation-preview-abc123.preview.example",
+            },
+        ],
+    });
+    const view = createRenderer();
+    view.render(
+        () => (
+            <ChatPage
+                actions={chatPageActionsCreate()}
+                chat={chatSurface.store}
+                directory={directory.store}
+                navigation={{ chatId: chat.id, panel: { kind: "info" } }}
+                rail={<div>Rail</div>}
+                sidebarSearch=""
+                sidebar={sidebar.store}
+                windowControls={false}
+                user={{ id: "user-1", firstName: "Ada" }}
+            />
+        ),
+        { width: 1200, height: 800 },
+    );
+    await view.ready();
+
+    // The share appears in both surfaces from the one owning chat snapshot.
+    const compact = view.container.querySelector(
+        '[data-happy2-ui="port-share-control"][data-variant="compact"]',
+    );
+    const bar = view.container.querySelector(
+        '[data-happy2-ui="port-share-control"][data-variant="bar"]',
+    );
+    expect(compact, "header control").not.toBeNull();
+    expect(bar, "info-panel control").not.toBeNull();
+    expect(bar!.querySelector('[data-happy2-ui="port-share-control-name"]')?.textContent).toBe(
+        "Documentation Preview",
+    );
+
+    // The header Open routes to the chat store's optimistic open marker.
+    const headerOpen = compact!.querySelector<HTMLButtonElement>(
+        'button[aria-label="Open shared preview: Documentation Preview"]',
+    )!;
+    headerOpen.click();
+    expect(chatSurface.store.getState().portShareOpeningIds).toEqual(["share-1"]);
+
+    // Once that clears, the panel Disable routes to the disable marker.
+    chatSurface.input({ type: "portShareOpenSettled", portShareId: "share-1" });
+    const panelDisable = bar!.querySelector<HTMLButtonElement>(
+        'button[aria-label="Stop sharing Documentation Preview"]',
+    )!;
+    panelDisable.click();
+    expect(chatSurface.store.getState().portShareDisablingIds).toEqual(["share-1"]);
+});
+
 it("reconciles an effort notice without remounting or moving focus from the chat selector", async () => {
     const agentChat: ChatSummary = {
         ...chat,

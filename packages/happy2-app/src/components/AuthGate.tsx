@@ -26,6 +26,7 @@ import {
 } from "../server";
 import { createAuthenticatedTransport } from "../stateTransport";
 import { terminalDriverCreate } from "../terminalDriver";
+import { portShareAccessCreate } from "../portShareAccess";
 import type { DesktopNavigation, DesktopOnboardingStep } from "../navigation/desktopRouteTypes";
 import { preAuthOnboardingStep } from "../onboarding/onboardingRoute";
 export type AuthSession = {
@@ -173,6 +174,7 @@ export function AuthGate(props: AuthGateProps) {
                     cookieAuth ? undefined : value,
                 ),
                 terminalDriverCreate,
+                portShareAccess: portShareAccessCreate(),
             });
             await nextState.syncStart();
             const profile = await loadAvatar(response.user, nextState);
