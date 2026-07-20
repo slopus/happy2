@@ -23,7 +23,7 @@ export type DesktopOnboardingStep =
     | "completion"
     | "waiting";
 
-export type DesktopFileFilter = "all" | "photo" | "video" | "gif" | "file";
+export type DesktopFileFilter = "all" | "photo" | "video" | "gif" | "file" | "document";
 
 export type DesktopPrimaryRoute =
     | {

@@ -36,7 +36,14 @@ const onboardingSteps = new Set<DesktopOnboardingStep>([
     "completion",
     "waiting",
 ]);
-const fileFilters = new Set<DesktopFileFilter>(["all", "photo", "video", "gif", "file"]);
+const fileFilters = new Set<DesktopFileFilter>([
+    "all",
+    "photo",
+    "video",
+    "gif",
+    "file",
+    "document",
+]);
 
 /** Parses one hosted or file-protocol URL into the complete safe desktop navigation state. */
 export function desktopRouteParse(input: string | URL): DesktopRoute {

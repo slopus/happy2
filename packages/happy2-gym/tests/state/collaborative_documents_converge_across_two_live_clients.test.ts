@@ -36,7 +36,10 @@ describe("collaborative documents across the real server boundary", () => {
         await asOwner.post(`/v0/chats/${chatId}/addMember`, { userId: partner.id });
 
         const created = await ownerState.documentCreate(chatId, { title: "Live page" });
-        expect(created).toMatchObject({ chatId, title: "Live page", format: "blocknote" });
+        expect(created).toMatchObject({ title: "Live page", format: "blocknote" });
+        // Creating from a channel owns the document and attaches it there.
+        expect(created.ownerUserId).toBe(owner.id);
+        expect(created.channelAttachments.map((entry) => entry.chatId)).toEqual([chatId]);
 
         using ownerSession = ownerState.documentOpen(created.id);
         await ownerState.whenIdle();

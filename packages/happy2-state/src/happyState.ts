@@ -45,6 +45,11 @@ import {
     type DocumentListOpenContext,
     type DocumentListStore,
 } from "./modules/document-list/documentListState.js";
+import {
+    documentCollectionLoad,
+    documentCollectionStoreCreate,
+    type DocumentCollectionStore,
+} from "./modules/document-collection/documentCollectionState.js";
 import { chatLoad } from "./modules/chat/chatState.js";
 import { chatMembersLoad } from "./modules/chat/chatState.js";
 import { chatPinsLoad } from "./modules/chat/chatState.js";
@@ -293,6 +298,7 @@ export class HappyState implements AsyncDisposable, Disposable {
     private readonly mcpApps = new StoreRegistry<string, McpAppStore>();
     private readonly documents = new StoreRegistry<string, DocumentStore>();
     private readonly documentLists = new StoreRegistry<string, DocumentListStore>();
+    private documentCollectionBinding?: DocumentCollectionStore;
     private readonly sidebarBinding = sidebarStoreCreate();
     private filesBinding?: FilesStore;
     private searchBinding?: SearchStore;
@@ -488,6 +494,19 @@ export class HappyState implements AsyncDisposable, Disposable {
                 this.runtime.background(filesLoad({ runtime: this.runtime, files: binding }));
         }
         return this.filesBinding;
+    }
+
+    /** The whole visible document collection, independent of any one channel. */
+    documentCollection(): DocumentCollectionStore {
+        if (!this.documentCollectionBinding) {
+            const binding = documentCollectionStoreCreate();
+            this.documentCollectionBinding = binding;
+            if (this.runtime.connected)
+                this.runtime.background(
+                    documentCollectionLoad({ runtime: this.runtime, documents: binding }),
+                );
+        }
+        return this.documentCollectionBinding;
     }
 
     search(): SearchStore {
@@ -1377,6 +1396,13 @@ export class HappyState implements AsyncDisposable, Disposable {
 
     /** Reloads every materialized document list and re-synchronizes open sessions. */
     private documentsReconcile(): void {
+        if (this.documentCollectionBinding)
+            this.runtime.background(
+                documentCollectionLoad({
+                    runtime: this.runtime,
+                    documents: this.documentCollectionBinding,
+                }),
+            );
         for (const [chatId] of this.documentLists.values()) this.documentListLoad(chatId);
         for (const [documentId] of this.documents.values())
             this.runtime.background(documentSynchronize(this.documentContext(), documentId));

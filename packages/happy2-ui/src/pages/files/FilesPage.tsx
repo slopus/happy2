@@ -1,5 +1,12 @@
-import { useLayoutEffect, useRef, useState } from "react";
-import type { FileSummary, FilesSnapshot, FilesStore } from "happy2-state";
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import type {
+    DocumentCollectionStore,
+    DocumentSummary,
+    FileSummary,
+    FilesSnapshot,
+    FilesStore,
+} from "happy2-state";
+import { DocumentRows } from "./DocumentRows";
 import { thumbHashToDataURL } from "thumbhash";
 import { Banner } from "../../Banner";
 import { Box } from "../../Box";
@@ -18,8 +25,13 @@ export interface FilesPageProps {
     filePreviewDownload?: (fileId: string) => Promise<ArrayBuffer>;
     fileThumbnailDownload?: (fileId: string) => Promise<ArrayBuffer>;
     onOpen?: (fileId: string) => void;
+    /** The whole visible document collection. Hides the Documents tab when absent. */
+    documents?: DocumentCollectionStore;
+    onDocumentOpen?: (document: DocumentSummary) => void;
 }
-export type FilesPageFilter = "all" | "photo" | "video" | "gif" | "file";
+export type FilesPageFilter = "all" | "photo" | "video" | "gif" | "file" | "document";
+const emptySubscribe = () => () => undefined;
+const emptySnapshot = () => undefined;
 const kindFilters: {
     id: FilesPageFilter;
     kind?: MediaKind;
@@ -104,6 +116,13 @@ function FilesPageContent(props: FilesPageProps & { snapshot: FilesSnapshot }) {
         }
     }
     useLayoutEffect(() => previewsEnsure(snapshot.files));
+    const documentSnapshot = useSyncExternalStore(
+        props.documents?.subscribe ?? emptySubscribe,
+        props.documents ? props.documents.getState : emptySnapshot,
+        props.documents ? props.documents.getInitialState : emptySnapshot,
+    );
+    const allDocuments: readonly DocumentSummary[] =
+        documentSnapshot?.documents.type === "ready" ? documentSnapshot.documents.value : [];
     const source = snapshot.files.map((file) => toMediaItem(file, previewUrls[file.id]));
     const activeKind = kindFilters.find((entry) => entry.id === props.filter)?.kind;
     const needle = props.query.trim().toLowerCase();
@@ -112,16 +131,31 @@ function FilesPageContent(props: FilesPageProps & { snapshot: FilesSnapshot }) {
             (activeKind === undefined || item.kind === activeKind) &&
             (!needle || (item.name ?? "").toLowerCase().includes(needle)),
     );
-    const tabs = kindFilters.map((entry) => ({
-        id: entry.id,
-        label: entry.label,
-        badge:
-            (entry.kind
-                ? source.filter((item) => item.kind === entry.kind).length
-                : source.length) || undefined,
-    }));
+    const documents = allDocuments.filter(
+        (entry) => !needle || entry.title.toLowerCase().includes(needle),
+    );
+    const tabs = [
+        ...kindFilters.map((entry) => ({
+            id: entry.id as FilesPageFilter,
+            label: entry.label,
+            badge:
+                (entry.kind
+                    ? source.filter((item) => item.kind === entry.kind).length
+                    : source.length) || undefined,
+        })),
+        ...(props.documents
+            ? [
+                  {
+                      id: "document" as FilesPageFilter,
+                      label: "Documents",
+                      badge: allDocuments.length || undefined,
+                  },
+              ]
+            : []),
+    ];
+    const documentsActive = props.filter === "document";
     const loadError = snapshot.status.type === "error" ? snapshot.status.error.message : undefined;
-    return source.length > 0 ? (
+    return source.length > 0 || allDocuments.length > 0 ? (
         <>
             {downloadState.id || downloadState.error ? (
                 <Banner
@@ -137,7 +171,11 @@ function FilesPageContent(props: FilesPageProps & { snapshot: FilesSnapshot }) {
                     placeholder: "Search files",
                     value: props.query,
                 }}
-                subtitle={`${filtered.length} of ${source.length} files`}
+                subtitle={
+                    documentsActive
+                        ? `${documents.length} of ${allDocuments.length} documents`
+                        : `${filtered.length} of ${source.length} files`
+                }
                 title="Files"
             />
             <Tabs
@@ -159,21 +197,29 @@ function FilesPageContent(props: FilesPageProps & { snapshot: FilesSnapshot }) {
                         padding: "16px",
                     }}
                 >
-                    <MediaGallery
-                        empty={
-                            <EmptyState
-                                description="Try a different filter or search term."
-                                icon={needle ? "search" : "files"}
-                                size="inline"
-                                title="No files match"
-                            />
-                        }
-                        items={filtered}
-                        onOpen={(id) => {
-                            const file = snapshot.files.find((item) => item.id === id);
-                            if (file) void open(file);
-                        }}
-                    />
+                    {documentsActive ? (
+                        <DocumentRows
+                            documents={documents}
+                            onOpen={props.onDocumentOpen}
+                            searching={Boolean(needle)}
+                        />
+                    ) : (
+                        <MediaGallery
+                            empty={
+                                <EmptyState
+                                    description="Try a different filter or search term."
+                                    icon={needle ? "search" : "files"}
+                                    size="inline"
+                                    title="No files match"
+                                />
+                            }
+                            items={filtered}
+                            onOpen={(id) => {
+                                const file = snapshot.files.find((item) => item.id === id);
+                                if (file) void open(file);
+                            }}
+                        />
+                    )}
                 </Box>
             </Box>
         </>

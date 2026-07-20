@@ -475,12 +475,24 @@ export interface ClientWorkspace {
 
 export type DocumentFormat = "blocknote";
 
+/** One channel a document is attached to. Detaching leaves the document intact. */
+export interface DocumentAttachment {
+    readonly chatId: string;
+    readonly attachedByUserId: string;
+    readonly attachedAt: string;
+}
+
 export interface DocumentSummary {
     readonly id: string;
-    readonly chatId: string;
+    readonly ownerUserId: string;
     readonly title: string;
     readonly format: DocumentFormat;
-    readonly createdByUserId?: string;
+    /**
+     * Channels this document is attached to. A collaborator only sees the
+     * attachments whose channel they are a member of, so this is a viewer
+     * projection rather than the document's complete attachment set.
+     */
+    readonly channelAttachments: readonly DocumentAttachment[];
     /** Sequence of the newest accepted update, as an unsigned decimal string. */
     readonly latestSequence: string;
     readonly createdAt: string;
@@ -562,14 +574,16 @@ export type RealtimeEvent =
       }
     | {
           readonly type: "document.updated";
-          readonly chatId: string;
+          /** Present for attached-channel delivery, absent for the unattached owner. */
+          readonly chatId?: string;
           readonly documentId: string;
           readonly sequence: string;
           readonly occurredAt: number;
       }
     | {
           readonly type: "document.presence";
-          readonly chatId: string;
+          /** Present for attached-channel delivery, absent for the unattached owner. */
+          readonly chatId?: string;
           readonly presence: DocumentPresenceEntry;
           readonly occurredAt: number;
       };

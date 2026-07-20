@@ -7,6 +7,7 @@ import type {
     ChatBookmarkSummary,
     ChatPinSummary,
     ChatSummary,
+    DocumentAttachment,
     DocumentFormat,
     DocumentPresenceEntry,
     DocumentSnapshotPayload,
@@ -209,8 +210,12 @@ export const backendOperations = {
     reorderStarredChats: post("/v0/chats/reorderStarred"),
     sendMessage: post("/v0/chats/:chatId/sendMessage"),
     updateDraft: post("/v0/chats/:chatId/updateDraft"),
+    getDocuments: get("/v0/documents"),
     getChatDocuments: get("/v0/chats/:chatId/documents"),
     createDocument: post("/v0/chats/:chatId/createDocument"),
+    createStandaloneDocument: post("/v0/documents/create"),
+    attachDocument: post("/v0/documents/:documentId/attach"),
+    detachDocument: post("/v0/documents/:documentId/detach"),
     getDocument: get("/v0/documents/:documentId"),
     applyDocumentUpdates: post("/v0/documents/:documentId/applyUpdates"),
     getDocumentDifference: post("/v0/documents/:documentId/getDifference"),
@@ -454,6 +459,13 @@ export interface KnownBackendInputs {
         readonly format?: DocumentFormat;
         readonly initialUpdate?: string;
     };
+    createStandaloneDocument: {
+        readonly title: string;
+        readonly format?: DocumentFormat;
+        readonly initialUpdate?: string;
+    };
+    attachDocument: { readonly documentId: string; readonly chatId: string };
+    detachDocument: { readonly documentId: string; readonly chatId: string };
     applyDocumentUpdates: {
         readonly documentId: string;
         readonly clientUpdateId: string;
@@ -999,8 +1011,20 @@ export interface KnownBackendResults {
     getChats: { readonly chats: readonly ChatSummary[] };
     getDrafts: { readonly drafts: readonly DraftSummary[]; readonly serverTime: string };
     updateDraft: { readonly draft: DraftSummary; readonly sync: unknown };
+    getDocuments: { readonly documents: readonly DocumentSummary[] };
     getChatDocuments: { readonly documents: readonly DocumentSummary[] };
     createDocument: { readonly document: DocumentSummary; readonly sync: unknown };
+    createStandaloneDocument: { readonly document: DocumentSummary; readonly sync: unknown };
+    attachDocument: {
+        readonly attachment: DocumentAttachment;
+        readonly document: DocumentSummary;
+        readonly sync: unknown;
+    };
+    detachDocument: {
+        readonly documentId: string;
+        readonly chatId: string;
+        readonly sync: unknown;
+    };
     getDocument: {
         readonly document: DocumentSummary;
         readonly snapshot: DocumentSnapshotPayload;

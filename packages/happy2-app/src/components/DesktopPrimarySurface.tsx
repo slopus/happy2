@@ -94,6 +94,18 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
                 onOpen={(fileId) =>
                     props.navigation.navigate({ ...props.route, overlay: { kind: "file", fileId } })
                 }
+                onDocumentOpen={(document) => {
+                    // A document overlay only survives normalization alongside its
+                    // own conversation, so opening from Files also selects the
+                    // channel the document is attached to.
+                    const chatId = document.channelAttachments[0]?.chatId;
+                    if (!chatId) return;
+                    props.navigation.navigate({
+                        ...props.route,
+                        primary: { kind: "conversation", conversationKind: "channel", chatId },
+                        overlay: { kind: "document", chatId, documentId: document.id },
+                    });
+                }}
                 onQueryChange={(query) =>
                     props.navigation.navigate(
                         { ...props.route, files: { ...props.route.files, query } },

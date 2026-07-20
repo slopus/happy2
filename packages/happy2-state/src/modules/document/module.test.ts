@@ -17,9 +17,12 @@ import {
 
 const summary = (latestSequence: string) => ({
     id: "doc-1",
-    chatId: "chat-1",
+    ownerUserId: "user-1",
     title: "Shared page",
     format: "blocknote" as const,
+    channelAttachments: [
+        { chatId: "chat-1", attachedByUserId: "user-1", attachedAt: "2026-07-19T00:00:00.000Z" },
+    ],
     latestSequence,
     createdAt: "2026-07-19T00:00:00.000Z",
     updatedAt: "2026-07-19T00:00:00.000Z",

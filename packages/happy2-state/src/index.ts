@@ -147,6 +147,13 @@ export {
     type DocumentListState,
     type DocumentListStore,
 } from "./modules/document-list/documentListState.js";
+export {
+    documentCollectionStoreCreate,
+    type DocumentCollectionInput,
+    type DocumentCollectionSnapshot,
+    type DocumentCollectionState,
+    type DocumentCollectionStore,
+} from "./modules/document-collection/documentCollectionState.js";
 export type {
     ThreadsSnapshot,
     ThreadsOutput,

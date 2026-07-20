@@ -1,5 +1,5 @@
 import { FilesPage, type FilesPageFilter } from "happy2-ui";
-import type { HappyState } from "happy2-state";
+import type { DocumentSummary, HappyState } from "happy2-state";
 
 export interface FilesViewProps {
     state: HappyState;
@@ -8,12 +8,15 @@ export interface FilesViewProps {
     onFilterChange: (filter: FilesPageFilter) => void;
     onQueryChange: (query: string) => void;
     onOpen: (fileId: string) => void;
+    onDocumentOpen: (document: DocumentSummary) => void;
 }
 
 /** Selects the file surface and provides authenticated binary reads. */
 export function FilesView(props: FilesViewProps) {
     return (
         <FilesPage
+            documents={props.state.documentCollection()}
+            onDocumentOpen={props.onDocumentOpen}
             filter={props.filter}
             fileDownload={(id) => props.state.fileDownload(id)}
             filePreviewDownload={(id) => props.state.filePreviewDownload(id)}
