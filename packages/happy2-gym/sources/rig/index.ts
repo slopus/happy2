@@ -159,6 +159,13 @@ export interface MockRigSessionRequest {
     effort?: string;
 }
 
+export interface MockRigTerminalRequest {
+    cols: number;
+    rows: number;
+    sessionId: string;
+    shell?: string;
+}
+
 const MOCK_EFFORT_OPTIONS = ["low", "medium", "high", "xhigh"] as const;
 const MOCK_MODEL_ID = "gym/mock-agent";
 
@@ -173,6 +180,7 @@ export class MockRigDaemon implements AsyncDisposable {
     readonly externalToolCalls: MockRigExternalToolCall[] = [];
     readonly submittedRuns: MockRigRun[] = [];
     readonly submittedTexts: string[] = [];
+    readonly terminalRequests: MockRigTerminalRequest[] = [];
     readonly trimRequests: number[] = [];
     readonly terminalInputs: Array<{ data: string; sessionId: string; terminalId: string }> = [];
     readonly terminalResizes: Array<{
@@ -900,11 +908,19 @@ export class MockRigDaemon implements AsyncDisposable {
                 });
             if (request.method === "POST") {
                 const body = await jsonBody(request);
+                const cols = Number(body.cols ?? 80);
+                const rows = Number(body.rows ?? 24);
+                this.terminalRequests.push({
+                    cols,
+                    rows,
+                    sessionId: session.id,
+                    ...(typeof body.shell === "string" ? { shell: body.shell } : {}),
+                });
                 const terminal = this.createTerminal(
                     session.id,
                     `terminal-${session.terminals.size + 1}`,
-                    Number(body.cols ?? 80),
-                    Number(body.rows ?? 24),
+                    cols,
+                    rows,
                 );
                 session.terminals.set(terminal.id, terminal);
                 return sendJson(response, 201, { terminal: terminalSummary(terminal) });

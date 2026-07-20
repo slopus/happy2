@@ -40,6 +40,7 @@ ARG TARGETARCH
 
 ENV LANG="C.UTF-8"
 ENV HOME=/home
+ENV SHELL=/bin/bash
 ENV DEBIAN_FRONTEND=noninteractive
 
 ENV XDG_CACHE_HOME=/home/developer/.cache
@@ -55,6 +56,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends \
+        bash \
+        bash-completion \
         binutils=2.42-* \
         bubblewrap \
         sudo=1.9.* \
@@ -65,6 +68,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         dnsutils=1:9.18.* \
         fd-find=9.0.* \
         ffmpeg \
+        file \
         fonts-liberation \
         mencoder \
         gettext=0.21-* \
@@ -127,14 +131,19 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libvips-tools \
         libxml2-dev=2.9.* \
         libz3-dev=4.8.* \
+        less \
         lsof \
         make=4.3-* \
+        man-db \
         mediainfo \
         moreutils=0.69-* \
+        nano \
+        ncurses-term \
         netcat-openbsd=1.226-* \
         openssh-client=1:9.6p1-* \
         p7zip-full \
         pkg-config=1.8.* \
+        procps \
         protobuf-compiler=3.21.* \
         ripgrep=14.1.* \
         rsync=3.2.* \
@@ -144,6 +153,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         strace \
         swig3.0=3.0.* \
         tk-dev=8.6.* \
+        tmux \
         tree \
         tzdata \
         universal-ctags=5.9.* \
@@ -156,11 +166,21 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         zip=3.0-* \
         zlib1g=1:1.3.* \
         zlib1g-dev=1:1.3.* \
+        zsh \
         zstd \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/fdfind /usr/local/bin/fd \
     && ln -sf /usr/bin/ffprobe /usr/local/bin/ffprobe \
-    && ln -sf /usr/bin/ffmpeg /usr/local/bin/avconv
+    && ln -sf /usr/bin/ffmpeg /usr/local/bin/avconv \
+    && printf '\n%s\n' \
+        'if [ -r /usr/share/bash-completion/bash_completion ]; then' \
+        '    . /usr/share/bash-completion/bash_completion' \
+        'fi' \
+        >> /etc/bash.bashrc \
+    && printf '\n%s\n' \
+        'autoload -Uz compinit' \
+        'compinit -C' \
+        >> /etc/zsh/zshrc
 
 ### SANDBOX ###
 

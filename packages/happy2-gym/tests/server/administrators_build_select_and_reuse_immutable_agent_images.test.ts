@@ -46,6 +46,29 @@ describe("administrator-managed immutable agent images", () => {
         const minimalDetails = await agentImageDetails(asAdmin, minimal.id);
         const fullDetails = await agentImageDetails(asAdmin, full.id);
         expect(minimalDetails.dockerfile).toContain("FROM ubuntu:24.04");
+        for (const details of [minimalDetails, fullDetails]) {
+            const lines = details.dockerfile.split("\n").map((line) => line.trim());
+            expect(details.dockerfile).toContain("ENV SHELL=/bin/bash");
+            expect(lines).toEqual(
+                expect.arrayContaining(
+                    [
+                        "bash",
+                        "bash-completion",
+                        "file",
+                        "less",
+                        "man-db",
+                        "nano",
+                        "ncurses-term",
+                        "procps",
+                        "tmux",
+                        "zsh",
+                    ].map((packageName) => packageName + " \\"),
+                ),
+            );
+            expect(details.dockerfile).toContain(". /usr/share/bash-completion/bash_completion");
+            expect(details.dockerfile).toContain("autoload -Uz compinit");
+            expect(details.dockerfile).toContain("compinit -C");
+        }
         expect(minimalDetails.dockerfile).not.toContain("### PYTHON ###");
         expect(fullDetails.dockerfile).toContain("### PYTHON ###");
         expect(fullDetails.dockerfile).toContain("### RUST ###");

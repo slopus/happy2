@@ -102,6 +102,12 @@ it("authorizes exact chat Rig terminals and carries protocol input resize reconn
         rows: 24,
         status: "running",
     });
+    expect(rig.terminalRequests.at(-1)).toEqual({
+        cols: 80,
+        rows: 24,
+        sessionId: "session-1",
+        shell: "/bin/bash",
+    });
     const terminalId = created.json().terminal.id as string;
     const terminalPath = `${collectionPath}/${terminalId}`;
     const backendUrl = await server.listen();

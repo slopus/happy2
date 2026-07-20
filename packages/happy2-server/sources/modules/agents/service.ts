@@ -410,7 +410,7 @@ export class AgentService {
         return {
             terminal: await this.daemon.createRemoteTerminal(
                 binding.sessionId,
-                { cols: input.cols, rows: input.rows },
+                { cols: input.cols, rows: input.rows, shell: "/bin/bash" },
                 this.shutdown.signal,
             ),
         };
