@@ -156,6 +156,10 @@ function actionContext(context: HappyCallContext, audience: PluginAudience): Hap
         throw new TypeError("A user-scoped definition requires the current viewer capability");
     if (audience.chatToken && context.chat && audience.chatToken !== context.chat.token)
         throw new TypeError("Audience and current-call chat capabilities do not match");
+    if (!audience.chatToken) {
+        const { chat: _chat, ...unscoped } = context;
+        return unscoped;
+    }
     return context;
 }
 

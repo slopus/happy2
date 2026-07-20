@@ -1,8 +1,19 @@
-import { cp, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+    cp,
+    lstat,
+    mkdir,
+    mkdtemp,
+    readFile,
+    readdir,
+    realpath,
+    rm,
+    writeFile,
+} from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import react from "@vitejs/plugin-react";
 import sharp from "sharp";
-import { build as viteBuild } from "vite";
+import { build as viteBuild, type Plugin } from "vite";
+import { viteSingleFile } from "vite-plugin-singlefile";
 import type { BuiltPluginManifest, UiAssetDeclaration } from "../types.js";
 import { normalizeUiAsset, packageFile } from "./assets.js";
 import type { PluginBuildConfig } from "./config.js";
@@ -135,13 +146,15 @@ async function buildApps(
                 },
                 configFile: false,
                 logLevel: "warn",
-                plugins: [react()],
+                plugins: [react(), htmlSafeInlineCss(), viteSingleFile()],
                 root: appTemporary,
             });
-            const html = await readFile(resolve(appOutput, "index.html"), "utf8");
-            const singleFile = await inlineViteHtml(html, async (asset) =>
-                readFile(resolve(appOutput, localAsset(asset)), "utf8"),
-            );
+            const emitted = await readdir(appOutput);
+            if (emitted.length !== 1 || emitted[0] !== "index.html")
+                throw new Error(
+                    `Single-file app build emitted unexpected files: ${emitted.sort().join(", ")}`,
+                );
+            const singleFile = await readFile(resolve(appOutput, "index.html"), "utf8");
             const destination = resolve(output, "apps", `${name}.html`);
             await mkdir(dirname(destination), { recursive: true });
             await writeFile(destination, singleFile, "utf8");
@@ -153,44 +166,23 @@ async function buildApps(
     return result;
 }
 
-/** Inlines Vite's entry JS and CSS; all other assets must already be data URLs. */
-export async function inlineViteHtml(
-    html: string,
-    readAsset: (path: string) => Promise<string>,
-): Promise<string> {
-    let result = html;
-    for (const match of result.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/g)) {
-        const source = await readAsset(match[1]!);
-        result = result.replace(
-            match[0],
-            `<script type="module">${source.replaceAll("</script", "<\\/script")}</script>`,
-        );
-    }
-    for (const match of result.matchAll(
-        /<link\b(?=[^>]*\brel="stylesheet")(?=[^>]*\bhref="([^"]+)")[^>]*>/g,
-    )) {
-        const source = await readAsset(match[1]!);
-        result = result.replace(
-            match[0],
-            `<style>${source.replaceAll("</style", "<\\/style")}</style>`,
-        );
-    }
-    // Bundled JavaScript can legitimately contain strings such as
-    // `<script src=...>`. Inspect only the outer HTML markup after removing the
-    // inline payloads, otherwise those inert strings become false positives.
-    const markup = result
-        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "")
-        .replace(/<style\b[^>]*>[\s\S]*?<\/style>/g, "");
-    if (/<script\b[^>]*\bsrc=|<link\b(?=[^>]*\brel="stylesheet")/.test(markup))
-        throw new Error("App build contains an external script or stylesheet");
-    return result;
-}
-
-function localAsset(path: string): string {
-    const value = path.replace(/^\.\//, "");
-    if (!value || value.startsWith("/") || value.split("/").includes(".."))
-        throw new Error(`Vite emitted unsafe asset path ${JSON.stringify(path)}`);
-    return value;
+function htmlSafeInlineCss(): Plugin {
+    return {
+        enforce: "post",
+        name: "happy2:html-safe-inline-css",
+        generateBundle(_options, bundle) {
+            // The single-file plugin protects inline script end tags. Apply the
+            // equivalent HTML raw-text protection to CSS before it is inlined.
+            for (const output of Object.values(bundle)) {
+                if (output.type !== "asset" || !output.fileName.endsWith(".css")) continue;
+                const css =
+                    typeof output.source === "string"
+                        ? output.source
+                        : new TextDecoder().decode(output.source);
+                output.source = css.replace(/<\/style/gi, () => "<\\/style");
+            }
+        },
+    };
 }
 
 function assertNestedOutput(root: string, output: string): void {

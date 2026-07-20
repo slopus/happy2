@@ -5,7 +5,7 @@ import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import type { ContributionDefinition } from "../types.js";
 import { normalizeUiAsset } from "./assets.js";
-import { buildPlugin, inlineViteHtml } from "./build.js";
+import { buildPlugin } from "./build.js";
 import { createPluginManifest } from "./manifest.js";
 
 describe("plugin build helpers", () => {
@@ -26,19 +26,6 @@ describe("plugin build helpers", () => {
             uiAssets: [{ id: "todo", path: "assets/todo.png" }],
             mcp: { command: "node", args: ["/plugin/server.js"], type: "stdio" },
         });
-    });
-
-    it("inlines Vite scripts and styles", async () => {
-        const html = await inlineViteHtml(
-            '<link rel="stylesheet" href="./style.css"><script type="module" src="./app.js"></script>',
-            async (path) =>
-                path.endsWith(".css")
-                    ? "body{color:red}"
-                    : 'globalThis.template="<script src=\\"inside-a-string.js\\"></script>"',
-        );
-        expect(html).toBe(
-            '<style>body{color:red}</style><script type="module">globalThis.template="<script src=\\"inside-a-string.js\\"><\\/script>"</script>',
-        );
     });
 
     it("normalizes source art to a transparent 40px black RGBA mask", async () => {
@@ -66,15 +53,20 @@ describe("plugin build helpers", () => {
             if (data[offset + 3]) expect([...data.subarray(offset, offset + 3)]).toEqual([0, 0, 0]);
     });
 
-    it("copies a conventional skills directory without package-specific scripts", async () => {
+    it("builds a self-contained app and copies conventional skills", async () => {
         const root = await mkdtemp(join(tmpdir(), "happy2-sdk-skills-"));
         await mkdir(join(root, "src"), { recursive: true });
         await mkdir(join(root, "skills/example"), { recursive: true });
         await writeFile(join(root, "src/server.ts"), "export const ready = true;\n", "utf8");
         await writeFile(join(root, "src/label.ts"), 'export const label = "Built app";\n', "utf8");
         await writeFile(
+            join(root, "src/app.css"),
+            'body::after { content: "$& </style>"; }\n',
+            "utf8",
+        );
+        await writeFile(
             join(root, "src/app.ts"),
-            'import { label } from "./label.js"; document.body.dataset.label = label;\n',
+            'import "./app.css"; import { label } from "./label.js"; document.body.dataset.label = label; document.body.dataset.template = "$& </script><script src=\\"inside-a-string.js\\"></script>";\n',
             "utf8",
         );
         await writeFile(
@@ -97,7 +89,10 @@ describe("plugin build helpers", () => {
         ).resolves.toContain("name: example");
         const app = await readFile(join(result.outputDirectory, "apps/example.html"), "utf8");
         expect(app).toContain("Built app");
-        expect(app).not.toMatch(/<script\b[^>]*\bsrc=/);
+        expect(app).toContain("$&");
+        expect(app).not.toMatch(/<link\b(?=[^>]*\brel="stylesheet")/);
+        expect(app.match(/<\/script>/g)).toHaveLength(1);
+        expect(app.match(/<\/style>/g)).toHaveLength(1);
     });
 
     it("keeps contribution placements and control kinds closed at compile time", () => {

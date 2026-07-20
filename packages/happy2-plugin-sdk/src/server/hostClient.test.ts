@@ -67,6 +67,44 @@ describe("HostClient", () => {
         ).toThrow("current viewer capability");
     });
 
+    it("does not turn a global definition into a chat-scoped definition", async () => {
+        let requestInit: RequestInit | undefined;
+        const client = new HostClient({
+            baseUrl: "http://127.0.0.1:3000",
+            fetch: async (_url, init) => {
+                requestInit = init;
+                return Response.json({ id: "contribution-1" });
+            },
+            token: "runtime-token",
+        });
+        await client.putContribution(
+            {
+                audience: { scope: "all_users" },
+                description: "Open tasks",
+                externalKey: "tasks",
+                location: "sidebarMenu",
+                position: 0,
+                spec: {
+                    action: { toolName: "open_tasks" },
+                    assetId: "todo",
+                    description: "Open tasks",
+                    id: "open",
+                    kind: "button",
+                    title: "Tasks",
+                },
+                title: "Tasks",
+            },
+            {
+                chat: { id: "chat-1", token: "incidental-chat-token" },
+                viewer: { id: "user-1", token: "viewer-token" },
+            },
+        );
+
+        const headers = new Headers(requestInit?.headers);
+        expect(headers.get("x-happy2-viewer-token")).toBe("viewer-token");
+        expect(headers.get("x-happy2-chat-token")).toBeNull();
+    });
+
     it("returns bounded HTTP errors", async () => {
         const client = new HostClient({
             baseUrl: "http://127.0.0.1:3000",

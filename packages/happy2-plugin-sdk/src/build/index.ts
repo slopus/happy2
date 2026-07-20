@@ -1,5 +1,5 @@
 export { normalizeUiAsset, packageFile, type NormalizedUiAsset } from "./assets.js";
-export { buildPlugin, inlineViteHtml, type PluginBuildResult } from "./build.js";
+export { buildPlugin, type PluginBuildResult } from "./build.js";
 export {
     definePluginConfig,
     loadPluginConfig,

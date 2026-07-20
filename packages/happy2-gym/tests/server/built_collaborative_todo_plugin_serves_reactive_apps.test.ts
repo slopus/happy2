@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 
 interface HostRequest {
     readonly body: Record<string, unknown>;
+    readonly chatToken?: string;
     readonly path: string;
     readonly viewerToken?: string;
 }
@@ -94,6 +95,7 @@ describe("built collaborative TODO plugin", () => {
                     throw new Error("TODO app resource was not text");
                 const html = content.text;
                 expect(html).toContain('<div id="root"></div>');
+                expect(html.match(/<\/script>/g)).toHaveLength(1);
                 const markup = html
                     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "")
                     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/g, "");
@@ -108,15 +110,23 @@ describe("built collaborative TODO plugin", () => {
                     expect.stringMatching(/^todos\.list\./),
                 ]),
             );
-            expect(
-                requests.filter(
-                    ({ body, path }) =>
-                        path === "/apps/updateInstanceContext" &&
-                        body.instanceKey === "todos.index",
-                ).length,
-            ).toBeGreaterThanOrEqual(4);
+            const indexUpdates = requests.filter(
+                ({ body, path }) =>
+                    path === "/apps/updateInstanceContext" && body.instanceKey === "todos.index",
+            );
+            expect(indexUpdates.length).toBeGreaterThanOrEqual(4);
             expect(requests.some(({ viewerToken }) => viewerToken === "token-alice")).toBe(true);
             expect(requests.some(({ viewerToken }) => viewerToken === "token-bob")).toBe(true);
+            expect(
+                requests
+                    .filter(
+                        ({ path }) =>
+                            path === "/apps/putInstance" ||
+                            path === "/contributions/putContribution",
+                    )
+                    .every(({ chatToken }) => chatToken === undefined),
+            ).toBe(true);
+            expect(indexUpdates.every(({ chatToken }) => chatToken === "chat-token")).toBe(true);
         } finally {
             await client.close().catch(() => undefined);
             await transport.close().catch(() => undefined);
@@ -136,6 +146,10 @@ async function hostRequest(
     const text = Buffer.concat(chunks).toString("utf8");
     requests.push({
         body: text ? (JSON.parse(text) as Record<string, unknown>) : {},
+        chatToken:
+            typeof request.headers["x-happy2-chat-token"] === "string"
+                ? request.headers["x-happy2-chat-token"]
+                : undefined,
         path: new URL(request.url ?? "/", "http://host").pathname,
         viewerToken:
             typeof request.headers["x-happy2-viewer-token"] === "string"

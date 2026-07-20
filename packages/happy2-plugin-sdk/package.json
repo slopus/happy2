@@ -27,6 +27,7 @@
         "react": "^19.2.7",
         "sharp": "^0.35.3",
         "vite": "^8.1.4",
+        "vite-plugin-singlefile": "^2.3.3",
         "zod": "^4.3.6"
     },
     "devDependencies": {

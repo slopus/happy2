@@ -94,7 +94,15 @@ describe("collaborative TODO MCP server", () => {
             ),
         ).toBe(true);
         expect(
-            host.requests.every(({ headers }) => headers["x-happy2-chat-token"] === "chat-token"),
+            host.requests
+                .filter(
+                    ({ path }) =>
+                        path === "/apps/putInstance" || path === "/contributions/putContribution",
+                )
+                .every(({ headers }) => headers["x-happy2-chat-token"] === undefined),
+        ).toBe(true);
+        expect(
+            indexUpdates.every(({ headers }) => headers["x-happy2-chat-token"] === "chat-token"),
         ).toBe(true);
     });
 
