@@ -6,6 +6,7 @@ import { startWebHappy2 } from "./web.js";
 export type StandaloneHappy2 = RunningHappy2;
 
 export interface StandaloneOptions {
+    errorLogPath?: string;
     logger?: boolean;
     webRoot?: string;
 }
@@ -29,7 +30,10 @@ export async function startStandaloneHappy2(
                 trustedProxyHops: 1,
             },
         };
-        backend = await startBackendHappy2(backendConfig, { logger: options.logger });
+        backend = await startBackendHappy2(backendConfig, {
+            errorLogPath: options.errorLogPath,
+            logger: options.logger,
+        });
         web = await startWebHappy2({
             backendUrl: backend.url,
             host: config.server.host,

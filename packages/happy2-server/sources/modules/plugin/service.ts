@@ -2747,12 +2747,19 @@ export class PluginService {
                 this.secrets,
                 installationId,
             );
-            await this.packages.verify(
-                configuration.pluginId,
-                configuration.packageDirectory,
-                configuration.shortName,
-                configuration.packageDigest,
-            );
+            try {
+                await this.packages.verify(
+                    configuration.pluginId,
+                    configuration.packageDirectory,
+                    configuration.shortName,
+                    configuration.packageDigest,
+                );
+            } catch (error) {
+                throw new PluginError(
+                    "broken_configuration",
+                    `Installed plugin package must be reinstalled or updated: ${errorMessage(error)}`,
+                );
+            }
             if (configuration.type === "skills_only") {
                 await this.status(installationId, "ready", "Plugin skills are installed.");
                 return;

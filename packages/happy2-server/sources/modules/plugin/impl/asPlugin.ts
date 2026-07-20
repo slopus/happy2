@@ -1,4 +1,4 @@
-import type { PluginSourceKind, SystemPluginSummary } from "../types.js";
+import { PluginError, type PluginSourceKind, type SystemPluginSummary } from "../types.js";
 import { installedManifest } from "./installedManifest.js";
 import { effectiveContainer } from "./effectiveContainer.js";
 import { pluginApiPermissionSections } from "./apiPermissions.js";
@@ -10,9 +10,14 @@ export function asSystemPlugin(row: Record<string, unknown>): SystemPluginSummar
     const id = requiredString(row.id, "system plugin id");
     const contentType = requiredString(row.imageContentType, "plugin image content type");
     if (contentType !== "image/png") throw new Error(`Unknown plugin image type ${contentType}`);
-    const manifest = installedManifest(requiredString(row.manifestJson, "plugin manifest"));
-    const mcp = manifest.mcp;
-    const localContainer = effectiveContainer(manifest);
+    let manifest;
+    try {
+        manifest = installedManifest(requiredString(row.manifestJson, "plugin manifest"));
+    } catch (error) {
+        if (!(error instanceof PluginError) || error.code !== "broken_configuration") throw error;
+    }
+    const mcp = manifest?.mcp;
+    const localContainer = manifest ? effectiveContainer(manifest) : undefined;
     return {
         id,
         displayName: requiredString(row.displayName, "plugin display name"),
@@ -22,7 +27,7 @@ export function asSystemPlugin(row: Record<string, unknown>): SystemPluginSummar
         sourceReference: requiredString(row.sourceReference, "plugin source reference"),
         sourceVersion: requiredString(row.sourceVersion, "plugin source version"),
         packageDigest: requiredString(row.packageDigest, "plugin package digest"),
-        variables: manifest.variables,
+        variables: manifest?.variables ?? [],
         apiPermissions: pluginApiPermissionSections(localContainer?.permissions ?? []),
         ...(mcp
             ? {

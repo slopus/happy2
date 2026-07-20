@@ -61,13 +61,15 @@ try {
             );
         } else {
             const { loadRuntimeConfig } = await import("./modules/config/runtime.js");
-            const { config } = await loadRuntimeConfig(command.configPath);
+            const { config, managedConfigPath } = await loadRuntimeConfig(command.configPath);
+            const { serverErrorLogPath } = await import("./logging.js");
+            const errorLogPath = serverErrorLogPath(managedConfigPath);
             if (command.kind === "backend") {
                 const { startBackendHappy2 } = await import("./backend.js");
-                running = await startBackendHappy2(config);
+                running = await startBackendHappy2(config, { errorLogPath });
             } else {
                 const { startStandaloneHappy2 } = await import("./standalone.js");
-                running = await startStandaloneHappy2(config);
+                running = await startStandaloneHappy2(config, { errorLogPath });
             }
             console.log(`Happy (2) ${command.kind} is running at ${running.url}`);
         }

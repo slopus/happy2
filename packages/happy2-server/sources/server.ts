@@ -91,6 +91,7 @@ import { registerAppSurfaceRoutes } from "./routes/appSurfaces.js";
 import { PortShareService } from "./modules/port-share/service.js";
 import { registerPortShareRoutes } from "./routes/portShares.js";
 import { registerPortShareProxy } from "./routes/portShareProxy.js";
+import { serverLoggingCreate, type ServerLogging } from "./logging.js";
 
 const pluginHostApis = new WeakMap<FastifyInstance, FastifyInstance>();
 
@@ -120,6 +121,7 @@ interface Services {
     pluginSecretProtector?: PluginSecretProtector;
     pluginArchiveDownloader?: PluginArchiveDownloader;
     pluginPackageLinkDownloader?: PluginPackageLinkDownloader;
+    errorLogPath?: string;
     logger?: boolean;
 }
 
@@ -127,8 +129,22 @@ export async function buildServer(
     config: ServerConfig,
     supplied?: Services,
 ): Promise<FastifyInstance> {
+    const logging = serverLoggingCreate(supplied?.logger ?? true, supplied?.errorLogPath);
+    try {
+        return await buildServerWithLogging(config, supplied, logging);
+    } catch (error) {
+        logging.close();
+        throw error;
+    }
+}
+
+async function buildServerWithLogging(
+    config: ServerConfig,
+    supplied: Services | undefined,
+    logging: ServerLogging,
+): Promise<FastifyInstance> {
     const app = Fastify({
-        logger: supplied?.logger ?? true,
+        logger: logging.logger,
         trustProxy: config.server.trustedProxyHops,
     });
     const services = supplied ?? {
@@ -146,7 +162,10 @@ export async function buildServer(
     });
 
     app.setErrorHandler((error, request, reply) => {
-        request.log.error(error);
+        request.log.error(
+            { err: error },
+            `http:error requestId=${request.id} method=${request.method} path=${request.url.split("?", 1)[0]} message=${error instanceof Error ? error.message : String(error)}`,
+        );
         if (!reply.sent) reply.code(500).send({ error: "internal_server_error" });
     });
 
@@ -355,7 +374,7 @@ export async function buildServer(
         pluginHostApi = createPluginHostApi(
             executor,
             pluginService,
-            supplied?.logger ?? true,
+            supplied?.logger === false ? false : app.log,
             agentService,
             portShareService,
         );
@@ -523,19 +542,23 @@ export async function buildServer(
         expiryTimer.unref();
     }
     app.addHook("onClose", async () => {
-        await pluginHostApi?.close();
-        await pluginBridge?.close();
-        await pluginService?.close();
-        await workspaceService?.close();
-        await agentService?.close();
-        if (expiryTimer) clearInterval(expiryTimer);
-        await pendingSweep;
-        unsubscribePresenceEvents?.();
-        unsubscribeWebhookEvents?.();
-        if (!services.pubsub) await pubsub?.close();
-        if (!services.rateLimiter) await rateLimiter.close();
-        if (!services.idempotency) await idempotency?.close();
-        if (!supplied) services.client.close();
+        try {
+            await pluginHostApi?.close();
+            await pluginBridge?.close();
+            await pluginService?.close();
+            await workspaceService?.close();
+            await agentService?.close();
+            if (expiryTimer) clearInterval(expiryTimer);
+            await pendingSweep;
+            unsubscribePresenceEvents?.();
+            unsubscribeWebhookEvents?.();
+            if (!services.pubsub) await pubsub?.close();
+            if (!services.rateLimiter) await rateLimiter.close();
+            if (!services.idempotency) await idempotency?.close();
+            if (!supplied) services.client.close();
+        } finally {
+            logging.close();
+        }
     });
     return app;
 }

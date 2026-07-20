@@ -1,4 +1,9 @@
-import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
+import Fastify, {
+    type FastifyBaseLogger,
+    type FastifyInstance,
+    type FastifyReply,
+    type FastifyRequest,
+} from "fastify";
 import type { DrizzleExecutor } from "../modules/drizzle.js";
 import { pluginInstallationListForHost } from "../modules/plugin/pluginInstallationListForHost.js";
 import type { PluginService } from "../modules/plugin/service.js";
@@ -34,11 +39,14 @@ type PluginHostAgentService = Pick<
 export function createPluginHostApi(
     executor: DrizzleExecutor,
     plugins: PluginService,
-    logger: boolean,
+    logger: boolean | FastifyBaseLogger,
     agents?: PluginHostAgentService,
     portShares?: PortShareService,
 ): FastifyInstance {
-    const app = Fastify({ logger, bodyLimit: PLUGIN_HOST_BODY_BYTES });
+    const app = Fastify({
+        ...(typeof logger === "boolean" ? { logger } : { loggerInstance: logger }),
+        bodyLimit: PLUGIN_HOST_BODY_BYTES,
+    });
     app.post("/apps/putInstance", async (request, reply) => {
         try {
             return await plugins.hostAppInstancePut({
@@ -684,7 +692,10 @@ export function createPluginHostApi(
         }
     });
     app.setErrorHandler((error, request, reply) => {
-        request.log.error(error);
+        request.log.error(
+            { err: error },
+            `plugin-host:error requestId=${request.id} method=${request.method} path=${request.url.split("?", 1)[0]} message=${error instanceof Error ? error.message : String(error)}`,
+        );
         if (!reply.sent && !handled(reply, error))
             reply.code(500).send({ error: "internal_server_error" });
     });

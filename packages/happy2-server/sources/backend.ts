@@ -12,6 +12,7 @@ export interface RunningHappy2 extends AsyncDisposable {
 }
 
 export interface BackendOptions {
+    errorLogPath?: string;
     logger?: boolean;
 }
 
@@ -32,6 +33,7 @@ export async function startBackendHappy2(
         app = await buildServer(config, {
             client,
             tokens: await TokenService.create(config),
+            errorLogPath: options.errorLogPath,
             logger: options.logger,
         });
         const url = await app.listen({ host: config.server.host, port: config.server.port });

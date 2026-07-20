@@ -57,8 +57,9 @@ npx happy2 daemon start
 npx happy2 daemon stop
 ```
 
-The daemon stores `happy2.pid` and `happy2.log` under `./.happy2`. Stopping it
-terminates the daemon process tree and removes the PID file.
+The daemon stores `happy2.pid`, the combined `happy2.log`, and the error-only
+`server-error.log` under `./.happy2`. Stopping it terminates the daemon process
+tree and removes the PID file.
 
 Keep Happy (2) running across reboots with:
 

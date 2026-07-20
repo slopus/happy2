@@ -90,10 +90,12 @@ systemd unit.
 
 `happy2 daemon start` starts the all-in-one app in a detached process group and
 returns immediately. It writes `.happy2/happy2.pid` and appends output to
-`.happy2/happy2.log` in the current directory. `happy2 daemon stop` sends the
-whole process group a graceful termination signal, force-stops it if necessary,
-and removes the PID file. Unlike `service start`, daemon mode does not arrange
-automatic startup after a login or reboot.
+`.happy2/happy2.log` in the current directory. Error-level server events are
+also written to `server-error.log` beside the active TOML configuration, so they
+can be inspected without filtering ordinary request traffic. `happy2 daemon
+stop` sends the whole process group a graceful termination signal, force-stops
+it if necessary, and removes the PID file. Unlike `service start`, daemon mode
+does not arrange automatic startup after a login or reboot.
 
 The service preserves the installation-time working directory, `PATH`, and
 optional `RIG_HOME`. When `--config` is supplied, its path is made

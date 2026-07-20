@@ -4,7 +4,7 @@ import { basename, join } from "node:path";
 import { deflateSync } from "node:zlib";
 import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
-import { pluginCatalogLoad, pluginPackageLoad } from "./catalog.js";
+import { pluginCatalogLoad, pluginPackageLoad, pluginPackageLoadInstalled } from "./catalog.js";
 import { PluginPackageStore } from "./packageStore.js";
 
 const SQUARE_PNG = Buffer.from(
@@ -153,6 +153,30 @@ describe("plugin package catalog", () => {
         await expect(
             store.verify("cmockplugin", snapshot, "search-tools", loaded.packageDigest),
         ).rejects.toThrow("outside the plugin package store");
+    });
+
+    it("rejects legacy channel management in source and installed packages", async () => {
+        const root = await temporaryDirectory();
+        const plugin = await packageDirectory(root, "legacy-channel-management");
+        await manifest(plugin, {
+            variables: [],
+            container: {
+                command: "/plugin/server",
+                args: [],
+                permissions: ["chats:update", "channels:manage"],
+            },
+        });
+
+        await expect(pluginPackageLoad(plugin)).rejects.toThrow(
+            "unknown container permission channels:manage",
+        );
+        await expect(
+            pluginPackageLoadInstalled(
+                plugin,
+                { kind: "builtin", reference: "legacy-channel-management" },
+                "legacy-channel-management",
+            ),
+        ).rejects.toThrow("unknown container permission channels:manage");
     });
 
     it("rejects skill directories without SKILL.md, undeclared header variables, and symlinks", async () => {

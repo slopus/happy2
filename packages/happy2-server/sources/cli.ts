@@ -3,13 +3,16 @@
 import { parseArgs } from "node:util";
 import { startBackendHappy2 } from "./backend.js";
 import { loadRuntimeConfig } from "./modules/config/runtime.js";
+import { serverErrorLogPath } from "./logging.js";
 
 const { values } = parseArgs({
     options: { config: { type: "string" } },
 });
 const configPath = values.config ?? process.env.HAPPY2_CONFIG;
-const { config } = await loadRuntimeConfig(configPath);
-const app = await startBackendHappy2(config);
+const { config, managedConfigPath } = await loadRuntimeConfig(configPath);
+const app = await startBackendHappy2(config, {
+    errorLogPath: serverErrorLogPath(managedConfigPath),
+});
 let cleanupPromise: Promise<void> | undefined;
 const cleanup = () => {
     cleanupPromise ??= app.close();

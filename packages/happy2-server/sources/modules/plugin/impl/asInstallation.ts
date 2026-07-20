@@ -1,4 +1,5 @@
 import type {
+    PluginHostPermission,
     PluginInstallationStatus,
     PluginInstallationSummary,
     PluginSourceKind,
@@ -14,12 +15,24 @@ const statuses: readonly PluginInstallationStatus[] = [
 ];
 
 export function asPluginInstallation(row: Record<string, unknown>): PluginInstallationSummary {
-    const status = requiredString(row.status, "plugin installation status");
+    const durableStatus = requiredString(row.status, "plugin installation status");
+    let status = durableStatus;
     if (!statuses.includes(status as PluginInstallationStatus))
         throw new Error(`Unknown plugin installation status ${status}`);
     const sourceKind = requiredString(row.sourceKind, "plugin source kind");
     if (!sourceKinds.has(sourceKind as PluginSourceKind))
         throw new Error(`Unknown plugin source kind ${sourceKind}`);
+    let grantedPermissions: PluginHostPermission[];
+    let unreadablePermissions = false;
+    try {
+        grantedPermissions = pluginPermissionsParse(
+            requiredString(row.grantedPermissionsJson, "plugin granted permissions"),
+        );
+    } catch {
+        grantedPermissions = [];
+        unreadablePermissions = true;
+        status = "broken_configuration";
+    }
     return {
         id: requiredString(row.id, "plugin installation id"),
         pluginId: requiredString(row.pluginId, "system plugin id"),
@@ -28,14 +41,18 @@ export function asPluginInstallation(row: Record<string, unknown>): PluginInstal
         sourceReference: requiredString(row.sourceReference, "plugin source reference"),
         sourceVersion: requiredString(row.sourceVersion, "plugin source version"),
         packageDigest: requiredString(row.packageDigest, "plugin package digest"),
-        grantedPermissions: pluginPermissionsParse(
-            requiredString(row.grantedPermissionsJson, "plugin granted permissions"),
-        ),
+        grantedPermissions,
         status: status as PluginInstallationStatus,
-        ...(optionalString(row.statusDetail)
-            ? { statusDetail: optionalString(row.statusDetail) }
-            : {}),
-        ...(optionalString(row.lastError) ? { lastError: optionalString(row.lastError) } : {}),
+        ...(unreadablePermissions
+            ? { statusDetail: "Installed plugin package must be reinstalled or updated." }
+            : optionalString(row.statusDetail)
+              ? { statusDetail: optionalString(row.statusDetail) }
+              : {}),
+        ...(unreadablePermissions
+            ? { lastError: "Installed plugin permissions are unsupported or unreadable." }
+            : optionalString(row.lastError)
+              ? { lastError: optionalString(row.lastError) }
+              : {}),
         ...(optionalString(row.containerImageId)
             ? { containerImageId: optionalString(row.containerImageId) }
             : {}),
