@@ -1,0 +1,21 @@
+{
+    "name": "Happy (2)",
+    "short_name": "Happy (2)",
+    "description": "Desktop work and coding app",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#131217",
+    "theme_color": "#131217",
+    "icons": [
+        {
+            "src": "/favicon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/favicon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
