@@ -395,6 +395,11 @@ describe("agent port sharing audiences", () => {
             await server.restart();
             serverUrl = await server.listen();
             await waitForInstallationReady(ownerClient, installationId);
+            const staleContainerName = rig.createdSessions.at(-1)?.docker?.container;
+            if (!staleContainerName) throw new Error("Shared agent container was not recorded");
+            sandbox.setSandboxConfigurationHash(staleContainerName, undefined);
+            const containersBeforeLazyRepair = sandbox.createdContainers.length;
+            const sessionsBeforeLazyRepair = rig.createdSessions.length;
             expect(
                 (
                     await publicRequest(serverUrl, host, "/after-restart", {
@@ -402,6 +407,10 @@ describe("agent port sharing audiences", () => {
                     })
                 ).body,
             ).toBe("agent preview /after-restart");
+            expect(sandbox.createdContainers).toHaveLength(containersBeforeLazyRepair + 1);
+            expect(rig.createdSessions).toHaveLength(sessionsBeforeLazyRepair + 1);
+            expect(sandbox.removedContainers).toContain(staleContainerName);
+            expect(sandbox.createdContainers.at(-1)?.configurationHash).toMatch(/^[a-f0-9]{64}$/u);
             expect(sandbox.portResolutionCount).toBe(2);
 
             const changedImage = await ownerClient.post(

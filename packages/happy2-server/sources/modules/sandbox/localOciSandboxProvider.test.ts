@@ -63,6 +63,10 @@ describe("LocalOciSandboxProvider", () => {
             host: "127.0.0.1",
             port: 49152,
         });
+        await expect(provider.inspectAgentSandbox("retry-mount-container")).resolves.toEqual({
+            configurationHash: "configuration-hash-v1",
+            running: true,
+        });
         await provider.removeSandbox("retry-mount-container");
 
         const calls = await recordedCalls(log);
@@ -94,6 +98,8 @@ describe("LocalOciSandboxProvider", () => {
             "dev.happy2.agent=agent-id",
             "--label",
             "dev.happy2.agent-image=image-record-id",
+            "--label",
+            "dev.happy2.agent-configuration-hash=configuration-hash-v1",
             "--read-only",
             "--init",
             "--shm-size",
@@ -403,6 +409,7 @@ function dockerProvider(command: string): LocalOciSandboxProvider {
 function sandboxInput(containerName: string) {
     return {
         agentUserId: "agent-id",
+        configurationHash: "configuration-hash-v1",
         containerName,
         homeDirectory: "/Users/example/home",
         imageId: "image-record-id",
@@ -484,7 +491,8 @@ if (args[0] === "inspect") process.stdout.write(JSON.stringify({
     Config: { Labels: {
         "dev.happy2.plugin-installation": "plugin-installation-id",
         "dev.happy2.plugin-instance": "plugin-container-instance-id",
-        "dev.happy2.plugin-workspace-user": "501:20"
+        "dev.happy2.plugin-workspace-user": "501:20",
+        "dev.happy2.agent-configuration-hash": "configuration-hash-v1"
     } },
     State: { Running: true }
 }) + "\\n");

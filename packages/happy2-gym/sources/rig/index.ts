@@ -10,6 +10,7 @@ import { RemoteTerminalProtocolServer, type RemoteTerminalGridState } from "@slo
 import type {
     AgentSandboxCreateInput,
     AgentSandboxRuntime,
+    AgentSandboxState,
     AgentImageBuildInput,
     AgentImageBuildOptions,
     AgentImageBuildUpdate,
@@ -1290,9 +1291,19 @@ export class MockAgentSandboxRuntime implements AgentSandboxRuntime {
     private readonly buildUpdates = new Set<(update: AgentImageBuildUpdate) => void>();
     private nextBuildFailure?: { error: unknown };
     private portTarget?: number;
+    private readonly sandboxStates = new Map<string, AgentSandboxState>();
 
     setPortTarget(port: number): void {
         this.portTarget = port;
+    }
+
+    setSandboxConfigurationHash(containerName: string, configurationHash?: string): void {
+        const state = this.sandboxStates.get(containerName);
+        if (!state) throw new Error(`Unknown mock sandbox ${containerName}`);
+        this.sandboxStates.set(containerName, {
+            ...(configurationHash ? { configurationHash } : {}),
+            running: state.running,
+        });
     }
 
     pauseBuilds(): void {
@@ -1341,10 +1352,23 @@ export class MockAgentSandboxRuntime implements AgentSandboxRuntime {
     async createSandbox(input: AgentSandboxCreateInput, signal?: AbortSignal): Promise<void> {
         if (signal?.aborted) throw abortError();
         this.createdContainers.push({ ...input });
+        this.sandboxStates.set(input.containerName, {
+            configurationHash: input.configurationHash,
+            running: true,
+        });
+    }
+
+    async inspectAgentSandbox(
+        containerName: string,
+        signal?: AbortSignal,
+    ): Promise<AgentSandboxState | undefined> {
+        if (signal?.aborted) throw abortError();
+        return this.sandboxStates.get(containerName);
     }
 
     async removeSandbox(containerName: string): Promise<void> {
         this.removedContainers.push(containerName);
+        this.sandboxStates.delete(containerName);
     }
 
     async resolveSandboxPort(
@@ -1353,7 +1377,7 @@ export class MockAgentSandboxRuntime implements AgentSandboxRuntime {
         signal?: AbortSignal,
     ): Promise<{ host: "127.0.0.1"; port: number }> {
         if (signal?.aborted) throw abortError();
-        if (!this.createdContainers.some((container) => container.containerName === containerName))
+        if (!this.sandboxStates.has(containerName))
             throw new Error(`Unknown mock sandbox ${containerName}`);
         if (!this.portTarget) throw new Error("Mock sandbox has no configured port target");
         this.portResolutionCount += 1;

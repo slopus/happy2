@@ -50,6 +50,10 @@ import { agentDefaultRepair } from "../agent/agentDefaultRepair.js";
 import { agentChatListUnfinishedIds } from "../agent/agentChatListUnfinishedIds.js";
 import { agentChatGetContext } from "../agent/agentChatGetContext.js";
 import { agentChatBind } from "../agent/agentChatBind.js";
+import { agentContainerCommitConfiguration } from "../agent/agentContainerCommitConfiguration.js";
+import { agentContainerGetConfigurationContext } from "../agent/agentContainerGetConfigurationContext.js";
+import { agentContainerGetBoundName } from "../agent/agentContainerGetBoundName.js";
+import { agentContainerListBoundNames } from "../agent/agentContainerListBoundNames.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 import { chatGetAccess } from "../chat/chatGetAccess.js";
 import { createId } from "@paralleldrive/cuid2";
@@ -131,6 +135,7 @@ const MAX_TRACE_ID_CHARACTERS = 128;
 const MAX_ACTIVITY_TEXT_CHARACTERS = 240;
 const MAX_PENDING_TRACE_UPDATES = 512;
 const MAX_TRACKED_TOOL_NAMES = 512;
+const AGENT_CONTAINER_CONFIGURATION_VERSION = 1;
 const AGENT_CONTAINER_SECURITY = {
     init: true,
     readonlyRootFilesystem: true,
@@ -230,6 +235,8 @@ export class AgentService {
         string,
         Promise<{ host: "127.0.0.1"; port: number }>
     >();
+    private readonly containerConfigurations = new Map<string, Promise<string>>();
+    private readonly containerReplacements = new Map<string, string>();
     private activeImageBuilds = 0;
     private readonly drains = new Map<string, Promise<void>>();
     private readonly turnStreams = new Map<string, ActiveAgentTurnStream>();
@@ -247,14 +254,16 @@ export class AgentService {
         private readonly pluginCapabilities: AgentPluginCapabilities | undefined,
         private readonly onError: (error: unknown) => void = () => undefined,
     ) {}
-    async resolvePortShareTarget(
-        containerName: string,
-        containerPort: PortShareContainerPort,
-    ): Promise<{ host: "127.0.0.1"; port: number }> {
-        const key = `${containerName}:${containerPort}`;
+    async resolvePortShareTarget(input: {
+        agentUserId: string;
+        chatId: string;
+        containerName: string;
+        containerPort: PortShareContainerPort;
+    }): Promise<{ host: "127.0.0.1"; port: number }> {
+        const key = `${input.containerName}:${input.containerPort}`;
         let pending = this.portShareTargets.get(key);
         if (!pending) {
-            pending = this.resolveUncachedPortShareTarget(containerName, containerPort);
+            pending = this.resolveUncachedPortShareTarget(input);
             this.portShareTargets.set(key, pending);
         }
         try {
@@ -264,17 +273,143 @@ export class AgentService {
             throw error;
         }
     }
-    private async resolveUncachedPortShareTarget(
-        containerName: string,
-        containerPort: PortShareContainerPort,
-    ): Promise<{ host: "127.0.0.1"; port: number }> {
+    private async resolveUncachedPortShareTarget(input: {
+        agentUserId: string;
+        chatId: string;
+        containerName: string;
+        containerPort: PortShareContainerPort;
+    }): Promise<{ host: "127.0.0.1"; port: number }> {
+        const boundContainerName = await agentContainerGetBoundName(
+            this.executor,
+            input.agentUserId,
+            input.chatId,
+        );
+        if (!boundContainerName)
+            throw new CollaborationError("conflict", "Agent container binding is not ready");
+        if (boundContainerName !== input.containerName)
+            this.containerReplacements.set(input.containerName, boundContainerName);
+        const currentContainerName = await this.ensureContainerConfiguration(boundContainerName);
         const runtime = await this.sandboxRuntime();
         if (!runtime.resolveSandboxPort)
             throw new CollaborationError(
                 "conflict",
                 "The selected sandbox provider cannot expose agent ports",
             );
-        return runtime.resolveSandboxPort(containerName, containerPort, this.shutdown.signal);
+        return runtime.resolveSandboxPort(
+            currentContainerName,
+            input.containerPort,
+            this.shutdown.signal,
+        );
+    }
+
+    private async ensureContainerConfiguration(containerName: string): Promise<string> {
+        const currentContainerName = this.currentContainerName(containerName);
+        let pending = this.containerConfigurations.get(currentContainerName);
+        if (!pending) {
+            pending = this.reconcileContainerConfiguration(currentContainerName);
+            this.containerConfigurations.set(currentContainerName, pending);
+        }
+        try {
+            const replacement = await pending;
+            if (replacement !== currentContainerName) {
+                this.containerReplacements.set(currentContainerName, replacement);
+                this.containerReplacements.set(containerName, replacement);
+            }
+            return replacement;
+        } finally {
+            if (this.containerConfigurations.get(currentContainerName) === pending)
+                this.containerConfigurations.delete(currentContainerName);
+        }
+    }
+
+    private currentContainerName(containerName: string): string {
+        const visited = new Set<string>();
+        let current = containerName;
+        while (!visited.has(current)) {
+            visited.add(current);
+            const replacement = this.containerReplacements.get(current);
+            if (!replacement) return current;
+            current = replacement;
+        }
+        throw new Error(`Agent container replacement cycle detected for ${containerName}`);
+    }
+
+    private async reconcileContainerConfiguration(containerName: string): Promise<string> {
+        const initial = await agentContainerGetConfigurationContext(this.executor, containerName);
+        if (!initial)
+            throw new CollaborationError("conflict", "Agent container binding is not ready");
+        return this.serializeAgentConfiguration(initial.agentUserId, async () => {
+            const context = await agentContainerGetConfigurationContext(
+                this.executor,
+                containerName,
+            );
+            if (!context) {
+                const replacement = this.currentContainerName(containerName);
+                if (replacement !== containerName) return replacement;
+                throw new CollaborationError("conflict", "Agent container binding is not ready");
+            }
+            const configurationHash = agentContainerConfigurationHash(context.image.dockerImageId);
+            const runtime = await this.sandboxRuntime();
+            const state = await runtime.inspectAgentSandbox(containerName, this.shutdown.signal);
+            if (state?.running && state.configurationHash === configurationHash)
+                return containerName;
+            if (context.hasUnfinishedWork)
+                throw new CollaborationError(
+                    "conflict",
+                    "Agent container configuration cannot change while it has unfinished work",
+                );
+            const first = context.bindings[0];
+            if (!first) throw new Error("Agent container has no durable bindings");
+            const replacementContainerName = agentContainerName();
+            await runtime.createSandbox(
+                {
+                    agentUserId: context.agentUserId,
+                    configurationHash,
+                    containerName: replacementContainerName,
+                    homeDirectory: join(first.cwd, "..", "home"),
+                    imageId: context.image.id,
+                    imageTag: context.image.dockerTag,
+                    security: AGENT_CONTAINER_SECURITY,
+                    workspaceDirectory: first.cwd,
+                },
+                this.shutdown.signal,
+            );
+            let committed = false;
+            try {
+                const replacements = [];
+                for (const binding of context.bindings) {
+                    const session = await this.daemon.createSession(
+                        binding.cwd,
+                        replacementContainerName,
+                        binding.effort ?? context.agentDefaultEffort,
+                        this.shutdown.signal,
+                        binding.agentModelId,
+                    );
+                    replacements.push({
+                        chatId: binding.chatId,
+                        containerName: replacementContainerName,
+                        previousSessionId: binding.sessionId,
+                        sessionId: session.id,
+                    });
+                }
+                await agentContainerCommitConfiguration(this.executor, {
+                    agentUserId: context.agentUserId,
+                    previousContainerName: containerName,
+                    replacements,
+                });
+                committed = true;
+                this.containerReplacements.set(containerName, replacementContainerName);
+                await this.reconcileSecretBindings({ agentUserId: context.agentUserId }).catch(
+                    this.onError,
+                );
+                await this.removeSandbox(runtime, containerName).catch(this.onError);
+                return replacementContainerName;
+            } catch (error) {
+                if (!committed)
+                    await this.removeSandbox(runtime, replacementContainerName).catch(this.onError);
+                throw error;
+            }
+        });
     }
     private async removeSandbox(
         runtime: AgentSandboxRuntime,
@@ -316,6 +451,7 @@ export class AgentService {
         await runtime.createSandbox(
             {
                 agentUserId,
+                configurationHash: agentContainerConfigurationHash(image.dockerImageId),
                 containerName,
                 homeDirectory: sandbox.home,
                 imageId: image.id,
@@ -377,6 +513,13 @@ export class AgentService {
         for (const imageId of await agentImageListRequestedBuildIds(this.executor))
             this.queueImageBuild(imageId);
         await this.daemon.ensureGlobalEventQueue(this.shutdown.signal);
+        const containerReconciliations = await Promise.allSettled(
+            (await agentContainerListBoundNames(this.executor)).map((containerName) =>
+                this.ensureContainerConfiguration(containerName),
+            ),
+        );
+        for (const result of containerReconciliations)
+            if (result.status === "rejected") this.onError(result.reason);
         await this.reconcileFunctionPermissions();
         await this.reconcileAgentEfforts();
         await this.reconcileSecretBindings();
@@ -464,9 +607,11 @@ export class AgentService {
         );
         if (!context)
             throw new CollaborationError("not_found", "Agent terminal session was not found");
-        const binding =
-            context.binding ??
-            (await this.ensureAgentBinding(input.actorUserId, input.chatId, input.agentUserId));
+        const binding = await this.ensureAgentBinding(
+            input.actorUserId,
+            input.chatId,
+            input.agentUserId,
+        );
         if (!binding) throw new CollaborationError("conflict", "Agent conversation is not ready");
         return {
             terminal: await this.daemon.createRemoteTerminal(
@@ -708,6 +853,9 @@ export class AgentService {
                 await runtime.createSandbox(
                     {
                         agentUserId: input.agentUserId,
+                        configurationHash: agentContainerConfigurationHash(
+                            context.image.dockerImageId,
+                        ),
                         containerName,
                         homeDirectory: join(first.cwd, "..", "home"),
                         imageId: context.image.id,
@@ -1011,13 +1159,22 @@ export class AgentService {
         const context = await agentChatGetContext(this.executor, actorUserId, chatId, agentUserId);
         if (!context) return undefined;
         if (context.binding) {
-            const effort = context.binding.effort ?? context.agentDefaultEffort;
-            if (effort) await this.reconcileSessionEffort(context.binding.sessionId, effort);
+            await this.ensureContainerConfiguration(context.binding.containerName);
+            const reconciled = await agentChatGetContext(
+                this.executor,
+                actorUserId,
+                chatId,
+                agentUserId,
+            );
+            if (!reconciled?.binding)
+                throw new CollaborationError("conflict", "Agent conversation is not ready");
+            const effort = reconciled.binding.effort ?? reconciled.agentDefaultEffort;
+            if (effort) await this.reconcileSessionEffort(reconciled.binding.sessionId, effort);
             await this.reconcileSecretBindings({
-                agentUserId: context.agentUserId,
+                agentUserId: reconciled.agentUserId,
                 chatId,
             });
-            return context.binding;
+            return reconciled.binding;
         }
         const key = `${context.agentUserId}:${chatId}`;
         const pending = this.bindingCreations.get(key);
@@ -1106,6 +1263,7 @@ export class AgentService {
             await runtime.createSandbox(
                 {
                     agentUserId: latest.agentUserId,
+                    configurationHash: agentContainerConfigurationHash(latest.image.dockerImageId),
                     containerName,
                     homeDirectory: sandbox.home,
                     imageId: latest.image.id,
@@ -1169,6 +1327,7 @@ export class AgentService {
         await Promise.race([
             Promise.allSettled([
                 ...this.bindingCreations.values(),
+                ...this.containerConfigurations.values(),
                 ...this.imageMutations.values(),
                 ...this.drains.values(),
                 ...this.imageBuilds.values(),
@@ -3000,6 +3159,14 @@ function agentImageDefinitionHash(dockerfile: string, buildContext = ""): string
 }
 function agentImageTag(definitionHash: string): string {
     return `happy2-agent:${definitionHash}`;
+}
+function agentContainerConfigurationHash(dockerImageId: string): string {
+    return createHash("sha256")
+        .update("happy2-agent-container\0")
+        .update(String(AGENT_CONTAINER_CONFIGURATION_VERSION))
+        .update("\0")
+        .update(dockerImageId)
+        .digest("hex");
 }
 function agentContainerName(): string {
     return `happy2-agent-${createId()}`;

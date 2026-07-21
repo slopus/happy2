@@ -97,6 +97,9 @@ describe("administrator agent image changes", () => {
         expect((await events.next()).name).toBe("ready");
 
         const oldContainers = docker.createdContainers.map(({ containerName }) => containerName);
+        const oldConfigurationHashes = docker.createdContainers.map(
+            ({ configurationHash }) => configurationHash,
+        );
         const oldWorkspaces = docker.createdContainers.map(
             ({ workspaceDirectory }) => workspaceDirectory,
         );
@@ -124,6 +127,14 @@ describe("administrator agent image changes", () => {
             full.dockerTag,
             full.dockerTag,
         ]);
+        expect(replacements.map(({ configurationHash }) => configurationHash)).not.toEqual(
+            oldConfigurationHashes,
+        );
+        expect(
+            replacements.every(
+                ({ configurationHash }) => !oldConfigurationHashes.includes(configurationHash),
+            ),
+        ).toBe(true);
         expect(replacements.map(({ workspaceDirectory }) => workspaceDirectory).sort()).toEqual(
             [...oldWorkspaces].sort(),
         );

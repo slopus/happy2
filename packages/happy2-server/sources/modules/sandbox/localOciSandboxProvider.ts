@@ -6,6 +6,7 @@ import type {
     AgentImageBuildInput,
     AgentImageBuildOptions,
     AgentSandboxCreateInput,
+    AgentSandboxState,
     PluginSandboxCommandInput,
     PluginSandboxCreateInput,
     PluginSandboxState,
@@ -188,6 +189,8 @@ export class LocalOciSandboxProvider implements SandboxProvider {
             `dev.happy2.agent=${input.agentUserId}`,
             "--label",
             `dev.happy2.agent-image=${input.imageId}`,
+            "--label",
+            `dev.happy2.agent-configuration-hash=${input.configurationHash}`,
             ...(input.security.readonlyRootFilesystem ? ["--read-only"] : []),
             ...(input.security.init ? ["--init"] : []),
             "--shm-size",
@@ -287,6 +290,37 @@ export class LocalOciSandboxProvider implements SandboxProvider {
 
     async removeSandbox(containerName: string): Promise<void> {
         await this.run(["rm", "--force", containerName]).catch(() => undefined);
+    }
+
+    async inspectAgentSandbox(
+        containerName: string,
+        signal?: AbortSignal,
+    ): Promise<AgentSandboxState | undefined> {
+        let inspected: CommandResult;
+        try {
+            inspected = await this.run(["inspect", "--format", "{{json .}}", containerName], {
+                signal,
+            });
+        } catch (error) {
+            if (isMissingContainer(error)) return undefined;
+            throw error;
+        }
+        let value: {
+            Config?: { Labels?: Record<string, string> };
+            State?: { Running?: boolean };
+        };
+        try {
+            value = JSON.parse(inspected.stdout) as typeof value;
+        } catch (error) {
+            throw new Error(`${this.displayName} returned invalid agent container metadata`, {
+                cause: error,
+            });
+        }
+        const configurationHash = value.Config?.Labels?.["dev.happy2.agent-configuration-hash"];
+        return {
+            ...(configurationHash ? { configurationHash } : {}),
+            running: value.State?.Running === true,
+        };
     }
 
     async resolveSandboxPort(

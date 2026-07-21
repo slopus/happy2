@@ -35,6 +35,7 @@ export interface AgentImageBuildOptions {
 
 export interface AgentSandboxCreateInput {
     agentUserId: string;
+    configurationHash: string;
     containerName: string;
     homeDirectory: string;
     imageId: string;
@@ -46,6 +47,11 @@ export interface AgentSandboxCreateInput {
         tmpfs: ReadonlyArray<{ mode: number; target: string }>;
     };
     workspaceDirectory: string;
+}
+
+export interface AgentSandboxState {
+    configurationHash?: string;
+    running: boolean;
 }
 
 export interface SandboxFileIngressInput {
@@ -106,6 +112,11 @@ export interface AgentSandboxRuntime {
         options?: AgentImageBuildOptions,
     ): Promise<{ imageId: string }>;
     createSandbox(input: AgentSandboxCreateInput, signal?: AbortSignal): Promise<void>;
+    /** Reads the runtime-owned configuration identity for one agent container. */
+    inspectAgentSandbox(
+        containerName: string,
+        signal?: AbortSignal,
+    ): Promise<AgentSandboxState | undefined>;
     removeSandbox(containerName: string): Promise<void>;
     /** Resolves one fixed loopback-only host mapping for an agent container. */
     resolveSandboxPort?(

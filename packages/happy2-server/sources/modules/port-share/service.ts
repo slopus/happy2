@@ -16,10 +16,12 @@ import {
 } from "./types.js";
 
 export interface PortShareTargetResolver {
-    resolvePortShareTarget(
-        containerName: string,
-        containerPort: PortShareContainerPort,
-    ): Promise<{ host: "127.0.0.1"; port: number }>;
+    resolvePortShareTarget(input: {
+        agentUserId: string;
+        chatId: string;
+        containerName: string;
+        containerPort: PortShareContainerPort;
+    }): Promise<{ host: "127.0.0.1"; port: number }>;
 }
 
 export interface PublicPortShare extends Omit<PortShareSummary, "containerName"> {
@@ -184,10 +186,12 @@ export class PortShareService {
             hinted.audience === "internet"
                 ? { share: await this.authorizedHostShare(host), userId: undefined }
                 : await this.verifiedAccess(host, token);
-        const target = await this.targets.resolvePortShareTarget(
-            verified.share.containerName,
-            verified.share.containerPort,
-        );
+        const target = await this.targets.resolvePortShareTarget({
+            agentUserId: verified.share.agentUserId,
+            chatId: verified.share.chatId,
+            containerName: verified.share.containerName,
+            containerPort: verified.share.containerPort,
+        });
         return {
             userId: verified.userId,
             portShare: this.publicShare(verified.share),
