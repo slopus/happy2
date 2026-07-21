@@ -74,7 +74,11 @@ project's ignore rules and preserve it as private application state. The package
 starts its bundled `@slopus/rig` executable with a private Rig home under
 `.happy2/rig` by default, containing configuration, runtime settings, session
 state, socket, and token. Set `RIG_HOME` to an absolute path to relocate it. The
-package never connects to the user's global Rig daemon.
+package never connects to the user's global Rig daemon and keeps Rig's legacy
+Happy cloud integration disabled in this private runtime. At connection time it
+hashes its exact internal Rig runtime template and checks the daemon version; a
+configuration or version mismatch stops the old daemon, rewrites the template,
+and starts the bundled daemon cleanly.
 
 `happy2 service start` keeps the all-in-one app running across restarts. On
 macOS it installs `~/Library/LaunchAgents/com.slopus.happy2.plist` without

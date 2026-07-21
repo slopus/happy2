@@ -2,7 +2,15 @@ import { execFile } from "node:child_process";
 import { chmod, mkdir, readFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 import type { Duplex } from "node:stream";
+import { readPackageVersion } from "@slopus/rig/dist/readPackageVersion.js";
 import WebSocket, { createWebSocketStream } from "ws";
+
+import {
+    internalConfigurationMatches,
+    internalConfigurationOwns,
+    internalConfigurationRequiresReplacement,
+    internalConfigurationWrite,
+} from "./impl/internalConfiguration.js";
 
 import type {
     AttachSecretRequest,
@@ -580,15 +588,44 @@ export class RigDaemonClient {
 
     private async connect(): Promise<void> {
         this.token = await readToken(this.config.tokenPath);
-        if (this.token && (await this.healthy())) return;
+        const daemonHealthy = Boolean(this.token) && (await this.healthy());
+        if (!internalConfigurationOwns(this.config)) {
+            if (daemonHealthy) return;
+            await this.startDaemon();
+            return this.waitForReady();
+        }
+
+        const configurationMatches = await internalConfigurationMatches(this.config.directory);
+        const replacementRequired = internalConfigurationRequiresReplacement({
+            bundledVersion: readPackageVersion(),
+            configurationMatches,
+            runningVersion: this.daemonVersion,
+        });
+        if (daemonHealthy && !replacementRequired) return;
+
+        if (daemonHealthy) await this.stopDaemon();
+        await internalConfigurationWrite(this.config.directory);
+        await this.startDaemon();
+        await this.waitForReady();
+    }
+
+    private async startDaemon(): Promise<void> {
         await mkdir(this.config.directory, { recursive: true, mode: 0o700 });
         await chmod(this.config.directory, 0o700);
-        await execute(this.config.command, ["daemon", "start"], {
-            RIG_HOME: this.config.directory,
-            RIG_SERVER_DIRECTORY: "",
-            RIG_SERVER_SOCKET_PATH: this.config.socketPath,
-            RIG_SERVER_TOKEN_PATH: this.config.tokenPath,
-        });
+        await execute(this.config.command, ["daemon", "start"], this.daemonEnvironment());
+    }
+
+    private async stopDaemon(): Promise<void> {
+        await execute(this.config.command, ["daemon", "stop"], this.daemonEnvironment());
+        const deadline = Date.now() + 10_000;
+        while (Date.now() < deadline) {
+            if (!(await this.healthy())) return;
+            await delay(100);
+        }
+        throw new Error("Rig daemon did not stop within 10 seconds.");
+    }
+
+    private async waitForReady(): Promise<void> {
         const deadline = Date.now() + 10_000;
         while (Date.now() < deadline) {
             this.token = await readToken(this.config.tokenPath);
@@ -596,6 +633,15 @@ export class RigDaemonClient {
             await delay(100);
         }
         throw new Error("Rig daemon did not become ready within 10 seconds.");
+    }
+
+    private daemonEnvironment(): Record<string, string> {
+        return {
+            RIG_HOME: this.config.directory,
+            RIG_SERVER_DIRECTORY: "",
+            RIG_SERVER_SOCKET_PATH: this.config.socketPath,
+            RIG_SERVER_TOKEN_PATH: this.config.tokenPath,
+        };
     }
 
     private async healthy(): Promise<boolean> {
