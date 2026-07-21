@@ -1201,9 +1201,10 @@ function childChannelCreateInput(value: unknown): {
     name: string;
     description?: string;
     agentModelId?: string;
+    initialMessage?: { audience: "agents" | "people"; text: string };
 } {
     const body = bodyRecord(value);
-    onlyBodyKeys(body, ["name", "description", "agentModelId"]);
+    onlyBodyKeys(body, ["name", "description", "agentModelId", "initialMessage"]);
     const name = requiredTrimmedString(body.name, "name", 100);
     const description =
         body.description === undefined
@@ -1211,10 +1212,22 @@ function childChannelCreateInput(value: unknown): {
             : requiredTrimmedString(body.description, "description", 500);
     const agentModelId =
         body.agentModelId === undefined ? undefined : identifier(body.agentModelId, "agentModelId");
+    let initialMessage: { audience: "agents" | "people"; text: string } | undefined;
+    if (body.initialMessage !== undefined) {
+        const message = bodyRecord(body.initialMessage, "initialMessage");
+        onlyBodyKeys(message, ["audience", "text"], "initialMessage");
+        if (message.audience !== "agents" && message.audience !== "people")
+            throw new PluginHostRequestError("initialMessage.audience must be agents or people");
+        initialMessage = {
+            audience: message.audience,
+            text: requiredMessageText(message.text),
+        };
+    }
     return {
         name,
         ...(description ? { description } : {}),
         ...(agentModelId ? { agentModelId } : {}),
+        ...(initialMessage ? { initialMessage } : {}),
     };
 }
 

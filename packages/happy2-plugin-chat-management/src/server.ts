@@ -8,9 +8,10 @@ import {
     type JsonObject,
 } from "happy2-plugin-sdk/server";
 import { z } from "zod/v4";
+import { childCreateSchema, initialMessageSchema } from "./schemas.js";
 
 const USERS_META_KEY = "happy2/users";
-const server = new McpServer({ name: "happy2-chat-management", version: "1.3.0" });
+export const server = new McpServer({ name: "happy2-chat-management", version: "1.3.1" });
 
 const chatUpdateSchema = z
     .strictObject({
@@ -96,16 +97,6 @@ server.registerTool(
         }),
 );
 
-const initialMessageSchema = z.strictObject({
-    text: z
-        .string()
-        .min(1)
-        .max(40_000)
-        .describe("A copied or rephrased opening prompt or informational message."),
-    audience: z
-        .enum(["agents", "people"])
-        .describe("agents starts the current agent; people posts without inference."),
-});
 const channelCreateSchema = z.strictObject({
     name: z.string().min(1).max(100).describe("Channel title."),
     description: z.string().min(1).max(500).optional().describe("Optional channel description."),
@@ -142,39 +133,26 @@ server.registerTool(
         }),
 );
 
-const childCreateSchema = z.strictObject({
-    name: z.string().min(1).max(100).describe("Child channel title."),
-    description: z
-        .string()
-        .min(1)
-        .max(500)
-        .optional()
-        .describe("Optional child channel description."),
-    agentModelId: z
-        .string()
-        .min(1)
-        .max(128)
-        .optional()
-        .describe("Optional available agent model ID for this child's independent session."),
-});
-
 server.registerTool(
     "channel_child_create",
     {
         title: "Create a child channel",
         description:
-            "Creates a private child channel under the current top-level channel. The child inherits the parent members and workspace while keeping an independent conversation and agent session.",
+            "Creates a private child channel under the current top-level channel. The child inherits the parent members and workspace while keeping an independent conversation and agent session. It can post an initial message; an agents message starts the child agent, while a people message only shares context.",
         inputSchema: childCreateSchema,
     },
     (input, extra) =>
         safeTool(async () => {
             const chat = requireChat(happyCallContext(extra));
-            const result = await callHost<{ chat: JsonObject }>(
+            const result = await callHost<{ chat: JsonObject; initialMessage?: JsonObject }>(
                 "/channels/createChildChannel",
                 chat.token,
                 input,
             );
-            return success(`Created child channel ${String(result.chat.id)}.`, result);
+            return success(
+                `Created child channel ${String(result.chat.id)}${result.initialMessage ? " and posted its initial message" : ""}.`,
+                result,
+            );
         }),
 );
 
@@ -274,4 +252,4 @@ async function safeTool(work: () => Promise<CallToolResult>): Promise<CallToolRe
     }
 }
 
-await startPluginServer(server);
+if (process.env.NODE_ENV !== "test") await startPluginServer(server);

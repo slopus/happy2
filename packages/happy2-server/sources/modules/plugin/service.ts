@@ -19,6 +19,7 @@ import { documentWriteRequestCreate } from "../document/documentWriteRequestCrea
 import type { DocumentHostSummary, DocumentSnapshot } from "../document/types.js";
 import { chatUpdateMetadata, type ChatMetadataSummary } from "../chat/chatUpdateMetadata.js";
 import { channelCreateChild } from "../chat/channelCreateChild.js";
+import { channelDeleteFailedChildSetup } from "../chat/channelDeleteFailedChildSetup.js";
 import { channelCreateWithMembers } from "../chat/channelCreateWithMembers.js";
 import { channelMembersUpdate } from "../chat/channelMembersUpdate.js";
 import { channelSetArchived } from "../chat/channelSetArchived.js";
@@ -2596,14 +2597,21 @@ export class PluginService {
             name: string;
             description?: string;
             agentModelId?: string;
+            initialMessage?: { audience: "agents" | "people"; text: string };
         },
         agents?: PluginAgentRuntime,
     ) {
-        const claims = await this.authorizeChat(runtimeToken, chatToken, "channels:create-child");
-        if (input.agentModelId) {
+        const claims = await this.authorizeChat(
+            runtimeToken,
+            chatToken,
+            input.initialMessage
+                ? ["channels:create-child", "messages:send"]
+                : "channels:create-child",
+        );
+        if (input.agentModelId || input.initialMessage?.audience === "agents") {
             if (!agents)
                 throw new PluginError("not_ready", "AI agents are not enabled on this server");
-            await agents.modelRequireAvailable(input.agentModelId);
+            if (input.agentModelId) await agents.modelRequireAvailable(input.agentModelId);
         }
         const created = await channelCreateChild(this.executor, {
             actorUserId: claims.actorUserId,
@@ -2613,7 +2621,38 @@ export class PluginService {
             topic: input.description,
             agentModelId: input.agentModelId,
         });
-        await this.publishHints([created.hint], created.memberUserIds);
+        const hints = [created.hint];
+        let initialMessage;
+        try {
+            if (input.initialMessage) {
+                const agentTurns =
+                    input.initialMessage.audience === "agents"
+                        ? await agents!.prepareTurns({
+                              actorUserId: claims.actorUserId,
+                              agentUserIds: [],
+                              chatId: created.chat.id,
+                          })
+                        : [];
+                const sent = await messageSend(this.executor, {
+                    actorUserId: claims.actorUserId,
+                    chatId: created.chat.id,
+                    text: input.initialMessage.text,
+                    audience: input.initialMessage.audience,
+                    agentTurns,
+                });
+                initialMessage = sent.message;
+                hints.push(sent.hint);
+                if (agentTurns.length) agents!.startTurn(created.chat.id);
+            }
+        } catch (error) {
+            const deleted = await channelDeleteFailedChildSetup(this.executor, {
+                actorUserId: claims.actorUserId,
+                chatId: created.chat.id,
+            });
+            await this.publishHints([created.hint, deleted.hint], deleted.memberUserIds);
+            throw error;
+        }
+        await this.publishHints(hints, created.memberUserIds);
         return {
             chat: created.chat,
             token: await this.tokens.issuePluginChatToken({
@@ -2622,7 +2661,8 @@ export class PluginService {
                 actorUserId: claims.actorUserId,
                 agentUserId: claims.agentUserId,
             }),
-            sync: created.hint,
+            ...(initialMessage ? { initialMessage } : {}),
+            sync: input.initialMessage ? hints : created.hint,
         };
     }
 

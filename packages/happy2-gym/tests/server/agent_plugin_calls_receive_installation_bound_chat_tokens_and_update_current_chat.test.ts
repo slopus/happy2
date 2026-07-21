@@ -374,10 +374,63 @@ describe("agent plugin chat capabilities", () => {
         );
         if (!channelMembersTool || !childChannelTool)
             throw new Error("New channel did not receive its channel management tools");
+        const childWithoutMessageCallId = rig.requestExternalToolCall(
+            channelRun.runId,
+            childChannelTool.name,
+            { name: "Feature empty child" },
+        );
+        await waitFor(
+            () =>
+                rig.externalToolCalls.find(({ id }) => id === childWithoutMessageCallId)?.status !==
+                "pending",
+            "child channel creation without a message",
+        );
+        const childWithoutMessage = completedOutput(childWithoutMessageCallId, rig);
+        expect(Array.isArray(childWithoutMessage.sync)).toBe(false);
+        expect(childWithoutMessage.initialMessage).toBeUndefined();
+        expect(rig.submittedRuns).toHaveLength(2);
+
+        const peopleChildCallId = rig.requestExternalToolCall(
+            channelRun.runId,
+            childChannelTool.name,
+            {
+                name: "Feature reference context",
+                initialMessage: {
+                    audience: "people",
+                    text: "Reference material only; do not start implementation.",
+                },
+            },
+        );
+        await waitFor(
+            () =>
+                rig.externalToolCalls.find(({ id }) => id === peopleChildCallId)?.status !==
+                "pending",
+            "people child channel creation",
+        );
+        const peopleChildResolution = completedOutput(peopleChildCallId, rig);
+        const peopleChildChatId = (peopleChildResolution.chat as { id: string }).id;
+        expect(peopleChildResolution.initialMessage).toMatchObject({
+            audience: "people",
+            text: "Reference material only; do not start implementation.",
+        });
+        expect(rig.submittedRuns).toHaveLength(2);
+        expect(
+            (await client.get(`/v0/chats/${peopleChildChatId}/messages`)).json().messages,
+        ).toEqual([
+            expect.objectContaining({
+                audience: "people",
+                text: "Reference material only; do not start implementation.",
+            }),
+        ]);
+
         const childCallId = rig.requestExternalToolCall(channelRun.runId, childChannelTool.name, {
             name: "Feature parallel investigation",
             description: "Shares the implementation workspace with an independent history.",
             agentModelId: "gym/alternate-agent",
+            initialMessage: {
+                audience: "agents",
+                text: "Investigate the feature independently and report findings.",
+            },
         });
         await waitFor(
             () => rig.externalToolCalls.find(({ id }) => id === childCallId)?.status !== "pending",
@@ -393,7 +446,59 @@ describe("agent plugin chat capabilities", () => {
             parentChatId: agentChatId,
             agentModelId: "gym/alternate-agent",
         });
+        expect(childResolution.initialMessage).toMatchObject({
+            audience: "agents",
+            text: "Investigate the feature independently and report findings.",
+        });
+        await waitFor(() => rig.submittedRuns.length === 3, "child channel agent turn");
+        expect((await client.get(`/v0/chats/${childChat.id}/messages`)).json().messages).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    audience: "agents",
+                    text: "Investigate the feature independently and report findings.",
+                }),
+            ]),
+        );
         expect((await server.as(friend).get(`/v0/chats/${childChat.id}`)).statusCode).toBe(200);
+
+        rig.failNextSessionCreation("Deliberate child session failure");
+        const failedChildCallId = rig.requestExternalToolCall(
+            channelRun.runId,
+            childChannelTool.name,
+            {
+                name: "Recoverable child",
+                initialMessage: {
+                    audience: "agents",
+                    text: "This setup must fail before leaving a child behind.",
+                },
+            },
+        );
+        await waitFor(
+            () =>
+                rig.externalToolCalls.find(({ id }) => id === failedChildCallId)?.status !==
+                "pending",
+            "failed child setup",
+        );
+        expect(
+            rig.externalToolCalls.find(({ id }) => id === failedChildCallId)?.resolution,
+        ).toMatchObject({
+            status: "failed",
+            error: { message: "Update failed" },
+        });
+        const retriedChildCallId = rig.requestExternalToolCall(
+            channelRun.runId,
+            childChannelTool.name,
+            { name: "Recoverable child" },
+        );
+        await waitFor(
+            () =>
+                rig.externalToolCalls.find(({ id }) => id === retriedChildCallId)?.status !==
+                "pending",
+            "retried child creation",
+        );
+        const retriedChild = completedOutput(retriedChildCallId, rig).chat as { id: string };
+        expect((await server.as(friend).get(`/v0/chats/${retriedChild.id}`)).statusCode).toBe(200);
+
         const updateCallId = rig.requestExternalToolCall(
             channelRun.runId,
             channelMembersTool.name,
@@ -645,6 +750,7 @@ async function install(client: GymRequestClient): Promise<string> {
             "chats:members:add",
             "chats:members:remove",
             "chats:update",
+            "messages:send",
         ],
     });
     expect(installed.statusCode).toBe(202);
