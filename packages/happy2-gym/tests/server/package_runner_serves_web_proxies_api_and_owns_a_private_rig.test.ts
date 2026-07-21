@@ -261,10 +261,29 @@ describe.sequential("the package runner", () => {
         }
     });
 
-    it("routes exactly one wildcard subdomain through the split web gateway", async () => {
+    it("routes preview hosts and authenticated handoffs through the split web gateway", async () => {
         const webRoot = await mkdtemp(join(tmpdir(), "happy2-web-port-sharing-"));
         await writeFile(join(webRoot, "index.html"), "<!doctype html><title>Gateway</title>\n");
+        let handoffRequest:
+            | { cookie: string | undefined; forwardedHost: string | undefined; url: string }
+            | undefined;
         const upstream = createServer((request, response) => {
+            if (request.url?.startsWith("/v0/portShares/share-123/openPortShare")) {
+                handoffRequest = {
+                    cookie: request.headers.cookie,
+                    forwardedHost: request.headers["x-forwarded-host"] as string | undefined,
+                    url: request.url,
+                };
+                response.statusCode = 302;
+                response.setHeader("cache-control", "no-store");
+                response.setHeader("referrer-policy", "no-referrer");
+                response.setHeader(
+                    "location",
+                    "https://demo.preview.example.com/.happy2/auth/redeem?token=redemption",
+                );
+                response.end();
+                return;
+            }
             response.setHeader("content-type", "application/json");
             response.end(JSON.stringify({ host: request.headers.host, url: request.url }));
         });
@@ -288,6 +307,24 @@ describe.sequential("the package runner", () => {
                 portSharingDomain: "*.Preview.Example.com.",
                 webRoot,
             });
+            const handoff = await fetch(
+                `${web.url}/preview-link/share-123?returnTo=%2Fpreview%3Fmode%3D1`,
+                {
+                    headers: { cookie: "happy2_auth_token=user-bound-token" },
+                    redirect: "manual",
+                },
+            );
+            expect(handoff.status).toBe(302);
+            expect(handoff.headers.get("cache-control")).toBe("no-store");
+            expect(handoff.headers.get("referrer-policy")).toBe("no-referrer");
+            expect(handoff.headers.get("location")).toBe(
+                "https://demo.preview.example.com/.happy2/auth/redeem?token=redemption",
+            );
+            expect(handoffRequest).toEqual({
+                cookie: "happy2_auth_token=user-bound-token",
+                forwardedHost: new URL(web.url).host,
+                url: "/v0/portShares/share-123/openPortShare?returnTo=%2Fpreview%3Fmode%3D1",
+            });
             const proxied = await requestWithHost(
                 web.url,
                 "my-demo-a1b2c3.preview.example.com",
@@ -297,6 +334,16 @@ describe.sequential("the package runner", () => {
             expect(JSON.parse(proxied.body)).toEqual({
                 host: "my-demo-a1b2c3.preview.example.com",
                 url: "/demo?theme=dark",
+            });
+            const reservedPathOnPreview = await requestWithHost(
+                web.url,
+                "my-demo-a1b2c3.preview.example.com",
+                "/preview-link/share-123?returnTo=%2Finside-preview",
+            );
+            expect(reservedPathOnPreview.statusCode).toBe(200);
+            expect(JSON.parse(reservedPathOnPreview.body)).toEqual({
+                host: "my-demo-a1b2c3.preview.example.com",
+                url: "/preview-link/share-123?returnTo=%2Finside-preview",
             });
             expect(
                 await websocketWithHost(

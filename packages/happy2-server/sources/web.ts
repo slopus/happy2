@@ -7,6 +7,7 @@ import staticFiles from "@fastify/static";
 import type { ClientOptions } from "ws";
 import type { RunningHappy2 } from "./backend.js";
 import { authenticationCookieName } from "./modules/auth/metadata.js";
+import { portShareWebHandoffRoute } from "./portShareWebHandoff.js";
 
 const MAX_TERMINAL_WIRE_BYTES = 4 * 1024 * 1024 + 20;
 const TERMINAL_AUTH_PROTOCOL_PREFIX = "happy2-auth.";
@@ -35,8 +36,10 @@ export async function startWebHappy2(options: WebOptions): Promise<RunningHappy2
         trustProxy: options.trustedProxyHops ?? 0,
     });
     try {
-        if (portSharingDomain)
+        if (portSharingDomain) {
             await registerPortShareGateway(gateway, backendUrl, portSharingDomain);
+            registerPortShareWebHandoff(gateway, backendUrl);
+        }
         gateway.get("/v0/auth/web/session", async (request, reply) => {
             const response = await fetch(`${backendUrl}/v0/auth/web/session`, {
                 headers: backendRequestHeaders(request),
@@ -115,6 +118,26 @@ export async function startWebHappy2(options: WebOptions): Promise<RunningHappy2
         await gateway.close().catch(() => undefined);
         throw error;
     }
+}
+
+function registerPortShareWebHandoff(gateway: FastifyInstance, backendUrl: string): void {
+    gateway.get(portShareWebHandoffRoute, async (request, reply) => {
+        const portShareId = (request.params as { portShareId: string }).portShareId;
+        const backend = new URL(
+            `/v0/portShares/${encodeURIComponent(portShareId)}/openPortShare`,
+            backendUrl,
+        );
+        backend.search = new URL(request.url, "http://happy2.invalid").search;
+        const response = await fetch(backend, {
+            headers: backendRequestHeaders(request),
+            redirect: "manual",
+        });
+        for (const name of ["cache-control", "content-type", "location", "referrer-policy"]) {
+            const value = response.headers.get(name);
+            if (value) reply.header(name, value);
+        }
+        return reply.code(response.status).send(Buffer.from(await response.arrayBuffer()));
+    });
 }
 
 async function registerPortShareGateway(

@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { CollaborationError } from "../modules/chat/types.js";
 import type { PortShareService } from "../modules/port-share/service.js";
 import { PortShareError } from "../modules/port-share/types.js";
+import { portShareWebHandoffPath } from "../portShareWebHandoff.js";
 import { portShareReturnTo } from "./portShareReturnTo.js";
 
 export const portShareAuthenticationCookieName = "happy2_port_share";
@@ -201,10 +202,7 @@ async function redirectToMainAuthorization(
     appPublicUrl: string,
 ) {
     const portShareId = await portShares.activeShareIdForHost(request.host);
-    const url = new URL(
-        `/v0/portShares/${encodeURIComponent(portShareId)}/openPortShare`,
-        appPublicUrl,
-    );
+    const url = new URL(portShareWebHandoffPath(portShareId), appPublicUrl);
     url.searchParams.set("returnTo", portShareReturnTo(request.url));
     return reply
         .header("cache-control", "no-store")

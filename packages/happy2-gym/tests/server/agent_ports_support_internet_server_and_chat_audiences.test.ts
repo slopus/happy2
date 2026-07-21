@@ -230,7 +230,7 @@ describe("agent port sharing audiences", () => {
             });
             expect(revokedCookie.statusCode).toBe(302);
             expect(new URL(revokedCookie.headers.location!).pathname).toBe(
-                `/v0/portShares/${share.id}/openPortShare`,
+                `/preview-link/${share.id}`,
             );
 
             const copiedLink = await publicRequest(serverUrl, host, "/preview?copied=1");
@@ -239,13 +239,13 @@ describe("agent port sharing audiences", () => {
             expect(copiedLink.headers["referrer-policy"]).toBe("no-referrer");
             const mainAuthorization = new URL(copiedLink.headers.location!);
             expect(mainAuthorization.origin).toBe("http://gym.invalid");
-            expect(mainAuthorization.pathname).toBe(`/v0/portShares/${share.id}/openPortShare`);
+            expect(mainAuthorization.pathname).toBe(`/preview-link/${share.id}`);
             expect(mainAuthorization.searchParams.get("returnTo")).toBe("/preview?copied=1");
-            const mainAuthorizationPath = `${mainAuthorization.pathname}${mainAuthorization.search}`;
-            expect((await server.get(mainAuthorizationPath)).statusCode).toBe(401);
+            const backendAuthorizationPath = `/v0/portShares/${share.id}/openPortShare${mainAuthorization.search}`;
+            expect((await server.get(backendAuthorizationPath)).statusCode).toBe(401);
             expect(
                 (
-                    await server.get(mainAuthorizationPath, {
+                    await server.get(backendAuthorizationPath, {
                         headers: { cookie: `happy2_auth_token=${outsider.token}` },
                     })
                 ).statusCode,
@@ -258,7 +258,7 @@ describe("agent port sharing audiences", () => {
                     )
                 ).statusCode,
             ).toBe(400);
-            const authorizedOpen = await server.get(mainAuthorizationPath, {
+            const authorizedOpen = await server.get(backendAuthorizationPath, {
                 headers: { cookie: `happy2_auth_token=${owner.token}` },
             });
             expect(authorizedOpen.statusCode).toBe(302);
