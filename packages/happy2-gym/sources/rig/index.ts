@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Socket } from "node:net";
 import { tmpdir } from "node:os";
@@ -1283,6 +1283,8 @@ export class MockRigDaemon implements AsyncDisposable {
 /** In-memory sandbox execution boundary for server + Rig Gym tests. */
 export class MockAgentSandboxRuntime implements AgentSandboxRuntime {
     readonly buildRequests: AgentImageBuildInput[] = [];
+    readonly copiedToSandbox: SandboxFileIngressInput[] = [];
+    readonly copiedToSandboxContents = new Map<string, Buffer>();
     readonly createdContainers: AgentSandboxCreateInput[] = [];
     readonly removedContainers: string[] = [];
     portResolutionCount = 0;
@@ -1358,6 +1360,12 @@ export class MockAgentSandboxRuntime implements AgentSandboxRuntime {
         });
     }
 
+    async copyFileToSandbox(input: SandboxFileIngressInput, signal?: AbortSignal): Promise<void> {
+        if (signal?.aborted) throw abortError();
+        this.copiedToSandbox.push({ ...input });
+        this.copiedToSandboxContents.set(input.destinationPath, await readFile(input.sourcePath));
+    }
+
     async inspectAgentSandbox(
         containerName: string,
         signal?: AbortSignal,
@@ -1406,7 +1414,6 @@ export class MockAgentSandboxRuntime implements AgentSandboxRuntime {
 /** Programmable full provider used by onboarding discovery/selection Gym scenarios. */
 export class MockSandboxProvider extends MockAgentSandboxRuntime implements SandboxProvider {
     readonly copiedFromSandbox: SandboxFileEgressInput[] = [];
-    readonly copiedToSandbox: SandboxFileIngressInput[] = [];
     readonly locality = "local" as const;
     probeCount = 0;
     private status: SandboxProviderStatus;
@@ -1437,11 +1444,6 @@ export class MockSandboxProvider extends MockAgentSandboxRuntime implements Sand
     async copyFileFromSandbox(input: SandboxFileEgressInput, signal?: AbortSignal): Promise<void> {
         if (signal?.aborted) throw abortError();
         this.copiedFromSandbox.push({ ...input });
-    }
-
-    async copyFileToSandbox(input: SandboxFileIngressInput, signal?: AbortSignal): Promise<void> {
-        if (signal?.aborted) throw abortError();
-        this.copiedToSandbox.push({ ...input });
     }
 
     attachTerminal(input: SandboxTerminalInput, signal?: AbortSignal): SandboxTerminalHandle {

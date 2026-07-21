@@ -580,7 +580,7 @@ describe("persistent desktop routing", () => {
             ).toBe("agent-1"),
         );
         // Agents mode carries no chip row: the composer frame itself marks the
-        // mode and the placeholder names the default agent.
+        // mode while the prompt remains conversation-neutral.
         await waitFor(() =>
             expect(
                 screen.container
@@ -593,7 +593,7 @@ describe("persistent desktop routing", () => {
                 screen.container.querySelector<HTMLTextAreaElement>(
                     '[data-happy2-ui="composer-textarea"]',
                 )?.placeholder,
-            ).toBe("Message Happy"),
+            ).toBe("Type a message..."),
         );
         expect(chatPrimarySurface(screen.container)).toBe(primary);
         expect(

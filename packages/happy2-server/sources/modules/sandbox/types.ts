@@ -112,6 +112,8 @@ export interface AgentSandboxRuntime {
         options?: AgentImageBuildOptions,
     ): Promise<{ imageId: string }>;
     createSandbox(input: AgentSandboxCreateInput, signal?: AbortSignal): Promise<void>;
+    /** Copies one server-staged file into the agent sandbox, creating its parent directory. */
+    copyFileToSandbox(input: SandboxFileIngressInput, signal?: AbortSignal): Promise<void>;
     /** Reads the runtime-owned configuration identity for one agent container. */
     inspectAgentSandbox(
         containerName: string,

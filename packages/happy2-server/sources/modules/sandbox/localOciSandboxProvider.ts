@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import type {
     AgentImageBuildInput,
     AgentImageBuildOptions,
@@ -445,6 +445,17 @@ export class LocalOciSandboxProvider implements SandboxProvider {
     }
 
     async copyFileToSandbox(input: SandboxFileIngressInput, signal?: AbortSignal): Promise<void> {
+        await this.run(
+            [
+                "exec",
+                input.containerName,
+                "mkdir",
+                "-p",
+                "--",
+                posix.dirname(input.destinationPath),
+            ],
+            { signal },
+        );
         await this.run(
             ["cp", input.sourcePath, `${input.containerName}:${input.destinationPath}`],
             { signal },

@@ -382,7 +382,7 @@ export class FileStorage {
         if (cancelled) await this.quota.release(uploadId);
         return cancelled;
     }
-    open(file: StoredFile, range?: ByteRange): Readable {
+    open(file: Pick<StoredFile, "storageName">, range?: ByteRange): Readable {
         return this.provider.open(file.storageName, range);
     }
     async variant(

@@ -3,6 +3,7 @@ import { rigEventGetCheckpoint } from "../agent/rigEventGetCheckpoint.js";
 import { rigEventCheckpoint } from "../agent/rigEventCheckpoint.js";
 import { agentUsernameIsAvailable } from "../agent/agentUsernameIsAvailable.js";
 import { agentTurnTakeNext } from "../agent/agentTurnTakeNext.js";
+import { agentTurnAttachmentGetContext } from "../agent/agentTurnAttachmentGetContext.js";
 import { agentTurnStreamReply } from "../agent/agentTurnStreamReply.js";
 import { agentTurnRenewLease } from "../agent/agentTurnRenewLease.js";
 import { agentTurnReleaseLeases } from "../agent/agentTurnReleaseLeases.js";
@@ -58,9 +59,12 @@ import { type DrizzleExecutor } from "../drizzle.js";
 import { chatGetAccess } from "../chat/chatGetAccess.js";
 import { createId } from "@paralleldrive/cuid2";
 import { createHash } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Duplex } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import type { RemoteTerminalSummary } from "@slopus/rig/dist/terminal/index.js";
 import type { ModelCatalog } from "@slopus/rig/dist/protocol/index.js";
 import type {
@@ -98,6 +102,7 @@ import type {
     PluginSkillDefinition,
 } from "../plugin/types.js";
 import type { PortShareContainerPort } from "../port-share/types.js";
+import type { FileStorage } from "../files/storage.js";
 import { agentTurnGetPluginContext } from "../agent/agentTurnGetPluginContext.js";
 import { pluginFunctionResultAcquire } from "../plugin/pluginFunctionResultAcquire.js";
 import { pluginFunctionResultComplete } from "../plugin/pluginFunctionResultComplete.js";
@@ -187,6 +192,7 @@ interface AgentTurnSubmission {
     runId?: string;
 }
 interface ActiveTypingRenewal {
+    controller: AbortController;
     timer: ReturnType<typeof setInterval>;
     userMessageId: string;
 }
@@ -251,6 +257,7 @@ export class AgentService {
         private readonly daemon: RigDaemonClient,
         private readonly sandboxRuntime: AgentSandboxRuntimeResolver,
         private readonly defaultCwd: string,
+        private readonly fileStorage: FileStorage,
         private readonly pluginCapabilities: AgentPluginCapabilities | undefined,
         private readonly onError: (error: unknown) => void = () => undefined,
     ) {}
@@ -1897,12 +1904,14 @@ export class AgentService {
                 },
             );
             if (!input) return;
+            let submissionSignal: AbortSignal | undefined;
             try {
                 const traced = await agentTurnTraceStart(this.executor, input);
                 if (traced) await this.publishAgentReplyHint(input.chatId, traced.hint);
                 await this.startAgentActivity(input);
-                await this.startTyping(input);
-                const submission = await this.ensureTurnSubmitted(input);
+                const leaseSignal = await this.startTyping(input);
+                submissionSignal = AbortSignal.any([leaseSignal, this.shutdown.signal]);
+                const submission = await this.ensureTurnSubmitted(input, submissionSignal);
                 const inspection = submission.inspection;
                 if (inspection.kind === "completed") {
                     await this.completeTurn(input, inspection.text);
@@ -1916,6 +1925,11 @@ export class AgentService {
                 return;
             } catch (error) {
                 if (this.shutdown.signal.aborted) return;
+                if (error instanceof AgentTurnStreamStopped || submissionSignal?.aborted) {
+                    this.clearTypingRenewal(input.chatId, input.userMessageId);
+                    this.clearAgentActivity(input.userMessageId);
+                    return;
+                }
                 try {
                     await this.failTurn(
                         input,
@@ -1928,22 +1942,21 @@ export class AgentService {
             }
         }
     }
-    private async ensureTurnSubmitted(input: AgentTurnWork): Promise<AgentTurnSubmission> {
+    private async ensureTurnSubmitted(
+        input: AgentTurnWork,
+        signal: AbortSignal,
+    ): Promise<AgentTurnSubmission> {
         let baselineMessageCount = input.baselineMessageCount;
         let lastSessionEventId = input.lastSessionEventId;
         let runId = input.runId;
         if (baselineMessageCount === undefined) {
             if (runId) {
                 baselineMessageCount = await this.retryRig(() =>
-                    this.daemon.submittedTurnBaseline(
-                        input.sessionId,
-                        input.text,
-                        this.shutdown.signal,
-                    ),
+                    this.daemon.submittedTurnBaseline(input.sessionId, input.text, signal),
                 );
             } else {
                 const checkpoint = await this.retryRig(() =>
-                    this.daemon.sessionCheckpoint(input.sessionId, this.shutdown.signal),
+                    this.daemon.sessionCheckpoint(input.sessionId, signal),
                 );
                 baselineMessageCount = checkpoint.messageCount;
                 lastSessionEventId = checkpoint.lastEventId;
@@ -1962,12 +1975,7 @@ export class AgentService {
                 );
         }
         const existing = await this.retryRig(() =>
-            this.daemon.inspectTurn(
-                input.sessionId,
-                baselineMessageCount,
-                input.text,
-                this.shutdown.signal,
-            ),
+            this.daemon.inspectTurn(input.sessionId, baselineMessageCount, input.text, signal),
         );
         if (runId || existing.kind !== "not_submitted")
             return {
@@ -1983,11 +1991,42 @@ export class AgentService {
                           runId,
                       }),
             };
+        try {
+            await this.materializeTurnAttachments(input, signal);
+        } catch (error) {
+            if (signal.aborted)
+                throw new AgentTurnStreamStopped(
+                    `Agent turn ${input.userMessageId} lease was lost during attachment staging.`,
+                );
+            throw error;
+        }
+        if (
+            signal.aborted ||
+            !(await agentTurnRenewLease(this.executor, {
+                agentUserId: input.agentUserId,
+                userMessageId: input.userMessageId,
+                workerId: input.workerId,
+            }))
+        )
+            throw new AgentTurnStreamStopped(
+                `Agent turn ${input.userMessageId} lease was lost before submission.`,
+            );
         const [externalTools, skills] = await Promise.all([
-            this.pluginCapabilities?.listFunctions(this.shutdown.signal) ?? [],
-            this.pluginCapabilities?.listSkills(this.shutdown.signal) ?? [],
+            this.pluginCapabilities?.listFunctions(signal) ?? [],
+            this.pluginCapabilities?.listSkills(signal) ?? [],
         ]);
         for (;;) {
+            if (
+                signal.aborted ||
+                !(await agentTurnRenewLease(this.executor, {
+                    agentUserId: input.agentUserId,
+                    userMessageId: input.userMessageId,
+                    workerId: input.workerId,
+                }))
+            )
+                throw new AgentTurnStreamStopped(
+                    `Agent turn ${input.userMessageId} lease was lost before submission.`,
+                );
             let submitted: {
                 eventId: string;
                 runId: string;
@@ -1998,16 +2037,16 @@ export class AgentService {
                     input.text,
                     externalTools,
                     skills,
-                    this.shutdown.signal,
+                    signal,
                 );
             } catch (error) {
-                if (this.shutdown.signal.aborted) throw error;
+                if (signal.aborted) throw error;
                 const recovered = await this.retryRig(() =>
                     this.daemon.inspectTurn(
                         input.sessionId,
                         baselineMessageCount,
                         input.text,
-                        this.shutdown.signal,
+                        signal,
                     ),
                 );
                 if (recovered.kind !== "not_submitted")
@@ -2025,7 +2064,7 @@ export class AgentService {
                               }),
                     };
                 if (!isRetryableRigError(error)) throw error;
-                await delay(EVENT_RETRY_INTERVAL_MS, this.shutdown.signal);
+                await delay(EVENT_RETRY_INTERVAL_MS, signal);
                 continue;
             }
             runId = submitted.runId;
@@ -2049,6 +2088,47 @@ export class AgentService {
                 lastSessionEventId,
                 runId,
             };
+        }
+    }
+    private async materializeTurnAttachments(
+        input: AgentTurnWork,
+        signal: AbortSignal,
+    ): Promise<void> {
+        const context = await agentTurnAttachmentGetContext(this.executor, {
+            agentUserId: input.agentUserId,
+            chatId: input.chatId,
+            sessionId: input.sessionId,
+            userMessageId: input.userMessageId,
+        });
+        if (!context) throw new Error("Agent turn attachment context is not readable");
+        const runtime = await this.sandboxRuntime();
+        for (const attachment of context.attachments) {
+            if (
+                !attachment.containerPath.startsWith(
+                    "/workspace/.context/downloads/happy2-attachment-",
+                )
+            )
+                throw new Error("Agent turn attachment path is outside workspace downloads");
+            const temporaryDirectory = await mkdtemp(join(tmpdir(), "happy2-agent-attachment-"));
+            const temporary = join(temporaryDirectory, "attachment");
+            try {
+                await pipeline(
+                    this.fileStorage.open({ storageName: attachment.storageName }),
+                    createWriteStream(temporary, { flags: "wx", mode: 0o600 }),
+                    { signal },
+                );
+                await chmod(temporary, 0o444);
+                await runtime.copyFileToSandbox(
+                    {
+                        containerName: context.containerName,
+                        destinationPath: attachment.containerPath,
+                        sourcePath: temporary,
+                    },
+                    signal,
+                );
+            } finally {
+                await rm(temporaryDirectory, { recursive: true, force: true });
+            }
         }
     }
     private startTurnStream(input: AgentTurnWork, submission: AgentTurnSubmission): void {
@@ -2418,14 +2498,20 @@ export class AgentService {
                 : {}),
         });
     }
-    private async startTyping(input: AgentTurnWork): Promise<void> {
-        if (this.typingRenewals.has(input.chatId)) return;
+    private async startTyping(input: AgentTurnWork): Promise<AbortSignal> {
+        const current = this.typingRenewals.get(input.chatId);
+        if (current) {
+            if (current.userMessageId !== input.userMessageId)
+                throw new Error("Another agent turn already owns the chat lease renewal");
+            return current.controller.signal;
+        }
         try {
             await this.publishTyping(input, true);
         } catch (error) {
             this.onError(error);
         }
         let renewal!: ActiveTypingRenewal;
+        const controller = new AbortController();
         const timer = setInterval(() => {
             void agentTurnRenewLease(this.executor, {
                 agentUserId: input.agentUserId,
@@ -2435,6 +2521,7 @@ export class AgentService {
                 .then(async (renewed) => {
                     if (this.typingRenewals.get(input.chatId) !== renewal) return;
                     if (!renewed) {
+                        controller.abort();
                         this.clearTypingRenewal(input.chatId, input.userMessageId);
                         this.clearAgentActivity(input.userMessageId);
                         this.turnStreams.get(input.userMessageId)?.controller.abort();
@@ -2446,10 +2533,12 @@ export class AgentService {
         }, TYPING_RENEW_INTERVAL_MS);
         timer.unref();
         renewal = {
+            controller,
             timer,
             userMessageId: input.userMessageId,
         };
         this.typingRenewals.set(input.chatId, renewal);
+        return controller.signal;
     }
     private async stopTyping(input: AgentTurnWork): Promise<void> {
         this.clearTypingRenewal(input.chatId, input.userMessageId);
@@ -2462,7 +2551,10 @@ export class AgentService {
     private clearTypingRenewal(chatId: string, userMessageId?: string): void {
         const renewal = this.typingRenewals.get(chatId);
         if (userMessageId && renewal?.userMessageId !== userMessageId) return;
-        if (renewal) clearInterval(renewal.timer);
+        if (renewal) {
+            clearInterval(renewal.timer);
+            renewal.controller.abort();
+        }
         this.typingRenewals.delete(chatId);
     }
     private publishTyping(input: AgentTurnWork, active: boolean): Promise<void> {

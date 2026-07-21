@@ -1523,10 +1523,10 @@ it("renders string bodies as safe streaming Markdown", async () => {
     expect((table as HTMLElement).scrollWidth).toBeGreaterThanOrEqual(
         (table as HTMLElement).clientWidth,
     );
-    /* ---- Multi-block stacking: 8px gap between adjacent blocks ---------- */
+    /* ---- Multi-block stacking: 8px, or 24px around fenced code ----------- */
     /* The Markdown renderer emits every block as a direct body child, so the
-       body's `> * + *` 8px rule is truthful. Adjacent blocks must sit exactly
-       8px apart (no leftover UA margin or wrapper masking the rule). */
+       body's `> * + *` 8px rule is truthful, apart from the intentionally
+       roomier fenced-code card. */
     const mdBlocks = [...mdBody.element.children].filter(
         (node): node is HTMLElement =>
             node instanceof HTMLElement &&
@@ -1537,9 +1537,11 @@ it("renders string bodies as safe streaming Markdown", async () => {
     for (let index = 1; index < mdBlocks.length; index += 1) {
         const previous = mdBlocks[index - 1]!.getBoundingClientRect();
         const current = mdBlocks[index]!.getBoundingClientRect();
+        const expectedGap =
+            mdBlocks[index - 1]!.tagName === "PRE" || mdBlocks[index]!.tagName === "PRE" ? 24 : 8;
         expect(
-            Math.abs(current.top - previous.bottom - 8),
-            `block ${index} sits 8px below block ${index - 1}`,
+            Math.abs(current.top - previous.bottom - expectedGap),
+            `block ${index} has its expected vertical gap after block ${index - 1}`,
         ).toBeLessThanOrEqual(0.75);
     }
     /* ---- Safe links ---------------------------------------------------- */

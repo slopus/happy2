@@ -21,7 +21,7 @@ describe("LocalOciSandboxProvider", () => {
         await rm(directory, { recursive: true, force: true });
     });
 
-    it("probes Docker and exposes build, sandbox, file, cleanup, and terminal capabilities", async () => {
+    it("probes Docker and exposes build, sandbox, file, and terminal capabilities", async () => {
         const provider = dockerProvider(command);
         await expect(provider.probe()).resolves.toMatchObject({
             id: "docker",
@@ -46,7 +46,7 @@ describe("LocalOciSandboxProvider", () => {
         await provider.copyFileToSandbox({
             containerName: "retry-mount-container",
             sourcePath: "/host/input.txt",
-            destinationPath: "/workspace/input.txt",
+            destinationPath: "/workspace/.context/downloads/input.txt",
         });
         await provider.copyFileFromSandbox({
             containerName: "retry-mount-container",
@@ -134,8 +134,20 @@ describe("LocalOciSandboxProvider", () => {
         ]);
         expect(createCalls[1]?.args).toEqual(createCalls[0]?.args);
         expect(calls.map(({ args }) => args)).toContainEqual(["start", "retry-mount-container"]);
+        expect(calls.map(({ args }) => args)).toContainEqual([
+            "exec",
+            "retry-mount-container",
+            "mkdir",
+            "-p",
+            "--",
+            "/workspace/.context/downloads",
+        ]);
         expect(calls.map(({ args }) => args).filter(([operation]) => operation === "cp")).toEqual([
-            ["cp", "/host/input.txt", "retry-mount-container:/workspace/input.txt"],
+            [
+                "cp",
+                "/host/input.txt",
+                "retry-mount-container:/workspace/.context/downloads/input.txt",
+            ],
             ["cp", "retry-mount-container:/workspace/output.txt", "/host/output.txt"],
         ]);
         expect(calls.map(({ args }) => args)).toContainEqual([

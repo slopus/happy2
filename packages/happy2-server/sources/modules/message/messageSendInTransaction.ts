@@ -276,14 +276,12 @@ export async function messageSendInTransaction(
                     agentUserId: requestedTurn.agentUserId,
                     chatId: input.chatId,
                     sessionId: requestedTurn.sessionId,
-                    prompt:
-                        access.kind === "dm"
-                            ? input.text
-                            : await agentTurnPromptBuild(tx, {
-                                  agentUserId: requestedTurn.agentUserId,
-                                  chatId: input.chatId,
-                                  currentSequence: mutation.messageSequence,
-                              }),
+                    prompt: await agentTurnPromptBuild(tx, {
+                        agentUserId: requestedTurn.agentUserId,
+                        chatId: input.chatId,
+                        currentSequence: mutation.messageSequence,
+                        ...(access.kind === "dm" ? { directText: input.text } : {}),
+                    }),
                 });
             await tx.insert(agentTurns).values(turns);
         }

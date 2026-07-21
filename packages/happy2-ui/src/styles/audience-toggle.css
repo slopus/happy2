@@ -1,38 +1,46 @@
 /*
  * C-065 AudienceToggle.
  *
- * A thin wrapper that keeps the People/Agents SegmentedControl inline inside
- * the composer toolbar; all visual treatment comes from SegmentedControl.
+ * A compact current-mode toggle in the composer toolbar.
  */
 
 .happy2-audience-toggle {
     display: inline-flex;
     flex: none;
     align-items: center;
+    gap: 8px;
+    height: 32px;
+    margin: 0;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--happy2-font-ui);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 16px;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
 }
 
-/*
- * An explicit even width keeps both 1fr columns — and therefore the sliding
- * pill's border box — on integer CSS pixels, so the pill's 5px inset and 1px
- * inner radius hold exactly in every engine (the intrinsic content width of
- * the People/Agents labels is fractional).
- */
-.happy2-audience-toggle .happy2-segmented-control {
-    width: 184px;
+.happy2-audience-toggle[data-value="people"] {
+    background: var(--surface-pressed);
+    color: var(--text);
 }
 
-/*
- * As the leading toolbar control the toggle enters the composer's 10px
- * bottom-left corner field with a 7px border-box inset (1px composer border +
- * 6px toolbar pad), leaving a parallel 3px arc — same as the edge buttons.
- */
-.happy2-composer__actions > .happy2-audience-toggle:first-child .happy2-segmented-control {
-    border-bottom-left-radius: 8px;
+.happy2-audience-toggle:hover:not(:disabled) {
+    background: var(--surface-pressed);
+    color: var(--text);
 }
 
-.happy2-composer__actions > .happy2-audience-toggle:first-child .happy2-segmented-control__pill,
-.happy2-composer__actions
-    > .happy2-audience-toggle:first-child
-    .happy2-segmented-control__segment:first-of-type {
-    border-bottom-left-radius: 3px;
+.happy2-audience-toggle:focus-visible {
+    outline: 2px solid var(--radio-active);
+    outline-offset: 2px;
+}
+
+.happy2-audience-toggle:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
 }

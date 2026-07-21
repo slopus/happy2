@@ -1,5 +1,5 @@
 import { type CSSProperties } from "react";
-import { SegmentedControl } from "./SegmentedControl";
+import { Icon } from "./Icon";
 
 export type AudienceValue = "people" | "agents";
 export type AudienceToggleProps = {
@@ -11,30 +11,26 @@ export type AudienceToggleProps = {
     value: AudienceValue;
 };
 /**
- * C-065 AudienceToggle — the composer's message-destination switch. A fixed
- * two-segment People/Agents control built on SegmentedControl so the current
- * mode is always visible; Shift+Tab in the composer flips it without the
- * pointer. The host owns the value and receives typed audience changes.
+ * C-065 AudienceToggle — a compact current-destination toggle. It exposes one
+ * icon-and-label control, so the composer stays quiet while Shift+Tab and a
+ * click still switch the host-owned audience.
  */
 export function AudienceToggle(props: AudienceToggleProps) {
     return (
-        <div
+        <button
+            aria-label={props.value === "people" ? "Switch to Agents" : "Switch to People"}
+            aria-pressed={props.value === "people"}
             className={["happy2-audience-toggle", props.className].filter(Boolean).join(" ")}
             data-happy2-ui="audience-toggle"
             data-testid={props["data-testid"]}
             data-value={props.value}
+            disabled={props.disabled}
+            onClick={() => props.onChange?.(props.value === "people" ? "agents" : "people")}
             style={props.style}
+            type="button"
         >
-            <SegmentedControl
-                disabled={props.disabled}
-                onChange={(value) => props.onChange?.(value as AudienceValue)}
-                segments={[
-                    { icon: "users", label: "People", value: "people" },
-                    { icon: "spark", label: "Agents", value: "agents" },
-                ]}
-                size="small"
-                value={props.value}
-            />
-        </div>
+            <Icon name={props.value === "people" ? "users" : "spark"} size={16} />
+            <span>{props.value === "people" ? "People" : "Agents"}</span>
+        </button>
     );
 }

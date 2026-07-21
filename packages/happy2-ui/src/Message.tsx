@@ -43,6 +43,8 @@ export type MessageReaction = {
 export type MessageImage = {
     id: string;
     url: string;
+    /** Tiny decoded ThumbHash shown while the attachment preview downloads. */
+    placeholderUrl?: string;
     alt?: string;
     /** Intrinsic pixel dimensions — reserve a stable box before the image loads. */
     width?: number;
@@ -316,36 +318,39 @@ export function Message(props: MessageProps) {
             window.removeEventListener("resize", onViewportChange);
         };
     }, [closePopovers, menuOpen, reactionOpen]);
-    const bodyNode = !local.body ? null : isMarkdownBody() ? (
-        <div
-            className="happy2-message__body happy2-message__body--markdown"
-            data-markdown=""
-            data-happy2-ui="message-body"
-        >
-            {markdownBody}
-            {local.generationStatus === "streaming" ? (
-                <span
-                    aria-hidden="true"
-                    className="happy2-message__caret"
-                    data-happy2-ui="message-stream-caret"
-                />
-            ) : null}
-            {local.generationStatus === "failed" ? (
-                <span
-                    aria-label="Generation failed"
-                    className="happy2-message__gen-failed"
-                    data-happy2-ui="message-generation-failed"
-                    role="img"
-                />
-            ) : null}
-        </div>
-    ) : (
-        <div className="happy2-message__body" data-happy2-ui="message-body">
-            {segments().map((segment, index) => (
-                <span key={`${segment.kind}-${index}`}>{renderSegment(segment)}</span>
-            ))}
-        </div>
-    );
+    const bodyNode =
+        !local.body &&
+        local.generationStatus !== "streaming" &&
+        local.generationStatus !== "failed" ? null : isMarkdownBody() ? (
+            <div
+                className="happy2-message__body happy2-message__body--markdown"
+                data-markdown=""
+                data-happy2-ui="message-body"
+            >
+                {markdownBody}
+                {local.generationStatus === "streaming" ? (
+                    <span
+                        aria-hidden="true"
+                        className="happy2-message__caret"
+                        data-happy2-ui="message-stream-caret"
+                    />
+                ) : null}
+                {local.generationStatus === "failed" ? (
+                    <span
+                        aria-label="Generation failed"
+                        className="happy2-message__gen-failed"
+                        data-happy2-ui="message-generation-failed"
+                        role="img"
+                    />
+                ) : null}
+            </div>
+        ) : (
+            <div className="happy2-message__body" data-happy2-ui="message-body">
+                {segments().map((segment, index) => (
+                    <span key={`${segment.kind}-${index}`}>{renderSegment(segment)}</span>
+                ))}
+            </div>
+        );
     return (
         <div
             {...rest}
@@ -444,16 +449,32 @@ export function Message(props: MessageProps) {
                                 type="button"
                                 key={image.id}
                             >
-                                <img
-                                    alt={image.alt ?? ""}
-                                    className="happy2-message__media-image"
-                                    data-happy2-ui="message-media-image"
-                                    draggable={false}
-                                    height={image.height}
-                                    loading="lazy"
-                                    src={image.url}
-                                    width={image.width}
-                                />
+                                {image.url ? (
+                                    <img
+                                        alt={image.alt ?? ""}
+                                        className="happy2-message__media-image"
+                                        data-happy2-ui="message-media-image"
+                                        draggable={false}
+                                        height={image.height}
+                                        loading="lazy"
+                                        src={image.url}
+                                        width={image.width}
+                                    />
+                                ) : (
+                                    <span
+                                        aria-label={`Loading ${image.alt ?? "image"}`}
+                                        className="happy2-message__media-loading"
+                                        data-happy2-ui="message-media-loading"
+                                        role="status"
+                                        style={
+                                            image.placeholderUrl
+                                                ? {
+                                                      backgroundImage: `url(${image.placeholderUrl})`,
+                                                  }
+                                                : undefined
+                                        }
+                                    />
+                                )}
                             </button>
                         ))}
                     </div>

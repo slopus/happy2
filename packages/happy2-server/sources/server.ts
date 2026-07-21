@@ -260,6 +260,7 @@ async function buildServerWithLogging(
     if (productServer) {
         const livePubsub = pubsub!;
         const now = services.now ?? (() => new Date());
+        fileStorage = services.fileStorage ?? new FileStorage(config, executor);
         const secretProtector =
             services.integrationSecretProtector ??
             integrationSecretProtector(config, Boolean(supplied));
@@ -346,6 +347,7 @@ async function buildServerWithLogging(
                       new RigDaemonClient(config.agents),
                       sandboxRuntime,
                       config.agents.defaultCwd,
+                      fileStorage,
                       pluginService,
                       (error) => app.log.error(error),
                   )
@@ -387,7 +389,6 @@ async function buildServerWithLogging(
         });
         registerSetupRoutes(app, auth, executor, livePubsub, sandboxProviderCatalog, agentService);
         pluginBridge = new PluginMcpHttpBridge(pluginService, (error) => app.log.error(error));
-        fileStorage = services.fileStorage ?? new FileStorage(config, executor);
         registerFileRoutes(app, config, auth, executor, services.tokens, fileStorage);
         registerCollaborationRoutes(app, auth, executor, livePubsub, agentService);
         registerDocumentRoutes(app, auth, executor, livePubsub);

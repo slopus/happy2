@@ -131,11 +131,6 @@
     gap: 8px;
 }
 
-.happy2-composer__actions:has(.happy2-audience-toggle) {
-    position: relative;
-    top: 2px;
-}
-
 /* Composer-local action geometry: the shared Button ships a 28px "small", but
  * the composer's unified panel uses 32px controls (matches the original app).
  * Overridden here, not in the Button API, so other Button call sites are
@@ -184,6 +179,12 @@
     font-size: 16px !important;
 }
 
+.happy2-composer__trailing > .happy2-button:not(.happy2-composer__send) .happy2-icon {
+    width: 16px !important;
+    height: 16px !important;
+    font-size: 16px !important;
+}
+
 .happy2-composer__popover {
     position: absolute;
     /* Offsets resolve against the padding box; +1px/-1px compensate for the
@@ -212,12 +213,8 @@
 
 /* Audience controls compact only when a narrow desktop panel requires it. */
 @container (max-width: 423px) {
-    .happy2-composer .happy2-audience-toggle .happy2-segmented-control {
-        width: 120px;
-    }
-
-    .happy2-composer .happy2-audience-toggle .happy2-segmented-control__icon {
-        display: none;
+    .happy2-composer .happy2-audience-toggle {
+        padding: 0 8px;
     }
 }
 
