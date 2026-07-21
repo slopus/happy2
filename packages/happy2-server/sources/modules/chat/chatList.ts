@@ -1,10 +1,11 @@
 import { type ChatSummary } from "./types.js";
 import { type DrizzleExecutor } from "../drizzle.js";
-import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { asChat } from "./impl/asChat.js";
 
 import { chatMembers, chats, userChatPreferences } from "../schema.js";
 import { chatSelection } from "./impl/chatSelection.js";
+import { chatListCondition } from "./impl/chatListVisibility.js";
 
 /**
  * Lists live joined chats plus listed public channels, placing starred chats in user order before recently updated conversations.
@@ -26,16 +27,7 @@ export async function chatList(executor: DrizzleExecutor, userId: string): Promi
             userChatPreferences,
             and(eq(userChatPreferences.chatId, chats.id), eq(userChatPreferences.userId, userId)),
         )
-        .where(
-            and(
-                isNull(chats.deletedAt),
-                isNull(chats.parentMessageId),
-                or(
-                    and(eq(chats.kind, "public_channel"), eq(chats.isListed, 1)),
-                    sql`${chatMembers.userId} IS NOT NULL`,
-                ),
-            ),
-        )
+        .where(chatListCondition(executor, userId))
         .orderBy(
             desc(sql`coalesce(${userChatPreferences.starred}, 0)`),
             asc(

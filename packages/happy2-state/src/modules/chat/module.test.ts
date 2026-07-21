@@ -225,6 +225,61 @@ describe("chat module", () => {
         });
         expect(binding.getState().agentEffort["agent-2"]).toBeUndefined();
     });
+
+    it("retains durable channel lifecycle service messages across reconciliation", () => {
+        const binding = chatStoreCreate("chat-1");
+        const identities = new IdentityCatalog();
+        const lifecycle = [
+            message({
+                id: "joined-1",
+                sequence: "1",
+                kind: "automated",
+                text: "@ada joined #ops",
+                service: { type: "user_joined", userId: "user-2" },
+            }),
+            message({
+                id: "left-1",
+                sequence: "2",
+                kind: "automated",
+                text: "@ada left #ops",
+                service: { type: "user_left", userId: "user-2" },
+            }),
+            message({
+                id: "kicked-1",
+                sequence: "3",
+                kind: "automated",
+                text: "@ada was removed from #ops",
+                service: { type: "user_kicked", userId: "user-2" },
+            }),
+            message({
+                id: "archived-1",
+                sequence: "4",
+                kind: "automated",
+                text: "@owner archived #ops",
+                service: { type: "channel_archived", userId: "user-1" },
+            }),
+        ].map((entry) => messageItemProject(identities, entry));
+        binding.getState().chatInput({
+            type: "chatLoaded",
+            chat: chat(),
+            messages: lifecycle,
+            hasMoreMessages: false,
+        });
+        // A later reconciliation of the same durable notice must not drop any lifecycle payload.
+        binding.getState().chatInput({ type: "messageUpserted", item: lifecycle[2] });
+        expect(binding.getState().messages.map((item) => item.message.service)).toEqual([
+            { type: "user_joined", userId: "user-2" },
+            { type: "user_left", userId: "user-2" },
+            { type: "user_kicked", userId: "user-2" },
+            { type: "channel_archived", userId: "user-1" },
+        ]);
+        expect(binding.getState().messages.map((item) => item.message.text)).toEqual([
+            "@ada joined #ops",
+            "@ada left #ops",
+            "@ada was removed from #ops",
+            "@owner archived #ops",
+        ]);
+    });
 });
 
 const pendingRequest: PluginManagementRequestSummary = {

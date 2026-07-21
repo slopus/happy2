@@ -73,10 +73,10 @@ describe("voluntary private-channel departure and explicit membership revocation
             state: leaveBaseline,
         });
         expect(leaveDifference.statusCode).toBe(200);
-        expect(leaveDifference.json().removedChatIds).not.toContain(chatId);
+        expect(leaveDifference.json().removedChatIds).toContain(chatId);
         expect(
             leaveDifference.json().changedChats.find((chat: { id: string }) => chat.id === chatId),
-        ).toMatchObject({ id: chatId });
+        ).toBeUndefined();
         expect(
             (await asOutsider.get("/v0/directory/channels"))
                 .json()
@@ -143,12 +143,10 @@ describe("voluntary private-channel departure and explicit membership revocation
             state: memberBaseline,
         });
         expect(memberDifference.statusCode).toBe(200);
-        expect(memberDifference.json().removedChatIds).not.toContain(chatId);
+        expect(memberDifference.json().removedChatIds).toContain(chatId);
         expect(
             memberDifference.json().changedChats.find((chat: { id: string }) => chat.id === chatId),
-        ).toMatchObject({
-            archivedAt: expect.any(String),
-        });
+        ).toBeUndefined();
 
         await server.restart();
         expect((await asOwner.get(`/v0/chats/${chatId}/members`)).json().memberships).toEqual([]);

@@ -21,7 +21,7 @@ import { asChat } from "./impl/asChat.js";
 import { areaHint } from "./areaHint.js";
 import { createId } from "@paralleldrive/cuid2";
 import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
-import { createUserAddedServiceMessageDb } from "./impl/createUserAddedServiceMessageDb.js";
+import { createChannelServiceMessageDb } from "./impl/createChannelServiceMessageDb.js";
 
 /**
  * Updates chats archival state for a manageable channel and optionally applies the matching top-level chatMembers transition in the same transaction.
@@ -148,7 +148,7 @@ export async function channelSetArchived(
                     targetUserId: membership.userId,
                 });
         }
-        let joinedServicePts: number | undefined;
+        let servicePts: number | undefined;
         let documentsChanged = false;
         if (joinRole) {
             await chatAdvanceWithSequence(
@@ -189,15 +189,25 @@ export async function channelSetArchived(
                 kind: "joined",
                 role: joinRole,
             });
-            joinedServicePts = (
-                await createUserAddedServiceMessageDb(tx, {
+            servicePts = (
+                await createChannelServiceMessageDb(tx, {
                     sequence,
                     chatId: input.chatId,
                     userId: input.actorUserId,
+                    type: "user_joined",
                 })
             ).pts;
             memberUserIds.push(input.actorUserId);
         }
+        if (input.archived)
+            servicePts = (
+                await createChannelServiceMessageDb(tx, {
+                    sequence,
+                    chatId: input.chatId,
+                    userId: input.actorUserId,
+                    type: "channel_archived",
+                })
+            ).pts;
         const [attachedDocument] =
             memberships.length > 0
                 ? await tx
@@ -253,8 +263,8 @@ export async function channelSetArchived(
                 chats: mutations.map((mutation) => ({
                     chatId: mutation.chatId,
                     pts: String(
-                        mutation.chatId === input.chatId && joinedServicePts !== undefined
-                            ? joinedServicePts
+                        mutation.chatId === input.chatId && servicePts !== undefined
+                            ? servicePts
                             : mutation.pts,
                     ),
                 })),

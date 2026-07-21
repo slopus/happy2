@@ -10,6 +10,7 @@ import { chatGetAccess } from "./chatGetAccess.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
 import { areaHint } from "./areaHint.js";
+import { createChannelServiceMessageDb } from "./impl/createChannelServiceMessageDb.js";
 
 /**
  * Marks the actor's durable chatMembers membership voluntarily inactive and transfers chats ownership when another active owner exists.
@@ -60,7 +61,7 @@ export async function channelLeave(
             }
         }
         const sequence = await syncSequenceNext(tx);
-        const mutation = await chatAdvanceWithSequence(
+        await chatAdvanceWithSequence(
             tx,
             sequence,
             actorUserId,
@@ -91,8 +92,14 @@ export async function channelLeave(
             kind: "left",
             replacementOwnerUserId,
         });
+        const service = await createChannelServiceMessageDb(tx, {
+            sequence,
+            chatId,
+            userId: actorUserId,
+            type: "user_left",
+        });
         return {
-            hint: chatHint(sequence, chatId, mutation.pts),
+            hint: chatHint(sequence, chatId, service.pts),
             ...(documentsChanged ? { documentsHint: areaHint(sequence, "documents") } : {}),
         };
     });

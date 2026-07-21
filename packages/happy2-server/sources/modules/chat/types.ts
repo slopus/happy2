@@ -147,7 +147,10 @@ export interface MessageSummary {
     agentUserIds: string[];
     text: string;
     service?:
-        | { type: "user_added" | "user_joined"; userId: string }
+        | {
+              type: "user_added" | "user_joined" | "user_left" | "user_kicked" | "channel_archived";
+              userId: string;
+          }
         | { type: "agent_effort_changed"; agentUserId: string; effort: string };
     generationStatus?: "streaming" | "complete" | "failed";
     agentTrace?: AgentTurnTraceSummary;

@@ -14,6 +14,7 @@ import { stateAt } from "./impl/stateAt.js";
 import { text } from "../chat/text.js";
 import { chatGetAccess } from "../chat/chatGetAccess.js";
 import { chatCanAccess } from "../chat/chatCanAccess.js";
+import { chatCanSync } from "../chat/chatCanSync.js";
 import { syncGetState } from "./syncGetState.js";
 /**
  * Projects a global sync-event range into chats, removals, and product areas visible to one user.
@@ -114,8 +115,13 @@ export async function syncGetDifference(
             targetUserId === input.userId &&
             (kind === "member.removed" || kind === "member.left")
         ) {
-            if (!(await chatCanAccess(executor, input.userId, chatId))) removedChatIds.add(chatId);
-            else changedChatIds.add(chatId);
+            removedChatIds.add(chatId);
+            changedChatIds.delete(chatId);
+            continue;
+        }
+        if (chatId && targetUserId === input.userId && kind === "member.joined") {
+            removedChatIds.delete(chatId);
+            if (await chatCanSync(executor, input.userId, chatId)) changedChatIds.add(chatId);
             continue;
         }
         if (chatId && kind === "chat.deleted") {
@@ -130,8 +136,13 @@ export async function syncGetDifference(
             continue;
         }
         if (chatId && kind === "chat.visibilityChanged") {
-            if (await chatCanAccess(executor, input.userId, chatId)) changedChatIds.add(chatId);
-            else removedChatIds.add(chatId);
+            if (await chatCanSync(executor, input.userId, chatId)) {
+                removedChatIds.delete(chatId);
+                changedChatIds.add(chatId);
+            } else {
+                changedChatIds.delete(chatId);
+                removedChatIds.add(chatId);
+            }
             continue;
         }
         if (kind === "plugin.uninstalled") {
@@ -159,8 +170,8 @@ export async function syncGetDifference(
             continue;
         }
         if (kind.startsWith("call.")) areas.add("calls");
-        if (chatId && (await chatCanAccess(executor, input.userId, chatId))) {
-            changedChatIds.add(chatId);
+        if (chatId && (await chatCanSync(executor, input.userId, chatId))) {
+            if (!removedChatIds.has(chatId)) changedChatIds.add(chatId);
             continue;
         }
         if (kind.startsWith("preferences.")) areas.add("preferences");
@@ -187,6 +198,7 @@ export async function syncGetDifference(
     }
     const changedChats: ChatSummary[] = [];
     for (const chatId of changedChatIds) {
+        if (!(await chatCanSync(executor, input.userId, chatId))) continue;
         const chat = await chatGetAccess(executor, input.userId, chatId, false);
         if (chat) changedChats.push(chat);
     }

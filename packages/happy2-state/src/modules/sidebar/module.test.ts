@@ -30,6 +30,26 @@ describe("sidebar module", () => {
         expect(binding.getState().chats).toEqual([second]);
     });
 
+    it("drops a chat carried in reconciled removedChatIds while sharing the unaffected sibling", () => {
+        const binding = sidebarStoreCreate();
+        const departed = projection("chat-1", 1);
+        const sibling = projection("chat-2", 2);
+        binding.getState().sidebarInput({
+            type: "sidebarLoaded",
+            chats: [departed, sibling],
+            sync: { protocolVersion: 1, generation: "g", sequence: "1" },
+        });
+        const loaded = binding.getState();
+        binding.getState().sidebarInput({
+            type: "chatSummariesReconciled",
+            changedChats: [],
+            removedChatIds: ["chat-1"],
+            sync: loaded.sync!,
+        });
+        expect(binding.getState().chats.map(({ id }) => id)).toEqual(["chat-2"]);
+        expect(binding.getState().chats[0]).toBe(sibling);
+    });
+
     it("filters child chats at the projection boundary", async () => {
         const projector = new SidebarChatsProjector(new StateRuntime({}), new IdentityCatalog());
         const parent = chat({ id: "parent" });

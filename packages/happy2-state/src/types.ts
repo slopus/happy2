@@ -428,7 +428,12 @@ export interface MessageSummary {
     readonly text: string;
     readonly service?:
         | {
-              readonly type: "user_added" | "user_joined";
+              readonly type:
+                  | "user_added"
+                  | "user_joined"
+                  | "user_left"
+                  | "user_kicked"
+                  | "channel_archived";
               readonly userId: string;
           }
         | {

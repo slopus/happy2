@@ -234,6 +234,76 @@ it("projects an effort change as a settings service notice", () => {
         text: "@agent's reasoning effort changed to low",
     });
 });
+it("projects channel lifecycle service messages as generic user notices with server text", () => {
+    const joined = messageItem("joined-1", "@ada joined #ops");
+    const left = messageItem("left-1", "@ada left #ops");
+    const kicked = messageItem("kicked-1", "@ada was removed from #ops");
+    const archived = messageItem("archived-1", "@owner archived #ops");
+    const entries = entriesProject([
+        {
+            ...joined,
+            message: {
+                ...joined.message,
+                kind: "automated",
+                service: { type: "user_joined", userId: "user-2" },
+            },
+        },
+        {
+            ...left,
+            message: {
+                ...left.message,
+                kind: "automated",
+                service: { type: "user_left", userId: "user-2" },
+            },
+        },
+        {
+            ...kicked,
+            message: {
+                ...kicked.message,
+                kind: "automated",
+                service: { type: "user_kicked", userId: "user-2" },
+            },
+        },
+        {
+            ...archived,
+            message: {
+                ...archived.message,
+                kind: "automated",
+                service: { type: "channel_archived", userId: "user-1" },
+            },
+        },
+    ]);
+    expect(entries.filter((entry) => entry.kind === "notice")).toEqual([
+        {
+            kind: "notice",
+            id: "joined-1",
+            conversationId: chat.id,
+            icon: "users",
+            text: "@ada joined #ops",
+        },
+        {
+            kind: "notice",
+            id: "left-1",
+            conversationId: chat.id,
+            icon: "users",
+            text: "@ada left #ops",
+        },
+        {
+            kind: "notice",
+            id: "kicked-1",
+            conversationId: chat.id,
+            icon: "users",
+            text: "@ada was removed from #ops",
+        },
+        {
+            kind: "notice",
+            id: "archived-1",
+            conversationId: chat.id,
+            icon: "users",
+            text: "@owner archived #ops",
+        },
+    ]);
+});
 it("describes a topic-less channel with only notices as ready for its first message", async () => {
     const notice = messageItem("message-1", "@agent's reasoning effort changed to low");
     const description = await chatIntroDescription(

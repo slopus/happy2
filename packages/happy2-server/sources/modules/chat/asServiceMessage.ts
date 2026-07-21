@@ -11,7 +11,11 @@ export function asServiceMessage(value: unknown): MessageSummary["service"] {
             };
         };
         if (
-            (parsed.service?.type === "user_added" || parsed.service?.type === "user_joined") &&
+            (parsed.service?.type === "user_added" ||
+                parsed.service?.type === "user_joined" ||
+                parsed.service?.type === "user_left" ||
+                parsed.service?.type === "user_kicked" ||
+                parsed.service?.type === "channel_archived") &&
             typeof parsed.service.userId === "string"
         )
             return {

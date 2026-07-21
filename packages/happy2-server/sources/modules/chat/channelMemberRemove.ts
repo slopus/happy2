@@ -11,6 +11,7 @@ import { chatRequireManager } from "./chatRequireManager.js";
 import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
 import { chatDescendantIds } from "./impl/chatDescendantIds.js";
 import { areaHint } from "./areaHint.js";
+import { createChannelServiceMessageDb } from "./impl/createChannelServiceMessageDb.js";
 
 /**
  * Revokes a managed chatMembers relationship, repairs chats ownership when necessary, and detaches agentRigBindings that depended on it.
@@ -136,7 +137,7 @@ export async function channelMemberRemove(
             replacementOwnerUserId = replacementOwnerId;
         }
         const sequence = await syncSequenceNext(tx);
-        const mutation = await chatAdvanceWithSequence(
+        await chatAdvanceWithSequence(
             tx,
             sequence,
             input.actorUserId,
@@ -177,8 +178,14 @@ export async function channelMemberRemove(
                     eq(agentRigBindings.userId, input.userId),
                 ),
             );
+        const service = await createChannelServiceMessageDb(tx, {
+            sequence,
+            chatId: input.chatId,
+            userId: input.userId,
+            type: "user_kicked",
+        });
         return {
-            hint: chatHint(sequence, input.chatId, mutation.pts),
+            hint: chatHint(sequence, input.chatId, service.pts),
             ...(documentsChanged ? { documentsHint: areaHint(sequence, "documents") } : {}),
         };
     });

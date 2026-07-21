@@ -8,7 +8,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { and, eq, sql } from "drizzle-orm";
 import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
 import { chatGetAccess } from "./chatGetAccess.js";
-import { createUserAddedServiceMessageDb } from "./impl/createUserAddedServiceMessageDb.js";
+import { createChannelServiceMessageDb } from "./impl/createChannelServiceMessageDb.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
 import { areaHint } from "./areaHint.js";
@@ -94,10 +94,11 @@ export async function channelJoin(
             kind: "joined",
             role,
         });
-        const service = await createUserAddedServiceMessageDb(tx, {
+        const service = await createChannelServiceMessageDb(tx, {
             sequence,
             chatId,
             userId: actorUserId,
+            type: "user_joined",
         });
         const chat = await chatGetAccess(tx, actorUserId, chatId, false);
         if (!chat) throw new Error("Joined chat is not readable");

@@ -8,7 +8,7 @@ import { chatMembers } from "../schema.js";
 import { createId } from "@paralleldrive/cuid2";
 
 import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
-import { createUserAddedServiceMessageDb } from "./impl/createUserAddedServiceMessageDb.js";
+import { createChannelServiceMessageDb } from "./impl/createChannelServiceMessageDb.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { requireActiveIdentityDb } from "./impl/requireActiveIdentityDb.js";
 import { chatRequireManager } from "./chatRequireManager.js";
@@ -96,10 +96,11 @@ export async function channelMemberAdd(
             kind: "joined",
             role: input.role ?? "member",
         });
-        const service = await createUserAddedServiceMessageDb(tx, {
+        const service = await createChannelServiceMessageDb(tx, {
             sequence,
             chatId: input.chatId,
             userId: input.userId,
+            type: "user_added",
         });
         return {
             hint: chatHint(sequence, input.chatId, service.pts),
