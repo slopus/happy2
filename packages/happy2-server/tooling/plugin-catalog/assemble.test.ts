@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { pluginCatalogLoad } from "../../sources/modules/plugin/catalog.js";
-import { assembleBuiltinPluginCatalog, type BuiltinPluginOutput } from "./assemble.js";
+import {
+    assembleBuiltinPluginCatalog,
+    builtinPluginOutputsLoad,
+    type BuiltinPluginOutput,
+} from "./assemble.js";
 
 const SQUARE_PNG = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
@@ -68,6 +72,32 @@ describe("built-in plugin catalog assembly", () => {
     });
 });
 
+describe("built-in plugin discovery", () => {
+    it("discovers every plugin workspace with a source manifest", async () => {
+        const root = await temporaryDirectory();
+        const packagesDirectory = join(root, "packages");
+        await Promise.all([
+            pluginWorkspace(packagesDirectory, "happy2-plugin-zebra", true),
+            pluginWorkspace(packagesDirectory, "happy2-plugin-alpha", true),
+            pluginWorkspace(packagesDirectory, "happy2-plugin-sdk", false),
+            pluginWorkspace(packagesDirectory, "unrelated-package", true),
+        ]);
+
+        await expect(builtinPluginOutputsLoad(packagesDirectory)).resolves.toEqual([
+            {
+                packageName: "happy2-plugin-alpha",
+                shortName: "alpha",
+                directory: join(packagesDirectory, "happy2-plugin-alpha", "dist", "plugin"),
+            },
+            {
+                packageName: "happy2-plugin-zebra",
+                shortName: "zebra",
+                directory: join(packagesDirectory, "happy2-plugin-zebra", "dist", "plugin"),
+            },
+        ]);
+    });
+});
+
 async function temporaryDirectory(): Promise<string> {
     const directory = await mkdtemp(join(tmpdir(), "happy2-plugin-assembly-"));
     temporaryDirectories.push(directory);
@@ -96,4 +126,14 @@ async function pluginOutput(
         }),
     );
     return { packageName, shortName, directory };
+}
+
+async function pluginWorkspace(
+    packagesDirectory: string,
+    packageName: string,
+    plugin: boolean,
+): Promise<void> {
+    const directory = join(packagesDirectory, packageName);
+    await mkdir(directory, { recursive: true });
+    if (plugin) await writeFile(join(directory, "happy2.plugin.ts"), "export default {};\n");
 }

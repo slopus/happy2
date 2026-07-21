@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { cp, mkdir, rename, rm } from "node:fs/promises";
+import { access, cp, mkdir, readdir, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { pluginCatalogLoad, pluginPackageLoad } from "../../sources/modules/plugin/catalog.js";
 
@@ -11,22 +11,43 @@ export interface BuiltinPluginOutput {
 
 const workspaceRoot = resolve(import.meta.dirname, "../../../..");
 
-/** Explicit workspace packages that comprise the server's trusted built-in plugin catalog. */
-export const builtinPluginOutputs: readonly BuiltinPluginOutput[] = [
-    builtin("happy2-plugin-hello", "hello"),
-    builtin("happy2-plugin-chat-management", "chat-management"),
-    builtin("happy2-plugin-documents", "documents"),
-    builtin("happy2-plugin-environment-management", "environment-management"),
-    builtin("happy2-plugin-plugin-developer", "plugin-developer"),
-    builtin("happy2-plugin-movie-catalog", "movie-catalog"),
-    builtin("happy2-plugin-todos", "todos"),
-    builtin("happy2-plugin-port-sharing", "port-sharing"),
-];
+const builtinPluginPackagePrefix = "happy2-plugin-";
+const builtinPluginSourceFilename = "happy2.plugin.ts";
 
 export const assembledPluginCatalogDirectory = resolve(
     workspaceRoot,
     "packages/happy2-server/dist/plugins",
 );
+
+/** Discovers every trusted built-in plugin workspace from its package name and source manifest. */
+export async function builtinPluginOutputsLoad(
+    packagesDirectory = resolve(workspaceRoot, "packages"),
+): Promise<readonly BuiltinPluginOutput[]> {
+    const entries = await readdir(packagesDirectory, { withFileTypes: true });
+    const packageNames = entries
+        .filter((entry) => entry.isDirectory() && entry.name.startsWith(builtinPluginPackagePrefix))
+        .map((entry) => entry.name)
+        .sort();
+    const outputs: BuiltinPluginOutput[] = [];
+
+    for (const packageName of packageNames) {
+        try {
+            await access(join(packagesDirectory, packageName, builtinPluginSourceFilename));
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+            throw error;
+        }
+        outputs.push(
+            builtin(
+                packageName,
+                packageName.slice(builtinPluginPackagePrefix.length),
+                packagesDirectory,
+            ),
+        );
+    }
+
+    return outputs;
+}
 
 /** Validates and atomically assembles built plugin outputs into one server catalog. */
 export async function assembleBuiltinPluginCatalog(
@@ -66,11 +87,15 @@ export async function assembleBuiltinPluginCatalog(
     }
 }
 
-function builtin(packageName: string, shortName: string): BuiltinPluginOutput {
+function builtin(
+    packageName: string,
+    shortName: string,
+    packagesDirectory: string,
+): BuiltinPluginOutput {
     return {
         packageName,
         shortName,
-        directory: resolve(workspaceRoot, "packages", packageName, "dist/plugin"),
+        directory: resolve(packagesDirectory, packageName, "dist/plugin"),
     };
 }
 
