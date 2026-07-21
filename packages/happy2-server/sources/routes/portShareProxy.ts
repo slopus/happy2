@@ -12,7 +12,7 @@ const PORT_SHARE_CONSTRAINT_VALUE = "port-share";
 const SESSION_PATH = "/.happy2/auth/session";
 const REDEEM_PATH = "/.happy2/auth/redeem";
 
-/** Registers hostname-constrained proxying, browser authorization bounce, and host-only cookie redemption without exposing those routes on the app hostname. */
+/** Registers audience-aware hostname proxying, user-only browser redemption, and host-only user-and-subdomain cookies without exposing preview auth routes on the app hostname. */
 export async function registerPortShareProxy(
     app: FastifyInstance,
     portShares: PortShareService,
@@ -101,7 +101,7 @@ export async function registerPortShareProxy(
                     bearer ?? authenticationCookie(request),
                 );
                 upstreams.set(request, authorized.upstream);
-                identities.set(request, authorized.userId);
+                if (authorized.userId) identities.set(request, authorized.userId);
             } catch (error) {
                 if (browserAuthorizationRequired(request, error, bearer)) {
                     try {

@@ -8,6 +8,7 @@ export const portShareSelection = {
     containerPort: portShares.containerPort,
     name: portShares.name,
     subdomain: portShares.subdomain,
+    audience: portShares.audience,
     createdByUserId: portShares.createdByUserId,
     createdAt: portShares.createdAt,
     disabledAt: portShares.disabledAt,
@@ -22,6 +23,7 @@ export interface PortShareRow {
     containerPort: number;
     name: string;
     subdomain: string;
+    audience: string;
     createdByUserId: string;
     createdAt: string;
     disabledAt: string | null;

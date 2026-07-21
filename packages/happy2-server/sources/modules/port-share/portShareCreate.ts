@@ -9,7 +9,12 @@ import { agentRigBindings, portShares, users } from "../schema.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { asPortShare } from "./impl/asPortShare.js";
 import { portShareSelection } from "./impl/portShareSelection.js";
-import { PortShareError, type PortShareContainerPort, type PortShareMutation } from "./types.js";
+import {
+    PortShareError,
+    type PortShareAudience,
+    type PortShareContainerPort,
+    type PortShareMutation,
+} from "./types.js";
 
 const RANDOM_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -25,6 +30,7 @@ export async function portShareCreate(
         chatId: string;
         containerPort: PortShareContainerPort;
         name: string;
+        audience: PortShareAudience;
     },
 ): Promise<PortShareMutation> {
     return withTransaction(executor, async (tx) => {
@@ -74,6 +80,7 @@ export async function portShareCreate(
                     containerPort: input.containerPort,
                     name: input.name,
                     subdomain,
+                    audience: input.audience,
                     createdByUserId: input.actorUserId,
                     createdAt,
                 })

@@ -17,11 +17,21 @@ select them manually.
 2. Call `happy2_port_shares_list`. Only one share may be active in a chat. Reuse
    a matching share; ask before disabling an unrelated active share unless the
    user explicitly requested replacement.
-3. Call `happy2_port_share_expose` with the listening port and a short friendly
-   name. Do not claim success until the tool returns the public URL.
+3. Call `happy2_port_share_expose` with the listening port, a short friendly
+   name, and the narrowest audience that satisfies the request:
+    - `internet`: anyone with the link. This is the only audience the model can
+      access directly without a Happy user credential.
+    - `server`: any authenticated, active user on this Happy server.
+    - `chat`: only authenticated current members of this chat.
+      Ask the user before choosing `internet` unless they explicitly requested a
+      public or internet-wide link. Do not claim success until the tool returns the
+      public URL.
 4. Call `happy2_port_share_probe` against `/` or the application's health path.
-   If it fails, first test the same path locally inside the container, then fix
-   the listener, route, or application error and probe again.
+   This tool supplies the triggering user's authentication for `server` and
+   `chat` shares; ordinary model HTTP clients cannot authenticate to those
+   audiences. If it fails, first test the same path locally inside the
+   container, then fix the listener, route, or application error and probe
+   again.
 5. Report the returned public URL. Opening it starts the browser authorization
    bounce when the preview cookie is absent or expired.
 
@@ -35,10 +45,9 @@ in an Authorization header, never paste it into chat, source files, logs, URLs,
 or command history. Tokens last one hour; request a fresh one after the returned
 `refreshAfter` time rather than persisting it.
 
-Token issuance is the authorization boundary: Happy checks that the triggering
-user is currently a chat member when each token is issued. A successfully
-issued token remains valid for its bounded lifetime unless the share is
-disabled.
+Happy rechecks the token's user and the share's current audience in SQLite on
+every request. Removing a user from a chat immediately revokes their access to a
+`chat` share even if their token or browser cookie has not expired.
 
 ## Stop sharing
 

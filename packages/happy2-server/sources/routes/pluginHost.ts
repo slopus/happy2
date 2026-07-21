@@ -12,7 +12,11 @@ import { CollaborationError } from "../modules/chat/types.js";
 import type { AgentService } from "../modules/agents/index.js";
 import { MAX_WORKSPACE_TEXT_FILE_BYTES, WorkspaceError } from "../modules/workspace/index.js";
 import type { PortShareService } from "../modules/port-share/service.js";
-import { PortShareError, portShareContainerPorts } from "../modules/port-share/types.js";
+import {
+    PortShareError,
+    portShareAudiences,
+    portShareContainerPorts,
+} from "../modules/port-share/types.js";
 import {
     PluginError,
     pluginHostPermissions,
@@ -678,13 +682,14 @@ export function createPluginHostApi(
                 "port-sharing:expose",
             );
             const body = bodyRecord(request.body);
-            onlyBodyKeys(body, ["name", "port"]);
+            onlyBodyKeys(body, ["name", "port", "audience"]);
             const result = await requirePortShares(portShares).create({
                 actorUserId: claims.actorUserId,
                 agentUserId: claims.agentUserId,
                 chatId: claims.chatId,
                 name: requiredTrimmedString(body.name, "name", 80),
                 containerPort: portSharePort(body.port),
+                audience: portShareAudience(body.audience),
             });
             return reply.code(201).send(result);
         } catch (error) {
@@ -774,6 +779,12 @@ function portSharePort(value: unknown) {
     )
         throw new PluginHostRequestError("port must be an integer from 3000 through 3010");
     return value as (typeof portShareContainerPorts)[number];
+}
+
+function portShareAudience(value: unknown) {
+    if (typeof value !== "string" || !portShareAudiences.includes(value as never))
+        throw new PluginHostRequestError("audience must be one of internet, server, or chat");
+    return value as (typeof portShareAudiences)[number];
 }
 
 function hostEnvironment(image: { builtinKey?: string; id: string; name: string; status: string }) {

@@ -90,7 +90,8 @@ access-token creation.
 Each route also requires the installation-bound chat capability in
 `X-Happy2-Chat-Token`. The chat, triggering user, and agent are taken from that
 capability; request bodies cannot select another chat or container. Exactly one
-share may be active for a chat, and `port` must be an integer from 3000 through 3010.
+share may be active for a chat, `port` must be an integer from 3000 through
+3010, and `audience` must be `internet`, `server`, or `chat`.
 
 ```http
 GET /port-shares
@@ -101,18 +102,20 @@ Authorization: Bearer …
 X-Happy2-Chat-Token: …
 Content-Type: application/json
 
-{ "name": "Documentation Preview", "port": 3000 }
+{ "name": "Documentation Preview", "port": 3000, "audience": "chat" }
 ```
 
 Creation returns a friendly hostname such as
-`documentation-preview-a1b2c3.preview.example.com`. Access-token creation uses
-an empty body and returns a one-hour RS256 bearer token for the triggering user,
-share, and subdomain, plus `refreshAfter` set 15 minutes after issuance. Treat
-that token as secret. It can be used directly to test the shared endpoint. When
-a browser opens the public share URL without a current preview cookie, Happy
-redirects through the main API session, verifies current share membership,
-returns a one-minute redemption token to the preview host, establishes the
-host-only HttpOnly cookie there, and redirects back to the requested preview
+`documentation-preview-a1b2c3.preview.example.com`. `internet` permits anyone
+with the link, `server` permits any active authenticated Happy user, and `chat`
+permits current chat members. Access-token creation uses an empty body and
+returns a one-hour RS256 bearer token for the triggering user and subdomain,
+plus `refreshAfter` set 15 minutes after issuance. Treat that token as secret.
+Happy rechecks its user's current audience access in SQLite on every request.
+When a browser opens a restricted share without a current preview cookie, Happy
+redirects through the main API session and returns a one-minute user-only
+redemption token. The preview host verifies current access, establishes a
+user-and-subdomain host-only HttpOnly cookie, and redirects back to the requested
 path.
 
 ## Trust model

@@ -567,8 +567,9 @@ Remote endpoints are rechecked.
   `port-sharing:expose`, `port-sharing:disable`, and `port-sharing:access`
   respectively. Every route also requires the installation-bound chat
   capability in `X-Happy2-Chat-Token`; no request body can select a different
-  chat, agent, or container. One port from the fixed 3000-3010 range may be
-  public for a chat at a time.
+  chat, agent, or container. Creation requires an `audience` of `internet`,
+  `server`, or `chat`; one port from the fixed 3000-3010 range may be shared for
+  a chat at a time.
 
 Container processes receive `HAPPY2_PLUGIN_API_URL` and
 `HAPPY2_PLUGIN_API_TOKEN`. The URL is always

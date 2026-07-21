@@ -1323,6 +1323,7 @@ export const portShares = sqliteTable(
         containerPort: integer("container_port").notNull(),
         name: text("name").notNull(),
         subdomain: text("subdomain").notNull(),
+        audience: text("audience").notNull().default("chat"),
         createdByUserId: text("created_by_user_id")
             .notNull()
             .references(() => users.id, { onDelete: "cascade" }),
@@ -1336,6 +1337,10 @@ export const portShares = sqliteTable(
         check(
             "port_shares_container_port_check",
             sql`${table.containerPort} BETWEEN 3000 AND 3010`,
+        ),
+        check(
+            "port_shares_audience_check",
+            sql`${table.audience} IN ('internet', 'server', 'chat')`,
         ),
         uniqueIndex("port_shares_subdomain_unique").on(table.subdomain),
         uniqueIndex("port_shares_active_chat_unique")

@@ -83,14 +83,14 @@ function toolDefinitions() {
             name: "happy2_port_shares_list",
             title: "List shared ports",
             description:
-                "Lists active public port shares for the current Happy chat. Use this before exposing or disabling a port because only one share may be active per chat.",
+                "Lists active port shares and their internet, server, or chat audience for the current Happy chat. Use this before exposing or disabling a port because only one share may be active per chat.",
             inputSchema: { type: "object", properties: {}, additionalProperties: false },
         },
         {
             name: "happy2_port_share_expose",
             title: "Expose a container port",
             description:
-                "Creates a public authenticated hostname for one web server already listening on port 3000 through 3010 in the current chat agent container.",
+                "Creates a shared hostname for one web server already listening on port 3000 through 3010 in the current chat agent container. Internet shares are directly reachable by the model; server and chat shares require Happy user authentication, though the probe tool can access them for verification.",
             inputSchema: {
                 type: "object",
                 properties: {
@@ -107,8 +107,14 @@ function toolDefinitions() {
                         maximum: 3010,
                         description: "Container port on which the web server is listening.",
                     },
+                    audience: {
+                        type: "string",
+                        enum: ["internet", "server", "chat"],
+                        description:
+                            "Who can open the share: internet allows anyone, server allows any authenticated Happy user, and chat allows only current members of this chat.",
+                    },
                 },
-                required: ["name", "port"],
+                required: ["name", "port", "audience"],
                 additionalProperties: false,
             },
         },
@@ -187,12 +193,14 @@ async function exposePort(params, input) {
     const { token } = capabilityContext(params);
     const name = requiredString(input, "name", 80);
     const port = requiredInteger(input, "port", 3000, 3010);
+    const audience = optionalEnum(input, "audience", ["internet", "server", "chat"]);
+    if (!audience) throw new Error("audience is required.");
     const result = await callHost("/port-shares/exposePort", token, {
         method: "POST",
-        body: { name, port },
+        body: { name, port, audience },
     });
     return toolResult(
-        `Shared ${name} on container port ${port} at ${result.portShare.url}.`,
+        `Shared ${name} on container port ${port} with ${audience} access at ${result.portShare.url}.`,
         result,
     );
 }

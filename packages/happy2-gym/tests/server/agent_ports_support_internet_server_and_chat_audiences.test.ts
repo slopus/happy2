@@ -13,16 +13,21 @@ import {
 import { createGymServer, type GymRequestClient } from "happy2-gym";
 import { createMockRigDaemon, MockAgentSandboxRuntime } from "happy2-gym/rig";
 
-describe("chat agent port sharing", () => {
-    it("keeps member-issued access valid for one hour after membership changes", async () => {
+describe("agent port sharing audiences", () => {
+    it("enforces internet, server, and live chat audiences with user-bound browser credentials", async () => {
         const pluginRoot = await portSharingPlugin();
-        const upstreamRequests: Array<{ authorization?: string; cookie?: string; path?: string }> =
-            [];
+        const upstreamRequests: Array<{
+            authorization?: string;
+            cookie?: string;
+            path?: string;
+            userId?: string;
+        }> = [];
         const upstream = createServer((request, response) => {
             upstreamRequests.push({
                 authorization: request.headers.authorization,
                 cookie: request.headers.cookie,
                 path: request.url,
+                userId: request.headers["x-happy2-user-id"] as string | undefined,
             });
             response.writeHead(200, { "content-type": "text/plain" });
             response.end(`agent preview ${request.url}`);
@@ -84,7 +89,7 @@ describe("chat agent port sharing", () => {
                     .pluginHost()
                     .post(
                         "/port-shares/exposePort",
-                        { name: "Duplicate Preview", port: 3001 },
+                        { name: "Duplicate Preview", port: 3001, audience: "internet" },
                         { headers },
                     );
                 const listed = await server.pluginHost().get("/port-shares", { headers });
@@ -144,6 +149,7 @@ describe("chat agent port sharing", () => {
             const callId = rig.requestExternalToolCall(run.runId, tool.name, {
                 name: "Documentation Preview",
                 port: 3000,
+                audience: "chat",
             });
             await waitFor(
                 () => rig.externalToolCalls.find(({ id }) => id === callId)?.status !== "pending",
@@ -156,6 +162,7 @@ describe("chat agent port sharing", () => {
                 containerPort: number;
                 name: string;
                 subdomain: string;
+                audience: "internet" | "server" | "chat";
                 url: string;
             };
             const access = output.access as {
@@ -168,6 +175,7 @@ describe("chat agent port sharing", () => {
                 chatId,
                 containerPort: 3000,
                 name: "Documentation Preview",
+                audience: "chat",
             });
             expect(share.subdomain).toMatch(/^documentation-preview-[a-z0-9]{6}$/);
             expect(share.url).toBe(`http://${share.subdomain}.preview.gym.invalid`);
@@ -193,6 +201,19 @@ describe("chat agent port sharing", () => {
             );
             expect(formerMemberAccessResponse.statusCode).toBe(200);
             const formerMemberAccess = formerMemberAccessResponse.json() as typeof access;
+            let serverUrl = await server.listen();
+            const host = `${share.subdomain}.preview.gym.invalid`;
+            const formerMemberExchange = await publicRequest(
+                serverUrl,
+                host,
+                "/.happy2/auth/session",
+                {
+                    authorization: `Bearer ${formerMemberAccess.token}`,
+                    origin: "http://gym.invalid",
+                },
+            );
+            expect(formerMemberExchange.statusCode).toBe(200);
+            const formerMemberCookie = formerMemberExchange.headers["set-cookie"];
             expect(
                 (
                     await ownerClient.post(`/v0/chats/${chatId}/removeMember`, {
@@ -204,9 +225,14 @@ describe("chat agent port sharing", () => {
                 (await formerMemberClient.post(`/v0/portShares/${share.id}/createAccessToken`))
                     .statusCode,
             ).toBe(404);
+            const revokedCookie = await publicRequest(serverUrl, host, "/revoked-cookie", {
+                cookie: formerMemberCookie,
+            });
+            expect(revokedCookie.statusCode).toBe(302);
+            expect(new URL(revokedCookie.headers.location!).pathname).toBe(
+                `/v0/portShares/${share.id}/openPortShare`,
+            );
 
-            let serverUrl = await server.listen();
-            const host = `${share.subdomain}.preview.gym.invalid`;
             const copiedLink = await publicRequest(serverUrl, host, "/preview?copied=1");
             expect(copiedLink.statusCode).toBe(302);
             expect(copiedLink.headers["cache-control"]).toBe("no-store");
@@ -244,6 +270,9 @@ describe("chat agent port sharing", () => {
             expect(redemption.searchParams.get("returnTo")).toBe("/preview?copied=1");
             const redemptionToken = redemption.searchParams.get("token");
             expect(redemptionToken).toBeTruthy();
+            expect(jwtPayload(redemptionToken!)).toMatchObject({ sub: owner.id });
+            expect(jwtPayload(redemptionToken!)).not.toHaveProperty("shr");
+            expect(jwtPayload(redemptionToken!)).not.toHaveProperty("hst");
             expect(
                 (
                     await publicRequest(
@@ -252,7 +281,7 @@ describe("chat agent port sharing", () => {
                         `${redemption.pathname}${redemption.search}`,
                     )
                 ).statusCode,
-            ).toBe(401);
+            ).toBe(404);
             const invalidRedemption = new URL(redemption);
             invalidRedemption.searchParams.set("returnTo", "//evil.example/preview");
             expect(
@@ -282,6 +311,9 @@ describe("chat agent port sharing", () => {
             expect(redeemed.headers["referrer-policy"]).toBe("no-referrer");
             const copiedLinkCookie = redeemed.headers["set-cookie"];
             expect(copiedLinkCookie).toContain("happy2_port_share=");
+            const copiedLinkClaims = jwtPayload(cookieValue(copiedLinkCookie));
+            expect(copiedLinkClaims).toMatchObject({ sub: owner.id, hst: share.subdomain });
+            expect(copiedLinkClaims).not.toHaveProperty("shr");
             expect(
                 (
                     await publicRequest(serverUrl, host, "/preview?copied=1", {
@@ -294,8 +326,8 @@ describe("chat agent port sharing", () => {
                     await publicRequest(serverUrl, host, "/former-member", {
                         authorization: `Bearer ${formerMemberAccess.token}`,
                     })
-                ).body,
-            ).toBe("agent preview /former-member");
+                ).statusCode,
+            ).toBe(401);
             expect(await websocketUpgradeStatus(serverUrl, host, "/socket")).toBe(401);
             const bearerResponse = await publicRequest(serverUrl, host, "/preview?mode=full", {
                 authorization: `Bearer ${access.token}`,
@@ -308,6 +340,7 @@ describe("chat agent port sharing", () => {
                 authorization: undefined,
                 cookie: undefined,
                 path: "/preview?mode=full",
+                userId: owner.id,
             });
             expect(
                 (
@@ -315,10 +348,15 @@ describe("chat agent port sharing", () => {
                         authorization: `Bearer ${access.token}`,
                     })
                 ).statusCode,
-            ).toBe(401);
+            ).toBe(404);
 
-            const exchanged = await publicRequest(serverUrl, host, "/.happy2/auth/session", {
+            const revokedExchange = await publicRequest(serverUrl, host, "/.happy2/auth/session", {
                 authorization: `Bearer ${formerMemberAccess.token}`,
+                origin: "http://gym.invalid",
+            });
+            expect(revokedExchange.statusCode).toBe(401);
+            const exchanged = await publicRequest(serverUrl, host, "/.happy2/auth/session", {
+                authorization: `Bearer ${access.token}`,
                 origin: "http://gym.invalid",
             });
             expect(exchanged.statusCode).toBe(200);
@@ -339,7 +377,7 @@ describe("chat agent port sharing", () => {
                 {
                     authorization: undefined,
                     cookie: undefined,
-                    userId: formerMember.id,
+                    userId: owner.id,
                 },
             ]);
             expect(sandbox.portResolutionCount).toBe(1);
@@ -390,7 +428,7 @@ describe("chat agent port sharing", () => {
             const replacementCallId = rig.requestExternalToolCall(
                 replacementRun.runId,
                 replacementTool.name,
-                { name: "Replacement Preview", port: 3001 },
+                { name: "Replacement Preview", port: 3001, audience: "server" },
             );
             await waitFor(
                 () =>
@@ -404,6 +442,7 @@ describe("chat agent port sharing", () => {
                 chatId,
                 containerPort: 3001,
                 name: "Replacement Preview",
+                audience: "server",
             });
             expect(replacementShare.id).not.toBe(share.id);
             const replacementAccessResponse = await ownerClient.post(
@@ -411,6 +450,11 @@ describe("chat agent port sharing", () => {
             );
             expect(replacementAccessResponse.statusCode).toBe(200);
             const replacementAccess = replacementAccessResponse.json() as typeof access;
+            const outsiderAccessResponse = await server
+                .as(outsider)
+                .post(`/v0/portShares/${replacementShare.id}/createAccessToken`);
+            expect(outsiderAccessResponse.statusCode).toBe(200);
+            const outsiderAccess = outsiderAccessResponse.json() as typeof access;
             const replacementHost = `${replacementShare.subdomain}.preview.gym.invalid`;
             expect(
                 (
@@ -419,6 +463,16 @@ describe("chat agent port sharing", () => {
                     })
                 ).body,
             ).toBe("agent preview /replacement");
+            expect(
+                (
+                    await publicRequest(serverUrl, replacementHost, "/server-user", {
+                        authorization: `Bearer ${outsiderAccess.token}`,
+                    })
+                ).body,
+            ).toBe("agent preview /server-user");
+            expect((await publicRequest(serverUrl, replacementHost, "/anonymous")).statusCode).toBe(
+                302,
+            );
             expect(sandbox.portResolutionCount).toBe(3);
             expect(
                 (
@@ -449,6 +503,62 @@ describe("chat agent port sharing", () => {
             expect(
                 (await ownerClient.post(`/v0/portShares/${share.id}/createAccessToken`)).statusCode,
             ).toBe(404);
+
+            rig.completeRun(replacementRun.runId, "The replacement preview is ready.");
+            await waitFor(async () => {
+                const messages = await ownerClient.get(`/v0/chats/${chatId}/messages`);
+                return messages
+                    .json()
+                    .messages.some(
+                        (message: { text?: string }) =>
+                            message.text === "The replacement preview is ready.",
+                    );
+            }, "replacement agent turn completion");
+            expect(
+                (
+                    await ownerClient.post(`/v0/chats/${chatId}/sendMessage`, {
+                        audience: "agents",
+                        text: "Expose an internet preview.",
+                        clientMutationId: "expose-internet-preview",
+                    })
+                ).statusCode,
+            ).toBe(201);
+            await waitFor(() => rig.submittedRuns.length === 3, "internet agent turn");
+            const internetRun = rig.submittedRuns[2]!;
+            const internetTool = internetRun.externalTools.find(({ name }) =>
+                name.includes(`plugin_${installationId}_happy2_port_share_expose_`),
+            );
+            if (!internetTool) throw new Error("Internet port-sharing tool was not submitted");
+            const internetCallId = rig.requestExternalToolCall(
+                internetRun.runId,
+                internetTool.name,
+                { name: "Internet Preview", port: 3002, audience: "internet" },
+            );
+            await waitFor(
+                () =>
+                    rig.externalToolCalls.find(({ id }) => id === internetCallId)?.status !==
+                    "pending",
+                "internet port-sharing tool completion",
+            );
+            const internetShare = completedOutput(internetCallId, rig).portShare as typeof share;
+            expect(internetShare).toMatchObject({
+                chatId,
+                containerPort: 3002,
+                audience: "internet",
+            });
+            const internetHost = `${internetShare.subdomain}.preview.gym.invalid`;
+            expect((await publicRequest(serverUrl, internetHost, "/anyone")).body).toBe(
+                "agent preview /anyone",
+            );
+            expect(upstreamRequests.at(-1)).toMatchObject({
+                authorization: undefined,
+                cookie: undefined,
+                path: "/anyone",
+                userId: undefined,
+            });
+            expect(await websocketRoundTrip(serverUrl, internetHost, "/socket", "public")).toBe(
+                "agent websocket public",
+            );
         } finally {
             await new Promise<void>((resolve) => upstreamWebSockets.close(() => resolve()));
             await new Promise<void>((resolve) => upstream.close(() => resolve()));
@@ -530,8 +640,12 @@ class PortSharingRuntime implements PluginMcpRuntime {
                                     properties: {
                                         name: { type: "string" },
                                         port: { type: "integer", minimum: 3000, maximum: 3010 },
+                                        audience: {
+                                            type: "string",
+                                            enum: ["internet", "server", "chat"],
+                                        },
                                     },
-                                    required: ["name", "port"],
+                                    required: ["name", "port", "audience"],
                                     additionalProperties: false,
                                 },
                             },
@@ -549,7 +663,7 @@ class PortSharingRuntime implements PluginMcpRuntime {
                             {
                                 name: "happy2_port_share_create_access_token",
                                 title: "Create a port-share access token",
-                                description: "Creates a member-scoped access token.",
+                                description: "Creates a user-scoped access token.",
                                 inputSchema: {
                                     type: "object",
                                     properties: { portShareId: { type: "string" } },
@@ -797,7 +911,7 @@ async function websocketRoundTrip(
     host: string,
     path: string,
     message: string,
-    credentials: { authorization?: string; cookie?: string },
+    credentials: { authorization?: string; cookie?: string } = {},
 ): Promise<string> {
     const url = new URL(path, serverUrl);
     url.protocol = "ws:";
@@ -810,6 +924,21 @@ async function websocketRoundTrip(
         });
         socket.once("error", reject);
     });
+}
+
+function cookieValue(setCookie: string | undefined): string {
+    const value = setCookie?.match(/(?:^|; )happy2_port_share=([^;]+)/)?.[1];
+    if (!value) throw new Error("Port-share cookie was not set");
+    return value;
+}
+
+function jwtPayload(token: string): Record<string, unknown> {
+    const payload = token.split(".")[1];
+    if (!payload) throw new Error("JWT payload is missing");
+    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<
+        string,
+        unknown
+    >;
 }
 
 async function waitFor(

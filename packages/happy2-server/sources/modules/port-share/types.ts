@@ -6,6 +6,10 @@ export const portShareContainerPorts = [
 
 export type PortShareContainerPort = (typeof portShareContainerPorts)[number];
 
+export const portShareAudiences = ["internet", "server", "chat"] as const;
+
+export type PortShareAudience = (typeof portShareAudiences)[number];
+
 export interface PortShareSummary {
     id: string;
     chatId: string;
@@ -14,6 +18,7 @@ export interface PortShareSummary {
     containerPort: PortShareContainerPort;
     name: string;
     subdomain: string;
+    audience: PortShareAudience;
     createdByUserId: string;
     createdAt: string;
     disabledAt?: string;

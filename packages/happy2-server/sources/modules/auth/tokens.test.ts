@@ -143,7 +143,6 @@ describe("plugin runtime capability tokens", () => {
         const service = await TokenService.create(config, keys);
         const token = await service.issuePortShareAccessToken({
             userId: "member-user",
-            portShareId: "share-id",
             subdomain: "docs-a1b2c3",
         });
         const payload = decodeJwt(token);
@@ -151,7 +150,6 @@ describe("plugin runtime capability tokens", () => {
         expect(Number(payload.exp) - Number(payload.iat)).toBe(3_600);
         await expect(service.verifyPortShareAccessToken(token)).resolves.toEqual({
             userId: "member-user",
-            portShareId: "share-id",
             subdomain: "docs-a1b2c3",
         });
         await expect(service.verify(token)).rejects.toThrow();
@@ -165,17 +163,16 @@ describe("plugin runtime capability tokens", () => {
             privateKeyEncoding: { type: "pkcs8", format: "pem" },
         });
         const service = await TokenService.create(config, keys);
-        const claims = {
-            userId: "member-user",
-            portShareId: "share-id",
-            subdomain: "docs-a1b2c3",
-        };
-        const redemption = await service.issuePortShareRedemptionToken(claims);
-        const access = await service.issuePortShareAccessToken(claims);
+        const redemptionClaims = { userId: "member-user" };
+        const accessClaims = { userId: "member-user", subdomain: "docs-a1b2c3" };
+        const redemption = await service.issuePortShareRedemptionToken(redemptionClaims);
+        const access = await service.issuePortShareAccessToken(accessClaims);
         const payload = decodeJwt(redemption);
 
         expect(Number(payload.exp) - Number(payload.iat)).toBe(60);
-        await expect(service.verifyPortShareRedemptionToken(redemption)).resolves.toEqual(claims);
+        await expect(service.verifyPortShareRedemptionToken(redemption)).resolves.toEqual(
+            redemptionClaims,
+        );
         await expect(service.verifyPortShareAccessToken(redemption)).rejects.toThrow();
         await expect(service.verifyPortShareRedemptionToken(access)).rejects.toThrow();
     });

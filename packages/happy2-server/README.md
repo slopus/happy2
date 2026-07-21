@@ -144,17 +144,22 @@ random loopback-only host ports. Plugins use separate read, expose, disable, and
 access permissions together with a signed chat capability, so a request cannot
 select another chat or agent through its body.
 
-Every preview request requires a one-hour RS256 token bound to the user, share,
-and subdomain. Happy checks live chat membership and the exact current agent
-container binding when issuing that token; an issued token remains valid for its
-one-hour lifetime even if membership later changes. Tokens work as Bearer
-credentials or through the host-only `happy2_port_share` HttpOnly cookie. A
-browser that opens the stable public share URL without a current preview cookie
-is redirected through the main API session for a fresh membership check, then
-back with a one-minute redemption token that establishes the preview cookie and
-returns to the originally requested path. Direct token callers should renew
-after the returned 15-minute `refreshAfter` time. Happy strips both credentials
-before forwarding HTTP or WebSocket traffic to the agent container.
+Every share chooses one audience: `internet` allows unauthenticated access,
+`server` allows any active authenticated Happy user, and `chat` allows only
+current members of the share's chat. Authenticated requests use a one-hour RS256
+token bound to the user and preview subdomain. Happy rechecks the durable user
+and audience access in SQLite on every HTTP and WebSocket request, so deleting a
+user or removing a chat member revokes an existing credential immediately.
+
+Tokens work as Bearer credentials or through the host-only
+`happy2_port_share` HttpOnly cookie. A browser that opens a restricted stable
+share URL without a current preview cookie is redirected through the main API
+session, then back with a one-minute redemption token whose only identity claim
+is the authenticated user. The preview host rechecks that user's current access
+and exchanges it for the user-and-subdomain cookie before returning to the
+original path. Direct token callers should renew after the returned 15-minute
+`refreshAfter` time. Happy strips both credentials before forwarding HTTP or
+WebSocket traffic to the agent container.
 
 ## Server and user onboarding
 

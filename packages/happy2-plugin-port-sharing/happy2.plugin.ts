@@ -3,7 +3,7 @@ import { definePluginConfig } from "happy2-plugin-sdk/build";
 export default definePluginConfig({
     manifest: {
         description:
-            "Lets an agent expose, inspect, authenticate, verify, and disable a web server running on ports 3000 through 3010 in its current chat container.",
+            "Lets an agent expose a web server to the internet, authenticated server users, or current chat members, then inspect, verify, and disable it.",
         displayName: "Port Sharing",
         permissions: [
             "port-sharing:read",

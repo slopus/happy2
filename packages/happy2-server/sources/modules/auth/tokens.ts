@@ -34,11 +34,12 @@ export interface PluginMessageClaims {
     actorUserId: string;
 }
 export interface PortShareAccessClaims {
-    portShareId: string;
     subdomain: string;
     userId: string;
 }
-export type PortShareRedemptionClaims = PortShareAccessClaims;
+export interface PortShareRedemptionClaims {
+    userId: string;
+}
 export interface TokenKeyPair {
     privateKey?: string;
     publicKey: string;
@@ -291,7 +292,7 @@ export class TokenService {
 
     async issuePortShareAccessToken(claims: PortShareAccessClaims): Promise<string> {
         if (!this.privateKey) throw new Error("This server has no JWT signing key");
-        return new SignJWT({ shr: claims.portShareId, hst: claims.subdomain })
+        return new SignJWT({ hst: claims.subdomain })
             .setProtectedHeader({
                 alg: "RS256",
                 kid: this.config.jwt.keyId,
@@ -312,22 +313,17 @@ export class TokenService {
             algorithms: ["RS256"],
             typ: "happy2-port-share",
         });
-        if (
-            typeof payload.sub !== "string" ||
-            typeof payload.shr !== "string" ||
-            typeof payload.hst !== "string"
-        )
+        if (typeof payload.sub !== "string" || typeof payload.hst !== "string")
             throw new Error("JWT has invalid port-share claims");
         return {
             userId: payload.sub,
-            portShareId: payload.shr,
             subdomain: payload.hst,
         };
     }
 
     async issuePortShareRedemptionToken(claims: PortShareRedemptionClaims): Promise<string> {
         if (!this.privateKey) throw new Error("This server has no JWT signing key");
-        return new SignJWT({ shr: claims.portShareId, hst: claims.subdomain })
+        return new SignJWT()
             .setProtectedHeader({
                 alg: "RS256",
                 kid: this.config.jwt.keyId,
@@ -348,17 +344,9 @@ export class TokenService {
             algorithms: ["RS256"],
             typ: "happy2-port-share-redemption",
         });
-        if (
-            typeof payload.sub !== "string" ||
-            typeof payload.shr !== "string" ||
-            typeof payload.hst !== "string"
-        )
+        if (typeof payload.sub !== "string")
             throw new Error("JWT has invalid port-share redemption claims");
-        return {
-            userId: payload.sub,
-            portShareId: payload.shr,
-            subdomain: payload.hst,
-        };
+        return { userId: payload.sub };
     }
 }
 

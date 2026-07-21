@@ -243,7 +243,8 @@ const definitions = {
     "port-sharing:access": {
         id: "port-sharing:access",
         displayName: "Access shared ports",
-        description: "Create a member-scoped access token for an active shared port.",
+        description:
+            "Create a user-and-subdomain access token after enforcing the active share's audience.",
         section: "port-sharing",
         access: "mutations",
     },

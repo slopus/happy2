@@ -32,6 +32,7 @@ describe("bundled Port Sharing MCP server", () => {
             containerPort: 3000,
             name: "Documentation Preview",
             subdomain: "documentation-preview-a1b2c3",
+            audience: "chat",
             createdByUserId: "user-1",
             createdAt: "2026-07-20T00:00:00.000Z",
             url: previewUrl,
@@ -101,6 +102,7 @@ describe("bundled Port Sharing MCP server", () => {
                     toolCall(4, "happy2_port_share_expose", {
                         name: "Documentation Preview",
                         port: 3000,
+                        audience: "server",
                     }),
                     toolCall(5, "happy2_port_share_create_access_token", {
                         portShareId: "share-1",
@@ -185,7 +187,11 @@ describe("bundled Port Sharing MCP server", () => {
                 hostRequest(
                     "POST",
                     "/port-shares/exposePort",
-                    JSON.stringify({ name: "Documentation Preview", port: 3000 }),
+                    JSON.stringify({
+                        name: "Documentation Preview",
+                        port: 3000,
+                        audience: "server",
+                    }),
                 ),
                 hostRequest("POST", "/port-shares/share-1/createAccessToken", "{}"),
                 hostRequest("POST", "/port-shares/share-1/createAccessToken", "{}"),

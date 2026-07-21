@@ -4,7 +4,7 @@ import type { PortShareService } from "../modules/port-share/service.js";
 import { PortShareError } from "../modules/port-share/types.js";
 import { portShareReturnTo } from "./portShareReturnTo.js";
 
-/** Registers member-facing port-share reads, disable actions, browser authorization redirects, and one-hour access-token issuance. */
+/** Registers member-facing port-share reads, disable actions, user-only browser redemption redirects, and one-hour user-and-subdomain access-token issuance. */
 export function registerPortShareRoutes(
     app: FastifyInstance,
     auth: AuthService,

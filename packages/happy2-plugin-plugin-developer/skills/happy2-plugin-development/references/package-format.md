@@ -146,7 +146,7 @@ Supported local host permissions:
 - `port-sharing:read`: list shared ports selected by a signed chat capability.
 - `port-sharing:expose`: expose one fixed port from the agent selected by a signed chat capability.
 - `port-sharing:disable`: disable a shared port selected by a signed chat capability.
-- `port-sharing:access`: issue a member-scoped access token for a shared port.
+- `port-sharing:access`: issue a user-and-subdomain access token after enforcing the share's current audience.
 
 The host API is capability-only and separate from the product API. It exposes neither user sessions nor arbitrary server routes.
 
