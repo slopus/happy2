@@ -82,6 +82,7 @@
         "happy2-plugin-hello": "workspace:*",
         "happy2-plugin-movie-catalog": "workspace:*",
         "happy2-plugin-plugin-developer": "workspace:*",
+        "happy2-plugin-port-sharing": "workspace:*",
         "happy2-plugin-todos": "workspace:*",
         "istanbul-lib-coverage": "^3.2.2",
         "istanbul-lib-report": "^3.0.1",

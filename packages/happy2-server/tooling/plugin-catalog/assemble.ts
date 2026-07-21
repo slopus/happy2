@@ -19,6 +19,7 @@ export const builtinPluginOutputs: readonly BuiltinPluginOutput[] = [
     builtin("happy2-plugin-plugin-developer", "plugin-developer"),
     builtin("happy2-plugin-movie-catalog", "movie-catalog"),
     builtin("happy2-plugin-todos", "todos"),
+    builtin("happy2-plugin-port-sharing", "port-sharing"),
 ];
 
 export const assembledPluginCatalogDirectory = resolve(

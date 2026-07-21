@@ -435,6 +435,25 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
+  packages/happy2-plugin-port-sharing:
+    dependencies:
+      happy2-plugin-sdk:
+        specifier: workspace:*
+        version: link:../happy2-plugin-sdk
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.1
+        version: 26.1.1
+      oxfmt:
+        specifier: ^0.57.0
+        version: 0.57.0
+      oxlint:
+        specifier: ^1.73.0
+        version: 1.73.0
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
   packages/happy2-plugin-sdk:
     dependencies:
       '@modelcontextprotocol/ext-apps':
@@ -638,6 +657,9 @@ importers:
       happy2-plugin-plugin-developer:
         specifier: workspace:*
         version: link:../happy2-plugin-plugin-developer
+      happy2-plugin-port-sharing:
+        specifier: workspace:*
+        version: link:../happy2-plugin-port-sharing
       happy2-plugin-todos:
         specifier: workspace:*
         version: link:../happy2-plugin-todos

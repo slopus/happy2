@@ -219,6 +219,10 @@ export const pluginHostPermissions = [
     "plugins:uninstall",
     "plugins:request-install",
     "plugins:request-uninstall",
+    "port-sharing:read",
+    "port-sharing:expose",
+    "port-sharing:disable",
+    "port-sharing:access",
 ] as const;
 
 export type PluginHostPermission = (typeof pluginHostPermissions)[number];

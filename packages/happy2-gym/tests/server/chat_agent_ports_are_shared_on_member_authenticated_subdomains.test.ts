@@ -547,7 +547,7 @@ class PortSharingRuntime implements PluginMcpRuntime {
 async function portSharingPlugin(): Promise<string> {
     const root = await mkdtemp(join(tmpdir(), "happy2-port-sharing-plugin-"));
     await cp(
-        join(process.cwd(), "..", "happy2-server", "plugins", "port-sharing"),
+        join(process.cwd(), "..", "happy2-server", "dist", "plugins", "port-sharing"),
         join(root, "port-sharing"),
         { recursive: true },
     );

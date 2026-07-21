@@ -76,7 +76,7 @@ describe("bundled Port Sharing MCP server", () => {
         try {
             const child = spawn(
                 process.execPath,
-                [join(process.cwd(), "plugins", "port-sharing", "server.mjs")],
+                [join(process.cwd(), "dist", "plugins", "port-sharing", "server.js")],
                 {
                     stdio: ["pipe", "pipe", "pipe"],
                     env: {
