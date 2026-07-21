@@ -16,10 +16,12 @@ COPY packages/happy2-gym/package.json packages/happy2-gym/package.json
 COPY packages/happy2-plugin-sdk packages/happy2-plugin-sdk
 COPY packages/happy2-plugin-hello/package.json packages/happy2-plugin-hello/package.json
 COPY packages/happy2-plugin-chat-management/package.json packages/happy2-plugin-chat-management/package.json
+COPY packages/happy2-plugin-documents/package.json packages/happy2-plugin-documents/package.json
 COPY packages/happy2-plugin-environment-management/package.json packages/happy2-plugin-environment-management/package.json
 COPY packages/happy2-plugin-plugin-developer/package.json packages/happy2-plugin-plugin-developer/package.json
 COPY packages/happy2-plugin-movie-catalog/package.json packages/happy2-plugin-movie-catalog/package.json
 COPY packages/happy2-plugin-todos/package.json packages/happy2-plugin-todos/package.json
+COPY packages/happy2-plugin-port-sharing/package.json packages/happy2-plugin-port-sharing/package.json
 RUN pnpm install --frozen-lockfile --filter happy2-server... --filter happy2-web...
 COPY tsconfig.base.json tsconfig.json ./
 COPY packages/happy2-server packages/happy2-server
@@ -29,10 +31,12 @@ COPY packages/happy2-app packages/happy2-app
 COPY packages/happy2-web packages/happy2-web
 COPY packages/happy2-plugin-hello packages/happy2-plugin-hello
 COPY packages/happy2-plugin-chat-management packages/happy2-plugin-chat-management
+COPY packages/happy2-plugin-documents packages/happy2-plugin-documents
 COPY packages/happy2-plugin-environment-management packages/happy2-plugin-environment-management
 COPY packages/happy2-plugin-plugin-developer packages/happy2-plugin-plugin-developer
 COPY packages/happy2-plugin-movie-catalog packages/happy2-plugin-movie-catalog
 COPY packages/happy2-plugin-todos packages/happy2-plugin-todos
+COPY packages/happy2-plugin-port-sharing packages/happy2-plugin-port-sharing
 RUN pnpm -r --filter happy2-server... build \
   && VITE_HAPPY2_SERVER_URL=/ pnpm --filter happy2-web exec vite build --outDir ../happy2-server/dist/web --emptyOutDir false \
   && pnpm --filter happy2-server --prod deploy --legacy /app
