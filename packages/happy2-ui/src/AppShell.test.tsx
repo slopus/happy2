@@ -13,21 +13,21 @@ it("composes Happy's flat desktop shell with clamped navigation and inspector su
         () => (
             <AppShell
                 data-testid="shell"
-                panel={slot("panel-slot", { background: "var(--colors-surface)" })}
+                panel={slot("panel-slot", { background: "var(--surface)" })}
                 rail={slot("rail-slot", {
-                    background: "var(--colors-header-background)",
+                    background: "var(--header-background)",
                     width: "64px",
                 })}
                 sidebar={slot("sidebar-slot", {
-                    background: "var(--colors-groupped-background)",
+                    background: "var(--groupped-background)",
                     width: "100%",
                 })}
                 titleBar={slot("title-slot", {
-                    background: "var(--colors-header-background)",
+                    background: "var(--header-background)",
                     height: "56px",
                 })}
             >
-                {slot("workspace-slot", { background: "var(--colors-surface)" })}
+                {slot("workspace-slot", { background: "var(--surface)" })}
             </AppShell>
         ),
         { height: 800, width: 1280 },
@@ -89,15 +89,15 @@ it("keeps a workspace-only shell flat and free of legacy card insets", async () 
             <AppShell
                 data-testid="bare-shell"
                 rail={slot("bare-rail", {
-                    background: "var(--colors-header-background)",
+                    background: "var(--header-background)",
                     width: "64px",
                 })}
                 titleBar={slot("bare-title", {
-                    background: "var(--colors-header-background)",
+                    background: "var(--header-background)",
                     height: "56px",
                 })}
             >
-                {slot("bare-workspace", { background: "var(--colors-surface)" })}
+                {slot("bare-workspace", { background: "var(--surface)" })}
             </AppShell>
         ),
         { height: 800, width: 1280 },

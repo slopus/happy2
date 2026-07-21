@@ -17,7 +17,7 @@
         "typecheck": "tsc --project tsconfig.json",
         "format": "oxfmt --write .",
         "format:check": "oxfmt --check .",
-        "lint": "node --test eslint/layout-policy.test.mjs && eslint . && oxlint .",
+        "lint": "node --test eslint/*.test.mjs && eslint . && oxlint .",
         "lint:fix": "eslint . --fix && oxlint . --fix",
         "clean": "rm -rf dist coverage"
     },

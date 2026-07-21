@@ -27,7 +27,7 @@
     padding: 6px 20px;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
-    color: var(--colors-text);
+    color: var(--text);
     transition: background-color 120ms ease;
 }
 
@@ -54,7 +54,7 @@
 }
 
 .happy2-message[data-delivery-state="failed"] .happy2-message__content {
-    color: var(--colors-text-secondary);
+    color: var(--text-secondary);
     opacity: 0.78;
 }
 
@@ -79,7 +79,7 @@
     font-size: 11px;
     font-weight: 500;
     line-height: 22px; /* sits on the first body line */
-    color: var(--colors-text-secondary);
+    color: var(--text-secondary);
     white-space: nowrap;
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -125,7 +125,7 @@
 .happy2-message__meta > * + *::before {
     content: "·";
     margin: 0 6px;
-    color: var(--colors-input-placeholder);
+    color: var(--input-placeholder);
     font-family: var(--happy2-font-ui);
     font-weight: 400;
 }
@@ -135,7 +135,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 20px;
-    color: var(--colors-text);
+    color: var(--text);
     white-space: nowrap;
 }
 
@@ -146,7 +146,7 @@
     line-height: 20px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--colors-text-secondary);
+    color: var(--text-secondary);
     white-space: nowrap;
 }
 
@@ -196,7 +196,7 @@
 
 .happy2-message__identity:focus-visible,
 .happy2-message__author--button:focus-visible {
-    outline: 2px solid var(--colors-radio-active);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
@@ -206,7 +206,7 @@
     font-size: 11px;
     font-weight: 500;
     line-height: 16px;
-    color: var(--colors-text-secondary);
+    color: var(--text-secondary);
     white-space: nowrap;
 }
 
@@ -216,8 +216,8 @@
     height: 16px;
     padding: 0 6px;
     border-radius: var(--happy2-radius-pill);
-    background: color-mix(in srgb, var(--colors-radio-active) 14%, transparent);
-    color: var(--colors-radio-active);
+    background: color-mix(in srgb, var(--radio-active) 14%, transparent);
+    color: var(--radio-active);
     font-family: var(--happy2-font-mono);
     font-size: 10px;
     font-weight: 700;
@@ -229,13 +229,13 @@
 .happy2-message__body {
     font-size: 15px;
     line-height: 22px;
-    color: var(--colors-text);
+    color: var(--text);
     overflow-wrap: anywhere;
 }
 
 .happy2-message__mention {
-    background: color-mix(in srgb, var(--colors-radio-active) 14%, transparent);
-    color: var(--colors-radio-active);
+    background: color-mix(in srgb, var(--radio-active) 14%, transparent);
+    color: var(--radio-active);
     border-radius: 4px;
     /* Asymmetric vertical padding recenters the glyph ink in the pill
        background: measured glyph-vs-pill dy +0.76 (Blink) / +0.70 (WebKit)
@@ -251,7 +251,7 @@
 .happy2-message__code {
     font-family: var(--happy2-font-mono);
     font-size: 13px;
-    background: var(--colors-input-background);
+    background: var(--input-background);
     border-radius: 4px;
     /* Measured glyph-vs-pill dy -0.50 (Blink/WebKit) with symmetric padding:
        uppercase mono ink floats high, so give the pill more room on top. */
@@ -262,13 +262,13 @@
 }
 
 .happy2-message__link {
-    color: var(--colors-radio-active);
+    color: var(--radio-active);
     text-decoration: none;
     cursor: pointer;
 }
 
 .happy2-message__link:hover {
-    color: var(--colors-radio-active);
+    color: var(--radio-active);
     text-decoration: underline;
 }
 
@@ -298,8 +298,8 @@
 }
 
 .happy2-message[data-own] .happy2-message__body {
-    background: var(--colors-user-message-background);
-    color: var(--colors-user-message-text);
+    background: var(--user-message-background);
+    color: var(--user-message-text);
 }
 
 /* Own bubble + its hover time sit on one right-justified line so the 11px mono
@@ -320,7 +320,7 @@
     font-size: 11px;
     font-weight: 500;
     line-height: 22px;
-    color: var(--colors-text-secondary);
+    color: var(--text-secondary);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
     /* Sits a hair above the bubble's baseline padding; matches gutter-time. */
@@ -337,8 +337,8 @@
 
 /* Incoming human: neutral raised bubble on the left. */
 .happy2-message:not([data-agent]):not([data-own]) .happy2-message__body {
-    background: var(--colors-surface-pressed);
-    color: var(--colors-text);
+    background: var(--surface-pressed);
+    color: var(--text);
 }
 
 /* Hover toolbar flips to the left edge so it never sits over the right bubble. */
@@ -353,29 +353,29 @@
 .happy2-message[data-own] .happy2-message__mention,
 .happy2-message[data-own] .happy2-message__code,
 .happy2-message[data-own] .happy2-message__body--markdown code {
-    background: color-mix(in srgb, var(--colors-user-message-text) 18%, transparent);
-    color: var(--colors-user-message-text);
+    background: color-mix(in srgb, var(--user-message-text) 18%, transparent);
+    color: var(--user-message-text);
 }
 
 .happy2-message[data-own] .happy2-message__link,
 .happy2-message[data-own] .happy2-message__body--markdown a {
-    color: var(--colors-user-message-text);
+    color: var(--user-message-text);
     text-decoration: underline;
 }
 
 .happy2-message[data-own] .happy2-message__body--markdown pre {
-    background: color-mix(in srgb, var(--colors-user-message-text) 18%, transparent);
+    background: color-mix(in srgb, var(--user-message-text) 18%, transparent);
     border-color: transparent;
 }
 
 .happy2-message[data-own] .happy2-message__body--markdown pre code {
     background: transparent;
-    color: var(--colors-user-message-text);
+    color: var(--user-message-text);
 }
 
 .happy2-message[data-own] .happy2-message__body--markdown blockquote {
-    border-left-color: var(--colors-user-message-text);
-    color: var(--colors-user-message-text);
+    border-left-color: var(--user-message-text);
+    color: var(--user-message-text);
 }
 
 /* ---- Markdown body (string / agent-streamed content) ------------------ */
@@ -423,7 +423,7 @@
 .happy2-message__body--markdown h4,
 .happy2-message__body--markdown h5,
 .happy2-message__body--markdown h6 {
-    color: var(--colors-text);
+    color: var(--text);
     font-weight: 600;
     line-height: 24px;
 }
@@ -459,7 +459,7 @@
 }
 
 .happy2-message__body--markdown del {
-    color: var(--colors-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-message__body--markdown table {
@@ -473,15 +473,15 @@
 
 .happy2-message__body--markdown th,
 .happy2-message__body--markdown td {
-    border: 1px solid var(--colors-divider);
+    border: 1px solid var(--divider);
     padding: 8px 12px;
     text-align: left;
     vertical-align: top;
 }
 
 .happy2-message__body--markdown th {
-    background: var(--colors-input-background);
-    color: var(--colors-text);
+    background: var(--input-background);
+    color: var(--text);
     font-weight: 600;
 }
 
@@ -500,7 +500,7 @@
    color so they read as links without introducing a second brand color. */
 .happy2-message__body--markdown a,
 .happy2-message__md-link {
-    color: var(--colors-text);
+    color: var(--text);
     text-decoration: underline;
     cursor: pointer;
     overflow-wrap: anywhere;
@@ -515,17 +515,17 @@
 .happy2-message__body--markdown code {
     font-family: var(--happy2-font-mono);
     font-size: 14px;
-    background: var(--colors-surface-pressed);
+    background: var(--surface-pressed);
     border-radius: 4px;
     padding: 1px 5px;
-    color: var(--colors-text);
+    color: var(--text);
 }
 
 /* Fenced code: a neutral raised card. The <pre> is the edge-to-edge scrollport
    and its inner <code> carries the 16px inset so the right pad survives
    horizontal scroll instead of being clipped by the overflow boundary. */
 .happy2-message__body--markdown pre {
-    background: var(--colors-surface-pressed);
+    background: var(--surface-pressed);
     border-radius: 8px;
     overflow-x: auto;
     max-width: 100%;
@@ -536,22 +536,22 @@
     background: transparent;
     border-radius: 0;
     padding: 16px;
-    color: var(--colors-text);
+    color: var(--text);
     font-size: 14px;
     line-height: 20px;
     white-space: pre;
 }
 
 .happy2-message__body--markdown blockquote {
-    border-left: 2px solid var(--colors-surface-selected);
+    border-left: 2px solid var(--surface-selected);
     padding-left: 10px;
-    color: var(--colors-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-message__body--markdown hr {
     height: 1px;
     border: 0;
-    background: var(--colors-divider);
+    background: var(--divider);
 }
 
 /*
@@ -563,7 +563,7 @@
     display: inline-flex;
     width: 8px;
     height: 16px;
-    background: var(--colors-radio-active);
+    background: var(--radio-active);
     border-radius: 2px;
     vertical-align: text-bottom;
 }
@@ -576,7 +576,7 @@
     display: inline-flex;
     width: 8px;
     height: 8px;
-    background: var(--colors-text-destructive);
+    background: var(--text-destructive);
     border-radius: var(--happy2-radius-pill);
 }
 
@@ -627,8 +627,8 @@
     overflow: hidden;
     margin: 0;
     padding: 0;
-    background: var(--colors-input-background);
-    border: 1px solid var(--colors-divider);
+    background: var(--input-background);
+    border: 1px solid var(--divider);
     border-radius: 8px;
     appearance: none;
     cursor: zoom-in;
@@ -642,11 +642,11 @@
 }
 
 .happy2-message__media-item:hover {
-    border-color: var(--colors-surface-selected);
+    border-color: var(--surface-selected);
 }
 
 .happy2-message__media-item:focus-visible {
-    outline: 2px solid var(--colors-radio-active);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
@@ -693,7 +693,7 @@
     background: transparent;
     border: 1px solid transparent;
     border-radius: var(--happy2-radius-pill);
-    color: var(--colors-text-secondary);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     appearance: none;
     cursor: pointer;
@@ -704,13 +704,13 @@
 }
 
 .happy2-message__react-add:hover {
-    background: var(--colors-input-background);
-    border-color: var(--colors-divider);
-    color: var(--colors-text-secondary);
+    background: var(--input-background);
+    border-color: var(--divider);
+    color: var(--text-secondary);
 }
 
 .happy2-message__react-add:focus-visible {
-    outline: 2px solid var(--colors-radio-active);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
@@ -725,7 +725,7 @@
     font-size: 12px;
     font-weight: 700;
     line-height: 16px;
-    color: var(--colors-radio-active);
+    color: var(--radio-active);
     font-synthesis: none;
     appearance: none;
     cursor: pointer;
@@ -733,12 +733,12 @@
 }
 
 .happy2-message__replies:hover {
-    color: var(--colors-radio-active);
+    color: var(--radio-active);
     text-decoration: underline;
 }
 
 .happy2-message__replies:focus-visible {
-    outline: 2px solid var(--colors-radio-active);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
     border-radius: 4px;
 }
@@ -753,11 +753,10 @@
     display: flex;
     align-items: center;
     padding: 2px;
-    background: var(--colors-surface-pressed);
-    border: 1px solid var(--colors-surface-selected);
+    background: var(--surface-pressed);
+    border: 1px solid var(--surface-selected);
     border-radius: var(--happy2-radius-sm);
-    box-shadow: 0 6px 18px
-        color-mix(in srgb, var(--colors-button-primary-background) 32%, transparent);
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--button-primary-background) 32%, transparent);
     opacity: 0;
     pointer-events: none;
     transform: translateY(-2px);
@@ -824,11 +823,11 @@
        hovered. Firefox uses the standard properties; WebKit/Chromium use the
        ::-webkit-scrollbar rules below. Both resolve to the same theme tokens. */
     scrollbar-width: thin;
-    scrollbar-color: var(--colors-surface-selected) transparent;
+    scrollbar-color: var(--surface-selected) transparent;
 }
 
 .happy2-message-list:hover {
-    scrollbar-color: var(--colors-input-placeholder) transparent;
+    scrollbar-color: var(--input-placeholder) transparent;
 }
 
 .happy2-message-list::-webkit-scrollbar {
@@ -843,18 +842,18 @@
 /* The 3px transparent border (clipped to the padding box) insets the thumb to a
    ~6px rounded bar floating off the edge, matching the standard property width. */
 .happy2-message-list::-webkit-scrollbar-thumb {
-    background-color: var(--colors-surface-selected);
+    background-color: var(--surface-selected);
     background-clip: padding-box;
     border: 3px solid transparent;
     border-radius: var(--happy2-radius-pill);
 }
 
 .happy2-message-list:hover::-webkit-scrollbar-thumb {
-    background-color: var(--colors-input-placeholder);
+    background-color: var(--input-placeholder);
 }
 
 .happy2-message-list::-webkit-scrollbar-thumb:hover {
-    background-color: var(--colors-text-secondary);
+    background-color: var(--text-secondary);
 }
 
 .happy2-message-list::-webkit-scrollbar-corner {
@@ -914,7 +913,7 @@
     line-height: 20px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--colors-text-secondary);
+    color: var(--text-secondary);
     white-space: nowrap;
 }
 
@@ -943,7 +942,7 @@
     flex: none;
     align-items: center;
     justify-content: center;
-    color: var(--colors-input-placeholder);
+    color: var(--input-placeholder);
 }
 
 .happy2-system-notice__text {
@@ -952,14 +951,14 @@
     font-size: 13px;
     font-weight: 400;
     line-height: 20px;
-    color: var(--colors-text-secondary);
+    color: var(--text-secondary);
     text-align: center;
     text-wrap: balance;
 }
 
 .happy2-system-notice__ref {
     font-weight: 500;
-    color: var(--colors-text-secondary);
+    color: var(--text-secondary);
 }
 
 /* ---- Engine-scoped optical corrections -------------------------------- */

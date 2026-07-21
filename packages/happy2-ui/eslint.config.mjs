@@ -7,6 +7,7 @@ import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 import layoutPolicy from "../../eslint/layout-policy.mjs";
+import themePolicy from "../../eslint/theme-policy.mjs";
 
 const common = {
     plugins: { "happy2-layout": layoutPolicy },
@@ -81,11 +82,14 @@ export default defineConfig(
         files: ["src/**/*.css"],
         language: "css/css",
         languageOptions: { tolerant: true },
-        plugins: { css, "happy2-layout": layoutPolicy },
+        plugins: { css, "happy2-layout": layoutPolicy, "happy2-theme": themePolicy },
         rules: {
             "happy2-layout/require-layout-exception-reason": "error",
             "happy2-layout/scrollport-no-spacing": "error",
             "happy2-layout/use-flex-layout": "error",
+            "happy2-theme/no-direct-color": "error",
+            "happy2-theme/theme-color-variables-only": "error",
+            "happy2-theme/theme-color-variable-references-only": "error",
         },
     },
     {

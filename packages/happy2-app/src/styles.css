@@ -24,7 +24,7 @@ body {
 }
 
 * {
-    scrollbar-color: rgba(150, 150, 150, 0.4) transparent;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
     scrollbar-width: thin;
 }
 
@@ -39,7 +39,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(150, 150, 150, 0.4);
+    background: var(--scrollbar-thumb);
     border: 2px solid transparent;
     border-radius: var(--happy2-radius-sm);
     background-clip: padding-box;

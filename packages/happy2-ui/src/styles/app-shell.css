@@ -16,8 +16,8 @@
     min-width: 720px;
     min-height: 480px;
     overflow: hidden;
-    background-color: var(--colors-header-background);
-    color: var(--colors-text);
+    background-color: var(--header-background);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -80,7 +80,7 @@
     flex-direction: row;
     min-width: 0;
     min-height: 0;
-    background: var(--colors-surface);
+    background: var(--surface);
     border: 0;
     border-radius: 0;
     overflow: hidden;
@@ -94,8 +94,15 @@
     width: clamp(250px, 30vw, 360px);
     min-width: 250px;
     min-height: 0;
-    background: var(--colors-groupped-background);
+    background: var(--groupped-background);
     position: relative;
+}
+
+/* AppShell owns the sidebar width. The reusable Sidebar keeps its standalone
+   clamp, but must fill rather than overflow when it is hosted by this shell. */
+.happy2-app-shell__sidebar > .happy2-sidebar {
+    width: 100%;
+    min-width: 0;
 }
 
 .happy2-app-shell__sidebar::after {
@@ -105,7 +112,7 @@
     right: 0;
     bottom: 0;
     width: 1px;
-    background: var(--colors-divider);
+    background: var(--divider);
     content: "";
     pointer-events: none;
 }
@@ -137,17 +144,17 @@
     border: 0;
     border-radius: 6px;
     background: transparent;
-    color: var(--colors-text-secondary);
+    color: var(--text-secondary);
     cursor: pointer;
 }
 
 .happy2-app-shell__sidebar-collapse:hover {
-    background: var(--colors-surface-pressed);
-    color: var(--colors-text);
+    background: var(--surface-pressed);
+    color: var(--text);
 }
 
 .happy2-app-shell__sidebar-collapse:focus-visible {
-    outline: 2px solid var(--colors-radio-active);
+    outline: 2px solid var(--surface-selected);
     outline-offset: 1px;
 }
 
@@ -167,8 +174,8 @@
     width: 48px;
     min-height: 0;
     padding-top: 12px;
-    background: var(--colors-groupped-background);
-    border-right: 1px solid var(--colors-divider);
+    background: var(--groupped-background);
+    border-right: 1px solid var(--divider);
 }
 
 /* Reserve the top-left traffic-light lane so the reveal control never sits under it. */
@@ -188,49 +195,61 @@
     border: 0;
     border-radius: 6px;
     background: transparent;
-    color: var(--colors-text-secondary);
+    color: var(--text-secondary);
     cursor: pointer;
 }
 
 .happy2-app-shell__reveal-button:hover {
-    background: var(--colors-surface-pressed);
-    color: var(--colors-text);
+    background: var(--surface-pressed);
+    color: var(--text);
 }
 
 .happy2-app-shell__reveal-button:focus-visible {
-    outline: 2px solid var(--colors-radio-active);
+    outline: 2px solid var(--surface-selected);
     outline-offset: 1px;
 }
 
-/* Vertical drag divider: an 8px hit lane with a centered 1px hairline. */
+/* Octicons draw the sidebar rail on the opposite side from this left dock. */
+.happy2-app-shell__sidebar-collapse .happy2-icon,
+.happy2-app-shell__reveal-button .happy2-icon {
+    transform: scaleX(-1);
+}
+
+/* Vertical drag divider: an 8px hit lane whose hairline meets its owning
+   surface edge; the lane itself is painted as the adjacent workspace/panel. */
 .happy2-app-shell__resize-handle {
     box-sizing: border-box;
     display: flex;
     align-items: stretch;
-    justify-content: center;
+    justify-content: flex-start;
     flex: none;
     width: 8px;
     min-height: 0;
     padding: 0;
-    background: transparent;
+    background: var(--surface);
     cursor: col-resize;
     touch-action: none;
 }
 
+/* The inspector splitter owns the panel's left edge. */
+.happy2-app-shell__resize-handle[data-edge="left"] {
+    justify-content: flex-end;
+}
+
 .happy2-app-shell__resize-handle:focus-visible {
-    outline: 2px solid var(--colors-radio-active);
-    outline-offset: -2px;
+    outline: none;
 }
 
 .happy2-app-shell__resize-line {
     display: block;
     width: 1px;
-    background: var(--colors-divider);
+    background: var(--divider);
 }
 
 .happy2-app-shell__resize-handle:hover .happy2-app-shell__resize-line,
 .happy2-app-shell__resize-handle:focus-visible .happy2-app-shell__resize-line {
-    background: var(--colors-surface-selected);
+    width: 2px;
+    background: var(--surface-selected);
 }
 
 .happy2-app-shell__workspace {
@@ -253,9 +272,9 @@
     min-width: 250px;
     min-height: 0;
     width: clamp(250px, 30vw, 360px);
-    background: var(--colors-surface);
+    background: var(--surface);
     border: 0;
-    border-left: 1px solid var(--colors-divider);
+    border-left: 1px solid var(--divider);
     border-radius: 0;
     overflow: hidden;
 }
@@ -310,21 +329,21 @@
     width: 24px;
     height: 40px;
     padding: 0;
-    border: 1px solid var(--colors-divider);
+    border: 1px solid var(--divider);
     border-left: 0;
     border-top-right-radius: 6px;
     border-bottom-right-radius: 6px;
-    background: var(--colors-surface);
-    color: var(--colors-text-secondary);
+    background: var(--surface);
+    color: var(--text-secondary);
     transform: translateY(-50%);
     cursor: pointer;
 }
 
 .happy2-app-shell__panel-toggle:hover {
-    color: var(--colors-text);
+    color: var(--text);
 }
 
 .happy2-app-shell__panel-toggle:focus-visible {
-    outline: 2px solid var(--colors-radio-active);
+    outline: 2px solid var(--surface-selected);
     outline-offset: 1px;
 }

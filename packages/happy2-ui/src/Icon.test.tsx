@@ -136,7 +136,7 @@ it("paints real ink for every curated glyph in its box", async () => {
         },
     );
     await view.ready();
-    expect(iconNames.length).toBe(48);
+    expect(iconNames.length).toBe(50);
     const parts = iconNames.map((name) => view.$(`[data-name="${name}"]`));
     const metrics = await view.visibleMetrics(parts);
     for (const [index, name] of iconNames.entries()) {

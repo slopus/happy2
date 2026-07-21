@@ -68,7 +68,7 @@
     border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-shell);
     background: var(--surface);
-    box-shadow: 0 24px 60px rgb(0 0 0 / 0.45);
+    box-shadow: 0 24px 60px var(--shadow-floating);
 }
 
 .happy2-onboarding-screen__card[data-width="large"] {

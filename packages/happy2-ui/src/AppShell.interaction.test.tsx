@@ -54,14 +54,14 @@ function interactiveShell() {
     return (
         <AppShell
             data-testid="shell"
-            panel={slot("panel-slot", { background: "var(--colors-surface)" })}
+            panel={slot("panel-slot", { background: "var(--surface)" })}
             panelDefaultWidth={340}
             panelMaximizable
             panelMinWidth={280}
             panelMaxWidth={560}
             panelResizable
             sidebar={slot("sidebar-slot", {
-                background: "var(--colors-groupped-background)",
+                background: "var(--groupped-background)",
                 width: "100%",
             })}
             sidebarCollapsible
@@ -69,7 +69,7 @@ function interactiveShell() {
             sidebarMinWidth={220}
             sidebarMaxWidth={480}
         >
-            {slot("workspace-slot", { background: "var(--colors-surface)" })}
+            {slot("workspace-slot", { background: "var(--surface)" })}
         </AppShell>
     );
 }
@@ -79,13 +79,13 @@ it("does not render resize or collapse chrome unless the interaction props are s
         () => (
             <AppShell
                 data-testid="plain"
-                panel={slot("panel", { background: "var(--colors-surface)" })}
+                panel={slot("panel", { background: "var(--surface)" })}
                 sidebar={slot("sidebar", {
-                    background: "var(--colors-groupped-background)",
+                    background: "var(--groupped-background)",
                     width: "100%",
                 })}
             >
-                {slot("workspace", { background: "var(--colors-surface)" })}
+                {slot("workspace", { background: "var(--surface)" })}
             </AppShell>
         ),
         shellSize,
@@ -101,13 +101,40 @@ it("does not render resize or collapse chrome unless the interaction props are s
     expect(view.$('[data-happy2-ui="app-shell-sidebar"]').bounds().width).toBe(360);
 });
 
-it("resizes the sidebar by pointer drag and clamps to its min/max bounds", async () => {
+it("contains a Sidebar within the width owned by the resizable shell", async () => {
     const view = createRenderer().render(
         () => (
             <AppShell
                 data-testid="shell"
+                sidebar={<div className="happy2-sidebar" data-testid="sidebar-content" />}
+                sidebarCollapsible
+                sidebarDefaultWidth={288}
+                sidebarMinWidth={220}
+                sidebarMaxWidth={480}
+            >
+                {slot("workspace", { background: "var(--surface)" })}
+            </AppShell>
+        ),
+        shellSize,
+    );
+    await view.ready();
+
+    const shellSidebar = view.$('[data-happy2-ui="app-shell-sidebar"]').bounds();
+    const sidebarContent = view.$('[data-testid="sidebar-content"]');
+    const contentSidebar = sidebarContent.bounds();
+    expect(contentSidebar.width).toBe(shellSidebar.width);
+    expect(contentSidebar.right).toBe(shellSidebar.right);
+    expect(sidebarContent.computedStyle("background-color")).toBe("rgb(245, 245, 245)");
+});
+
+it("resizes the sidebar by pointer drag and clamps to its min/max bounds", async () => {
+    const view = createRenderer().render(
+        () => (
+            <AppShell
+                className="happy2-theme-dark"
+                data-testid="shell"
                 sidebar={slot("sidebar", {
-                    background: "var(--colors-groupped-background)",
+                    background: "var(--groupped-background)",
                     width: "100%",
                 })}
                 sidebarCollapsible
@@ -115,7 +142,7 @@ it("resizes the sidebar by pointer drag and clamps to its min/max bounds", async
                 sidebarMinWidth={220}
                 sidebarMaxWidth={480}
             >
-                {slot("workspace", { background: "var(--colors-surface)" })}
+                {slot("workspace", { background: "var(--surface)" })}
             </AppShell>
         ),
         shellSize,
@@ -124,7 +151,14 @@ it("resizes the sidebar by pointer drag and clamps to its min/max bounds", async
 
     const sidebar = () => view.$('[data-happy2-ui="app-shell-sidebar"]');
     const handle = () => view.$('[data-happy2-ui="app-shell-resize-handle"]');
+    const line = () => view.$('[data-happy2-ui="app-shell-resize-line"]');
     expect(sidebar().bounds().width).toBe(288);
+    expect(sidebar().computedStyle("background-color")).toBe("rgb(30, 30, 30)");
+    expect(line().computedStyles(["background-color", "width"])).toEqual({
+        "background-color": "rgb(41, 41, 41)",
+        width: "1px",
+    });
+    expect(sidebar().bounds().x + sidebar().bounds().width).toBe(line().bounds().x);
 
     await drag(handle(), 60);
     await view.ready();
@@ -145,9 +179,10 @@ it("exposes accessible separator semantics and resizes with the keyboard", async
     const view = createRenderer().render(
         () => (
             <AppShell
+                className="happy2-theme-dark"
                 data-testid="shell"
                 sidebar={slot("sidebar", {
-                    background: "var(--colors-groupped-background)",
+                    background: "var(--groupped-background)",
                     width: "100%",
                 })}
                 sidebarCollapsible
@@ -155,7 +190,7 @@ it("exposes accessible separator semantics and resizes with the keyboard", async
                 sidebarMinWidth={220}
                 sidebarMaxWidth={480}
             >
-                {slot("workspace", { background: "var(--colors-surface)" })}
+                {slot("workspace", { background: "var(--surface)" })}
             </AppShell>
         ),
         shellSize,
@@ -173,6 +208,15 @@ it("exposes accessible separator semantics and resizes with the keyboard", async
 
     (handle().element as HTMLElement).focus();
     expect(document.activeElement).toBe(handle().element);
+    expect(handle().computedStyle("outline-style")).toBe("none");
+    expect(
+        view
+            .$('[data-happy2-ui="app-shell-resize-line"]')
+            .computedStyles(["background-color", "width"]),
+    ).toEqual({
+        "background-color": "rgb(44, 44, 46)",
+        width: "2px",
+    });
 
     press(handle(), "ArrowRight");
     await view.ready();
@@ -200,8 +244,18 @@ it("hides and shows the sidebar while keeping the workspace DOM node mounted", a
     expect(view.$('[data-happy2-ui="app-shell-sidebar"]').computedStyle("display")).not.toBe(
         "none",
     );
+    const collapse = view.$('[data-happy2-ui="app-shell-sidebar-collapse"]');
+    const collapseIcon = view.$(
+        '[data-happy2-ui="app-shell-sidebar-collapse"] [data-happy2-ui="icon"]',
+    );
+    expect(collapseIcon.element.getAttribute("data-glyph")).toBe("sidebar-collapse");
+    expect(collapse.computedStyles(["background-color", "border-top-width"])).toEqual({
+        "background-color": "rgba(0, 0, 0, 0)",
+        "border-top-width": "0px",
+    });
+    expect(collapseIcon.computedStyle("font-size")).toBe("14px");
 
-    (view.$('[data-happy2-ui="app-shell-sidebar-collapse"]').element as HTMLButtonElement).click();
+    (collapse.element as HTMLButtonElement).click();
     await view.ready();
 
     // Collapsed: the sidebar stays in the DOM (identity preserved) but is hidden,
@@ -209,6 +263,13 @@ it("hides and shows the sidebar while keeping the workspace DOM node mounted", a
     expect(view.$('[data-happy2-ui="app-shell-sidebar"]').computedStyle("display")).toBe("none");
     const reveal = view.$('[data-happy2-ui="app-shell-reveal-button"]');
     expect(reveal.element.getAttribute("aria-label")).toBe("Show sidebar");
+    const revealIcon = view.$('[data-happy2-ui="app-shell-reveal-button"] [data-happy2-ui="icon"]');
+    expect(revealIcon.element.getAttribute("data-glyph")).toBe("sidebar-expand");
+    expect(reveal.computedStyles(["background-color", "border-top-width"])).toEqual({
+        "background-color": "rgba(0, 0, 0, 0)",
+        "border-top-width": "0px",
+    });
+    expect(revealIcon.computedStyle("font-size")).toBe("14px");
     expect(view.$('[data-happy2-ui="app-shell-workspace"]').element).toBe(workspaceBefore);
 
     (reveal.element as HTMLButtonElement).click();
@@ -248,17 +309,17 @@ it("keeps both resized sidebars fully reachable at the minimum desktop width", a
         () => (
             <AppShell
                 data-testid="tight-shell"
-                panel={slot("tight-panel", { background: "var(--colors-surface)" })}
+                panel={slot("tight-panel", { background: "var(--surface)" })}
                 panelDefaultWidth={340}
                 panelMinWidth={280}
                 panelMaxWidth={560}
                 panelResizable
                 rail={slot("tight-rail", {
-                    background: "var(--colors-groupped-background)",
+                    background: "var(--groupped-background)",
                     width: 64,
                 })}
                 sidebar={slot("tight-sidebar", {
-                    background: "var(--colors-groupped-background)",
+                    background: "var(--groupped-background)",
                     width: "100%",
                 })}
                 sidebarCollapsible
@@ -266,7 +327,7 @@ it("keeps both resized sidebars fully reachable at the minimum desktop width", a
                 sidebarMinWidth={220}
                 sidebarMaxWidth={480}
             >
-                {slot("tight-workspace", { background: "var(--colors-surface)" })}
+                {slot("tight-workspace", { background: "var(--surface)" })}
             </AppShell>
         ),
         { height: 600, width: 720 },
@@ -344,18 +405,18 @@ it("supports controlled maximize with a panel footer pinned below the body", asy
         () => (
             <AppShell
                 data-testid="shell"
-                panel={slot("panel", { background: "var(--colors-surface)" })}
-                panelFooter={slot("footer", { background: "var(--colors-surface-pressed)" })}
+                panel={slot("panel", { background: "var(--surface)" })}
+                panelFooter={slot("footer", { background: "var(--surface-pressed)" })}
                 panelMaximizable
                 panelMaximized
                 onPanelMaximizedChange={(value) => changes.push(value)}
                 sidebar={slot("sidebar", {
-                    background: "var(--colors-groupped-background)",
+                    background: "var(--groupped-background)",
                     width: "100%",
                 })}
                 sidebarCollapsible
             >
-                {slot("workspace", { background: "var(--colors-surface)" })}
+                {slot("workspace", { background: "var(--surface)" })}
             </AppShell>
         ),
         shellSize,

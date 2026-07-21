@@ -38,11 +38,10 @@ must not read the app's feature store or navigate by itself.
 
 ## Theme
 
-Happy (2) follows the original Happy app's active native, neutral visual
-language. It uses the system appearance automatically by default: light mode
-has white and grouped near-white surfaces with black primary actions; dark mode
-has a #1c1c1e grouped root, #18171c primary surfaces, and black primary
-actions. A product surface may offer a
+Happy (2) follows the original Happy app's desktop, neutral visual language.
+It uses the system appearance automatically by default: light mode has white
+and #f5f5f5 grouped surfaces with black primary actions; dark mode has a
+#1e1e1e grouped root, #212121 primary surfaces, and black primary actions. A product surface may offer a
 controlled light/dark override only through the reusable `happy2-ui` theme
 scope, such as the compact appearance control in the feature rail. The override
 must affect one stable application tree and remain fully keyboard accessible; it
@@ -62,9 +61,9 @@ Core values (see `theme.css` for the full set):
 
 | Token group      | Light / dark values                                                                                                                                                     |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Surfaces         | chrome `#fff` / `#18171c`, app `#f2f2f7` / `#1c1c1e`, surface `#fff` / `#18171c`, raised `#f8f8f8` / `#2c2c2e`, inset `#f5f5f5` / `#1c1c1e`, code `#f6f8fa` / `#161b22` |
-| Hairlines        | `#eaeaea` / `#38383a`, strong `#d1d1d6` / `#48484a`                                                                                                                     |
-| Text             | `#000` / `#fff`, secondary and muted `#8e8e93` in both schemes                                                                                                          |
+| Surfaces         | chrome `#fff` / `#212121`, app `#f5f5f5` / `#1e1e1e`, surface `#fff` / `#212121`, raised `#f8f8f8` / `#171717`, inset `#f5f5f5` / `#303030`, code `#f6f8fa` / `#161b22` |
+| Hairlines        | `#eaeaea` / `#292929`                                                                                                                                                   |
+| Text             | `#000` / `#fff`, secondary `#49454f` / `#cac4d0`                                                                                                                        |
 | Interactive/link | teal `#2baccc` in both schemes; original system-blue controls use `#007aff` / `#0a84ff`                                                                                 |
 | Primary action   | black with white text in both schemes                                                                                                                                   |
 | Semantics        | green `#34c759` / `#32d74b`, orange `#ff9500` / `#ff9f0a`, red `#ff3b30` / `#ff453a`                                                                                    |

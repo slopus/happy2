@@ -49,6 +49,8 @@ export type IconName =
     | "edit"
     | "sun"
     | "moon"
+    | "sidebar-collapse"
+    | "sidebar-expand"
     | "trash"
     | "dot";
 export type IconProps = {
@@ -122,6 +124,8 @@ const glyphs: Record<IconName, IconGlyph> = {
     edit: { set: "ionicons", name: "create-outline" },
     sun: { set: "ionicons", name: "sunny-outline" },
     moon: { set: "ionicons", name: "moon-outline" },
+    "sidebar-collapse": { set: "octicons", name: "sidebar-collapse" },
+    "sidebar-expand": { set: "octicons", name: "sidebar-expand" },
     trash: { set: "ionicons", name: "trash-outline" },
     dot: { set: "ionicons", name: "ellipse" },
 };

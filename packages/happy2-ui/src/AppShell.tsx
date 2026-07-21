@@ -324,7 +324,7 @@ export function AppShell(props: AppShellProps) {
                                     onClick={() => setSidebarCollapsed(false)}
                                     type="button"
                                 >
-                                    <Icon name="chevron-right" size={16} />
+                                    <Icon name="sidebar-expand" size={14} />
                                 </button>
                             </div>
                         ) : null}
@@ -347,9 +347,7 @@ export function AppShell(props: AppShellProps) {
                                         onClick={() => setSidebarCollapsed(true)}
                                         type="button"
                                     >
-                                        <span className="happy2-app-shell__chevron-left">
-                                            <Icon name="chevron-right" size={16} />
-                                        </span>
+                                        <Icon name="sidebar-collapse" size={14} />
                                     </button>
                                 ) : null}
                             </div>

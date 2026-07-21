@@ -97,11 +97,6 @@
     transform: translateY(var(--happy2-sidebar-header-optical-y, 0px));
 }
 
-.happy2-sidebar__compose-row {
-    flex: none;
-    margin-bottom: 8px;
-}
-
 /* ---- Back / drill-down header ----------------------------------------- */
 
 .happy2-sidebar[data-back] .happy2-sidebar__heading {
@@ -130,8 +125,9 @@
         color 120ms ease;
 }
 
-/* Mirror the right chevron into a back (left) chevron. */
-.happy2-sidebar__back svg {
+/* Mirror the right chevron into a back (left) chevron. Icon uses a font span,
+   not an SVG, so the transform belongs on the shared Icon element. */
+.happy2-sidebar__back .happy2-icon {
     transform: scaleX(-1);
 }
 
@@ -141,7 +137,7 @@
 }
 
 .happy2-sidebar__back:focus-visible {
-    outline: 2px solid var(--radio-active);
+    outline: 2px solid var(--surface-selected);
     outline-offset: -2px;
 }
 
@@ -189,16 +185,6 @@
     }
 }
 
-.happy2-sidebar__compose {
-    justify-content: flex-start;
-    border-radius: var(--happy2-radius-md);
-}
-
-.happy2-sidebar__compose .happy2-button__content {
-    justify-content: flex-start;
-    width: 100%;
-}
-
 /* ---- Body ------------------------------------------------------------- */
 
 /* Scrollport: edge-to-edge, no padding of its own. */
@@ -227,6 +213,11 @@
 
 .happy2-sidebar__section + .happy2-sidebar__section {
     margin-top: 12px;
+}
+
+/* New chat is a SidebarRow; keep the same 2px row rhythm before the first menu. */
+.happy2-sidebar__compose + .happy2-sidebar__section {
+    margin-top: 2px;
 }
 
 .happy2-sidebar__section-head {
@@ -287,7 +278,7 @@
 }
 
 .happy2-sidebar__section-action:focus-visible {
-    outline: 2px solid var(--radio-active);
+    outline: 2px solid var(--surface-selected);
     outline-offset: 1px;
 }
 
@@ -343,7 +334,7 @@
 }
 
 .happy2-sidebar__item:focus-visible {
-    outline: 2px solid var(--radio-active);
+    outline: 2px solid var(--surface-selected);
     outline-offset: -2px;
 }
 
@@ -359,6 +350,11 @@
     justify-content: center;
     width: 20px;
     color: var(--text-secondary);
+}
+
+/* The compose pencil's ink is bottom-heavy; lift it to the row's optical center. */
+.happy2-sidebar__compose .happy2-sidebar__item-leading {
+    transform: translateY(-1px);
 }
 
 .happy2-sidebar__item[data-active] .happy2-sidebar__item-leading {
@@ -491,7 +487,7 @@
 }
 
 .happy2-sidebar__profile:focus-visible {
-    outline: 2px solid var(--radio-active);
+    outline: 2px solid var(--surface-selected);
     outline-offset: -2px;
 }
 

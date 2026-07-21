@@ -129,7 +129,7 @@
     background: var(--surface);
     border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-shell);
-    box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
+    box-shadow: 0 24px 64px var(--shadow-elevated);
 }
 
 /* A modal app is a large, resilient dialog card centered by ModalOverlay. */

@@ -1,5 +1,5 @@
 /*
- * Happy's active iOS theme, flattened for CSS consumers.
+ * Happy's desktop theme, flattened for CSS consumers.
  *
  * Every colour property below corresponds directly to a property in
  * packages/happy-app/sources/theme.ts. Do not add aliases, gradients, or
@@ -29,8 +29,8 @@
     color-scheme: light;
 
     --text: #000000;
-    --text-destructive: #ff3b30;
-    --text-secondary: #8e8e93;
+    --text-destructive: #f44336;
+    --text-secondary: #49454f;
     --text-link: #2baccc;
     --delete-action: #ff6b6b;
     --warning-critical: #ff3b30;
@@ -39,20 +39,27 @@
     --surface: #ffffff;
     --surface-ripple: rgb(0 0 0 / 0.08);
     --surface-pressed: #f0f0f2;
-    --surface-selected: #c6c6c8;
-    --surface-pressed-overlay: #d1d1d6;
+    --surface-selected: #eaeaea;
+    --surface-pressed-overlay: transparent;
     --surface-high: #f8f8f8;
     --surface-highest: #f0f0f0;
     --divider: #eaeaea;
     --shadow-color: rgb(0 0 0 / 0.1);
     --shadow-opacity: 0.1;
+    --shadow-subtle: rgb(0 0 0 / 0.24);
+    --shadow-rail: rgb(0 0 0 / 28%);
+    --shadow-floating: rgb(0 0 0 / 0.45);
+    --shadow-elevated: rgb(0 0 0 / 0.5);
+    --overlay-backdrop: rgb(15 15 15 / 0.75);
+    --overlay-panel: rgb(0 0 0 / 0.48);
+    --scrollbar-thumb: rgba(150, 150, 150, 0.4);
 
-    --groupped-background: #f2f2f7;
-    --groupped-chevron: #c7c7cc;
-    --groupped-section-title: #8e8e93;
+    --groupped-background: #f5f5f5;
+    --groupped-chevron: #49454f;
+    --groupped-section-title: #49454f;
     --header-background: #ffffff;
     --header-tint: #18171c;
-    --switch-track-active: #34c759;
+    --switch-track-active: #1976d2;
     --switch-track-inactive: #dddddd;
     --switch-thumb-active: #ffffff;
     --switch-thumb-inactive: #767577;
@@ -160,35 +167,45 @@
     --happy2-radius-pill: 999px;
     --happy2-chat-measure: 1040px;
     --happy2-z-overlay: 1000;
+
+    --nl-kind-color: var(--text-link);
+    --nl-kind-soft: var(--surface-selected);
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
         color-scheme: dark;
         --text: #ffffff;
-        --text-destructive: #ff453a;
-        --text-secondary: #8e8e93;
+        --text-destructive: #f48fb1;
+        --text-secondary: #cac4d0;
         --text-link: #2baccc;
         --delete-action: #ff6b6b;
         --warning-critical: #ff453a;
         --warning: #8e8e93;
         --success: #32d74b;
-        --surface: #18171c;
+        --surface: #212121;
         --surface-ripple: rgb(255 255 255 / 0.08);
         --surface-pressed: #2c2c2e;
         --surface-selected: #2c2c2e;
-        --surface-pressed-overlay: #2c2c2e;
-        --surface-high: #2c2c2e;
-        --surface-highest: #38383a;
-        --divider: #38383a;
+        --surface-pressed-overlay: transparent;
+        --surface-high: #171717;
+        --surface-highest: #292929;
+        --divider: #292929;
         --shadow-color: rgb(0 0 0 / 0.1);
         --shadow-opacity: 0.1;
-        --groupped-background: #1c1c1e;
-        --groupped-chevron: #48484a;
-        --groupped-section-title: #8e8e93;
-        --header-background: #18171c;
+        --shadow-subtle: rgb(0 0 0 / 0.24);
+        --shadow-rail: rgb(0 0 0 / 28%);
+        --shadow-floating: rgb(0 0 0 / 0.45);
+        --shadow-elevated: rgb(0 0 0 / 0.5);
+        --overlay-backdrop: rgb(15 15 15 / 0.75);
+        --overlay-panel: rgb(0 0 0 / 0.48);
+        --scrollbar-thumb: rgba(150, 150, 150, 0.4);
+        --groupped-background: #1e1e1e;
+        --groupped-chevron: #cac4d0;
+        --groupped-section-title: #cac4d0;
+        --header-background: #212121;
         --header-tint: #ffffff;
-        --switch-track-active: #34c759;
+        --switch-track-active: #1976d2;
         --switch-track-inactive: #3a393f;
         --switch-thumb-active: #ffffff;
         --switch-thumb-inactive: #767577;
@@ -203,7 +220,7 @@
         --button-primary-tint: #ffffff;
         --button-primary-disabled: #c0c0c0;
         --button-secondary-tint: #8e8e93;
-        --input-background: #1c1c1e;
+        --input-background: #303030;
         --input-text: #ffffff;
         --input-placeholder: #8e8e93;
         --box-warning-background: rgb(255 159 10 / 0.15);
@@ -289,29 +306,36 @@
 .happy2-theme-dark {
     color-scheme: dark;
     --text: #ffffff;
-    --text-destructive: #ff453a;
-    --text-secondary: #8e8e93;
+    --text-destructive: #f48fb1;
+    --text-secondary: #cac4d0;
     --text-link: #2baccc;
     --delete-action: #ff6b6b;
     --warning-critical: #ff453a;
     --warning: #8e8e93;
     --success: #32d74b;
-    --surface: #18171c;
+    --surface: #212121;
     --surface-ripple: rgb(255 255 255 / 0.08);
     --surface-pressed: #2c2c2e;
     --surface-selected: #2c2c2e;
-    --surface-pressed-overlay: #2c2c2e;
-    --surface-high: #2c2c2e;
-    --surface-highest: #38383a;
-    --divider: #38383a;
+    --surface-pressed-overlay: transparent;
+    --surface-high: #171717;
+    --surface-highest: #292929;
+    --divider: #292929;
     --shadow-color: rgb(0 0 0 / 0.1);
     --shadow-opacity: 0.1;
-    --groupped-background: #1c1c1e;
-    --groupped-chevron: #48484a;
-    --groupped-section-title: #8e8e93;
-    --header-background: #18171c;
+    --shadow-subtle: rgb(0 0 0 / 0.24);
+    --shadow-rail: rgb(0 0 0 / 28%);
+    --shadow-floating: rgb(0 0 0 / 0.45);
+    --shadow-elevated: rgb(0 0 0 / 0.5);
+    --overlay-backdrop: rgb(15 15 15 / 0.75);
+    --overlay-panel: rgb(0 0 0 / 0.48);
+    --scrollbar-thumb: rgba(150, 150, 150, 0.4);
+    --groupped-background: #1e1e1e;
+    --groupped-chevron: #cac4d0;
+    --groupped-section-title: #cac4d0;
+    --header-background: #212121;
     --header-tint: #ffffff;
-    --switch-track-active: #34c759;
+    --switch-track-active: #1976d2;
     --switch-track-inactive: #3a393f;
     --switch-thumb-active: #ffffff;
     --switch-thumb-inactive: #767577;
@@ -326,7 +350,7 @@
     --button-primary-tint: #ffffff;
     --button-primary-disabled: #c0c0c0;
     --button-secondary-tint: #8e8e93;
-    --input-background: #1c1c1e;
+    --input-background: #303030;
     --input-text: #ffffff;
     --input-placeholder: #8e8e93;
     --box-warning-background: rgb(255 159 10 / 0.15);

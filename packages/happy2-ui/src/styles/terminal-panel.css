@@ -17,28 +17,6 @@
     margin-inline: auto;
 }
 
-/*
- * Composer dock: a solid full-width bar grounded on the surface. Its boundary
- * with the transcript is intentionally seamless, as in Happy.
- * Its inner compose column centers at the same measure as the message column.
- */
-.happy2-chat-conversation__dock {
-    display: flex;
-    flex: none;
-    flex-direction: column;
-    background: var(--surface);
-}
-
-.happy2-chat-conversation__compose {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    width: 100%;
-    max-width: var(--happy2-chat-measure);
-    margin: 0 auto;
-    padding: 12px 20px 16px;
-}
-
 .happy2-terminal-panel {
     box-sizing: border-box;
     display: flex;

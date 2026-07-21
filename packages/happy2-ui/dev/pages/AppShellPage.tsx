@@ -13,21 +13,21 @@ function Slot(props: { height?: string; label: string; note?: string; width?: st
                 alignItems: "center",
                 borderRadius: "6px",
                 boxSizing: "border-box",
-                color: "var(--colors-input-placeholder)",
+                color: "var(--input-placeholder)",
                 display: "flex",
                 flexDirection: "column",
                 gap: "8px",
                 height: props.height ?? "100%",
                 justifyContent: "center",
                 margin: "6px",
-                outline: "1px dashed var(--colors-surface-selected)",
+                outline: "1px dashed var(--surface-selected)",
                 outlineOffset: "-6px",
                 width: props.width ?? "auto",
             }}
         >
             <span
                 style={{
-                    color: "var(--colors-text-secondary)",
+                    color: "var(--text-secondary)",
                     font: "700 11px var(--happy2-font-mono)",
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",

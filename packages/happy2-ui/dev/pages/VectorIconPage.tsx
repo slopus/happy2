@@ -77,9 +77,9 @@ function IoniconCell(props: { name: IoniconName }) {
                 alignItems: "center",
                 gap: "8px",
                 padding: "12px 4px 10px",
-                border: "1px solid var(--colors-divider)",
+                border: "1px solid var(--divider)",
                 borderRadius: "8px",
-                background: "var(--colors-surface)",
+                background: "var(--surface)",
             }}
         >
             <div
@@ -87,7 +87,7 @@ function IoniconCell(props: { name: IoniconName }) {
                     display: "flex",
                     alignItems: "flex-end",
                     gap: "10px",
-                    color: "var(--colors-text-secondary)",
+                    color: "var(--text-secondary)",
                 }}
             >
                 {SIZES.map((size) => (
@@ -100,7 +100,7 @@ function IoniconCell(props: { name: IoniconName }) {
                     fontSize: "9px",
                     lineHeight: "12px",
                     letterSpacing: "0.04em",
-                    color: "var(--colors-text-secondary)",
+                    color: "var(--text-secondary)",
                     textAlign: "center",
                 }}
             >
@@ -119,9 +119,9 @@ function OcticonCell(props: { name: OcticonName }) {
                 alignItems: "center",
                 gap: "8px",
                 padding: "12px 4px 10px",
-                border: "1px solid var(--colors-divider)",
+                border: "1px solid var(--divider)",
                 borderRadius: "8px",
-                background: "var(--colors-surface)",
+                background: "var(--surface)",
             }}
         >
             <div
@@ -129,7 +129,7 @@ function OcticonCell(props: { name: OcticonName }) {
                     display: "flex",
                     alignItems: "flex-end",
                     gap: "10px",
-                    color: "var(--colors-text-secondary)",
+                    color: "var(--text-secondary)",
                 }}
             >
                 {SIZES.map((size) => (
@@ -142,7 +142,7 @@ function OcticonCell(props: { name: OcticonName }) {
                     fontSize: "9px",
                     lineHeight: "12px",
                     letterSpacing: "0.04em",
-                    color: "var(--colors-text-secondary)",
+                    color: "var(--text-secondary)",
                     textAlign: "center",
                 }}
             >
@@ -221,7 +221,7 @@ export function VectorIconPage() {
                         display: "flex",
                         alignItems: "center",
                         gap: "20px",
-                        color: "var(--colors-text)",
+                        color: "var(--text)",
                     }}
                 >
                     {([12, 16, 20, 24, 32] as const).map((size) => (
@@ -239,7 +239,7 @@ export function VectorIconPage() {
                                 style={{
                                     fontFamily: "var(--happy2-font-mono)",
                                     fontSize: "9px",
-                                    color: "var(--colors-input-placeholder)",
+                                    color: "var(--input-placeholder)",
                                 }}
                             >
                                 {size}
@@ -257,10 +257,10 @@ export function VectorIconPage() {
                 stage="surface"
             >
                 <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                    <span style={{ color: "var(--colors-text)" }}>
+                    <span style={{ color: "var(--text)" }}>
                         <Ionicon name="checkmark-circle" size={24} />
                     </span>
-                    <span style={{ color: "var(--colors-text-secondary)" }}>
+                    <span style={{ color: "var(--text-secondary)" }}>
                         <Ionicon name="checkmark-circle" size={24} />
                     </span>
                     <Ionicon name="checkmark-circle" size={24} color="#8b7cf7" />
@@ -283,9 +283,9 @@ export function VectorIconPage() {
                             gap: "12px",
                             padding: "12px 16px",
                             borderRadius: "8px",
-                            background: "var(--colors-header-background)",
-                            border: "1px solid var(--colors-divider)",
-                            color: "var(--colors-text-secondary)",
+                            background: "var(--header-background)",
+                            border: "1px solid var(--divider)",
+                            color: "var(--text-secondary)",
                         }}
                     >
                         {IONICON_SAMPLE.slice(0, 12).map((name) => (

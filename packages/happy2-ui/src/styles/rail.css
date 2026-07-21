@@ -232,7 +232,7 @@
     left: calc(100% + 8px);
     z-index: 40;
     display: flex;
-    filter: drop-shadow(0 12px 24px rgb(0 0 0 / 28%));
+    filter: drop-shadow(0 12px 24px var(--shadow-rail));
 }
 
 .happy2-rail__footer-action {

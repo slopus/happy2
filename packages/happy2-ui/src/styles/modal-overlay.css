@@ -20,7 +20,7 @@
     justify-content: center;
     box-sizing: border-box;
     padding: 24px;
-    background: rgb(15 15 15 / 0.75);
+    background: var(--overlay-backdrop);
 }
 
 .happy2-modal-overlay[data-placement="top"] {

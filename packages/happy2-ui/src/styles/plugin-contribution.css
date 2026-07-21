@@ -173,7 +173,7 @@
     background: var(--surface);
     border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    box-shadow: 0 12px 32px rgb(0 0 0 / 0.24);
+    box-shadow: 0 12px 32px var(--shadow-subtle);
 }
 
 .happy2-plugin-menu__item {

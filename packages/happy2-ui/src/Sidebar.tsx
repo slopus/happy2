@@ -74,7 +74,12 @@ function leadingIcon(item: SidebarItem): IconName {
     if (item.kind === "action") return item.icon ?? "plus";
     return item.icon ?? "inbox";
 }
-function SidebarRow(props: { active: boolean; item: SidebarItem; onSelect: (id: string) => void }) {
+function SidebarRow(props: {
+    active: boolean;
+    className?: string;
+    item: SidebarItem;
+    onSelect: (id: string) => void;
+}) {
     const item = () => props.item;
     const unread = () => item().unread === true;
     const mentioned = () => (item().badge ?? 0) > 0;
@@ -85,7 +90,7 @@ function SidebarRow(props: { active: boolean; item: SidebarItem; onSelect: (id: 
     return (
         <button
             aria-current={props.active ? "page" : undefined}
-            className="happy2-sidebar__item"
+            className={["happy2-sidebar__item", props.className].filter(Boolean).join(" ")}
             data-active={props.active ? "" : undefined}
             data-archived={item().archived ? "" : undefined}
             data-depth={depth() > 0 ? String(depth()) : undefined}
@@ -262,21 +267,17 @@ export function Sidebar(props: SidebarProps) {
             <div className="happy2-sidebar__body" data-happy2-ui="sidebar-body">
                 <div className="happy2-sidebar__body-content" data-happy2-ui="sidebar-body-content">
                     {local.onCompose ? (
-                        <div
-                            className="happy2-sidebar__compose-row"
-                            data-happy2-ui="sidebar-compose-row"
-                        >
-                            <Button
-                                className="happy2-sidebar__compose"
-                                fullWidth
-                                icon="edit"
-                                onClick={local.onCompose}
-                                size="medium"
-                                variant="secondary"
-                            >
-                                {local.composeLabel ?? "New chat"}
-                            </Button>
-                        </div>
+                        <SidebarRow
+                            active={false}
+                            className="happy2-sidebar__compose"
+                            item={{
+                                icon: "edit",
+                                id: "new-chat",
+                                kind: "action",
+                                label: local.composeLabel ?? "New chat",
+                            }}
+                            onSelect={local.onCompose}
+                        />
                     ) : null}
                     {local.sections.map((section) => (
                         <section

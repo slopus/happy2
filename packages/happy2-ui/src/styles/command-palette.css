@@ -28,7 +28,7 @@
     background: var(--surface-high);
     border: 1px solid var(--modal-border);
     border-radius: var(--happy2-radius-shell);
-    box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
+    box-shadow: 0 24px 64px var(--shadow-elevated);
     color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
