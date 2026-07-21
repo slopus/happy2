@@ -262,7 +262,6 @@ function settingsAvatarRevisionGet(store: SettingsStore): number {
 const emptyNotifications: NotificationPreferences = {
     directMessages: "all",
     mentions: "all",
-    threadReplies: "all",
     reactions: "all",
     calls: "all",
     emailNotifications: false,
@@ -485,22 +484,6 @@ export function settingsStoreCreate(
                               fields: {
                                   ...snapshot.fields,
                                   mentions: fieldChanged(snapshot.fields.mentions, mentions),
-                              },
-                          }),
-                );
-            },
-            threadRepliesUpdate(threadReplies): void {
-                local({ type: "threadRepliesUpdated" }, (snapshot) =>
-                    snapshot.notifications.threadReplies === threadReplies
-                        ? snapshot
-                        : notificationUpdate(snapshot, {
-                              notifications: { ...snapshot.notifications, threadReplies },
-                              fields: {
-                                  ...snapshot.fields,
-                                  threadReplies: fieldChanged(
-                                      snapshot.fields.threadReplies,
-                                      threadReplies,
-                                  ),
                               },
                           }),
                 );
@@ -803,11 +786,6 @@ function settingsLoaded(
                 snapshot.notifications.mentions,
                 event.notifications.mentions,
             ),
-            threadReplies: fieldCurrent(
-                snapshot.fields.threadReplies,
-                snapshot.notifications.threadReplies,
-                event.notifications.threadReplies,
-            ),
             reactions: fieldCurrent(
                 snapshot.fields.reactions,
                 snapshot.notifications.reactions,
@@ -851,7 +829,6 @@ function settingsLoaded(
                 remote.directMessages.saved,
             ),
             mentions: fieldRemote(snapshot.fields.mentions, remote.mentions.saved),
-            threadReplies: fieldRemote(snapshot.fields.threadReplies, remote.threadReplies.saved),
             reactions: fieldRemote(snapshot.fields.reactions, remote.reactions.saved),
             calls: fieldRemote(snapshot.fields.calls, remote.calls.saved),
             emailNotifications: fieldRemote(
@@ -904,7 +881,6 @@ function fieldsCreate(
         dndUntil: clean(presence.dndUntil),
         directMessages: clean(notifications.directMessages),
         mentions: clean(notifications.mentions),
-        threadReplies: clean(notifications.threadReplies),
         reactions: clean(notifications.reactions),
         calls: clean(notifications.calls),
         emailNotifications: clean(notifications.emailNotifications),
@@ -955,7 +931,6 @@ function notificationFieldsMap(
         ...fields,
         directMessages: map(fields.directMessages),
         mentions: map(fields.mentions),
-        threadReplies: map(fields.threadReplies),
         reactions: map(fields.reactions),
         calls: map(fields.calls),
         emailNotifications: map(fields.emailNotifications),
@@ -1072,7 +1047,6 @@ function notificationsSaved(
     const directMessagesUnchanged =
         snapshot.notifications.directMessages === submitted.directMessages;
     const mentionsUnchanged = snapshot.notifications.mentions === submitted.mentions;
-    const threadRepliesUnchanged = snapshot.notifications.threadReplies === submitted.threadReplies;
     const reactionsUnchanged = snapshot.notifications.reactions === submitted.reactions;
     const callsUnchanged = snapshot.notifications.calls === submitted.calls;
     const emailNotificationsUnchanged =
@@ -1086,7 +1060,6 @@ function notificationsSaved(
     const allUnchanged =
         directMessagesUnchanged &&
         mentionsUnchanged &&
-        threadRepliesUnchanged &&
         reactionsUnchanged &&
         callsUnchanged &&
         emailNotificationsUnchanged &&
@@ -1100,9 +1073,6 @@ function notificationsSaved(
                 ? saved.directMessages
                 : snapshot.notifications.directMessages,
             mentions: mentionsUnchanged ? saved.mentions : snapshot.notifications.mentions,
-            threadReplies: threadRepliesUnchanged
-                ? saved.threadReplies
-                : snapshot.notifications.threadReplies,
             reactions: reactionsUnchanged ? saved.reactions : snapshot.notifications.reactions,
             calls: callsUnchanged ? saved.calls : snapshot.notifications.calls,
             emailNotifications: emailNotificationsUnchanged
@@ -1128,11 +1098,6 @@ function notificationsSaved(
                 saved.directMessages,
             ),
             mentions: fieldSaved(snapshot.fields.mentions, mentionsUnchanged, saved.mentions),
-            threadReplies: fieldSaved(
-                snapshot.fields.threadReplies,
-                threadRepliesUnchanged,
-                saved.threadReplies,
-            ),
             reactions: fieldSaved(snapshot.fields.reactions, reactionsUnchanged, saved.reactions),
             calls: fieldSaved(snapshot.fields.calls, callsUnchanged, saved.calls),
             emailNotifications: fieldSaved(
@@ -1191,10 +1156,6 @@ export interface SettingsFieldStates {
         readonly saved: NotificationPreferences["mentions"];
         readonly save: SettingsSaveState;
     };
-    readonly threadReplies: {
-        readonly saved: NotificationPreferences["threadReplies"];
-        readonly save: SettingsSaveState;
-    };
     readonly reactions: {
         readonly saved: NotificationPreferences["reactions"];
         readonly save: SettingsSaveState;
@@ -1236,7 +1197,6 @@ export type SettingsOutput =
     | { readonly type: "dndUntilUpdated" }
     | { readonly type: "directMessagesUpdated" }
     | { readonly type: "mentionsUpdated" }
-    | { readonly type: "threadRepliesUpdated" }
     | { readonly type: "reactionsUpdated" }
     | { readonly type: "callsUpdated" }
     | { readonly type: "emailNotificationsUpdated" }
@@ -1289,7 +1249,6 @@ export interface SettingsState extends SettingsSnapshot {
     dndUntilUpdate(until?: string): void;
     directMessagesUpdate(value: NotificationPreferences["directMessages"]): void;
     mentionsUpdate(value: NotificationPreferences["mentions"]): void;
-    threadRepliesUpdate(value: NotificationPreferences["threadReplies"]): void;
     reactionsUpdate(value: NotificationPreferences["reactions"]): void;
     callsUpdate(value: NotificationPreferences["calls"]): void;
     emailNotificationsUpdate(value: boolean): void;

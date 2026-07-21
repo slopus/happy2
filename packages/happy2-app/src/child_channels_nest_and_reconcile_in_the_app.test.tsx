@@ -26,7 +26,6 @@ function channel(id: string, name: string, values: Partial<ChatSummary> = {}): C
         membershipEpoch: "1",
         membershipRole: "owner",
         starred: false,
-        followed: false,
         lastReadSequence: "0",
         unreadCount: 0,
         mentionCount: 0,
@@ -193,14 +192,14 @@ describe("child channels in the app", () => {
         const { state, screen } = mount(server, "/channels/chat-1");
         await state.whenIdle();
 
-        // Open the channel menu and pick "Create child channel".
+        // Open the channel menu and pick "Create subchannel".
         const menuButton = screen.container.querySelector<HTMLButtonElement>(
             '[data-happy2-ui="channel-header-menu"] button',
         );
         fireEvent.click(menuButton!);
         const childItem = [
             ...screen.container.querySelectorAll<HTMLButtonElement>('[data-happy2-ui="menu-item"]'),
-        ].find((item) => item.textContent?.includes("Create child channel"));
+        ].find((item) => item.textContent?.includes("Create subchannel"));
         fireEvent.click(childItem!);
 
         const modal = () => screen.container.querySelector<HTMLElement>('[data-happy2-ui="modal"]');
@@ -224,7 +223,7 @@ describe("child channels in the app", () => {
             ...modal()!.querySelectorAll<HTMLButtonElement>(
                 '[data-happy2-ui="modal-footer"] button',
             ),
-        ].find((button) => button.textContent?.includes("Create child channel"));
+        ].find((button) => button.textContent?.includes("Create subchannel"));
         fireEvent.click(createButton!);
         await state.whenIdle();
 

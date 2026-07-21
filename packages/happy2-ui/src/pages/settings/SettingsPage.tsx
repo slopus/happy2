@@ -575,16 +575,8 @@ function initials(value: string): string {
         .join("");
 }
 function notificationLevelGet(snapshot: SettingsSnapshot): NotificationLevel {
-    if (
-        snapshot.notifications.directMessages === "all" &&
-        snapshot.notifications.threadReplies === "all"
-    )
-        return "all";
-    if (
-        snapshot.notifications.mentions === "all" ||
-        snapshot.notifications.threadReplies === "mentions"
-    )
-        return "mentions";
+    if (snapshot.notifications.directMessages === "all") return "all";
+    if (snapshot.notifications.mentions === "all") return "mentions";
     return "none";
 }
 function notificationLevelUpdate(
@@ -593,7 +585,6 @@ function notificationLevelUpdate(
 ): void {
     store.directMessagesUpdate(value === "all" ? "all" : "none");
     store.mentionsUpdate(value === "none" ? "none" : "all");
-    store.threadRepliesUpdate(value);
 }
 function saveError(snapshot: SettingsSnapshot): string | undefined {
     for (const save of [snapshot.profileSave, snapshot.presenceSave, snapshot.notificationsSave])

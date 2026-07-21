@@ -176,7 +176,7 @@ describe("persistent desktop routing", () => {
         ).toBeNull();
     });
 
-    it("turns activity rows into message, thread, and call destinations with human context", async () => {
+    it("turns activity rows into message and call destinations with human context", async () => {
         history.replaceState(null, "", "/activity");
         const state = happyStateCreate();
         const navigation = desktopNavigationCreate();
@@ -200,13 +200,6 @@ describe("persistent desktop routing", () => {
                 chatId: chat.id,
                 messageId: "message-1",
                 createdAt: "2026-07-17T12:00:00.000Z",
-            },
-            {
-                id: "notice-thread",
-                kind: "thread_reply",
-                chatId: chat.id,
-                threadRootMessageId: "root-1",
-                createdAt: "2026-07-17T12:01:00.000Z",
             },
             {
                 id: "notice-call",
@@ -236,14 +229,6 @@ describe("persistent desktop routing", () => {
 
         fireEvent.click(screen.container.querySelector('[data-item-id="notice-message"]')!);
         await waitFor(() => expect(location.pathname).toBe("/channels/chat-1"));
-
-        navigation.navigate(activityRoute);
-        await waitFor(() =>
-            expect(screen.container.querySelector('[data-item-id="notice-thread"]')).toBeTruthy(),
-        );
-        notificationStore.getState().notificationsInput({ type: "notificationsReadSucceeded" });
-        fireEvent.click(screen.container.querySelector('[data-item-id="notice-thread"]')!);
-        await waitFor(() => expect(location.pathname).toBe("/channels/chat-1/thread/root-1"));
 
         navigation.navigate(activityRoute);
         await waitFor(() =>
@@ -362,54 +347,11 @@ describe("persistent desktop routing", () => {
         );
         navigation.navigate({
             ...navigation.get(),
-            panel: { kind: "thread", rootMessageId: "message-1" },
-        });
-        await waitFor(() =>
-            expect(screen.container.querySelector('[data-happy2-ui="thread-panel"]')).toBeTruthy(),
-        );
-        expect(chatPrimarySurface(screen.container)).toBe(primary);
-        const threadDraft = screen.container.querySelector<HTMLTextAreaElement>(
-            '[data-happy2-ui="thread-panel"] textarea',
-        )!;
-        fireEvent.input(threadDraft, { target: { value: "belongs to message 1" } });
-        expect(threadDraft.value).toBe("belongs to message 1");
-        navigation.navigate(
-            {
-                ...navigation.get(),
-                panel: { kind: "thread", rootMessageId: "message-2" },
-            },
-            { replace: true },
-        );
-        await waitFor(() =>
-            expect(
-                screen.container.querySelector<HTMLTextAreaElement>(
-                    '[data-happy2-ui="thread-panel"] textarea',
-                )?.value,
-            ).toBe(""),
-        );
-        navigation.navigate({
-            ...navigation.get(),
             panel: { kind: "workspace" },
             overlay: { kind: "workspace-file", chatId: "chat-1", path: "src/main.ts" },
         });
         await waitFor(() => expect(screen.container.textContent).toContain("src/main.ts"));
         expect(chatPrimarySurface(screen.container)).toBe(primary);
-    });
-    it("restores a deep-linked selected chat and thread after a full component refresh", async () => {
-        history.replaceState(null, "", "/channels/chat-1/thread/message-1");
-        const first = render(<App />);
-        await waitFor(() =>
-            expect(first.container.querySelector('[data-happy2-ui="thread-panel"]')).toBeTruthy(),
-        );
-        expect(location.pathname).toBe("/channels/chat-1/thread/message-1");
-        first.unmount();
-        const second = render(<App />);
-        await waitFor(() =>
-            expect(second.container.querySelector('[data-happy2-ui="thread-panel"]')).toBeTruthy(),
-        );
-        expect(location.pathname).toBe("/channels/chat-1/thread/message-1");
-        expect(location.search).not.toContain("draft");
-        expect(location.search).not.toContain("upload");
     });
     it("reconciles an SSE difference beneath search without remounting the primary surface", async () => {
         const server = createFakeServer();
@@ -868,7 +810,6 @@ function channelFixture(): ChatSummary {
         membershipEpoch: "1",
         membershipRole: "owner",
         starred: false,
-        followed: false,
         lastReadSequence: "0",
         unreadCount: 0,
         mentionCount: 0,

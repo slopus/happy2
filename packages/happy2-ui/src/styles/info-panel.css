@@ -2,7 +2,7 @@
  * C-047 InfoPanel — channel/user detail side panel.
  *
  * A column that fills the panel region: a 56px surface header (shared with
- * ChannelHeader / ThreadPanel), then a scrolling body of stacked blocks —
+ * ChannelHeader), then a scrolling body of stacked blocks —
  * person ProfileCard or read-only channel About, a caller body slot, and a
  * labeled member roster. Colors and type are theme tokens only.
  */

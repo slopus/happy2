@@ -20,7 +20,6 @@ function chat(values: Partial<ChatSummary> = {}): ChatSummary {
         membershipEpoch: "1",
         membershipRole: "owner",
         starred: false,
-        followed: false,
         lastReadSequence: "0",
         unreadCount: 0,
         mentionCount: 0,
@@ -69,7 +68,7 @@ it("offers child creation and archive on a manageable top-level channel", () => 
     const model = build({ active: chat({ id: "parent", name: "Parent" }) });
     expect(labels(model)).toEqual([
         "Edit settings",
-        "Create child channel",
+        "Create subchannel",
         "Archive channel",
         "Leave channel",
     ]);

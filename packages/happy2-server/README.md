@@ -441,20 +441,20 @@ serve collaboration routes; `all` and `api` roles do.
 
 The main route groups are:
 
-| Area                  | Route families                                                                                                                            |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Chats                 | `/v0/chats`, `createDirectMessage`, `createGroupDirectMessage`, `createChannel`, and channel update/archive/unarchive/delete actions      |
-| Membership and policy | chat join/leave/add/remove/set-role actions, member lists, posting policy, retention policy, topic, and owner transfer                    |
-| Messages              | history and message reads; send/edit/delete/forward actions; revision history; read receipts and unread state                             |
-| Replies and threads   | `quotedMessageId` creates an explicit reply in the main timeline; thread send/list/subscription/read actions maintain a separate timeline |
-| Message organization  | reactions, custom emoji, pins, chat and user bookmarks, scheduled messages, notifications, stars, and per-user ordering                   |
-| Discovery             | contacts, directories, files, thread inbox, calls, and fuzzy global search across visible users, channels, and messages                   |
-| Files                 | streaming and resumable uploads, upload state/cancel/complete, ranged downloads, image/video previews, deletion, and signed URLs          |
-| Presence and calls    | durable user status/DND preferences, ephemeral presence and typing, call lifecycle, and ephemeral WebRTC signaling                        |
-| Sync                  | state, paginated server/chat differences, consumer acknowledgement, compaction/reset, and SSE hints                                       |
-| Operations            | audit logs, access telemetry, bans, reports/actions, data-export jobs, backup records, retention runs, and server/user administration     |
-| Integrations          | bots, scoped API credentials, credential-authenticated posting, incoming/outgoing webhooks, slash commands, and delivery queues           |
-| Automation            | scheduled messages plus schedule, durable event, authenticated webhook, outgoing-webhook, bot-message, and moderation automations         |
+| Area                  | Route families                                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Chats                 | `/v0/chats`, `createDirectMessage`, `createGroupDirectMessage`, `createChannel`, `createChildChannel`, and channel lifecycle actions  |
+| Membership and policy | chat join/leave/add/remove/set-role actions, member lists, posting policy, retention policy, topic, and owner transfer                |
+| Messages              | history and message reads; send/edit/delete/forward actions; revision history; read receipts and unread state                         |
+| Replies               | `quotedMessageId` creates an explicit reply in the current channel timeline                                                           |
+| Message organization  | reactions, custom emoji, pins, chat and user bookmarks, scheduled messages, notifications, stars, and per-user ordering               |
+| Discovery             | contacts, directories, files, calls, and fuzzy global search across visible users, channels, and messages                             |
+| Files                 | streaming and resumable uploads, upload state/cancel/complete, ranged downloads, image/video previews, deletion, and signed URLs      |
+| Presence and calls    | durable user status/DND preferences, ephemeral presence and typing, call lifecycle, and ephemeral WebRTC signaling                    |
+| Sync                  | state, paginated server/chat differences, consumer acknowledgement, compaction/reset, and SSE hints                                   |
+| Operations            | audit logs, access telemetry, bans, reports/actions, data-export jobs, backup records, retention runs, and server/user administration |
+| Integrations          | bots, scoped API credentials, credential-authenticated posting, incoming/outgoing webhooks, slash commands, and delivery queues       |
+| Automation            | scheduled messages plus schedule, durable event, authenticated webhook, outgoing-webhook, bot-message, and moderation automations     |
 
 ## AI agents
 
@@ -624,11 +624,11 @@ leak.
 
 Message sends accept an optional `clientMutationId`; retries by the same user in
 the same chat return the originally committed message. A send may contain text,
-attachment file IDs, `quotedMessageId`, `threadRootMessageId`, and a bounded
+attachment file IDs, `quotedMessageId`, and a bounded
 self-destruction duration. Deletion and expiry leave syncable tombstones rather
-than hard-deleting message identity, remove searchable/revision plaintext, and
-recompute thread projections. `after_read` destruction uses a send-time receipt
-roster, so users who join later cannot block expiry.
+than hard-deleting message identity and remove searchable/revision plaintext.
+`after_read` destruction uses a send-time receipt roster, so users who join
+later cannot block expiry.
 
 HTTP write actions also accept `Idempotency-Key`. Keys are isolated by the
 authenticated principal and concrete action path, conflicting payload reuse is
@@ -649,8 +649,8 @@ Happy (2) has two durable cursor levels:
 
 - A database-generation ID and server-wide `sequence` identify durable objects
   that changed for reconnect discovery.
-- Every chat has an independent `pts`. Messages, reactions, tombstones, thread
-  activity, topics, and membership-visible changes advance that chat's `pts`.
+- Every chat has an independent `pts`. Messages, reactions, tombstones, topics,
+  and membership-visible changes advance that chat's `pts`.
 
 Cursors are decimal strings in JSON, never JSON numbers; the current server
 rejects cursor values outside its safe-integer operating range. Every mutation

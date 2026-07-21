@@ -14,12 +14,11 @@ export interface SyncState {
 export interface ChatSummary {
     readonly id: string;
     readonly kind: ChatKind;
-    readonly parentMessageId?: string;
     /**
-     * Parent channel of a child channel. Distinct from `parentMessageId` (which
-     * marks a message thread): a child channel is a first-class sidebar channel
-     * that shares its parent's container/workspace but keeps an independent
-     * history and may run a different agent model. Absent for top-level channels.
+     * Parent channel of a child channel. A child channel is a first-class
+     * sidebar channel that shares its parent's container/workspace but keeps an
+     * independent history and may run a different agent model. Absent for
+     * top-level channels.
      */
     readonly parentChatId?: string;
     readonly name?: string;
@@ -51,7 +50,6 @@ export interface ChatSummary {
     readonly membershipEpoch: string;
     readonly membershipRole?: ChatRole;
     readonly starred: boolean;
-    readonly followed: boolean;
     readonly starOrder?: number;
     readonly lastReadSequence: string;
     readonly unreadCount: number;
@@ -470,8 +468,6 @@ export interface MessageSummary {
         readonly text: string;
         readonly deleted: boolean;
     };
-    readonly threadRootMessageId?: string;
-    readonly threadReplyCount: number;
     readonly revision: number;
     readonly mentions: readonly {
         readonly kind: "user" | "channel" | "here" | "everyone";
@@ -519,7 +515,6 @@ export interface NotificationSummary {
     readonly id: string;
     readonly kind:
         | "mention"
-        | "thread_reply"
         | "direct_message"
         | "reaction"
         | "call"
@@ -528,7 +523,6 @@ export interface NotificationSummary {
         | "automation";
     readonly chatId?: string;
     readonly messageId?: string;
-    readonly threadRootMessageId?: string;
     readonly actorUserId?: string;
     readonly readAt?: string;
     readonly createdAt: string;
@@ -784,7 +778,6 @@ export interface SendMessageInput {
     readonly text?: string;
     readonly attachmentFileIds?: readonly string[];
     readonly quotedMessageId?: string;
-    readonly threadRootMessageId?: string;
     readonly expiryMode?: ExpiryMode;
     readonly selfDestructSeconds?: number;
     readonly afterReadScope?: "any_reader" | "all_readers";

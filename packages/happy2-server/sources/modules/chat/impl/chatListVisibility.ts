@@ -8,7 +8,6 @@ export function chatListCondition(executor: DrizzleExecutor, userId: string) {
     const historicalMember = alias(chatMembers, "historical_chat_member");
     return and(
         isNull(chats.deletedAt),
-        isNull(chats.parentMessageId),
         or(
             and(eq(chats.kind, "public_channel"), eq(chats.isListed, 1)),
             sql`${chatMembers.userId} IS NOT NULL`,

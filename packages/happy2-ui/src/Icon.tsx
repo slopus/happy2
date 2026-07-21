@@ -26,7 +26,6 @@ export type IconName =
     | "image"
     | "play"
     | "pause"
-    | "thread"
     | "at"
     | "hash"
     | "bell"
@@ -209,13 +208,6 @@ const glyphs: Record<IconName, () => ReactNode> = {
         <>
             <path d="M7.1 4.8v10.4" />
             <path d="M12.9 4.8v10.4" />
-        </>
-    ),
-    thread: () => (
-        <>
-            <path d="M17.75 12.95a1.7 1.7 0 0 1 -1.7 1.7H6.95l-3.4 3.2V5.95a1.7 1.7 0 0 1 1.7 -1.7h10.8a1.7 1.7 0 0 1 1.7 1.7Z" />
-            <path d="M7.55 8.35h6.2" />
-            <path d="M7.55 11.35h4.6" />
         </>
     ),
     at: () => (

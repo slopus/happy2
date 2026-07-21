@@ -51,13 +51,7 @@ export function useNotificationNavigation(
                     conversationKind,
                     chatId: notification.chatId,
                 },
-                panel:
-                    notification.kind === "thread_reply" && notification.threadRootMessageId
-                        ? {
-                              kind: "thread",
-                              rootMessageId: notification.threadRootMessageId,
-                          }
-                        : undefined,
+                panel: undefined,
                 overlay: undefined,
             });
         },

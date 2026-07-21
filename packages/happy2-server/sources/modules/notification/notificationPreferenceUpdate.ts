@@ -1,5 +1,5 @@
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
-import { type MutationHint, type NotificationLevel } from "../chat/types.js";
+import { type MutationHint } from "../chat/types.js";
 
 import { areaHint } from "../chat/areaHint.js";
 import { eq, sql } from "drizzle-orm";
@@ -20,7 +20,6 @@ export async function notificationPreferenceUpdate(
         actorUserId: string;
         directMessages?: "all" | "none";
         mentions?: "all" | "none";
-        threadReplies?: NotificationLevel;
         reactions?: "all" | "none";
         calls?: "all" | "none";
         emailNotifications?: boolean;
@@ -55,11 +54,6 @@ export async function notificationPreferenceUpdate(
                     ? {}
                     : {
                           mentions: input.mentions,
-                      }),
-                ...(input.threadReplies === undefined
-                    ? {}
-                    : {
-                          threadReplies: input.threadReplies,
                       }),
                 ...(input.reactions === undefined
                     ? {}

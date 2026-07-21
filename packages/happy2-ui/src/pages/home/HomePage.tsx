@@ -38,14 +38,6 @@ export function HomePage(props: HomePageProps) {
                             tone: mentions ? "warning" : "neutral",
                         },
                         {
-                            label: "Threads",
-                            value: String(
-                                notifications.filter((item) => item.kind === "thread_reply").length,
-                            ),
-                            icon: "thread",
-                            tone: "accent",
-                        },
-                        {
                             label: "Calls",
                             value: String(
                                 notifications.filter((item) => item.kind === "call").length,
@@ -129,8 +121,6 @@ function notificationText(kind: NotificationProjection["kind"]): string {
     switch (kind) {
         case "mention":
             return "mentioned you";
-        case "thread_reply":
-            return "replied in a thread";
         case "direct_message":
             return "sent you a direct message";
         case "reaction":

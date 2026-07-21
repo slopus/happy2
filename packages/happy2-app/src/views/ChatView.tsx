@@ -17,7 +17,6 @@ import type {
     DocumentHandle,
     DocumentListHandle,
     HappyState,
-    ThreadHandle,
     TerminalHandle,
     WorkspaceFileHandle,
     WorkspaceHandle,
@@ -60,7 +59,6 @@ type ChatResources = {
     chat?: ChatHandle;
     composer?: ComposerStore;
     chatContributions?: ChatContributionsHandle;
-    thread?: ThreadHandle;
     trace?: AgentTraceHandle;
     workspace?: WorkspaceHandle;
     workspaceFile?: WorkspaceFileHandle;
@@ -69,7 +67,6 @@ type ChatResources = {
     document?: DocumentHandle;
     chatId?: string;
     conversationKind?: "chat" | "channel";
-    threadId?: string;
     traceMessageId?: string;
     workspaceChatId?: string;
     workspaceFileKey?: string;
@@ -93,8 +90,6 @@ export function ChatView(props: ChatViewProps) {
         props.route.overlay?.kind === "document" ? props.route.overlay : undefined;
     const nextChatId = conversation?.chatId;
     const nextConversationKind = conversation?.conversationKind;
-    const nextThreadId =
-        props.route.panel?.kind === "thread" ? props.route.panel.rootMessageId : undefined;
     const nextTraceMessageId =
         props.route.panel?.kind === "trace" ? props.route.panel.messageId : undefined;
     const nextWorkspaceChatId =
@@ -117,7 +112,6 @@ export function ChatView(props: ChatViewProps) {
             changed = true;
         };
         if (next.chatId !== nextChatId || next.conversationKind !== nextConversationKind) {
-            next.thread?.[Symbol.dispose]();
             next.trace?.[Symbol.dispose]();
             next.workspaceFile?.[Symbol.dispose]();
             next.workspace?.[Symbol.dispose]();
@@ -154,16 +148,6 @@ export function ChatView(props: ChatViewProps) {
                 };
             }
             changed = true;
-        }
-        if (next.threadId !== nextThreadId) {
-            next.thread?.[Symbol.dispose]();
-            replace({
-                threadId: nextThreadId,
-                thread:
-                    nextChatId && nextThreadId
-                        ? state.threadOpen(nextChatId, nextThreadId)
-                        : undefined,
-            });
         }
         if (next.traceMessageId !== nextTraceMessageId) {
             next.trace?.[Symbol.dispose]();
@@ -218,7 +202,6 @@ export function ChatView(props: ChatViewProps) {
         state,
         nextChatId,
         nextConversationKind,
-        nextThreadId,
         nextTraceMessageId,
         nextWorkspaceChatId,
         nextWorkspaceFileKey,
@@ -229,7 +212,6 @@ export function ChatView(props: ChatViewProps) {
     useLayoutEffect(
         () => () => {
             const current = resourcesRef.current;
-            current.thread?.[Symbol.dispose]();
             current.trace?.[Symbol.dispose]();
             current.workspaceFile?.[Symbol.dispose]();
             current.workspace?.[Symbol.dispose]();
@@ -273,8 +255,6 @@ export function ChatView(props: ChatViewProps) {
         infoOpen: () => panelOpen({ kind: "info" }),
         profileOpen: (userId) => panelOpen({ kind: "profile", userId }),
         panelClose: () => props.navigation.close("panel"),
-        threadOpen: (rootMessageId) => panelOpen({ kind: "thread", rootMessageId }),
-        threadClose: () => props.navigation.close("panel"),
         traceOpen: (messageId) => panelOpen({ kind: "trace", messageId }),
         traceClose: () => props.navigation.close("panel"),
         workspaceOpen: () => panelOpen({ kind: "workspace" }),
@@ -404,7 +384,6 @@ export function ChatView(props: ChatViewProps) {
             sidebarFooter={props.sidebarFooter}
             sidebarOverride={props.sidebarOverride}
             workspaceOverride={props.workspaceOverride}
-            thread={resources.thread}
             trace={resources.trace}
             terminal={resources.terminal}
             windowControls={props.windowControls}

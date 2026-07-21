@@ -5,7 +5,7 @@ import { type MessageSendInput } from "./impl/messageSendInput.js";
 import { messageSendInTransaction } from "./messageSendInTransaction.js";
 
 /**
- * Publishes a message and every dependent chat, thread, search, delivery, audit, and agent-turn record atomically.
+ * Publishes a message and every dependent chat, search, delivery, audit, and agent-turn record atomically.
  * This wrapper owns the retryable transaction while the in-transaction action remains composable for larger mutations.
  */
 export async function messageSend(

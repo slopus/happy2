@@ -69,7 +69,6 @@ function primaryParse(segments: string[]): DesktopPrimaryRoute {
     const [head, value] = segments;
     if (head === "home") return { kind: "home" };
     if (head === "activity") return { kind: "activity" };
-    if (head === "threads") return { kind: "threads" };
     if (head === "calls") return { kind: "calls" };
     if (head === "files") return { kind: "files" };
     if (head === "documents") return { kind: "documents", ...(value ? { documentId: value } : {}) };
@@ -111,7 +110,6 @@ function panelParse(
     if (primary.kind !== "conversation" || !primary.chatId) return undefined;
     const kind = segments[2];
     const id = segments[3];
-    if (kind === "thread" && id) return { kind: "thread", rootMessageId: id };
     if (kind === "trace" && id) return { kind: "trace", messageId: id };
     if (kind === "profile" && id) return { kind: "profile", userId: id };
     return undefined;

@@ -123,12 +123,6 @@ export type {
     PluginPrepareSource,
 } from "./modules/plugin-install/pluginInstallState.js";
 export type {
-    ThreadHandle,
-    ThreadOutput,
-    ThreadSnapshot,
-    ThreadStore,
-} from "./modules/thread/threadState.js";
-export type {
     AgentTraceHandle,
     AgentTraceSnapshot,
     AgentTraceStore,
@@ -171,12 +165,6 @@ export type {
     PluginNavigationStore,
     PluginPresentationState,
 } from "./modules/plugin-surfaces/pluginSurfacesState.js";
-export type {
-    ThreadsSnapshot,
-    ThreadsOutput,
-    ThreadsStore,
-    ThreadProjection,
-} from "./modules/threads/threadsState.js";
 export type {
     NotificationProjection,
     NotificationsSnapshot,

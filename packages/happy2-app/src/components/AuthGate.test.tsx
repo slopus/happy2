@@ -159,7 +159,6 @@ describe("AuthGate password onboarding", () => {
                     preferences: {
                         directMessages: "all",
                         mentions: "all",
-                        threadReplies: "mentions",
                         reactions: "all",
                         calls: "all",
                         emailNotifications: false,

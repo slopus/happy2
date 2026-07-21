@@ -16,19 +16,10 @@ export class SidebarChatsProjector {
     ) {}
 
     async project(chats: readonly ChatSummary[]): Promise<readonly SidebarChatProjection[]> {
-        const visible = chats.filter((chat) => {
-            if (!chat.parentMessageId) return true;
-            this.cache.delete(chat.id);
-            return false;
-        });
-        return Promise.all(visible.map((chat) => this.chatProject(chat)));
+        return Promise.all(chats.map((chat) => this.chatProject(chat)));
     }
 
-    async projectOne(chat: ChatSummary): Promise<SidebarChatProjection | undefined> {
-        if (chat.parentMessageId) {
-            this.cache.delete(chat.id);
-            return undefined;
-        }
+    async projectOne(chat: ChatSummary): Promise<SidebarChatProjection> {
         return this.chatProject(chat);
     }
 

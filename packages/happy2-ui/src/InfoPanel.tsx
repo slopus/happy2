@@ -6,7 +6,7 @@ import { Icon, type IconName } from "./Icon";
 import { MemberList, type MemberItem } from "./MemberList";
 import { ProfileCard, type ProfilePresence, type ProfileStatus } from "./ProfileCard";
 import { Toolbar } from "./Toolbar";
-/** Surface header row height shared with ChannelHeader and ThreadPanel. */
+/** Surface header row height shared with ChannelHeader and the side panels. */
 export const SURFACE_HEADER_HEIGHT = 56;
 export type InfoPanelProfile = {
     /** Stable product identity used by hosts to deep-link this profile surface. */
@@ -48,7 +48,7 @@ export type InfoPanelProps = {
 };
 /**
  * C-047 InfoPanel — the channel/user detail side panel. A 56px surface header
- * (shared height with ChannelHeader and ThreadPanel), then a scrolling body:
+ * (shared height with ChannelHeader), then a scrolling body:
  * an optional person ProfileCard or a read-only channel About block, a caller
  * body slot for editable details, and a labeled member roster. Props only — the
  * app supplies data and the member/close handlers.

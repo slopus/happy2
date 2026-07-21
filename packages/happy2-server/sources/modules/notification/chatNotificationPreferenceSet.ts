@@ -25,7 +25,6 @@ export async function chatNotificationPreferenceSet(
         chatId: string;
         notificationLevel?: NotificationLevel;
         mutedUntil?: string | null;
-        notifyThreadReplies?: boolean;
         showMessagePreviews?: boolean;
     },
 ): Promise<{
@@ -43,7 +42,6 @@ export async function chatNotificationPreferenceSet(
                 chatId: input.chatId,
                 notificationLevel: input.notificationLevel ?? "all",
                 mutedUntil: input.mutedUntil ?? null,
-                notifyThreadReplies: input.notifyThreadReplies === false ? 0 : 1,
                 showMessagePreviews: input.showMessagePreviews === false ? 0 : 1,
                 syncSequence: sequence,
             })
@@ -59,11 +57,6 @@ export async function chatNotificationPreferenceSet(
                         ? {}
                         : {
                               mutedUntil: input.mutedUntil,
-                          }),
-                    ...(input.notifyThreadReplies === undefined
-                        ? {}
-                        : {
-                              notifyThreadReplies: input.notifyThreadReplies ? 1 : 0,
                           }),
                     ...(input.showMessagePreviews === undefined
                         ? {}

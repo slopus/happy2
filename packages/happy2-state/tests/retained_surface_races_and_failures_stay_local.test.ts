@@ -282,7 +282,6 @@ function notifications(): NotificationPreferences {
     return {
         directMessages: "all",
         mentions: "all",
-        threadReplies: "all",
         reactions: "all",
         calls: "all",
         emailNotifications: false,

@@ -263,15 +263,15 @@ it("holds inline EmptyState sizing, rhythm, and action variants", async () => {
     view.render(
         () => (
             <EmptyState
-                action={{ icon: "plus", label: "New thread", onClick: noop }}
+                action={{ icon: "plus", label: "New subchannel", onClick: noop }}
                 data-testid="es-inline-full"
-                description="Follow a thread to keep it here."
-                icon="thread"
+                description="Create a subchannel to keep it here."
+                icon="branch"
                 size="inline"
                 // Constrained to an even width so the medallion lands on an
                 // integer x and the glyph centroid stays clean.
                 style={{ width: "360px" }}
-                title="No followed threads"
+                title="No subchannels"
             />
         ),
         { width: 400, height: 260, padding: 20 },
@@ -331,7 +331,7 @@ it("holds inline EmptyState sizing, rhythm, and action variants", async () => {
     );
     expect(title.textMetrics()).toMatchObject({
         font: { lineHeight: 18, size: 14, weight: "700" },
-        text: "No followed threads",
+        text: "No subchannels",
     });
     expect(title.computedStyle("color")).toBe("rgb(0, 0, 0)");
     expect(symmetry(title, root), "inline title centering").toBeLessThanOrEqual(0.5);

@@ -10,15 +10,8 @@ import {
     filesStoreFixtureCreate,
     notificationsStoreFixtureCreate,
     searchStoreFixtureCreate,
-    threadsStoreFixtureCreate,
 } from "happy2-state/testing";
-import {
-    UserError,
-    type ChatSummary,
-    type NotificationProjection,
-    type ThreadProjection,
-    type ThreadsOutput,
-} from "happy2-state";
+import { UserError, type NotificationProjection } from "happy2-state";
 import { expect, it, onTestFinished, vi } from "vitest";
 import "../styles.css";
 import { createRenderer } from "../testing";
@@ -33,7 +26,6 @@ import { FilesPage } from "./files/FilesPage";
 import { HomePage } from "./home/HomePage";
 import { ProfilePage } from "./profile/ProfilePage";
 import { SearchPage } from "./search/SearchPage";
-import { ThreadsPage } from "./threads/ThreadsPage";
 
 function owned<Fixture extends Disposable>(fixture: Fixture): Fixture {
     onTestFinished(() => fixture[Symbol.dispose]());
@@ -966,144 +958,6 @@ it("paginates ActivityPage once at the virtual-list end and surfaces terminal er
         error: new UserError("Read state failed."),
     });
     await vi.waitFor(() => expect(view.container.textContent).toContain("Read state failed."));
-});
-
-it("renders ThreadsPage from ThreadsStore input", async () => {
-    const fixture = owned(threadsStoreFixtureCreate());
-    fixture.input({ type: "threadsLoading" });
-    const view = createRenderer();
-    view.render(() => <ThreadsPage store={fixture.store} />, { width: 1024, height: 704 });
-    await view.ready();
-    expect(view.container.textContent).toContain("Loading threads");
-});
-
-it("projects thread child identity, root metadata, read/follow intents, pagination, and failures", async () => {
-    const outputs: ThreadsOutput[] = [];
-    const fixture = owned(threadsStoreFixtureCreate((event) => outputs.push(event)));
-    const threadProjection = (
-        childChatId: string,
-        rootMessageId: string,
-        overrides: Partial<ChatSummary> = {},
-    ): ThreadProjection => ({
-        chat: {
-            id: childChatId,
-            kind: "private_channel",
-            name: "Thread",
-            isListed: false,
-            isMain: false,
-            autoJoin: false,
-            isDefaultAgentConversation: false,
-            retentionMode: "inherit",
-            defaultExpiryMode: "none",
-            defaultAfterReadScope: "any_reader",
-            lifecycleVersion: "1",
-            createdByUserId: "user-1",
-            pts: "2",
-            lastMessageSequence: "2",
-            membershipEpoch: "1",
-            membershipRole: "owner",
-            starred: false,
-            followed: true,
-            lastReadSequence: "0",
-            unreadCount: 2,
-            mentionCount: 0,
-            notificationLevel: "all",
-            parentMessageId: rootMessageId,
-            createdAt: "2026-07-17T12:00:00.000Z",
-            updatedAt: "2026-07-17T12:02:00.000Z",
-            ...overrides,
-        },
-        root: {
-            id: rootMessageId,
-            chatId: "parent-chat",
-            sequence: rootMessageId,
-            changePts: "1",
-            kind: "user",
-            audience: "people",
-            agentUserIds: [],
-            text: `Root ${rootMessageId}`,
-            threadReplyCount: 7,
-            revision: 1,
-            mentions: [],
-            attachments: [],
-            reactions: [],
-            receipts: [],
-            expiryMode: "none",
-            sender: {
-                id: "user-1",
-                displayName: "Ada Lovelace",
-                username: "ada",
-                kind: "human",
-            },
-            createdAt: "2026-07-17T12:00:00.000Z",
-        },
-    });
-    const first = threadProjection("child-1", "root-1");
-    const second = threadProjection("child-2", "root-2", {
-        followed: false,
-        unreadCount: 0,
-    });
-    fixture.input({
-        type: "threadsLoaded",
-        threads: [first, second],
-        nextCursor: "cursor-2",
-    });
-    const onSelect = vi.fn();
-    const view = createRenderer();
-    view.render(() => <ThreadsPage onSelect={onSelect} store={fixture.store} />, {
-        width: 1024,
-        height: 704,
-    });
-    await view.ready();
-
-    const firstRow = view.container.querySelector<HTMLElement>('[data-thread-id="child-1"]')!;
-    const secondRow = view.container.querySelector<HTMLElement>('[data-thread-id="child-2"]')!;
-    expect(firstRow.textContent).toContain("Root root-1");
-    expect(firstRow.querySelector('[data-happy2-ui="thread-list-reply-count"]')?.textContent).toBe(
-        "7",
-    );
-    expect(firstRow.querySelector('[data-happy2-ui="count-badge"]')?.textContent).toBe("2");
-    expect(secondRow.getAttribute("data-subscribed")).toBe("false");
-
-    firstRow.click();
-    expect(outputs.at(-1)).toEqual({ type: "threadReadSubmitted", childChatId: "child-1" });
-    expect(onSelect).toHaveBeenCalledExactlyOnceWith("child-1");
-    Array.from(view.container.querySelectorAll<HTMLButtonElement>("button"))
-        .find((button) => button.textContent?.trim() === "Load more")!
-        .click();
-    expect(outputs.at(-1)).toEqual({ type: "threadsMoreRequested" });
-    fixture.store.getState().threadFollowSet("child-2", true);
-    expect(outputs.at(-1)).toEqual({
-        type: "threadFollowSubmitted",
-        childChatId: "child-2",
-        followed: true,
-    });
-
-    fixture.input({
-        type: "threadsLoaded",
-        threads: [
-            { ...first, root: { ...first.root, threadReplyCount: 8, changePts: "2" } },
-            second,
-        ],
-    });
-    await vi.waitFor(() =>
-        expect(
-            firstRow.querySelector('[data-happy2-ui="thread-list-reply-count"]')?.textContent,
-        ).toBe("8"),
-    );
-    expect(view.container.querySelector('[data-thread-id="child-1"]')).toBe(firstRow);
-    expect(view.container.querySelector('[data-thread-id="child-2"]')).toBe(secondRow);
-
-    fixture.input({ type: "threadsPageFailed", error: new UserError("Next page failed") });
-    fixture.input({ type: "threadActionFailed", error: new UserError("Follow failed") });
-    await vi.waitFor(() => expect(view.container.textContent).toContain("Next page failed"));
-    expect(view.container.textContent).toContain("Follow failed");
-    fixture.input({ type: "threadsFailed", error: new UserError("Thread list failed") });
-    await vi.waitFor(() => expect(view.container.textContent).toContain("Thread list failed"));
-    Array.from(view.container.querySelectorAll<HTMLButtonElement>("button"))
-        .find((button) => button.textContent?.trim() === "Retry")!
-        .click();
-    expect(outputs.at(-1)).toEqual({ type: "threadsRefreshRequested" });
 });
 
 it("renders CallsPage from CallsStore input", async () => {

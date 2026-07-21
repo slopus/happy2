@@ -1,5 +1,4 @@
 import { type DrizzleExecutor } from "../drizzle.js";
-import { type NotificationLevel } from "../chat/types.js";
 import { eq } from "drizzle-orm";
 import { number } from "../chat/number.js";
 import { optionalText } from "../chat/optionalText.js";
@@ -16,7 +15,6 @@ export async function notificationPreferenceGet(
 ): Promise<{
     directMessages: "all" | "none";
     mentions: "all" | "none";
-    threadReplies: NotificationLevel;
     reactions: "all" | "none";
     calls: "all" | "none";
     emailNotifications: boolean;
@@ -30,7 +28,6 @@ export async function notificationPreferenceGet(
         .select({
             direct_messages: userNotificationPreferences.directMessages,
             mentions: userNotificationPreferences.mentions,
-            thread_replies: userNotificationPreferences.threadReplies,
             reactions: userNotificationPreferences.reactions,
             calls: userNotificationPreferences.calls,
             email_notifications: userNotificationPreferences.emailNotifications,
@@ -45,7 +42,6 @@ export async function notificationPreferenceGet(
     return {
         directMessages: text(row?.direct_messages, "all") as "all" | "none",
         mentions: text(row?.mentions, "all") as "all" | "none",
-        threadReplies: text(row?.thread_replies, "all") as NotificationLevel,
         reactions: text(row?.reactions, "all") as "all" | "none",
         calls: text(row?.calls, "all") as "all" | "none",
         emailNotifications: number(row?.email_notifications, 0) === 1,

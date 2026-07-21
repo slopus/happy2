@@ -74,7 +74,7 @@ export function AuthScreenPage() {
                 {window1024(
                     <AuthScreen
                         brand={{ name: "Relay" }}
-                        copy="Sign in to reach your channels, agents, and threads across the workspace."
+                        copy="Sign in to reach your channels, agents, and subchannels across the workspace."
                         footer={<span>New to Relay? Ask your workspace admin for an invite.</span>}
                         kicker="Welcome back"
                         title="Sign in to Relay"
@@ -133,7 +133,7 @@ export function AuthScreenPage() {
                 {window1024(
                     <AuthScreen
                         brand={{ name: "Relay" }}
-                        copy="Sign in to reach your channels, agents, and threads across the workspace."
+                        copy="Sign in to reach your channels, agents, and subchannels across the workspace."
                         kicker="Welcome back"
                         loadingLabel="Signing you in…"
                         state="loading"

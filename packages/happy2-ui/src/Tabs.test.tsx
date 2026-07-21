@@ -39,7 +39,7 @@ const inboxTabs: TabItem[] = [
     { id: "all", label: "All", icon: "inbox" },
     { id: "unread", label: "Unread", badge: 3 },
     { id: "mentions", label: "Mentions", icon: "at", badge: 12 },
-    { id: "threads", label: "Threads", icon: "thread" },
+    { id: "channels", label: "Channels", icon: "hash" },
     { id: "reactions", label: "Reactions" },
 ];
 
@@ -221,7 +221,7 @@ it("holds Tabs dimensions, typography, colors, and the active underline for ever
         );
 
         // Idle tabs carry no underline element at all.
-        for (const id of ["all", "mentions", "threads", "reactions"]) {
+        for (const id of ["all", "mentions", "channels", "reactions"]) {
             expect(
                 view
                     .$(`.happy2-tabs[data-size="${size}"] [data-tab-id="${id}"]`)

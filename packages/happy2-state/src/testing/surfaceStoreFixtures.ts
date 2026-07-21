@@ -69,10 +69,6 @@ import type {
 } from "../modules/settings/settingsState.js";
 import { sidebarStoreCreate } from "../modules/sidebar/sidebarState.js";
 import type { SidebarInput, SidebarStore } from "../modules/sidebar/sidebarState.js";
-import { threadStoreCreate } from "../modules/thread/threadState.js";
-import type { ThreadInput, ThreadOutput, ThreadStore } from "../modules/thread/threadState.js";
-import { threadsStoreCreate } from "../modules/threads/threadsState.js";
-import type { ThreadsInput, ThreadsOutput, ThreadsStore } from "../modules/threads/threadsState.js";
 import { workspaceFileStoreCreate } from "../modules/workspace-file/workspaceFileState.js";
 import type {
     WorkspaceFileInput,
@@ -218,13 +214,6 @@ export function notificationsStoreFixtureCreate(
     return fixtureCreate(store, (event) => store.getState().notificationsInput(event));
 }
 
-export function threadsStoreFixtureCreate(
-    output: (event: ThreadsOutput) => void = () => undefined,
-): SurfaceStoreFixture<ThreadsStore, ThreadsInput> {
-    const store = threadsStoreCreate(output);
-    return fixtureCreate(store, (event) => store.getState().threadsInput(event));
-}
-
 export function agentTraceStoreFixtureCreate(
     messageId: string,
 ): SurfaceStoreFixture<AgentTraceStore, AgentTraceInput> {
@@ -238,16 +227,6 @@ export function mcpAppStoreFixtureCreate(
 ): SurfaceStoreFixture<McpAppStore, McpAppInput> {
     const store = mcpAppStoreCreate(messageId, callId);
     return fixtureCreate(store, (event) => store.getState().mcpAppInput(event));
-}
-
-export function threadStoreFixtureCreate(
-    parentChatId: string,
-    rootMessageId: string,
-    output: (event: ThreadOutput) => void = () => undefined,
-    createId?: () => string,
-): SurfaceStoreFixture<ThreadStore, ThreadInput> {
-    const store = threadStoreCreate(parentChatId, rootMessageId, { output, createId });
-    return fixtureCreate(store, (event) => store.getState().threadInput(event));
 }
 
 export function callsStoreFixtureCreate(

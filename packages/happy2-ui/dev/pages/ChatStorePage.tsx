@@ -34,7 +34,6 @@ const chat: ChatSummary = {
     membershipEpoch: "1",
     membershipRole: "owner",
     starred: true,
-    followed: false,
     lastReadSequence: "0",
     unreadCount: 0,
     mentionCount: 0,
@@ -49,8 +48,6 @@ const passiveActions: ChatPageActions = {
     infoOpen: () => undefined,
     profileOpen: () => undefined,
     panelClose: () => undefined,
-    threadOpen: () => undefined,
-    threadClose: () => undefined,
     traceOpen: () => undefined,
     traceClose: () => undefined,
     workspaceOpen: () => undefined,
@@ -151,12 +148,6 @@ export function ChatStorePage() {
         profileOpen: (userId) =>
             setNavigation((value) => ({ ...value, panel: { kind: "profile", userId } })),
         panelClose: () => setNavigation((value) => ({ ...value, panel: undefined })),
-        threadOpen: (rootMessageId) =>
-            setNavigation((value) => ({
-                ...value,
-                panel: { kind: "thread", rootMessageId },
-            })),
-        threadClose: () => setNavigation((value) => ({ ...value, panel: undefined })),
         traceOpen: (messageId) =>
             setNavigation((value) => ({ ...value, panel: { kind: "trace", messageId } })),
         traceClose: () => setNavigation((value) => ({ ...value, panel: undefined })),

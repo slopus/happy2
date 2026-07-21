@@ -42,7 +42,6 @@ const MENTIONS: Mentionable[] = [
 const CONTEXT_ITEMS: ContextItem[] = [
     { detail: "src/auth", id: "file-1", kind: "file", label: "refresh.ts" },
     { detail: "+86 −17", id: "run-1", kind: "run", label: "fix/auth-flake" },
-    { id: "thread-1", kind: "thread", label: "#eng-core" },
 ];
 const EMOJI: EmojiItem[] = [
     { char: "👍", id: "thumbsup", name: "thumbs up" },
@@ -270,7 +269,7 @@ export function ComposerPage() {
 
             <div className="specimen-grid">
                 <Specimen
-                    detail="24px chips · kind icons doc/play/thread · 14px remove hit area"
+                    detail="24px chips · kind icons doc/play · 14px remove hit area"
                     label="ContextChips"
                     number="CP-04"
                     stage="surface"

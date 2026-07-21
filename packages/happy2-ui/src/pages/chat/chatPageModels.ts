@@ -37,7 +37,7 @@ export type Conversation = {
     title: string;
     topic?: string;
 };
-type ThreadMessage = {
+type ChatMessage = {
     kind: "message";
     agent?: boolean;
     author: string;
@@ -52,17 +52,16 @@ type ThreadMessage = {
         count: number;
         emoji: string;
     }[];
-    replyCount?: number;
     time: string;
     tone?: ToneName;
 };
-type ThreadDivider = {
+type ChatDivider = {
     kind: "divider";
     conversationId: string;
     id: string;
     label: string;
 };
-export type LiveThreadMessage = ThreadMessage & {
+export type LiveChatMessage = ChatMessage & {
     /**
      * A locally authored item is outgoing before the server returns its sender
      * projection. The acknowledgement retains its client mutation id so this
@@ -81,14 +80,14 @@ export type LiveThreadMessage = ThreadMessage & {
     delivery?: "sending" | "sent" | "failed";
     agentTrace?: DeepReadonly<AgentTurnTraceSummary>;
 };
-type ThreadNotice = {
+type ChatNotice = {
     kind: "notice";
     id: string;
     conversationId: string;
     icon: IconName;
     text: string;
 };
-export type WorkspaceEntry = ThreadDivider | LiveThreadMessage | ThreadNotice;
+export type WorkspaceEntry = ChatDivider | LiveChatMessage | ChatNotice;
 export function formatBytes(size: number): string {
     if (size < 1024) return `${size} B`;
     if (size < 1024 * 1024) return `${Math.round(size / 102.4) / 10} KB`;
@@ -100,11 +99,11 @@ export function mutationId(): string {
 export function messagesGrouped(
     list: readonly WorkspaceEntry[],
     index: number,
-    message: LiveThreadMessage,
+    message: LiveChatMessage,
 ): boolean {
     const previous = list[index - 1];
     if (previous?.kind !== "message") return false;
-    const previousMessage = previous as LiveThreadMessage;
+    const previousMessage = previous as LiveChatMessage;
     return (
         previousMessage.author === message.author &&
         (previousMessage.serverMessage?.audience ?? "people") ===
@@ -169,7 +168,7 @@ function dayLabel(value: string): string {
         year: date.getFullYear() === now.getFullYear() ? undefined : "numeric",
     }).format(date);
 }
-function messageEntry(item: DeepReadonly<ChatMessageItem>): LiveThreadMessage {
+function messageEntry(item: DeepReadonly<ChatMessageItem>): LiveChatMessage {
     const message = item.message;
     const sender = message.sender;
     const own = item.source === "local" || item.clientMutationId !== undefined;
@@ -192,7 +191,6 @@ function messageEntry(item: DeepReadonly<ChatMessageItem>): LiveThreadMessage {
         time: messageTime(message.createdAt),
         gutterTime: compactTime(message.createdAt),
         body: deleted ? "Message deleted" : message.text,
-        replyCount: message.threadReplyCount || undefined,
         reactions: message.reactions
             .map((reaction) => ({
                 active: reaction.reacted,

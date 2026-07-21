@@ -6,7 +6,6 @@ import { Icon, type IconName } from "./Icon";
 import type { MessageSegment } from "./Message";
 export type NotificationKind =
     | "mention"
-    | "thread_reply"
     | "direct_message"
     | "reaction"
     | "call"
@@ -53,7 +52,6 @@ type KindMeta = {
  */
 const kindMeta: Record<NotificationKind, KindMeta> = {
     mention: { icon: "at", label: "Mention", tone: "accent" },
-    thread_reply: { icon: "thread", label: "Thread reply", tone: "info" },
     direct_message: { icon: "chat", label: "Direct message", tone: "success" },
     reaction: { icon: "smile", label: "Reaction", tone: "warning" },
     call: { icon: "mic", label: "Call", tone: "success" },

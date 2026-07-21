@@ -38,17 +38,10 @@ export async function channelDirectoryList(
                     and(eq(chats.kind, "public_channel"), eq(chats.isListed, 1)),
                     sql`${chatMembers.userId} IS NOT NULL`,
                     ...(isServerAdmin
-                        ? [
-                              and(
-                                  eq(chats.kind, "private_channel"),
-                                  isNull(chats.parentMessageId),
-                                  isNull(chats.parentChatId),
-                              ),
-                          ]
+                        ? [and(eq(chats.kind, "private_channel"), isNull(chats.parentChatId))]
                         : []),
                     and(
                         eq(chats.kind, "private_channel"),
-                        isNull(chats.parentMessageId),
                         isNull(chats.parentChatId),
                         sql`exists (select 1 from chat_members recoverable_member where recoverable_member.chat_id = ${chats.id} and recoverable_member.user_id = ${userId} and recoverable_member.left_at is not null and recoverable_member.removed_by_user_id is null)`,
                     ),

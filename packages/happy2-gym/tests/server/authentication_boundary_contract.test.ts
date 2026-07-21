@@ -13,7 +13,6 @@ describe("HTTP authentication boundary", () => {
             "/v0/directory/channels",
             "/v0/search?q=anything",
             "/v0/files",
-            "/v0/threads",
             "/v0/notifications",
             "/v0/presence",
             "/v0/server",

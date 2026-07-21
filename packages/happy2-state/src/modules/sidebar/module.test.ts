@@ -50,15 +50,18 @@ describe("sidebar module", () => {
         expect(binding.getState().chats[0]).toBe(sibling);
     });
 
-    it("filters child chats at the projection boundary", async () => {
+    it("projects first-class child channels alongside their parent", async () => {
         const projector = new SidebarChatsProjector(new StateRuntime({}), new IdentityCatalog());
         const parent = chat({ id: "parent" });
-        const child = chat({ id: "child", parentMessageId: "message-1", followed: true });
+        const child = chat({ id: "child", parentChatId: "parent" });
 
         await expect(projector.project([parent, child])).resolves.toEqual([
             expect.objectContaining({ id: "parent" }),
+            expect.objectContaining({ id: "child" }),
         ]);
-        await expect(projector.projectOne(child)).resolves.toBeUndefined();
+        await expect(projector.projectOne(child)).resolves.toEqual(
+            expect.objectContaining({ id: "child" }),
+        );
     });
 });
 

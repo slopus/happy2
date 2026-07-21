@@ -60,13 +60,7 @@ export async function channelSetArchived(
                 input.archived ? "Channel is already archived" : "Channel is not archived",
             );
         let joinRole: ChatRole | undefined;
-        if (
-            !input.archived &&
-            input.membership &&
-            !access.membershipRole &&
-            !access.parentMessageId &&
-            !access.parentChatId
-        ) {
+        if (!input.archived && input.membership && !access.membershipRole && !access.parentChatId) {
             const [previous] = await tx
                 .select({
                     role: chatMembers.role,
@@ -109,7 +103,7 @@ export async function channelSetArchived(
                 ),
             );
         const memberships =
-            input.archived && input.membership && !access.parentMessageId && !access.parentChatId
+            input.archived && input.membership && !access.parentChatId
                 ? await tx
                       .select({
                           chatId: chatMembers.chatId,

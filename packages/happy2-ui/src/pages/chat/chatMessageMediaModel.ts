@@ -2,7 +2,7 @@ import { useLayoutEffect, useState } from "react";
 import type { DeepReadonly, FileSummary } from "happy2-state";
 import type { MessageImage } from "./ChatPageComponents.js";
 import type { ChatPageActions } from "./ChatPage.js";
-import type { LiveThreadMessage } from "./chatPageModels.js";
+import type { LiveChatMessage } from "./chatPageModels.js";
 export function useChatMessageMediaModel(
     actions: ChatPageActions,
     onError: (error: unknown) => void,
@@ -28,20 +28,20 @@ export function useChatMessageMediaModel(
             return undefined;
         }
     }
-    const imageFiles = (message: LiveThreadMessage) =>
+    const imageFiles = (message: LiveChatMessage) =>
         message.serverMessage?.attachments.filter(
             (file) =>
                 file.kind === "photo" ||
                 file.kind === "gif" ||
                 file.contentType.startsWith("image/"),
         ) ?? [];
-    const images = (message: LiveThreadMessage): MessageImage[] =>
+    const images = (message: LiveChatMessage): MessageImage[] =>
         imageFiles(message).map((file) => ({
             id: file.id,
             alt: file.originalName ?? "Photo",
             url: urls.get(file.id) ?? "",
         }));
-    const files = (message: LiveThreadMessage) =>
+    const files = (message: LiveChatMessage) =>
         (message.serverMessage?.attachments ?? [])
             .filter((file) => !imageFiles(message).some((image) => image.id === file.id))
             .map((file) => ({
@@ -50,7 +50,7 @@ export function useChatMessageMediaModel(
                 size: formatBytes(file.size),
                 onOpen: () => void download(file),
             }));
-    async function imageOpen(message: LiveThreadMessage, imageId: string) {
+    async function imageOpen(message: LiveChatMessage, imageId: string) {
         const file = imageFiles(message).find((candidate) => candidate.id === imageId);
         if (!file) return;
         const url = await ensureUrl(file.id, true);

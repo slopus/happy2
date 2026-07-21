@@ -25,12 +25,12 @@ describe("TanStack desktop navigation", () => {
         using navigation = navigationCreate("/chats/chat-1");
         navigation.navigate({
             ...navigation.get(),
-            panel: { kind: "thread", rootMessageId: "message-1" },
+            panel: { kind: "trace", messageId: "message-1" },
         });
         await vi.waitFor(() =>
             expect(navigation.get().panel).toEqual({
-                kind: "thread",
-                rootMessageId: "message-1",
+                kind: "trace",
+                messageId: "message-1",
             }),
         );
 

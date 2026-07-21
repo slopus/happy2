@@ -61,7 +61,7 @@ export function chatChannelModelCreate(options: ChatChannelModelOptions) {
         // only on manageable, non-archived, non-child channels.
         const child: MenuItem[] =
             options.canEdit() && manageable && !chat?.parentChatId && !effectiveArchived()
-                ? [{ icon: "branch", id: "child", kind: "item", label: "Create child channel" }]
+                ? [{ icon: "branch", id: "child", kind: "item", label: "Create subchannel" }]
                 : [];
         const archive: MenuItem[] =
             options.canEdit() && manageable

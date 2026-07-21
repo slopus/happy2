@@ -20,7 +20,6 @@ describe("sync module", () => {
             chatReconcile: vi.fn(),
             workspaceReconcile: vi.fn(),
             callsReconcile: vi.fn(),
-            threadsReconcile: vi.fn(),
             notificationsReconcile: vi.fn(),
             draftsReconcile: vi.fn(),
             documentsReconcile: vi.fn(),
@@ -39,8 +38,6 @@ describe("sync module", () => {
             "workspace:chat-1",
             "calls",
             "call:call-1",
-            "threads",
-            "thread:message-1",
             "notifications",
             "drafts",
             "documents",
@@ -61,7 +58,6 @@ describe("sync module", () => {
         expect(context.chatReconcile).toHaveBeenCalledWith("chat-1");
         expect(context.workspaceReconcile).toHaveBeenCalledWith("chat-1");
         expect(context.callsReconcile).toHaveBeenCalledTimes(2);
-        expect(context.threadsReconcile).toHaveBeenCalledTimes(2);
         expect(context.notificationsReconcile).toHaveBeenCalledOnce();
         expect(context.draftsReconcile).toHaveBeenCalledOnce();
         expect(context.documentsReconcile).toHaveBeenCalledOnce();

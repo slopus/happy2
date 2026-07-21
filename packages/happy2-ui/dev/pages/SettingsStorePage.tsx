@@ -26,7 +26,6 @@ const loaded = {
     notifications: {
         directMessages: "all" as const,
         mentions: "all" as const,
-        threadReplies: "mentions" as const,
         reactions: "all" as const,
         calls: "all" as const,
         desktopNotifications: true,

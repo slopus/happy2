@@ -217,7 +217,6 @@ export {
     type InfoPanelProps,
     SURFACE_HEADER_HEIGHT,
 } from "./InfoPanel";
-export { ThreadPanel, type ThreadPanelProps } from "./ThreadPanel";
 export { FormRow, type FormRowAlign, type FormRowLayout, type FormRowProps } from "./FormRow";
 export {
     DocumentEditor,
@@ -347,12 +346,6 @@ export {
     type SearchResultType,
 } from "./SearchResults";
 export {
-    type ThreadItem,
-    ThreadList,
-    type ThreadListProps,
-    type ThreadParticipant,
-} from "./ThreadList";
-export {
     MediaGallery,
     type MediaGalleryProps,
     type MediaItem,
@@ -438,7 +431,6 @@ export {
     type ComposeModalProps,
 } from "./pages/compose/ComposeModal";
 export { HomePage, type HomePageProps } from "./pages/home/HomePage";
-export { ThreadsPage, type ThreadsPageProps } from "./pages/threads/ThreadsPage";
 export { FilesPage, type FilesPageFilter, type FilesPageProps } from "./pages/files/FilesPage";
 export { SearchPage, type SearchPageProps } from "./pages/search/SearchPage";
 export { SettingsPage, type SettingsPageProps } from "./pages/settings/SettingsPage";

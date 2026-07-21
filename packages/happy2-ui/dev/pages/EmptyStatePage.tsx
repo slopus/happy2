@@ -66,11 +66,11 @@ export function EmptyStatePage() {
                 >
                     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                         <EmptyState
-                            action={{ icon: "plus", label: "New thread", onClick: noop }}
-                            description="Follow a thread to keep it here for quick access."
-                            icon="thread"
+                            action={{ icon: "plus", label: "New subchannel", onClick: noop }}
+                            description="Create a subchannel to keep focused work here."
+                            icon="branch"
                             size="inline"
-                            title="No followed threads"
+                            title="No subchannels"
                         />
                         <DimensionRule label="content-sized · 24px padding" />
                     </div>

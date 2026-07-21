@@ -7,7 +7,7 @@ import {
     Message,
     SystemNotice,
 } from "./ChatPageComponents.js";
-import { emojiItems, type LiveThreadMessage, type WorkspaceEntry } from "./chatPageModels.js";
+import { emojiItems, type LiveChatMessage, type WorkspaceEntry } from "./chatPageModels.js";
 export interface ChatMessageEntryProps {
     entry: WorkspaceEntry;
     grouped: boolean;
@@ -36,11 +36,10 @@ export interface ChatMessageEntryProps {
      */
     menuContributions?: ReactNode;
     onProfileOpen(profile: InfoPanelProfile): void;
-    onImageOpen(message: LiveThreadMessage, imageId: string): void;
-    onMenuSelect(message: LiveThreadMessage, action: string): void;
-    onReactionSelect(message: LiveThreadMessage, emoji: string): void;
-    onReplySelect(message: LiveThreadMessage): void;
-    onTraceSelect?(message: LiveThreadMessage): void;
+    onImageOpen(message: LiveChatMessage, imageId: string): void;
+    onMenuSelect(message: LiveChatMessage, action: string): void;
+    onReactionSelect(message: LiveChatMessage, emoji: string): void;
+    onTraceSelect?(message: LiveChatMessage): void;
 }
 export function ChatMessageEntry(props: ChatMessageEntryProps): ReactNode {
     const entry = props.entry;
@@ -65,11 +64,9 @@ export function ChatMessageEntry(props: ChatMessageEntryProps): ReactNode {
             onImageOpen={(id) => props.onImageOpen(entry, id)}
             onMenuSelect={(action) => props.onMenuSelect(entry, action)}
             onReactionSelect={(emoji) => props.onReactionSelect(entry, emoji)}
-            onReplySelect={() => props.onReplySelect(entry)}
             own={props.own}
             reactionOptions={emojiItems}
             reactions={entry.reactions}
-            replyCount={entry.replyCount}
             time={entry.time}
             tone={entry.tone}
         >

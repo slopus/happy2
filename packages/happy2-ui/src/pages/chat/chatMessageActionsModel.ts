@@ -1,14 +1,14 @@
 import type { MenuItem } from "./ChatPageComponents.js";
 import type { ChatPageActions } from "./ChatPage.js";
-import { emojiItems, type LiveThreadMessage } from "./chatPageModels.js";
+import { emojiItems, type LiveChatMessage } from "./chatPageModels.js";
 export interface ChatMessageActionsModelOptions {
     userId: () => string;
     actions: ChatPageActions;
     onError(error: unknown): void;
-    onEdit(message: LiveThreadMessage): void;
+    onEdit(message: LiveChatMessage): void;
 }
 export function chatMessageActionsModelCreate(options: ChatMessageActionsModelOptions) {
-    async function reactionToggle(message: LiveThreadMessage, emoji: string) {
+    async function reactionToggle(message: LiveChatMessage, emoji: string) {
         const source = message.serverMessage;
         if (!source) return;
         const resolved = emojiItems.find((item) => item.id === emoji)?.char ?? emoji;
@@ -22,7 +22,7 @@ export function chatMessageActionsModelCreate(options: ChatMessageActionsModelOp
             options.onError(error);
         }
     }
-    function menuItems(message: LiveThreadMessage): MenuItem[] {
+    function menuItems(message: LiveChatMessage): MenuItem[] {
         const source = message.serverMessage;
         if (!source || source.deletedAt) return [];
         const own = source.sender?.id === options.userId();
@@ -43,7 +43,7 @@ export function chatMessageActionsModelCreate(options: ChatMessageActionsModelOp
                 : []),
         ];
     }
-    async function menuSelect(message: LiveThreadMessage, action: string) {
+    async function menuSelect(message: LiveChatMessage, action: string) {
         const source = message.serverMessage;
         if (!source) return;
         try {

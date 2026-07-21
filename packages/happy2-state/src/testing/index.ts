@@ -37,8 +37,6 @@ export {
     setupStoreFixtureCreate,
     settingsStoreFixtureCreate,
     sidebarStoreFixtureCreate,
-    threadStoreFixtureCreate,
-    threadsStoreFixtureCreate,
     workspaceFileStoreFixtureCreate,
     workspaceStoreFixtureCreate,
     type SurfaceStoreFixture,

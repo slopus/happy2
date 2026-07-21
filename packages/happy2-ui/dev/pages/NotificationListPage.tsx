@@ -16,9 +16,9 @@ const inbox: NotificationItem[] = [
     },
     {
         id: "n2",
-        kind: "thread_reply",
+        kind: "direct_message",
         actor: { name: "Grace Hopper", initials: "GH", tone: "ocean" },
-        text: "replied to your thread",
+        text: "sent you a direct message",
         context: "Re: Nanosecond wire lengths",
         time: "14m",
         unread: true,
@@ -85,7 +85,7 @@ export function NotificationListPage() {
             </Specimen>
 
             <Specimen
-                detail="Every kind: mention · thread reply · DM · reaction · call · system · moderation · automation"
+                detail="Every kind: mention · DM · reaction · call · system · moderation · automation"
                 label="Kinds and tones"
                 number="02"
                 stage="app"
@@ -101,14 +101,6 @@ export function NotificationListPage() {
                                     text: "mentioned you",
                                     context: "in #eng-core",
                                     time: "2m",
-                                },
-                                {
-                                    id: "k2",
-                                    kind: "thread_reply",
-                                    actor: { name: "Grace Hopper", initials: "GH", tone: "ocean" },
-                                    text: "replied to your thread",
-                                    context: "Re: Wire lengths",
-                                    time: "9m",
                                 },
                                 {
                                     id: "k3",

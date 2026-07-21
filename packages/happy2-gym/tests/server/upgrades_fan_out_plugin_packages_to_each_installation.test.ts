@@ -99,6 +99,13 @@ describe("server upgrades with shared plugin packages", () => {
                     FOREIGN KEY (plugin_id) REFERENCES plugins(id) ON DELETE cascade
                 )`,
                 "CREATE INDEX plugin_ui_assets_checksum_index ON plugin_ui_assets (checksum_sha256)",
+                "ALTER TABLE chats ADD COLUMN parent_message_id TEXT REFERENCES messages(id) ON DELETE RESTRICT",
+                "CREATE UNIQUE INDEX chats_parent_message_unique_idx ON chats (parent_message_id) WHERE parent_message_id IS NOT NULL AND deleted_at IS NULL",
+                "CREATE INDEX chats_parent_message_idx ON chats (parent_message_id, deleted_at)",
+                "ALTER TABLE user_chat_preferences ADD COLUMN notify_thread_replies INTEGER NOT NULL DEFAULT 1 CHECK (notify_thread_replies IN (0, 1))",
+                "ALTER TABLE user_chat_preferences ADD COLUMN followed INTEGER NOT NULL DEFAULT 0 CHECK (followed IN (0, 1))",
+                "CREATE INDEX user_chat_preferences_followed_idx ON user_chat_preferences (user_id, followed, updated_at DESC)",
+                "ALTER TABLE user_notification_preferences ADD COLUMN thread_replies TEXT NOT NULL DEFAULT 'all'",
             ]);
 
             const manifestJson = JSON.stringify({

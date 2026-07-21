@@ -715,35 +715,6 @@
     outline-offset: 2px;
 }
 
-.happy2-message__replies {
-    display: inline-flex;
-    align-items: center;
-    margin: 6px 0 0;
-    padding: 0;
-    background: transparent;
-    border: 0;
-    font-family: var(--happy2-font-ui);
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 16px;
-    color: var(--happy2-accent);
-    font-synthesis: none;
-    appearance: none;
-    cursor: pointer;
-    transition: color 120ms ease;
-}
-
-.happy2-message__replies:hover {
-    color: var(--happy2-accent-strong);
-    text-decoration: underline;
-}
-
-.happy2-message__replies:focus-visible {
-    outline: var(--happy2-focus-ring);
-    outline-offset: 2px;
-    border-radius: 4px;
-}
-
 /* ---- Hover actions ---------------------------------------------------- */
 
 .happy2-message__actions {
@@ -863,7 +834,7 @@
 
 /* Inner content wrapper owns the 12px top/bottom breathing room; it fills the
    scrollport height so the spacer's `margin-top: auto` still bottom-aligns a
-   short thread, and it preserves the virtual container's offset exactly. */
+   short conversation, and it preserves the virtual container's offset exactly. */
 .happy2-message-list__content {
     display: flex;
     flex: 1 0 auto;

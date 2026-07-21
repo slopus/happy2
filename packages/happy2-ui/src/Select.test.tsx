@@ -375,7 +375,7 @@ it("holds Select placeholder, error, disabled, focus, truncation, and fullWidth 
                     options={[
                         {
                             value: "long",
-                            label: "Delete after thirty days unless a moderator pins the thread",
+                            label: "Delete after thirty days unless a moderator pins the message",
                         },
                         { value: "short", label: "Keep forever" },
                     ]}

@@ -77,7 +77,6 @@ const ENTITY_PREFIXES: Record<string, readonly string[]> = {
     "server-profile": ["serverProfile"],
     setup: ["setup"],
     sync: ["chatSync", "sync"],
-    thread: ["thread"],
     user: ["contact", "syncSequence", "user"],
     webhook: ["incomingWebhook", "outgoingWebhook", "webhook"],
 };

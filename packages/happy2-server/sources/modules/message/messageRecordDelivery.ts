@@ -1,4 +1,4 @@
-import { type ChatSummary, type NotificationLevel } from "../chat/types.js";
+import { type ChatSummary } from "../chat/types.js";
 import { type DrizzleTransaction } from "../drizzle.js";
 
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
@@ -39,11 +39,8 @@ export async function messageRecordDelivery(
             userId: chatMembers.userId,
             notificationLevel: sql<string>`coalesce(${userChatPreferences.notificationLevel}, 'all')`,
             mutedUntil: userChatPreferences.mutedUntil,
-            notifyThreadReplies: sql<number>`coalesce(${userChatPreferences.notifyThreadReplies}, 1)`,
-            followed: sql<number>`coalesce(${userChatPreferences.followed}, 0)`,
             directMessages: sql<string>`coalesce(${userNotificationPreferences.directMessages}, 'all')`,
             mentionNotifications: sql<string>`coalesce(${userNotificationPreferences.mentions}, 'all')`,
-            threadReplies: sql<string>`coalesce(${userNotificationPreferences.threadReplies}, 'all')`,
             lastReadSequence: chatMembers.lastReadSequence,
         })
         .from(chatMembers)
@@ -73,12 +70,10 @@ export async function messageRecordDelivery(
         const alreadyRead =
             input.respectCurrentReadState === true &&
             recipient.lastReadSequence >= input.messageSequence;
-        const countsAsUnread =
-            !input.chat.parentMessageId || recipient.followed === 1 || isMentioned;
         await tx
             .update(chatMembers)
             .set({
-                unreadCount: sql`${chatMembers.unreadCount} + ${alreadyRead || !countsAsUnread ? 0 : 1}`,
+                unreadCount: sql`${chatMembers.unreadCount} + ${alreadyRead ? 0 : 1}`,
                 mentionCount: sql`${chatMembers.mentionCount} + ${isMentioned && !alreadyRead ? 1 : 0}`,
                 updatedAt: sql`CURRENT_TIMESTAMP`,
             })
@@ -113,29 +108,19 @@ export async function messageRecordDelivery(
                     updatedAt: sql`CURRENT_TIMESTAMP`,
                 },
             });
-        const threadSubscribed = recipient.followed === 1;
-        const threadNotificationLevel = recipient.notificationLevel as NotificationLevel;
         const muted =
             recipient.mutedUntil !== null && !messageIsPast(recipient.mutedUntil ?? undefined);
         const kind = isMentioned
             ? "mention"
-            : input.chat.parentMessageId && threadSubscribed
-              ? "thread_reply"
-              : input.chat.kind === "dm"
-                ? "direct_message"
-                : undefined;
+            : input.chat.kind === "dm"
+              ? "direct_message"
+              : undefined;
         const globallyAllowed =
             kind === "mention"
                 ? recipient.mentionNotifications !== "none"
-                : kind === "thread_reply"
-                  ? recipient.notifyThreadReplies === 1 &&
-                    recipient.threadReplies !== "none" &&
-                    (recipient.threadReplies !== "mentions" || isMentioned) &&
-                    threadNotificationLevel !== "none" &&
-                    (threadNotificationLevel !== "mentions" || isMentioned)
-                  : kind === "direct_message"
-                    ? recipient.directMessages !== "none"
-                    : true;
+                : kind === "direct_message"
+                  ? recipient.directMessages !== "none"
+                  : true;
         if (
             alreadyRead ||
             !kind ||

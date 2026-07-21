@@ -56,7 +56,6 @@ describe("HappyState coarse product surface stores", () => {
         const preferences = {
             directMessages: "all",
             mentions: "all",
-            threadReplies: "all",
             reactions: "all",
             calls: "all",
             emailNotifications: false,

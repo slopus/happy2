@@ -9,7 +9,7 @@ import type {
 } from "happy2-state";
 import type { InfoPanelProfile } from "./ChatPageComponents.js";
 import type { ChatPageActions } from "./ChatPage.js";
-import { identityInitials, toneFor, type LiveThreadMessage } from "./chatPageModels.js";
+import { identityInitials, toneFor, type LiveChatMessage } from "./chatPageModels.js";
 type Participant = DeepReadonly<SidebarChatProjection>["participants"][number];
 export interface ChatInfoModelOptions {
     activeChat: () => DeepReadonly<ChatSummary> | undefined;
@@ -59,7 +59,7 @@ export function useChatInfoModel(options: ChatInfoModelOptions) {
             username: member.username,
         }));
     })();
-    function messageProfile(message: LiveThreadMessage): InfoPanelProfile | undefined {
+    function messageProfile(message: LiveChatMessage): InfoPanelProfile | undefined {
         const sender = message.serverMessage?.sender;
         if (!sender) return undefined;
         return {

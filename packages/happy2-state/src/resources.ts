@@ -60,7 +60,6 @@ export type SearchResultSummary =
 export interface NotificationPreferences {
     readonly directMessages: "all" | "none";
     readonly mentions: "all" | "none";
-    readonly threadReplies: "all" | "mentions" | "none";
     readonly reactions: "all" | "none";
     readonly calls: "all" | "none";
     readonly emailNotifications: boolean;

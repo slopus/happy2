@@ -145,10 +145,7 @@ describe("operations control-plane lifecycle and privacy", () => {
         expect(
             (await asOutsider.post("/v0/dataExports/requestChatExport", { chatId })).statusCode,
         ).toBe(404);
-        const chatExport = await asMember.post("/v0/dataExports/requestChatExport", {
-            chatId,
-            options: { includeThreads: true },
-        });
+        const chatExport = await asMember.post("/v0/dataExports/requestChatExport", { chatId });
         const ownExport = await asMember.post("/v0/me/requestDataExport", {
             options: { includeFiles: false },
         });

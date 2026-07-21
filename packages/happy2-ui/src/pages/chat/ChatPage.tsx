@@ -28,7 +28,6 @@ import type {
     DocumentStore,
     SidebarStore,
     SidebarChatProjection,
-    ThreadHandle,
     TerminalStore,
     WorkspaceStore,
     WorkspaceFileStore,
@@ -42,7 +41,7 @@ import {
     messagesGrouped,
     toneFor,
     type Conversation,
-    type LiveThreadMessage,
+    type LiveChatMessage,
     type PortShareView,
     type WorkspaceEntry,
 } from "./chatPageModels.js";
@@ -54,7 +53,6 @@ import { ChatDirectoryDialog } from "./ChatDirectoryDialog.js";
 import { ChatDirectMessageDialog } from "./ChatDirectMessageDialog.js";
 import { ChatMessageEditDialog } from "./ChatMessageEditDialog.js";
 import { ChatInfoPanel } from "./ChatInfoPanel.js";
-import { ChatThreadPanel } from "./ChatThreadPanel.js";
 import { ChatDocumentPane } from "./ChatDocumentPane.js";
 import { ChatWorkspaceEditor } from "./ChatWorkspaceEditor.js";
 import { ChatWorkspacePanel } from "./ChatWorkspacePanel.js";
@@ -87,7 +85,6 @@ export type ChatPageProps = {
     agentModels?: AgentModelsStore;
     chat?: ChatStore;
     composer?: ComposerStore;
-    thread?: ThreadHandle;
     trace?: AgentTraceStore;
     terminal?: TerminalStore;
     workspace?: WorkspaceStore;
@@ -163,10 +160,6 @@ export type ChatPagePanel =
           readonly userId: string;
       }
     | {
-          readonly kind: "thread";
-          readonly rootMessageId: string;
-      }
-    | {
           readonly kind: "trace";
           readonly messageId: string;
       }
@@ -188,8 +181,6 @@ export interface ChatPageActions {
     infoOpen(): void;
     profileOpen(userId: string): void;
     panelClose(): void;
-    threadOpen(rootMessageId: string): void;
-    threadClose(): void;
     traceOpen(messageId: string): void;
     traceClose(): void;
     workspaceOpen(chatId: string): void;
@@ -244,9 +235,6 @@ export function ChatPage(props: ChatPageProps) {
     const agentModelsState = useOptionalStoreSnapshot(props.agentModels);
     const chatState = useOptionalStoreSnapshot(props.chat);
     const composerState = useOptionalStoreSnapshot(props.composer);
-    const threadState = useOptionalStoreSnapshot(props.thread);
-    const threadChat = props.thread?.childChat();
-    const threadChatState = useOptionalStoreSnapshot(threadChat);
     const traceState = useOptionalStoreSnapshot(props.trace);
     const terminalState = useOptionalStoreSnapshot(props.terminal);
     const documentListState = useOptionalStoreSnapshot(props.documentList);
@@ -320,14 +308,8 @@ export function ChatPage(props: ChatPageProps) {
     >(undefined);
     const activeConversationId = () => props.navigation.chatId ?? "";
     const activePanel = () => props.navigation.panel;
-    const activeThreadRootId = () => {
+    const panelMode = (): "info" | "trace" | "files" | "documents" | undefined => {
         const panel = activePanel();
-        return panel?.kind === "thread" ? panel.rootMessageId : undefined;
-    };
-    const threadDraft = threadState?.draft ?? "";
-    const panelMode = (): "info" | "thread" | "trace" | "files" | "documents" | undefined => {
-        const panel = activePanel();
-        if (panel?.kind === "thread") return "thread";
         if (panel?.kind === "trace") return "trace";
         if (panel?.kind === "info" || panel?.kind === "profile") return "info";
         if (panel?.kind === "documents") return "documents";
@@ -343,7 +325,6 @@ export function ChatPage(props: ChatPageProps) {
     const mediaModel = useChatMessageMediaModel(props.actions, showError);
     const sentTyping = useRef(false);
     const lastReadMessageId = useRef<string | undefined>(undefined);
-    const lastThreadReadMessageId = useRef<string | undefined>(undefined);
     const busy = () => busyCount > 0;
     const startBusy = () => setBusyCount((value) => value + 1);
     const finishBusy = () => setBusyCount((value) => Math.max(0, value - 1));
@@ -375,79 +356,7 @@ export function ChatPage(props: ChatPageProps) {
     const [terminalHeight, setTerminalHeight] = useState(280);
     const draft = () => composerSnapshot()?.text ?? "";
     const pendingAttachments = () => composerSnapshot()?.attachments ?? [];
-    const entries = entriesProject(
-        (chatSnapshot()?.messages ?? []).filter((item) => !item.message.threadRootMessageId),
-    );
-    const threadRootItem = () =>
-        chatSnapshot()?.messages.find(({ message }) => message.id === activeThreadRootId());
-    const threadEntries = (() => {
-        const root = threadRootItem();
-        return entriesProject([...(root ? [root] : []), ...(threadChatState?.messages ?? [])]);
-    })();
-    const threadRoot = () =>
-        threadEntries.find(
-            (entry): entry is LiveThreadMessage =>
-                entry.kind === "message" && entry.id === activeThreadRootId(),
-        );
-    const threadLoading = () => {
-        const resolution = threadState?.resolution;
-        if (!resolution || resolution.type === "unloaded" || resolution.type === "loading")
-            return true;
-        if (resolution.type !== "ready") return false;
-        const status = threadChatState?.status;
-        return !status || status.type === "unloaded" || status.type === "loading";
-    };
-    const threadError = () => {
-        const resolution = threadState?.resolution;
-        if (resolution?.type === "error")
-            return {
-                title:
-                    resolution.stage === "root"
-                        ? "Thread root failed to load"
-                        : "Thread failed to resolve",
-                message: resolution.error.message,
-                onRetry: () => props.thread?.getState().threadResolutionRetry(),
-            };
-        if (threadState?.create.type === "error")
-            return {
-                title: "Thread could not be created",
-                message: threadState.create.error.message,
-                onRetry: () => props.thread?.getState().threadCreateRetry(),
-            };
-        if (resolution?.type === "ready" && threadChatState?.status.type === "error")
-            return {
-                title: "Replies failed to load",
-                message: threadChatState.status.error.message,
-                onRetry: () => props.thread?.getState().childChatLoadRetry(),
-            };
-        const failed = threadChatState?.messages.find(
-            (item) => item.delivery === "failed" && item.clientMutationId,
-        );
-        return failed?.clientMutationId
-            ? {
-                  title: "Reply failed to send",
-                  message: failed.error?.message ?? "The reply could not be sent.",
-                  onRetry: () => props.thread?.getState().replyRetry(failed.clientMutationId!),
-              }
-            : undefined;
-    };
-    const threadEmpty = () => {
-        if (threadLoading() || threadError()) return false;
-        const resolution = threadState?.resolution;
-        return (
-            resolution?.type === "absent" ||
-            (resolution?.type === "ready" &&
-                threadChatState?.status.type === "ready" &&
-                threadChatState.messages.length === 0)
-        );
-    };
-    const threadComposerDisabled = () => {
-        const resolution = threadState?.resolution;
-        if (!resolution || resolution.type === "unloaded" || resolution.type === "loading")
-            return true;
-        if (resolution.type === "error" || threadState?.create.type === "error") return true;
-        return resolution.type === "ready" && threadChatState?.status.type !== "ready";
-    };
+    const entries = entriesProject(chatSnapshot()?.messages ?? []);
     const avatarFor = createAvatarProjection({
         user,
         sidebarSnapshot,
@@ -732,7 +641,7 @@ export function ChatPage(props: ChatPageProps) {
             .catch(showError);
     };
     const directoryAgents = () => directoryUsers().filter((person) => person.kind === "agent");
-    const messageAudienceLabel = (message: LiveThreadMessage): string | undefined => {
+    const messageAudienceLabel = (message: LiveChatMessage): string | undefined => {
         if (activeChat()?.kind === "dm") return undefined;
         const server = message.serverMessage;
         if (server?.audience !== "agents") return undefined;
@@ -915,19 +824,10 @@ export function ChatPage(props: ChatPageProps) {
         const snapshot = chatSnapshot();
         const latest = [...(snapshot?.messages ?? [])]
             .reverse()
-            .find((item) => item.source === "server" && !item.message.threadRootMessageId);
+            .find((item) => item.source === "server");
         if (!latest || latest.message.id === lastReadMessageId.current) return;
         lastReadMessageId.current = latest.message.id;
         void props.actions.chatReadMark(snapshot!.chatId, latest.message.id).catch(showError);
-    });
-    useLayoutEffect(() => {
-        const snapshot = threadChatState;
-        const latest = [...(snapshot?.messages ?? [])]
-            .reverse()
-            .find((item) => item.source === "server");
-        if (!snapshot || !latest || latest.message.id === lastThreadReadMessageId.current) return;
-        lastThreadReadMessageId.current = latest.message.id;
-        void props.actions.chatReadMark(snapshot.chatId, latest.message.id).catch(showError);
     });
     const activityCount = chatState?.agentActivity.length ?? 0;
     useLayoutEffect(() => {
@@ -975,12 +875,6 @@ export function ChatPage(props: ChatPageProps) {
         } finally {
             finishBusy();
         }
-    }
-    function openThread(message: LiveThreadMessage) {
-        if (message.serverMessage) props.actions.threadOpen(message.id);
-    }
-    function sendThreadReply() {
-        props.thread?.getState().replySubmit();
     }
     function openFilesPanel() {
         workspaceModel.panelOpen();
@@ -1061,29 +955,7 @@ export function ChatPage(props: ChatPageProps) {
                     )
                 }
                 panel={
-                    panelMode() === "thread" ? (
-                        <ChatThreadPanel
-                            disabled={threadComposerDisabled()}
-                            draft={threadDraft}
-                            empty={threadEmpty()}
-                            error={threadError()}
-                            loading={threadLoading()}
-                            mentions={mentionCandidates()}
-                            onDraftChange={(value) =>
-                                props.thread?.getState().replyDraftUpdate(value)
-                            }
-                            onClose={() => {
-                                props.actions.threadClose();
-                            }}
-                            onSend={sendThreadReply}
-                            pending={threadState?.create.type === "pending" || busy()}
-                            rootAuthor={threadRoot()?.author}
-                        >
-                            {threadEntries.map((entry, index) =>
-                                renderEntry(entry, index, threadEntries),
-                            )}
-                        </ChatThreadPanel>
-                    ) : panelMode() === "trace" ? (
+                    panelMode() === "trace" ? (
                         ((trace) => (
                             <AgentTracePanel
                                 entries={traceDetails()?.entries ?? []}
@@ -1487,7 +1359,6 @@ export function ChatPage(props: ChatPageProps) {
                 onReactionSelect={(message, emoji) =>
                     void messageActions.reactionToggle(message, emoji)
                 }
-                onReplySelect={openThread}
                 onTraceSelect={(message) => props.actions.traceOpen(message.id)}
                 traceOpen={message ? activeTraceMessageId() === message.id : false}
             />

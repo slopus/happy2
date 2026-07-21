@@ -54,7 +54,6 @@ const mentions: Mentionable[] = [
 const contextItems: ContextItem[] = [
     { detail: "src/auth", id: "file-1", kind: "file", label: "refresh.ts" },
     { id: "run-1", kind: "run", label: "fix/auth-flake" },
-    { id: "thread-1", kind: "thread", label: "#eng-core" },
 ];
 const emoji: EmojiItem[] = [
     { char: "👍", id: "thumbsup", name: "thumbs up" },
@@ -770,11 +769,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
             '[data-testid="chips"] [data-happy2-ui="context-chips-chip"]',
         ),
     );
-    expect(chips.map((element) => element.getAttribute("data-kind"))).toEqual([
-        "file",
-        "run",
-        "thread",
-    ]);
+    expect(chips.map((element) => element.getAttribute("data-kind"))).toEqual(["file", "run"]);
     // Kind icons: 12px, muted, optically centered on the 24px chip lane —
     // every kind (raw vertical drift ≤ 0.05px in all engines). Horizontal
     // drift is measured differentially because fractional-width text precedes
@@ -784,7 +779,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     // engines) — a rasterizer behaviour static CSS cannot correct. The
     // run/play triangle points right by design (the same directional
     // carve-out as Icon.test.tsx), so only its vertical axis is asserted.
-    for (const kind of ["file", "run", "thread"] as const) {
+    for (const kind of ["file", "run"] as const) {
         const chipSelector = `[data-testid="chips"] [data-kind="${kind}"]`;
         const iconSelector = `${chipSelector} [data-happy2-ui="context-chips-icon"]`;
         const icon = view.$(`${iconSelector} svg`);
@@ -877,7 +872,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
             '[data-testid="chips"] [data-happy2-ui="context-chips-remove"]',
         ),
     );
-    expect(removeButtons.length).toBe(3);
+    expect(removeButtons.length).toBe(2);
     const removeBounds = view
         .$('[data-testid="chips"] [data-happy2-ui="context-chips-remove"]')
         .bounds();

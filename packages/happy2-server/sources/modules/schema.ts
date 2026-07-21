@@ -400,9 +400,6 @@ export const chats = sqliteTable("chats", {
     name: text("name"),
     slug: text("slug"),
     topic: text("topic"),
-    parentMessageId: text("parent_message_id").references(() => messages.id, {
-        onDelete: "restrict",
-    }),
     parentChatId: text("parent_chat_id").references((): AnySQLiteColumn => chats.id, {
         onDelete: "restrict",
     }),
@@ -1792,16 +1789,13 @@ export const userChatPreferences = sqliteTable("user_chat_preferences", {
     updatedAt: text("updated_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
     notificationLevel: text("notification_level").notNull().default("all"),
     mutedUntil: text("muted_until"),
-    notifyThreadReplies: integer("notify_thread_replies").notNull().default(1),
     showMessagePreviews: integer("show_message_previews").notNull().default(1),
-    followed: integer("followed").notNull().default(0),
 });
 
 export const userNotificationPreferences = sqliteTable("user_notification_preferences", {
     userId: text("user_id").primaryKey().notNull(),
     directMessages: text("direct_messages").notNull().default("all"),
     mentions: text("mentions").notNull().default("all"),
-    threadReplies: text("thread_replies").notNull().default("all"),
     reactions: text("reactions").notNull().default("all"),
     calls: text("calls").notNull().default("all"),
     emailNotifications: integer("email_notifications").notNull().default(0),

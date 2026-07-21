@@ -33,7 +33,6 @@ export type DesktopPrimaryRoute =
       }
     | { readonly kind: "home" }
     | { readonly kind: "activity" }
-    | { readonly kind: "threads" }
     | { readonly kind: "calls" }
     | { readonly kind: "files" }
     | { readonly kind: "documents"; readonly documentId?: string }
@@ -45,7 +44,6 @@ export type DesktopPrimaryRoute =
 export type DesktopPanelRoute =
     | { readonly kind: "info" }
     | { readonly kind: "profile"; readonly userId: string }
-    | { readonly kind: "thread"; readonly rootMessageId: string }
     | { readonly kind: "trace"; readonly messageId: string }
     | { readonly kind: "workspace" }
     | { readonly kind: "documents" };

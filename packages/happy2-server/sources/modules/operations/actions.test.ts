@@ -446,22 +446,15 @@ describe("operations actions", () => {
     });
     it("moderates a message in a child chat without mutating the parent timeline", async () => {
         const parentChatId = await createChat(raw, admin.user.id, member.user.id, admin.user.id);
-        const rootMessageId = createId();
         const childChatId = createId();
         const removedReplyId = createId();
         await raw.batch([
             {
-                sql: `INSERT INTO messages
-                        (id, chat_id, sequence, change_pts, sender_user_id, text)
-                      VALUES (?, ?, 1, 1, ?, 'thread root')`,
-                args: [rootMessageId, parentChatId, admin.user.id],
-            },
-            {
                 sql: `INSERT INTO chats
-                        (id, kind, name, parent_message_id, created_by_user_id, owner_user_id,
+                        (id, kind, name, parent_chat_id, created_by_user_id, owner_user_id,
                          pts, last_message_sequence, last_change_sequence, is_listed)
                       VALUES (?, 'private_channel', 'Moderated child', ?, ?, ?, 1, 1, 1, 0)`,
-                args: [childChatId, rootMessageId, admin.user.id, admin.user.id],
+                args: [childChatId, parentChatId, admin.user.id, admin.user.id],
             },
             {
                 sql: `INSERT INTO chat_members
@@ -516,14 +509,6 @@ describe("operations actions", () => {
             deleted_at: expect.any(String),
             change_pts: 2,
         });
-        expect(
-            (
-                await raw.execute({
-                    sql: `SELECT change_pts FROM messages WHERE id = ?`,
-                    args: [rootMessageId],
-                })
-            ).rows[0]?.change_pts,
-        ).toBe(1);
     });
     it("deletes users by revoking sessions, anonymizing identity, and transferring ownership", async () => {
         const chatId = await createChat(raw, admin.user.id, member.user.id, member.user.id);

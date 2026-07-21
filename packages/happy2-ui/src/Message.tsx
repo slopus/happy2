@@ -108,7 +108,6 @@ export type MessageProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     contributions?: ReactNode;
     onReactionAdd?: () => void;
     onReactionSelect?: (emoji: string) => void;
-    onReplySelect?: () => void;
     /**
      * The viewer's own outgoing message. Renders as a right-aligned accent
      * bubble with no avatar and no author name — only humans send, so an `own`
@@ -119,7 +118,6 @@ export type MessageProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     reactions?: MessageReaction[];
     /** Emoji available in the hover reaction picker. IDs are passed to `onReactionSelect`. */
     reactionOptions?: EmojiItem[];
-    replyCount?: number;
     style?: CSSProperties;
     time: string;
     tone?: ToneName;
@@ -191,11 +189,9 @@ export function Message(props: MessageProps) {
         "onMenuSelect",
         "onReactionAdd",
         "onReactionSelect",
-        "onReplySelect",
         "own",
         "reactions",
         "reactionOptions",
-        "replyCount",
         "style",
         "time",
         "tone",
@@ -236,10 +232,7 @@ export function Message(props: MessageProps) {
     const hasContributions = () => hasRenderableChild(local.contributions);
     const hasActions = () =>
         deliveryState() !== "sending" &&
-        (hasReactionAction() ||
-            Boolean(local.onReplySelect) ||
-            hasMenuAction() ||
-            hasContributions());
+        (hasReactionAction() || hasMenuAction() || hasContributions());
     const filteredReactionOptions = () => {
         const query = reactionQuery.trim().toLocaleLowerCase();
         if (!query) return local.reactionOptions ?? [];
@@ -509,18 +502,6 @@ export function Message(props: MessageProps) {
                         ) : null}
                     </div>
                 ) : null}
-                {local.replyCount
-                    ? ((count) => (
-                          <button
-                              className="happy2-message__replies"
-                              data-happy2-ui="message-replies"
-                              onClick={() => local.onReplySelect?.()}
-                              type="button"
-                          >
-                              {count} {count === 1 ? "reply" : "replies"}
-                          </button>
-                      ))(local.replyCount)
-                    : null}
             </div>
             {hasActions() ? (
                 <>
@@ -534,17 +515,6 @@ export function Message(props: MessageProps) {
                                 icon="smile"
                                 iconOnly
                                 onClick={toggleReactionPicker}
-                                size="small"
-                                variant="ghost"
-                            />
-                        ) : null}
-                        {local.onReplySelect ? (
-                            <Button
-                                aria-label={local.replyCount ? "Open thread" : "Start thread"}
-                                className="happy2-message__action"
-                                icon="thread"
-                                iconOnly
-                                onClick={() => local.onReplySelect?.()}
                                 size="small"
                                 variant="ghost"
                             />

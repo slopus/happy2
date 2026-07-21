@@ -131,7 +131,6 @@ export function MessagePage() {
                             { count: 2, emoji: "🚀" },
                             { active: true, count: 1, emoji: "✅" },
                         ]}
-                        replyCount={4}
                         time="10:51"
                         tone="mint"
                     />,
@@ -297,7 +296,7 @@ export function MessagePage() {
             </Specimen>
 
             <Specimen
-                detail="Hover/focus toolbar · reaction picker trigger · start thread · real supplied overflow actions"
+                detail="Hover/focus toolbar · reaction picker trigger · real supplied overflow actions"
                 label="Message — hover actions"
                 number="06"
                 stage="app"
@@ -313,7 +312,6 @@ export function MessagePage() {
                         ]}
                         onMenuSelect={() => {}}
                         onReactionSelect={() => {}}
-                        onReplySelect={() => {}}
                         reactionOptions={[
                             { char: "👍", id: "👍", name: "Thumbs up" },
                             { char: "🎉", id: "🎉", name: "Celebrate" },
@@ -524,7 +522,6 @@ export function MessagePage() {
                         <Message
                             author="Sasha K."
                             body="Reviewing now. If it's green on the device farm we're clear for Friday."
-                            replyCount={2}
                             time="10:54"
                             tone="ocean"
                         />

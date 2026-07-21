@@ -104,14 +104,13 @@ describe("settings module", () => {
         binding.getState().dndUntilUpdate("tomorrow");
         binding.getState().directMessagesUpdate("none");
         binding.getState().mentionsUpdate("none");
-        binding.getState().threadRepliesUpdate("mentions");
         binding.getState().reactionsUpdate("none");
         binding.getState().callsUpdate("none");
         binding.getState().emailNotificationsUpdate(true);
         binding.getState().desktopNotificationsUpdate(false);
         binding.getState().dndScheduleUpdate(60, 120);
         binding.getState().timezoneUpdate("UTC");
-        expect(output).toHaveBeenCalledTimes(18);
+        expect(output).toHaveBeenCalledTimes(17);
         expect(
             Object.values(binding.getState().fields).every((field) => field.save.type === "dirty"),
         ).toBe(true);

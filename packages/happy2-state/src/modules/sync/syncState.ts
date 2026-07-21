@@ -24,7 +24,6 @@ export interface AreaReconcileContext {
     chatReconcile(chatId: string): void;
     workspaceReconcile(chatId: string): void;
     callsReconcile(): void;
-    threadsReconcile(): void;
     notificationsReconcile(): void;
     draftsReconcile(): void;
     documentsReconcile(): void;
@@ -50,7 +49,6 @@ export function areaReconcile(context: AreaReconcileContext, area: string): void
         if (chatId) context.workspaceReconcile(chatId);
         else context.unknownArea(area);
     } else if (area === "calls" || area.startsWith("call:")) context.callsReconcile();
-    else if (area === "threads" || area.startsWith("thread:")) context.threadsReconcile();
     else if (area === "notifications") context.notificationsReconcile();
     else if (area === "drafts") context.draftsReconcile();
     else if (area === "documents") context.documentsReconcile();
@@ -87,8 +85,6 @@ export interface SyncCoordinatorContext extends SidebarLoadContext {
     chatDocumentWriteRequestsReconcile(chatId: string): void;
     /** Reloads a retained chat's active port shares after a portShare.* chat update. */
     chatPortSharesReconcile(chatId: string): void;
-    /** Reconciles a materialized coarse thread list when a child or its parent timeline changed. */
-    threadListChatsReconcile(chatIds: readonly string[]): void;
     /** Debounce-synchronizes an open document session hinted at newer durable content. */
     documentReconcile(documentId: string, sequence: number): void;
     /** Applies one ephemeral document presence announcement to its open session. */
@@ -288,10 +284,6 @@ export class SyncCoordinator {
                 else binding.getState().chatInput({ type: "chatSummaryReconciled", chat });
             }
             for (const area of difference.areas) this.context.areaReconcile(area);
-            if (!difference.areas.some((area) => area === "threads" || area.startsWith("thread:")))
-                this.context.threadListChatsReconcile(
-                    difference.changedChats.map((chat) => chat.id),
-                );
             cursor = difference.state;
             if (difference.kind !== "slice") return;
         }

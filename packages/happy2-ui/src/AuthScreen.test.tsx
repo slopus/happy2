@@ -64,7 +64,7 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
         () => (
             <AuthScreen
                 brand={{ name: "Relay" }}
-                copy="Reach your channels, agents, and threads across the workspace."
+                copy="Reach your channels, agents, and subchannels across the workspace."
                 data-testid="auth"
                 footer={<span data-testid="auth-foot">Need an invite?</span>}
                 kicker="Welcome back"
@@ -301,7 +301,7 @@ it("holds AuthScreen loading, generated-image hero, custom mark, and minimal for
         () => (
             <AuthScreen
                 brand={{ name: "Relay" }}
-                copy="Reach your channels, agents, and threads."
+                copy="Reach your channels, agents, and subchannels."
                 data-testid="loading"
                 kicker="Welcome back"
                 loadingLabel="Signing you in…"

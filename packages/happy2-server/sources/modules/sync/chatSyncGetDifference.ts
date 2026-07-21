@@ -114,7 +114,6 @@ export async function chatSyncGetDifference(
                     update.entityId &&
                     (update.kind.startsWith("message.") ||
                         update.kind.startsWith("reaction.") ||
-                        update.kind.startsWith("thread.") ||
                         update.kind.startsWith("receipt.")),
             )
             .map((update) => update.entityId!),

@@ -65,7 +65,7 @@ export function IconPage() {
             <Specimen
                 number="01"
                 label="Glyph set"
-                detail="All 42 pinned names at 14 / 16 / 20 px · stroke 1.7 · round caps and joins"
+                detail="All 47 pinned names at 14 / 16 / 20 px · stroke 1.7 · round caps and joins"
                 stage="app"
             >
                 <div style={{ width: "820px" }}>

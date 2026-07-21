@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
 
 describe("stateful collaboration workflows", () => {
-    it("covers unread state, mentions, editing, threads, lifecycle, calls, and automation", async () => {
+    it("covers unread state, mentions, editing, lifecycle, calls, and automation", async () => {
         await using server = await createGymServer();
         const admin = await server.createUser({
             username: "admin_user",
@@ -82,21 +82,6 @@ describe("stateful collaboration workflows", () => {
         expect(
             revisions.json().revisions.map((item: { revision: number }) => item.revision),
         ).toEqual([2, 1]);
-
-        const createdThread = await asMember.post(`/v0/messages/${messageId}/createThread`, {});
-        expect(createdThread.statusCode).toBe(201);
-        const threadChatId = createdThread.json().chat.id as string;
-        const reply = await asMember.post(`/v0/chats/${threadChatId}/sendMessage`, {
-            text: "Reviewed in the separate thread timeline",
-        });
-        expect(reply.statusCode).toBe(201);
-        const threads = await asAdmin.get("/v0/threads");
-        expect(threads.json().threads[0]).toMatchObject({
-            id: threadChatId,
-            parentMessageId: messageId,
-            lastMessageSequence: "1",
-            unreadCount: 1,
-        });
 
         await expectOk(asMember, `/v0/messages/${messageId}/pinMessage`);
         const pins = await asAdmin.get(`/v0/chats/${chatId}/pins`);

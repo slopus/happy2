@@ -176,7 +176,7 @@ describe("collaboration membership, messages, personal organization, and calls",
         });
     });
 
-    it("keeps quoted replies and child-chat threads distinct while preserving edits, forwards, reactions, pins, and bookmarks", async () => {
+    it("keeps quoted replies in-channel while preserving edits, forwards, reactions, pins, and bookmarks", async () => {
         await using server = await createGymServer();
         const author = await server.createUser({ username: "message_author", firstName: "Author" });
         const replier = await server.createUser({
@@ -225,7 +225,7 @@ describe("collaboration membership, messages, personal organization, and calls",
         ).toBe(200);
 
         const root = await asAuthor.post(`/v0/chats/${sourceChatId}/sendMessage`, {
-            text: "Root message for quote, thread, edit, and forward",
+            text: "Root message for quote, edit, and forward",
         });
         expect(root.statusCode).toBe(201);
         const rootId = root.json().message.id as string;
@@ -240,59 +240,14 @@ describe("collaboration membership, messages, personal organization, and calls",
             id: quoteId,
             quotedMessage: {
                 id: rootId,
-                text: "Root message for quote, thread, edit, and forward",
+                text: "Root message for quote, edit, and forward",
             },
-        });
-        expect(quote.json().message.threadChatId).toBeUndefined();
-
-        const createdThread = await asReplier.post(`/v0/messages/${rootId}/createThread`, {});
-        expect(createdThread.statusCode).toBe(201);
-        const threadChatId = createdThread.json().chat.id as string;
-        const threadReply = await asReplier.post(`/v0/chats/${threadChatId}/sendMessage`, {
-            text: "This is a separate thread timeline.",
-        });
-        expect(threadReply.statusCode).toBe(201);
-        const threadReplyId = threadReply.json().message.id as string;
-        expect(threadReply.json().message).toMatchObject({
-            chatId: threadChatId,
         });
         const mainTimeline = await asAuthor.get(`/v0/chats/${sourceChatId}/messages`);
         expect(mainTimeline.statusCode).toBe(200);
         expect(mainTimeline.json().messages.map((message: { id: string }) => message.id)).toEqual(
             expect.arrayContaining([rootId, quoteId]),
         );
-        expect(
-            mainTimeline.json().messages.map((message: { id: string }) => message.id),
-        ).not.toContain(threadReplyId);
-        const threadTimeline = await asAuthor.get(`/v0/chats/${threadChatId}/messages`);
-        expect(threadTimeline.statusCode).toBe(200);
-        expect(threadTimeline.json().messages.map((message: { id: string }) => message.id)).toEqual(
-            [threadReplyId],
-        );
-        expect((await asAuthor.get("/v0/threads?unreadOnly=false")).json().threads).toEqual(
-            expect.arrayContaining([
-                expect.objectContaining({
-                    id: threadChatId,
-                    parentMessageId: rootId,
-                    lastMessageSequence: "1",
-                }),
-            ]),
-        );
-        expect(
-            (
-                await asReplier.post(`/v0/chats/${threadChatId}/updateNotificationPreferences`, {
-                    notificationLevel: "mentions",
-                })
-            ).statusCode,
-        ).toBe(200);
-        expect(
-            (
-                await asReplier.post(`/v0/chats/${threadChatId}/markRead`, {
-                    messageId: threadReplyId,
-                })
-            ).statusCode,
-        ).toBe(200);
-
         const edited = await asAuthor.post(`/v0/messages/${rootId}/editMessage`, {
             text: "Root message revised exactly once",
             reason: "Clarified the workflow",
@@ -521,7 +476,6 @@ describe("collaboration membership, messages, personal organization, and calls",
             (
                 await asMember.post(`/v0/chats/${firstChatId}/updateNotificationPreferences`, {
                     notificationLevel: "mentions",
-                    notifyThreadReplies: false,
                     showMessagePreviews: false,
                 })
             ).statusCode,
@@ -577,7 +531,6 @@ describe("collaboration membership, messages, personal organization, and calls",
         const globalPreferences = await asMember.post("/v0/me/updateNotificationPreferences", {
             directMessages: "none",
             mentions: "all",
-            threadReplies: "mentions",
             reactions: "none",
             calls: "none",
             emailNotifications: true,
@@ -591,7 +544,6 @@ describe("collaboration membership, messages, personal organization, and calls",
             (await asMember.get("/v0/me/notificationPreferences")).json().preferences,
         ).toMatchObject({
             directMessages: "none",
-            threadReplies: "mentions",
             reactions: "none",
             calls: "none",
             emailNotifications: true,

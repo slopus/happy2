@@ -176,7 +176,6 @@ export async function syncGetDifference(
         }
         if (kind.startsWith("preferences.")) areas.add("preferences");
         else if (kind.startsWith("notification.")) areas.add("notifications");
-        else if (kind.startsWith("threadPreferences.")) areas.add("threads");
         else if (kind.startsWith("scheduled.")) areas.add("scheduled-messages");
         else if (kind.startsWith("draft.")) areas.add("drafts");
         else if (kind.startsWith("document.")) areas.add("documents");

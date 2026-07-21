@@ -170,8 +170,6 @@ function notificationText(kind: NotificationProjection["kind"]): string {
     switch (kind) {
         case "mention":
             return "mentioned you";
-        case "thread_reply":
-            return "replied in a thread";
         case "direct_message":
             return "sent you a direct message";
         case "reaction":

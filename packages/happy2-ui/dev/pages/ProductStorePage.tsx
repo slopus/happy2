@@ -10,7 +10,6 @@ import {
     filesStoreFixtureCreate,
     notificationsStoreFixtureCreate,
     searchStoreFixtureCreate,
-    threadsStoreFixtureCreate,
 } from "happy2-state/testing";
 import { ActivityPage } from "../../src/pages/activity/ActivityPage";
 import { AdminPage, type AdminPageSection } from "../../src/pages/admin/AdminPage";
@@ -20,12 +19,10 @@ import { CallsPage } from "../../src/pages/calls/CallsPage";
 import { FilesPage, type FilesPageFilter } from "../../src/pages/files/FilesPage";
 import { HomePage } from "../../src/pages/home/HomePage";
 import { SearchPage } from "../../src/pages/search/SearchPage";
-import { ThreadsPage } from "../../src/pages/threads/ThreadsPage";
 import { ComponentPage, FullScreenSpecimen } from "../kit";
 export type ProductStorePageKind =
     | "home"
     | "activity"
-    | "threads"
     | "calls"
     | "files"
     | "search"
@@ -51,8 +48,6 @@ export function ProductStorePage(props: { kind: ProductStorePageKind }) {
                     render={(store) => <ActivityPage store={store} />}
                 />
             );
-        case "threads":
-            return <ThreadsPageSpecimen />;
         case "calls":
             return <CallsPageSpecimen />;
         case "files":
@@ -101,20 +96,6 @@ function NotificationsPage(props: {
         props.title,
         "ready empty activity projection",
         props.render(fixture.store),
-    );
-}
-function ThreadsPageSpecimen() {
-    const [fixture] = useState(() => {
-        const value = threadsStoreFixtureCreate();
-        value.input({ type: "threadsLoaded", threads: [] });
-        return value;
-    });
-    useLayoutEffect(() => () => fixture[Symbol.dispose](), [fixture]);
-    return frame(
-        "P-005",
-        "Threads",
-        "ready empty followed-thread projection",
-        <ThreadsPage store={fixture.store} />,
     );
 }
 function CallsPageSpecimen() {

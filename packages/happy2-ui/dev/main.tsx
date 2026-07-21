@@ -81,8 +81,6 @@ import { StatusPickerPage } from "./pages/StatusPickerPage";
 import { SwitchPage } from "./pages/SwitchPage";
 import { TabsPage } from "./pages/TabsPage";
 import { TextFieldPage } from "./pages/TextFieldPage";
-import { ThreadListPage } from "./pages/ThreadListPage";
-import { ThreadPanelPage } from "./pages/ThreadPanelPage";
 import { TitleBarPage } from "./pages/TitleBarPage";
 import { ToolbarPage } from "./pages/ToolbarPage";
 import { TerminalPanelPage } from "./pages/TerminalPanelPage";
@@ -172,7 +170,6 @@ const components: BlueprintPage[] = [
         page: NotificationListPage,
     },
     { id: "search-results", label: "Search results", number: "C-036", page: SearchResultsPage },
-    { id: "thread-list", label: "Thread list", number: "C-037", page: ThreadListPage },
     { id: "media-gallery", label: "Media gallery", number: "C-038", page: MediaGalleryPage },
     { id: "member-list", label: "Member list", number: "C-039", page: MemberListPage },
     { id: "call-panel", label: "Call panel", number: "C-040", page: CallPanelPage },
@@ -188,7 +185,6 @@ const components: BlueprintPage[] = [
     },
     { id: "lightbox", label: "Lightbox", number: "C-046", page: LightboxPage },
     { id: "info-panel", label: "Info panel", number: "C-047", page: InfoPanelPage },
-    { id: "thread-panel", label: "Thread panel", number: "C-048", page: ThreadPanelPage },
     { id: "file-attachment", label: "File attachment", number: "C-049", page: FileAttachmentPage },
     {
         id: "agent-image-panel",
@@ -334,12 +330,6 @@ const fullScreens: BlueprintPage[] = [
         label: "Activity",
         number: "P-004",
         page: () => <ProductStorePage kind="activity" />,
-    },
-    {
-        id: "threads-store",
-        label: "Threads",
-        number: "P-005",
-        page: () => <ProductStorePage kind="threads" />,
     },
     {
         id: "calls-store",

@@ -26,7 +26,7 @@ export async function channelCreateChild(
 ): Promise<{ chat: ChatSummary; hint: MutationHint; memberUserIds: string[] }> {
     return withTransaction(executor, async (tx) => {
         const parent = await chatRequireManager(tx, input.actorUserId, input.parentChatId);
-        if (parent.kind === "dm" || parent.parentMessageId || parent.parentChatId)
+        if (parent.kind === "dm" || parent.parentChatId)
             throw new CollaborationError(
                 "invalid",
                 "Child channels require a top-level parent channel",

@@ -21,8 +21,7 @@ using file = state.workspaceFileOpen(chatId, "src/index.ts");
 ```
 
 Other complete surface stores are `directory()`, `search()`, `files()`, `settings()`, `admin()`,
-`agentImages()`, `agentSecrets()`, `notifications()`, `threads()`, `calls()`, and retained
-`threadOpen(id)`.
+`agentImages()`, `agentSecrets()`, `notifications()`, and `calls()`.
 Rendering thousands of messages or avatar occurrences still creates one chat subscription; messages
 contain canonical `{ id, displayName, kind, photoFileId }` sender projections and deliberately omit
 presence. Rare identity changes replace only affected rows. Presence updates only stores that render
@@ -74,7 +73,7 @@ configured background-error observer providing the corresponding notification su
 
 ## Leases and optional resources
 
-`chatOpen`, `threadOpen`, `workspaceOpen`, and `workspaceFileOpen` return ref-counted disposable
+`chatOpen`, `workspaceOpen`, and `workspaceFileOpen` return ref-counted disposable
 handles. The final release drops their denormalized payload and makes in-flight completions harmless.
 Chat members, pins, reaction actors, and agent effort are discriminated loadables fetched only after
 their explicit retain action; an SSE hint never materializes an unloaded resource.

@@ -31,8 +31,8 @@ export interface DocumentsPanelProps {
 
 /**
  * C-080 DocumentsPanel — the right-sidebar list of a channel's collaborative
- * documents. A 56px surface header (shared height with ChannelHeader,
- * InfoPanel, and ThreadPanel) carries the title, document count, a
+ * documents. A 56px surface header (shared height with ChannelHeader and
+ * InfoPanel) carries the title, document count, a
  * new-document action, and a close button; below it a full-bleed scrollport
  * body lists document rows or a centered loading/error/empty state. Props only
  * — the app owns the list state and all handlers.

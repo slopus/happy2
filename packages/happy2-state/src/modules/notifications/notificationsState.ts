@@ -42,7 +42,6 @@ export async function notificationsLoad(
                 kind: notification.kind,
                 chatId: notification.chatId,
                 messageId: notification.messageId,
-                threadRootMessageId: notification.threadRootMessageId,
                 actorUserId: notification.actorUserId,
                 readAt: notification.readAt,
                 createdAt: notification.createdAt,
@@ -166,7 +165,6 @@ export interface NotificationProjection {
     readonly kind: NotificationSummary["kind"];
     readonly chatId?: string;
     readonly messageId?: string;
-    readonly threadRootMessageId?: string;
     readonly actorUserId?: string;
     readonly readAt?: string;
     readonly createdAt: string;

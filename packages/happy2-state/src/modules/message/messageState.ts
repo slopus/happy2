@@ -171,8 +171,6 @@ function optimisticMessage(
         audience: input.audience ?? defaultAudience,
         agentUserIds: input.agentUserIds ?? [],
         text: input.text ?? "",
-        threadRootMessageId: input.threadRootMessageId,
-        threadReplyCount: 0,
         revision: 0,
         mentions: [],
         attachments: [],

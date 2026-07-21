@@ -8,14 +8,6 @@ const files = { filter: "all", query: "" } as const;
 describe("desktop route model", () => {
     it.each<[string, DesktopRoute]>([
         [
-            "/chats/chat-1/thread/message-7",
-            {
-                primary: { kind: "conversation", conversationKind: "chat", chatId: "chat-1" },
-                panel: { kind: "thread", rootMessageId: "message-7" },
-                files,
-            },
-        ],
-        [
             "/chats/chat-1/trace/message-9",
             {
                 primary: { kind: "conversation", conversationKind: "chat", chatId: "chat-1" },

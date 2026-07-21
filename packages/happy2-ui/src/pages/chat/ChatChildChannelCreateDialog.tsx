@@ -61,7 +61,7 @@ export function ChatChildChannelCreateDialog(props: ChatChildChannelCreateDialog
                                 })
                             }
                         >
-                            Create child channel
+                            Create subchannel
                         </Button>
                     </Box>
                 }
@@ -69,7 +69,7 @@ export function ChatChildChannelCreateDialog(props: ChatChildChannelCreateDialog
                 onClose={props.onClose}
                 size="medium"
                 title={
-                    props.parentName ? `New child of ${props.parentName}` : "Create child channel"
+                    props.parentName ? `New subchannel of ${props.parentName}` : "Create subchannel"
                 }
             >
                 <Box style={stackStyle}>
@@ -103,7 +103,7 @@ export function ChatChildChannelCreateDialog(props: ChatChildChannelCreateDialog
                     />
                     <FormRow
                         control={<TextField fullWidth onValueChange={setTopic} value={topic} />}
-                        description="Optional summary shown in the child channel header."
+                        description="Optional summary shown in the subchannel header."
                         label="Topic"
                         layout="stacked"
                     />
@@ -118,7 +118,7 @@ export function ChatChildChannelCreateDialog(props: ChatChildChannelCreateDialog
                                 value={model}
                             />
                         }
-                        description="The child runs its own agent session and may use a different model than its parent."
+                        description="The subchannel runs its own agent session and may use a different model than its parent."
                         label={props.modelsLoading ? "Agent model (loading…)" : "Agent model"}
                         layout="stacked"
                     />

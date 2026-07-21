@@ -13,8 +13,6 @@ import {
     searchStoreFixtureCreate,
     settingsStoreFixtureCreate,
     sidebarStoreFixtureCreate,
-    threadStoreFixtureCreate,
-    threadsStoreFixtureCreate,
     workspaceFileStoreFixtureCreate,
     workspaceStoreFixtureCreate,
 } from "happy2-state/testing";
@@ -36,8 +34,6 @@ it("renders every concrete HappyState surface from its deterministic real-store 
     const images = fixtureDispose(agentImagesStoreFixtureCreate());
     const secrets = fixtureDispose(agentSecretsStoreFixtureCreate());
     const notifications = fixtureDispose(notificationsStoreFixtureCreate());
-    const threads = fixtureDispose(threadsStoreFixtureCreate());
-    const thread = fixtureDispose(threadStoreFixtureCreate("chat-1", "message-1"));
     const calls = fixtureDispose(callsStoreFixtureCreate());
     const settings = fixtureDispose(settingsStoreFixtureCreate());
     const workspace = fixtureDispose(workspaceStoreFixtureCreate("chat-1"));
@@ -98,16 +94,6 @@ it("renders every concrete HappyState surface from its deterministic real-store 
         </StoreSurface>
     ));
     render(() => (
-        <StoreSurface store={threads.store}>
-            {(snapshot) => <output data-testid="threads">{snapshot.threads.type}</output>}
-        </StoreSurface>
-    ));
-    render(() => (
-        <StoreSurface store={thread.store}>
-            {(snapshot) => <output data-testid="thread">{snapshot.resolution.type}</output>}
-        </StoreSurface>
-    ));
-    render(() => (
         <StoreSurface store={calls.store}>
             {(snapshot) => <output data-testid="calls">{snapshot.calls.type}</output>}
         </StoreSurface>
@@ -139,8 +125,6 @@ it("renders every concrete HappyState surface from its deterministic real-store 
     images.input({ type: "imagesLoading" });
     secrets.input({ type: "secretsLoading" });
     notifications.input({ type: "notificationsLoading" });
-    threads.input({ type: "threadsLoading" });
-    thread.input({ type: "threadResolutionLoading" });
     calls.input({ type: "callsLoading" });
     settings.input({ type: "settingsLoadFailed", error: new UserError("offline") });
     workspace.input({ type: "workspaceLoading" });
@@ -156,8 +140,6 @@ it("renders every concrete HappyState surface from its deterministic real-store 
         "images",
         "secrets",
         "notifications",
-        "threads",
-        "thread",
         "calls",
         "workspace",
         "workspace-file",

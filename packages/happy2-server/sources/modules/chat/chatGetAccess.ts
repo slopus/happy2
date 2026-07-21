@@ -1,6 +1,6 @@
 import { type ChatAccess } from "./chatAccess.js";
 import { type DrizzleExecutor } from "../drizzle.js";
-import { accounts, chatMembers, chats, messages, userChatPreferences, users } from "../schema.js";
+import { accounts, chatMembers, chats, userChatPreferences, users } from "../schema.js";
 import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { asChat } from "./impl/asChat.js";
 
@@ -10,7 +10,7 @@ import { type ChatRole } from "./types.js";
 
 /**
  * Builds a chat projection for an active account-backed member, public-channel reader, server administrator, or voluntarily departed member.
- * Recursively requiring access through parent-message and parent-channel ancestry prevents a deleted or explicitly revoked ancestor from leaving a nested chat reachable.
+ * Recursively requiring access through parent-channel ancestry prevents a deleted or explicitly revoked ancestor from leaving a child channel reachable.
  */
 export async function chatGetAccess(
     executor: DrizzleExecutor,
@@ -74,17 +74,13 @@ export async function chatGetAccess(
     if (!row) return undefined;
     const chat = asChat(row);
     let inheritedArchivedAt: string | undefined;
-    if (chat.parentMessageId || chat.parentChatId) {
-        const parentChatId = chat.parentChatId
-            ? chat.parentChatId
-            : await executor
-                  .select({ chatId: messages.chatId })
-                  .from(messages)
-                  .where(eq(messages.id, chat.parentMessageId!))
-                  .limit(1)
-                  .then((rows) => rows[0]?.chatId);
-        if (!parentChatId) return undefined;
-        const parentAccess = await chatGetAccess(executor, userId, parentChatId, requireMembership);
+    if (chat.parentChatId) {
+        const parentAccess = await chatGetAccess(
+            executor,
+            userId,
+            chat.parentChatId,
+            requireMembership,
+        );
         if (!parentAccess) return undefined;
         inheritedArchivedAt = parentAccess.archivedAt;
     }

@@ -314,64 +314,57 @@ describe("channel agent audiences", () => {
         expect(rig.submittedRuns).toHaveLength(0);
     });
 
-    it("keeps addressed context and the agent reply inside the same nested thread chat", async () => {
+    it("keeps addressed context and the agent reply inside the same child channel", async () => {
         await using rig = await createMockRigDaemon();
         rig.setAutomaticReply(undefined);
         await using server = await agentServer(rig);
         const owner = await server.createUser({
-            username: "thread_agent_owner",
+            username: "child_agent_owner",
             firstName: "Owner",
         });
         const asOwner = server.as(owner);
         await configureAgentImage(asOwner);
         const created = await asOwner.post("/v0/chats/createChannel", {
             kind: "private_channel",
-            name: "Thread context",
-            slug: "thread-context",
+            name: "Parent context",
+            slug: "parent-context",
         });
         const chatId = created.json().chat.id as string;
-        const root = await asOwner.post(`/v0/chats/${chatId}/sendMessage`, {
-            audience: "people",
-            text: "Root decision record",
+        const child = await asOwner.post(`/v0/chats/${chatId}/createChildChannel`, {
+            name: "Focused context",
+            slug: "focused-context",
         });
-        const rootId = root.json().message.id as string;
-        const thread = await asOwner.post(`/v0/messages/${rootId}/createThread`, {});
-        expect(thread.statusCode).toBe(201);
-        const threadChatId = thread.json().chat.id as string;
-        expect(thread.json().chat).toMatchObject({
-            parentMessageId: rootId,
+        expect(child.statusCode).toBe(201);
+        const childChatId = child.json().chat.id as string;
+        expect(child.json().chat).toMatchObject({
+            parentChatId: chatId,
             defaultAgentUserId: expect.any(String),
         });
-        await asOwner.post(`/v0/chats/${threadChatId}/sendMessage`, {
+        await asOwner.post(`/v0/chats/${childChatId}/sendMessage`, {
             audience: "people",
-            text: "Thread-only human detail",
+            text: "Child-only human detail",
         });
-        await asOwner.post(`/v0/chats/${threadChatId}/sendMessage`, {
+        await asOwner.post(`/v0/chats/${childChatId}/sendMessage`, {
             audience: "agents",
-            text: "Happy, answer inside this thread",
+            text: "Happy, answer inside this child channel",
         });
         const run = await waitForRun(rig, 1);
         expect(promptRecords(run.text)).toEqual(
             expect.arrayContaining([
-                expect.objectContaining({ text: "Root decision record", addressedToYou: false }),
                 expect.objectContaining({
-                    text: "Thread-only human detail",
+                    text: "Child-only human detail",
                     addressedToYou: false,
                 }),
                 expect.objectContaining({
-                    text: "Happy, answer inside this thread",
+                    text: "Happy, answer inside this child channel",
                     addressedToYou: true,
                 }),
             ]),
         );
-        rig.completeRun(run.runId, "Thread-scoped agent answer");
-        const replies = await waitForMessageText(
-            asOwner,
-            threadChatId,
-            "Thread-scoped agent answer",
-        );
-        expect(replies.find(({ text }) => text === "Thread-scoped agent answer")).toMatchObject({
-            chatId: threadChatId,
+        rig.completeRun(run.runId, "Child-scoped agent answer");
+        const replies = await waitForMessageText(asOwner, childChatId, "Child-scoped agent answer");
+        expect(replies.find(({ text }) => text === "Child-scoped agent answer")).toMatchObject({
+            chatId: childChatId,
             audience: "people",
         });
     });

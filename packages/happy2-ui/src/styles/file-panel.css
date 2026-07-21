@@ -2,7 +2,7 @@
  * C-053 FilePanel — workspace file-tree side panel.
  *
  * A column that fills the panel region: a 56px surface header (shared with
- * ChannelHeader / InfoPanel / ThreadPanel), an optional note strip, then a
+ * ChannelHeader / InfoPanel), an optional note strip, then a
  * FileTree body that fills and scrolls. Colors and type are theme tokens only.
  */
 

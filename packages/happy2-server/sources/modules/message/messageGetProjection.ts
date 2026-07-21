@@ -4,7 +4,6 @@ import { type MessageSummary, type ReactionSummary } from "../chat/types.js";
 import {
     agentTurns,
     botIdentities,
-    chats,
     files,
     messageAttachments,
     messageAgentAudiences,
@@ -15,7 +14,7 @@ import {
     users,
 } from "../schema.js";
 import { alias } from "drizzle-orm/sqlite-core";
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { asFile } from "../chat/asFile.js";
 import { asServiceMessage } from "../chat/asServiceMessage.js";
 import { asUser } from "../chat/asUser.js";
@@ -29,7 +28,7 @@ import { asAgentTurnTrace } from "../chat/asAgentTurnTrace.js";
 import { pluginMcpAppListForMessage } from "../plugin/pluginMcpAppListForMessage.js";
 import { pluginResourceLinkListForMessage } from "../plugin/pluginResourceLinkListForMessage.js";
 /**
- * Builds a message only for a viewer with chat access, collapsing deleted or expired content while expanding visible sender, files, reactions, mentions, receipts, quotes, and thread state.
+ * Builds a message only for a viewer with chat access, collapsing deleted or expired content while expanding visible sender, files, reactions, mentions, receipts, and quotes.
  * Rechecking forwarded-chat visibility and suppressing related content on tombstones prevents indirect projections from bypassing chat, expiry, or file rules.
  */
 export async function messageGetProjection(
@@ -41,7 +40,6 @@ export async function messageGetProjection(
     const bot = alias(botIdentities, "sender_bot");
     const quoted = alias(messages, "quoted");
     const forwarded = alias(messages, "forwarded");
-    const childThread = alias(chats, "child_thread");
     const [row] = await executor
         .select({
             id: messages.id,
@@ -93,14 +91,6 @@ export async function messageGetProjection(
             quoted_deleted_at: quoted.deletedAt,
             quoted_expires_at: quoted.expiresAt,
             forwarded_from_chat_id: forwarded.chatId,
-            thread_chat_id: childThread.id,
-            thread_reply_count: sql<number>`(
-                select count(*)
-                from ${messages} as thread_messages
-                where thread_messages.chat_id = ${childThread.id}
-                  and thread_messages.deleted_at is null
-                  and (thread_messages.expires_at is null or thread_messages.expires_at > CURRENT_TIMESTAMP)
-            )`,
         })
         .from(messages)
         .leftJoin(sender, eq(sender.id, messages.senderUserId))
@@ -108,10 +98,6 @@ export async function messageGetProjection(
         .leftJoin(agentTurns, eq(agentTurns.assistantMessageId, messages.id))
         .leftJoin(quoted, eq(quoted.id, messages.quotedMessageId))
         .leftJoin(forwarded, eq(forwarded.id, messages.forwardedFromMessageId))
-        .leftJoin(
-            childThread,
-            and(eq(childThread.parentMessageId, messages.id), isNull(childThread.deletedAt)),
-        )
         .where(eq(messages.id, messageId))
         .limit(1);
     if (!row || !(await chatGetAccess(executor, viewerUserId, row.chat_id, false)))
@@ -272,8 +258,6 @@ export async function messageGetProjection(
                   deleted: quotedDeleted,
               }
             : undefined,
-        threadChatId: row.thread_chat_id ?? undefined,
-        threadReplyCount: row.thread_reply_count,
         revision: row.revision,
         mentions: mentionRows.map((mention) => ({
             kind: mention.kind as MessageSummary["mentions"][number]["kind"],

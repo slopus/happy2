@@ -46,7 +46,6 @@ async function glyphDrift(el: RenderedElement<Element>, label: string) {
 /* Per-kind icon colour = the tone token the CSS resolves on the kind element. */
 const kindColor: Record<NotificationKind, string> = {
     mention: "rgb(0, 122, 255)", // --happy2-accent-strong
-    thread_reply: "rgb(0, 122, 255)", // --happy2-info
     direct_message: "rgb(36, 138, 61)", // --happy2-success-strong
     reaction: "rgb(201, 52, 0)", // --happy2-warning-strong
     call: "rgb(36, 138, 61)", // --happy2-success-strong
@@ -60,16 +59,16 @@ const inbox: NotificationItem[] = [
         id: "n1",
         kind: "mention",
         actor: { name: "Ada Lovelace", initials: "AL", tone: "violet" },
-        text: "mentioned you in a very long channel discussion thread that keeps running well past the row",
+        text: "mentioned you in a very long channel discussion that keeps running well past the visible row",
         context: "Can you review the analytical engine diff before the launch?",
         time: "2m",
         unread: true,
     },
     {
         id: "n2",
-        kind: "thread_reply",
+        kind: "direct_message",
         actor: { name: "Grace Hopper", initials: "GH", tone: "ocean" },
-        text: "replied to your thread",
+        text: "sent you a direct message",
         context: "Re: Nanosecond wire lengths",
         time: "14m",
         unread: true,
@@ -352,14 +351,6 @@ const allKinds: NotificationItem[] = [
         text: "mentioned you",
         context: "in #eng-core",
         time: "2m",
-    },
-    {
-        id: "thread_reply",
-        kind: "thread_reply",
-        actor: { name: "Grace", initials: "GH", tone: "ocean" },
-        text: "replied to your thread",
-        context: "Re: Wire lengths",
-        time: "5m",
     },
     {
         id: "direct_message",

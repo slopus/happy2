@@ -185,8 +185,6 @@ export const backendOperations = {
     writeWorkspaceFile: post("/v0/chats/:chatId/workspace/writeFile"),
     deleteWorkspaceFile: post("/v0/chats/:chatId/workspace/deleteFile"),
     getMessage: get("/v0/messages/:messageId"),
-    getThread: get("/v0/messages/:messageId/thread"),
-    createThread: post("/v0/messages/:messageId/createThread"),
     getMessageAgentTrace: get("/v0/messages/:messageId/agentTrace"),
     getMcpApp: get("/v0/messages/:messageId/mcpApps/:callId"),
     callMcpAppTool: rpcPost("/v0/messages/:messageId/mcpApps/:callId/callTool"),
@@ -200,7 +198,6 @@ export const backendOperations = {
     invokePluginContribution: rpcPost("/v0/contributions/:contributionId/invoke"),
     resolvePluginContributionMenu: rpcPost("/v0/contributions/:contributionId/resolveMenu"),
     updateAppPresentation: post("/v0/me/updateAppPresentation"),
-    getThreads: get("/v0/threads", ["before", "unreadOnly", "limit"]),
     getNotifications: get("/v0/notifications", ["before", "unreadOnly", "limit"]),
     markNotificationsRead: post("/v0/notifications/markRead"),
     createDirectMessage: post("/v0/chats/createDirectMessage"),
@@ -241,7 +238,6 @@ export const backendOperations = {
     deleteDocument: post("/v0/documents/:documentId/delete"),
     getDocumentPresence: get("/v0/documents/:documentId/presence"),
     updateDocumentPresence: post("/v0/documents/:documentId/updatePresence"),
-    updateThreadFollow: post("/v0/chats/:chatId/updateThreadFollow"),
     deleteMessage: post("/v0/messages/:messageId/deleteMessage"),
     editMessage: post("/v0/messages/:messageId/editMessage"),
     getMessageRevisions: get("/v0/messages/:messageId/revisions"),
@@ -603,7 +599,6 @@ export interface KnownBackendInputs {
         readonly chatId: string;
         readonly notificationLevel?: "all" | "mentions" | "none";
         readonly mutedUntil?: string | null;
-        readonly notifyThreadReplies?: boolean;
         readonly showMessagePreviews?: boolean;
     };
     reorderStarredChats: { readonly chatIds: readonly string[] };
@@ -612,7 +607,6 @@ export interface KnownBackendInputs {
         readonly text?: string;
         readonly attachmentFileIds?: readonly string[];
         readonly quotedMessageId?: string;
-        readonly threadRootMessageId?: string;
         readonly expiryMode?: "none" | "after_send" | "after_read";
         readonly selfDestructSeconds?: number;
         readonly afterReadScope?: "any_reader" | "all_readers";
@@ -620,7 +614,6 @@ export interface KnownBackendInputs {
         readonly audience?: "people" | "agents";
         readonly agentUserIds?: readonly string[];
     };
-    createThread: { readonly messageId: string };
     getMcpApp: { readonly messageId: string; readonly callId: string };
     callMcpAppTool: {
         readonly messageId: string;
@@ -659,7 +652,6 @@ export interface KnownBackendInputs {
         readonly hidden: boolean;
         readonly position?: number;
     };
-    updateThreadFollow: { readonly chatId: string; readonly followed: boolean };
     deleteMessage: { readonly messageId: string };
     editMessage: {
         readonly messageId: string;
@@ -969,7 +961,6 @@ interface ReactionInput {
 interface NotificationPreferencesInput {
     readonly directMessages?: "all" | "none";
     readonly mentions?: "all" | "none";
-    readonly threadReplies?: "all" | "mentions" | "none";
     readonly reactions?: "all" | "none";
     readonly calls?: "all" | "none";
     readonly emailNotifications?: boolean;
@@ -985,7 +976,6 @@ interface ScheduledMessageInput {
     readonly scheduledFor: string;
     readonly timezone?: string;
     readonly quotedMessageId?: string;
-    readonly threadRootMessageId?: string;
     readonly clientMutationId?: string;
 }
 
@@ -1146,7 +1136,6 @@ export interface KnownBackendResults {
         readonly file: { readonly path: string; readonly deletedVersion: string };
     };
     getMessage: { readonly message: MessageSummary };
-    getThread: { readonly chat: ChatSummary };
     getMessageAgentTrace: { readonly trace: AgentTurnTraceDetails };
     getMcpApp: McpAppView;
     callMcpAppTool: { readonly result: McpToolResult };
@@ -1163,7 +1152,6 @@ export interface KnownBackendResults {
         readonly revision: number;
     };
     updateAppPresentation: { readonly app: PluginAppSummary; readonly sync: unknown };
-    getThreads: { readonly threads: readonly ChatSummary[]; readonly nextCursor?: string };
     getNotifications: {
         readonly notifications: readonly NotificationSummary[];
         readonly nextCursor?: string;
@@ -1310,8 +1298,6 @@ export interface KnownBackendResults {
     markChatRead: ChatResult;
     updateChatNotificationPreferences: ChatResult;
     setChatStar: ChatResult;
-    createThread: ChatResult;
-    updateThreadFollow: { readonly sync?: unknown };
     sendMessage: MessageResult;
     deleteMessage: MessageResult;
     editMessage: MessageResult;

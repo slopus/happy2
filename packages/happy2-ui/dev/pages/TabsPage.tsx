@@ -5,7 +5,7 @@ const inboxTabs: TabItem[] = [
     { id: "all", label: "All", icon: "inbox" },
     { id: "unread", label: "Unread", badge: 3 },
     { id: "mentions", label: "Mentions", icon: "at", badge: 12 },
-    { id: "threads", label: "Threads", icon: "thread" },
+    { id: "channels", label: "Channels", icon: "hash" },
     { id: "reactions", label: "Reactions" },
 ];
 const adminTabs: TabItem[] = [

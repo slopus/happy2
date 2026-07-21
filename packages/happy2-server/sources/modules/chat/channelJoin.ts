@@ -36,7 +36,7 @@ export async function channelJoin(
             throw new CollaborationError("not_found", "Joinable channel was not found");
         if (access.archivedAt)
             throw new CollaborationError("conflict", "Unarchive the channel before joining");
-        if (access.parentMessageId || access.parentChatId)
+        if (access.parentChatId)
             throw new CollaborationError(
                 "invalid",
                 "Join the parent channel to access its nested chats",

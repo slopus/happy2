@@ -11,7 +11,6 @@ import {
     messageAgentAudiences,
     messages,
     serverSettings,
-    userChatPreferences,
     users,
 } from "../schema.js";
 
@@ -287,24 +286,6 @@ export async function messageSendInTransaction(
                               }),
                 });
             await tx.insert(agentTurns).values(turns);
-        }
-        if (access.parentMessageId) {
-            await tx
-                .insert(userChatPreferences)
-                .values({
-                    chatId: input.chatId,
-                    userId: input.actorUserId,
-                    followed: 1,
-                    syncSequence: sequence,
-                })
-                .onConflictDoUpdate({
-                    target: [userChatPreferences.userId, userChatPreferences.chatId],
-                    set: {
-                        followed: 1,
-                        syncSequence: sequence,
-                        updatedAt: sql`CURRENT_TIMESTAMP`,
-                    },
-                });
         }
         if (!input.deferPublication)
             await messageRecordDelivery(tx, {

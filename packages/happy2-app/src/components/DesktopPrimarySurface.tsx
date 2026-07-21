@@ -18,7 +18,6 @@ import { FilesView } from "../views/FilesView";
 import { HomeView } from "../views/HomeView";
 import { InboxView } from "../views/InboxView";
 import { SettingsView } from "../views/SettingsView";
-import { ThreadsView } from "../views/ThreadsView";
 import { ServerOnboarding } from "./ServerOnboarding";
 export interface DesktopPrimarySurfaceProps {
     createRequest: {
@@ -137,10 +136,6 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
     ) : primary().kind === "activity" ? (
         chatView(
             <InboxView navigation={props.navigation} route={props.route} state={props.state} />,
-        )
-    ) : primary().kind === "threads" ? (
-        chatView(
-            <ThreadsView navigation={props.navigation} route={props.route} state={props.state} />,
         )
     ) : primary().kind === "calls" ? (
         chatView(<CallsView state={props.state} />)

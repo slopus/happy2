@@ -15,7 +15,7 @@ import { Button } from "./Button";
 import { EmojiPicker, type EmojiItem } from "./EmojiPicker";
 import { Icon, type IconName } from "./Icon";
 /* ---- ContextChips ----------------------------------------------------- */
-export type ContextKind = "file" | "run" | "thread";
+export type ContextKind = "file" | "run";
 export type ContextItem = {
     detail?: string;
     id: string;
@@ -34,7 +34,6 @@ export type ContextChipsProps = {
 const kindIcons: Record<ContextKind, IconName> = {
     file: "doc",
     run: "play",
-    thread: "thread",
 };
 /** Attached-context row for the composer: 24px chips with kind icons. */
 export function ContextChips(props: ContextChipsProps) {

@@ -151,7 +151,6 @@ it("shows the audience pill in the meta row without shifting author or time vert
 it("holds Message anatomy, segment styling, and affordances", async () => {
     const view = createRenderer();
     const selectedEmoji: string[] = [];
-    let replies = 0;
     let adds = 0;
     view.render(
         () =>
@@ -170,19 +169,17 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
                     ]}
                     onReactionSelect={(emoji) => selectedEmoji.push(emoji)}
                     onReactionAdd={() => (adds += 1)}
-                    onReplySelect={() => (replies += 1)}
                     reactions={[
                         { count: 1, emoji: "👍" },
                         { active: true, count: 12, emoji: "🎉" },
                         { count: 128, emoji: "🚀" },
                     ]}
-                    replyCount={3}
                     time="10:42"
                     tone="amber"
                 />,
             ),
         /* Taller stage: the human body now wraps in a padded bubble, pushing
-           the reactions and reply rows further down. */
+           the reactions row further down. */
         { width: 560, height: 150 },
     );
     view.render(
@@ -445,18 +442,6 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     (addButton.element as HTMLButtonElement).click();
     expect(selectedEmoji).toEqual(["👍"]);
     expect(adds).toBe(1);
-    /* ---- Reply affordance ------------------------------------------------ */
-    const repliesButton = view.$('[data-testid="m1"] [data-happy2-ui="message-replies"]');
-    expect(repliesButton.element.tagName).toBe("BUTTON");
-    expect(repliesButton.element.textContent).toBe("3 replies");
-    expect(repliesButton.computedStyles(["color", "font-size", "font-weight"])).toEqual({
-        color: "rgb(0, 122, 255)",
-        "font-size": "12px",
-        "font-weight": "700",
-    });
-    expect((await repliesButton.visibleMetrics()).pixelCount).toBeGreaterThan(0);
-    (repliesButton.element as HTMLButtonElement).click();
-    expect(replies).toBe(1);
     /* ---- Attachment slot -------------------------------------------------- */
     const m2Body = view.$('[data-testid="m2"] [data-happy2-ui="message-body"]');
     const attachments = view.$('[data-testid="m2"] [data-happy2-ui="message-attachments"]');
@@ -632,7 +617,6 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
     const view = createRenderer();
     const reactions: string[] = [];
     const menuSelections: string[] = [];
-    let threadStarts = 0;
     const messageMenu = [
         { kind: "item" as const, id: "copy-link", icon: "link" as const, label: "Copy link" },
         { kind: "item" as const, id: "edit", icon: "edit" as const, label: "Edit message" },
@@ -653,7 +637,6 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
                     menuItems={messageMenu}
                     onMenuSelect={(id) => menuSelections.push(id)}
                     onReactionSelect={(id) => reactions.push(id)}
-                    onReplySelect={() => (threadStarts += 1)}
                     reactionOptions={reactionOptions}
                     time="10:55"
                     tone="ocean"
@@ -697,7 +680,6 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
                     body="Waiting for acknowledgement."
                     deliveryState="sending"
                     grouped
-                    onReplySelect={() => {}}
                     time="11:03"
                 />,
             ),
@@ -711,7 +693,7 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
         ),
     ).toBeNull();
     const toolbar = view.$('[data-testid="actions"] [data-happy2-ui="message-actions"]');
-    expect(toolbar.bounds()).toEqual({ x: 450, y: 4, width: 90, height: 34 });
+    expect(toolbar.bounds()).toEqual({ x: 478, y: 4, width: 62, height: 34 });
     expect(
         toolbar.computedStyles([
             "background-color",
@@ -740,19 +722,16 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
     const actionButtons = toolbar.element.querySelectorAll<HTMLButtonElement>(
         '[data-happy2-ui="button"]',
     );
-    expect(actionButtons.length).toBe(3);
+    expect(actionButtons.length).toBe(2);
     expect(Array.from(actionButtons, (button) => button.getAttribute("aria-label"))).toEqual([
         "Add reaction",
-        "Start thread",
         "More message actions",
     ]);
     for (const button of actionButtons) {
         expect(button.getBoundingClientRect().width).toBe(28);
         expect(button.getBoundingClientRect().height).toBe(28);
     }
-    /* Thread callback and the picker/menu popovers perform actual selections. */
-    actionButtons[1]?.click();
-    expect(threadStarts).toBe(1);
+    /* The picker/menu popovers perform actual selections. */
     actionButtons[0]?.click();
     await nextFrame();
     const picker = view.$('[data-testid="actions"] [data-happy2-ui="emoji-picker"]');
@@ -768,12 +747,12 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
     expect(
         view.container.querySelector('[data-testid="actions"] [data-happy2-ui="emoji-picker"]'),
     ).toBeNull();
-    actionButtons[2]?.click();
+    actionButtons[1]?.click();
     await nextFrame();
     const menu = view.$('[data-testid="actions"] [data-happy2-ui="menu"]');
     assertParallelRoundedCorners(view.container);
     expect(menu.bounds().width).toBe(196);
-    expect(actionButtons[2]?.getAttribute("aria-expanded")).toBe("true");
+    expect(actionButtons[1]?.getAttribute("aria-expanded")).toBe("true");
     const edit = view.$('[data-testid="actions"] [data-item-id="edit"]');
     (edit.element as HTMLButtonElement).click();
     await nextFrame();
@@ -782,13 +761,13 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
         view.container.querySelector('[data-testid="actions"] [data-happy2-ui="menu"]'),
     ).toBeNull();
     /* Escape and an outside pointer both dismiss without selecting an action. */
-    actionButtons[2]?.click();
-    actionButtons[2]?.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
+    actionButtons[1]?.click();
+    actionButtons[1]?.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
     await nextFrame();
     expect(
         view.container.querySelector('[data-testid="actions"] [data-happy2-ui="menu"]'),
     ).toBeNull();
-    actionButtons[2]?.click();
+    actionButtons[1]?.click();
     await nextFrame();
     document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
     await nextFrame();

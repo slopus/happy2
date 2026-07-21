@@ -2,10 +2,6 @@ import { userSetBanned } from "../modules/user/userSetBanned.js";
 import { userDelete } from "../modules/user/userDelete.js";
 import { userAdministrationUpdate } from "../modules/user/userAdministrationUpdate.js";
 import { userAdministrationList } from "../modules/user/userAdministrationList.js";
-import { threadFollowSet } from "../modules/thread/threadFollowSet.js";
-import { threadGet } from "../modules/thread/threadGet.js";
-import { threadCreate } from "../modules/thread/threadCreate.js";
-import { threadListMine } from "../modules/thread/threadListMine.js";
 import { serverProfileUpdate } from "../modules/server-profile/serverProfileUpdate.js";
 import { serverProfileGet } from "../modules/server-profile/serverProfileGet.js";
 import { searchPageGet } from "../modules/search/searchPageGet.js";
@@ -171,42 +167,6 @@ export function registerCollaborationRoutes(
             return {
                 trace: await agentTurnTraceGet(executor, userId, pathId(request, "messageId")),
             };
-        }),
-    );
-    app.get(
-        "/v0/messages/:messageId/thread",
-        authenticated(auth, async (request, _reply, userId) => {
-            emptyQuery(request);
-            return {
-                chat: await threadGet(executor, userId, pathId(request, "messageId")),
-            };
-        }),
-    );
-    app.post(
-        "/v0/messages/:messageId/createThread",
-        authenticated(auth, async (request, reply, userId) => {
-            emptyBody(request);
-            const result = await threadCreate(executor, {
-                actorUserId: userId,
-                parentMessageId: pathId(request, "messageId"),
-            });
-            await publishHints(request, pubsub, result.hints);
-            return reply.code(result.created ? 201 : 200).send({
-                chat: result.chat,
-                sync: result.hints.at(-1),
-            });
-        }),
-    );
-    app.get(
-        "/v0/threads",
-        authenticated(auth, async (request, _reply, userId) => {
-            const query = requestQuery(request, ["before", "unreadOnly", "limit"]);
-            return threadListMine(executor, {
-                userId,
-                before: optionalQueryString(query, "before", MAX_ID_LENGTH),
-                unreadOnly: optionalQueryBoolean(query, "unreadOnly"),
-                limit: queryLimit(query, "limit", 50, 100),
-            });
         }),
     );
     app.get(
@@ -677,7 +637,6 @@ export function registerCollaborationRoutes(
             const body = requestBody(request, [
                 "notificationLevel",
                 "mutedUntil",
-                "notifyThreadReplies",
                 "showMessagePreviews",
             ]);
             if (Object.keys(body).length === 0)
@@ -691,9 +650,6 @@ export function registerCollaborationRoutes(
                     "none",
                 ] as const),
                 mutedUntil: optionalNullableDateField(body, "mutedUntil"),
-                notifyThreadReplies: has(body, "notifyThreadReplies")
-                    ? booleanField(body, "notifyThreadReplies")
-                    : undefined,
                 showMessagePreviews: has(body, "showMessagePreviews")
                     ? booleanField(body, "showMessagePreviews")
                     : undefined,
@@ -810,23 +766,6 @@ export function registerCollaborationRoutes(
             });
             return {
                 draft: result.draft,
-                sync: result.hint,
-            };
-        }),
-    );
-    app.post(
-        "/v0/chats/:chatId/updateThreadFollow",
-        authenticated(auth, async (request, _reply, userId) => {
-            const body = requestBody(request, ["followed"]);
-            const result = await threadFollowSet(executor, {
-                actorUserId: userId,
-                chatId: pathId(request, "chatId"),
-                followed: booleanField(body, "followed"),
-            });
-            await publishHints(request, pubsub, [result.hint], {
-                userIds: [userId],
-            });
-            return {
                 sync: result.hint,
             };
         }),
@@ -1150,7 +1089,6 @@ export function registerCollaborationRoutes(
             const body = requestBody(request, [
                 "directMessages",
                 "mentions",
-                "threadReplies",
                 "reactions",
                 "calls",
                 "emailNotifications",
@@ -1165,11 +1103,6 @@ export function registerCollaborationRoutes(
                 actorUserId: userId,
                 directMessages: optionalEnumField(body, "directMessages", ["all", "none"] as const),
                 mentions: optionalEnumField(body, "mentions", ["all", "none"] as const),
-                threadReplies: optionalEnumField(body, "threadReplies", [
-                    "all",
-                    "mentions",
-                    "none",
-                ] as const),
                 reactions: optionalEnumField(body, "reactions", ["all", "none"] as const),
                 calls: optionalEnumField(body, "calls", ["all", "none"] as const),
                 emailNotifications: has(body, "emailNotifications")
