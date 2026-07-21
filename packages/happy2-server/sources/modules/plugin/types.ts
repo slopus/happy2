@@ -374,6 +374,22 @@ export interface PluginMcpAppSummary {
     status: "in_progress" | "completed" | "failed";
 }
 
+export interface PluginResourceLinkSummary {
+    callId: string;
+    position: number;
+    installationId: string;
+    pluginId: string;
+    pluginShortName: string;
+    toolName: string;
+    kind: "resource" | "shared_link";
+    uri: string;
+    name: string;
+    title?: string;
+    description?: string;
+    mimeType?: string;
+    size?: number;
+}
+
 export interface PluginMcpAppContext extends PluginMcpAppSummary {
     sessionId: string;
     installationId: string;

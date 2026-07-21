@@ -1239,6 +1239,43 @@ export const pluginMcpAppCalls = sqliteTable(
     ],
 );
 
+export const pluginResourceLinks = sqliteTable(
+    "plugin_resource_links",
+    {
+        sessionId: text("session_id").notNull(),
+        callId: text("call_id").notNull(),
+        position: integer("position").notNull(),
+        userMessageId: text("user_message_id")
+            .notNull()
+            .references(() => messages.id, { onDelete: "cascade" }),
+        agentUserId: text("agent_user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        installationId: text("installation_id")
+            .notNull()
+            .references(() => pluginInstallations.id, { onDelete: "cascade" }),
+        toolName: text("tool_name").notNull(),
+        kind: text("kind").notNull(),
+        uri: text("uri").notNull(),
+        name: text("name").notNull(),
+        title: text("title"),
+        description: text("description"),
+        mimeType: text("mime_type"),
+        size: integer("size"),
+    },
+    (table) => [
+        primaryKey({ columns: [table.sessionId, table.callId, table.position] }),
+        index("plugin_resource_links_turn_index").on(table.userMessageId, table.agentUserId),
+        index("plugin_resource_links_installation_index").on(table.installationId),
+        check("plugin_resource_links_position_check", sql`${table.position} >= 0`),
+        check(
+            "plugin_resource_links_kind_check",
+            sql`${table.kind} in ('resource', 'shared_link')`,
+        ),
+        check("plugin_resource_links_size_check", sql`${table.size} is null or ${table.size} >= 0`),
+    ],
+);
+
 export const pluginMcpAppResources = sqliteTable(
     "plugin_mcp_app_resources",
     {

@@ -4,7 +4,7 @@ import { withTransaction } from "../drizzle.js";
 import type { MutationHint } from "../chat/types.js";
 import { pluginMcpAppCalls } from "../schema.js";
 import { PluginError } from "./types.js";
-import { pluginMcpAppMessageChanged } from "./impl/pluginMcpAppMessageChanged.js";
+import { pluginResultMessageChanged } from "./impl/pluginResultMessageChanged.js";
 
 const MAX_APP_CALL_JSON_BYTES = 1024 * 1024;
 
@@ -72,7 +72,7 @@ export async function pluginMcpAppBegin(
                 "The MCP App call identity is already bound to different input",
             );
         if (inserted.length === 0) return undefined;
-        return pluginMcpAppMessageChanged(tx, input);
+        return pluginResultMessageChanged(tx, input);
     });
 }
 

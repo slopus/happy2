@@ -68,9 +68,22 @@ export async function movieCatalogResult(
                 type: "text",
                 text: `${movie.title}${movie.year ? ` (${movie.year})` : ""}${movie.summary ? ` — ${movie.summary}` : ""}`,
             },
+            {
+                type: "resource_link",
+                uri: movieSharedUrl(movie),
+                name: movie.title,
+                title: movie.year ? `${movie.title} (${movie.year})` : movie.title,
+                ...(movie.summary ? { description: movie.summary } : {}),
+                mimeType: "text/html",
+            },
         ],
         structuredContent,
     };
+}
+
+function movieSharedUrl(movie: MovieCatalogMovie): string {
+    const query = new URLSearchParams({ search: `${movie.title} Studio Ghibli` });
+    return `https://en.wikipedia.org/wiki/Special:Search?${query}`;
 }
 
 export function requiredQuery(value: string): string {

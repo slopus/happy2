@@ -1,6 +1,6 @@
 import type { FileKind } from "../file/types.js";
 import type { AgentTurnTraceSummary } from "../agent/types.js";
-import type { PluginMcpAppSummary } from "../plugin/types.js";
+import type { PluginMcpAppSummary, PluginResourceLinkSummary } from "../plugin/types.js";
 
 export type ChatKind = "dm" | "public_channel" | "private_channel";
 export type ChatRole = "owner" | "admin" | "member";
@@ -155,6 +155,7 @@ export interface MessageSummary {
     generationStatus?: "streaming" | "complete" | "failed";
     agentTrace?: AgentTurnTraceSummary;
     mcpApps?: PluginMcpAppSummary[];
+    resourceLinks?: PluginResourceLinkSummary[];
     quotedMessage?: {
         id: string;
         senderUserId?: string;

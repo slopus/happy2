@@ -65,6 +65,14 @@ describe("movie catalog MCP server", () => {
                         type: "text",
                         text: "Ponyo (2008) — A goldfish princess befriends a boy named Sōsuke.",
                     },
+                    {
+                        type: "resource_link",
+                        uri: "https://en.wikipedia.org/wiki/Special:Search?search=Ponyo+Studio+Ghibli",
+                        name: "Ponyo",
+                        title: "Ponyo (2008)",
+                        description: "A goldfish princess befriends a boy named Sōsuke.",
+                        mimeType: "text/html",
+                    },
                 ],
                 structuredContent: {
                     query: "ponyo",

@@ -184,6 +184,23 @@ export interface McpAppSummary {
     readonly status: McpAppStatus;
 }
 
+/** One durable MCP resource-link block attached to the assistant message that owns its plugin call. */
+export interface MessageResourceLink {
+    readonly callId: string;
+    readonly position: number;
+    readonly installationId: string;
+    readonly pluginId: string;
+    readonly pluginShortName: string;
+    readonly toolName: string;
+    readonly kind: "resource" | "shared_link";
+    readonly uri: string;
+    readonly name: string;
+    readonly title?: string;
+    readonly description?: string;
+    readonly mimeType?: string;
+    readonly size?: number;
+}
+
 /**
  * Standardized MCP Apps resource metadata (`io.modelcontextprotocol/ui`) that the
  * host enforces around the sandboxed app: the connect/resource CSP allowlists,
@@ -445,6 +462,8 @@ export interface MessageSummary {
     readonly agentTrace?: AgentTurnTraceSummary;
     /** Interactive MCP Apps this assistant message rendered, summarized inline. */
     readonly mcpApps?: readonly McpAppSummary[];
+    /** Native cards projected from standard MCP resource-link result blocks. */
+    readonly resourceLinks?: readonly MessageResourceLink[];
     readonly quotedMessage?: {
         readonly id: string;
         readonly senderUserId?: string;

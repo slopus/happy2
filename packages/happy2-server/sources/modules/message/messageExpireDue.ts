@@ -8,9 +8,10 @@ import { messageRevisions, messages, messageSearchDocuments, notifications } fro
 import { chatAdvanceWithSequence } from "../chat/chatAdvanceWithSequence.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { pluginMcpAppsDeleteForMessage } from "../plugin/pluginMcpAppsDeleteForMessage.js";
+import { pluginResourceLinksDeleteForMessage } from "../plugin/pluginResourceLinksDeleteForMessage.js";
 
 /**
- * Tombstones due ephemeral messages and clears their messageSearchDocuments, messageRevisions, and notifications in bounded batches.
+ * Tombstones due ephemeral messages and clears their messageSearchDocuments, messageRevisions, notifications, and durable plugin result surfaces in bounded batches.
  * Expiration advances ordinary chat projections with the cleanup so no client retains searchable or unread traces of removed content.
  */
 export async function messageExpireDue(
@@ -53,6 +54,7 @@ export async function messageExpireDue(
                 await tx.delete(messageRevisions).where(eq(messageRevisions.messageId, messageId));
                 await tx.delete(notifications).where(eq(notifications.messageId, messageId));
                 await pluginMcpAppsDeleteForMessage(tx, messageId);
+                await pluginResourceLinksDeleteForMessage(tx, messageId);
                 changedChats.set(chatId, mutation.pts);
             }
         }

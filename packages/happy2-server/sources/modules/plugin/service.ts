@@ -52,6 +52,7 @@ import { pluginMcpAppBegin } from "./pluginMcpAppBegin.js";
 import { pluginMcpAppComplete } from "./pluginMcpAppComplete.js";
 import { pluginMcpAppGet } from "./pluginMcpAppGet.js";
 import { pluginMcpAppResourceGet } from "./pluginMcpAppResourceGet.js";
+import { pluginResourceLinkReplaceForCall } from "./pluginResourceLinkReplaceForCall.js";
 import { pluginAppInstancePut } from "./pluginAppInstancePut.js";
 import { pluginAppInstanceContextUpdate } from "./pluginAppInstanceContextUpdate.js";
 import { pluginAppInstanceDelete } from "./pluginAppInstanceDelete.js";
@@ -1340,6 +1341,16 @@ export class PluginService {
                         [PLUGIN_USERS_META_KEY]: referencedUsers,
                     },
                 });
+                const resourceLinkHint = await pluginResourceLinkReplaceForCall(this.executor, {
+                    sessionId: agentCall.sessionId,
+                    callId: agentCall.callId,
+                    userMessageId: agentCall.userMessageId,
+                    agentUserId: agentCall.agentUserId,
+                    installationId,
+                    toolName: cached.name,
+                    result,
+                });
+                if (resourceLinkHint) await this.publish(resourceLinkHint).catch(this.onError);
                 if (appUi.resourceUri) {
                     const hint = await pluginMcpAppComplete(this.executor, {
                         sessionId: agentCall.sessionId,

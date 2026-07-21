@@ -6,8 +6,8 @@ import type { DrizzleTransaction } from "../../drizzle.js";
 import { agentTurns, messages } from "../../schema.js";
 import { syncSequenceNext } from "../../sync/syncSequenceNext.js";
 
-/** Advances the owning assistant message when an already-linked MCP App changes. */
-export async function pluginMcpAppMessageChanged(
+/** Advances the owning assistant message when a durable plugin result surface changes. */
+export async function pluginResultMessageChanged(
     tx: DrizzleTransaction,
     input: { sessionId: string; userMessageId: string; agentUserId: string },
 ): Promise<MutationHint | undefined> {

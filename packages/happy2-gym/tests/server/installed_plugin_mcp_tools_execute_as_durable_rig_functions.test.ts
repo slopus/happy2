@@ -94,7 +94,24 @@ describe("installed plugin MCP tools in agent runs", () => {
         expect(rig.externalToolCalls.find(({ id }) => id === callId)?.resolution).toMatchObject({
             status: "completed",
             output: {
-                content: [{ type: "text", text: "Hello, Ada! It’s lovely to meet you." }],
+                content: [
+                    { type: "text", text: "Hello, Ada! It’s lovely to meet you." },
+                    {
+                        type: "resource_link",
+                        uri: "https://example.com/people/ada",
+                        name: "Ada",
+                        title: "Meet Ada",
+                        description: "A shared profile from the greeting plugin.",
+                        mimeType: "text/html",
+                        size: 2048,
+                    },
+                    {
+                        type: "resource_link",
+                        uri: "not a uri",
+                        name: "Malformed auxiliary link",
+                        size: -1,
+                    },
+                ],
             },
         });
         rig.redeliverExternalToolCall(callId);
@@ -106,6 +123,22 @@ describe("installed plugin MCP tools in agent runs", () => {
         expect(messages.at(-1)).toMatchObject({
             kind: "automated",
             text: "Hello, Ada! It’s lovely to meet you.",
+            resourceLinks: [
+                {
+                    callId,
+                    position: 0,
+                    installationId,
+                    pluginShortName: "hello",
+                    toolName: "hello_greet",
+                    kind: "shared_link",
+                    uri: "https://example.com/people/ada",
+                    name: "Ada",
+                    title: "Meet Ada",
+                    description: "A shared profile from the greeting plugin.",
+                    mimeType: "text/html",
+                    size: 2048,
+                },
+            ],
         });
     });
 });
@@ -180,6 +213,21 @@ class GreetingPluginMcpRuntime implements PluginMcpRuntime {
                             {
                                 type: "text",
                                 text: `Hello, ${String(params.arguments.name)}! It’s lovely to meet you.`,
+                            },
+                            {
+                                type: "resource_link",
+                                uri: "https://example.com/people/ada",
+                                name: "Ada",
+                                title: "Meet Ada",
+                                description: "A shared profile from the greeting plugin.",
+                                mimeType: "text/html",
+                                size: 2048,
+                            },
+                            {
+                                type: "resource_link",
+                                uri: "not a uri",
+                                name: "Malformed auxiliary link",
+                                size: -1,
                             },
                         ],
                     };

@@ -4,7 +4,7 @@ import { withTransaction } from "../drizzle.js";
 import type { MutationHint } from "../chat/types.js";
 import { pluginMcpAppCalls } from "../schema.js";
 import { PluginError } from "./types.js";
-import { pluginMcpAppMessageChanged } from "./impl/pluginMcpAppMessageChanged.js";
+import { pluginResultMessageChanged } from "./impl/pluginResultMessageChanged.js";
 
 const MAX_APP_RESULT_JSON_BYTES = 4 * 1024 * 1024;
 
@@ -53,7 +53,7 @@ export async function pluginMcpAppComplete(
             )
             .returning({ callId: pluginMcpAppCalls.callId });
         if (rows.length !== 1) throw new Error("MCP App call disappeared during completion");
-        return pluginMcpAppMessageChanged(tx, {
+        return pluginResultMessageChanged(tx, {
             sessionId: input.sessionId,
             userMessageId: current.userMessageId,
             agentUserId: current.agentUserId,

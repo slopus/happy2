@@ -17,9 +17,10 @@ import { chatGetAccess } from "../chat/chatGetAccess.js";
 import { messageGetProjection } from "./messageGetProjection.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { pluginMcpAppsDeleteForMessage } from "../plugin/pluginMcpAppsDeleteForMessage.js";
+import { pluginResourceLinksDeleteForMessage } from "../plugin/pluginResourceLinksDeleteForMessage.js";
 
 /**
- * Tombstones messages and removes their messageSearchDocuments, messageRevisions, notifications, and pluginMcpAppCalls payloads.
+ * Tombstones messages and removes their messageSearchDocuments, messageRevisions, notifications, pluginMcpAppCalls, and pluginResourceLinks payloads.
  * One chat mutation keeps visible history, search results, and badges aligned on the same deletion point.
  */
 export async function messageDelete(
@@ -75,6 +76,7 @@ export async function messageDelete(
         await tx.delete(messageRevisions).where(eq(messageRevisions.messageId, messageId));
         await tx.delete(notifications).where(eq(notifications.messageId, messageId));
         await pluginMcpAppsDeleteForMessage(tx, messageId);
+        await pluginResourceLinksDeleteForMessage(tx, messageId);
         const message = await messageGetProjection(tx, actorUserId, messageId);
         if (!message) throw new Error("Deleted message tombstone is not readable");
         return {
