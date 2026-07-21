@@ -1463,7 +1463,7 @@ export function ChatPage(props: ChatPageProps) {
                 : undefined;
         return (
             <ChatMessageEntry
-                key={entry.id}
+                key={message?.renderKey ?? entry.id}
                 appNodes={appNodes}
                 entry={entry}
                 audienceLabel={message ? messageAudienceLabel(message) : undefined}
@@ -1473,8 +1473,8 @@ export function ChatPage(props: ChatPageProps) {
                 own={
                     message !== undefined &&
                     !message.agent &&
-                    message.senderId !== undefined &&
-                    message.senderId === user()?.id
+                    (message.own ||
+                        (message.senderId !== undefined && message.senderId === user()?.id))
                 }
                 images={message ? mediaModel.images(message) : []}
                 menuContributions={server ? props.messageContributions?.(server.id) : undefined}

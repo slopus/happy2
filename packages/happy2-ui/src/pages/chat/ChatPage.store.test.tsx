@@ -1231,6 +1231,80 @@ it("reconciles an effort notice without remounting or moving focus from the chat
     );
 });
 
+it("keeps an optimistic message outgoing through its authoritative confirmation", async () => {
+    const pending: ChatMessageItem = {
+        ...messageItem("local:mutation-1", "hello"),
+        source: "local",
+        delivery: "sending",
+        clientMutationId: "mutation-1",
+    };
+    const confirmed: ChatMessageItem = {
+        ...messageItem("message-1", "hello"),
+        clientMutationId: "mutation-1",
+        message: {
+            ...messageItem("message-1", "hello").message,
+            sender: {
+                id: "user-1",
+                displayName: "Ada Lovelace",
+                username: "ada",
+                kind: "human",
+            },
+        },
+    };
+    expect(entriesProject([pending])[1]).toMatchObject({
+        id: "local:mutation-1",
+        own: true,
+        renderKey: "mutation-1",
+    });
+    expect(entriesProject([confirmed])[1]).toMatchObject({
+        id: "message-1",
+        own: true,
+        renderKey: "mutation-1",
+    });
+
+    let update!: (item: ChatMessageItem) => void;
+    const view = createRenderer();
+    view.render(
+        () => {
+            const [items, setItems] = useState([pending]);
+            update = (item) => setItems([item]);
+            return entriesProject(items).map((entry) => {
+                if (entry.kind !== "message") return null;
+                return (
+                    <ChatMessageEntry
+                        entry={entry}
+                        files={[]}
+                        grouped={false}
+                        images={[]}
+                        key={entry.renderKey}
+                        menuItems={[]}
+                        onImageOpen={() => undefined}
+                        onMenuSelect={() => undefined}
+                        onProfileOpen={() => undefined}
+                        onReactionSelect={() => undefined}
+                        onReplySelect={() => undefined}
+                        own={entry.own}
+                    />
+                );
+            });
+        },
+        { width: 600, height: 400 },
+    );
+    await view.ready();
+    const pendingRoot = view.container.querySelector('[data-happy2-ui="message"]')!;
+    expect(pendingRoot.getAttribute("data-own")).toBe("");
+    expect(pendingRoot.getAttribute("data-delivery-state")).toBe("sending");
+    expect(pendingRoot.textContent).not.toContain("Happy (2)");
+
+    update(confirmed);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const confirmedRoot = view.container.querySelector('[data-happy2-ui="message"]')!;
+    expect(confirmedRoot).toBe(pendingRoot);
+    expect(confirmedRoot.getAttribute("data-own")).toBe("");
+    expect(confirmedRoot.getAttribute("data-delivery-state")).toBe("sent");
+    expect(confirmedRoot.textContent).not.toContain("Happy (2)");
+});
+
 it("edits an own message through the desktop-safe dialog with its current revision", async () => {
     const sidebar = sidebarStoreFixtureCreate();
     const directory = directoryStoreFixtureCreate();

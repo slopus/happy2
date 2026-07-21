@@ -63,6 +63,18 @@ type ThreadDivider = {
     label: string;
 };
 export type LiveThreadMessage = ThreadMessage & {
+    /**
+     * A locally authored item is outgoing before the server returns its sender
+     * projection. The acknowledgement retains its client mutation id so this
+     * stays true through confirmation even if a delayed identity projection
+     * has not arrived yet.
+     */
+    own: boolean;
+    /**
+     * Stable React identity for an optimistic message and its authoritative
+     * acknowledgement. The server message id remains in `id` for actions.
+     */
+    renderKey: string;
     serverMessage?: DeepReadonly<ChatMessageProjection>;
     senderId?: string;
     photoFileId?: string;
@@ -160,11 +172,14 @@ function dayLabel(value: string): string {
 function messageEntry(item: DeepReadonly<ChatMessageItem>): LiveThreadMessage {
     const message = item.message;
     const sender = message.sender;
-    const name = sender?.displayName ?? message.senderBot?.name ?? "Happy (2)";
+    const own = item.source === "local" || item.clientMutationId !== undefined;
+    const name = sender?.displayName ?? message.senderBot?.name ?? (own ? "You" : "Happy (2)");
     const deleted = Boolean(message.deletedAt);
     return {
         kind: "message",
         id: message.id,
+        own,
+        renderKey: item.clientMutationId ?? message.id,
         conversationId: message.chatId,
         author: name,
         initials: sender ? identityInitials(sender) : name.slice(0, 2).toUpperCase(),
