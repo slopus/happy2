@@ -6,7 +6,7 @@ import {
     type HTMLAttributes,
     type ReactNode,
 } from "react";
-import { happyOtterLogoUrl } from "./assets";
+import { happyLogoUrl } from "./assets";
 import { CountBadge } from "./Badge";
 import { Icon, type IconName } from "./Icon";
 import { Menu, type MenuItem } from "./Menu";
@@ -48,7 +48,7 @@ export type RailProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
     style?: CSSProperties;
 };
 /**
- * The 64px feature rail: happy otter brand mark (replaceable through the brand
+ * The 64px feature rail: Happy brand mark (replaceable through the brand
  * slot), icon+label destinations, and a footer slot pinned to the bottom.
  * Navigation only — the app shell composes it next to the main content panel.
  */
@@ -115,7 +115,7 @@ export function Rail(props: RailProps) {
                         className="happy2-rail__brand-image"
                         data-happy2-ui="rail-brand-image"
                         draggable={false}
-                        src={happyOtterLogoUrl}
+                        src={happyLogoUrl}
                     />
                 )}
             </div>

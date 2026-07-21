@@ -96,6 +96,43 @@ const sections: SidebarSection[] = [
     },
 ];
 
+it("renders the Happy logo to the left of the product title", async () => {
+    const view = createRenderer().render(
+        () => (
+            <Sidebar
+                activeItemId=""
+                brand
+                data-testid="brand"
+                onItemSelect={() => {}}
+                sections={[]}
+            />
+        ),
+        { width: 400, height: 240 },
+    );
+    await view.ready();
+
+    const logo = view.$('[data-happy2-ui="sidebar-brand-logo"]');
+    const logoImage = logo.element as HTMLImageElement;
+    await logoImage.decode();
+    expect(logo.bounds()).toEqual({ x: 16, y: 18, width: 20, height: 20 });
+    expect(logo.computedStyles(["display", "height", "object-fit", "width"])).toEqual({
+        display: "block",
+        height: "20px",
+        "object-fit": "contain",
+        width: "20px",
+    });
+    expect(logoImage.naturalWidth).toBe(1024);
+    expect(logoImage.getAttribute("alt")).toBe("");
+    expect(logoImage.getAttribute("aria-hidden")).toBe("true");
+    expect((await logo.visibleMetrics()).pixelCount).toBeGreaterThan(0);
+
+    const title = view.$('[data-happy2-ui="sidebar-title"]');
+    expect(title.bounds().x - (logo.bounds().x + logo.bounds().width)).toBe(5);
+    expect(title.element.textContent).toBe("Happy 2");
+
+    await view.screenshot("Sidebar.brand.test");
+}, 120_000);
+
 /* Ink centroid of `el`, in the coordinate space of its 32px row. */
 async function rowInk(el: RenderedElement<Element>, row: RenderedElement<Element>) {
     const ink = await el.visibleMetrics();

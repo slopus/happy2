@@ -50,6 +50,17 @@
     min-width: 0;
 }
 
+.happy2-sidebar__brand-logo {
+    display: block;
+    flex: none;
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    -webkit-user-drag: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
 .happy2-sidebar__title {
     display: block;
     overflow: hidden;

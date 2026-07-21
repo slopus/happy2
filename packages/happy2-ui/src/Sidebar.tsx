@@ -3,6 +3,7 @@ import { type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { CountBadge } from "./Badge";
 import { Button } from "./Button";
+import { happyLogoUrl } from "./assets";
 import { Icon, type IconName } from "./Icon";
 import { PluginAssetGlyph } from "./PluginAssetGlyph";
 export type SidebarItem = {
@@ -212,6 +213,14 @@ export function Sidebar(props: SidebarProps) {
                     <div className="happy2-sidebar__heading" data-happy2-ui="sidebar-heading">
                         {local.brand ? (
                             <span className="happy2-sidebar__title-row">
+                                <img
+                                    alt=""
+                                    aria-hidden="true"
+                                    className="happy2-sidebar__brand-logo"
+                                    data-happy2-ui="sidebar-brand-logo"
+                                    draggable={false}
+                                    src={happyLogoUrl}
+                                />
                                 <span
                                     className="happy2-sidebar__title"
                                     data-happy2-ui="sidebar-title"

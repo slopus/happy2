@@ -1,6 +1,6 @@
 <div align="center">
 
-<p><img src="./.github/logo.png" alt="Happy (2)" width="640" /></p>
+<p><img src="./.github/logo.png" alt="Happy (2)" width="160" /></p>
 
 <h3>A self-hosted, Slack-like workspace where people and coding agents build together.</h3>
 

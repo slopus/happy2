@@ -1,8 +1,14 @@
 import { app, BrowserWindow, nativeTheme } from "electron";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
+const builtApplicationIconPath = path.join(dirname, "renderer", "app-icon.png");
+const sourceApplicationIconPath = path.join(dirname, "..", "public", "app-icon.png");
+const applicationIconPath = existsSync(builtApplicationIconPath)
+    ? builtApplicationIconPath
+    : sourceApplicationIconPath;
 const windowBackgroundColor = "#131217"; // Mirrors happy2-ui --happy2-bg-chrome.
 const titleBarHeight = 38;
 const macosTrafficLightSize = 14;
@@ -23,6 +29,7 @@ function createWindow() {
         height: 760,
         minWidth: 720,
         minHeight: 480,
+        icon: applicationIconPath,
         show: false,
         ...(process.platform === "darwin" ? macosWindowChrome : {}),
         webPreferences: {
@@ -47,6 +54,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+    app.dock?.setIcon(applicationIconPath);
     createWindow();
 
     app.on("activate", () => {

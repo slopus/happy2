@@ -252,7 +252,7 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
         height: 560,
     });
 
-    /* The generated happy otter is the default 32px brand mark. It occupies
+    /* The Happy star is the default 32px brand mark. It occupies
      * the former R slot without restoring any text glyph. */
     const brandImage = view.$('[data-testid="rail-main"] [data-happy2-ui="rail-brand-image"]');
     const brandImageElement = brandImage.element as HTMLImageElement;
@@ -266,12 +266,12 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
         width: "32px",
     });
     expect(brandImageElement.complete).toBe(true);
-    expect(brandImageElement.naturalWidth).toBe(128);
+    expect(brandImageElement.naturalWidth).toBe(1024);
     expect(brandImage.element.getAttribute("alt")).toBe("");
     expect(brandImage.element.getAttribute("aria-hidden")).toBe("true");
     expect(document.querySelectorAll('[data-happy2-ui="rail-brand-glyph"]')).toHaveLength(0);
 
-    /* Supplied brand content replaces the otter inside the same centered slot. */
+    /* Supplied brand content replaces the star inside the same centered slot. */
     expect(
         document.querySelectorAll(
             '[data-testid="rail-custom"] [data-happy2-ui="rail-brand-image"]',
